@@ -6,6 +6,16 @@ arquitetura. A branch `deploy/hostinger-node` só adiciona adaptações de deplo
 nenhuma regra de negócio foi alterada e nenhuma funcionalidade da `master` foi
 removida.
 
+## Requisitos
+
+- **Node.js 22** (defina a versão 22 no painel Node da Hostinger; o projeto
+  fixa `engines.node >= 22.0.0` e traz um `.nvmrc` com `22`). Uma dependência do
+  Prisma exige Node 22; versões anteriores (ex.: 20.19) falham no build.
+- MySQL da Hostinger (criado no hPanel).
+- O **build precisa das devDependencies** (TypeScript, Prisma CLI, Vite, `@types/*`).
+  Se o ambiente estiver em modo produção, force a inclusão delas no install
+  (ver seção 2) — senão o build falha com "módulo/tipagens ausentes".
+
 ## Modelo adotado: single-origin (uma aplicação só)
 
 A própria API Fastify passa a **servir o frontend Vite compilado** e a fazer o
@@ -50,14 +60,23 @@ No painel Node da Hostinger, configure o **Build command** (ou rode via SSH na
 raiz do projeto, uma vez, após cada envio de código):
 
 ```bash
-npm install && npm run build:deploy
+npm ci --include=dev && npm run build:deploy
 ```
 
-- `npm install` — instala dependências de todos os workspaces.
-- `npm run build:deploy` — roda `prisma generate` e compila **shared → api →
-  web** (`packages/shared`, `apps/api` → `apps/api/dist`, `apps/web` →
-  `apps/web/dist`).
+- `npm ci --include=dev` — instala dependências de todos os workspaces a partir
+  do `package-lock.json`. O `--include=dev` garante que **devDependencies**
+  (TypeScript, Prisma CLI, Vite, `@types/*`) sejam instaladas mesmo se o
+  ambiente estiver com `NODE_ENV=production` — elas são necessárias **só no
+  build**. (Se `npm ci` não estiver disponível, use `npm install --include=dev`.)
+- `npm run build:deploy` — roda, **nesta ordem**: `prisma generate` (gera o
+  Prisma Client em `apps/api/src/database-client`, que **não** é versionado) e
+  depois compila **shared → api → web** (`packages/shared`, `apps/api` →
+  `apps/api/dist`, `apps/web` → `apps/web/dist`). O `prisma generate` roda
+  **antes** de qualquer TypeScript que importe `database-client/client.js`.
 
+> ⚠️ O `prisma generate` **não** exige `DATABASE_URL`: a URL é montada a partir
+> das variáveis `DB_*` (seção 4/5). Configure-as (ou a `.env`) antes do build.
+>
 > ⚠️ O build do frontend precisa da variável `VITE_API_URL` já definida no
 > ambiente **no momento do build** (ela é embutida no bundle). Garanta que o
 > `.env` de produção já exista antes de buildar o web. Veja a seção 4.
@@ -112,13 +131,25 @@ Mínimo obrigatório:
 | Variável | Exemplo | Observação |
 | --- | --- | --- |
 | `NODE_ENV` | `production` | ativa regras de segurança (cookie Secure, HTTPS). |
-| `DATABASE_URL` | `mysql://user:senha@host:3306/banco?connection_limit=5` | ver seção 5. |
-| `CORS_ORIGINS` | `https://app.seudominio.com` | seu domínio público; nunca `*`. |
-| `VITE_API_URL` | `https://app.seudominio.com` | mesmo domínio (single-origin); embutida no build do web. |
-| `APP_WEB_URL` | `https://app.seudominio.com` | usada em links de e-mail; deve ser HTTPS. |
+| `DB_HOST` | `127.0.0.1` | padrão `127.0.0.1` se omitido. |
+| `DB_PORT` | `3306` | padrão `3306` se omitido. |
+| `DB_NAME` | `u000000000_agendei` | **obrigatório** em produção. |
+| `DB_USER` | `u000000000_agendei` | **obrigatório** em produção. |
+| `DB_PASSWORD` | *(do painel Hostinger)* | **obrigatório** em produção; nunca versione. |
+| `DB_CONNECTION_LIMIT` | `5` | padrão `5` se omitido. |
+| `CORS_ORIGINS` | `https://agendei.site,https://www.agendei.site` | domínio(s) público(s); nunca `*`. |
+| `VITE_API_URL` | `https://agendei.site` | mesmo domínio (single-origin); embutida no build do web. |
+| `APP_WEB_URL` | `https://agendei.site` | usada em links de e-mail; deve ser HTTPS. |
 | `WEB_DIST_DIR` | `./apps/web/dist` | faz a API servir o frontend + fallback SPA. |
 | `AUTH_COOKIE_SECURE` | `true` | obrigatório em produção. |
 | `LOG_LEVEL` | `info` | |
+
+**Banco: NÃO é necessário configurar `DATABASE_URL`.** A aplicação e a CLI do
+Prisma (via `prisma.config.ts`) montam a connection string internamente a partir
+de `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`/`DB_CONNECTION_LIMIT`,
+fazendo URL-encoding de usuário, senha e nome do banco. Se você **quiser**,
+`DATABASE_URL` ainda pode ser definida e tem prioridade — mas não é obrigatória.
+A senha/URL completa **nunca** é escrita em log.
 
 Porta/host: **não** defina `API_PORT` — a Hostinger fornece `PORT`. `API_HOST`
 assume `0.0.0.0`.
@@ -129,7 +160,9 @@ Uploads (recomendado apontar para diretório persistente — seção 6):
 
 Opcionais (só se for usar; podem ficar em branco): `SMTP_*` (e-mail
 transacional), `VAPID_*` (web push), `PAYMENT_GATEWAY_ENCRYPTION_KEY` (gateways
-de pagamento), `PUBLIC_BASE_DOMAIN` (sites de tenant por subdomínio).
+de pagamento), `PUBLIC_BASE_DOMAIN` (sites de tenant por subdomínio). Essas
+chaves devem permanecer **estáveis** após entrar em produção — não as regenere a
+cada deploy.
 
 O restante (Argon2, rate limit, TTLs) tem padrões seguros — só ajuste se
 necessário. A lista completa comentada está em `.env.production.example`.
@@ -140,18 +173,20 @@ necessário. A lista completa comentada está em `.env.production.example`.
 
 1. No hPanel: **Bancos de dados MySQL** → crie um banco e um usuário, anote
    host, porta, nome do banco, usuário e senha.
-2. Monte a `DATABASE_URL`:
-   `mysql://USUARIO:SENHA@HOST:PORTA/NOME_DO_BANCO?connection_limit=5`
-   - Em plano compartilhado, mantenha `connection_limit` **baixo** (3–5) para
+2. Configure as variáveis `DB_*` (seção 4) — **não** monte `DATABASE_URL`
+   manualmente. A aplicação faz o URL-encoding de usuário/senha/nome do banco
+   automaticamente, então caracteres especiais na senha funcionam sem ajuste.
+   - Em plano compartilhado, mantenha `DB_CONNECTION_LIMIT` **baixo** (3–5) para
      não estourar o limite de conexões da conta.
-   - Se a senha tiver caracteres especiais, faça URL-encode deles.
 3. Aplique o schema com as migrações (não use `db push` em produção):
    ```bash
    npm run db:migrate
    ```
    Isso roda `prisma migrate deploy` (aplica as migrações versionadas do
    projeto, sem shadow database — compatível com usuários MySQL sem permissão
-   para criar bancos temporários).
+   para criar bancos temporários). O comando **também** usa as variáveis `DB_*`
+   (via `prisma.config.ts`) — não é preciso `DATABASE_URL` para migrar. O mesmo
+   vale para `npm run db:generate`.
 4. Backups: o projeto já traz utilitários em `docs/database-backups.md`
    (`npm run db:backup` etc.), que dependem dos clientes `mysqldump`/`mysql` no
    `PATH`. Em hospedagem compartilhada eles podem não estar disponíveis — nesse
@@ -179,15 +214,23 @@ para o processo Node.
 
 ## 7. Configuração de domínio
 
-1. Aponte seu domínio/subdomínio (ex.: `app.seudominio.com`) para a aplicação
-   Node no painel da Hostinger.
-2. Ative **HTTPS/SSL** para esse domínio (o hPanel emite certificado gratuito).
+Domínio de produção: **`https://agendei.site`** (considerando também
+`https://www.agendei.site`).
+
+1. Aponte `agendei.site` (e o `www`) para a aplicação Node no painel da
+   Hostinger.
+2. Ative **HTTPS/SSL** para o domínio (o hPanel emite certificado gratuito).
    HTTPS é **obrigatório**: em produção o cookie de sessão é `Secure` e
    `APP_WEB_URL`/`VITE_API_URL` devem ser `https://`.
-3. Use **o mesmo domínio** em `CORS_ORIGINS`, `VITE_API_URL` e `APP_WEB_URL`.
-4. Sites públicos de tenants por subdomínio (`PUBLIC_BASE_DOMAIN`) exigem
-   DNS curinga (`*.sites.seudominio.com`) — recurso frequentemente **não**
-   suportado em plano compartilhado (ver seção 9).
+3. Use o mesmo domínio em `VITE_API_URL` e `APP_WEB_URL`
+   (`https://agendei.site`), e liste ambos em `CORS_ORIGINS`
+   (`https://agendei.site,https://www.agendei.site`).
+4. Base para sites públicos de tenants por subdomínio: `PUBLIC_BASE_DOMAIN=agendei.site`.
+   A arquitetura já resolve, por configuração (sem hardcode), futuros
+   subdomínios como `cliente.agendei.site`. Isso exige **DNS curinga**
+   (`*.agendei.site`) — recurso frequentemente **não** suportado em plano
+   compartilhado (ver seção 9); enquanto não houver curinga, o app funciona
+   normalmente no domínio principal.
 
 As áreas administrativas (Super Admin / administração global) **não têm link no
 site comercial**; continuam acessíveis apenas por URL direta.
@@ -250,7 +293,12 @@ clientes e a varredura comercial de assinaturas continuam sendo processados.
   planos com storage efêmero, aponte para uma pasta persistente da conta.
 - **Ferramentas de backup por linha de comando** (`mysqldump`/`mysql`) podem não
   estar no `PATH` — use os backups do hPanel como alternativa.
-- **Limite de conexões MySQL:** mantenha `connection_limit` baixo (seção 5).
+- **Limite de conexões MySQL:** mantenha `DB_CONNECTION_LIMIT` baixo (seção 5).
+- **Versão do Node:** use **Node 22** no painel (versões anteriores, ex.: 20.19,
+  falham no build por causa de uma dependência do Prisma que exige Node 22).
+- **DevDependencies no build:** o build precisa de TypeScript/Prisma/Vite/`@types`
+  (devDependencies). Instale com `--include=dev` (seção 2) — em modo produção o
+  `npm ci`/`npm install` as omitiria e o build falharia.
 - **Recursos de CPU/RAM restritos:** se houver erro de memória no hash de senha,
   reduza `PASSWORD_ARGON2_MEMORY_COST` (mínimo 19456).
 
@@ -262,14 +310,16 @@ periódicas).
 
 ## 10. Checklist de primeiro deploy
 
-1. Criar banco MySQL no hPanel e montar `DATABASE_URL`.
-2. Enviar o código (sem `node_modules`/`.env`/`dist`).
-3. Criar o `.env` de produção a partir de `.env.production.example` (incluindo
-   `VITE_API_URL` **antes** do build).
-4. `npm install && npm run build:deploy`.
-5. `npm run db:migrate` (e, no 1º deploy, criar o Super Admin).
-6. Definir start: `npm run start`; garantir `WEB_DIST_DIR=./apps/web/dist`.
-7. Apontar domínio + ativar HTTPS.
-8. Criar o cron `npm run worker:once` (seção 8).
-9. Validar: abrir o domínio (site carrega), `GET /health` responde `ok`,
-   `GET /ready` responde `ready` (banco conectado), login funciona.
+1. Definir **Node 22** no painel Node da Hostinger.
+2. Criar banco MySQL no hPanel e anotar host/porta/nome/usuário/senha (para as
+   variáveis `DB_*` — **não** é preciso `DATABASE_URL`).
+3. Enviar o código (sem `node_modules`/`.env`/`dist`).
+4. Criar o `.env` de produção a partir de `.env.production.example` — com as
+   `DB_*` e `VITE_API_URL` definidas **antes** do build.
+5. Build: `npm ci --include=dev && npm run build:deploy`.
+6. `npm run db:migrate` (e, no 1º deploy, criar o Super Admin).
+7. Definir start: `npm run start`; garantir `WEB_DIST_DIR=./apps/web/dist`.
+8. Apontar `agendei.site`/`www` + ativar HTTPS.
+9. Criar o cron `npm run worker:once` (seção 8).
+10. Validar: abrir o domínio (site carrega), `GET /health` responde `ok`,
+    `GET /ready` responde `ready` (banco conectado), login funciona.

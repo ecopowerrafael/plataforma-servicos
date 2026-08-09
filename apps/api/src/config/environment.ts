@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { config } from 'dotenv';
 import { z } from 'zod';
 
+import { buildDatabaseUrl } from './database-url.js';
+
 config({ path: resolve(import.meta.dirname, '../../../../.env'), quiet: true });
 
 const logLevels = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
@@ -106,25 +108,60 @@ export type Environment = Readonly<z.infer<typeof environmentSchema>>;
 export class EnvironmentValidationError extends Error {
   public readonly fields: string[];
 
-  public constructor(issues: z.core.$ZodIssue[]) {
-    super('As variáveis de ambiente são inválidas.');
+  public constructor(fields: string[], message = 'As variáveis de ambiente são inválidas.') {
+    super(message);
     this.name = 'EnvironmentValidationError';
-    this.fields = [...new Set(issues.map((issue) => issue.path.join('.') || 'environment'))];
+    this.fields = fields;
+  }
+
+  public static fromZod(issues: z.core.$ZodIssue[]): EnvironmentValidationError {
+    return new EnvironmentValidationError([
+      ...new Set(issues.map((issue) => issue.path.join('.') || 'environment')),
+    ]);
   }
 }
 
 export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Environment {
+  const normalized: NodeJS.ProcessEnv = { ...source };
+
   // Hospedagens Node.js gerenciadas (Hostinger, entre outras) injetam a porta
   // exclusivamente via `PORT`. Reaproveitamos esse valor para `API_PORT` quando
   // este não é definido explicitamente, sem alterar o contrato interno da API.
-  const normalized: NodeJS.ProcessEnv =
-    source.API_PORT === undefined && source.PORT !== undefined
-      ? { ...source, API_PORT: source.PORT }
-      : source;
+  if (normalized.API_PORT === undefined && normalized.PORT !== undefined) {
+    normalized.API_PORT = normalized.PORT;
+  }
+
+  // Quando `DATABASE_URL` não é fornecida, montamos a partir de DB_* — assim o
+  // operador configura só DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD/
+  // DB_CONNECTION_LIMIT (a senha nunca é logada; ver redações do logger).
+  if (normalized.DATABASE_URL === undefined || normalized.DATABASE_URL.trim().length === 0) {
+    if (
+      normalized.NODE_ENV === 'production' &&
+      normalized.DB_NAME !== undefined &&
+      normalized.DB_USER !== undefined
+    ) {
+      const missing = (['DB_NAME', 'DB_USER', 'DB_PASSWORD'] as const).filter((key) => {
+        const value = normalized[key];
+        return value === undefined || value.trim().length === 0;
+      });
+      if (missing.length > 0) {
+        throw new EnvironmentValidationError(
+          [...missing],
+          'Configuração de banco incompleta: informe DB_NAME, DB_USER e DB_PASSWORD (ou DATABASE_URL).',
+        );
+      }
+    }
+
+    const built = buildDatabaseUrl(normalized);
+    if (built !== undefined) {
+      normalized.DATABASE_URL = built;
+    }
+  }
+
   const result = environmentSchema.safeParse(normalized);
 
   if (!result.success) {
-    throw new EnvironmentValidationError(result.error.issues);
+    throw EnvironmentValidationError.fromZod(result.error.issues);
   }
 
   return Object.freeze(result.data);

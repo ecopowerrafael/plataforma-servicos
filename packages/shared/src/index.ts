@@ -31,6 +31,7 @@ export * from './tenant-operations.js';
 export * from './notification.js';
 export * from './notification-template.js';
 export * from './push-subscription.js';
+export * from './product.js';
 export * from './payment.js';
 export * from './payment-method.js';
 export * from './cash-register.js';

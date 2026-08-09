@@ -1,3 +1,11 @@
+## Etapa 16 — Estoque e produtos (em andamento nesta branch)
+
+Primeiro bloco funcional concluído: categorias de produtos, produtos e saldo de estoque por unidade. Foram adicionados contratos compartilhados, models Prisma/MySQL e migration própria, módulos repository/service/routes, isolamento por tenant, validação de categoria e unidade, permissões específicas (`product.read`, `product.manage`, `stock.read`, `stock.manage`) e auditoria das mutações. O saldo inicial é definido por produto/unidade e inclui quantidade mínima e indicador calculado de estoque baixo. Entradas, saídas, movimentações, vendas, comissões e histórico permanecem fora deste bloco e não foram iniciados.
+
+Segundo bloco funcional concluído: ledger de movimentações com entrada, saída manual, ajustes positivo/negativo e transferência entre unidades. Cada registro preserva quantidade anterior/posterior, motivo, usuário responsável e data/hora. Transferências geram duas pernas vinculadas e toda alteração de saldo, ledger e auditoria ocorre em transação serializável com bloqueio dos saldos; operações que produziriam estoque negativo são rejeitadas. O endpoint de definição de saldo do primeiro bloco agora também delega diferenças de quantidade ao ledger, evitando alterações sem histórico.
+
+Validação dos blocos: build do pacote compartilhado e typecheck da API concluídos; `product-contracts.test.ts` e `stock-movement.test.ts` cobrem contratos e regras diretamente relacionadas. Nenhum status das demais etapas foi alterado. Vendas de produtos, comissão por produto e integração financeira não foram iniciadas.
+
 ETAPAS
 1 Fundação: concluída
 2 Multiempresa: concluída

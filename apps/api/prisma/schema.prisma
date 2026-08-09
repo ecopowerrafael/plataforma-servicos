@@ -255,6 +255,15 @@ enum NotificationStatus {
   SKIPPED
 }
 
+enum StockMovementType {
+  ENTRY
+  MANUAL_EXIT
+  POSITIVE_ADJUSTMENT
+  NEGATIVE_ADJUSTMENT
+  TRANSFER_OUT
+  TRANSFER_IN
+}
+
 enum AutomationTrigger {
   APPOINTMENT_REMINDER
   POST_APPOINTMENT
@@ -369,6 +378,10 @@ model Tenant {
   notificationLogs             NotificationLog[]
   notificationTemplates        NotificationTemplate[]
   pushSubscriptions            PushSubscription[]
+  productCategories            ProductCategory[]
+  products                     Product[]
+  productStocks                ProductStock[]
+  stockMovements               StockMovement[]
   payments                     Payment[]
   paymentMethods               PaymentMethod[]
   cashRegisters                CashRegister[]
@@ -421,6 +434,7 @@ model User {
   receiptsIssued                Receipt[]                 @relation("ReceiptIssuedBy")
   financialClosingsClosed       FinancialClosing[]        @relation("FinancialClosingClosedBy")
   loyaltyLedgerEntries          LoyaltyLedgerEntry[]
+  stockMovementsPerformed       StockMovement[]
 
   @@index([status])
   @@map("users")
@@ -857,6 +871,98 @@ model TenantCustomFieldDefinition {
   @@map("tenant_custom_field_definitions")
 }
 
+model ProductCategory {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId    String    @unique @map("public_id") @db.Char(36)
+  tenantId    BigInt    @map("tenant_id") @db.UnsignedBigInt
+  name        String    @db.VarChar(120)
+  description String?   @db.VarChar(500)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  products    Product[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active, name])
+  @@map("product_categories")
+}
+
+model Product {
+  id             BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String           @unique @map("public_id") @db.Char(36)
+  tenantId       BigInt           @map("tenant_id") @db.UnsignedBigInt
+  categoryId     BigInt?          @map("category_id") @db.UnsignedBigInt
+  name           String           @db.VarChar(160)
+  description    String?          @db.VarChar(1000)
+  sku            String?          @db.VarChar(80)
+  barcode        String?          @db.VarChar(80)
+  costPriceCents BigInt           @default(0) @map("cost_price_cents") @db.UnsignedBigInt
+  salePriceCents BigInt           @map("sale_price_cents") @db.UnsignedBigInt
+  active         Boolean          @default(true)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  stocks         ProductStock[]
+  movements      StockMovement[]
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, sku])
+  @@unique([tenantId, barcode])
+  @@index([tenantId, active, name])
+  @@index([tenantId, categoryId])
+  @@map("products")
+}
+
+model ProductStock {
+  id              BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String       @unique @map("public_id") @db.Char(36)
+  tenantId        BigInt       @map("tenant_id") @db.UnsignedBigInt
+  productId       BigInt       @map("product_id") @db.UnsignedBigInt
+  businessUnitId  BigInt       @map("business_unit_id") @db.UnsignedBigInt
+  quantity        Int          @default(0) @db.UnsignedInt
+  minimumQuantity Int          @default(0) @map("minimum_quantity") @db.UnsignedInt
+  createdAt       DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  product         Product      @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  businessUnit    BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([productId, businessUnitId])
+  @@index([tenantId, businessUnitId])
+  @@index([tenantId, productId])
+  @@map("product_stocks")
+}
+
+model StockMovement {
+  id                    BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String            @unique @map("public_id") @db.Char(36)
+  transferPublicId      String?           @map("transfer_public_id") @db.Char(36)
+  tenantId              BigInt            @map("tenant_id") @db.UnsignedBigInt
+  productId             BigInt            @map("product_id") @db.UnsignedBigInt
+  businessUnitId        BigInt            @map("business_unit_id") @db.UnsignedBigInt
+  relatedBusinessUnitId BigInt?           @map("related_business_unit_id") @db.UnsignedBigInt
+  type                  StockMovementType
+  quantity              Int               @db.UnsignedInt
+  previousQuantity      Int               @map("previous_quantity") @db.UnsignedInt
+  resultingQuantity     Int               @map("resulting_quantity") @db.UnsignedInt
+  reason                String?           @db.VarChar(500)
+  performedByUserId     BigInt            @map("performed_by_user_id") @db.UnsignedBigInt
+  createdAt             DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  tenant                Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  product               Product           @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  businessUnit          BusinessUnit      @relation("StockMovementUnit", fields: [businessUnitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  relatedBusinessUnit   BusinessUnit?     @relation("StockMovementRelatedUnit", fields: [relatedBusinessUnitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  performedByUser       User              @relation(fields: [performedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, productId, businessUnitId, createdAt])
+  @@index([transferPublicId])
+  @@index([performedByUserId, createdAt])
+  @@map("stock_movements")
+}
+
 model Service {
   id                      BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
   publicId                String                @unique @map("public_id") @db.Char(36)
@@ -998,6 +1104,9 @@ model BusinessUnit {
   dateOverrides                BusinessUnitDateOverride[]
   customers                    Customer[]
   appointments                 Appointment[]
+  productStocks                ProductStock[]
+  stockMovements               StockMovement[]              @relation("StockMovementUnit")
+  relatedStockMovements        StockMovement[]              @relation("StockMovementRelatedUnit")
   cashRegisters                CashRegister[]
   financialClosings            FinancialClosing[]
 

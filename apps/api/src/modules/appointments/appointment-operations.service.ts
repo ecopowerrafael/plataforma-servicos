@@ -2,7 +2,8 @@ import { type TenantDashboardResponse, type TenantReportResponse } from '@plataf
 
 import { type PrismaClient } from '../../database-client/client.js';
 
-type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW';
+type AppointmentStatus =
+  'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW';
 
 function emptyStatusCounts(): Record<AppointmentStatus, number> {
   return { PENDING: 0, CONFIRMED: 0, IN_PROGRESS: 0, COMPLETED: 0, CANCELED: 0, NO_SHOW: 0 };

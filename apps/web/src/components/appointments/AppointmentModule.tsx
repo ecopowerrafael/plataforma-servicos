@@ -13,9 +13,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { type ZodType } from 'zod';
 
+import { AppointmentPaymentsPanel } from './AppointmentPaymentsPanel.js';
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { UnitSelect } from '../tenants/UnitSelect.js';
+
 const now = () => new Date().toISOString().slice(0, 16);
 const historyActionLabel = (action: 'CREATED' | 'STATUS_CHANGED' | 'RESCHEDULED' | 'CHECKED_IN') =>
   action === 'CREATED'
@@ -30,10 +32,14 @@ export function AppointmentModule({
   tenantPublicId,
   canFitIn = false,
   canCheckIn = false,
+  canReadPayments = false,
+  canManagePayments = false,
 }: {
   tenantPublicId: string;
   canFitIn?: boolean;
   canCheckIn?: boolean;
+  canReadPayments?: boolean;
+  canManagePayments?: boolean;
 }) {
   const client = useQueryClient();
   const [from, setFrom] = useState(() => new Date().toISOString());
@@ -46,6 +52,8 @@ export function AppointmentModule({
   const [notes, setNotes] = useState('');
   const [rescheduleReason, setRescheduleReason] = useState('');
   const [isFitIn, setIsFitIn] = useState(false);
+  const [depositType, setDepositType] = useState('');
+  const [depositValue, setDepositValue] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -160,12 +168,23 @@ export function AppointmentModule({
         ...(selected === null || rescheduleReason === '' ? {} : { rescheduleReason }),
         isFitIn,
         ...(isFitIn ? { fitInReason } : {}),
+        ...(depositType === ''
+          ? {}
+          : {
+              depositType,
+              depositValue:
+                depositType === 'FIXED'
+                  ? Math.round(Number(depositValue.replace(',', '.')) * 100)
+                  : Number(depositValue),
+            }),
       }),
       schema: AppointmentPublicSchema,
     });
     setNotes('');
     setRescheduleReason('');
     setIsFitIn(false);
+    setDepositType('');
+    setDepositValue('');
     setFeedback(
       selected === null ? 'Agendamento criado com sucesso.' : 'Agendamento atualizado com sucesso.',
     );
@@ -390,6 +409,33 @@ export function AppointmentModule({
             {' Encaixe administrativo (ignora horário normal, exige motivo e confirmação)'}
           </label>
         )}
+        <label>
+          Sinal (opcional)
+          <select
+            value={depositType}
+            onChange={(event) => {
+              setDepositType(event.target.value);
+            }}
+          >
+            <option value="">Sem sinal</option>
+            <option value="FIXED">Valor fixo (R$)</option>
+            <option value="PERCENTAGE">Percentual (%)</option>
+          </select>
+        </label>
+        {depositType !== '' && (
+          <label>
+            {depositType === 'FIXED' ? 'Valor do sinal (R$)' : 'Percentual do sinal (%)'}
+            <input
+              type="number"
+              min="0"
+              step={depositType === 'FIXED' ? '0.01' : '1'}
+              value={depositValue}
+              onChange={(event) => {
+                setDepositValue(event.target.value);
+              }}
+            />
+          </label>
+        )}
         <button
           type="button"
           disabled={mutation.isPending || customer === '' || professional === '' || service === ''}
@@ -517,6 +563,18 @@ export function AppointmentModule({
                     : new Date(detail.data.checkedInAt).toLocaleString('pt-BR')}
                 </dd>
               </div>
+              {detail.data.depositType !== null && (
+                <div>
+                  <dt>Sinal</dt>
+                  <dd>
+                    {detail.data.depositType === 'PERCENTAGE'
+                      ? `${String(detail.data.depositPercentage)}%`
+                      : 'Valor fixo'}
+                    {detail.data.depositAmountCents !== null &&
+                      ` — R$ ${(Number(detail.data.depositAmountCents) / 100).toFixed(2)}`}
+                  </dd>
+                </div>
+              )}
             </dl>
           )}
           {detail.data !== undefined && (
@@ -544,6 +602,14 @@ export function AppointmentModule({
               </ul>
             </section>
           )}
+          {(canReadPayments || canManagePayments) && (
+            <AppointmentPaymentsPanel
+              tenantPublicId={tenantPublicId}
+              appointmentPublicId={selected}
+              canRead={canReadPayments}
+              canManage={canManagePayments}
+            />
+          )}
           <div className="form-actions">
             <button
               type="button"
@@ -554,6 +620,15 @@ export function AppointmentModule({
                 setService(detail.data.servicePublicId);
                 setStartsAt(detail.data.startsAt.slice(0, 16));
                 setNotes(detail.data.notes ?? '');
+                setDepositType(detail.data.depositType ?? '');
+                setDepositValue(
+                  detail.data.depositType === 'FIXED' && detail.data.depositAmountCents !== null
+                    ? (Number(detail.data.depositAmountCents) / 100).toString()
+                    : detail.data.depositType === 'PERCENTAGE' &&
+                        detail.data.depositPercentage !== null
+                      ? detail.data.depositPercentage.toString()
+                      : '',
+                );
               }}
             >
               Editar

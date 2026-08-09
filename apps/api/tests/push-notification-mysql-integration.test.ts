@@ -426,6 +426,9 @@ describe.skipIf(url === undefined)('push notifications (Etapa 13) com MySQL loca
       isFitIn: false,
       fitInReason: null,
       checkedInAt: null,
+      depositType: null,
+      depositPercentage: null,
+      depositAmountCents: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });

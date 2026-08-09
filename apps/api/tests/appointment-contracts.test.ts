@@ -98,6 +98,9 @@ describe('contratos de agendamentos', () => {
       isFitIn: false,
       fitInReason: null,
       checkedInAt: null,
+      depositType: null,
+      depositPercentage: null,
+      depositAmountCents: null,
       createdAt: '2026-08-01T15:00:00.000Z',
       updatedAt: '2026-08-01T15:00:00.000Z',
     });

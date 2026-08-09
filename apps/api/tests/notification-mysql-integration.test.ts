@@ -319,6 +319,9 @@ describe.skipIf(url === undefined)(
         isFitIn: false,
         fitInReason: null,
         checkedInAt: null,
+        depositType: null,
+        depositPercentage: null,
+        depositAmountCents: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });

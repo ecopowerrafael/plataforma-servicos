@@ -110,6 +110,80 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum PaymentMethodType {
+  CASH
+  PIX
+  DEBIT_CARD
+  CREDIT_CARD
+  BANK_TRANSFER
+  OTHER
+}
+
+enum PaymentStatus {
+  PAID
+  CANCELED
+}
+
+enum PaymentKind {
+  PAYMENT
+  DEPOSIT
+}
+
+enum DepositType {
+  FIXED
+  PERCENTAGE
+}
+
+enum CashRegisterStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementDirection {
+  IN
+  OUT
+}
+
+enum CashMovementType {
+  MANUAL
+  PAYMENT
+}
+
+enum CommissionRuleSource {
+  OVERRIDE
+  DEFAULT
+}
+
+enum CommissionRecordStatus {
+  ACTIVE
+  CANCELED
+}
+
+enum FinancialClosingStatus {
+  ACTIVE
+  CANCELED
+}
+
+enum PaymentGatewayEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum PaymentGatewayChargeStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  CANCELED
+  EXPIRED
+  REFUNDED
+}
+
+enum PaymentGatewayEventDirection {
+  OUTBOUND
+  INBOUND
+}
+
 enum BusinessUnitStatus {
   ACTIVE
   INACTIVE
@@ -252,6 +326,16 @@ model Tenant {
   notificationLogs             NotificationLog[]
   notificationTemplates        NotificationTemplate[]
   pushSubscriptions            PushSubscription[]
+  payments                     Payment[]
+  paymentMethods               PaymentMethod[]
+  cashRegisters                CashRegister[]
+  cashMovements                CashMovement[]
+  receipts                     Receipt[]
+  professionalCommissions      ProfessionalCommission[]
+  financialClosings            FinancialClosing[]
+  paymentGatewayConfigs        PaymentGatewayConfig[]
+  paymentGatewayCharges        PaymentGatewayCharge[]
+  paymentGatewayEvents         PaymentGatewayEvent[]
 
   @@index([status])
   @@map("tenants")
@@ -279,6 +363,12 @@ model User {
   platformAdministratorsCreated PlatformAdministrator[]   @relation("PlatformAdministratorCreatedBy")
   subscriptionHistoryPerformed  SubscriptionHistory[]     @relation("SubscriptionHistoryPerformedBy")
   professionalProfiles          Professional[]
+  payments                      Payment[]
+  cashMovements                 CashMovement[]
+  cashRegistersOpened           CashRegister[]            @relation("CashRegisterOpenedBy")
+  cashRegistersClosed           CashRegister[]            @relation("CashRegisterClosedBy")
+  receiptsIssued                Receipt[]                 @relation("ReceiptIssuedBy")
+  financialClosingsClosed       FinancialClosing[]        @relation("FinancialClosingClosedBy")
 
   @@index([status])
   @@map("users")
@@ -362,6 +452,12 @@ model UserSession {
   user                      User                      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   auditLogs                 AuditLog[]
   appointmentHistoryEntries AppointmentHistoryEntry[]
+  payments                  Payment[]
+  cashMovements             CashMovement[]
+  cashRegistersOpened       CashRegister[]            @relation("CashRegisterOpenedBySession")
+  cashRegistersClosed       CashRegister[]            @relation("CashRegisterClosedBySession")
+  receiptsIssued            Receipt[]                 @relation("ReceiptIssuedBySession")
+  financialClosingsClosed   FinancialClosing[]        @relation("FinancialClosingClosedBySession")
 
   @@index([userId, revokedAt, expiresAt])
   @@index([expiresAt])
@@ -505,6 +601,7 @@ model TenantSettings {
   weekStartsOn                      WeekStartsOn @default(MONDAY) @map("week_starts_on")
   dateFormat                        String       @default("DD/MM/YYYY") @map("date_format") @db.VarChar(16)
   timeFormat                        TimeFormat   @default(H24) @map("time_format")
+  payLocalEnabled                   Boolean      @default(true) @map("pay_local_enabled")
   createdAt                         DateTime     @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                         DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant                            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -778,6 +875,8 @@ model BusinessUnit {
   dateOverrides                BusinessUnitDateOverride[]
   customers                    Customer[]
   appointments                 Appointment[]
+  cashRegisters                CashRegister[]
+  financialClosings            FinancialClosing[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -856,6 +955,7 @@ model Professional {
   appointments         Appointment[]
   favoritedBy          CustomerFavorite[]
   reviews              AppointmentReview[]
+  commissions          ProfessionalCommission[]
 
   @@unique([tenantId, userId])
   @@index([tenantId, active, sortOrder])
@@ -941,6 +1041,9 @@ model Appointment {
   isFitIn                 Boolean                   @default(false) @map("is_fit_in")
   fitInReason             String?                   @map("fit_in_reason") @db.VarChar(500)
   checkedInAt             DateTime?                 @map("checked_in_at") @db.DateTime(3)
+  depositType             DepositType?              @map("deposit_type")
+  depositPercentage       Int?                      @map("deposit_percentage") @db.UnsignedTinyInt
+  depositAmountCents      BigInt?                   @map("deposit_amount_cents") @db.UnsignedBigInt
   createdAt               DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt               DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant                  Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -950,11 +1053,265 @@ model Appointment {
   unit                    BusinessUnit?             @relation(fields: [unitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   history                 AppointmentHistoryEntry[]
   review                  AppointmentReview?
+  payments                Payment[]
+  commissions             ProfessionalCommission[]
+  gatewayCharges          PaymentGatewayCharge[]
 
   @@unique([tenantId, protocol])
   @@index([tenantId, professionalId, startsAt, endsAt, status])
   @@index([tenantId, customerId, startsAt])
   @@map("appointments")
+}
+
+model PaymentMethod {
+  id        BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId  String            @unique @map("public_id") @db.Char(36)
+  tenantId  BigInt            @map("tenant_id") @db.UnsignedBigInt
+  name      String            @db.VarChar(80)
+  type      PaymentMethodType
+  sortOrder Int               @default(0) @map("sort_order") @db.UnsignedSmallInt
+  active    Boolean           @default(true)
+  createdAt DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payments  Payment[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active, sortOrder])
+  @@map("payment_methods")
+}
+
+model Payment {
+  id              BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String                  @unique @map("public_id") @db.Char(36)
+  tenantId        BigInt                  @map("tenant_id") @db.UnsignedBigInt
+  appointmentId   BigInt                  @map("appointment_id") @db.UnsignedBigInt
+  paymentMethodId BigInt                  @map("payment_method_id") @db.UnsignedBigInt
+  kind            PaymentKind             @default(PAYMENT)
+  status          PaymentStatus           @default(PAID)
+  amountCents     BigInt                  @map("amount_cents") @db.UnsignedBigInt
+  notes           String?                 @db.VarChar(500)
+  userId          BigInt?                 @map("user_id") @db.UnsignedBigInt
+  sessionId       BigInt?                 @map("session_id") @db.UnsignedBigInt
+  canceledAt      DateTime?               @map("canceled_at") @db.DateTime(3)
+  canceledReason  String?                 @map("canceled_reason") @db.VarChar(500)
+  createdAt       DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment     Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentMethod   PaymentMethod           @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user            User?                   @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  session         UserSession?            @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashMovement    CashMovement?
+  receipt         Receipt?
+  commission      ProfessionalCommission?
+  gatewayCharge   PaymentGatewayCharge?
+
+  @@index([tenantId, appointmentId, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@map("payments")
+}
+
+model PaymentGatewayConfig {
+  id                    BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                    @unique @map("public_id") @db.Char(36)
+  tenantId              BigInt                    @map("tenant_id") @db.UnsignedBigInt
+  provider              String                    @db.VarChar(64)
+  active                Boolean                   @default(false)
+  environment           PaymentGatewayEnvironment @default(SANDBOX)
+  credentialsCiphertext String?                   @map("credentials_ciphertext") @db.Text
+  createdAt             DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, provider])
+  @@map("payment_gateway_configs")
+}
+
+model PaymentGatewayCharge {
+  id             BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                     @unique @map("public_id") @db.Char(36)
+  tenantId       BigInt                     @map("tenant_id") @db.UnsignedBigInt
+  appointmentId  BigInt                     @map("appointment_id") @db.UnsignedBigInt
+  paymentId      BigInt?                    @unique @map("payment_id") @db.UnsignedBigInt
+  provider       String                     @db.VarChar(64)
+  environment    PaymentGatewayEnvironment
+  kind           PaymentKind                @default(PAYMENT)
+  externalId     String?                    @map("external_id") @db.VarChar(191)
+  status         PaymentGatewayChargeStatus @default(PENDING)
+  amountCents    BigInt                     @map("amount_cents") @db.UnsignedBigInt
+  currency       String                     @db.Char(3)
+  idempotencyKey String                     @map("idempotency_key") @db.VarChar(191)
+  pixCopyPaste   String?                    @map("pix_copy_paste") @db.Text
+  lastCheckedAt  DateTime?                  @map("last_checked_at") @db.DateTime(3)
+  canceledAt     DateTime?                  @map("canceled_at") @db.DateTime(3)
+  canceledReason String?                    @map("canceled_reason") @db.VarChar(500)
+  createdAt      DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                   @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant         Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment    Appointment                @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payment        Payment?                   @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  events         PaymentGatewayEvent[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, appointmentId])
+  @@index([tenantId, status])
+  @@index([tenantId, provider, externalId])
+  @@map("payment_gateway_charges")
+}
+
+model PaymentGatewayEvent {
+  id              BigInt                       @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String                       @unique @map("public_id") @db.Char(36)
+  tenantId        BigInt                       @map("tenant_id") @db.UnsignedBigInt
+  chargeId        BigInt?                      @map("charge_id") @db.UnsignedBigInt
+  provider        String                       @db.VarChar(64)
+  direction       PaymentGatewayEventDirection
+  eventType       String                       @map("event_type") @db.VarChar(80)
+  externalEventId String?                      @map("external_event_id") @db.VarChar(191)
+  payload         Json?
+  statusCode      Int?                         @map("status_code") @db.UnsignedSmallInt
+  success         Boolean
+  errorMessage    String?                      @map("error_message") @db.VarChar(1000)
+  createdAt       DateTime                     @default(now()) @map("created_at") @db.DateTime(3)
+  tenant          Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  charge          PaymentGatewayCharge?        @relation(fields: [chargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, provider, externalEventId])
+  @@index([tenantId, chargeId, createdAt])
+  @@map("payment_gateway_events")
+}
+
+model ProfessionalCommission {
+  id                    BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                 @unique @map("public_id") @db.Char(36)
+  tenantId              BigInt                 @map("tenant_id") @db.UnsignedBigInt
+  paymentId             BigInt                 @unique @map("payment_id") @db.UnsignedBigInt
+  professionalId        BigInt                 @map("professional_id") @db.UnsignedBigInt
+  appointmentId         BigInt                 @map("appointment_id") @db.UnsignedBigInt
+  commissionType        CommissionType         @map("commission_type")
+  commissionValue       Int                    @map("commission_value") @db.UnsignedInt
+  ruleSource            CommissionRuleSource   @map("rule_source")
+  baseAmountCents       BigInt                 @map("base_amount_cents") @db.UnsignedBigInt
+  commissionAmountCents BigInt                 @map("commission_amount_cents") @db.UnsignedBigInt
+  status                CommissionRecordStatus @default(ACTIVE)
+  canceledAt            DateTime?              @map("canceled_at") @db.DateTime(3)
+  canceledReason        String?                @map("canceled_reason") @db.VarChar(500)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payment               Payment                @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional          Professional           @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment           Appointment            @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, professionalId, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@map("professional_commissions")
+}
+
+model CashRegister {
+  id                  BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String             @unique @map("public_id") @db.Char(36)
+  tenantId            BigInt             @map("tenant_id") @db.UnsignedBigInt
+  unitId              BigInt?            @map("unit_id") @db.UnsignedBigInt
+  status              CashRegisterStatus @default(OPEN)
+  openingBalanceCents BigInt             @map("opening_balance_cents") @db.UnsignedBigInt
+  closingBalanceCents BigInt?            @map("closing_balance_cents") @db.UnsignedBigInt
+  openedAt            DateTime           @default(now()) @map("opened_at") @db.DateTime(3)
+  closedAt            DateTime?          @map("closed_at") @db.DateTime(3)
+  openedByUserId      BigInt?            @map("opened_by_user_id") @db.UnsignedBigInt
+  openedBySessionId   BigInt?            @map("opened_by_session_id") @db.UnsignedBigInt
+  closedByUserId      BigInt?            @map("closed_by_user_id") @db.UnsignedBigInt
+  closedBySessionId   BigInt?            @map("closed_by_session_id") @db.UnsignedBigInt
+  notes               String?            @db.VarChar(500)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit                BusinessUnit?      @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  openedByUser        User?              @relation("CashRegisterOpenedBy", fields: [openedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  openedBySession     UserSession?       @relation("CashRegisterOpenedBySession", fields: [openedBySessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  closedByUser        User?              @relation("CashRegisterClosedBy", fields: [closedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  closedBySession     UserSession?       @relation("CashRegisterClosedBySession", fields: [closedBySessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  movements           CashMovement[]
+
+  @@index([tenantId, unitId, status])
+  @@map("cash_registers")
+}
+
+model CashMovement {
+  id             BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                @unique @map("public_id") @db.Char(36)
+  tenantId       BigInt                @map("tenant_id") @db.UnsignedBigInt
+  cashRegisterId BigInt                @map("cash_register_id") @db.UnsignedBigInt
+  type           CashMovementType
+  direction      CashMovementDirection
+  amountCents    BigInt                @map("amount_cents") @db.UnsignedBigInt
+  reason         String?               @db.VarChar(500)
+  paymentId      BigInt?               @unique @map("payment_id") @db.UnsignedBigInt
+  userId         BigInt?               @map("user_id") @db.UnsignedBigInt
+  sessionId      BigInt?               @map("session_id") @db.UnsignedBigInt
+  createdAt      DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashRegister   CashRegister          @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payment        Payment?              @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user           User?                 @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  session        UserSession?          @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, cashRegisterId, createdAt])
+  @@map("cash_movements")
+}
+
+model Receipt {
+  id                BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String       @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt       @map("tenant_id") @db.UnsignedBigInt
+  paymentId         BigInt       @unique @map("payment_id") @db.UnsignedBigInt
+  number            String       @db.VarChar(32)
+  issuedByUserId    BigInt?      @map("issued_by_user_id") @db.UnsignedBigInt
+  issuedBySessionId BigInt?      @map("issued_by_session_id") @db.UnsignedBigInt
+  issuedAt          DateTime     @default(now()) @map("issued_at") @db.DateTime(3)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payment           Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  issuedByUser      User?        @relation("ReceiptIssuedBy", fields: [issuedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  issuedBySession   UserSession? @relation("ReceiptIssuedBySession", fields: [issuedBySessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, number])
+  @@map("receipts")
+}
+
+model FinancialClosing {
+  id                     BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId               String                 @unique @map("public_id") @db.Char(36)
+  tenantId               BigInt                 @map("tenant_id") @db.UnsignedBigInt
+  unitId                 BigInt?                @map("unit_id") @db.UnsignedBigInt
+  periodFrom             DateTime               @map("period_from") @db.DateTime(3)
+  periodTo               DateTime               @map("period_to") @db.DateTime(3)
+  totalReceivedCents     BigInt                 @map("total_received_cents") @db.UnsignedBigInt
+  totalCanceledCents     BigInt                 @map("total_canceled_cents") @db.UnsignedBigInt
+  depositTotalCents      BigInt                 @map("deposit_total_cents") @db.UnsignedBigInt
+  manualInCents          BigInt                 @map("manual_in_cents") @db.UnsignedBigInt
+  manualOutCents         BigInt                 @map("manual_out_cents") @db.UnsignedBigInt
+  cashMovementsNetCents  BigInt                 @map("cash_movements_net_cents")
+  commissionsTotalCents  BigInt                 @map("commissions_total_cents") @db.UnsignedBigInt
+  balanceCents           BigInt                 @map("balance_cents")
+  paymentMethodBreakdown Json                   @map("payment_method_breakdown")
+  status                 FinancialClosingStatus @default(ACTIVE)
+  closedAt               DateTime               @default(now()) @map("closed_at") @db.DateTime(3)
+  closedByUserId         BigInt?                @map("closed_by_user_id") @db.UnsignedBigInt
+  closedBySessionId      BigInt?                @map("closed_by_session_id") @db.UnsignedBigInt
+  canceledAt             DateTime?              @map("canceled_at") @db.DateTime(3)
+  canceledReason         String?                @map("canceled_reason") @db.VarChar(500)
+  createdAt              DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt              DateTime               @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                 Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit                   BusinessUnit?          @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  closedByUser           User?                  @relation("FinancialClosingClosedBy", fields: [closedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  closedBySession        UserSession?           @relation("FinancialClosingClosedBySession", fields: [closedBySessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, unitId, periodFrom, periodTo])
+  @@index([tenantId, status])
+  @@map("financial_closings")
 }
 
 model CustomerFavorite {

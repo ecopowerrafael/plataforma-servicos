@@ -96,6 +96,16 @@ export const PermissionCodeSchema = z.enum([
   'professional.self.update',
   'notification.read',
   'notification.template.manage',
+  'payment.read',
+  'payment.manage',
+  'cash.read',
+  'cash.manage',
+  'commission.read',
+  'financial_closing.read',
+  'financial_closing.manage',
+  'financial_report.read',
+  'payment_gateway.read',
+  'payment_gateway.manage',
 ]);
 
 export const UserPublicSchema = z.object({

@@ -1,5 +1,8 @@
 import {
+  AppointmentPaymentOptionsResponseSchema,
   AvailabilityResponseSchema,
+  PaymentGatewayChargePublicSchema,
+  PixChargeResponseSchema,
   PublicBookingConfirmationSchema,
   PublicServiceProfessionalsResponseSchema,
   type PublicTenantSiteResponseSchema,
@@ -11,6 +14,197 @@ import { type z } from 'zod';
 import { httpClient, HttpError } from '../lib/http.js';
 
 type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
+
+function centsToBrl(cents: string): string {
+  return (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function AppointmentPaymentStep({
+  slug,
+  appointmentPublicId,
+}: {
+  slug: string;
+  appointmentPublicId: string;
+}) {
+  const [pixCharge, setPixCharge] = useState<z.infer<typeof PixChargeResponseSchema> | null>(null);
+  const [mpCharge, setMpCharge] = useState<z.infer<typeof PaymentGatewayChargePublicSchema> | null>(
+    null,
+  );
+  const [copyFeedback, setCopyFeedback] = useState(false);
+
+  const options = useQuery({
+    queryKey: ['public-booking', slug, 'payment-options', appointmentPublicId],
+    queryFn: () =>
+      httpClient.request(
+        `/public/sites/${slug}/appointments/${appointmentPublicId}/payment-options`,
+        { schema: AppointmentPaymentOptionsResponseSchema },
+      ),
+    retry: false,
+  });
+
+  const kind = options.data?.depositRequired === true ? 'DEPOSIT' : 'PAYMENT';
+
+  const createPix = useMutation({
+    mutationFn: () =>
+      httpClient.request(
+        `/public/sites/${slug}/appointments/${appointmentPublicId}/pix-local-charges`,
+        { method: 'POST', body: { kind }, schema: PixChargeResponseSchema },
+      ),
+    onSuccess: (data) => {
+      setPixCharge(data);
+    },
+  });
+
+  const createMercadoPago = useMutation({
+    mutationFn: () =>
+      httpClient.request(
+        `/public/sites/${slug}/appointments/${appointmentPublicId}/mercadopago-charges`,
+        { method: 'POST', body: { kind }, schema: PaymentGatewayChargePublicSchema },
+      ),
+    onSuccess: (data) => {
+      setMpCharge(data);
+    },
+  });
+
+  const copyPixCode = (code: string) => {
+    void navigator.clipboard.writeText(code).then(() => {
+      setCopyFeedback(true);
+      setTimeout(() => {
+        setCopyFeedback(false);
+      }, 2000);
+    });
+  };
+
+  if (options.isPending) return <p>{'Carregando opções de pagamento…'}</p>;
+  if (options.error instanceof Error)
+    return <p className="form-error">{'Não foi possível carregar as opções de pagamento.'}</p>;
+  if (options.data === undefined) return null;
+
+  const data = options.data;
+  const amountDueCents =
+    data.depositRequired && data.depositAmountCents !== null
+      ? String(Number(data.depositAmountCents) - Number(data.depositPaidCents))
+      : data.balanceCents;
+
+  const noOnlineOption = !data.pixLocalAvailable && !data.mercadoPagoAvailable;
+
+  if (pixCharge !== null) {
+    return (
+      <section className="platform-form" aria-label="Pagamento por PIX">
+        <h3>Pague com PIX</h3>
+        <p>{`Valor: ${centsToBrl(pixCharge.charge.amountCents)}`}</p>
+        {pixCharge.qrCodeDataUrl !== '' && (
+          <img
+            src={pixCharge.qrCodeDataUrl}
+            alt="QR Code do PIX"
+            width={220}
+            height={220}
+            style={{ maxWidth: '100%', height: 'auto' }}
+          />
+        )}
+        {pixCharge.charge.pixCopyPaste !== null && (
+          <>
+            <textarea readOnly value={pixCharge.charge.pixCopyPaste} rows={4} />
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                copyPixCode(pixCharge.charge.pixCopyPaste ?? '');
+              }}
+            >
+              {copyFeedback ? 'Código copiado!' : 'Copiar código PIX'}
+            </button>
+          </>
+        )}
+        <p className="form-notice">
+          {'Aguardando confirmação do pagamento pelo estabelecimento após o recebimento.'}
+        </p>
+      </section>
+    );
+  }
+
+  if (mpCharge !== null) {
+    return (
+      <section className="platform-form" aria-label="Pagamento via Mercado Pago">
+        <h3>Mercado Pago</h3>
+        <p>{`Valor: ${centsToBrl(mpCharge.amountCents)}`}</p>
+        <p>{`Status: ${mpCharge.status}`}</p>
+        {mpCharge.pixCopyPaste !== null && (
+          <>
+            <textarea readOnly value={mpCharge.pixCopyPaste} rows={4} />
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                copyPixCode(mpCharge.pixCopyPaste ?? '');
+              }}
+            >
+              {copyFeedback ? 'Código copiado!' : 'Copiar código PIX'}
+            </button>
+          </>
+        )}
+        <p className="form-notice">{'Aguardando confirmação do pagamento pelo Mercado Pago.'}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="platform-form" aria-label="Pagamento do agendamento">
+      <h3>Pagamento</h3>
+      {data.depositRequired ? (
+        <p>{`Sinal obrigatório: ${centsToBrl(amountDueCents)}`}</p>
+      ) : (
+        <p>{`Saldo: ${centsToBrl(amountDueCents)}`}</p>
+      )}
+      <div className="public-cards">
+        {data.pixLocalAvailable && (
+          <button
+            type="button"
+            disabled={createPix.isPending}
+            onClick={() => {
+              createPix.mutate();
+            }}
+          >
+            {createPix.isPending ? 'Gerando PIX…' : 'Pagar com PIX'}
+          </button>
+        )}
+        {data.mercadoPagoAvailable && (
+          <button
+            type="button"
+            disabled={createMercadoPago.isPending}
+            onClick={() => {
+              createMercadoPago.mutate();
+            }}
+          >
+            {createMercadoPago.isPending ? 'Iniciando…' : 'Pagar com Mercado Pago'}
+          </button>
+        )}
+        {data.payLocalAvailable && (
+          <p>
+            {'Você também pode pagar presencialmente no estabelecimento, no dia do atendimento.'}
+          </p>
+        )}
+        {noOnlineOption && !data.payLocalAvailable && (
+          <p>
+            {'Nenhum meio de pagamento online está disponível para este agendamento no momento.'}
+          </p>
+        )}
+      </div>
+      {createPix.error instanceof Error ? (
+        <p className="form-error">{errorMessageOf(createPix.error)}</p>
+      ) : null}
+      {createMercadoPago.error instanceof Error ? (
+        <p className="form-error">{errorMessageOf(createMercadoPago.error)}</p>
+      ) : null}
+    </section>
+  );
+}
+
+function errorMessageOf(error: unknown): string {
+  if (error instanceof HttpError) return error.message;
+  if (error instanceof Error) return error.message;
+  return 'Não foi possível concluir a solicitação.';
+}
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -100,6 +294,10 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
           <p>{new Date(confirmation.startsAt).toLocaleString('pt-BR')}</p>
           <p>{`Status: ${confirmation.status}`}</p>
         </article>
+        <AppointmentPaymentStep
+          slug={slug}
+          appointmentPublicId={confirmation.appointmentPublicId}
+        />
       </section>
     );
   }

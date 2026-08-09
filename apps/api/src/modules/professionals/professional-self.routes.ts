@@ -5,6 +5,7 @@ import {
   AppointmentStatusRequestSchema,
   AppointmentStatusResponseSchema,
   CalendarResponseSchema,
+  CommissionListResponseSchema,
   ProfessionalAppointmentNotesRequestSchema,
   ProfessionalCommissionResponseSchema,
   ProfessionalPublicSchema,
@@ -25,6 +26,7 @@ import { type ProfessionalService } from './professional.service.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
+import { type ProfessionalCommissionService } from '../payments/professional-commission.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 
 interface Options {
@@ -34,6 +36,7 @@ interface Options {
   unavailabilities: ProfessionalUnavailabilityService;
   professionalServices: ProfessionalServiceLinkService;
   availability: AvailabilityService;
+  commissions?: ProfessionalCommissionService;
   authService: AuthService;
   cookieName: string;
 }
@@ -198,6 +201,19 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
       });
     },
   );
+
+  if (options.commissions !== undefined) {
+    const commissions = options.commissions;
+    app.get(
+      '/tenant/professionals/me/commissions/history',
+      { schema: { response: { 200: CommissionListResponseSchema } } },
+      async (r) => {
+        options.authService.requirePermission(r.tenant, 'professional.self.read');
+        const professionalId = await options.professionals.myId(r.tenant.id, r.auth.user.id);
+        return commissions.listForProfessional(r.tenant.id, professionalId);
+      },
+    );
+  }
 
   app.get(
     '/tenant/professionals/me/availability',

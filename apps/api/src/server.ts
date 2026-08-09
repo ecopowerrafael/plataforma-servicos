@@ -48,6 +48,9 @@ async function start(environment: Environment): Promise<void> {
             subject: environment.VAPID_SUBJECT,
           },
         }),
+    ...(environment.PAYMENT_GATEWAY_ENCRYPTION_KEY === undefined
+      ? {}
+      : { paymentGatewayEncryptionKey: environment.PAYMENT_GATEWAY_ENCRYPTION_KEY }),
   });
   const app = await buildApp({ environment, database });
   let shuttingDown = false;

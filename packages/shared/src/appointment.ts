@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export const DepositTypeSchema = z.enum(['FIXED', 'PERCENTAGE']);
 const inputShape = {
   customerPublicId: z.uuid(),
   professionalPublicId: z.uuid(),
@@ -9,6 +10,8 @@ const inputShape = {
   source: z.string().trim().min(1).max(64).default('INTERNAL'),
   isFitIn: z.boolean().default(false),
   fitInReason: z.string().trim().min(3).max(500).optional(),
+  depositType: DepositTypeSchema.nullable().optional(),
+  depositValue: z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
 };
 function withFitInValidation<T extends z.ZodType>(schema: T): T {
   return schema.superRefine((value, context) => {
@@ -21,11 +24,38 @@ function withFitInValidation<T extends z.ZodType>(schema: T): T {
       });
   });
 }
-export const CreateAppointmentRequestSchema = withFitInValidation(z.object(inputShape).strict());
-export const UpdateAppointmentRequestSchema = withFitInValidation(
-  z
-    .object({ ...inputShape, rescheduleReason: z.string().trim().min(2).max(500).optional() })
-    .strict(),
+function withDepositValidation<T extends z.ZodType>(schema: T): T {
+  return schema.superRefine((value, context) => {
+    const input = value as {
+      depositType?: 'FIXED' | 'PERCENTAGE' | null;
+      depositValue?: number;
+    };
+    if (input.depositType === undefined || input.depositType === null) return;
+    if (input.depositValue === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['depositValue'],
+        message: 'Informe o valor do sinal.',
+      });
+      return;
+    }
+    if (input.depositType === 'PERCENTAGE' && input.depositValue > 100)
+      context.addIssue({
+        code: 'custom',
+        path: ['depositValue'],
+        message: 'O percentual do sinal não pode ser maior que 100.',
+      });
+  });
+}
+export const CreateAppointmentRequestSchema = withDepositValidation(
+  withFitInValidation(z.object(inputShape).strict()),
+);
+export const UpdateAppointmentRequestSchema = withDepositValidation(
+  withFitInValidation(
+    z
+      .object({ ...inputShape, rescheduleReason: z.string().trim().min(2).max(500).optional() })
+      .strict(),
+  ),
 );
 export const AppointmentStatusRequestSchema = z
   .object({ reason: z.string().trim().min(2).max(500).optional() })
@@ -80,6 +110,9 @@ export const AppointmentPublicSchema = z.object({
   isFitIn: z.boolean(),
   fitInReason: z.string().nullable(),
   checkedInAt: z.iso.datetime({ offset: true }).nullable(),
+  depositType: DepositTypeSchema.nullable(),
+  depositPercentage: z.number().int().min(1).max(100).nullable(),
+  depositAmountCents: z.string().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

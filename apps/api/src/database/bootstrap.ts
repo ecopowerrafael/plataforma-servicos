@@ -67,6 +67,19 @@ const permissions = [
   ],
   ['notification.read', 'Consultar o log de notificações enviadas pelo estabelecimento.'],
   ['notification.template.manage', 'Personalizar os modelos de mensagens de notificação.'],
+  ['payment.read', 'Consultar pagamentos registrados nos agendamentos.'],
+  ['payment.manage', 'Registrar e cancelar pagamentos de agendamentos.'],
+  ['cash.read', 'Consultar caixas, movimentações e saldo.'],
+  ['cash.manage', 'Abrir e fechar caixa e registrar movimentações manuais.'],
+  ['commission.read', 'Consultar comissões geradas a partir de pagamentos reais.'],
+  ['financial_closing.read', 'Consultar fechamentos financeiros por período.'],
+  ['financial_closing.manage', 'Realizar e cancelar fechamentos financeiros por período.'],
+  ['financial_report.read', 'Consultar e exportar relatórios financeiros completos.'],
+  ['payment_gateway.read', 'Consultar a configuração do gateway de pagamento.'],
+  [
+    'payment_gateway.manage',
+    'Configurar o gateway de pagamento do estabelecimento, incluindo credenciais.',
+  ],
 ] as const;
 
 const roles = [
@@ -140,12 +153,21 @@ const roles = [
       'appointment.checkin.manage',
       'notification.read',
       'notification.template.manage',
+      'payment.read',
+      'payment.manage',
+      'cash.read',
+      'cash.manage',
+      'commission.read',
+      'financial_closing.read',
+      'financial_closing.manage',
+      'financial_report.read',
+      'payment_gateway.read',
     ],
   },
   {
     code: 'RECEPTIONIST',
     name: 'Recepcionista',
-    description: 'Opera a recepção: consulta agendamentos e registra check-in dos clientes.',
+    description: 'Opera a recepção: consulta agendamentos, registra check-in e recebe pagamentos.',
     permissions: [
       'tenant.read',
       'unit.read',
@@ -155,6 +177,10 @@ const roles = [
       'customer.read',
       'appointment.read',
       'appointment.checkin.manage',
+      'payment.read',
+      'payment.manage',
+      'cash.read',
+      'cash.manage',
     ],
   },
   {

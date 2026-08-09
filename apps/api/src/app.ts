@@ -38,6 +38,22 @@ import { customerRoutes } from './modules/customers/customer.routes.js';
 import { notificationTemplateRoutes } from './modules/notifications/notification-template.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
 import { pushSubscriptionRoutes } from './modules/notifications/push-subscription.routes.js';
+import { cashRegisterRoutes } from './modules/payments/cash-register.routes.js';
+import { commissionRoutes } from './modules/payments/commission.routes.js';
+import { delinquencyRoutes } from './modules/payments/delinquency.routes.js';
+import { financialClosingRoutes } from './modules/payments/financial-closing.routes.js';
+import { financialReportRoutes } from './modules/payments/financial-report.routes.js';
+import {
+  paymentGatewayRoutes,
+  paymentGatewayWebhookRoutes,
+} from './modules/payments/gateway/payment-gateway.routes.js';
+import {
+  publicTenantPaymentOptionsRoutes,
+  tenantPaymentOptionsRoutes,
+} from './modules/payments/gateway/tenant-payment-options.routes.js';
+import { paymentMethodRoutes } from './modules/payments/payment-method.routes.js';
+import { paymentRoutes } from './modules/payments/payment.routes.js';
+import { receiptRoutes } from './modules/payments/receipt.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
 import { professionalScheduleRoutes } from './modules/professionals/professional-schedule.routes.js';
 import { professionalSelfRoutes } from './modules/professionals/professional-self.routes.js';
@@ -273,6 +289,11 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.publicBooking !== undefined) {
     await app.register(publicBookingRoutes, { service: options.database.publicBooking });
   }
+  if (options.database.tenantPaymentOptions !== undefined) {
+    await app.register(publicTenantPaymentOptionsRoutes, {
+      service: options.database.tenantPaymentOptions,
+    });
+  }
   if (
     options.database.customerAuth !== undefined &&
     options.database.customerProfile !== undefined
@@ -351,6 +372,71 @@ export async function buildApp(options: BuildAppOptions) {
         ? {}
         : { notifications: options.database.appointmentNotifications }),
     });
+  if (options.database.payments !== undefined)
+    await app.register(paymentRoutes, {
+      service: options.database.payments,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.paymentMethods !== undefined)
+    await app.register(paymentMethodRoutes, {
+      service: options.database.paymentMethods,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.cashRegisters !== undefined)
+    await app.register(cashRegisterRoutes, {
+      service: options.database.cashRegisters,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.receipts !== undefined)
+    await app.register(receiptRoutes, {
+      service: options.database.receipts,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.commissions !== undefined)
+    await app.register(commissionRoutes, {
+      service: options.database.commissions,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.financialClosings !== undefined)
+    await app.register(financialClosingRoutes, {
+      service: options.database.financialClosings,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.delinquency !== undefined)
+    await app.register(delinquencyRoutes, {
+      service: options.database.delinquency,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.financialReports !== undefined)
+    await app.register(financialReportRoutes, {
+      service: options.database.financialReports,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.paymentGateway !== undefined) {
+    await app.register(paymentGatewayRoutes, {
+      service: options.database.paymentGateway,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+    await app.register(paymentGatewayWebhookRoutes, {
+      service: options.database.paymentGateway,
+    });
+  }
+  if (options.database.tenantPaymentOptions !== undefined) {
+    await app.register(tenantPaymentOptionsRoutes, {
+      service: options.database.tenantPaymentOptions,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  }
   if (options.database.notifications !== undefined)
     await app.register(notificationRoutes, {
       service: options.database.notifications,
@@ -403,6 +489,9 @@ export async function buildApp(options: BuildAppOptions) {
       unavailabilities: options.database.professionalUnavailabilities,
       professionalServices: options.database.professionalServices,
       availability: options.database.availability,
+      ...(options.database.commissions === undefined
+        ? {}
+        : { commissions: options.database.commissions }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });

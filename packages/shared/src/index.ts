@@ -31,6 +31,16 @@ export * from './tenant-operations.js';
 export * from './notification.js';
 export * from './notification-template.js';
 export * from './push-subscription.js';
+export * from './payment.js';
+export * from './payment-method.js';
+export * from './cash-register.js';
+export * from './receipt.js';
+export * from './commission.js';
+export * from './financial-closing.js';
+export * from './delinquency.js';
+export * from './financial-report.js';
+export * from './payment-gateway.js';
+export * from './tenant-payment-options.js';
 
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),

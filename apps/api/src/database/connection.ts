@@ -35,6 +35,21 @@ import {
   WebPushDelivery,
 } from '../modules/notifications/push-delivery.js';
 import { PushSubscriptionService } from '../modules/notifications/push-subscription.service.js';
+import { CashRegisterService } from '../modules/payments/cash-register.service.js';
+import { DelinquencyService } from '../modules/payments/delinquency.service.js';
+import { FinancialClosingService } from '../modules/payments/financial-closing.service.js';
+import { FinancialReportService } from '../modules/payments/financial-report.service.js';
+import { CredentialsCipher } from '../modules/payments/gateway/credentials-cipher.js';
+import { FetchHttpClient } from '../modules/payments/gateway/mercadopago/http-client.js';
+import { MercadoPagoProviderAdapter } from '../modules/payments/gateway/mercadopago/mercadopago.provider.js';
+import { PaymentGatewayService } from '../modules/payments/gateway/payment-gateway.service.js';
+import { PixLocalProviderAdapter } from '../modules/payments/gateway/pix-local.provider.js';
+import { PaymentGatewayProviderRegistry } from '../modules/payments/gateway/provider-registry.js';
+import { TenantPaymentOptionsService } from '../modules/payments/gateway/tenant-payment-options.service.js';
+import { PaymentMethodService } from '../modules/payments/payment-method.service.js';
+import { PaymentService } from '../modules/payments/payment.service.js';
+import { ProfessionalCommissionService } from '../modules/payments/professional-commission.service.js';
+import { ReceiptService } from '../modules/payments/receipt.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
 import { PrismaProfessionalScheduleRepository } from '../modules/professionals/professional-schedule.repository.js';
 import { ProfessionalScheduleService } from '../modules/professionals/professional-schedule.service.js';
@@ -101,6 +116,16 @@ export interface DatabaseConnection {
   readonly appointmentReminders?: AppointmentReminderService;
   readonly pushSubscriptions?: PushSubscriptionService;
   readonly vapidPublicKey?: string | null;
+  readonly payments?: PaymentService;
+  readonly paymentMethods?: PaymentMethodService;
+  readonly cashRegisters?: CashRegisterService;
+  readonly receipts?: ReceiptService;
+  readonly commissions?: ProfessionalCommissionService;
+  readonly financialClosings?: FinancialClosingService;
+  readonly delinquency?: DelinquencyService;
+  readonly financialReports?: FinancialReportService;
+  readonly paymentGateway?: PaymentGatewayService;
+  readonly tenantPaymentOptions?: TenantPaymentOptionsService;
   readonly publicBooking?: PublicBookingService;
 }
 
@@ -129,6 +154,7 @@ interface CustomerAuthOptions {
     privateKey: string;
     subject: string;
   };
+  paymentGatewayEncryptionKey?: string;
 }
 
 export function createDatabaseConnection(
@@ -223,6 +249,31 @@ export function createDatabaseConnection(
   );
   const appointmentReminders = new AppointmentReminderService(client, notificationDispatcher);
   const pushSubscriptions = new PushSubscriptionService(client);
+  const cashRegisters = new CashRegisterService(client);
+  const commissions = new ProfessionalCommissionService(client);
+  const delinquency = new DelinquencyService(client);
+  const paymentMethods = new PaymentMethodService(client);
+  const payments = new PaymentService(client, cashRegisters, commissions);
+  const paymentGatewayCipher =
+    customerAuthOptions?.paymentGatewayEncryptionKey === undefined
+      ? undefined
+      : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
+  const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
+  paymentGatewayRegistry.register(new PixLocalProviderAdapter());
+  paymentGatewayRegistry.register(new MercadoPagoProviderAdapter(new FetchHttpClient()));
+  const paymentGateway = new PaymentGatewayService(
+    client,
+    paymentGatewayRegistry,
+    paymentGatewayCipher,
+    paymentMethods,
+    payments,
+  );
+  const tenantPaymentOptions = new TenantPaymentOptionsService(
+    client,
+    paymentGateway,
+    payments,
+    tenantWhiteLabelRepository,
+  );
 
   return {
     identities: new PrismaIdentityRepository(client),
@@ -270,6 +321,16 @@ export function createDatabaseConnection(
     appointmentReminders: appointmentReminders,
     pushSubscriptions: pushSubscriptions,
     vapidPublicKey: customerAuthOptions?.vapid?.publicKey ?? null,
+    payments: payments,
+    paymentMethods: paymentMethods,
+    cashRegisters: cashRegisters,
+    receipts: new ReceiptService(client),
+    commissions: commissions,
+    financialClosings: new FinancialClosingService(client),
+    delinquency: delinquency,
+    financialReports: new FinancialReportService(client, delinquency),
+    paymentGateway: paymentGateway,
+    tenantPaymentOptions: tenantPaymentOptions,
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,
       tenantWhiteLabel,

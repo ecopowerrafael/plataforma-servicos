@@ -19,10 +19,18 @@ import { ProfessionalModule } from '../components/professionals/ProfessionalModu
 import { ComboModule } from '../components/services/ComboModule.js';
 import { ServiceCategoryModule } from '../components/services/ServiceCategoryModule.js';
 import { ServiceModule } from '../components/services/ServiceModule.js';
+import { CashRegisterModule } from '../components/tenants/CashRegisterModule.js';
+import { CommissionsModule } from '../components/tenants/CommissionsModule.js';
+import { DelinquencyModule } from '../components/tenants/DelinquencyModule.js';
+import { FinancialClosingModule } from '../components/tenants/FinancialClosingModule.js';
+import { FinancialReportModule } from '../components/tenants/FinancialReportModule.js';
 import { MembersModule } from '../components/tenants/MembersModule.js';
 import { NotificationLogModule } from '../components/tenants/NotificationLogModule.js';
 import { NotificationTemplateModule } from '../components/tenants/NotificationTemplateModule.js';
 import { OperationsDashboardModule } from '../components/tenants/OperationsDashboardModule.js';
+import { PaymentGatewayModule } from '../components/tenants/PaymentGatewayModule.js';
+import { PaymentMethodsModule } from '../components/tenants/PaymentMethodsModule.js';
+import { PaymentOptionsModule } from '../components/tenants/PaymentOptionsModule.js';
 import { TenantSettingsModule } from '../components/tenants/TenantSettingsModule.js';
 import { TenantSubscriptionModule } from '../components/tenants/TenantSubscriptionModule.js';
 import { UnitsModule } from '../components/tenants/UnitsModule.js';
@@ -105,6 +113,25 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('appointment.fit_in.manage') ?? false;
   const canCheckIn =
     me.data?.currentTenant?.membership.permissions.includes('appointment.checkin.manage') ?? false;
+  const canReadPayments =
+    me.data?.currentTenant?.membership.permissions.includes('payment.read') ?? false;
+  const canManagePayments =
+    me.data?.currentTenant?.membership.permissions.includes('payment.manage') ?? false;
+  const canReadCash = me.data?.currentTenant?.membership.permissions.includes('cash.read') ?? false;
+  const canManageCash =
+    me.data?.currentTenant?.membership.permissions.includes('cash.manage') ?? false;
+  const canReadCommissions =
+    me.data?.currentTenant?.membership.permissions.includes('commission.read') ?? false;
+  const canReadFinancialClosings =
+    me.data?.currentTenant?.membership.permissions.includes('financial_closing.read') ?? false;
+  const canManageFinancialClosings =
+    me.data?.currentTenant?.membership.permissions.includes('financial_closing.manage') ?? false;
+  const canReadFinancialReports =
+    me.data?.currentTenant?.membership.permissions.includes('financial_report.read') ?? false;
+  const canReadPaymentGateway =
+    me.data?.currentTenant?.membership.permissions.includes('payment_gateway.read') ?? false;
+  const canManagePaymentGateway =
+    me.data?.currentTenant?.membership.permissions.includes('payment_gateway.manage') ?? false;
   const canViewOwnAgenda =
     me.data?.currentTenant?.membership.permissions.includes('professional.self.read') ?? false;
   const canReadMembers =
@@ -184,6 +211,33 @@ export function HomePage() {
           <UnitsModule tenantPublicId={selectedTenant} canManage={canManageUnits} />
           {canViewSubscription && <TenantSubscriptionModule tenantPublicId={selectedTenant} />}
           {canViewOperations && <OperationsDashboardModule tenantPublicId={selectedTenant} />}
+          {canReadPayments && (
+            <PaymentMethodsModule tenantPublicId={selectedTenant} canManage={canManagePayments} />
+          )}
+          {canReadCash && (
+            <CashRegisterModule tenantPublicId={selectedTenant} canManage={canManageCash} />
+          )}
+          {canReadCommissions && <CommissionsModule tenantPublicId={selectedTenant} />}
+          {canReadFinancialClosings && (
+            <FinancialClosingModule
+              tenantPublicId={selectedTenant}
+              canManage={canManageFinancialClosings}
+            />
+          )}
+          {canReadPayments && <DelinquencyModule tenantPublicId={selectedTenant} />}
+          {canReadFinancialReports && <FinancialReportModule tenantPublicId={selectedTenant} />}
+          {canReadPaymentGateway && (
+            <PaymentOptionsModule
+              tenantPublicId={selectedTenant}
+              canManage={canManagePaymentGateway}
+            />
+          )}
+          {canReadPaymentGateway && (
+            <PaymentGatewayModule
+              tenantPublicId={selectedTenant}
+              canManage={canManagePaymentGateway}
+            />
+          )}
           {canViewNotifications && <NotificationLogModule tenantPublicId={selectedTenant} />}
           {canViewNotifications && (
             <NotificationTemplateModule
@@ -202,6 +256,8 @@ export function HomePage() {
             tenantPublicId={selectedTenant}
             canFitIn={canFitIn}
             canCheckIn={canCheckIn}
+            canReadPayments={canReadPayments}
+            canManagePayments={canManagePayments}
           />
           <ServiceCategoryModule tenantPublicId={selectedTenant} />
           <ProfessionalModule

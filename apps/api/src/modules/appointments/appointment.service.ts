@@ -25,6 +25,8 @@ interface Input {
   rescheduleReason?: string | undefined;
   isFitIn?: boolean | undefined;
   fitInReason?: string | undefined;
+  depositType?: 'FIXED' | 'PERCENTAGE' | null | undefined;
+  depositValue?: number | undefined;
 }
 type AppointmentRecord = Awaited<ReturnType<AppointmentRepository['find']>> & {};
 const pub = (x: AppointmentRecord) =>
@@ -52,6 +54,9 @@ const pub = (x: AppointmentRecord) =>
     isFitIn: x.isFitIn,
     fitInReason: x.fitInReason,
     checkedInAt: x.checkedInAt?.toISOString() ?? null,
+    depositType: x.depositType,
+    depositPercentage: x.depositPercentage,
+    depositAmountCents: x.depositAmountCents?.toString() ?? null,
     createdAt: x.createdAt.toISOString(),
     updatedAt: x.updatedAt.toISOString(),
   });
@@ -367,6 +372,31 @@ export class AppointmentService {
         message: 'Há conflito na agenda do profissional.',
         statusCode: 409,
       });
+    const priceCents = link.priceCents ?? service.priceCents;
+    const depositType = i.depositType ?? null;
+    let depositPercentage: number | null = null;
+    let depositAmountCents: bigint | null = null;
+    if (depositType !== null) {
+      if (i.depositValue === undefined)
+        throw new AppError({
+          code: 'DEPOSIT_VALUE_REQUIRED',
+          message: 'Informe o valor do sinal.',
+          statusCode: 400,
+        });
+      if (depositType === 'FIXED') {
+        depositAmountCents = BigInt(i.depositValue);
+      } else {
+        depositPercentage = i.depositValue;
+        depositAmountCents = (priceCents * BigInt(i.depositValue)) / 100n;
+      }
+      if (depositAmountCents <= 0n || depositAmountCents > priceCents)
+        throw new AppError({
+          code: 'DEPOSIT_AMOUNT_INVALID',
+          message:
+            'O valor do sinal deve ser maior que zero e não pode exceder o preço do agendamento.',
+          statusCode: 400,
+        });
+    }
     const data = {
       customerId: customer.id,
       professionalId: professional.id,
@@ -376,11 +406,14 @@ export class AppointmentService {
       endsAt: end,
       durationMinutes: duration,
       postServiceBreakMinutes: pause,
-      priceCents: link.priceCents ?? service.priceCents,
+      priceCents,
       notes: i.notes ?? null,
       source: i.source,
       isFitIn,
       fitInReason: isFitIn ? (i.fitInReason ?? null) : null,
+      depositType,
+      depositPercentage,
+      depositAmountCents,
       ...(i.rescheduleReason === undefined ? {} : { rescheduleReason: i.rescheduleReason }),
     };
     const x =

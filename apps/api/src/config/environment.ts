@@ -63,6 +63,11 @@ const environmentSchema = z
     VAPID_PUBLIC_KEY: z.string().trim().min(1).optional(),
     VAPID_PRIVATE_KEY: z.string().trim().min(1).optional(),
     VAPID_SUBJECT: z.string().trim().min(1).optional(),
+    PAYMENT_GATEWAY_ENCRYPTION_KEY: z
+      .string()
+      .trim()
+      .regex(/^[0-9a-f]{64}$/iu, 'Deve ser uma chave hexadecimal de 32 bytes (64 caracteres).')
+      .optional(),
   })
   .superRefine((value, context) => {
     if (value.NODE_ENV === 'production' && value.CORS_ORIGINS.includes('*')) {

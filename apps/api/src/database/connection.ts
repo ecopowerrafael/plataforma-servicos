@@ -64,6 +64,8 @@ import { PaymentService } from '../modules/payments/payment.service.js';
 import { ProfessionalCommissionService } from '../modules/payments/professional-commission.service.js';
 import { ReceiptService } from '../modules/payments/receipt.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
+import { TenantCommercialPolicyService } from '../modules/platform/tenant-commercial-policy.service.js';
+import { TenantCommercialSweepService } from '../modules/platform/tenant-commercial-sweep.service.js';
 import { ProductSaleRepository } from '../modules/products/product-sale.repository.js';
 import { ProductSaleService } from '../modules/products/product-sale.service.js';
 import { ProductRepository } from '../modules/products/product.repository.js';
@@ -109,6 +111,7 @@ import { TenantWhiteLabelService } from '../modules/tenants/tenant-white-label.s
 import { type TenantRepository } from '../modules/tenants/tenant.repository.js';
 
 export interface DatabaseConnection {
+  readonly client: PrismaClient;
   readonly ping: () => Promise<void>;
   readonly close: () => Promise<void>;
   readonly tenants: TenantRepository;
@@ -117,6 +120,8 @@ export interface DatabaseConnection {
   readonly appointments?: AppointmentService;
   readonly appointmentWaitlists?: AppointmentWaitlistService;
   readonly platform?: PlatformService;
+  readonly commercialPolicy?: TenantCommercialPolicyService;
+  readonly commercialSweep?: TenantCommercialSweepService;
   readonly customers?: CustomerService;
   readonly customerAuth?: CustomerAuthService;
   readonly customerProfile?: CustomerProfileService;
@@ -226,7 +231,13 @@ export function createDatabaseConnection(
 
   const appointmentRepository = new AppointmentRepository(client);
   const availability = new AvailabilityService(new AvailabilityRepository(client));
-  const appointments = new AppointmentService(appointmentRepository, availability);
+  const commercialPolicy = new TenantCommercialPolicyService(client);
+  const appointments = new AppointmentService(
+    appointmentRepository,
+    availability,
+    commercialPolicy,
+    client,
+  );
   const appointmentWaitlists = new AppointmentWaitlistService(
     new AppointmentWaitlistRepository(client),
     appointments,
@@ -276,6 +287,8 @@ export function createDatabaseConnection(
     new LocalTenantMediaStorage(),
     new LocalServiceImageStorage(),
     new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR),
+    commercialPolicy,
+    client,
   );
   const emailDelivery: EmailDelivery =
     customerAuthOptions?.smtp === undefined
@@ -337,12 +350,15 @@ export function createDatabaseConnection(
   );
 
   return {
+    client,
     identities: new PrismaIdentityRepository(client),
     availability,
     appointments: appointments,
     appointmentWaitlists: appointmentWaitlists,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
+    commercialPolicy,
+    commercialSweep: new TenantCommercialSweepService(client),
     customers: customers,
     customerAuth: customerAuth,
     customerProfile: customerProfile,

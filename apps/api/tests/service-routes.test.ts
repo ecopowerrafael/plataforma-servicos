@@ -141,6 +141,7 @@ async function fixture(
   });
   const services = serviceDouble();
   const database: DatabaseConnection = {
+    client: undefined as never,
     identities,
     tenants: new InMemoryTenantRepository(),
     services,

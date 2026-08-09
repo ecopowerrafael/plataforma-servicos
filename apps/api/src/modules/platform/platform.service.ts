@@ -18,6 +18,7 @@ import {
   type UpdateTenantCustomFieldRequest,
 } from '@plataforma/shared';
 
+import { TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthRequestContext, type RequestMetadata } from '../auth/identity.repository.js';
@@ -43,6 +44,8 @@ const platformPermissions = [
   'platform.subscription.status.manage',
   'platform.audit.read',
   'platform.metrics.read',
+  'platform.commercial_policy.read',
+  'platform.commercial_policy.manage',
 ] as const satisfies readonly PlatformPermissionCode[];
 
 interface PageRequest {
@@ -118,7 +121,7 @@ export function mapPlan(plan: {
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
   priceCents: bigint;
   currency: string;
-  trialDays: number;
+  trialDays: number | null;
   isPublic: boolean;
   sortOrder: number;
   createdAt: Date;
@@ -186,11 +189,13 @@ export class PlatformService {
   private readonly experienceResolver: TenantExperienceResolver;
   private readonly featuresResolver: TenantFeaturesResolver;
   private readonly customFieldsResolver: TenantCustomFieldsResolver;
+  private readonly commercialPolicyService: TenantCommercialPolicyService;
 
   public constructor(private readonly client: PrismaClient) {
     this.experienceResolver = new TenantExperienceResolver(client);
     this.featuresResolver = new TenantFeaturesResolver(client);
     this.customFieldsResolver = new TenantCustomFieldsResolver(client);
+    this.commercialPolicyService = new TenantCommercialPolicyService(client);
   }
 
   public async resolveAuth(auth: AuthRequestContext): Promise<PlatformAuthContext> {
@@ -343,6 +348,20 @@ export class PlatformService {
     return { items: plans.map(mapPlan), page: pageMeta(total, query) };
   }
 
+  public async listPublicPlans(defaultTrialDays: number) {
+    const plans = await this.client.commercialPlan.findMany({
+      where: { status: 'ACTIVE', isPublic: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: { limits: { orderBy: { key: 'asc' } } },
+    });
+    return plans.map((plan) =>
+      mapPlan({
+        ...plan,
+        trialDays: plan.trialDays ?? defaultTrialDays,
+      }),
+    );
+  }
+
   public async getPlan(publicId: string) {
     const plan = await this.client.commercialPlan.findUnique({
       where: { publicId },
@@ -370,7 +389,7 @@ export class PlatformService {
               billingCycle: input.billingCycle,
               priceCents: BigInt(input.priceCents),
               currency: input.currency,
-              trialDays: input.trialDays,
+              trialDays: input.trialDays ?? null,
               isPublic: input.isPublic,
               sortOrder: input.sortOrder,
               limits: {
@@ -529,6 +548,7 @@ export class PlatformService {
     metadata: RequestMetadata,
   ) {
     const now = input.startsAt === undefined ? new Date() : new Date(input.startsAt);
+    const policy = await this.commercialPolicyService.getOrCreateRaw();
     return this.client.$transaction(
       async (transaction) => {
         const [tenant, plan] = await Promise.all([
@@ -543,9 +563,10 @@ export class PlatformService {
             'O plano não está disponível para nova assinatura.',
             409,
           );
+        const effectiveTrialDays = plan.trialDays ?? policy.defaultTrialDays;
         const trialEndsAt =
-          input.trial && plan.trialDays > 0
-            ? new Date(now.getTime() + plan.trialDays * 86_400_000)
+          input.trial && effectiveTrialDays > 0
+            ? new Date(now.getTime() + effectiveTrialDays * 86_400_000)
             : null;
         const status = trialEndsAt === null ? 'ACTIVE' : 'TRIALING';
         const currentPeriodEndsAt =
@@ -566,6 +587,7 @@ export class PlatformService {
               planId: plan.id,
               status,
               startsAt: now,
+              trialStartedAt: trialEndsAt === null ? null : now,
               trialEndsAt,
               currentPeriodStartsAt: now,
               currentPeriodEndsAt,
@@ -715,6 +737,7 @@ export class PlatformService {
             effectiveKey: subscriptionEffectiveKey(nextStatus),
             ...(nextStatus === 'SUSPENDED' ? { suspendedAt: now } : {}),
             ...(nextStatus === 'CANCELED' ? { canceledAt: now, endsAt: now } : {}),
+            ...(action === 'ACTIVATED' || action === 'REACTIVATED' ? { graceEndsAt: null } : {}),
           },
           include: { tenant: true, plan: true },
         });
@@ -1673,9 +1696,11 @@ export class PlatformService {
             },
           });
           const startsAt = input.startsAt === undefined ? new Date() : new Date(input.startsAt);
+          const commercialPolicy = await this.commercialPolicyService.getOrCreateRaw();
+          const effectiveTrialDays = plan.trialDays ?? commercialPolicy.defaultTrialDays;
           const trialEndsAt =
-            input.trial && plan.trialDays > 0
-              ? new Date(startsAt.getTime() + plan.trialDays * 86_400_000)
+            input.trial && effectiveTrialDays > 0
+              ? new Date(startsAt.getTime() + effectiveTrialDays * 86_400_000)
               : null;
           const status = trialEndsAt === null ? 'ACTIVE' : 'TRIALING';
           const subscription = await transaction.tenantSubscription.create({
@@ -1685,6 +1710,7 @@ export class PlatformService {
               planId: plan.id,
               status,
               startsAt,
+              trialStartedAt: trialEndsAt === null ? null : startsAt,
               trialEndsAt,
               currentPeriodStartsAt: startsAt,
               currentPeriodEndsAt: periodEnd(startsAt, plan.billingCycle),

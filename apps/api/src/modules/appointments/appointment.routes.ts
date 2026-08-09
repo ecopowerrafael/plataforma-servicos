@@ -16,14 +16,16 @@ import { type AppointmentService } from './appointment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { type AppointmentNotificationService } from '../notifications/appointment-notification.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 const params = z.object({ publicId: z.uuid() });
 export const appointmentRoutes: FastifyPluginAsyncZod<{
   service: AppointmentService;
   authService: AuthService;
   cookieName: string;
   notifications?: AppointmentNotificationService;
+  client?: PrismaClient;
 }> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName });
+  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: r.auth.user.id,
     sessionId: r.auth.session.id,

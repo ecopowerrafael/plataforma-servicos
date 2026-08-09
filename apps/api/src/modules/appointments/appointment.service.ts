@@ -8,9 +8,11 @@ import {
 
 import { type AppointmentWaitlistService } from './appointment-waitlist.service.js';
 import { type AppointmentRepository } from './appointment.repository.js';
-import { type AppointmentStatus, type Prisma } from '../../database-client/client.js';
+import { type AppointmentStatus, type Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
+import { type TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
+import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
 interface Actor {
   userId: bigint | null;
   sessionId: bigint | null;
@@ -63,14 +65,48 @@ const pub = (x: AppointmentRecord) =>
   });
 export class AppointmentService {
   private waitlistService?: AppointmentWaitlistService;
+  private readonly commercialStatusResolver = new TenantCommercialStatusResolver();
 
   constructor(
     private readonly repo: AppointmentRepository,
     private readonly availability: AvailabilityService,
+    private readonly commercialPolicyService?: TenantCommercialPolicyService,
+    private readonly commercialClient?: PrismaClient,
   ) {}
 
   setWaitlistService(service: AppointmentWaitlistService): void {
     this.waitlistService = service;
+  }
+
+  private async assertCommercialCapability(t: bigint, source: string): Promise<void> {
+    if (this.commercialPolicyService === undefined || this.commercialClient === undefined) return;
+    const subscription =
+      (await this.commercialClient.tenantSubscription.findFirst({
+        where: { tenantId: t, effectiveKey: 'EFFECTIVE' },
+      })) ??
+      (await this.commercialClient.tenantSubscription.findFirst({
+        where: { tenantId: t },
+        orderBy: { createdAt: 'desc' },
+      }));
+    if (subscription === null) return;
+    const policy = await this.commercialPolicyService.getOrCreateRaw();
+    const status = this.commercialStatusResolver.resolve(subscription, policy);
+    const isPublic = source === 'PUBLIC_BOOKING';
+    if (isPublic) {
+      if (!status.capabilities.canAcceptPublicBooking)
+        throw new AppError({
+          code: 'PUBLIC_BOOKING_UNAVAILABLE',
+          message: status.publicMessage ?? 'Agendamento online indisponível no momento.',
+          statusCode: 403,
+        });
+      return;
+    }
+    if (!status.capabilities.canCreateInternalAppointment)
+      throw new AppError({
+        code: 'INTERNAL_APPOINTMENT_BLOCKED',
+        message: status.adminMessage ?? 'Não é possível criar agendamentos no momento.',
+        statusCode: 403,
+      });
   }
   async list(
     t: bigint,
@@ -228,6 +264,7 @@ export class AppointmentService {
     return this.status(t, id, status, reason, a);
   }
   async create(t: bigint, i: Input, a: Actor) {
+    await this.assertCommercialCapability(t, i.source);
     return this.save(t, i, a);
   }
   async update(t: bigint, id: string, i: Input, a: Actor) {

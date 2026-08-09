@@ -9,14 +9,17 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { type ProductSaleService } from './product-sale.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 export const productSaleRoutes: FastifyPluginAsyncZod<{
   service: ProductSaleService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, options) => {
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/product-sales',

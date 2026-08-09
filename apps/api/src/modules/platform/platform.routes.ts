@@ -32,12 +32,15 @@ import {
   UpdateTenantFeaturesRequestSchema,
   UpdateCommercialPlanRequestSchema,
   UpdatePlatformTenantRequestSchema,
+  TenantCommercialPolicySchema,
+  UpdateTenantCommercialPolicyRequestSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { type PlatformAuthContext, type PlatformService } from './platform.service.js';
+import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { requestMetadata } from '../auth/request-context.js';
 
@@ -45,6 +48,7 @@ interface PlatformRoutesOptions {
   service: PlatformService;
   authService: AuthService;
   cookieName: string;
+  commercialPolicyService?: TenantCommercialPolicyService;
 }
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const TenantParamsSchema = z.object({ tenantPublicId: z.uuid() });
@@ -452,4 +456,33 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       return options.service.listAudit(request.query);
     },
   );
+
+  if (options.commercialPolicyService !== undefined) {
+    const policyService = options.commercialPolicyService;
+    app.get(
+      '/platform/commercial-policy',
+      { schema: { response: { 200: TenantCommercialPolicySchema } } },
+      (request) => {
+        allow(request, 'platform.commercial_policy.read');
+        return policyService.get();
+      },
+    );
+    app.patch(
+      '/platform/commercial-policy',
+      {
+        schema: {
+          body: UpdateTenantCommercialPolicyRequestSchema,
+          response: { 200: z.object({ policy: TenantCommercialPolicySchema }) },
+        },
+      },
+      (request) => {
+        allow(request, 'platform.commercial_policy.manage');
+        return policyService.update(
+          request.body,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+      },
+    );
+  }
 };

@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { type CouponService } from './coupon.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 const couponParams = z.object({ publicId: z.uuid() });
 const appointmentParams = z.object({ publicId: z.uuid() });
@@ -23,8 +24,9 @@ export const couponRoutes: FastifyPluginAsyncZod<{
   service: CouponService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName });
+  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: r.auth.user.id,
     sessionId: r.auth.session.id,

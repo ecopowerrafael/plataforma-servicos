@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { type NotificationService } from './notification.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 const params = z.object({ publicId: z.uuid() });
 
@@ -12,8 +13,9 @@ export const notificationRoutes: FastifyPluginAsyncZod<{
   service: NotificationService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName });
+  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
 
   app.get(
     '/tenant/notifications',

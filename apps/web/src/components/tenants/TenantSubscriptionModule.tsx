@@ -17,6 +17,16 @@ const cycleLabels: Record<string, string> = {
   YEARLY: 'Anual',
 };
 
+const commercialStateLabels: Record<string, string> = {
+  TRIALING: 'Período de teste',
+  ACTIVE: 'Ativa',
+  PAST_DUE: 'Vencida',
+  GRACE: 'Em carência',
+  SUSPENDED: 'Suspensa',
+  CANCELED: 'Cancelada',
+  EXPIRED: 'Expirada',
+};
+
 const formatMoney = (cents: string, currency: string) =>
   `${currency} ${(Number(cents) / 100).toFixed(2)}`;
 
@@ -93,6 +103,33 @@ export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: s
             <strong>Próximo período até:</strong>{' '}
             {formatDate(query.data.subscription.currentPeriodEndsAt)}
           </p>
+
+          {query.data.commercial.state !== 'TRIALING' && query.data.commercial.state !== 'ACTIVE' && (
+            <p className="form-error" role="alert">
+              {query.data.commercial.adminMessage ??
+                'Sua assinatura precisa de atenção. Entre em contato com o suporte.'}
+            </p>
+          )}
+          <p>
+            <strong>Situação comercial:</strong>{' '}
+            {commercialStateLabels[query.data.commercial.state] ?? query.data.commercial.state}
+          </p>
+          {query.data.commercial.state === 'TRIALING' &&
+            query.data.commercial.trialDaysRemaining !== null && (
+              <p>
+                <strong>Teste:</strong> {`Faltam ${String(query.data.commercial.trialDaysRemaining)} dias de teste`}
+              </p>
+            )}
+          {query.data.commercial.currentPeriodEndsAt !== null && (
+            <p>
+              <strong>Vencimento:</strong> {formatDate(query.data.commercial.currentPeriodEndsAt)}
+            </p>
+          )}
+          {query.data.commercial.graceEndsAt !== null && (
+            <p>
+              <strong>Carência até:</strong> {formatDate(query.data.commercial.graceEndsAt)}
+            </p>
+          )}
 
           <h4>Limites do plano</h4>
           <ul>

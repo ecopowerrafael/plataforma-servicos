@@ -9,15 +9,17 @@ import { z } from 'zod';
 import { type ProfessionalServiceLinkService } from './professional-service.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 const base = z.object({ publicId: z.uuid() });
 const pair = base.extend({ servicePublicId: z.uuid() });
 interface Options {
   service: ProfessionalServiceLinkService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 export const professionalServiceRoutes: FastifyPluginAsyncZod<Options> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName });
+  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: r.auth.user.id,
     sessionId: r.auth.session.id,

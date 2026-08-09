@@ -20,6 +20,8 @@ export const PlatformPermissionCodeSchema = z.enum([
   'platform.subscription.status.manage',
   'platform.audit.read',
   'platform.metrics.read',
+  'platform.commercial_policy.read',
+  'platform.commercial_policy.manage',
 ]);
 
 export const PlatformAdministratorStatusSchema = z.enum(['ACTIVE', 'SUSPENDED', 'INACTIVE']);
@@ -39,6 +41,7 @@ export const SubscriptionStatusSchema = z.enum([
   'CANCELED',
   'EXPIRED',
 ]);
+export const PublicSiteBehaviorSchema = z.enum(['NORMAL', 'HIDE_BOOKING', 'OFFLINE']);
 export const SubscriptionActionSchema = z.enum([
   'CREATED',
   'TRIAL_STARTED',
@@ -169,7 +172,7 @@ export const CommercialPlanPublicSchema = z.object({
   billingCycle: BillingCycleSchema,
   priceCents: MoneyPublicSchema,
   currency: CurrencySchema,
-  trialDays: z.number().int().nonnegative().max(3650),
+  trialDays: z.number().int().nonnegative().max(3650).nullable(),
   isPublic: z.boolean(),
   sortOrder: z.number().int(),
   limits: z.array(PlanLimitPublicSchema),
@@ -187,7 +190,7 @@ const CommercialPlanRequestObjectSchema = z
     billingCycle: BillingCycleSchema,
     priceCents: MoneyInputSchema,
     currency: CurrencySchema.default('BRL'),
-    trialDays: z.coerce.number().int().min(0).max(3650).default(0),
+    trialDays: z.coerce.number().int().min(0).max(3650).nullable().optional(),
     isPublic: z.boolean().default(false),
     sortOrder: z.coerce.number().int().min(0).max(10_000).default(0),
     limits: z.array(PlanLimitInputSchema).max(9).default([]),
@@ -233,6 +236,11 @@ export const PlanListQuerySchema = PaginationQuerySchema.extend({
 export const PlanListResponseSchema = z.object({
   items: z.array(CommercialPlanPublicSchema),
   page: PaginationMetaSchema,
+});
+
+export const PublicCommercialPlansResponseSchema = z.object({
+  plans: z.array(CommercialPlanPublicSchema),
+  defaultTrialDays: z.number().int().nonnegative().max(3650),
 });
 
 export const SubscriptionPublicSchema = z.object({

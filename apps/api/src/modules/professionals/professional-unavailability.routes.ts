@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { type ProfessionalUnavailabilityService } from './professional-unavailability.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 const professionalParams = z.object({ publicId: z.uuid() });
 const itemParams = professionalParams.extend({ itemPublicId: z.uuid() });
@@ -19,10 +20,12 @@ export const professionalUnavailabilityRoutes: FastifyPluginAsyncZod<{
   service: ProfessionalUnavailabilityService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, options) => {
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: request.auth.user.id,

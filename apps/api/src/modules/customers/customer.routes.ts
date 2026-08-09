@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { type CustomerService } from './customer.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 const params = z.object({ publicId: z.uuid() });
 const query = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -26,8 +27,9 @@ export const customerRoutes: FastifyPluginAsyncZod<{
   service: CustomerService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName });
+  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: r.auth.user.id,
     sessionId: r.auth.session.id,

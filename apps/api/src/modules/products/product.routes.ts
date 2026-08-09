@@ -17,11 +17,13 @@ import { z } from 'zod';
 import { type ProductCatalogService } from './product.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: ProductCatalogService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 const Id = z.object({ publicId: z.uuid() }).strict();
 const StockIds = z.object({ productPublicId: z.uuid(), unitPublicId: z.uuid() }).strict();
@@ -36,6 +38,7 @@ export const productRoutes: FastifyPluginAsyncZod<Options> = async (app, options
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/product-categories',

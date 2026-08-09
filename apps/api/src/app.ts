@@ -61,6 +61,7 @@ import { paymentMethodRoutes } from './modules/payments/payment-method.routes.js
 import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { receiptRoutes } from './modules/payments/receipt.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
+import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
 import { productSaleRoutes } from './modules/products/product-sale.routes.js';
 import { productRoutes } from './modules/products/product.routes.js';
 import { stockMovementRoutes } from './modules/products/stock-movement.routes.js';
@@ -248,6 +249,7 @@ export async function buildApp(options: BuildAppOptions) {
   const authRouteOptions = {
     service: authService,
     cookieName: options.environment.AUTH_COOKIE_NAME,
+    client: options.database.client,
     cookieSecure: options.environment.AUTH_COOKIE_SECURE,
     sessionTtlHours: options.environment.AUTH_SESSION_TTL_HOURS,
     rateLimitMax: options.environment.LOGIN_RATE_LIMIT_MAX,
@@ -265,6 +267,7 @@ export async function buildApp(options: BuildAppOptions) {
     service: tenantService,
     authService,
     cookieName: options.environment.AUTH_COOKIE_NAME,
+    client: options.database.client,
     ...(options.database.tenantExperience === undefined
       ? {}
       : { experience: options.database.tenantExperience }),
@@ -274,6 +277,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.businessUnitOperatingHours,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.businessUnitDateOverrides !== undefined) {
@@ -281,6 +285,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.businessUnitDateOverrides,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.multiUnit !== undefined) {
@@ -288,6 +293,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.multiUnit,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.tenantDomains !== undefined) {
@@ -295,6 +301,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.tenantDomains,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
     await app.register(publicTenantDomainRoutes, { service: options.database.tenantDomains });
   }
@@ -303,6 +310,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.integrations,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.tenantWhiteLabel !== undefined) {
@@ -313,6 +321,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.tenantWhiteLabel,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.tenantSubscription !== undefined) {
@@ -320,6 +329,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.tenantSubscription,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.publicBooking !== undefined) {
@@ -383,6 +393,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.services,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.serviceVariations !== undefined) {
@@ -390,6 +401,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.serviceVariations,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.combos !== undefined) {
@@ -397,6 +409,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.combos,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.availability !== undefined) {
@@ -404,6 +417,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.availability,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.appointments !== undefined)
@@ -411,6 +425,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.appointments,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
       ...(options.database.appointmentNotifications === undefined
         ? {}
         : { notifications: options.database.appointmentNotifications }),
@@ -420,72 +435,84 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.appointmentWaitlists,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.payments !== undefined)
     await app.register(paymentRoutes, {
       service: options.database.payments,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.paymentMethods !== undefined)
     await app.register(paymentMethodRoutes, {
       service: options.database.paymentMethods,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.cashRegisters !== undefined)
     await app.register(cashRegisterRoutes, {
       service: options.database.cashRegisters,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.receipts !== undefined)
     await app.register(receiptRoutes, {
       service: options.database.receipts,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.commissions !== undefined)
     await app.register(commissionRoutes, {
       service: options.database.commissions,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.coupons !== undefined)
     await app.register(couponRoutes, {
       service: options.database.coupons,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.loyalty !== undefined)
     await app.register(loyaltyRoutes, {
       service: options.database.loyalty,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.financialClosings !== undefined)
     await app.register(financialClosingRoutes, {
       service: options.database.financialClosings,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.delinquency !== undefined)
     await app.register(delinquencyRoutes, {
       service: options.database.delinquency,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.financialReports !== undefined)
     await app.register(financialReportRoutes, {
       service: options.database.financialReports,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.paymentGateway !== undefined) {
     await app.register(paymentGatewayRoutes, {
       service: options.database.paymentGateway,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
     await app.register(paymentGatewayWebhookRoutes, {
       service: options.database.paymentGateway,
@@ -496,6 +523,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.tenantPaymentOptions,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.notifications !== undefined)
@@ -503,42 +531,49 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.notifications,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.notificationTemplates !== undefined)
     await app.register(notificationTemplateRoutes, {
       service: options.database.notificationTemplates,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.automations !== undefined)
     await app.register(automationRoutes, {
       service: options.database.automations,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.appointmentOperations !== undefined)
     await app.register(appointmentOperationsRoutes, {
       service: options.database.appointmentOperations,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.customerRecovery !== undefined)
     await app.register(customerRecoveryRoutes, {
       service: options.database.customerRecovery,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.customers !== undefined)
     await app.register(customerRoutes, {
       service: options.database.customers,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.serviceCategories !== undefined) {
     await app.register(serviceCategoryRoutes, {
       service: options.database.serviceCategories,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.products !== undefined) {
@@ -546,6 +581,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.products,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.stockMovements !== undefined) {
@@ -553,6 +589,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.stockMovements,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.productSales !== undefined) {
@@ -560,6 +597,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.productSales,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   }
   if (options.database.professionals !== undefined)
@@ -567,6 +605,7 @@ export async function buildApp(options: BuildAppOptions) {
       service: options.database.professionals,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (
     options.database.professionals !== undefined &&
@@ -588,40 +627,55 @@ export async function buildApp(options: BuildAppOptions) {
         : { commissions: options.database.commissions }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.professionalServices !== undefined)
     await app.register(professionalServiceRoutes, {
       service: options.database.professionalServices,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.professionalUnits !== undefined)
     await app.register(professionalUnitRoutes, {
       service: options.database.professionalUnits,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.professionalSchedules !== undefined)
     await app.register(professionalScheduleRoutes, {
       service: options.database.professionalSchedules,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.professionalUnavailabilities !== undefined)
     await app.register(professionalUnavailabilityRoutes, {
       service: options.database.professionalUnavailabilities,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   await app.register(membershipRoutes, {
     service: authService,
     cookieName: options.environment.AUTH_COOKIE_NAME,
+    client: options.database.client,
   });
   if (options.database.platform !== undefined) {
+    if (options.database.commercialPolicy !== undefined) {
+      await app.register(publicCommercialRoutes, {
+        service: options.database.platform,
+        commercialPolicyService: options.database.commercialPolicy,
+      });
+    }
     await app.register(platformRoutes, {
       service: options.database.platform,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
+      ...(options.database.commercialPolicy === undefined
+        ? {}
+        : { commercialPolicyService: options.database.commercialPolicy }),
     });
   }
 

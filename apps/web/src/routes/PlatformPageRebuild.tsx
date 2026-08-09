@@ -4,17 +4,25 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { AuditModule } from '../components/platform/AuditModule.js';
+import { CommercialPolicyModule } from '../components/platform/CommercialPolicyModule.js';
 import { PlanModule } from '../components/platform/PlanModule.js';
 import { SubscriptionModule } from '../components/platform/SubscriptionModule.js';
 import { TenantModule } from '../components/platform/TenantModule.js';
 import { HttpError, httpClient } from '../lib/http.js';
 
-type PlatformSection = 'dashboard' | 'tenants' | 'plans' | 'subscriptions' | 'audit';
+type PlatformSection =
+  | 'dashboard'
+  | 'tenants'
+  | 'plans'
+  | 'subscriptions'
+  | 'commercial-policy'
+  | 'audit';
 const sectionLabels: Record<PlatformSection, string> = {
   dashboard: 'Vis\u00e3o geral',
   tenants: 'Estabelecimentos',
   plans: 'Planos',
   subscriptions: 'Assinaturas',
+  'commercial-policy': 'Pol\u00edtica Comercial',
   audit: 'Auditoria',
 };
 
@@ -101,6 +109,8 @@ export function PlatformPageRebuild() {
             <PlanModule />
           ) : section === 'subscriptions' ? (
             <SubscriptionModule />
+          ) : section === 'commercial-policy' ? (
+            <CommercialPolicyModule />
           ) : (
             <AuditModule />
           )}

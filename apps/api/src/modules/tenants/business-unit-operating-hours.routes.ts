@@ -8,11 +8,13 @@ import { z } from 'zod';
 import { type BusinessUnitOperatingHoursService } from './business-unit-operating-hours.service.js';
 import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: BusinessUnitOperatingHoursService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 
 const UnitParamsSchema = z.object({ publicId: z.uuid() }).strict();
@@ -28,6 +30,7 @@ export const businessUnitOperatingHoursRoutes: FastifyPluginAsyncZod<Options> = 
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
 
   app.get(

@@ -15,8 +15,10 @@ import {
 import { resolveTenantExperience } from './tenant-experience.resolver.js';
 import { type TenantMediaStorage } from './tenant-media.storage.js';
 import { type TenantWhiteLabelRepository } from './tenant-white-label.repository.js';
-import { type TenantMediaKind } from '../../database-client/client.js';
+import { type PrismaClient, type TenantMediaKind } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { type TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
+import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
 import { type ServiceImageStorage } from '../services/service-image.storage.js';
 
 interface Actor {
@@ -94,12 +96,41 @@ function sitePublic(
 }
 
 export class TenantWhiteLabelService {
+  private readonly commercialStatusResolver = new TenantCommercialStatusResolver();
+
   public constructor(
     private readonly repository: TenantWhiteLabelRepository,
     private readonly storage: TenantMediaStorage,
     private readonly serviceImages: ServiceImageStorage,
     private readonly professionalImages: ServiceImageStorage,
+    private readonly commercialPolicyService?: TenantCommercialPolicyService,
+    private readonly commercialClient?: PrismaClient,
   ) {}
+
+  private async resolveBookingAvailability(
+    tenantId: bigint,
+  ): Promise<{ bookingAvailable: boolean; unavailableMessage: string | null }> {
+    if (this.commercialPolicyService === undefined || this.commercialClient === undefined) {
+      return { bookingAvailable: true, unavailableMessage: null };
+    }
+    const subscription =
+      (await this.commercialClient.tenantSubscription.findFirst({
+        where: { tenantId, effectiveKey: 'EFFECTIVE' },
+      })) ??
+      (await this.commercialClient.tenantSubscription.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+      }));
+    if (subscription === null) return { bookingAvailable: true, unavailableMessage: null };
+    const policy = await this.commercialPolicyService.getOrCreateRaw();
+    const status = this.commercialStatusResolver.resolve(subscription, policy);
+    return {
+      bookingAvailable: status.capabilities.canAcceptPublicBooking,
+      unavailableMessage: status.capabilities.canAcceptPublicBooking
+        ? null
+        : (status.publicMessage ?? 'Agendamento online indisponível no momento.'),
+    };
+  }
 
   public async get(tenantId: bigint) {
     const tenant = await this.repository.findTenant(tenantId);
@@ -262,6 +293,9 @@ export class TenantWhiteLabelService {
     const tenant = await this.repository.findPublicTenant(slug);
     if (tenant === null) throw notFound();
     const experience = resolveTenantExperience(tenant);
+    const { bookingAvailable, unavailableMessage } = await this.resolveBookingAvailability(
+      tenant.id,
+    );
     return PublicTenantSiteResponseSchema.parse({
       slug: tenant.slug,
       displayName: tenant.displayName,
@@ -309,6 +343,8 @@ export class TenantWhiteLabelService {
         countryCode: unit.countryCode,
         timezone: unit.timezone,
       })),
+      bookingAvailable,
+      unavailableMessage,
     });
   }
 

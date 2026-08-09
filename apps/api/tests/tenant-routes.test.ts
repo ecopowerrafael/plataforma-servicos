@@ -161,6 +161,7 @@ async function createApp(nodeEnvironment: Environment['NODE_ENV'] = 'test') {
     userAgent: 'test',
   });
   const database: DatabaseConnection = {
+    client: undefined as never,
     identities,
     tenants: repository,
     ping: vi.fn().mockResolvedValue(undefined),

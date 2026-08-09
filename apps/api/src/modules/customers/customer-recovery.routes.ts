@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { type CustomerRecoveryService } from './customer-recovery.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 const pub = (item: { publicId: string; rule: string; active: boolean; days: number }) =>
   RecoveryRulePublicSchema.parse(item);
@@ -20,10 +21,12 @@ export const customerRecoveryRoutes: FastifyPluginAsyncZod<{
   service: CustomerRecoveryService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, options) => {
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/customer-recovery',

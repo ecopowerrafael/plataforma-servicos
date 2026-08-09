@@ -36,6 +36,10 @@ import {
 } from '../modules/notifications/push-delivery.js';
 import { PushSubscriptionService } from '../modules/notifications/push-subscription.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
+import { ProductRepository } from '../modules/products/product.repository.js';
+import { ProductCatalogService } from '../modules/products/product.service.js';
+import { StockMovementRepository } from '../modules/products/stock-movement.repository.js';
+import { StockMovementService } from '../modules/products/stock-movement.service.js';
 import { PrismaProfessionalScheduleRepository } from '../modules/professionals/professional-schedule.repository.js';
 import { ProfessionalScheduleService } from '../modules/professionals/professional-schedule.service.js';
 import { PrismaProfessionalServiceRepository } from '../modules/professionals/professional-service.repository.js';
@@ -102,6 +106,8 @@ export interface DatabaseConnection {
   readonly pushSubscriptions?: PushSubscriptionService;
   readonly vapidPublicKey?: string | null;
   readonly publicBooking?: PublicBookingService;
+  readonly products?: ProductCatalogService;
+  readonly stockMovements?: StockMovementService;
 }
 
 function readPositiveInteger(value: string | null, fallback: number): number {
@@ -179,6 +185,11 @@ export function createDatabaseConnection(
   const professionalUnits = new ProfessionalUnitLinkService(
     new PrismaProfessionalUnitRepository(client),
   );
+  const productRepository = new ProductRepository(client);
+  const stockMovements = new StockMovementService(
+    new StockMovementRepository(client),
+    productRepository,
+  );
   const tenantWhiteLabelRepository = new TenantWhiteLabelRepository(client);
   const customerAuth = new CustomerAuthService(
     customerRepository,
@@ -240,6 +251,8 @@ export function createDatabaseConnection(
       new LocalServiceImageStorage(),
     ),
     serviceCategories: new ServiceCategoryService(new PrismaServiceCategoryRepository(client)),
+    products: new ProductCatalogService(productRepository, stockMovements),
+    stockMovements,
     serviceVariations: new ServiceVariationService(new PrismaServiceVariationRepository(client)),
     combos: new ComboService(new PrismaComboRepository(client), new LocalServiceImageStorage()),
     professionals: new ProfessionalService(

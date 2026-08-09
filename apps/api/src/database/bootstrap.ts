@@ -67,6 +67,10 @@ const permissions = [
   ],
   ['notification.read', 'Consultar o log de notificações enviadas pelo estabelecimento.'],
   ['notification.template.manage', 'Personalizar os modelos de mensagens de notificação.'],
+  ['product.read', 'Consultar categorias e produtos.'],
+  ['product.manage', 'Gerenciar categorias e produtos.'],
+  ['stock.read', 'Consultar estoque por unidade.'],
+  ['stock.manage', 'Definir estoque por unidade.'],
 ] as const;
 
 const roles = [
@@ -140,6 +144,10 @@ const roles = [
       'appointment.checkin.manage',
       'notification.read',
       'notification.template.manage',
+      'product.read',
+      'product.manage',
+      'stock.read',
+      'stock.manage',
     ],
   },
   {

@@ -39,6 +39,8 @@ import { notificationTemplateRoutes } from './modules/notifications/notification
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
 import { pushSubscriptionRoutes } from './modules/notifications/push-subscription.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
+import { productRoutes } from './modules/products/product.routes.js';
+import { stockMovementRoutes } from './modules/products/stock-movement.routes.js';
 import { professionalScheduleRoutes } from './modules/professionals/professional-schedule.routes.js';
 import { professionalSelfRoutes } from './modules/professionals/professional-self.routes.js';
 import { professionalServiceRoutes } from './modules/professionals/professional-service.routes.js';
@@ -378,6 +380,20 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.serviceCategories !== undefined) {
     await app.register(serviceCategoryRoutes, {
       service: options.database.serviceCategories,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  }
+  if (options.database.products !== undefined) {
+    await app.register(productRoutes, {
+      service: options.database.products,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  }
+  if (options.database.stockMovements !== undefined) {
+    await app.register(stockMovementRoutes, {
+      service: options.database.stockMovements,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });

@@ -31,6 +31,7 @@ export * from './tenant-operations.js';
 export * from './notification.js';
 export * from './notification-template.js';
 export * from './push-subscription.js';
+export * from './product.js';
 
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),

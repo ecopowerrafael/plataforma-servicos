@@ -49,6 +49,8 @@ export class ProductCatalogService {
     barcode: string | null;
     costPriceCents: bigint;
     salePriceCents: bigint;
+    commissionType: 'PERCENTAGE' | 'FIXED' | null;
+    commissionValue: number | null;
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -59,6 +61,8 @@ export class ProductCatalogService {
       categoryPublicId: row.category?.publicId ?? null,
       costPriceCents: String(row.costPriceCents),
       salePriceCents: String(row.salePriceCents),
+      commissionType: row.commissionType,
+      commissionValue: row.commissionValue,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     });
@@ -148,6 +152,8 @@ export class ProductCatalogService {
       barcode: input.barcode ?? null,
       costPriceCents: BigInt(input.costPriceCents),
       salePriceCents: BigInt(input.salePriceCents),
+      commissionType: input.commissionType ?? null,
+      commissionValue: input.commissionValue ?? null,
       active: input.active,
     };
   }

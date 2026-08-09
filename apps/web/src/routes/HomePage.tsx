@@ -34,6 +34,7 @@ import { OperationsDashboardModule } from '../components/tenants/OperationsDashb
 import { PaymentGatewayModule } from '../components/tenants/PaymentGatewayModule.js';
 import { PaymentMethodsModule } from '../components/tenants/PaymentMethodsModule.js';
 import { PaymentOptionsModule } from '../components/tenants/PaymentOptionsModule.js';
+import { ProductInventoryModule } from '../components/tenants/ProductInventoryModule.js';
 import { TenantSettingsModule } from '../components/tenants/TenantSettingsModule.js';
 import { TenantSubscriptionModule } from '../components/tenants/TenantSubscriptionModule.js';
 import { UnitsModule } from '../components/tenants/UnitsModule.js';
@@ -160,6 +161,12 @@ export function HomePage() {
   const canManageNotificationTemplates =
     me.data?.currentTenant?.membership.permissions.includes('notification.template.manage') ??
     false;
+  const canReadProducts =
+    me.data?.currentTenant?.membership.permissions.includes('product.read') ?? false;
+  const canManageProducts =
+    me.data?.currentTenant?.membership.permissions.includes('product.manage') ?? false;
+  const canSellProducts =
+    me.data?.currentTenant?.membership.permissions.includes('product_sale.manage') ?? false;
   const canReadAutomations =
     me.data?.currentTenant?.membership.permissions.includes('automation.read') ?? false;
   const canManageAutomations =
@@ -238,6 +245,13 @@ export function HomePage() {
           )}
           {canReadLoyalty && (
             <LoyaltyModule tenantPublicId={selectedTenant} canManage={canManageLoyalty} />
+          )}
+          {canReadProducts && (
+            <ProductInventoryModule
+              tenantPublicId={selectedTenant}
+              canManage={canManageProducts}
+              canSell={canSellProducts}
+            />
           )}
           {canReadFinancialClosings && (
             <FinancialClosingModule

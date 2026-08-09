@@ -59,6 +59,7 @@ import { paymentMethodRoutes } from './modules/payments/payment-method.routes.js
 import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { receiptRoutes } from './modules/payments/receipt.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
+import { productSaleRoutes } from './modules/products/product-sale.routes.js';
 import { productRoutes } from './modules/products/product.routes.js';
 import { stockMovementRoutes } from './modules/products/stock-movement.routes.js';
 import { professionalScheduleRoutes } from './modules/professionals/professional-schedule.routes.js';
@@ -515,6 +516,13 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.stockMovements !== undefined) {
     await app.register(stockMovementRoutes, {
       service: options.database.stockMovements,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  }
+  if (options.database.productSales !== undefined) {
+    await app.register(productSaleRoutes, {
+      service: options.database.productSales,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });

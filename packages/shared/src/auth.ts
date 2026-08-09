@@ -100,6 +100,8 @@ export const PermissionCodeSchema = z.enum([
   'product.manage',
   'stock.read',
   'stock.manage',
+  'product_sale.read',
+  'product_sale.manage',
   'payment.read',
   'payment.manage',
   'cash.read',

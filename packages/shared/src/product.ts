@@ -32,6 +32,8 @@ const ProductInputShape = {
   barcode: z.string().trim().min(1).max(80).nullable().optional(),
   costPriceCents: MoneySchema.default('0'),
   salePriceCents: MoneySchema,
+  commissionType: z.enum(['PERCENTAGE', 'FIXED']).nullable().optional(),
+  commissionValue: z.coerce.number().int().min(0).max(2_000_000_000).nullable().optional(),
   active: z.boolean().default(true),
 };
 export const CreateProductRequestSchema = z.object(ProductInputShape).strict();
@@ -46,6 +48,8 @@ export const ProductPublicSchema = z
     barcode: z.string().nullable(),
     costPriceCents: z.string(),
     salePriceCents: z.string(),
+    commissionType: z.enum(['PERCENTAGE', 'FIXED']).nullable(),
+    commissionValue: z.number().int().nullable(),
     active: z.boolean(),
     createdAt: z.iso.datetime({ offset: true }),
     updatedAt: z.iso.datetime({ offset: true }),
@@ -142,3 +146,65 @@ export const TransferStockResponseSchema = z.object({
 });
 export type CreateStockMovementRequest = z.infer<typeof CreateStockMovementRequestSchema>;
 export type TransferStockRequest = z.infer<typeof TransferStockRequestSchema>;
+
+export const CreateProductSaleRequestSchema = z
+  .object({
+    unitPublicId: z.uuid(),
+    customerPublicId: z.uuid().nullable().optional(),
+    professionalPublicId: z.uuid().nullable().optional(),
+    paymentMethodPublicId: z.uuid(),
+    notes: z.string().trim().max(500).nullable().optional(),
+    items: z
+      .array(
+        z
+          .object({
+            productPublicId: z.uuid(),
+            quantity: z.coerce.number().int().min(1).max(2_000_000_000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.items.map((item) => item.productPublicId)).size !== value.items.length)
+      context.addIssue({
+        code: 'custom',
+        path: ['items'],
+        message: 'Não repita produtos na mesma venda.',
+      });
+  });
+export const ProductSalePublicSchema = z.object({
+  publicId: z.uuid(),
+  unitPublicId: z.uuid(),
+  customerPublicId: z.uuid().nullable(),
+  professionalPublicId: z.uuid().nullable(),
+  paymentMethodPublicId: z.uuid(),
+  totalCents: z.string(),
+  notes: z.string().nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+  items: z.array(
+    z.object({
+      publicId: z.uuid(),
+      productPublicId: z.uuid(),
+      productName: z.string(),
+      quantity: z.number().int(),
+      unitPriceCents: z.string(),
+      totalCents: z.string(),
+      commissionAmountCents: z.string(),
+      stockMovementPublicId: z.uuid(),
+    }),
+  ),
+});
+export const ProductSaleListResponseSchema = z.object({ items: z.array(ProductSalePublicSchema) });
+export const ProductSaleQuerySchema = z
+  .object({
+    unitPublicId: z.uuid().optional(),
+    customerPublicId: z.uuid().optional(),
+    professionalPublicId: z.uuid().optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+  })
+  .strict();
+export type CreateProductSaleRequest = z.infer<typeof CreateProductSaleRequestSchema>;

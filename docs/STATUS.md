@@ -1,10 +1,12 @@
-## Etapa 16 — Estoque e produtos (em andamento nesta branch)
+## Etapa 16 — Estoque e produtos (CONCLUÍDA)
 
 Primeiro bloco funcional concluído: categorias de produtos, produtos e saldo de estoque por unidade. Foram adicionados contratos compartilhados, models Prisma/MySQL e migration própria, módulos repository/service/routes, isolamento por tenant, validação de categoria e unidade, permissões específicas (`product.read`, `product.manage`, `stock.read`, `stock.manage`) e auditoria das mutações. O saldo inicial é definido por produto/unidade e inclui quantidade mínima e indicador calculado de estoque baixo. Entradas, saídas, movimentações, vendas, comissões e histórico permanecem fora deste bloco e não foram iniciados.
 
 Segundo bloco funcional concluído: ledger de movimentações com entrada, saída manual, ajustes positivo/negativo e transferência entre unidades. Cada registro preserva quantidade anterior/posterior, motivo, usuário responsável e data/hora. Transferências geram duas pernas vinculadas e toda alteração de saldo, ledger e auditoria ocorre em transação serializável com bloqueio dos saldos; operações que produziriam estoque negativo são rejeitadas. O endpoint de definição de saldo do primeiro bloco agora também delega diferenças de quantidade ao ledger, evitando alterações sem histórico.
 
-Validação dos blocos: build do pacote compartilhado e typecheck da API concluídos; `product-contracts.test.ts` e `stock-movement.test.ts` cobrem contratos e regras diretamente relacionadas. Nenhum status das demais etapas foi alterado. Vendas de produtos, comissão por produto e integração financeira não foram iniciadas.
+Bloco final concluído: vendas de produtos por unidade, com cliente e profissional opcionais, forma de pagamento real do tenant e baixa automática serializável pelo mesmo ledger de estoque. A venda congela preço e comissão configurada por produto, rejeita saldo insuficiente, registra movimentação de caixa no caixa aberto da unidade, auditoria e histórico administrativo filtrável. Saldos expõem o alerta real de estoque mínimo e a interface administrativa reúne catálogo, alertas, registro e histórico de vendas. Migration `20260809090000_add_product_sales` adicionada. Nenhum sistema financeiro paralelo foi criado: formas de pagamento, caixa, tipos de comissão, usuários, sessões, clientes, profissionais e unidades existentes foram reutilizados.
+
+Validação dos blocos: build compartilhado, Prisma generate, typecheck API/web, lint relacionado e 10 testes de contratos, movimentações e vendas de produtos concluídos. A migration foi validada contra o schema; aplicação e `prisma migrate status` aguardam uma `DATABASE_URL` configurada nesta worktree. Nenhum status das demais etapas foi alterado.
 
 ETAPAS
 1 Fundação: concluída
@@ -22,7 +24,7 @@ ETAPAS
 13 Notificações: CONCLUÍDA
 14 Financeiro: PARCIAL
 15 Fidelização: PARCIAL (cupons de desconto, pontos e cashback implementados; pacotes, assinaturas de clientes, indicações e campanhas de retenção ainda pendentes)
-16 Estoque e produtos: não iniciada
+16 Estoque e produtos: CONCLUÍDA
 17 Recursos avançados: PARCIAL (relatórios avançados, automações e recuperação de clientes integrados; lista de espera, multiunidade avançada, domínio próprio/subdomínios, WhatsApp oficial e integrações externas ainda pendentes)
 18: não iniciada
 

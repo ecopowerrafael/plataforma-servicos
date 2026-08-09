@@ -382,6 +382,8 @@ model Tenant {
   products                     Product[]
   productStocks                ProductStock[]
   stockMovements               StockMovement[]
+  productSales                 ProductSale[]
+  productSaleItems             ProductSaleItem[]
   payments                     Payment[]
   paymentMethods               PaymentMethod[]
   cashRegisters                CashRegister[]
@@ -435,6 +437,7 @@ model User {
   financialClosingsClosed       FinancialClosing[]        @relation("FinancialClosingClosedBy")
   loyaltyLedgerEntries          LoyaltyLedgerEntry[]
   stockMovementsPerformed       StockMovement[]
+  productSales                  ProductSale[]
 
   @@index([status])
   @@map("users")
@@ -525,6 +528,7 @@ model UserSession {
   receiptsIssued            Receipt[]                 @relation("ReceiptIssuedBySession")
   financialClosingsClosed   FinancialClosing[]        @relation("FinancialClosingClosedBySession")
   loyaltyLedgerEntries      LoyaltyLedgerEntry[]
+  productSales              ProductSale[]
 
   @@index([userId, revokedAt, expiresAt])
   @@index([expiresAt])
@@ -899,6 +903,8 @@ model Product {
   barcode        String?          @db.VarChar(80)
   costPriceCents BigInt           @default(0) @map("cost_price_cents") @db.UnsignedBigInt
   salePriceCents BigInt           @map("sale_price_cents") @db.UnsignedBigInt
+  commissionType CommissionType?  @map("commission_type")
+  commissionValue Int?            @map("commission_value") @db.UnsignedInt
   active         Boolean          @default(true)
   createdAt      DateTime         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
@@ -906,6 +912,7 @@ model Product {
   category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   stocks         ProductStock[]
   movements      StockMovement[]
+  saleItems      ProductSaleItem[]
 
   @@unique([tenantId, name])
   @@unique([tenantId, sku])
@@ -913,6 +920,59 @@ model Product {
   @@index([tenantId, active, name])
   @@index([tenantId, categoryId])
   @@map("products")
+}
+
+model ProductSale {
+  id              BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String         @unique @map("public_id") @db.Char(36)
+  tenantId        BigInt         @map("tenant_id") @db.UnsignedBigInt
+  unitId          BigInt         @map("unit_id") @db.UnsignedBigInt
+  customerId      BigInt?        @map("customer_id") @db.UnsignedBigInt
+  professionalId  BigInt?        @map("professional_id") @db.UnsignedBigInt
+  paymentMethodId BigInt         @map("payment_method_id") @db.UnsignedBigInt
+  cashMovementId  BigInt?        @unique @map("cash_movement_id") @db.UnsignedBigInt
+  totalCents      BigInt         @map("total_cents") @db.UnsignedBigInt
+  notes           String?        @db.VarChar(500)
+  userId          BigInt         @map("user_id") @db.UnsignedBigInt
+  sessionId       BigInt         @map("session_id") @db.UnsignedBigInt
+  createdAt       DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit            BusinessUnit   @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer        Customer?      @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional    Professional?  @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentMethod   PaymentMethod  @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashMovement    CashMovement?  @relation(fields: [cashMovementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  session         UserSession    @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  items           ProductSaleItem[]
+
+  @@index([tenantId, unitId, createdAt])
+  @@index([tenantId, customerId, createdAt])
+  @@index([tenantId, professionalId, createdAt])
+  @@map("product_sales")
+}
+
+model ProductSaleItem {
+  id                    BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String          @unique @map("public_id") @db.Char(36)
+  tenantId              BigInt          @map("tenant_id") @db.UnsignedBigInt
+  saleId                BigInt          @map("sale_id") @db.UnsignedBigInt
+  productId             BigInt          @map("product_id") @db.UnsignedBigInt
+  quantity              Int             @db.UnsignedInt
+  unitPriceCents        BigInt           @map("unit_price_cents") @db.UnsignedBigInt
+  totalCents            BigInt           @map("total_cents") @db.UnsignedBigInt
+  commissionType        CommissionType?  @map("commission_type")
+  commissionValue       Int?             @map("commission_value") @db.UnsignedInt
+  commissionAmountCents BigInt            @default(0) @map("commission_amount_cents") @db.UnsignedBigInt
+  stockMovementId       BigInt            @unique @map("stock_movement_id") @db.UnsignedBigInt
+  createdAt             DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  tenant                Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sale                  ProductSale       @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  product               Product           @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stockMovement         StockMovement     @relation(fields: [stockMovementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, productId, createdAt])
+  @@map("product_sale_items")
 }
 
 model ProductStock {
@@ -955,6 +1015,7 @@ model StockMovement {
   businessUnit          BusinessUnit      @relation("StockMovementUnit", fields: [businessUnitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   relatedBusinessUnit   BusinessUnit?     @relation("StockMovementRelatedUnit", fields: [relatedBusinessUnitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   performedByUser       User              @relation(fields: [performedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  saleItem               ProductSaleItem?
 
   @@index([tenantId, createdAt])
   @@index([tenantId, productId, businessUnitId, createdAt])
@@ -1107,6 +1168,7 @@ model BusinessUnit {
   productStocks                ProductStock[]
   stockMovements               StockMovement[]              @relation("StockMovementUnit")
   relatedStockMovements        StockMovement[]              @relation("StockMovementRelatedUnit")
+  productSales                 ProductSale[]
   cashRegisters                CashRegister[]
   financialClosings            FinancialClosing[]
 
@@ -1188,6 +1250,7 @@ model Professional {
   favoritedBy          CustomerFavorite[]
   reviews              AppointmentReview[]
   commissions          ProfessionalCommission[]
+  productSales         ProductSale[]
 
   @@unique([tenantId, userId])
   @@index([tenantId, active, sortOrder])
@@ -1225,6 +1288,7 @@ model Customer {
   couponRedemptions     CouponRedemption[]
   loyaltyLedgerEntries  LoyaltyLedgerEntry[]
   pushSubscriptions     PushSubscription[]
+  productSales          ProductSale[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
@@ -1312,6 +1376,7 @@ model PaymentMethod {
   updatedAt DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payments  Payment[]
+  productSales ProductSale[]
 
   @@unique([tenantId, name])
   @@index([tenantId, active, sortOrder])
@@ -1589,6 +1654,7 @@ model CashMovement {
   payment        Payment?              @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   user           User?                 @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   session        UserSession?          @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  productSale    ProductSale?
 
   @@index([tenantId, cashRegisterId, createdAt])
   @@map("cash_movements")

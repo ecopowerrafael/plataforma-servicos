@@ -56,6 +56,8 @@ import { PaymentService } from '../modules/payments/payment.service.js';
 import { ProfessionalCommissionService } from '../modules/payments/professional-commission.service.js';
 import { ReceiptService } from '../modules/payments/receipt.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
+import { ProductSaleRepository } from '../modules/products/product-sale.repository.js';
+import { ProductSaleService } from '../modules/products/product-sale.service.js';
 import { ProductRepository } from '../modules/products/product.repository.js';
 import { ProductCatalogService } from '../modules/products/product.service.js';
 import { StockMovementRepository } from '../modules/products/stock-movement.repository.js';
@@ -142,6 +144,7 @@ export interface DatabaseConnection {
   readonly publicBooking?: PublicBookingService;
   readonly products?: ProductCatalogService;
   readonly stockMovements?: StockMovementService;
+  readonly productSales?: ProductSaleService;
 }
 
 function readPositiveInteger(value: string | null, fallback: number): number {
@@ -223,6 +226,11 @@ export function createDatabaseConnection(
   const productRepository = new ProductRepository(client);
   const stockMovements = new StockMovementService(
     new StockMovementRepository(client),
+    productRepository,
+  );
+  const productSales = new ProductSaleService(
+    client,
+    new ProductSaleRepository(client),
     productRepository,
   );
   const tenantWhiteLabelRepository = new TenantWhiteLabelRepository(client);
@@ -321,6 +329,7 @@ export function createDatabaseConnection(
     serviceCategories: new ServiceCategoryService(new PrismaServiceCategoryRepository(client)),
     products: new ProductCatalogService(productRepository, stockMovements),
     stockMovements,
+    productSales,
     serviceVariations: new ServiceVariationService(new PrismaServiceVariationRepository(client)),
     combos: new ComboService(new PrismaComboRepository(client), new LocalServiceImageStorage()),
     professionals: new ProfessionalService(

@@ -11,11 +11,13 @@ import { z } from 'zod';
 import { type StockMovementService } from './stock-movement.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: StockMovementService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 const Query = z
   .object({ productPublicId: z.uuid().optional(), unitPublicId: z.uuid().optional() })
@@ -28,6 +30,7 @@ export const stockMovementRoutes: FastifyPluginAsyncZod<Options> = async (app, o
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/stock-movements',

@@ -118,6 +118,8 @@ export const PublicTenantSiteResponseSchema = z.object({
       timezone: z.string(),
     }),
   ),
+  bookingAvailable: z.boolean().optional(),
+  unavailableMessage: z.string().nullable().optional(),
 });
 export const PublicTenantManifestSchema = z.object({
   name: z.string(),

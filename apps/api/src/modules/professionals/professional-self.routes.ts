@@ -28,6 +28,7 @@ import { type AuthService } from '../auth/auth.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type ProfessionalCommissionService } from '../payments/professional-commission.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   professionals: ProfessionalService;
@@ -39,6 +40,7 @@ interface Options {
   commissions?: ProfessionalCommissionService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 
 const agendaQuery = z
@@ -69,6 +71,7 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
 
   app.get(

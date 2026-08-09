@@ -13,11 +13,13 @@ import { type ServiceService } from './service.service.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: ServiceService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 
 function auditActor(request: { auth: { user: { id: bigint }; session: { id: bigint } } }) {
@@ -38,6 +40,7 @@ export const serviceRoutes: FastifyPluginAsyncZod<Options> = async (app, options
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
 
   app.get(

@@ -332,6 +332,12 @@ enum PlanLimitValueType {
   STRING
 }
 
+enum PublicSiteBlockedBehavior {
+  NORMAL
+  HIDE_BOOKING
+  OFFLINE
+}
+
 enum SubscriptionStatus {
   TRIALING
   ACTIVE
@@ -2104,26 +2110,47 @@ model PlatformAdministratorRole {
 }
 
 model CommercialPlan {
-  id            BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId      String               @unique @map("public_id") @db.Char(36)
-  code          String               @unique @db.VarChar(64)
-  name          String               @db.VarChar(120)
-  description   String?              @db.VarChar(500)
-  status        CommercialPlanStatus @default(ACTIVE)
-  billingCycle  BillingCycle         @map("billing_cycle")
-  priceCents    BigInt               @map("price_cents") @db.UnsignedBigInt
-  currency      String               @db.Char(3)
-  trialDays     Int                  @default(0) @map("trial_days") @db.UnsignedSmallInt
-  isPublic      Boolean              @default(false) @map("is_public")
-  sortOrder     Int                  @default(0) @map("sort_order")
-  createdAt     DateTime             @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt     DateTime             @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  limits        PlanLimit[]
-  subscriptions TenantSubscription[]
+  id               BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId         String               @unique @map("public_id") @db.Char(36)
+  code             String               @unique @db.VarChar(64)
+  name             String               @db.VarChar(120)
+  subtitle         String?              @db.VarChar(160)
+  shortDescription String?              @map("short_description") @db.VarChar(240)
+  description      String?              @db.VarChar(500)
+  status           CommercialPlanStatus @default(ACTIVE)
+  billingCycle     BillingCycle         @map("billing_cycle")
+  priceCents       BigInt               @map("price_cents") @db.UnsignedBigInt
+  currency         String               @db.Char(3)
+  trialDays        Int?                 @map("trial_days") @db.UnsignedSmallInt
+  isPublic         Boolean              @default(false) @map("is_public")
+  highlighted      Boolean              @default(false)
+  badge            String?              @db.VarChar(40)
+  ctaText          String?              @map("cta_text") @db.VarChar(60)
+  sortOrder        Int                  @default(0) @map("sort_order")
+  createdAt        DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime             @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  limits           PlanLimit[]
+  benefits         PlanBenefit[]
+  subscriptions    TenantSubscription[]
 
   @@index([status, sortOrder])
   @@index([billingCycle])
   @@map("commercial_plans")
+}
+
+model PlanBenefit {
+  id        BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId  String         @unique @map("public_id") @db.Char(36)
+  planId    BigInt         @map("plan_id") @db.UnsignedBigInt
+  text      String         @db.VarChar(160)
+  sortOrder Int            @default(0) @map("sort_order")
+  enabled   Boolean        @default(true)
+  createdAt DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  plan      CommercialPlan @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([planId, sortOrder])
+  @@map("plan_benefits")
 }
 
 model PlanLimit {
@@ -2149,7 +2176,9 @@ model TenantSubscription {
   planId                BigInt                @map("plan_id") @db.UnsignedBigInt
   status                SubscriptionStatus
   startsAt              DateTime              @map("starts_at") @db.DateTime(3)
+  trialStartedAt        DateTime?             @map("trial_started_at") @db.DateTime(3)
   trialEndsAt           DateTime?             @map("trial_ends_at") @db.DateTime(3)
+  graceEndsAt           DateTime?             @map("grace_ends_at") @db.DateTime(3)
   currentPeriodStartsAt DateTime              @map("current_period_starts_at") @db.DateTime(3)
   currentPeriodEndsAt   DateTime              @map("current_period_ends_at") @db.DateTime(3)
   canceledAt            DateTime?             @map("canceled_at") @db.DateTime(3)
@@ -2193,4 +2222,28 @@ model SubscriptionHistory {
   @@index([subscriptionId, createdAt])
   @@index([action, createdAt])
   @@map("subscription_history")
+}
+
+/// Política comercial global (linha única) que governa trial padrão, carência
+/// e o que um tenant vencido/suspenso pode ou não fazer — distinta da
+/// inadimplência financeira de clientes/agendamentos da Etapa 14.
+model TenantCommercialPolicy {
+  id                               BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                         String                    @unique @map("public_id") @db.Char(36)
+  singleton                        Boolean                   @unique @default(true)
+  defaultTrialDays                 Int                       @default(7) @map("default_trial_days") @db.UnsignedSmallInt
+  graceDays                        Int                       @default(7) @map("grace_days") @db.UnsignedSmallInt
+  autoSuspendAfterGrace            Boolean                   @default(true) @map("auto_suspend_after_grace")
+  allowAdminLoginWhileBlocked      Boolean                   @default(true) @map("allow_admin_login_while_blocked")
+  allowCalendarReadWhileBlocked    Boolean                   @default(true) @map("allow_calendar_read_while_blocked")
+  allowAdminChangesWhileBlocked    Boolean                   @default(false) @map("allow_admin_changes_while_blocked")
+  allowInternalBookingWhileBlocked Boolean                   @default(false) @map("allow_internal_booking_while_blocked")
+  allowPublicBookingWhileBlocked   Boolean                   @default(false) @map("allow_public_booking_while_blocked")
+  publicSiteBehaviorWhileBlocked   PublicSiteBlockedBehavior @default(HIDE_BOOKING) @map("public_site_behavior_while_blocked")
+  adminMessage                     String                    @map("admin_message") @db.VarChar(1000)
+  publicMessage                    String                    @map("public_message") @db.VarChar(1000)
+  createdAt                        DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                        DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("tenant_commercial_policies")
 }

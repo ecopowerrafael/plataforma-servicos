@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type TenantDomainService } from './tenant-domain.service.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 const params = z.object({ publicId: z.uuid() }).strict();
 const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
@@ -22,10 +23,12 @@ export const tenantDomainRoutes: FastifyPluginAsyncZod<{
   service: TenantDomainService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, options) => {
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/domains',

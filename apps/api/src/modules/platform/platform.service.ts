@@ -4,13 +4,16 @@ import {
   BusinessProfileCatalog,
   CreateTenantCustomFieldRequestSchema,
   CommercialPlanPublicSchema,
+  PlanBenefitPublicSchema,
   type CreateCommercialPlanRequest,
+  type CreatePlanBenefitRequest,
   type CreateSubscriptionRequest,
   type PlatformPermissionCode,
   PlatformTenantDetailResponseSchema,
   SubscriptionDetailResponseSchema,
   SubscriptionPublicSchema,
   type UpdateCommercialPlanRequest,
+  type UpdatePlanBenefitRequest,
   type TenantTerminologyOverrides,
   type TenantBranding,
   type TenantFeatureCode,
@@ -18,6 +21,7 @@ import {
   type UpdateTenantCustomFieldRequest,
 } from '@plataforma/shared';
 
+import { TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthRequestContext, type RequestMetadata } from '../auth/identity.repository.js';
@@ -43,6 +47,8 @@ const platformPermissions = [
   'platform.subscription.status.manage',
   'platform.audit.read',
   'platform.metrics.read',
+  'platform.commercial_policy.read',
+  'platform.commercial_policy.manage',
 ] as const satisfies readonly PlatformPermissionCode[];
 
 interface PageRequest {
@@ -113,13 +119,18 @@ export function mapPlan(plan: {
   publicId: string;
   code: string;
   name: string;
+  subtitle: string | null;
+  shortDescription: string | null;
   description: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
   priceCents: bigint;
   currency: string;
-  trialDays: number;
+  trialDays: number | null;
   isPublic: boolean;
+  highlighted: boolean;
+  badge: string | null;
+  ctaText: string | null;
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -130,6 +141,14 @@ export function mapPlan(plan: {
     booleanValue: boolean | null;
     stringValue: string | null;
   }[];
+  benefits?:
+    | {
+        publicId: string;
+        text: string;
+        sortOrder: number;
+        enabled: boolean;
+      }[]
+    | undefined;
 }) {
   return CommercialPlanPublicSchema.parse({
     ...plan,
@@ -140,6 +159,7 @@ export function mapPlan(plan: {
       ...limit,
       integerValue: limit.integerValue === null ? null : publicMoney(limit.integerValue),
     })),
+    benefits: plan.benefits ?? [],
   });
 }
 
@@ -186,11 +206,13 @@ export class PlatformService {
   private readonly experienceResolver: TenantExperienceResolver;
   private readonly featuresResolver: TenantFeaturesResolver;
   private readonly customFieldsResolver: TenantCustomFieldsResolver;
+  private readonly commercialPolicyService: TenantCommercialPolicyService;
 
   public constructor(private readonly client: PrismaClient) {
     this.experienceResolver = new TenantExperienceResolver(client);
     this.featuresResolver = new TenantFeaturesResolver(client);
     this.customFieldsResolver = new TenantCustomFieldsResolver(client);
+    this.commercialPolicyService = new TenantCommercialPolicyService(client);
   }
 
   public async resolveAuth(auth: AuthRequestContext): Promise<PlatformAuthContext> {
@@ -337,16 +359,33 @@ export class PlatformService {
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         orderBy: { [query.orderBy]: query.direction },
-        include: { limits: { orderBy: { key: 'asc' } } },
+        include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
       }),
     ]);
     return { items: plans.map(mapPlan), page: pageMeta(total, query) };
   }
 
+  public async listPublicPlans(defaultTrialDays: number) {
+    const plans = await this.client.commercialPlan.findMany({
+      where: { status: 'ACTIVE', isPublic: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: {
+        limits: { orderBy: { key: 'asc' } },
+        benefits: { where: { enabled: true }, orderBy: { sortOrder: 'asc' } },
+      },
+    });
+    return plans.map((plan) =>
+      mapPlan({
+        ...plan,
+        trialDays: plan.trialDays ?? defaultTrialDays,
+      }),
+    );
+  }
+
   public async getPlan(publicId: string) {
     const plan = await this.client.commercialPlan.findUnique({
       where: { publicId },
-      include: { limits: { orderBy: { key: 'asc' } } },
+      include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
     });
     if (plan === null)
       throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano não foi encontrado.', 404);
@@ -366,12 +405,17 @@ export class PlatformService {
               publicId: randomUUID(),
               code: input.code,
               name: input.name,
+              subtitle: input.subtitle ?? null,
+              shortDescription: input.shortDescription ?? null,
               description: input.description ?? null,
               billingCycle: input.billingCycle,
               priceCents: BigInt(input.priceCents),
               currency: input.currency,
-              trialDays: input.trialDays,
+              trialDays: input.trialDays ?? null,
               isPublic: input.isPublic,
+              highlighted: input.highlighted,
+              badge: input.badge ?? null,
+              ctaText: input.ctaText ?? null,
               sortOrder: input.sortOrder,
               limits: {
                 create: input.limits.map((limit) => ({
@@ -386,7 +430,7 @@ export class PlatformService {
                 })),
               },
             },
-            include: { limits: { orderBy: { key: 'asc' } } },
+            include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
           });
           await transaction.auditLog.create({
             data: auditData({
@@ -440,12 +484,19 @@ export class PlatformService {
             data: {
               ...(input.code === undefined ? {} : { code: input.code }),
               ...(input.name === undefined ? {} : { name: input.name }),
+              ...(input.subtitle === undefined ? {} : { subtitle: input.subtitle }),
+              ...(input.shortDescription === undefined
+                ? {}
+                : { shortDescription: input.shortDescription }),
               ...(input.description === undefined ? {} : { description: input.description }),
               ...(input.billingCycle === undefined ? {} : { billingCycle: input.billingCycle }),
               ...(input.priceCents === undefined ? {} : { priceCents: BigInt(input.priceCents) }),
               ...(input.currency === undefined ? {} : { currency: input.currency }),
               ...(input.trialDays === undefined ? {} : { trialDays: input.trialDays }),
               ...(input.isPublic === undefined ? {} : { isPublic: input.isPublic }),
+              ...(input.highlighted === undefined ? {} : { highlighted: input.highlighted }),
+              ...(input.badge === undefined ? {} : { badge: input.badge }),
+              ...(input.ctaText === undefined ? {} : { ctaText: input.ctaText }),
               ...(input.sortOrder === undefined ? {} : { sortOrder: input.sortOrder }),
               ...(input.limits === undefined
                 ? {}
@@ -465,7 +516,7 @@ export class PlatformService {
                     },
                   }),
             },
-            include: { limits: { orderBy: { key: 'asc' } } },
+            include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
           });
           await transaction.auditLog.create({
             data: auditData({
@@ -501,7 +552,7 @@ export class PlatformService {
       const value = await transaction.commercialPlan.update({
         where: { id: plan.id },
         data: { status },
-        include: { limits: { orderBy: { key: 'asc' } } },
+        include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
       });
       await transaction.auditLog.create({
         data: auditData({
@@ -522,6 +573,110 @@ export class PlatformService {
     return { plan: mapPlan(updated) };
   }
 
+  public async listPlanBenefits(planPublicId: string) {
+    const plan = await this.client.commercialPlan.findUnique({
+      where: { publicId: planPublicId },
+      select: { id: true },
+    });
+    if (plan === null)
+      throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano não foi encontrado.', 404);
+    const benefits = await this.client.planBenefit.findMany({
+      where: { planId: plan.id },
+      orderBy: { sortOrder: 'asc' },
+    });
+    return { items: benefits.map((benefit) => PlanBenefitPublicSchema.parse(benefit)) };
+  }
+
+  public async createPlanBenefit(
+    planPublicId: string,
+    input: CreatePlanBenefitRequest,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ) {
+    const plan = await this.client.commercialPlan.findUnique({
+      where: { publicId: planPublicId },
+      select: { id: true },
+    });
+    if (plan === null)
+      throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano não foi encontrado.', 404);
+    const benefit = await this.client.$transaction(async (transaction) => {
+      const created = await transaction.planBenefit.create({
+        data: {
+          publicId: randomUUID(),
+          planId: plan.id,
+          text: input.text,
+          sortOrder: input.sortOrder,
+          enabled: input.enabled,
+        },
+      });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.plan.benefit.created',
+          targetType: 'plan_benefit',
+          targetPublicId: created.publicId,
+          userId: actor.user.id,
+          request: metadata,
+        }),
+      });
+      return created;
+    });
+    return { benefit: PlanBenefitPublicSchema.parse(benefit) };
+  }
+
+  public async updatePlanBenefit(
+    publicId: string,
+    input: UpdatePlanBenefitRequest,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ) {
+    const existing = await this.client.planBenefit.findUnique({ where: { publicId } });
+    if (existing === null)
+      throw appError('PLATFORM_PLAN_BENEFIT_NOT_FOUND', 'O benefício não foi encontrado.', 404);
+    const benefit = await this.client.$transaction(async (transaction) => {
+      const updated = await transaction.planBenefit.update({
+        where: { id: existing.id },
+        data: {
+          ...(input.text === undefined ? {} : { text: input.text }),
+          ...(input.sortOrder === undefined ? {} : { sortOrder: input.sortOrder }),
+          ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
+        },
+      });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.plan.benefit.updated',
+          targetType: 'plan_benefit',
+          targetPublicId: updated.publicId,
+          userId: actor.user.id,
+          request: metadata,
+        }),
+      });
+      return updated;
+    });
+    return { benefit: PlanBenefitPublicSchema.parse(benefit) };
+  }
+
+  public async deletePlanBenefit(
+    publicId: string,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ) {
+    const existing = await this.client.planBenefit.findUnique({ where: { publicId } });
+    if (existing === null)
+      throw appError('PLATFORM_PLAN_BENEFIT_NOT_FOUND', 'O benefício não foi encontrado.', 404);
+    await this.client.$transaction(async (transaction) => {
+      await transaction.planBenefit.delete({ where: { id: existing.id } });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.plan.benefit.deleted',
+          targetType: 'plan_benefit',
+          targetPublicId: existing.publicId,
+          userId: actor.user.id,
+          request: metadata,
+        }),
+      });
+    });
+  }
+
   public async createSubscription(
     tenantPublicId: string,
     input: CreateSubscriptionRequest,
@@ -529,6 +684,7 @@ export class PlatformService {
     metadata: RequestMetadata,
   ) {
     const now = input.startsAt === undefined ? new Date() : new Date(input.startsAt);
+    const policy = await this.commercialPolicyService.getOrCreateRaw();
     return this.client.$transaction(
       async (transaction) => {
         const [tenant, plan] = await Promise.all([
@@ -543,9 +699,10 @@ export class PlatformService {
             'O plano não está disponível para nova assinatura.',
             409,
           );
+        const effectiveTrialDays = plan.trialDays ?? policy.defaultTrialDays;
         const trialEndsAt =
-          input.trial && plan.trialDays > 0
-            ? new Date(now.getTime() + plan.trialDays * 86_400_000)
+          input.trial && effectiveTrialDays > 0
+            ? new Date(now.getTime() + effectiveTrialDays * 86_400_000)
             : null;
         const status = trialEndsAt === null ? 'ACTIVE' : 'TRIALING';
         const currentPeriodEndsAt =
@@ -566,6 +723,7 @@ export class PlatformService {
               planId: plan.id,
               status,
               startsAt: now,
+              trialStartedAt: trialEndsAt === null ? null : now,
               trialEndsAt,
               currentPeriodStartsAt: now,
               currentPeriodEndsAt,
@@ -715,6 +873,7 @@ export class PlatformService {
             effectiveKey: subscriptionEffectiveKey(nextStatus),
             ...(nextStatus === 'SUSPENDED' ? { suspendedAt: now } : {}),
             ...(nextStatus === 'CANCELED' ? { canceledAt: now, endsAt: now } : {}),
+            ...(action === 'ACTIVATED' || action === 'REACTIVATED' ? { graceEndsAt: null } : {}),
           },
           include: { tenant: true, plan: true },
         });
@@ -1673,9 +1832,11 @@ export class PlatformService {
             },
           });
           const startsAt = input.startsAt === undefined ? new Date() : new Date(input.startsAt);
+          const commercialPolicy = await this.commercialPolicyService.getOrCreateRaw();
+          const effectiveTrialDays = plan.trialDays ?? commercialPolicy.defaultTrialDays;
           const trialEndsAt =
-            input.trial && plan.trialDays > 0
-              ? new Date(startsAt.getTime() + plan.trialDays * 86_400_000)
+            input.trial && effectiveTrialDays > 0
+              ? new Date(startsAt.getTime() + effectiveTrialDays * 86_400_000)
               : null;
           const status = trialEndsAt === null ? 'ACTIVE' : 'TRIALING';
           const subscription = await transaction.tenantSubscription.create({
@@ -1685,6 +1846,7 @@ export class PlatformService {
               planId: plan.id,
               status,
               startsAt,
+              trialStartedAt: trialEndsAt === null ? null : startsAt,
               trialEndsAt,
               currentPeriodStartsAt: startsAt,
               currentPeriodEndsAt: periodEnd(startsAt, plan.billingCycle),

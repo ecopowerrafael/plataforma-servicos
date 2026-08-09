@@ -108,6 +108,7 @@ async function fixture(options?: {
     },
   });
   const database: DatabaseConnection = {
+    client: undefined as never,
     identities,
     tenants: tenantRepository,
     ping: vi.fn().mockResolvedValue(undefined),

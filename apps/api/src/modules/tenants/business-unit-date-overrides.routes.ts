@@ -10,11 +10,13 @@ import { z } from 'zod';
 import { type BusinessUnitDateOverridesService } from './business-unit-date-overrides.service.js';
 import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: BusinessUnitDateOverridesService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 
 const DateParam = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
@@ -33,6 +35,7 @@ export const businessUnitDateOverridesRoutes: FastifyPluginAsyncZod<Options> = a
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
 
   app.get(

@@ -302,6 +302,18 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
     );
   }
 
+  if (site.bookingAvailable === false) {
+    return (
+      <section className="public-cards" aria-live="polite">
+        <article>
+          <p className="form-error">
+            {site.unavailableMessage ?? 'Agendamento online indisponível no momento.'}
+          </p>
+        </article>
+      </section>
+    );
+  }
+
   return (
     <div className="platform-form">
       {site.units.length > 1 ? (

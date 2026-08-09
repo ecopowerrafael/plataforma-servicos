@@ -17,11 +17,13 @@ import { type TenantWhiteLabelService } from './tenant-white-label.service.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { validateServiceImageUpload } from '../services/service-image.storage.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: TenantWhiteLabelService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 const AssetKindSchema = z
   .object({
@@ -49,6 +51,7 @@ export const tenantWhiteLabelRoutes: FastifyPluginAsyncZod<Options> = async (app
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/white-label',

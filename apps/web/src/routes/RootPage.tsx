@@ -2,7 +2,7 @@ import { PublicTenantResolutionResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 
-import { HomePage } from './HomePage.js';
+import { CommercialHomePage } from './CommercialHomePage.js';
 import { httpClient } from '../lib/http.js';
 
 export function RootPage() {
@@ -22,7 +22,7 @@ export function RootPage() {
       </main>
     );
   return resolution.data === undefined ? (
-    <HomePage />
+    <CommercialHomePage />
   ) : (
     <Navigate to={`/public/${resolution.data.slug}`} replace />
   );

@@ -11,11 +11,13 @@ import { z } from 'zod';
 import { type ServiceCategoryService } from './service-category.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: ServiceCategoryService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 const ParamsSchema = z.object({ publicId: z.uuid() }).strict();
 const QuerySchema = z
@@ -35,6 +37,7 @@ export const serviceCategoryRoutes: FastifyPluginAsyncZod<Options> = async (app,
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/service-categories',

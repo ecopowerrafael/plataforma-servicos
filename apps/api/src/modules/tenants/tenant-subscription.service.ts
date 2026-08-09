@@ -3,9 +3,17 @@ import { TenantSubscriptionResponseSchema } from '@plataforma/shared';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { mapPlan, mapSubscription } from '../platform/platform.service.js';
+import { TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
+import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
 
 export class TenantSubscriptionService {
-  public constructor(private readonly client: PrismaClient) {}
+  private readonly policyService: TenantCommercialPolicyService;
+  private readonly statusResolver: TenantCommercialStatusResolver;
+
+  public constructor(private readonly client: PrismaClient) {
+    this.policyService = new TenantCommercialPolicyService(client);
+    this.statusResolver = new TenantCommercialStatusResolver();
+  }
 
   public async get(tenantId: bigint) {
     const subscription =
@@ -27,7 +35,7 @@ export class TenantSubscriptionService {
 
     const plan = await this.client.commercialPlan.findUniqueOrThrow({
       where: { id: subscription.planId },
-      include: { limits: true },
+      include: { limits: true, benefits: { where: { enabled: true }, orderBy: { sortOrder: 'asc' } } },
     });
 
     const usageByKey = await this.usageByKey(
@@ -36,9 +44,13 @@ export class TenantSubscriptionService {
       subscription.currentPeriodEndsAt,
     );
 
+    const policy = await this.policyService.getOrCreateRaw();
+    const commercial = this.statusResolver.resolve(subscription, policy);
+
     return TenantSubscriptionResponseSchema.parse({
       subscription: mapSubscription(subscription),
       plan: mapPlan(plan),
+      commercial,
       limits: plan.limits.map((limit) => ({
         key: limit.key,
         valueType: limit.valueType,

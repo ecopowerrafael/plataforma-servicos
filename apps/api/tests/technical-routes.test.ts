@@ -33,6 +33,7 @@ const openApps: Awaited<ReturnType<typeof buildApp>>[] = [];
 
 function databaseConnection(pingError?: Error): DatabaseConnection {
   return {
+    client: undefined as never,
     identities: identityRepositoryStub(),
     tenants: {
       createTenant: vi.fn(),

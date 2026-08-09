@@ -251,6 +251,8 @@ const platformPermissions = [
   ['platform.subscription.status.manage', 'Gerenciar status de assinaturas comerciais.'],
   ['platform.audit.read', 'Consultar auditoria global.'],
   ['platform.metrics.read', 'Consultar métricas globais.'],
+  ['platform.commercial_policy.read', 'Consultar a política comercial global.'],
+  ['platform.commercial_policy.manage', 'Gerenciar a política comercial global.'],
 ] as const;
 
 async function bootstrap(): Promise<void> {

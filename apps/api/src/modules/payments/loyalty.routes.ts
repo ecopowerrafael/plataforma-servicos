@@ -16,6 +16,7 @@ import { type LoyaltyService } from './loyalty.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { type CustomerAuthService } from '../customers/customer-auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 const ruleParams = z.object({ type: LoyaltyTypeSchema }).strict();
 const appointmentParams = z.object({ publicId: z.uuid() });
@@ -26,8 +27,9 @@ export const loyaltyRoutes: FastifyPluginAsyncZod<{
   service: LoyaltyService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName });
+  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: r.auth.user.id,
     sessionId: r.auth.session.id,

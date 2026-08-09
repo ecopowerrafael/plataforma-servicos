@@ -14,10 +14,12 @@ import { z } from 'zod';
 import { type AuthService } from './auth.service.js';
 import { requestMetadata } from './request-context.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface MembershipRoutesOptions {
   service: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }
 
 const MembershipParamsSchema = z.object({ membershipPublicId: z.uuid() });
@@ -30,6 +32,7 @@ export const membershipRoutes: FastifyPluginAsyncZod<MembershipRoutesOptions> = 
   await app.register(tenantContextPlugin, {
     authService: options.service,
     cookieName: options.cookieName,
+    client: options.client,
   });
 
   app.post(

@@ -21,12 +21,14 @@ import { type TenantService } from './tenant.service.js';
 import { canAccessUnit } from './unit-scope.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 interface TenantRoutesOptions {
   service: TenantService;
   authService: AuthService;
   cookieName: string;
   experience?: TenantExperienceResolver;
+  client?: PrismaClient;
 }
 
 const EmptyQuerySchema = z.object({}).strict();
@@ -48,6 +50,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
 
   app.get(

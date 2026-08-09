@@ -4,15 +4,18 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { type MultiUnitService } from './multi-unit.service.js';
 import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 export const multiUnitRoutes: FastifyPluginAsyncZod<{
   service: MultiUnitService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, options) => {
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/multi-unit/overview',

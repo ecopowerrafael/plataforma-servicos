@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { type IntegrationService } from './integration.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PrismaClient } from '../../database-client/client.js';
 
 const params = z.object({ publicId: z.uuid() }).strict();
 const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
@@ -22,10 +23,12 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
   service: IntegrationService;
   authService: AuthService;
   cookieName: string;
+  client?: PrismaClient;
 }> = async (app, options) => {
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
+    client: options.client,
   });
   app.get(
     '/tenant/integrations/whatsapp',

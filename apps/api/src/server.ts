@@ -58,7 +58,14 @@ async function start(environment: Environment): Promise<void> {
   const stopNotificationWorker =
     database.appointmentReminders !== undefined && database.notifications !== undefined
       ? startNotificationWorker(
-          { reminders: database.appointmentReminders, notifications: database.notifications },
+          {
+            reminders: database.appointmentReminders,
+            notifications: database.notifications,
+            ...(database.automations === undefined ? {} : { automations: database.automations }),
+            ...(database.customerRecovery === undefined
+              ? {}
+              : { customerRecovery: database.customerRecovery }),
+          },
           { intervalMs: 60_000, logger: app.log },
         )
       : undefined;

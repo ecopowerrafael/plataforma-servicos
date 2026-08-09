@@ -34,7 +34,9 @@ import { publicBookingRoutes } from './modules/booking/public-booking.routes.js'
 import { availabilityRoutes } from './modules/calendar/availability.routes.js';
 import { customerAuthRoutes } from './modules/customers/customer-auth.routes.js';
 import { customerFavoriteRoutes } from './modules/customers/customer-favorite.routes.js';
+import { customerRecoveryRoutes } from './modules/customers/customer-recovery.routes.js';
 import { customerRoutes } from './modules/customers/customer.routes.js';
+import { automationRoutes } from './modules/notifications/automation.routes.js';
 import { notificationTemplateRoutes } from './modules/notifications/notification-template.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
 import { pushSubscriptionRoutes } from './modules/notifications/push-subscription.routes.js';
@@ -449,9 +451,21 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });
+  if (options.database.automations !== undefined)
+    await app.register(automationRoutes, {
+      service: options.database.automations,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
   if (options.database.appointmentOperations !== undefined)
     await app.register(appointmentOperationsRoutes, {
       service: options.database.appointmentOperations,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.customerRecovery !== undefined)
+    await app.register(customerRecoveryRoutes, {
+      service: options.database.customerRecovery,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });

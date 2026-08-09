@@ -1,5 +1,7 @@
 import { type AppointmentReminderService } from './appointment-reminder.service.js';
+import { type AutomationService } from './automation.service.js';
 import { type NotificationService } from './notification.service.js';
+import { type CustomerRecoveryService } from '../customers/customer-recovery.service.js';
 
 interface WorkerLogger {
   error: (payload: unknown, message?: string) => void;
@@ -8,6 +10,8 @@ interface WorkerLogger {
 interface WorkerDeps {
   reminders: AppointmentReminderService;
   notifications: NotificationService;
+  automations?: AutomationService;
+  customerRecovery?: CustomerRecoveryService;
 }
 
 interface WorkerOptions {
@@ -33,6 +37,8 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
     running = true;
     try {
       await deps.reminders.scheduleUpcomingReminders();
+      await deps.automations?.run();
+      await deps.customerRecovery?.run();
       await deps.notifications.processPending();
     } catch (error) {
       options.logger.error({ err: error }, 'Falha ao processar a fila de notificações.');

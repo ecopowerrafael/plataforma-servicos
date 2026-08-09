@@ -316,6 +316,76 @@ describe.skipIf(url === undefined)(
       expect(report.cancellationRate).toBe(0);
     });
 
+    it('calcula receita de concluídos, taxa de conclusão, clientes recorrentes e filtro por unidade (relatórios avançados)', async () => {
+      const pastStartsAt = new Date(Date.now() - 21 * 86_400_000);
+      pastStartsAt.setUTCHours(13, 0, 0, 0);
+      const pastEndsAt = new Date(pastStartsAt.getTime() + 30 * 60_000);
+      await client.appointment.create({
+        data: {
+          publicId: randomUUID(),
+          protocol: `TEST-${randomUUID().slice(0, 8)}`,
+          tenant: { connect: { id: tenantId } },
+          customer: { connect: { publicId: customerId } },
+          professional: { connect: { publicId: professionalAId } },
+          service: { connect: { publicId: serviceAId } },
+          unit: { connect: { publicId: unitPublicId } },
+          startsAt: pastStartsAt,
+          endsAt: pastEndsAt,
+          durationMinutes: 30,
+          priceCents: 10_000n,
+          status: 'COMPLETED',
+        },
+      });
+
+      const completed = await appointments.create(
+        tenantId,
+        {
+          customerPublicId: customerId,
+          professionalPublicId: professionalAId,
+          servicePublicId: serviceAId,
+          unitPublicId,
+          startsAt: `${date}T13:00:00.000Z`,
+          source: 'INTERNAL',
+        },
+        actor,
+      );
+      await appointments.status(tenantId, completed.publicId, 'CONFIRMED', undefined, actor);
+      await appointments.status(tenantId, completed.publicId, 'IN_PROGRESS', undefined, actor);
+      await appointments.status(tenantId, completed.publicId, 'COMPLETED', undefined, actor);
+
+      await appointments.create(
+        tenantId,
+        {
+          customerPublicId: customerId,
+          professionalPublicId: professionalBId,
+          servicePublicId: serviceBId,
+          startsAt: `${date}T16:00:00.000Z`,
+          source: 'INTERNAL',
+        },
+        actor,
+      );
+
+      const report = await operations.report(
+        tenantId,
+        new Date(Date.now() - 60_000).toISOString(),
+        `${date}T23:59:59.000Z`,
+      );
+      expect(report.completed).toBe(1);
+      expect(report.completionRate).toBeCloseTo(1 / 2);
+      expect(report.completedRevenueCents).toBe('10000');
+      expect(report.returningCustomers).toBe(1);
+
+      const unitReport = await operations.report(
+        tenantId,
+        new Date(Date.now() - 60_000).toISOString(),
+        `${date}T23:59:59.000Z`,
+        unitPublicId,
+      );
+      expect(unitReport.total).toBe(1);
+      expect(unitReport.byUnit).toHaveLength(1);
+      expect(unitReport.byUnit[0]?.unitPublicId).toBe(unitPublicId);
+    });
+
     it('isola dashboard e relatórios por tenant', async () => {
       await appointments.create(
         tenantId,

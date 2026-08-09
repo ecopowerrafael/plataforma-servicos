@@ -31,6 +31,26 @@ const DEFAULT_TEMPLATES: Record<NotificationKind, TemplateContent> = {
     subject: 'Lembrete de atendimento — protocolo {{protocol}}',
     body: 'Olá, {{customerName}}!\n\nEste é um lembrete do seu atendimento agendado.\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nData/hora: {{when}}\nProtocolo: {{protocol}}',
   },
+  'customer.recovery.inactive': {
+    subject: 'Sentimos sua falta, {{customerName}}',
+    body: 'Olá, {{customerName}}! Sentimos sua falta desde sua última visita em {{referenceDate}}. Quando quiser, estamos à disposição.',
+  },
+  'customer.recovery.canceled': {
+    subject: 'Que tal remarcar seu atendimento?',
+    body: 'Olá, {{customerName}}! Notamos que seu atendimento de {{referenceDate}} foi cancelado e ainda não houve reagendamento.',
+  },
+  'customer.recovery.no_show': {
+    subject: 'Podemos ajudar com um novo horário?',
+    body: 'Olá, {{customerName}}! Você não pôde comparecer ao atendimento de {{referenceDate}}. Estamos à disposição para um novo horário.',
+  },
+  'customer.recovery.post_service': {
+    subject: 'Como foi seu atendimento?',
+    body: 'Olá, {{customerName}}! Já faz um tempo desde seu atendimento de {{referenceDate}}. Quando precisar, conte conosco.',
+  },
+  'customer.recovery.birthday': {
+    subject: 'Feliz aniversário, {{customerName}}!',
+    body: 'Olá, {{customerName}}! Desejamos um feliz aniversário e um excelente novo ciclo.',
+  },
 };
 
 export function renderTemplate(

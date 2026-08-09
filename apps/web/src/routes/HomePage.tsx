@@ -21,6 +21,7 @@ import { ServiceCategoryModule } from '../components/services/ServiceCategoryMod
 import { ServiceModule } from '../components/services/ServiceModule.js';
 import { CashRegisterModule } from '../components/tenants/CashRegisterModule.js';
 import { CommissionsModule } from '../components/tenants/CommissionsModule.js';
+import { CustomerRecoveryModule } from '../components/tenants/CustomerRecoveryModule.js';
 import { DelinquencyModule } from '../components/tenants/DelinquencyModule.js';
 import { FinancialClosingModule } from '../components/tenants/FinancialClosingModule.js';
 import { FinancialReportModule } from '../components/tenants/FinancialReportModule.js';
@@ -149,6 +150,10 @@ export function HomePage() {
   const canManageNotificationTemplates =
     me.data?.currentTenant?.membership.permissions.includes('notification.template.manage') ??
     false;
+  const canReadAutomations =
+    me.data?.currentTenant?.membership.permissions.includes('automation.read') ?? false;
+  const canManageAutomations =
+    me.data?.currentTenant?.membership.permissions.includes('automation.manage') ?? false;
 
   useEffect(() => {
     if (me.error instanceof HttpError && me.error.status === 401) void navigate('/login');
@@ -243,6 +248,12 @@ export function HomePage() {
             <NotificationTemplateModule
               tenantPublicId={selectedTenant}
               canManage={canManageNotificationTemplates}
+            />
+          )}
+          {canReadAutomations && (
+            <CustomerRecoveryModule
+              tenantPublicId={selectedTenant}
+              canManage={canManageAutomations}
             />
           )}
           {canReadMembers && (

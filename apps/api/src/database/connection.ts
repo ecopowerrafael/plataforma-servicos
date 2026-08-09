@@ -17,10 +17,13 @@ import { CustomerAuthService } from '../modules/customers/customer-auth.service.
 import { CustomerFavoriteRepository } from '../modules/customers/customer-favorite.repository.js';
 import { CustomerFavoriteService } from '../modules/customers/customer-favorite.service.js';
 import { CustomerProfileService } from '../modules/customers/customer-profile.service.js';
+import { CustomerRecoveryRepository } from '../modules/customers/customer-recovery.repository.js';
+import { CustomerRecoveryService } from '../modules/customers/customer-recovery.service.js';
 import { CustomerRepository } from '../modules/customers/customer.repository.js';
 import { CustomerService } from '../modules/customers/customer.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
+import { AutomationService } from '../modules/notifications/automation.service.js';
 import { CustomerNotificationDispatcher } from '../modules/notifications/customer-notification-dispatcher.js';
 import {
   type EmailDelivery,
@@ -94,6 +97,7 @@ export interface DatabaseConnection {
   readonly customerAuth?: CustomerAuthService;
   readonly customerProfile?: CustomerProfileService;
   readonly customerFavorites?: CustomerFavoriteService;
+  readonly customerRecovery?: CustomerRecoveryService;
   readonly appointmentReviews?: AppointmentReviewService;
   readonly services?: ServiceService;
   readonly serviceCategories?: ServiceCategoryService;
@@ -114,6 +118,7 @@ export interface DatabaseConnection {
   readonly notificationTemplates?: NotificationTemplateService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly appointmentReminders?: AppointmentReminderService;
+  readonly automations?: AutomationService;
   readonly pushSubscriptions?: PushSubscriptionService;
   readonly vapidPublicKey?: string | null;
   readonly payments?: PaymentService;
@@ -243,11 +248,16 @@ export function createDatabaseConnection(
     notifications,
     notificationTemplates,
   );
+  const customerRecovery = new CustomerRecoveryService(
+    new CustomerRecoveryRepository(client),
+    notificationDispatcher,
+  );
   const appointmentNotifications = new AppointmentNotificationService(
     client,
     notificationDispatcher,
   );
   const appointmentReminders = new AppointmentReminderService(client, notificationDispatcher);
+  const automations = new AutomationService(client, notificationDispatcher);
   const pushSubscriptions = new PushSubscriptionService(client);
   const cashRegisters = new CashRegisterService(client);
   const commissions = new ProfessionalCommissionService(client);
@@ -285,6 +295,7 @@ export function createDatabaseConnection(
     customerAuth: customerAuth,
     customerProfile: customerProfile,
     customerFavorites: customerFavorites,
+    customerRecovery: customerRecovery,
     appointmentReviews: appointmentReviews,
     services: new ServiceService(
       new PrismaServiceRepository(client),
@@ -319,6 +330,7 @@ export function createDatabaseConnection(
     notificationTemplates: notificationTemplates,
     appointmentNotifications: appointmentNotifications,
     appointmentReminders: appointmentReminders,
+    automations: automations,
     pushSubscriptions: pushSubscriptions,
     vapidPublicKey: customerAuthOptions?.vapid?.publicKey ?? null,
     payments: payments,

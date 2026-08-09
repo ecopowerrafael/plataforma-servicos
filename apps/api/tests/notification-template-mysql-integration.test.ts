@@ -51,9 +51,9 @@ describe.skipIf(url === undefined)(
       await client.tenant.deleteMany({ where: { id: { in: ids } } });
     });
 
-    it('lista os três tipos com o conteúdo padrão quando não há personalização', async () => {
+    it('lista todos os tipos com o conteúdo padrão quando não há personalização', async () => {
       const { items } = await service.list(tenantId);
-      expect(items).toHaveLength(3);
+      expect(items).toHaveLength(8);
       expect(items.every((item) => !item.isCustom)).toBe(true);
       const confirmed = items.find((item) => item.kind === 'appointment.booking_confirmed');
       expect(confirmed?.subject).toContain('{{protocol}}');

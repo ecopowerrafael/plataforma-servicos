@@ -233,6 +233,27 @@ enum NotificationStatus {
   SKIPPED
 }
 
+enum AutomationTrigger {
+  APPOINTMENT_REMINDER
+  POST_APPOINTMENT
+  INACTIVE_CUSTOMER
+  CUSTOMER_BIRTHDAY
+}
+
+enum AutomationExecutionStatus {
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum CustomerRecoveryRuleType {
+  INACTIVE
+  CANCELED_NO_REBOOK
+  NO_SHOW_NO_REBOOK
+  POST_SERVICE_NO_RETURN
+  BIRTHDAY
+}
+
 enum PlatformAdministratorStatus {
   ACTIVE
   SUSPENDED
@@ -336,6 +357,10 @@ model Tenant {
   paymentGatewayConfigs        PaymentGatewayConfig[]
   paymentGatewayCharges        PaymentGatewayCharge[]
   paymentGatewayEvents         PaymentGatewayEvent[]
+  automations                  TenantAutomation[]
+  automationExecutions         AutomationExecution[]
+  recoveryRules                CustomerRecoveryRule[]
+  recoveryExecutions           CustomerRecoveryExecution[]
 
   @@index([status])
   @@map("tenants")
@@ -574,6 +599,76 @@ model PushSubscription {
   @@index([tenantId, customerId])
   @@index([tenantId, active])
   @@map("push_subscriptions")
+}
+
+model TenantAutomation {
+  id            BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId      String                @unique @map("public_id") @db.Char(36)
+  tenantId      BigInt                @map("tenant_id") @db.UnsignedBigInt
+  trigger       AutomationTrigger
+  active        Boolean               @default(true)
+  offsetMinutes Int                   @default(0) @map("offset_minutes")
+  createdAt     DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  executions    AutomationExecution[]
+
+  @@unique([tenantId, trigger])
+  @@index([tenantId, active])
+  @@map("tenant_automations")
+}
+
+model AutomationExecution {
+  id             BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                    @unique @map("public_id") @db.Char(36)
+  tenantId       BigInt                    @map("tenant_id") @db.UnsignedBigInt
+  automationId   BigInt                    @map("automation_id") @db.UnsignedBigInt
+  targetType     String                    @map("target_type") @db.VarChar(80)
+  targetPublicId String                    @map("target_public_id") @db.Char(36)
+  status         AutomationExecutionStatus
+  error          String?                   @db.VarChar(500)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  tenant         Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  automation     TenantAutomation          @relation(fields: [automationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([automationId, targetType, targetPublicId], map: "automation_executions_automation_target_key")
+  @@index([tenantId, createdAt])
+  @@map("automation_executions")
+}
+
+model CustomerRecoveryRule {
+  id         BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId   String                      @unique @map("public_id") @db.Char(36)
+  tenantId   BigInt                      @map("tenant_id") @db.UnsignedBigInt
+  rule       CustomerRecoveryRuleType
+  active     Boolean                     @default(true)
+  days       Int                         @default(30)
+  createdAt  DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant     Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  executions CustomerRecoveryExecution[]
+
+  @@unique([tenantId, rule])
+  @@map("customer_recovery_rules")
+}
+
+model CustomerRecoveryExecution {
+  id         BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId   String                    @unique @map("public_id") @db.Char(36)
+  tenantId   BigInt                    @map("tenant_id") @db.UnsignedBigInt
+  ruleId     BigInt                    @map("rule_id") @db.UnsignedBigInt
+  customerId BigInt                    @map("customer_id") @db.UnsignedBigInt
+  periodKey  String                    @map("period_key") @db.VarChar(64)
+  status     AutomationExecutionStatus @default(SENT)
+  error      String?                   @db.VarChar(500)
+  createdAt  DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant     Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  rule       CustomerRecoveryRule      @relation(fields: [ruleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer   Customer                  @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([ruleId, customerId, periodKey])
+  @@map("customer_recovery_executions")
 }
 
 model NotificationTemplate {
@@ -964,31 +1059,32 @@ model Professional {
 }
 
 model Customer {
-  id                    BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId              String              @unique @map("public_id") @db.Char(36)
-  tenantId              BigInt              @map("tenant_id") @db.UnsignedBigInt
-  primaryUnitId         BigInt?             @map("primary_unit_id") @db.UnsignedBigInt
-  name                  String              @db.VarChar(120)
-  socialName            String?             @map("social_name") @db.VarChar(120)
-  phone                 String?             @db.VarChar(32)
-  whatsapp              String?             @db.VarChar(32)
-  email                 String?             @db.VarChar(254)
-  birthDate             DateTime?           @map("birth_date") @db.Date
-  document              String?             @db.VarChar(80)
-  notes                 String?             @db.VarChar(2000)
-  status                CustomerStatus      @default(ACTIVE)
-  source                String              @default("MANUAL") @db.VarChar(64)
-  acceptsCommunications Boolean             @default(false) @map("accepts_communications")
-  passwordHash          String?             @map("password_hash") @db.VarChar(255)
-  customFields          Json?               @map("custom_fields")
-  createdAt             DateTime            @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant                Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  primaryUnit           BusinessUnit?       @relation(fields: [primaryUnitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  id                    BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                      @unique @map("public_id") @db.Char(36)
+  tenantId              BigInt                      @map("tenant_id") @db.UnsignedBigInt
+  primaryUnitId         BigInt?                     @map("primary_unit_id") @db.UnsignedBigInt
+  name                  String                      @db.VarChar(120)
+  socialName            String?                     @map("social_name") @db.VarChar(120)
+  phone                 String?                     @db.VarChar(32)
+  whatsapp              String?                     @db.VarChar(32)
+  email                 String?                     @db.VarChar(254)
+  birthDate             DateTime?                   @map("birth_date") @db.Date
+  document              String?                     @db.VarChar(80)
+  notes                 String?                     @db.VarChar(2000)
+  status                CustomerStatus              @default(ACTIVE)
+  source                String                      @default("MANUAL") @db.VarChar(64)
+  acceptsCommunications Boolean                     @default(false) @map("accepts_communications")
+  passwordHash          String?                     @map("password_hash") @db.VarChar(255)
+  customFields          Json?                       @map("custom_fields")
+  createdAt             DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  primaryUnit           BusinessUnit?               @relation(fields: [primaryUnitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   appointments          Appointment[]
   sessions              CustomerSession[]
   favorites             CustomerFavorite[]
   reviews               AppointmentReview[]
+  recoveryExecutions    CustomerRecoveryExecution[]
   pushSubscriptions     PushSubscription[]
 
   @@unique([tenantId, phone])

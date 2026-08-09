@@ -80,6 +80,8 @@ const permissions = [
     'payment_gateway.manage',
     'Configurar o gateway de pagamento do estabelecimento, incluindo credenciais.',
   ],
+  ['automation.read', 'Consultar automações e regras de recuperação de clientes.'],
+  ['automation.manage', 'Configurar automações e regras de recuperação de clientes.'],
 ] as const;
 
 const roles = [
@@ -162,6 +164,8 @@ const roles = [
       'financial_closing.manage',
       'financial_report.read',
       'payment_gateway.read',
+      'automation.read',
+      'automation.manage',
     ],
   },
   {

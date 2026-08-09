@@ -41,7 +41,7 @@ export const appointmentOperationsRoutes: FastifyPluginAsyncZod<{
     },
     (r) => {
       o.authService.requirePermission(r.tenant, 'appointment.read');
-      return o.service.report(r.tenant.id, r.query.from, r.query.to);
+      return o.service.report(r.tenant.id, r.query.from, r.query.to, r.query.unitPublicId);
     },
   );
 };

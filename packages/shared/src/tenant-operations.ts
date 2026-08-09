@@ -46,6 +46,7 @@ export const TenantReportQuerySchema = z
   .object({
     from: z.iso.datetime({ offset: true }),
     to: z.iso.datetime({ offset: true }),
+    unitPublicId: z.uuid().optional(),
   })
   .strict();
 
@@ -60,6 +61,10 @@ export const TenantReportResponseSchema = z.object({
   newCustomers: z.number().int().nonnegative(),
   cancellationRate: z.number().min(0).max(1),
   noShowRate: z.number().min(0).max(1),
+  completed: z.number().int().nonnegative(),
+  completionRate: z.number().min(0).max(1),
+  completedRevenueCents: z.string(),
+  returningCustomers: z.number().int().nonnegative(),
 });
 
 export type TenantDashboardResponse = z.infer<typeof TenantDashboardResponseSchema>;

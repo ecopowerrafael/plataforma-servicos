@@ -41,6 +41,8 @@ export * from './delinquency.js';
 export * from './financial-report.js';
 export * from './payment-gateway.js';
 export * from './tenant-payment-options.js';
+export * from './automation.js';
+export * from './customer-recovery.js';
 
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),

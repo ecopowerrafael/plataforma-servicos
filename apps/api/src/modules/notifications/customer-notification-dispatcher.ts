@@ -30,6 +30,7 @@ export class CustomerNotificationDispatcher {
     kind: NotificationKind,
     targetPublicId: string,
     variables: Record<string, string>,
+    targetType = 'appointment',
   ): Promise<boolean> {
     const customer = await this.client.customer.findUnique({
       where: { id: customerId },
@@ -49,7 +50,7 @@ export class CustomerNotificationDispatcher {
       await this.notifications.enqueue(tenantId, {
         channel: 'EMAIL',
         kind,
-        targetType: 'appointment',
+        targetType,
         targetPublicId,
         recipient: customer.email,
         subject,
@@ -61,7 +62,7 @@ export class CustomerNotificationDispatcher {
       await this.notifications.enqueue(tenantId, {
         channel: 'PUSH',
         kind,
-        targetType: 'appointment',
+        targetType,
         targetPublicId,
         recipient: subscription.publicId,
         subject,

@@ -106,6 +106,8 @@ export const PermissionCodeSchema = z.enum([
   'financial_report.read',
   'payment_gateway.read',
   'payment_gateway.manage',
+  'automation.read',
+  'automation.manage',
 ]);
 
 export const UserPublicSchema = z.object({

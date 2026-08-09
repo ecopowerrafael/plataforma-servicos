@@ -13,6 +13,11 @@ export const NotificationKinds = [
   'appointment.booking_confirmed',
   'appointment.booking_canceled',
   'appointment.reminder',
+  'customer.recovery.inactive',
+  'customer.recovery.canceled',
+  'customer.recovery.no_show',
+  'customer.recovery.post_service',
+  'customer.recovery.birthday',
 ] as const;
 export const NotificationKindSchema = z.enum(NotificationKinds);
 

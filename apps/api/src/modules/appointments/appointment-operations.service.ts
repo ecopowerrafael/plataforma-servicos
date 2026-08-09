@@ -74,36 +74,62 @@ export class AppointmentOperationsService {
     };
   }
 
-  public async report(tenantId: bigint, from: string, to: string): Promise<TenantReportResponse> {
+  public async report(
+    tenantId: bigint,
+    from: string,
+    to: string,
+    unitPublicId?: string,
+  ): Promise<TenantReportResponse> {
     const fromDate = new Date(from);
     const toDate = new Date(to);
 
-    const [statusGrouped, professionalGrouped, serviceGrouped, unitGrouped, newCustomers] =
-      await Promise.all([
-        this.client.appointment.groupBy({
-          by: ['status'],
-          where: { tenantId, startsAt: { gte: fromDate, lte: toDate } },
-          _count: { _all: true },
-        }),
-        this.client.appointment.groupBy({
-          by: ['professionalId'],
-          where: { tenantId, startsAt: { gte: fromDate, lte: toDate } },
-          _count: { _all: true },
-        }),
-        this.client.appointment.groupBy({
-          by: ['serviceId'],
-          where: { tenantId, startsAt: { gte: fromDate, lte: toDate } },
-          _count: { _all: true },
-        }),
-        this.client.appointment.groupBy({
-          by: ['unitId'],
-          where: { tenantId, startsAt: { gte: fromDate, lte: toDate } },
-          _count: { _all: true },
-        }),
-        this.client.customer.count({
-          where: { tenantId, createdAt: { gte: fromDate, lte: toDate } },
-        }),
-      ]);
+    const unit =
+      unitPublicId === undefined
+        ? null
+        : await this.client.businessUnit.findFirst({ where: { tenantId, publicId: unitPublicId } });
+    if (unitPublicId !== undefined && unit === null)
+      throw new Error('Unidade não encontrada para este estabelecimento.');
+    const where = {
+      tenantId,
+      startsAt: { gte: fromDate, lte: toDate },
+      ...(unit === null ? {} : { unitId: unit.id }),
+    };
+    const [
+      statusGrouped,
+      professionalGrouped,
+      serviceGrouped,
+      unitGrouped,
+      newCustomers,
+      completed,
+    ] = await Promise.all([
+      this.client.appointment.groupBy({
+        by: ['status'],
+        where,
+        _count: { _all: true },
+      }),
+      this.client.appointment.groupBy({
+        by: ['professionalId'],
+        where,
+        _count: { _all: true },
+      }),
+      this.client.appointment.groupBy({
+        by: ['serviceId'],
+        where,
+        _count: { _all: true },
+      }),
+      this.client.appointment.groupBy({
+        by: ['unitId'],
+        where,
+        _count: { _all: true },
+      }),
+      this.client.customer.count({
+        where: { tenantId, createdAt: { gte: fromDate, lte: toDate } },
+      }),
+      this.client.appointment.findMany({
+        where: { ...where, status: 'COMPLETED' },
+        select: { customerId: true, priceCents: true },
+      }),
+    ]);
 
     const byStatus = emptyStatusCounts();
     let total = 0;
@@ -115,6 +141,19 @@ export class AppointmentOperationsService {
     const byProfessional = await this.resolveProfessionalBreakdown(tenantId, professionalGrouped);
     const byService = await this.resolveServiceBreakdown(tenantId, serviceGrouped);
     const byUnit = await this.resolveUnitBreakdown(tenantId, unitGrouped);
+    const customerIds = [...new Set(completed.map((entry) => entry.customerId))];
+    const returningCustomers =
+      customerIds.length === 0
+        ? 0
+        : new Set(
+            (
+              await this.client.appointment.findMany({
+                where: { tenantId, customerId: { in: customerIds }, startsAt: { lt: fromDate } },
+                select: { customerId: true },
+              })
+            ).map((entry) => entry.customerId),
+          ).size;
+    const completedRevenueCents = completed.reduce((sum, entry) => sum + entry.priceCents, 0n);
 
     return {
       from,
@@ -127,6 +166,10 @@ export class AppointmentOperationsService {
       newCustomers,
       cancellationRate: total === 0 ? 0 : byStatus.CANCELED / total,
       noShowRate: total === 0 ? 0 : byStatus.NO_SHOW / total,
+      completed: completed.length,
+      completionRate: total === 0 ? 0 : completed.length / total,
+      completedRevenueCents: completedRevenueCents.toString(),
+      returningCustomers,
     };
   }
 

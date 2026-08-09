@@ -3,8 +3,8 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { type MultiUnitService } from './multi-unit.service.js';
 import { tenantContextPlugin } from './tenant-context.plugin.js';
-import { type AuthService } from '../auth/auth.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { type AuthService } from '../auth/auth.service.js';
 
 export const multiUnitRoutes: FastifyPluginAsyncZod<{
   service: MultiUnitService;

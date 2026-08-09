@@ -14,10 +14,10 @@ import { z } from 'zod';
 
 import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type TenantWhiteLabelService } from './tenant-white-label.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { validateServiceImageUpload } from '../services/service-image.storage.js';
-import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: TenantWhiteLabelService;

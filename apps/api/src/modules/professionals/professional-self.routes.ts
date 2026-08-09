@@ -23,12 +23,12 @@ import { type ProfessionalScheduleService } from './professional-schedule.servic
 import { type ProfessionalServiceLinkService } from './professional-service.service.js';
 import { type ProfessionalUnavailabilityService } from './professional-unavailability.service.js';
 import { type ProfessionalService } from './professional.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type ProfessionalCommissionService } from '../payments/professional-commission.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
-import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   professionals: ProfessionalService;

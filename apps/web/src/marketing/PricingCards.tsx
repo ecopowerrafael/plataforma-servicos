@@ -1,4 +1,4 @@
-import { CommercialPlanPublicSchema } from '@plataforma/shared';
+import { type CommercialPlanPublicSchema } from '@plataforma/shared';
 import { Link } from 'react-router-dom';
 import { type z } from 'zod';
 

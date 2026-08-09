@@ -9,6 +9,7 @@ interface PublicCommercialRoutesOptions {
   commercialPolicyService: TenantCommercialPolicyService;
 }
 
+/* eslint-disable @typescript-eslint/require-await -- route registration itself is synchronous; the handler below is async */
 export const publicCommercialRoutes: FastifyPluginAsyncZod<PublicCommercialRoutesOptions> = async (
   app,
   options,
@@ -26,3 +27,4 @@ export const publicCommercialRoutes: FastifyPluginAsyncZod<PublicCommercialRoute
     },
   );
 };
+/* eslint-enable @typescript-eslint/require-await */

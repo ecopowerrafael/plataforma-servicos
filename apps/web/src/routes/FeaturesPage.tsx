@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
-import { MarketingShell } from '../marketing/MarketingShell.js';
 import { featureGroups } from '../marketing/marketing-data.js';
+import { MarketingShell } from '../marketing/MarketingShell.js';
 import { usePageMetadata } from '../marketing/use-page-metadata.js';
 
 const outcomes = {

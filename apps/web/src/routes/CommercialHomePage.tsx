@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 
-import { MarketingShell } from '../marketing/MarketingShell.js';
-import { PricingCards, trialMessage } from '../marketing/PricingCards.js';
-import { ProductPreview } from '../marketing/ProductPreview.js';
 import {
   audienceSegments,
   featureGroups,
   frequentlyAskedQuestions,
 } from '../marketing/marketing-data.js';
+import { MarketingShell } from '../marketing/MarketingShell.js';
+import { PricingCards, trialMessage } from '../marketing/PricingCards.js';
+import { ProductPreview } from '../marketing/ProductPreview.js';
 import { usePageMetadata } from '../marketing/use-page-metadata.js';
 import { usePublicPlans } from '../marketing/use-public-plans.js';
 

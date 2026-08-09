@@ -1,6 +1,6 @@
-import { CommercialPlanPublicSchema, PublicCommercialPlansResponseSchema } from '@plataforma/shared';
 import rateLimit from '@fastify/rate-limit';
-import Fastify from 'fastify';
+import { CommercialPlanPublicSchema, PublicCommercialPlansResponseSchema } from '@plataforma/shared';
+import Fastify, { type FastifyInstance } from 'fastify';
 import {
   serializerCompiler,
   validatorCompiler,
@@ -12,10 +12,10 @@ import { type PlatformService } from '../src/modules/platform/platform.service.j
 import { publicCommercialRoutes } from '../src/modules/platform/public-commercial.routes.js';
 import { type TenantCommercialPolicyService } from '../src/modules/platform/tenant-commercial-policy.service.js';
 
-const apps: ReturnType<typeof Fastify>[] = [];
+const apps: FastifyInstance[] = [];
 
 afterEach(async () => {
-  await Promise.all(apps.splice(0).map(async (app) => app.close()));
+  await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
 describe('planos comerciais públicos', () => {
@@ -56,7 +56,8 @@ describe('planos comerciais públicos', () => {
       updatedAt: '2026-08-09T12:00:00.000Z',
     });
     const service = Object.create(Object.prototype) as PlatformService;
-    service.listPublicPlans = vi.fn().mockResolvedValue([plan]);
+    const listPublicPlans = vi.fn().mockResolvedValue([plan]);
+    service.listPublicPlans = listPublicPlans;
     const commercialPolicyService = Object.create(
       Object.prototype,
     ) as TenantCommercialPolicyService;
@@ -70,7 +71,7 @@ describe('planos comerciais públicos', () => {
       plans: [plan],
       defaultTrialDays: 7,
     });
-    expect(service.listPublicPlans).toHaveBeenCalledWith(7);
+    expect(listPublicPlans).toHaveBeenCalledWith(7);
   });
 });
 

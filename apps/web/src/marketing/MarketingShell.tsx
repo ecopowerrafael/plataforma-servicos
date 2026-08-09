@@ -20,10 +20,15 @@ function Brand() {
 function MarketingHeader() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const currentPath = `${location.pathname}${location.hash}`;
+  const [lastPath, setLastPath] = useState(currentPath);
 
-  useEffect(() => {
+  // Fecha o menu mobile ao navegar, ajustando o estado durante a renderização
+  // (evita o cascading render de um setState dentro de useEffect).
+  if (currentPath !== lastPath) {
+    setLastPath(currentPath);
     setOpen(false);
-  }, [location.pathname, location.hash]);
+  }
 
   return (
     <header className="marketing-header">

@@ -19,9 +19,9 @@ import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type TenantExperienceResolver } from './tenant-experience.resolver.js';
 import { type TenantService } from './tenant.service.js';
 import { canAccessUnit } from './unit-scope.js';
+import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
-import { type PrismaClient } from '../../database-client/client.js';
 
 interface TenantRoutesOptions {
   service: TenantService;

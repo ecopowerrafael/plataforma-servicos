@@ -9,11 +9,11 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { type ProfessionalService } from './professional.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { validateServiceImageUpload } from '../services/service-image.storage.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
-import { type PrismaClient } from '../../database-client/client.js';
 interface Options {
   service: ProfessionalService;
   authService: AuthService;

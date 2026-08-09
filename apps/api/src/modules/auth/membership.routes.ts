@@ -13,8 +13,8 @@ import { z } from 'zod';
 
 import { type AuthService } from './auth.service.js';
 import { requestMetadata } from './request-context.js';
-import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 
 interface MembershipRoutesOptions {
   service: AuthService;

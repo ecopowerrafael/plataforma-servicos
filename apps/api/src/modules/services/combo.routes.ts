@@ -11,10 +11,10 @@ import { z } from 'zod';
 
 import { type ComboService } from './combo.service.js';
 import { validateServiceImageUpload } from './service-image.storage.js';
+import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
-import { type PrismaClient } from '../../database-client/client.js';
 
 interface Options {
   service: ComboService;

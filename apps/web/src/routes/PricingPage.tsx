@@ -1,10 +1,10 @@
-import { CommercialPlanPublicSchema, PlanLimitKeys } from '@plataforma/shared';
+import { type CommercialPlanPublicSchema, PlanLimitKeys } from '@plataforma/shared';
 import { Link } from 'react-router-dom';
 import { type z } from 'zod';
 
+import { planLimitLabels } from '../marketing/marketing-data.js';
 import { MarketingShell } from '../marketing/MarketingShell.js';
 import { PricingCards, formatPlanLimit, trialMessage } from '../marketing/PricingCards.js';
-import { planLimitLabels } from '../marketing/marketing-data.js';
 import { usePageMetadata } from '../marketing/use-page-metadata.js';
 import { usePublicPlans } from '../marketing/use-public-plans.js';
 

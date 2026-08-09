@@ -8,9 +8,9 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { type ProfessionalScheduleService } from './professional-schedule.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
-import { type PrismaClient } from '../../database-client/client.js';
 
 const professionalParams = z.object({ publicId: z.uuid() });
 const periodParams = professionalParams.extend({ periodPublicId: z.uuid() });

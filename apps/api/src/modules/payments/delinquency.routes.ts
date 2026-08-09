@@ -2,9 +2,9 @@ import { DelinquencyQuerySchema, DelinquencyResponseSchema } from '@plataforma/s
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { type DelinquencyService } from './delinquency.service.js';
+import { type PrismaClient } from '../../database-client/client.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
-import { type PrismaClient } from '../../database-client/client.js';
 
 export const delinquencyRoutes: FastifyPluginAsyncZod<{
   service: DelinquencyService;

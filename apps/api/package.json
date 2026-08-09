@@ -13,7 +13,10 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:bootstrap": "tsx src/database/bootstrap.ts",
-    "platform-admin:create": "tsx src/database/create-platform-admin.ts"
+    "platform-admin:create": "tsx src/database/create-platform-admin.ts",
+    "db:backup": "tsx scripts/mysql-backup.ts",
+    "db:restore": "tsx scripts/mysql-restore.ts",
+    "db:backup:retain": "tsx scripts/mysql-backup-retention.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.0",

@@ -92,6 +92,8 @@ export const PermissionCodeSchema = z.enum([
   'appointment.status.manage',
   'appointment.fit_in.manage',
   'appointment.checkin.manage',
+  'appointment.waitlist.read',
+  'appointment.waitlist.manage',
   'professional.self.read',
   'professional.self.update',
   'notification.read',

@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppointmentModule } from '../components/appointments/AppointmentModule.js';
+import { AppointmentWaitlistModule } from '../components/appointments/AppointmentWaitlistModule.js';
 import { CalendarModule } from '../components/calendar/CalendarModule.js';
 import { CustomerModule } from '../components/customers/CustomerModule.js';
 import { MyAgendaModule } from '../components/professionals/MyAgendaModule.js';
@@ -150,6 +151,8 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('tenant.subscription.read') ?? false;
   const canViewOperations =
     me.data?.currentTenant?.membership.permissions.includes('appointment.read') ?? false;
+  const canViewWaitlist =
+    me.data?.currentTenant?.membership.permissions.includes('appointment.waitlist.read') ?? false;
   const canViewNotifications =
     me.data?.currentTenant?.membership.permissions.includes('notification.read') ?? false;
   const canManageNotificationTemplates =
@@ -282,6 +285,7 @@ export function HomePage() {
             canReadPayments={canReadPayments}
             canManagePayments={canManagePayments}
           />
+          {canViewWaitlist && <AppointmentWaitlistModule tenantPublicId={selectedTenant} />}
           <ServiceCategoryModule tenantPublicId={selectedTenant} />
           <ProfessionalModule
             tenantPublicId={selectedTenant}

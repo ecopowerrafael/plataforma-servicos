@@ -110,6 +110,14 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum AppointmentWaitlistStatus {
+  WAITING
+  MATCHED
+  CONVERTED
+  EXPIRED
+  CANCELED
+}
+
 enum PaymentMethodType {
   CASH
   PIX
@@ -336,6 +344,8 @@ model Tenant {
   comboItems                   ComboItem[]
   customers                    Customer[]
   appointments                 Appointment[]
+  appointmentWaitlists         AppointmentWaitlist[]
+  waitlistOpportunities        AppointmentWaitlistOpportunity[]
   serviceCategories            ServiceCategory[]
   professionals                Professional[]
   professionalServices         ProfessionalService[]
@@ -937,6 +947,8 @@ model Service {
   appointments            Appointment[]
   favoritedBy             CustomerFavorite[]
   reviews                 AppointmentReview[]
+  waitlistEntries         AppointmentWaitlist[]
+  waitlistOpportunities   AppointmentWaitlistOpportunity[]
 
   @@unique([tenantId, name])
   @@index([tenantId, active, sortOrder])
@@ -1055,6 +1067,8 @@ model BusinessUnit {
   cashRegisters                CashRegister[]
   financialClosings            FinancialClosing[]
   membershipUnits              TenantMembershipUnit[]
+  waitlistEntries              AppointmentWaitlist[]
+  waitlistOpportunities        AppointmentWaitlistOpportunity[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -1134,6 +1148,8 @@ model Professional {
   favoritedBy          CustomerFavorite[]
   reviews              AppointmentReview[]
   commissions          ProfessionalCommission[]
+  waitlistEntries      AppointmentWaitlist[]
+  waitlistOpportunities AppointmentWaitlistOpportunity[]
 
   @@unique([tenantId, userId])
   @@index([tenantId, active, sortOrder])
@@ -1168,6 +1184,7 @@ model Customer {
   favorites             CustomerFavorite[]
   reviews               AppointmentReview[]
   recoveryExecutions    CustomerRecoveryExecution[]
+  waitlistEntries       AppointmentWaitlist[]
   pushSubscriptions     PushSubscription[]
 
   @@unique([tenantId, phone])
@@ -1235,11 +1252,72 @@ model Appointment {
   payments                Payment[]
   commissions             ProfessionalCommission[]
   gatewayCharges          PaymentGatewayCharge[]
+  waitlistConversion      AppointmentWaitlist? @relation("WaitlistConversion")
+  waitlistOpportunity     AppointmentWaitlistOpportunity? @relation("ReleasedAppointment")
 
   @@unique([tenantId, protocol])
   @@index([tenantId, professionalId, startsAt, endsAt, status])
   @@index([tenantId, customerId, startsAt])
   @@map("appointments")
+}
+
+model AppointmentWaitlist {
+  id                 BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId           String                    @unique @map("public_id") @db.Char(36)
+  tenantId           BigInt                    @map("tenant_id") @db.UnsignedBigInt
+  customerId         BigInt                    @map("customer_id") @db.UnsignedBigInt
+  professionalId     BigInt?                   @map("professional_id") @db.UnsignedBigInt
+  serviceId          BigInt                    @map("service_id") @db.UnsignedBigInt
+  unitId             BigInt                    @map("unit_id") @db.UnsignedBigInt
+  preferredDateFrom  DateTime                  @map("preferred_date_from") @db.Date
+  preferredDateTo    DateTime                  @map("preferred_date_to") @db.Date
+  preferredTimeStart String                    @map("preferred_time_start") @db.Char(5)
+  preferredTimeEnd   String                    @map("preferred_time_end") @db.Char(5)
+  expiresAt          DateTime                  @map("expires_at") @db.DateTime(3)
+  notes              String?                   @db.VarChar(2000)
+  status             AppointmentWaitlistStatus @default(WAITING)
+  matchedAt          DateTime?                 @map("matched_at") @db.DateTime(3)
+  convertedAt        DateTime?                 @map("converted_at") @db.DateTime(3)
+  canceledAt         DateTime?                 @map("canceled_at") @db.DateTime(3)
+  canceledReason     String?                   @map("canceled_reason") @db.VarChar(500)
+  appointmentId      BigInt?                   @unique @map("appointment_id") @db.UnsignedBigInt
+  opportunityId      BigInt?                   @unique @map("opportunity_id") @db.UnsignedBigInt
+  activeIdentity     String?                   @unique @default(dbgenerated()) @map("active_identity") @db.VarChar(191)
+  createdAt          DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer           Customer                  @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional       Professional?             @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service            Service                   @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit               BusinessUnit              @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment        Appointment?              @relation("WaitlistConversion", fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  opportunity        AppointmentWaitlistOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, status, expiresAt, createdAt])
+  @@index([tenantId, professionalId, serviceId, unitId])
+  @@map("appointment_waitlists")
+}
+
+model AppointmentWaitlistOpportunity {
+  id                    BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                @unique @map("public_id") @db.Char(36)
+  tenantId              BigInt                @map("tenant_id") @db.UnsignedBigInt
+  releasedAppointmentId BigInt                @unique @map("released_appointment_id") @db.UnsignedBigInt
+  professionalId        BigInt                @map("professional_id") @db.UnsignedBigInt
+  serviceId             BigInt                @map("service_id") @db.UnsignedBigInt
+  unitId                BigInt                @map("unit_id") @db.UnsignedBigInt
+  startsAt              DateTime              @map("starts_at") @db.DateTime(3)
+  claimedAt             DateTime?             @map("claimed_at") @db.DateTime(3)
+  createdAt             DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  releasedAppointment   Appointment           @relation("ReleasedAppointment", fields: [releasedAppointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional          Professional          @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service               Service               @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit                  BusinessUnit           @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  waitlist              AppointmentWaitlist?
+
+  @@index([tenantId, serviceId, unitId, startsAt, claimedAt])
+  @@map("appointment_waitlist_opportunities")
 }
 
 model PaymentMethod {

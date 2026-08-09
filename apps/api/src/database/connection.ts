@@ -4,6 +4,8 @@ import { PrismaClient } from '../database-client/client.js';
 import { AppointmentOperationsService } from '../modules/appointments/appointment-operations.service.js';
 import { AppointmentReviewRepository } from '../modules/appointments/appointment-review.repository.js';
 import { AppointmentReviewService } from '../modules/appointments/appointment-review.service.js';
+import { AppointmentWaitlistRepository } from '../modules/appointments/appointment-waitlist.repository.js';
+import { AppointmentWaitlistService } from '../modules/appointments/appointment-waitlist.service.js';
 import { AppointmentRepository } from '../modules/appointments/appointment.repository.js';
 import { AppointmentService } from '../modules/appointments/appointment.service.js';
 import { type IdentityRepository } from '../modules/auth/identity.repository.js';
@@ -105,6 +107,7 @@ export interface DatabaseConnection {
   readonly identities: IdentityRepository;
   readonly availability?: AvailabilityService;
   readonly appointments?: AppointmentService;
+  readonly appointmentWaitlists?: AppointmentWaitlistService;
   readonly platform?: PlatformService;
   readonly customers?: CustomerService;
   readonly customerAuth?: CustomerAuthService;
@@ -209,10 +212,14 @@ export function createDatabaseConnection(
   };
 
   const appointmentRepository = new AppointmentRepository(client);
-  const appointments = new AppointmentService(
-    appointmentRepository,
-    new AvailabilityService(new AvailabilityRepository(client)),
+  const availability = new AvailabilityService(new AvailabilityRepository(client));
+  const appointments = new AppointmentService(appointmentRepository, availability);
+  const appointmentWaitlists = new AppointmentWaitlistService(
+    new AppointmentWaitlistRepository(client),
+    appointments,
+    availability,
   );
+  appointments.setWaitlistService(appointmentWaitlists);
   const appointmentReviews = new AppointmentReviewService(
     new AppointmentReviewRepository(client),
     appointmentRepository,
@@ -306,8 +313,9 @@ export function createDatabaseConnection(
 
   return {
     identities: new PrismaIdentityRepository(client),
-    availability: new AvailabilityService(new AvailabilityRepository(client)),
+    availability,
     appointments: appointments,
+    appointmentWaitlists: appointmentWaitlists,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
     customers: customers,

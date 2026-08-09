@@ -6,6 +6,7 @@ export * from './business-unit-date-overrides.js';
 export * from './auth.js';
 export * from './availability.js';
 export * from './appointment.js';
+export * from './appointment-waitlist.js';
 export * from './appointment-history.js';
 export * from './appointment-review.js';
 export * from './customer-favorite.js';

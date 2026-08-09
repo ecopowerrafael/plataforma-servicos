@@ -15,7 +15,7 @@ ETAPAS
 14 Financeiro: PARCIAL
 15 Fidelização: não iniciada
 16 Estoque e produtos: não iniciada
-17 Recursos avançados: PARCIAL (todos os blocos independentes concluídos; somente a Waitlist reservada para integração separada permanece pendente)
+17 Recursos avançados: CONCLUÍDA
 18: não iniciada
 
 ETAPA ATUAL
@@ -177,4 +177,6 @@ Já existe (Etapa 17 — PARCIAL):
 
 \- WhatsApp oficial e integrações externas: `TenantWhatsAppConfig` e `ExternalIntegration` (migration `20260809070000_add_whatsapp_and_external_integrations`) armazenam configuração exclusivamente por tenant, com tokens/segredos criptografados em repouso pela mesma abstração AES-256-GCM já usada nos gateways; sem chave de criptografia a API recusa gravar credenciais. O canal `WHATSAPP` foi adicionado à fila existente e o `CustomerNotificationDispatcher` só o utiliza quando o tenant tem configuração ativa, cliente aceita comunicações e possui WhatsApp; caso contrário e-mail/push e os demais fluxos continuam normais. `MetaWhatsAppDelivery` é o único adapter de produção e usa a Graph API oficial, sem provider fake. Webhooks externos usam o canal `WEBHOOK` da mesma fila/worker, claim idempotente, retry/backoff e logs já existentes; entregas recebem `Idempotency-Key`, assinatura HMAC opcional e bloqueio de localhost/IP/rede privada após resolução DNS para reduzir SSRF. Configurações, RBAC `integration.read/manage`, auditoria e interface administrativa são isolados por `tenantId`. Somente o evento efetivamente conectado `notification.queued` é exposto para assinatura; nenhum evento simulado é apresentado como disponível.
 
-\- pendência restante da Etapa 17: apenas a lista de espera da branch `paralelo-etapa17-waitlist`, deliberadamente não tocada nesta rodada. A Etapa 17 não deve ser marcada integralmente concluída até essa integração externa ser revisada e validada.
+\- lista de espera: integrada a partir do commit-base `141cf5b03262ca5328910cc5d830e49490a61d5f` e corrigida com persistência própria (migration `20260809080000_add_appointment_waitlist`), repository/service/routes, RBAC, auditoria e isolamento por tenant. Aceita profissional opcional, unidade obrigatória, intervalo de datas e faixa horária, expiração persistida e filtros reais. A entrada é recusada quando `AvailabilityService` encontra vaga compatível. Cancelamentos persistem uma oportunidade, fazem matching FIFO por serviço/unidade/profissional/data/faixa e claim transacional único; somente um cliente recebe cada oportunidade. A conversão recebe apenas o identificador da oportunidade, deriva os demais dados da Waitlist, reutiliza `AppointmentService.create()` e usa lock para impedir conversão dupla concorrente.
+
+\- Etapa 17 concluída: lista de espera, automações, recuperação de clientes, relatórios avançados, multiunidade avançada, domínio próprio, subdomínios, WhatsApp oficial e integrações externas estão implementados.

@@ -15,6 +15,7 @@ import { type DatabaseConnection } from './database/connection.js';
 import { AppError } from './errors/AppError.js';
 import { registerErrorHandlers } from './errors/error-handler.js';
 import { appointmentOperationsRoutes } from './modules/appointments/appointment-operations.routes.js';
+import { appointmentWaitlistRoutes } from './modules/appointments/appointment-waitlist.routes.js';
 import { appointmentRoutes } from './modules/appointments/appointment.routes.js';
 import { customerAppointmentsRoutes } from './modules/appointments/customer-appointments.routes.js';
 import { customerReviewsRoutes } from './modules/appointments/customer-reviews.routes.js';
@@ -401,6 +402,12 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.appointmentNotifications === undefined
         ? {}
         : { notifications: options.database.appointmentNotifications }),
+    });
+  if (options.database.appointmentWaitlists !== undefined)
+    await app.register(appointmentWaitlistRoutes, {
+      service: options.database.appointmentWaitlists,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
     });
   if (options.database.payments !== undefined)
     await app.register(paymentRoutes, {

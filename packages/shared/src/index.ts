@@ -22,6 +22,7 @@ export * from './professional-unit.js';
 export * from './professional-schedule.js';
 export * from './professional-unavailability.js';
 export * from './tenant-white-label.js';
+export * from './tenant-domain.js';
 export * from './customer.js';
 export * from './customer-auth.js';
 export * from './customer-profile.js';

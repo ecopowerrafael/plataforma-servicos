@@ -71,6 +71,10 @@ import { serviceRoutes } from './modules/services/service.routes.js';
 import { businessUnitDateOverridesRoutes } from './modules/tenants/business-unit-date-overrides.routes.js';
 import { businessUnitOperatingHoursRoutes } from './modules/tenants/business-unit-operating-hours.routes.js';
 import { multiUnitRoutes } from './modules/tenants/multi-unit.routes.js';
+import {
+  publicTenantDomainRoutes,
+  tenantDomainRoutes,
+} from './modules/tenants/tenant-domain.routes.js';
 import { tenantSubscriptionRoutes } from './modules/tenants/tenant-subscription.routes.js';
 import {
   publicTenantWhiteLabelRoutes,
@@ -278,6 +282,14 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });
+  }
+  if (options.database.tenantDomains !== undefined) {
+    await app.register(tenantDomainRoutes, {
+      service: options.database.tenantDomains,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+    await app.register(publicTenantDomainRoutes, { service: options.database.tenantDomains });
   }
   if (options.database.tenantWhiteLabel !== undefined) {
     await app.register(publicTenantWhiteLabelRoutes, {

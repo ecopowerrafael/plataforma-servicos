@@ -254,6 +254,17 @@ enum CustomerRecoveryRuleType {
   BIRTHDAY
 }
 
+enum TenantDomainType {
+  CUSTOM
+  SUBDOMAIN
+}
+
+enum TenantDomainStatus {
+  PENDING
+  ACTIVE
+  FAILED
+}
+
 enum PlatformAdministratorStatus {
   ACTIVE
   SUSPENDED
@@ -361,9 +372,28 @@ model Tenant {
   automationExecutions         AutomationExecution[]
   recoveryRules                CustomerRecoveryRule[]
   recoveryExecutions           CustomerRecoveryExecution[]
+  domains                      TenantDomain[]
 
   @@index([status])
   @@map("tenants")
+}
+
+model TenantDomain {
+  id                BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String             @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt             @map("tenant_id") @db.UnsignedBigInt
+  hostname          String             @unique @db.VarChar(253)
+  type              TenantDomainType
+  status            TenantDomainStatus @default(PENDING)
+  verificationToken String             @map("verification_token") @db.Char(64)
+  verifiedAt        DateTime?          @map("verified_at") @db.DateTime(3)
+  lastError         String?            @map("last_error") @db.VarChar(500)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, status])
+  @@map("tenant_domains")
 }
 
 model User {

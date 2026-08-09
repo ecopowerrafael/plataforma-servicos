@@ -80,6 +80,11 @@ import { BusinessUnitOperatingHoursService } from '../modules/tenants/business-u
 import { MultiUnitRepository } from '../modules/tenants/multi-unit.repository.js';
 import { MultiUnitService } from '../modules/tenants/multi-unit.service.js';
 import { PrismaTenantRepository } from '../modules/tenants/prisma-tenant.repository.js';
+import { TenantDomainRepository } from '../modules/tenants/tenant-domain.repository.js';
+import {
+  DnsDomainVerifier,
+  TenantDomainService,
+} from '../modules/tenants/tenant-domain.service.js';
 import { TenantExperienceResolver } from '../modules/tenants/tenant-experience.resolver.js';
 import { LocalTenantMediaStorage } from '../modules/tenants/tenant-media.storage.js';
 import { TenantSubscriptionService } from '../modules/tenants/tenant-subscription.service.js';
@@ -113,6 +118,7 @@ export interface DatabaseConnection {
   readonly businessUnitOperatingHours?: BusinessUnitOperatingHoursService;
   readonly businessUnitDateOverrides?: BusinessUnitDateOverridesService;
   readonly multiUnit?: MultiUnitService;
+  readonly tenantDomains?: TenantDomainService;
   readonly tenantExperience?: TenantExperienceResolver;
   readonly tenantWhiteLabel?: TenantWhiteLabelService;
   readonly tenantSubscription?: TenantSubscriptionService;
@@ -147,6 +153,7 @@ function readPositiveInteger(value: string | null, fallback: number): number {
 }
 
 interface CustomerAuthOptions {
+  publicBaseDomain?: string;
   passwordArgon2?: { memoryCost: number; timeCost: number; parallelism: number };
   sessionTtlHours?: number;
   smtp?: {
@@ -326,6 +333,11 @@ export function createDatabaseConnection(
       new PrismaBusinessUnitDateOverridesRepository(client),
     ),
     multiUnit: new MultiUnitService(new MultiUnitRepository(client)),
+    tenantDomains: new TenantDomainService(
+      new TenantDomainRepository(client),
+      new DnsDomainVerifier(),
+      customerAuthOptions?.publicBaseDomain ?? null,
+    ),
     tenantExperience: new TenantExperienceResolver(client),
     tenantWhiteLabel: tenantWhiteLabel,
     tenantSubscription: new TenantSubscriptionService(client),

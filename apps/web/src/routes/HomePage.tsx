@@ -33,6 +33,7 @@ import { OperationsDashboardModule } from '../components/tenants/OperationsDashb
 import { PaymentGatewayModule } from '../components/tenants/PaymentGatewayModule.js';
 import { PaymentMethodsModule } from '../components/tenants/PaymentMethodsModule.js';
 import { PaymentOptionsModule } from '../components/tenants/PaymentOptionsModule.js';
+import { TenantDomainModule } from '../components/tenants/TenantDomainModule.js';
 import { TenantSettingsModule } from '../components/tenants/TenantSettingsModule.js';
 import { TenantSubscriptionModule } from '../components/tenants/TenantSubscriptionModule.js';
 import { UnitsModule } from '../components/tenants/UnitsModule.js';
@@ -153,6 +154,8 @@ export function HomePage() {
   const canManageNotificationTemplates =
     me.data?.currentTenant?.membership.permissions.includes('notification.template.manage') ??
     false;
+  const canManageBranding =
+    me.data?.currentTenant?.membership.permissions.includes('tenant.branding.manage') ?? false;
   const canReadAutomations =
     me.data?.currentTenant?.membership.permissions.includes('automation.read') ?? false;
   const canManageAutomations =
@@ -289,6 +292,7 @@ export function HomePage() {
           />
           <ComboModule tenantPublicId={selectedTenant} />
           <WhiteLabelModule tenantPublicId={selectedTenant} />
+          <TenantDomainModule tenantPublicId={selectedTenant} canManage={canManageBranding} />
         </>
       )}
       <section className="sessions-panel" aria-labelledby="sessions-title">

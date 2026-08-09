@@ -15,7 +15,7 @@ ETAPAS
 14 Financeiro: PARCIAL
 15 Fidelização: não iniciada
 16 Estoque e produtos: não iniciada
-17 Recursos avançados: PARCIAL (relatórios avançados, automações, recuperação de clientes e multiunidade avançada integrados; lista de espera, domínio próprio/subdomínios, WhatsApp oficial e integrações externas ainda pendentes)
+17 Recursos avançados: PARCIAL (relatórios avançados, automações, recuperação de clientes, multiunidade avançada e domínio próprio/subdomínios integrados; lista de espera, WhatsApp oficial e integrações externas ainda pendentes)
 18: não iniciada
 
 ETAPA ATUAL
@@ -173,4 +173,6 @@ Já existe (Etapa 17 — PARCIAL):
 
 \- recursos avançados de multiunidade: escopo opcional de unidades por vínculo de membro (`TenantMembershipUnit`, migration `20260809050000_add_membership_unit_scope`), mantendo acesso global como padrão retrocompatível e permitindo restringir um membro a uma lista explícita — inclusive lista vazia. A resolução autenticada do tenant carrega o escopo real e as rotas de unidades ocultam/recusam unidades fora dele com resposta 404, sem revelar dados de outra unidade. A administração de membros permite selecionar as unidades autorizadas. Nova visão comparativa `GET /tenant/multi-unit/overview`, sob `unit.read`, agrega por unidade acessível atendimentos totais/concluídos, receita concluída pelo snapshot real `priceCents`, clientes vinculados e profissionais ativos, sempre filtrando `tenantId` e o escopo do membro. Frontend: `MultiUnitOverviewModule` exibe o comparativo do mês corrente. Testes unitários cobrem acesso global, unidade autorizada, unidade não autorizada e escopo vazio. Relatórios, agenda, profissionais e unidades existentes foram reutilizados; nenhum sistema paralelo foi criado.
 
-\- pendências reais restantes da Etapa 17: lista de espera (branch paralela `paralelo-etapa17-waitlist`, deliberadamente não tocada); domínio próprio; subdomínios; WhatsApp oficial; integrações externas.
+\- domínio próprio e subdomínios: novo `TenantDomain` (migration `20260809060000_add_tenant_domains`) vincula hostnames únicos globalmente ao tenant, impedindo que dois estabelecimentos reivindiquem o mesmo domínio. Domínios próprios iniciam pendentes e só resolvem o tenant depois da verificação DNS TXT real (`_plataforma-verification.<domínio>`); falhas ficam registradas sem ativação. Subdomínios gerenciados exigem exatamente um label sob `PUBLIC_BASE_DOMAIN` e são ativados apenas quando esse domínio base está configurado pelo operador. A feature flag existente `custom_domain.enabled` é obrigatoriamente respeitada. `TenantDomainService` reutiliza o slug e o `TenantWhiteLabelService`: a resolução pública retorna somente o slug do tenant ativo e o restante do site continua no fluxo white-label já existente, sem segunda fonte de dados. Rotas administrativas usam RBAC de branding, isolamento por `tenantId`, auditoria e validação estrita de hostname; a rota pública tem rate limit e só consulta domínios `ACTIVE`. Frontend: gestão de domínios com instruções TXT/verificação e resolução automática do hostname na rota raiz, com fallback ao painel administrativo quando o host não pertence a tenant público.
+
+\- pendências reais restantes da Etapa 17: lista de espera (branch paralela `paralelo-etapa17-waitlist`, deliberadamente não tocada); WhatsApp oficial; integrações externas.

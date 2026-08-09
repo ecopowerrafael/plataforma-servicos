@@ -893,26 +893,26 @@ model ProductCategory {
 }
 
 model Product {
-  id             BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId       String           @unique @map("public_id") @db.Char(36)
-  tenantId       BigInt           @map("tenant_id") @db.UnsignedBigInt
-  categoryId     BigInt?          @map("category_id") @db.UnsignedBigInt
-  name           String           @db.VarChar(160)
-  description    String?          @db.VarChar(1000)
-  sku            String?          @db.VarChar(80)
-  barcode        String?          @db.VarChar(80)
-  costPriceCents BigInt           @default(0) @map("cost_price_cents") @db.UnsignedBigInt
-  salePriceCents BigInt           @map("sale_price_cents") @db.UnsignedBigInt
-  commissionType CommissionType?  @map("commission_type")
-  commissionValue Int?            @map("commission_value") @db.UnsignedInt
-  active         Boolean          @default(true)
-  createdAt      DateTime         @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  stocks         ProductStock[]
-  movements      StockMovement[]
-  saleItems      ProductSaleItem[]
+  id              BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String            @unique @map("public_id") @db.Char(36)
+  tenantId        BigInt            @map("tenant_id") @db.UnsignedBigInt
+  categoryId      BigInt?           @map("category_id") @db.UnsignedBigInt
+  name            String            @db.VarChar(160)
+  description     String?           @db.VarChar(1000)
+  sku             String?           @db.VarChar(80)
+  barcode         String?           @db.VarChar(80)
+  costPriceCents  BigInt            @default(0) @map("cost_price_cents") @db.UnsignedBigInt
+  salePriceCents  BigInt            @map("sale_price_cents") @db.UnsignedBigInt
+  commissionType  CommissionType?   @map("commission_type")
+  commissionValue Int?              @map("commission_value") @db.UnsignedInt
+  active          Boolean           @default(true)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  category        ProductCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  stocks          ProductStock[]
+  movements       StockMovement[]
+  saleItems       ProductSaleItem[]
 
   @@unique([tenantId, name])
   @@unique([tenantId, sku])
@@ -923,27 +923,27 @@ model Product {
 }
 
 model ProductSale {
-  id              BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId        String         @unique @map("public_id") @db.Char(36)
-  tenantId        BigInt         @map("tenant_id") @db.UnsignedBigInt
-  unitId          BigInt         @map("unit_id") @db.UnsignedBigInt
-  customerId      BigInt?        @map("customer_id") @db.UnsignedBigInt
-  professionalId  BigInt?        @map("professional_id") @db.UnsignedBigInt
-  paymentMethodId BigInt         @map("payment_method_id") @db.UnsignedBigInt
-  cashMovementId  BigInt?        @unique @map("cash_movement_id") @db.UnsignedBigInt
-  totalCents      BigInt         @map("total_cents") @db.UnsignedBigInt
-  notes           String?        @db.VarChar(500)
-  userId          BigInt         @map("user_id") @db.UnsignedBigInt
-  sessionId       BigInt         @map("session_id") @db.UnsignedBigInt
-  createdAt       DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  unit            BusinessUnit   @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  customer        Customer?      @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  professional    Professional?  @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  paymentMethod   PaymentMethod  @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  cashMovement    CashMovement?  @relation(fields: [cashMovementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  user            User           @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  session         UserSession    @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id              BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String            @unique @map("public_id") @db.Char(36)
+  tenantId        BigInt            @map("tenant_id") @db.UnsignedBigInt
+  unitId          BigInt            @map("unit_id") @db.UnsignedBigInt
+  customerId      BigInt?           @map("customer_id") @db.UnsignedBigInt
+  professionalId  BigInt?           @map("professional_id") @db.UnsignedBigInt
+  paymentMethodId BigInt            @map("payment_method_id") @db.UnsignedBigInt
+  cashMovementId  BigInt?           @unique @map("cash_movement_id") @db.UnsignedBigInt
+  totalCents      BigInt            @map("total_cents") @db.UnsignedBigInt
+  notes           String?           @db.VarChar(500)
+  userId          BigInt            @map("user_id") @db.UnsignedBigInt
+  sessionId       BigInt            @map("session_id") @db.UnsignedBigInt
+  createdAt       DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit            BusinessUnit      @relation(fields: [unitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer        Customer?         @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional    Professional?     @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentMethod   PaymentMethod     @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashMovement    CashMovement?     @relation(fields: [cashMovementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user            User              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  session         UserSession       @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   items           ProductSaleItem[]
 
   @@index([tenantId, unitId, createdAt])
@@ -959,17 +959,17 @@ model ProductSaleItem {
   saleId                BigInt          @map("sale_id") @db.UnsignedBigInt
   productId             BigInt          @map("product_id") @db.UnsignedBigInt
   quantity              Int             @db.UnsignedInt
-  unitPriceCents        BigInt           @map("unit_price_cents") @db.UnsignedBigInt
-  totalCents            BigInt           @map("total_cents") @db.UnsignedBigInt
-  commissionType        CommissionType?  @map("commission_type")
-  commissionValue       Int?             @map("commission_value") @db.UnsignedInt
-  commissionAmountCents BigInt            @default(0) @map("commission_amount_cents") @db.UnsignedBigInt
-  stockMovementId       BigInt            @unique @map("stock_movement_id") @db.UnsignedBigInt
-  createdAt             DateTime          @default(now()) @map("created_at") @db.DateTime(3)
-  tenant                Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  sale                  ProductSale       @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  product               Product           @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  stockMovement         StockMovement     @relation(fields: [stockMovementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unitPriceCents        BigInt          @map("unit_price_cents") @db.UnsignedBigInt
+  totalCents            BigInt          @map("total_cents") @db.UnsignedBigInt
+  commissionType        CommissionType? @map("commission_type")
+  commissionValue       Int?            @map("commission_value") @db.UnsignedInt
+  commissionAmountCents BigInt          @default(0) @map("commission_amount_cents") @db.UnsignedBigInt
+  stockMovementId       BigInt          @unique @map("stock_movement_id") @db.UnsignedBigInt
+  createdAt             DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+  tenant                Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sale                  ProductSale     @relation(fields: [saleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  product               Product         @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  stockMovement         StockMovement   @relation(fields: [stockMovementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([tenantId, productId, createdAt])
   @@map("product_sale_items")
@@ -1015,10 +1015,10 @@ model StockMovement {
   businessUnit          BusinessUnit      @relation("StockMovementUnit", fields: [businessUnitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   relatedBusinessUnit   BusinessUnit?     @relation("StockMovementRelatedUnit", fields: [relatedBusinessUnitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   performedByUser       User              @relation(fields: [performedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  saleItem               ProductSaleItem?
+  saleItem              ProductSaleItem?
 
   @@index([tenantId, createdAt])
-  @@index([tenantId, productId, businessUnitId, createdAt])
+  @@index([tenantId, productId, businessUnitId, createdAt], map: "stock_movements_tenant_product_unit_created_idx")
   @@index([transferPublicId])
   @@index([performedByUserId, createdAt])
   @@map("stock_movements")
@@ -1365,17 +1365,17 @@ model Appointment {
 }
 
 model PaymentMethod {
-  id        BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId  String            @unique @map("public_id") @db.Char(36)
-  tenantId  BigInt            @map("tenant_id") @db.UnsignedBigInt
-  name      String            @db.VarChar(80)
-  type      PaymentMethodType
-  sortOrder Int               @default(0) @map("sort_order") @db.UnsignedSmallInt
-  active    Boolean           @default(true)
-  createdAt DateTime          @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  payments  Payment[]
+  id           BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId     String            @unique @map("public_id") @db.Char(36)
+  tenantId     BigInt            @map("tenant_id") @db.UnsignedBigInt
+  name         String            @db.VarChar(80)
+  type         PaymentMethodType
+  sortOrder    Int               @default(0) @map("sort_order") @db.UnsignedSmallInt
+  active       Boolean           @default(true)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payments     Payment[]
   productSales ProductSale[]
 
   @@unique([tenantId, name])

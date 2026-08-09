@@ -16,7 +16,7 @@ CREATE TABLE `stock_movements` (
   PRIMARY KEY (`id`),
   UNIQUE INDEX `stock_movements_public_id_key` (`public_id`),
   INDEX `stock_movements_tenant_id_created_at_idx` (`tenant_id`, `created_at`),
-  INDEX `stock_movements_tenant_id_product_id_business_unit_id_created_at_idx` (`tenant_id`, `product_id`, `business_unit_id`, `created_at`),
+  INDEX `stock_movements_tenant_product_unit_created_idx` (`tenant_id`, `product_id`, `business_unit_id`, `created_at`),
   INDEX `stock_movements_transfer_public_id_idx` (`transfer_public_id`),
   INDEX `stock_movements_performed_by_user_id_created_at_idx` (`performed_by_user_id`, `created_at`),
   CONSTRAINT `stock_movements_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,

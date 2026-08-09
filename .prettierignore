@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+apps/api/src/database-client/
+apps/web/.local-backups/
+package-lock.json
+*.log
+.env
+.env.*
+!.env.example

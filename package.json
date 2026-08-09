@@ -1,0 +1,41 @@
+{
+  "name": "plataforma-servicos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "author": "Rafael Augusto",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.20.0",
+    "npm": ">=10.8.0"
+  },
+  "scripts": {
+    "dev": "concurrently --names api,web --prefix-colors blue,green \"npm run dev --workspace=@plataforma/api\" \"npm run dev --workspace=@plataforma/web\"",
+    "build": "npm run build --workspace=@plataforma/shared && npm run build --workspace=@plataforma/api && npm run build --workspace=@plataforma/web",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "typecheck": "npm run build --workspace=@plataforma/shared && npm run typecheck --workspace=@plataforma/api && npm run typecheck --workspace=@plataforma/web",
+    "test": "npm run test --workspace=@plataforma/api",
+    "db:generate": "npm run db:generate --workspace=@plataforma/api",
+    "db:migrate": "npm run db:migrate --workspace=@plataforma/api",
+    "db:migrate:dev": "npm run db:migrate:dev --workspace=@plataforma/api",
+    "db:bootstrap": "npm run db:bootstrap --workspace=@plataforma/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^9.2.4",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0"
+  }
+}

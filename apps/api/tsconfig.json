@@ -1,0 +1,7 @@
+{
+  "extends": "../../packages/config/node.json",
+  "compilerOptions": {
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "prisma.config.ts"]
+}

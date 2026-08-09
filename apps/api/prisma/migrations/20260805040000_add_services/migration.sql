@@ -1,0 +1,23 @@
+CREATE TABLE `services` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `public_id` CHAR(36) NOT NULL,
+  `tenant_id` BIGINT UNSIGNED NOT NULL,
+  `name` VARCHAR(120) NOT NULL,
+  `description` VARCHAR(1000) NULL,
+  `image_path` VARCHAR(512) NULL,
+  `image_alt` VARCHAR(160) NULL,
+  `duration_minutes` SMALLINT UNSIGNED NOT NULL,
+  `has_post_service_break` BOOLEAN NOT NULL DEFAULT false,
+  `post_service_break_minutes` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `price_cents` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `color` CHAR(7) NOT NULL,
+  `sort_order` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `active` BOOLEAN NOT NULL DEFAULT true,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL,
+  UNIQUE INDEX `services_public_id_key` (`public_id`),
+  UNIQUE INDEX `services_tenant_id_name_key` (`tenant_id`, `name`),
+  INDEX `services_tenant_active_order_idx` (`tenant_id`, `active`, `sort_order`),
+  PRIMARY KEY (`id`),
+  CONSTRAINT `services_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

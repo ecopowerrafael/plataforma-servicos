@@ -1,0 +1,7 @@
+{
+  "extends": "../../packages/config/react.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

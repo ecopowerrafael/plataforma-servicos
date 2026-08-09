@@ -1,0 +1,51 @@
+import { type AppointmentReminderService } from './appointment-reminder.service.js';
+import { type NotificationService } from './notification.service.js';
+
+interface WorkerLogger {
+  error: (payload: unknown, message?: string) => void;
+}
+
+interface WorkerDeps {
+  reminders: AppointmentReminderService;
+  notifications: NotificationService;
+}
+
+interface WorkerOptions {
+  intervalMs: number;
+  logger: WorkerLogger;
+}
+
+/**
+ * Worker de notificações em processo único, adequado à arquitetura atual
+ * (sem broker/fila externa). A cada tick: agenda lembretes de agendamentos
+ * que entraram na janela de lembrete e processa a fila pendente de envio.
+ * Um lock booleano em memória impede sobreposição entre execuções da mesma
+ * instância; o claim atômico em NotificationService.processPending()
+ * impede processamento duplicado mesmo com múltiplas instâncias da API.
+ * Ressalva: por ser em processo único, não há coordenação entre múltiplas
+ * instâncias horizontais além do claim a nível de linha no banco.
+ */
+export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions): () => void {
+  let running = false;
+
+  const tick = async (): Promise<void> => {
+    if (running) return;
+    running = true;
+    try {
+      await deps.reminders.scheduleUpcomingReminders();
+      await deps.notifications.processPending();
+    } catch (error) {
+      options.logger.error({ err: error }, 'Falha ao processar a fila de notificações.');
+    } finally {
+      running = false;
+    }
+  };
+
+  const timer = setInterval(() => {
+    void tick();
+  }, options.intervalMs);
+
+  return () => {
+    clearInterval(timer);
+  };
+}

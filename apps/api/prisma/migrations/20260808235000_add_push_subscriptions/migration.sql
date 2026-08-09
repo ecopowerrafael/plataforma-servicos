@@ -1,0 +1,7 @@
+ALTER TABLE `notification_logs` MODIFY `channel` ENUM('EMAIL', 'PUSH') NOT NULL DEFAULT 'EMAIL';
+
+DROP INDEX `notification_logs_target_key` ON `notification_logs`;
+
+CREATE UNIQUE INDEX `notification_logs_target_key` ON `notification_logs`(`tenant_id`, `kind`, `target_type`, `target_public_id`, `channel`, `recipient`);
+
+CREATE TABLE `push_subscriptions` (`id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,`public_id` CHAR(36) NOT NULL,`tenant_id` BIGINT UNSIGNED NOT NULL,`customer_id` BIGINT UNSIGNED NOT NULL,`endpoint` TEXT NOT NULL,`endpoint_hash` CHAR(64) NOT NULL,`p256dh` VARCHAR(255) NOT NULL,`auth` VARCHAR(255) NOT NULL,`user_agent` VARCHAR(255) NULL,`active` BOOLEAN NOT NULL DEFAULT true,`last_used_at` DATETIME(3) NULL,`created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),`updated_at` DATETIME(3) NOT NULL,PRIMARY KEY (`id`),UNIQUE INDEX `push_subscriptions_public_id_key` (`public_id`),UNIQUE INDEX `push_subscriptions_endpoint_hash_key` (`endpoint_hash`),INDEX `push_subscriptions_tenant_id_customer_id_idx` (`tenant_id`,`customer_id`),INDEX `push_subscriptions_tenant_id_active_idx` (`tenant_id`,`active`),CONSTRAINT `push_subscriptions_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,CONSTRAINT `push_subscriptions_customer_id_fkey` FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

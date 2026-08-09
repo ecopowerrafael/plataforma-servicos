@@ -1,0 +1,307 @@
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+
+import { PrismaClient } from '../database-client/client.js';
+import { AppointmentOperationsService } from '../modules/appointments/appointment-operations.service.js';
+import { AppointmentReviewRepository } from '../modules/appointments/appointment-review.repository.js';
+import { AppointmentReviewService } from '../modules/appointments/appointment-review.service.js';
+import { AppointmentRepository } from '../modules/appointments/appointment.repository.js';
+import { AppointmentService } from '../modules/appointments/appointment.service.js';
+import { type IdentityRepository } from '../modules/auth/identity.repository.js';
+import { PasswordService } from '../modules/auth/password.service.js';
+import { PrismaIdentityRepository } from '../modules/auth/prisma-identity.repository.js';
+import { PublicBookingService } from '../modules/booking/public-booking.service.js';
+import { AvailabilityRepository } from '../modules/calendar/availability.repository.js';
+import { AvailabilityService } from '../modules/calendar/availability.service.js';
+import { CustomerAuthRepository } from '../modules/customers/customer-auth.repository.js';
+import { CustomerAuthService } from '../modules/customers/customer-auth.service.js';
+import { CustomerFavoriteRepository } from '../modules/customers/customer-favorite.repository.js';
+import { CustomerFavoriteService } from '../modules/customers/customer-favorite.service.js';
+import { CustomerProfileService } from '../modules/customers/customer-profile.service.js';
+import { CustomerRepository } from '../modules/customers/customer.repository.js';
+import { CustomerService } from '../modules/customers/customer.service.js';
+import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
+import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
+import { CustomerNotificationDispatcher } from '../modules/notifications/customer-notification-dispatcher.js';
+import {
+  type EmailDelivery,
+  SmtpEmailDelivery,
+  UnconfiguredEmailDelivery,
+} from '../modules/notifications/email-delivery.js';
+import { NotificationTemplateService } from '../modules/notifications/notification-template.service.js';
+import { NotificationService } from '../modules/notifications/notification.service.js';
+import {
+  type PushDelivery,
+  UnconfiguredPushDelivery,
+  WebPushDelivery,
+} from '../modules/notifications/push-delivery.js';
+import { PushSubscriptionService } from '../modules/notifications/push-subscription.service.js';
+import { PlatformService } from '../modules/platform/platform.service.js';
+import { PrismaProfessionalScheduleRepository } from '../modules/professionals/professional-schedule.repository.js';
+import { ProfessionalScheduleService } from '../modules/professionals/professional-schedule.service.js';
+import { PrismaProfessionalServiceRepository } from '../modules/professionals/professional-service.repository.js';
+import { ProfessionalServiceLinkService } from '../modules/professionals/professional-service.service.js';
+import { PrismaProfessionalUnavailabilityRepository } from '../modules/professionals/professional-unavailability.repository.js';
+import { ProfessionalUnavailabilityService } from '../modules/professionals/professional-unavailability.service.js';
+import { PrismaProfessionalUnitRepository } from '../modules/professionals/professional-unit.repository.js';
+import { ProfessionalUnitLinkService } from '../modules/professionals/professional-unit.service.js';
+import { PrismaProfessionalRepository } from '../modules/professionals/professional.repository.js';
+import { ProfessionalService } from '../modules/professionals/professional.service.js';
+import { PrismaComboRepository } from '../modules/services/combo.repository.js';
+import { ComboService } from '../modules/services/combo.service.js';
+import { PrismaServiceCategoryRepository } from '../modules/services/service-category.repository.js';
+import { ServiceCategoryService } from '../modules/services/service-category.service.js';
+import { LocalServiceImageStorage } from '../modules/services/service-image.storage.js';
+import { PrismaServiceVariationRepository } from '../modules/services/service-variation.repository.js';
+import { ServiceVariationService } from '../modules/services/service-variation.service.js';
+import { PrismaServiceRepository } from '../modules/services/service.repository.js';
+import { ServiceService } from '../modules/services/service.service.js';
+import { PrismaBusinessUnitDateOverridesRepository } from '../modules/tenants/business-unit-date-overrides.repository.js';
+import { BusinessUnitDateOverridesService } from '../modules/tenants/business-unit-date-overrides.service.js';
+import { PrismaBusinessUnitOperatingHoursRepository } from '../modules/tenants/business-unit-operating-hours.repository.js';
+import { BusinessUnitOperatingHoursService } from '../modules/tenants/business-unit-operating-hours.service.js';
+import { PrismaTenantRepository } from '../modules/tenants/prisma-tenant.repository.js';
+import { TenantExperienceResolver } from '../modules/tenants/tenant-experience.resolver.js';
+import { LocalTenantMediaStorage } from '../modules/tenants/tenant-media.storage.js';
+import { TenantSubscriptionService } from '../modules/tenants/tenant-subscription.service.js';
+import { TenantWhiteLabelRepository } from '../modules/tenants/tenant-white-label.repository.js';
+import { TenantWhiteLabelService } from '../modules/tenants/tenant-white-label.service.js';
+import { type TenantRepository } from '../modules/tenants/tenant.repository.js';
+
+export interface DatabaseConnection {
+  readonly ping: () => Promise<void>;
+  readonly close: () => Promise<void>;
+  readonly tenants: TenantRepository;
+  readonly identities: IdentityRepository;
+  readonly availability?: AvailabilityService;
+  readonly appointments?: AppointmentService;
+  readonly platform?: PlatformService;
+  readonly customers?: CustomerService;
+  readonly customerAuth?: CustomerAuthService;
+  readonly customerProfile?: CustomerProfileService;
+  readonly customerFavorites?: CustomerFavoriteService;
+  readonly appointmentReviews?: AppointmentReviewService;
+  readonly services?: ServiceService;
+  readonly serviceCategories?: ServiceCategoryService;
+  readonly serviceVariations?: ServiceVariationService;
+  readonly combos?: ComboService;
+  readonly professionals?: ProfessionalService;
+  readonly professionalServices?: ProfessionalServiceLinkService;
+  readonly professionalUnits?: ProfessionalUnitLinkService;
+  readonly professionalSchedules?: ProfessionalScheduleService;
+  readonly professionalUnavailabilities?: ProfessionalUnavailabilityService;
+  readonly businessUnitOperatingHours?: BusinessUnitOperatingHoursService;
+  readonly businessUnitDateOverrides?: BusinessUnitDateOverridesService;
+  readonly tenantExperience?: TenantExperienceResolver;
+  readonly tenantWhiteLabel?: TenantWhiteLabelService;
+  readonly tenantSubscription?: TenantSubscriptionService;
+  readonly appointmentOperations?: AppointmentOperationsService;
+  readonly notifications?: NotificationService;
+  readonly notificationTemplates?: NotificationTemplateService;
+  readonly appointmentNotifications?: AppointmentNotificationService;
+  readonly appointmentReminders?: AppointmentReminderService;
+  readonly pushSubscriptions?: PushSubscriptionService;
+  readonly vapidPublicKey?: string | null;
+  readonly publicBooking?: PublicBookingService;
+}
+
+function readPositiveInteger(value: string | null, fallback: number): number {
+  if (value === null) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+interface CustomerAuthOptions {
+  passwordArgon2?: { memoryCost: number; timeCost: number; parallelism: number };
+  sessionTtlHours?: number;
+  smtp?: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user?: string | undefined;
+    pass?: string | undefined;
+    from: string;
+  };
+  vapid?: {
+    publicKey: string;
+    privateKey: string;
+    subject: string;
+  };
+}
+
+export function createDatabaseConnection(
+  databaseUrl: string,
+  customerAuthOptions?: CustomerAuthOptions,
+): DatabaseConnection {
+  let activeClient = createPrismaClient(databaseUrl);
+  let recovery: Promise<void> | undefined;
+  const client = new Proxy({} as PrismaClient, {
+    get(_target, property) {
+      const value: unknown = Reflect.get(activeClient, property);
+      if (typeof value !== 'function') return value;
+      return (...arguments_: unknown[]) => {
+        const result: unknown = Reflect.apply(value, activeClient, arguments_);
+        return result;
+      };
+    },
+  });
+
+  const reconnect = async () => {
+    if (recovery !== undefined) return recovery;
+    recovery = (async () => {
+      await activeClient.$disconnect().catch(() => undefined);
+      activeClient = createPrismaClient(databaseUrl);
+      await activeClient.$queryRaw`SELECT 1`;
+    })().finally(() => {
+      recovery = undefined;
+    });
+    return recovery;
+  };
+
+  const appointmentRepository = new AppointmentRepository(client);
+  const appointments = new AppointmentService(
+    appointmentRepository,
+    new AvailabilityService(new AvailabilityRepository(client)),
+  );
+  const appointmentReviews = new AppointmentReviewService(
+    new AppointmentReviewRepository(client),
+    appointmentRepository,
+  );
+  const customerRepository = new CustomerRepository(client);
+  const customers = new CustomerService(customerRepository);
+  const customerProfile = new CustomerProfileService(customerRepository, customers);
+  const customerFavorites = new CustomerFavoriteService(new CustomerFavoriteRepository(client));
+  const professionalServices = new ProfessionalServiceLinkService(
+    new PrismaProfessionalServiceRepository(client),
+  );
+  const professionalUnits = new ProfessionalUnitLinkService(
+    new PrismaProfessionalUnitRepository(client),
+  );
+  const tenantWhiteLabelRepository = new TenantWhiteLabelRepository(client);
+  const customerAuth = new CustomerAuthService(
+    customerRepository,
+    new CustomerAuthRepository(client),
+    tenantWhiteLabelRepository,
+    new PasswordService(
+      customerAuthOptions?.passwordArgon2 ?? {
+        memoryCost: 65_536,
+        timeCost: 3,
+        parallelism: 1,
+      },
+    ),
+    { sessionTtlHours: customerAuthOptions?.sessionTtlHours ?? 168 },
+  );
+  const tenantWhiteLabel = new TenantWhiteLabelService(
+    tenantWhiteLabelRepository,
+    new LocalTenantMediaStorage(),
+    new LocalServiceImageStorage(),
+    new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR),
+  );
+  const emailDelivery: EmailDelivery =
+    customerAuthOptions?.smtp === undefined
+      ? new UnconfiguredEmailDelivery()
+      : new SmtpEmailDelivery(customerAuthOptions.smtp);
+  const pushDelivery: PushDelivery =
+    customerAuthOptions?.vapid === undefined
+      ? new UnconfiguredPushDelivery()
+      : new WebPushDelivery(customerAuthOptions.vapid);
+  const notifications = new NotificationService(client, {
+    email: emailDelivery,
+    push: pushDelivery,
+  });
+  const notificationTemplates = new NotificationTemplateService(client);
+  const notificationDispatcher = new CustomerNotificationDispatcher(
+    client,
+    notifications,
+    notificationTemplates,
+  );
+  const appointmentNotifications = new AppointmentNotificationService(
+    client,
+    notificationDispatcher,
+  );
+  const appointmentReminders = new AppointmentReminderService(client, notificationDispatcher);
+  const pushSubscriptions = new PushSubscriptionService(client);
+
+  return {
+    identities: new PrismaIdentityRepository(client),
+    availability: new AvailabilityService(new AvailabilityRepository(client)),
+    appointments: appointments,
+    tenants: new PrismaTenantRepository(client),
+    platform: new PlatformService(client),
+    customers: customers,
+    customerAuth: customerAuth,
+    customerProfile: customerProfile,
+    customerFavorites: customerFavorites,
+    appointmentReviews: appointmentReviews,
+    services: new ServiceService(
+      new PrismaServiceRepository(client),
+      new LocalServiceImageStorage(),
+    ),
+    serviceCategories: new ServiceCategoryService(new PrismaServiceCategoryRepository(client)),
+    serviceVariations: new ServiceVariationService(new PrismaServiceVariationRepository(client)),
+    combos: new ComboService(new PrismaComboRepository(client), new LocalServiceImageStorage()),
+    professionals: new ProfessionalService(
+      new PrismaProfessionalRepository(client),
+      new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR),
+    ),
+    professionalServices: professionalServices,
+    professionalUnits: professionalUnits,
+    professionalSchedules: new ProfessionalScheduleService(
+      new PrismaProfessionalScheduleRepository(client),
+    ),
+    professionalUnavailabilities: new ProfessionalUnavailabilityService(
+      new PrismaProfessionalUnavailabilityRepository(client),
+    ),
+    businessUnitOperatingHours: new BusinessUnitOperatingHoursService(
+      new PrismaBusinessUnitOperatingHoursRepository(client),
+    ),
+    businessUnitDateOverrides: new BusinessUnitDateOverridesService(
+      new PrismaBusinessUnitDateOverridesRepository(client),
+    ),
+    tenantExperience: new TenantExperienceResolver(client),
+    tenantWhiteLabel: tenantWhiteLabel,
+    tenantSubscription: new TenantSubscriptionService(client),
+    appointmentOperations: new AppointmentOperationsService(client),
+    notifications: notifications,
+    notificationTemplates: notificationTemplates,
+    appointmentNotifications: appointmentNotifications,
+    appointmentReminders: appointmentReminders,
+    pushSubscriptions: pushSubscriptions,
+    vapidPublicKey: customerAuthOptions?.vapid?.publicKey ?? null,
+    publicBooking: new PublicBookingService(
+      tenantWhiteLabelRepository,
+      tenantWhiteLabel,
+      professionalServices,
+      customers,
+      appointments,
+      new AvailabilityService(new AvailabilityRepository(client)),
+    ),
+    async ping() {
+      try {
+        await activeClient.$queryRaw`SELECT 1`;
+      } catch {
+        await reconnect();
+      }
+    },
+    async close() {
+      await activeClient.$disconnect();
+    },
+  };
+}
+
+export function createPrismaClient(databaseUrl: string): PrismaClient {
+  const url = new URL(databaseUrl);
+  const adapter = new PrismaMariaDb({
+    host: url.hostname,
+    port: readPositiveInteger(url.port || null, 3306),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: decodeURIComponent(url.pathname.slice(1)),
+    connectionLimit: readPositiveInteger(url.searchParams.get('connection_limit'), 10),
+    connectTimeout: 5_000,
+    idleTimeout: 300,
+  });
+  return new PrismaClient({ adapter });
+}

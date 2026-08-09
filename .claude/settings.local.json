@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(node -e ' *)",
+      "Bash(xargs grep -li \"mysql\\\\|mariadb\\\\|GRANT\")",
+      "Bash(npx prettier *)",
+      "Bash(npx eslint *)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsx *)",
+      "Bash(cd \"C:/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api\" && npm run typecheck 2>&1 | tail -60 && cd ../web && npm run typecheck 2>&1 | tail -60)",
+      "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
+      "Bash(grep -n \"Encaixe administrativo</dt>\\\\|fitInReason\\\\|Cancelar$\\\\|transition\\('canceled'\\)\" src/components/appointments/AppointmentModule.tsx)",
+      "Bash(npm ls *)",
+      "Bash(npm view *)",
+      "Bash(cd \"C:/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api\" && cat ../../.env 2>/dev/null | grep -i DATABASE_URL; ls prisma/migrations | tail -8)",
+      "Bash(cp /tmp/check_migration.mjs ./scratch_check_migration.mjs)",
+      "Bash(sed -i \"s#process.env.DATABASE_URL#'mysql://plataforma_app_20260804:WYa8ENl2UxDrjjt_UtW6S2KUbzSViCN5QZjzQ7yTb3g9a@127.0.0.1:3307/plataforma_audit?connection_limit=10'#\" scratch_check_migration.mjs)",
+      "Bash(perl -pi -e 's/new NotificationService\\\\\\(client, \\(delivery|new UnconfiguredEmailDelivery\\\\\\(\\\\\\)|new AlwaysFailingDelivery\\\\\\(\\\\\\)\\)\\\\\\)/new NotificationService\\(client, { email: $1, push: new UnconfiguredPushDelivery\\(\\) }\\)/g' tests/notification-mysql-integration.test.ts tests/appointment-reminder-mysql-integration.test.ts)",
+      "Bash(perl -pi -e 's/const templates = new NotificationTemplateService\\\\\\(client\\\\\\);\\\\n/const templates = new NotificationTemplateService\\(client\\);\\\\n      const dispatcher = new CustomerNotificationDispatcher\\(client, notifications, templates\\);\\\\n/g if 0' tests/appointment-reminder-mysql-integration.test.ts)",
+      "Bash(perl -0pi -e 's/const templates = new NotificationTemplateService\\\\\\(client\\\\\\);\\\\n\\(\\\\s+\\)const reminders = new AppointmentReminderService\\\\\\(client, notifications, templates\\\\\\);/const templates = new NotificationTemplateService\\(client\\);\\\\n$1const dispatcher = new CustomerNotificationDispatcher\\(client, notifications, templates\\);\\\\n$1const reminders = new AppointmentReminderService\\(client, dispatcher\\);/g' tests/appointment-reminder-mysql-integration.test.ts)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

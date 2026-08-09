@@ -1,0 +1,3 @@
+ALTER TABLE `tenant_settings`
+  ADD COLUMN `minimum_advance_minutes` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  ADD COLUMN `maximum_advance_days` SMALLINT UNSIGNED NOT NULL DEFAULT 180;

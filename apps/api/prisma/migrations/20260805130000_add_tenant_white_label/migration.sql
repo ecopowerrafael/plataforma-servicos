@@ -1,0 +1,40 @@
+CREATE TABLE `tenant_media_assets` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `public_id` CHAR(36) NOT NULL,
+  `tenant_id` BIGINT UNSIGNED NOT NULL,
+  `kind` ENUM('LOGO','LOGO_COMPACT','FAVICON','APP_ICON','SPLASH','BANNER_DESKTOP','BANNER_MOBILE','INSTITUTIONAL') NOT NULL,
+  `original_name` VARCHAR(255) NOT NULL,
+  `storage_key` VARCHAR(512) NOT NULL,
+  `mime_type` VARCHAR(32) NOT NULL,
+  `byte_size` INT UNSIGNED NOT NULL,
+  `alt_text` VARCHAR(180) NULL,
+  `deleted_at` DATETIME(3) NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `tenant_media_assets_public_id_key` (`public_id`),
+  UNIQUE INDEX `tenant_media_assets_storage_key_key` (`storage_key`),
+  INDEX `tenant_media_assets_tenant_id_kind_deleted_at_idx` (`tenant_id`,`kind`,`deleted_at`),
+  CONSTRAINT `tenant_media_assets_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE `tenant_public_sites` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `tenant_id` BIGINT UNSIGNED NOT NULL,
+  `theme` ENUM('CLASSIC','MODERN','PREMIUM') NOT NULL DEFAULT 'CLASSIC',
+  `hero_title` VARCHAR(160) NULL,
+  `hero_subtitle` VARCHAR(500) NULL,
+  `about_text` VARCHAR(4000) NULL,
+  `primary_call_to_action` VARCHAR(100) NULL,
+  `footer_text` VARCHAR(500) NULL,
+  `seo_title` VARCHAR(70) NULL,
+  `seo_description` VARCHAR(160) NULL,
+  `pwa_name` VARCHAR(80) NULL,
+  `pwa_short_name` VARCHAR(30) NULL,
+  `pwa_description` VARCHAR(160) NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `tenant_public_sites_tenant_id_key` (`tenant_id`),
+  CONSTRAINT `tenant_public_sites_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

@@ -1,0 +1,18 @@
+ALTER TABLE tenants
+  ADD COLUMN business_profile ENUM(
+    'BARBERSHOP',
+    'BEAUTY_SALON',
+    'AESTHETIC_CLINIC',
+    'MEDICAL_CLINIC',
+    'PSYCHOLOGY',
+    'NUTRITION',
+    'DENTISTRY',
+    'STUDIO',
+    'TATTOO_STUDIO',
+    'PET_CARE',
+    'SPA',
+    'MASSAGE',
+    'PERSONAL_TRAINER',
+    'CONSULTING',
+    'GENERIC'
+  ) NOT NULL DEFAULT 'GENERIC' AFTER currency;

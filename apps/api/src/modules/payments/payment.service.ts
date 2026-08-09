@@ -7,6 +7,8 @@ import {
 } from '@plataforma/shared';
 
 import { type CashRegisterService } from './cash-register.service.js';
+import { type CouponService } from './coupon.service.js';
+import { type LoyaltyService } from './loyalty.service.js';
 import { type ProfessionalCommissionService } from './professional-commission.service.js';
 import { type Payment, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -38,7 +40,17 @@ export class PaymentService {
     private readonly client: PrismaClient,
     private readonly cashRegisters?: CashRegisterService,
     private readonly commissions?: ProfessionalCommissionService,
+    private readonly coupons?: CouponService,
+    private readonly loyalty?: LoyaltyService,
   ) {}
+
+  private async totalDiscountForAppointment(tenantId: bigint, appointmentId: bigint) {
+    const [couponDiscount, loyaltyDiscount] = await Promise.all([
+      this.coupons?.discountForAppointment(tenantId, appointmentId) ?? Promise.resolve(0n),
+      this.loyalty?.discountForAppointment(tenantId, appointmentId) ?? Promise.resolve(0n),
+    ]);
+    return couponDiscount + loyaltyDiscount;
+  }
 
   public async create(
     tenantId: bigint,
@@ -55,6 +67,7 @@ export class PaymentService {
         unitId: true,
         professionalId: true,
         serviceId: true,
+        customerId: true,
       },
     });
     if (appointment === null) throw this.appointmentNotFound();
@@ -95,7 +108,10 @@ export class PaymentService {
       _sum: { amountCents: true },
     });
     const totalPaid = paid._sum.amountCents ?? 0n;
-    if (totalPaid + amountCents > appointment.priceCents)
+    const totalDiscount = await this.totalDiscountForAppointment(tenantId, appointment.id);
+    const priceAfterDiscount =
+      appointment.priceCents > totalDiscount ? appointment.priceCents - totalDiscount : 0n;
+    if (totalPaid + amountCents > priceAfterDiscount)
       throw new AppError({
         code: 'PAYMENT_EXCEEDS_APPOINTMENT_PRICE',
         message: 'O valor informado excede o saldo em aberto do agendamento.',
@@ -143,6 +159,13 @@ export class PaymentService {
       },
       actor,
     );
+    if (input.kind === 'PAYMENT')
+      await this.loyalty?.recordForPayment(
+        tenantId,
+        { id: payment.id, amountCents: payment.amountCents },
+        appointment.customerId,
+        actor,
+      );
     return pub(payment, appointmentPublicId);
   }
 
@@ -192,6 +215,7 @@ export class PaymentService {
     });
     await this.cashRegisters?.reversePayment(tenantId, updated.id, actor);
     await this.commissions?.cancelForPayment(tenantId, updated.id, reason, actor);
+    await this.loyalty?.cancelForPayment(tenantId, updated.id, actor);
     return pub(updated, appointmentPublicId);
   }
 
@@ -218,8 +242,17 @@ export class PaymentService {
     const depositPaidCents = paidItems
       .filter((item) => item.kind === 'DEPOSIT')
       .reduce((total, item) => total + item.amountCents, 0n);
+    const [couponDiscountCents, loyaltyDiscountCents] = await Promise.all([
+      this.coupons?.discountForAppointment(tenantId, appointment.id) ?? Promise.resolve(0n),
+      this.loyalty?.discountForAppointment(tenantId, appointment.id) ?? Promise.resolve(0n),
+    ]);
+    const totalDiscountCents = couponDiscountCents + loyaltyDiscountCents;
+    const priceAfterDiscount =
+      appointment.priceCents > totalDiscountCents
+        ? appointment.priceCents - totalDiscountCents
+        : 0n;
     const balanceCents =
-      appointment.priceCents > totalPaidCents ? appointment.priceCents - totalPaidCents : 0n;
+      priceAfterDiscount > totalPaidCents ? priceAfterDiscount - totalPaidCents : 0n;
 
     return AppointmentPaymentsResponseSchema.parse({
       items: items.map((item) => pub(item, appointmentPublicId)),
@@ -231,6 +264,8 @@ export class PaymentService {
         depositPercentage: appointment.depositPercentage,
         depositAmountCents: appointment.depositAmountCents?.toString() ?? null,
         depositPaidCents: depositPaidCents.toString(),
+        couponDiscountCents: couponDiscountCents.toString(),
+        loyaltyDiscountCents: loyaltyDiscountCents.toString(),
       },
     });
   }

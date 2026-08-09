@@ -39,6 +39,7 @@ import {
 } from '../modules/notifications/push-delivery.js';
 import { PushSubscriptionService } from '../modules/notifications/push-subscription.service.js';
 import { CashRegisterService } from '../modules/payments/cash-register.service.js';
+import { CouponService } from '../modules/payments/coupon.service.js';
 import { DelinquencyService } from '../modules/payments/delinquency.service.js';
 import { FinancialClosingService } from '../modules/payments/financial-closing.service.js';
 import { FinancialReportService } from '../modules/payments/financial-report.service.js';
@@ -49,6 +50,7 @@ import { PaymentGatewayService } from '../modules/payments/gateway/payment-gatew
 import { PixLocalProviderAdapter } from '../modules/payments/gateway/pix-local.provider.js';
 import { PaymentGatewayProviderRegistry } from '../modules/payments/gateway/provider-registry.js';
 import { TenantPaymentOptionsService } from '../modules/payments/gateway/tenant-payment-options.service.js';
+import { LoyaltyService } from '../modules/payments/loyalty.service.js';
 import { PaymentMethodService } from '../modules/payments/payment-method.service.js';
 import { PaymentService } from '../modules/payments/payment.service.js';
 import { ProfessionalCommissionService } from '../modules/payments/professional-commission.service.js';
@@ -126,6 +128,8 @@ export interface DatabaseConnection {
   readonly cashRegisters?: CashRegisterService;
   readonly receipts?: ReceiptService;
   readonly commissions?: ProfessionalCommissionService;
+  readonly coupons?: CouponService;
+  readonly loyalty?: LoyaltyService;
   readonly financialClosings?: FinancialClosingService;
   readonly delinquency?: DelinquencyService;
   readonly financialReports?: FinancialReportService;
@@ -261,9 +265,11 @@ export function createDatabaseConnection(
   const pushSubscriptions = new PushSubscriptionService(client);
   const cashRegisters = new CashRegisterService(client);
   const commissions = new ProfessionalCommissionService(client);
+  const coupons = new CouponService(client);
+  const loyalty = new LoyaltyService(client, coupons);
   const delinquency = new DelinquencyService(client);
   const paymentMethods = new PaymentMethodService(client);
-  const payments = new PaymentService(client, cashRegisters, commissions);
+  const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
   const paymentGatewayCipher =
     customerAuthOptions?.paymentGatewayEncryptionKey === undefined
       ? undefined
@@ -338,6 +344,8 @@ export function createDatabaseConnection(
     cashRegisters: cashRegisters,
     receipts: new ReceiptService(client),
     commissions: commissions,
+    coupons: coupons,
+    loyalty: loyalty,
     financialClosings: new FinancialClosingService(client),
     delinquency: delinquency,
     financialReports: new FinancialReportService(client, delinquency),

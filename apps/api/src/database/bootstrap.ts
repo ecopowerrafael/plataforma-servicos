@@ -82,6 +82,10 @@ const permissions = [
   ],
   ['automation.read', 'Consultar automações e regras de recuperação de clientes.'],
   ['automation.manage', 'Configurar automações e regras de recuperação de clientes.'],
+  ['coupon.read', 'Consultar cupons de desconto do estabelecimento.'],
+  ['coupon.manage', 'Criar, atualizar e aplicar cupons de desconto.'],
+  ['loyalty.read', 'Consultar regras e saldos de fidelidade (pontos e cashback).'],
+  ['loyalty.manage', 'Configurar regras de fidelidade e resgatar pontos/cashback em agendamentos.'],
 ] as const;
 
 const roles = [
@@ -166,6 +170,10 @@ const roles = [
       'payment_gateway.read',
       'automation.read',
       'automation.manage',
+      'coupon.read',
+      'coupon.manage',
+      'loyalty.read',
+      'loyalty.manage',
     ],
   },
   {
@@ -185,6 +193,10 @@ const roles = [
       'payment.manage',
       'cash.read',
       'cash.manage',
+      'coupon.read',
+      'coupon.manage',
+      'loyalty.read',
+      'loyalty.manage',
     ],
   },
   {

@@ -21,10 +21,12 @@ import { ServiceCategoryModule } from '../components/services/ServiceCategoryMod
 import { ServiceModule } from '../components/services/ServiceModule.js';
 import { CashRegisterModule } from '../components/tenants/CashRegisterModule.js';
 import { CommissionsModule } from '../components/tenants/CommissionsModule.js';
+import { CouponsModule } from '../components/tenants/CouponsModule.js';
 import { CustomerRecoveryModule } from '../components/tenants/CustomerRecoveryModule.js';
 import { DelinquencyModule } from '../components/tenants/DelinquencyModule.js';
 import { FinancialClosingModule } from '../components/tenants/FinancialClosingModule.js';
 import { FinancialReportModule } from '../components/tenants/FinancialReportModule.js';
+import { LoyaltyModule } from '../components/tenants/LoyaltyModule.js';
 import { MembersModule } from '../components/tenants/MembersModule.js';
 import { NotificationLogModule } from '../components/tenants/NotificationLogModule.js';
 import { NotificationTemplateModule } from '../components/tenants/NotificationTemplateModule.js';
@@ -123,6 +125,14 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('cash.manage') ?? false;
   const canReadCommissions =
     me.data?.currentTenant?.membership.permissions.includes('commission.read') ?? false;
+  const canReadCoupons =
+    me.data?.currentTenant?.membership.permissions.includes('coupon.read') ?? false;
+  const canManageCoupons =
+    me.data?.currentTenant?.membership.permissions.includes('coupon.manage') ?? false;
+  const canReadLoyalty =
+    me.data?.currentTenant?.membership.permissions.includes('loyalty.read') ?? false;
+  const canManageLoyalty =
+    me.data?.currentTenant?.membership.permissions.includes('loyalty.manage') ?? false;
   const canReadFinancialClosings =
     me.data?.currentTenant?.membership.permissions.includes('financial_closing.read') ?? false;
   const canManageFinancialClosings =
@@ -223,6 +233,12 @@ export function HomePage() {
             <CashRegisterModule tenantPublicId={selectedTenant} canManage={canManageCash} />
           )}
           {canReadCommissions && <CommissionsModule tenantPublicId={selectedTenant} />}
+          {canReadCoupons && (
+            <CouponsModule tenantPublicId={selectedTenant} canManage={canManageCoupons} />
+          )}
+          {canReadLoyalty && (
+            <LoyaltyModule tenantPublicId={selectedTenant} canManage={canManageLoyalty} />
+          )}
           {canReadFinancialClosings && (
             <FinancialClosingModule
               tenantPublicId={selectedTenant}

@@ -134,6 +134,28 @@ enum DepositType {
   PERCENTAGE
 }
 
+enum CouponDiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+enum LoyaltyType {
+  POINTS
+  CASHBACK
+}
+
+enum LoyaltyDirection {
+  CREDIT
+  DEBIT
+}
+
+enum LoyaltyReason {
+  EARNED
+  REDEEMED
+  EXPIRED
+  REVERSED
+}
+
 enum CashRegisterStatus {
   OPEN
   CLOSED
@@ -361,6 +383,10 @@ model Tenant {
   automationExecutions         AutomationExecution[]
   recoveryRules                CustomerRecoveryRule[]
   recoveryExecutions           CustomerRecoveryExecution[]
+  coupons                      Coupon[]
+  couponRedemptions            CouponRedemption[]
+  loyaltyRules                 LoyaltyRule[]
+  loyaltyLedgerEntries         LoyaltyLedgerEntry[]
 
   @@index([status])
   @@map("tenants")
@@ -394,6 +420,7 @@ model User {
   cashRegistersClosed           CashRegister[]            @relation("CashRegisterClosedBy")
   receiptsIssued                Receipt[]                 @relation("ReceiptIssuedBy")
   financialClosingsClosed       FinancialClosing[]        @relation("FinancialClosingClosedBy")
+  loyaltyLedgerEntries          LoyaltyLedgerEntry[]
 
   @@index([status])
   @@map("users")
@@ -483,6 +510,7 @@ model UserSession {
   cashRegistersClosed       CashRegister[]            @relation("CashRegisterClosedBySession")
   receiptsIssued            Receipt[]                 @relation("ReceiptIssuedBySession")
   financialClosingsClosed   FinancialClosing[]        @relation("FinancialClosingClosedBySession")
+  loyaltyLedgerEntries      LoyaltyLedgerEntry[]
 
   @@index([userId, revokedAt, expiresAt])
   @@index([expiresAt])
@@ -1085,6 +1113,8 @@ model Customer {
   favorites             CustomerFavorite[]
   reviews               AppointmentReview[]
   recoveryExecutions    CustomerRecoveryExecution[]
+  couponRedemptions     CouponRedemption[]
+  loyaltyLedgerEntries  LoyaltyLedgerEntry[]
   pushSubscriptions     PushSubscription[]
 
   @@unique([tenantId, phone])
@@ -1152,6 +1182,8 @@ model Appointment {
   payments                Payment[]
   commissions             ProfessionalCommission[]
   gatewayCharges          PaymentGatewayCharge[]
+  couponRedemptions       CouponRedemption[]
+  loyaltyLedgerEntries    LoyaltyLedgerEntry[]
 
   @@unique([tenantId, protocol])
   @@index([tenantId, professionalId, startsAt, endsAt, status])
@@ -1178,34 +1210,130 @@ model PaymentMethod {
 }
 
 model Payment {
-  id              BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId        String                  @unique @map("public_id") @db.Char(36)
-  tenantId        BigInt                  @map("tenant_id") @db.UnsignedBigInt
-  appointmentId   BigInt                  @map("appointment_id") @db.UnsignedBigInt
-  paymentMethodId BigInt                  @map("payment_method_id") @db.UnsignedBigInt
-  kind            PaymentKind             @default(PAYMENT)
-  status          PaymentStatus           @default(PAID)
-  amountCents     BigInt                  @map("amount_cents") @db.UnsignedBigInt
-  notes           String?                 @db.VarChar(500)
-  userId          BigInt?                 @map("user_id") @db.UnsignedBigInt
-  sessionId       BigInt?                 @map("session_id") @db.UnsignedBigInt
-  canceledAt      DateTime?               @map("canceled_at") @db.DateTime(3)
-  canceledReason  String?                 @map("canceled_reason") @db.VarChar(500)
-  createdAt       DateTime                @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt       DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant          Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  appointment     Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  paymentMethod   PaymentMethod           @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  user            User?                   @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  session         UserSession?            @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  cashMovement    CashMovement?
-  receipt         Receipt?
-  commission      ProfessionalCommission?
-  gatewayCharge   PaymentGatewayCharge?
+  id                   BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId             String                  @unique @map("public_id") @db.Char(36)
+  tenantId             BigInt                  @map("tenant_id") @db.UnsignedBigInt
+  appointmentId        BigInt                  @map("appointment_id") @db.UnsignedBigInt
+  paymentMethodId      BigInt                  @map("payment_method_id") @db.UnsignedBigInt
+  kind                 PaymentKind             @default(PAYMENT)
+  status               PaymentStatus           @default(PAID)
+  amountCents          BigInt                  @map("amount_cents") @db.UnsignedBigInt
+  notes                String?                 @db.VarChar(500)
+  userId               BigInt?                 @map("user_id") @db.UnsignedBigInt
+  sessionId            BigInt?                 @map("session_id") @db.UnsignedBigInt
+  canceledAt           DateTime?               @map("canceled_at") @db.DateTime(3)
+  canceledReason       String?                 @map("canceled_reason") @db.VarChar(500)
+  createdAt            DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment          Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentMethod        PaymentMethod           @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user                 User?                   @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  session              UserSession?            @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashMovement         CashMovement?
+  receipt              Receipt?
+  commission           ProfessionalCommission?
+  gatewayCharge        PaymentGatewayCharge?
+  loyaltyLedgerEntries LoyaltyLedgerEntry[]
 
   @@index([tenantId, appointmentId, createdAt])
   @@index([tenantId, status, createdAt])
   @@map("payments")
+}
+
+model Coupon {
+  id                 BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId           String             @unique @map("public_id") @db.Char(36)
+  tenantId           BigInt             @map("tenant_id") @db.UnsignedBigInt
+  code               String             @db.VarChar(40)
+  discountType       CouponDiscountType @map("discount_type")
+  discountValue      Int                @map("discount_value") @db.UnsignedInt
+  active             Boolean            @default(true)
+  validFrom          DateTime?          @map("valid_from") @db.DateTime(3)
+  validUntil         DateTime?          @map("valid_until") @db.DateTime(3)
+  maxUses            Int?               @map("max_uses") @db.UnsignedInt
+  maxUsesPerCustomer Int?               @map("max_uses_per_customer") @db.UnsignedInt
+  createdAt          DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  redemptions        CouponRedemption[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id                  BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String      @unique @map("public_id") @db.Char(36)
+  tenantId            BigInt      @map("tenant_id") @db.UnsignedBigInt
+  couponId            BigInt      @map("coupon_id") @db.UnsignedBigInt
+  appointmentId       BigInt      @map("appointment_id") @db.UnsignedBigInt
+  customerId          BigInt      @map("customer_id") @db.UnsignedBigInt
+  discountAmountCents BigInt      @map("discount_amount_cents") @db.UnsignedBigInt
+  canceledAt          DateTime?   @map("canceled_at") @db.DateTime(3)
+  canceledReason      String?     @map("canceled_reason") @db.VarChar(500)
+  createdAt           DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  tenant              Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  coupon              Coupon      @relation(fields: [couponId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment         Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer            Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([couponId, appointmentId])
+  @@index([tenantId, couponId, customerId])
+  @@index([tenantId, appointmentId])
+  @@map("coupon_redemptions")
+}
+
+model LoyaltyRule {
+  id                      BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String      @unique @map("public_id") @db.Char(36)
+  tenantId                BigInt      @map("tenant_id") @db.UnsignedBigInt
+  type                    LoyaltyType
+  active                  Boolean     @default(false)
+  earnRate                Int         @map("earn_rate") @db.UnsignedInt
+  minEligibleAmountCents  BigInt      @default(0) @map("min_eligible_amount_cents") @db.UnsignedBigInt
+  redeemRateCentsPerPoint Int?        @map("redeem_rate_cents_per_point") @db.UnsignedInt
+  expirationDays          Int?        @map("expiration_days") @db.UnsignedSmallInt
+  createdAt               DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, type])
+  @@map("loyalty_rules")
+}
+
+model LoyaltyLedgerEntry {
+  id                   BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId             String              @unique @map("public_id") @db.Char(36)
+  tenantId             BigInt              @map("tenant_id") @db.UnsignedBigInt
+  customerId           BigInt              @map("customer_id") @db.UnsignedBigInt
+  type                 LoyaltyType
+  direction            LoyaltyDirection
+  reason               LoyaltyReason
+  amount               BigInt              @db.UnsignedBigInt
+  discountCentsApplied BigInt?             @map("discount_cents_applied") @db.UnsignedBigInt
+  sourcePaymentId      BigInt?             @map("source_payment_id") @db.UnsignedBigInt
+  sourceAppointmentId  BigInt?             @map("source_appointment_id") @db.UnsignedBigInt
+  relatedEntryId       BigInt?             @unique @map("related_entry_id") @db.UnsignedBigInt
+  expiresAt            DateTime?           @map("expires_at") @db.DateTime(3)
+  userId               BigInt?             @map("user_id") @db.UnsignedBigInt
+  sessionId            BigInt?             @map("session_id") @db.UnsignedBigInt
+  createdAt            DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer             Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourcePayment        Payment?            @relation(fields: [sourcePaymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceAppointment    Appointment?        @relation(fields: [sourceAppointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  relatedEntry         LoyaltyLedgerEntry? @relation("LoyaltyLedgerClosure", fields: [relatedEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  closesEntry          LoyaltyLedgerEntry? @relation("LoyaltyLedgerClosure")
+  user                 User?               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  session              UserSession?        @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, type, sourcePaymentId, direction], map: "loyalty_ledger_entries_tenant_type_payment_direction_key")
+  @@index([tenantId, customerId, type])
+  @@index([tenantId, type, expiresAt])
+  @@index([tenantId, sourceAppointmentId])
+  @@map("loyalty_ledger_entries")
 }
 
 model PaymentGatewayConfig {

@@ -45,6 +45,8 @@ export const AppointmentPaymentsResponseSchema = z.object({
     depositPercentage: z.number().int().min(1).max(100).nullable(),
     depositAmountCents: MoneyPublicSchema.nullable(),
     depositPaidCents: MoneyPublicSchema,
+    couponDiscountCents: MoneyPublicSchema,
+    loyaltyDiscountCents: MoneyPublicSchema,
   }),
 });
 

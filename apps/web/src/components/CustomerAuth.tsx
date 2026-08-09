@@ -12,6 +12,7 @@ import { type z } from 'zod';
 
 import { CustomerAppointments } from './CustomerAppointments.js';
 import { CustomerFavorites } from './CustomerFavorites.js';
+import { CustomerLoyalty } from './CustomerLoyalty.js';
 import { CustomerProfileForm } from './CustomerProfileForm.js';
 import { CustomerPushNotifications } from './CustomerPushNotifications.js';
 import { CustomerReviews } from './CustomerReviews.js';
@@ -160,6 +161,7 @@ export function CustomerAuth({ slug, services, professionals }: CustomerAuthProp
         <CustomerAppointments slug={slug} />
         <CustomerFavorites slug={slug} services={services} professionals={professionals} />
         <CustomerReviews slug={slug} />
+        <CustomerLoyalty slug={slug} />
         <CustomerPushNotifications slug={slug} />
       </section>
     );

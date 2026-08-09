@@ -42,6 +42,7 @@ import { notificationRoutes } from './modules/notifications/notification.routes.
 import { pushSubscriptionRoutes } from './modules/notifications/push-subscription.routes.js';
 import { cashRegisterRoutes } from './modules/payments/cash-register.routes.js';
 import { commissionRoutes } from './modules/payments/commission.routes.js';
+import { couponRoutes } from './modules/payments/coupon.routes.js';
 import { delinquencyRoutes } from './modules/payments/delinquency.routes.js';
 import { financialClosingRoutes } from './modules/payments/financial-closing.routes.js';
 import { financialReportRoutes } from './modules/payments/financial-report.routes.js';
@@ -53,6 +54,7 @@ import {
   publicTenantPaymentOptionsRoutes,
   tenantPaymentOptionsRoutes,
 } from './modules/payments/gateway/tenant-payment-options.routes.js';
+import { customerLoyaltyRoutes, loyaltyRoutes } from './modules/payments/loyalty.routes.js';
 import { paymentMethodRoutes } from './modules/payments/payment-method.routes.js';
 import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { receiptRoutes } from './modules/payments/receipt.routes.js';
@@ -328,6 +330,13 @@ export async function buildApp(options: BuildAppOptions) {
         cookieName: 'customer_session',
       });
     }
+    if (options.database.loyalty !== undefined) {
+      await app.register(customerLoyaltyRoutes, {
+        service: options.database.loyalty,
+        authService: options.database.customerAuth,
+        cookieName: 'customer_session',
+      });
+    }
     if (options.database.pushSubscriptions !== undefined) {
       await app.register(pushSubscriptionRoutes, {
         service: options.database.pushSubscriptions,
@@ -401,6 +410,18 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.commissions !== undefined)
     await app.register(commissionRoutes, {
       service: options.database.commissions,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.coupons !== undefined)
+    await app.register(couponRoutes, {
+      service: options.database.coupons,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.loyalty !== undefined)
+    await app.register(loyaltyRoutes, {
+      service: options.database.loyalty,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });

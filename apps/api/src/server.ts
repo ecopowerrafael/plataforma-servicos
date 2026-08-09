@@ -65,6 +65,7 @@ async function start(environment: Environment): Promise<void> {
             ...(database.customerRecovery === undefined
               ? {}
               : { customerRecovery: database.customerRecovery }),
+            ...(database.loyalty === undefined ? {} : { loyalty: database.loyalty }),
           },
           { intervalMs: 60_000, logger: app.log },
         )

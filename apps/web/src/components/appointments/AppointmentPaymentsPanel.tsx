@@ -1,5 +1,9 @@
 import {
   AppointmentPaymentsResponseSchema,
+  CouponRedemptionListResponseSchema,
+  CouponRedemptionPublicSchema,
+  LoyaltyLedgerEntryPublicSchema,
+  LoyaltyLedgerListResponseSchema,
   PaymentMethodListResponseSchema,
   ReceiptPublicSchema,
   type ReceiptPublic,
@@ -33,6 +37,9 @@ export function AppointmentPaymentsPanel({
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [receipt, setReceipt] = useState<ReceiptPublic | null>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [loyaltyType, setLoyaltyType] = useState<'POINTS' | 'CASHBACK'>('POINTS');
+  const [loyaltyAmount, setLoyaltyAmount] = useState('');
 
   const paymentsQueryKey = [
     'tenant',
@@ -41,6 +48,8 @@ export function AppointmentPaymentsPanel({
     appointmentPublicId,
     'payments',
   ];
+  const couponsQueryKey = ['tenant', tenantPublicId, 'appointment', appointmentPublicId, 'coupons'];
+  const loyaltyQueryKey = ['tenant', tenantPublicId, 'appointment', appointmentPublicId, 'loyalty'];
 
   const paymentMethods = useQuery({
     queryKey: ['tenant', tenantPublicId, 'payment-methods'],
@@ -107,6 +116,93 @@ export function AppointmentPaymentsPanel({
     },
   });
 
+  const coupons = useQuery({
+    queryKey: couponsQueryKey,
+    queryFn: () =>
+      httpClient.request(`/tenant/appointments/${appointmentPublicId}/coupons`, {
+        schema: CouponRedemptionListResponseSchema,
+        tenantPublicId,
+      }),
+    enabled: canRead,
+    retry: false,
+  });
+
+  const invalidateAll = () => {
+    void queryClient.invalidateQueries({ queryKey: paymentsQueryKey });
+    void queryClient.invalidateQueries({ queryKey: couponsQueryKey });
+    void queryClient.invalidateQueries({ queryKey: loyaltyQueryKey });
+  };
+
+  const redeemCoupon = useMutation({
+    mutationFn: () =>
+      httpClient.request(`/tenant/appointments/${appointmentPublicId}/coupons`, {
+        method: 'POST',
+        body: { code: couponCode },
+        schema: CouponRedemptionPublicSchema,
+        tenantPublicId,
+      }),
+    onSuccess: () => {
+      setCouponCode('');
+      invalidateAll();
+    },
+  });
+
+  const cancelCoupon = useMutation({
+    mutationFn: (redemptionPublicId: string) => {
+      const reason = window.prompt('Motivo do cancelamento do cupom:');
+      if (reason === null || reason.trim().length < 3)
+        throw new Error('Informe um motivo com pelo menos 3 caracteres.');
+      return httpClient.request(
+        `/tenant/appointments/${appointmentPublicId}/coupons/${redemptionPublicId}/cancel`,
+        { method: 'POST', body: { reason }, schema: CouponRedemptionPublicSchema, tenantPublicId },
+      );
+    },
+    onSuccess: invalidateAll,
+  });
+
+  const loyalty = useQuery({
+    queryKey: loyaltyQueryKey,
+    queryFn: () =>
+      httpClient.request(`/tenant/appointments/${appointmentPublicId}/loyalty`, {
+        schema: LoyaltyLedgerListResponseSchema,
+        tenantPublicId,
+      }),
+    enabled: canRead,
+    retry: false,
+  });
+
+  const redeemLoyalty = useMutation({
+    mutationFn: () =>
+      httpClient.request(`/tenant/appointments/${appointmentPublicId}/loyalty`, {
+        method: 'POST',
+        body: { type: loyaltyType, amount: Number(loyaltyAmount) },
+        schema: LoyaltyLedgerEntryPublicSchema,
+        tenantPublicId,
+      }),
+    onSuccess: () => {
+      setLoyaltyAmount('');
+      invalidateAll();
+    },
+  });
+
+  const cancelLoyalty = useMutation({
+    mutationFn: (entryPublicId: string) => {
+      const reason = window.prompt('Motivo do cancelamento do resgate:');
+      if (reason === null || reason.trim().length < 3)
+        throw new Error('Informe um motivo com pelo menos 3 caracteres.');
+      return httpClient.request(
+        `/tenant/appointments/${appointmentPublicId}/loyalty/${entryPublicId}/cancel`,
+        {
+          method: 'POST',
+          body: { reason },
+          schema: LoyaltyLedgerEntryPublicSchema,
+          tenantPublicId,
+        },
+      );
+    },
+    onSuccess: invalidateAll,
+  });
+
   const viewReceipt = useMutation({
     mutationFn: (paymentPublicId: string) =>
       httpClient.request(
@@ -132,6 +228,12 @@ export function AppointmentPaymentsPanel({
           <p>
             {`Preço: ${formatMoney(payments.data.summary.priceCents)} — Pago: ${formatMoney(payments.data.summary.totalPaidCents)} — Saldo: ${formatMoney(payments.data.summary.balanceCents)}`}
           </p>
+          {payments.data.summary.couponDiscountCents !== '0' && (
+            <p>{`Desconto de cupom: ${formatMoney(payments.data.summary.couponDiscountCents)}`}</p>
+          )}
+          {payments.data.summary.loyaltyDiscountCents !== '0' && (
+            <p>{`Desconto de fidelidade: ${formatMoney(payments.data.summary.loyaltyDiscountCents)}`}</p>
+          )}
           {payments.data.summary.depositType !== null && (
             <p>
               {`Sinal configurado: ${
@@ -208,6 +310,103 @@ export function AppointmentPaymentsPanel({
             </div>
           )}
         </>
+      )}
+      {coupons.data !== undefined && coupons.data.items.length > 0 && (
+        <ul>
+          {coupons.data.items.map((item) => (
+            <li key={item.publicId}>
+              {`Cupom ${item.couponCode} — desconto ${formatMoney(item.discountAmountCents)}${item.canceledAt === null ? '' : ' (cancelado)'}`}
+              {item.canceledAt === null && canManage && (
+                <button
+                  type="button"
+                  disabled={cancelCoupon.isPending}
+                  onClick={() => {
+                    cancelCoupon.mutate(item.publicId);
+                  }}
+                >
+                  Cancelar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canManage && (
+        <div className="form-actions">
+          <input
+            placeholder="Código do cupom"
+            value={couponCode}
+            onChange={(event) => {
+              setCouponCode(event.target.value);
+            }}
+          />
+          <button
+            type="button"
+            disabled={redeemCoupon.isPending || couponCode.trim() === ''}
+            onClick={() => {
+              redeemCoupon.mutate();
+            }}
+          >
+            Aplicar cupom
+          </button>
+          {redeemCoupon.error instanceof Error ? (
+            <p className="form-error">{redeemCoupon.error.message}</p>
+          ) : null}
+        </div>
+      )}
+      {loyalty.data !== undefined && loyalty.data.items.length > 0 && (
+        <ul>
+          {loyalty.data.items.map((item) => (
+            <li key={item.publicId}>
+              {`${item.reason === 'REDEEMED' ? 'Resgate' : item.reason} ${item.type === 'CASHBACK' ? 'cashback' : 'pontos'}: ${item.amount}${item.discountCentsApplied === null ? '' : ` — desconto ${formatMoney(item.discountCentsApplied)}`}`}
+              {item.reason === 'REDEEMED' && item.discountCentsApplied !== null && canManage && (
+                <button
+                  type="button"
+                  disabled={cancelLoyalty.isPending}
+                  onClick={() => {
+                    cancelLoyalty.mutate(item.publicId);
+                  }}
+                >
+                  Cancelar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canManage && (
+        <div className="form-actions">
+          <select
+            value={loyaltyType}
+            onChange={(event) => {
+              setLoyaltyType(event.target.value as 'POINTS' | 'CASHBACK');
+            }}
+          >
+            <option value="POINTS">Pontos</option>
+            <option value="CASHBACK">Cashback</option>
+          </select>
+          <input
+            type="number"
+            min="1"
+            placeholder="Quantidade a resgatar"
+            value={loyaltyAmount}
+            onChange={(event) => {
+              setLoyaltyAmount(event.target.value);
+            }}
+          />
+          <button
+            type="button"
+            disabled={redeemLoyalty.isPending || loyaltyAmount.trim() === ''}
+            onClick={() => {
+              redeemLoyalty.mutate();
+            }}
+          >
+            Resgatar fidelidade
+          </button>
+          {redeemLoyalty.error instanceof Error ? (
+            <p className="form-error">{redeemLoyalty.error.message}</p>
+          ) : null}
+        </div>
       )}
       {canManage && (
         <div className="form-actions">

@@ -110,6 +110,14 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum AppointmentWaitlistStatus {
+  WAITING
+  MATCHED
+  CONVERTED
+  EXPIRED
+  CANCELED
+}
+
 enum BusinessUnitStatus {
   ACTIVE
   INACTIVE
@@ -249,6 +257,7 @@ model Tenant {
   publicSite                   TenantPublicSite?
   customerFavorites            CustomerFavorite[]
   appointmentReviews           AppointmentReview[]
+  appointmentWaitlists         AppointmentWaitlist[]
   notificationLogs             NotificationLog[]
   notificationTemplates        NotificationTemplate[]
   pushSubscriptions            PushSubscription[]
@@ -661,6 +670,7 @@ model Service {
   variations              ServiceVariation[]
   comboItems              ComboItem[]
   appointments            Appointment[]
+  waitlistEntries         AppointmentWaitlist[]
   favoritedBy             CustomerFavorite[]
   reviews                 AppointmentReview[]
 
@@ -778,6 +788,7 @@ model BusinessUnit {
   dateOverrides                BusinessUnitDateOverride[]
   customers                    Customer[]
   appointments                 Appointment[]
+  waitlistEntries              AppointmentWaitlist[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -854,6 +865,7 @@ model Professional {
   workSchedules        ProfessionalWorkSchedule[]
   unavailabilities     ProfessionalUnavailability[]
   appointments         Appointment[]
+  waitlistEntries      AppointmentWaitlist[]
   favoritedBy          CustomerFavorite[]
   reviews              AppointmentReview[]
 
@@ -886,6 +898,7 @@ model Customer {
   tenant                Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   primaryUnit           BusinessUnit?       @relation(fields: [primaryUnitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   appointments          Appointment[]
+  waitlistEntries       AppointmentWaitlist[]
   sessions              CustomerSession[]
   favorites             CustomerFavorite[]
   reviews               AppointmentReview[]
@@ -950,11 +963,43 @@ model Appointment {
   unit                    BusinessUnit?             @relation(fields: [unitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   history                 AppointmentHistoryEntry[]
   review                  AppointmentReview?
+  waitlistEntry           AppointmentWaitlist?     @relation("AppointmentWaitlistAppointment")
 
   @@unique([tenantId, protocol])
   @@index([tenantId, professionalId, startsAt, endsAt, status])
   @@index([tenantId, customerId, startsAt])
   @@map("appointments")
+}
+
+model AppointmentWaitlist {
+  id                BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String                     @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt                     @map("tenant_id") @db.UnsignedBigInt
+  customerId        BigInt                     @map("customer_id") @db.UnsignedBigInt
+  professionalId    BigInt                     @map("professional_id") @db.UnsignedBigInt
+  serviceId         BigInt                     @map("service_id") @db.UnsignedBigInt
+  unitId            BigInt?                    @map("unit_id") @db.UnsignedBigInt
+  preferredStartsAt DateTime?                  @map("preferred_starts_at") @db.DateTime(3)
+  notes             String?                    @db.VarChar(2000)
+  status            AppointmentWaitlistStatus  @default(WAITING)
+  matchedAt         DateTime?                  @map("matched_at") @db.DateTime(3)
+  convertedAt       DateTime?                  @map("converted_at") @db.DateTime(3)
+  canceledAt        DateTime?                  @map("canceled_at") @db.DateTime(3)
+  canceledReason    String?                    @map("canceled_reason") @db.VarChar(500)
+  createdAt         DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime                   @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer          Customer                   @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional      Professional               @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service           Service                    @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit              BusinessUnit?              @relation(fields: [unitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  appointment       Appointment?               @relation("AppointmentWaitlistAppointment", fields: [appointmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  appointmentId     BigInt?                    @unique @map("appointment_id") @db.UnsignedBigInt
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, professionalId, serviceId, status, createdAt])
+  @@index([tenantId, customerId, status])
+  @@map("appointment_waitlists")
 }
 
 model CustomerFavorite {

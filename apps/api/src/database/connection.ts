@@ -9,6 +9,7 @@ import { AppointmentService } from '../modules/appointments/appointment.service.
 import { type IdentityRepository } from '../modules/auth/identity.repository.js';
 import { PasswordService } from '../modules/auth/password.service.js';
 import { PrismaIdentityRepository } from '../modules/auth/prisma-identity.repository.js';
+import { AppointmentWaitlistService } from '../modules/appointments/appointment-waitlist.service.js';
 import { PublicBookingService } from '../modules/booking/public-booking.service.js';
 import { AvailabilityRepository } from '../modules/calendar/availability.repository.js';
 import { AvailabilityService } from '../modules/calendar/availability.service.js';
@@ -74,6 +75,7 @@ export interface DatabaseConnection {
   readonly identities: IdentityRepository;
   readonly availability?: AvailabilityService;
   readonly appointments?: AppointmentService;
+  readonly appointmentWaitlists?: AppointmentWaitlistService;
   readonly platform?: PlatformService;
   readonly customers?: CustomerService;
   readonly customerAuth?: CustomerAuthService;
@@ -165,6 +167,8 @@ export function createDatabaseConnection(
     appointmentRepository,
     new AvailabilityService(new AvailabilityRepository(client)),
   );
+  const appointmentWaitlists = new AppointmentWaitlistService(client, appointments);
+  appointments.setWaitlistService(appointmentWaitlists);
   const appointmentReviews = new AppointmentReviewService(
     new AppointmentReviewRepository(client),
     appointmentRepository,
@@ -228,6 +232,7 @@ export function createDatabaseConnection(
     identities: new PrismaIdentityRepository(client),
     availability: new AvailabilityService(new AvailabilityRepository(client)),
     appointments: appointments,
+    appointmentWaitlists: appointmentWaitlists,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
     customers: customers,

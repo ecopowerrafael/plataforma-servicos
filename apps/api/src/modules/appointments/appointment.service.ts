@@ -7,6 +7,7 @@ import {
 } from '@plataforma/shared';
 
 import { type AppointmentRepository } from './appointment.repository.js';
+import { type AppointmentWaitlistService } from './appointment-waitlist.service.js';
 import { type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
@@ -56,10 +57,16 @@ const pub = (x: AppointmentRecord) =>
     updatedAt: x.updatedAt.toISOString(),
   });
 export class AppointmentService {
+  private waitlistService?: AppointmentWaitlistService;
+
   constructor(
     private readonly repo: AppointmentRepository,
     private readonly availability: AvailabilityService,
   ) {}
+
+  setWaitlistService(service: AppointmentWaitlistService): void {
+    this.waitlistService = service;
+  }
   async list(
     t: bigint,
     q: {
@@ -275,6 +282,9 @@ export class AppointmentService {
       status,
       ...(status === 'CANCELED' ? { canceledReason: reason ?? null } : {}),
     });
+    if (status === 'CANCELED' && this.waitlistService !== undefined) {
+      await this.waitlistService.markWaitlistOpportunityOnAppointmentCancellation(t, old.id);
+    }
     await this.recordHistory(t, old.id, {
       action: 'STATUS_CHANGED',
       previousStatus: old.status,

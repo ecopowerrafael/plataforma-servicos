@@ -38,14 +38,12 @@ export const productSaleRoutes: FastifyPluginAsyncZod<{
     },
     async (request, reply) => {
       options.authService.requirePermission(request.tenant, 'product_sale.manage');
-      return reply
-        .status(201)
-        .send(
-          await options.service.create(request.tenant.id, request.body, {
-            userId: request.auth.user.id,
-            sessionId: request.auth.session.id,
-          }),
-        );
+      return reply.status(201).send(
+        await options.service.create(request.tenant.id, request.body, {
+          userId: request.auth.user.id,
+          sessionId: request.auth.session.id,
+        }),
+      );
     },
   );
 };

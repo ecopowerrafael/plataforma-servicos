@@ -6,6 +6,7 @@ import {
   MembershipPublicSchema,
   SuccessResponseSchema,
   UpdateMembershipRequestSchema,
+  TenantUnitsResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -46,6 +47,11 @@ export function MembersModule({
         tenantPublicId,
       }),
     retry: false,
+  });
+  const units = useQuery({
+    queryKey: ['tenant', tenantPublicId, 'units'],
+    queryFn: () =>
+      httpClient.request('/tenant/units', { schema: TenantUnitsResponseSchema, tenantPublicId }),
   });
 
   const invitationsQueryKey = ['tenant', tenantPublicId, 'members', 'invitations'];
@@ -145,6 +151,35 @@ export function MembersModule({
               <span>{roleLabel[member.roleCode as keyof typeof roleLabel]}</span>
             )}
             <span>{statusLabel[member.status] ?? member.status}</span>
+            {canManage && !member.isOwner ? (
+              <label>
+                Unidades
+                <select
+                  multiple
+                  value={
+                    member.unitPublicIds ?? units.data?.units.map((unit) => unit.publicId) ?? []
+                  }
+                  onChange={(event) => {
+                    const selected = [...event.currentTarget.selectedOptions].map(
+                      ({ value }) => value,
+                    );
+                    updateMembership.mutate({
+                      membershipPublicId: member.publicId,
+                      body: {
+                        unitPublicIds:
+                          selected.length === units.data?.units.length ? null : selected,
+                      },
+                    });
+                  }}
+                >
+                  {units.data?.units.map((unit) => (
+                    <option key={unit.publicId} value={unit.publicId}>
+                      {unit.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {canManage &&
               !member.isOwner &&
               (member.status === 'ACTIVE' || member.status === 'SUSPENDED') && (

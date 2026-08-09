@@ -6,9 +6,14 @@ import { type EmailDelivery } from './email-delivery.js';
 import { PushSubscriptionGoneError, type PushDelivery } from './push-delivery.js';
 import { Prisma, type NotificationLog, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import {
+  IntegrationUnavailableError,
+  type MetaWhatsAppDelivery,
+  type WebhookDelivery,
+} from '../integrations/integration-delivery.js';
 
 export interface NotificationInput {
-  channel?: 'EMAIL' | 'PUSH';
+  channel?: 'EMAIL' | 'PUSH' | 'WHATSAPP' | 'WEBHOOK';
   kind: string;
   targetType: string;
   targetPublicId: string | null;
@@ -20,6 +25,8 @@ export interface NotificationInput {
 export interface NotificationDeliveries {
   email: EmailDelivery;
   push: PushDelivery;
+  whatsapp?: MetaWhatsAppDelivery;
+  webhook?: WebhookDelivery;
 }
 
 const MAX_AUTOMATIC_ATTEMPTS = 5;
@@ -58,7 +65,7 @@ export class NotificationService {
    */
   public async enqueue(tenantId: bigint, input: NotificationInput): Promise<void> {
     try {
-      await this.client.notificationLog.create({
+      const created = await this.client.notificationLog.create({
         data: {
           publicId: randomUUID(),
           tenantId,
@@ -72,6 +79,8 @@ export class NotificationService {
           status: 'PENDING',
         },
       });
+      if (input.channel !== 'WEBHOOK')
+        await this.enqueueWebhooks(tenantId, created.publicId, input);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
       throw error;
@@ -168,9 +177,14 @@ export class NotificationService {
 
   private async attempt(id: bigint): Promise<void> {
     const log = await this.client.notificationLog.findUniqueOrThrow({ where: { id } });
-    const delivery = log.channel === 'PUSH' ? this.deliveries.push : this.deliveries.email;
+    const delivery =
+      log.channel === 'PUSH'
+        ? this.deliveries.push
+        : log.channel === 'EMAIL'
+          ? this.deliveries.email
+          : null;
 
-    if (!delivery.available) {
+    if (delivery !== null && !delivery.available) {
       await this.client.notificationLog.update({
         where: { id },
         data: {
@@ -188,6 +202,14 @@ export class NotificationService {
     try {
       if (log.channel === 'PUSH') {
         await this.attemptPush(log);
+      } else if (log.channel === 'WHATSAPP') {
+        if (this.deliveries.whatsapp === undefined)
+          throw new IntegrationUnavailableError('WhatsApp não configurado.');
+        await this.deliveries.whatsapp.send(log.tenantId, log.recipient, log.body);
+      } else if (log.channel === 'WEBHOOK') {
+        if (this.deliveries.webhook === undefined)
+          throw new IntegrationUnavailableError('Webhook não configurado.');
+        await this.deliveries.webhook.send(log.tenantId, log.recipient, log.body, log.publicId);
       } else {
         await this.deliveries.email.send({
           to: log.recipient,
@@ -203,10 +225,40 @@ export class NotificationService {
       await this.client.notificationLog.update({
         where: { id },
         data: {
-          status: 'FAILED',
+          status: error instanceof IntegrationUnavailableError ? 'SKIPPED' : 'FAILED',
           attempts: { increment: 1 },
           lastError: error instanceof Error ? error.message.slice(0, 500) : 'Erro desconhecido.',
         },
+      });
+    }
+  }
+
+  private async enqueueWebhooks(
+    tenantId: bigint,
+    sourcePublicId: string,
+    input: NotificationInput,
+  ): Promise<void> {
+    const integrations = await this.client.externalIntegration.findMany({
+      where: { tenantId, active: true },
+      select: { publicId: true, events: true },
+    });
+    for (const integration of integrations) {
+      if (!Array.isArray(integration.events) || !integration.events.includes('notification.queued'))
+        continue;
+      await this.enqueue(tenantId, {
+        channel: 'WEBHOOK',
+        kind: 'integration.notification.queued',
+        targetType: 'notification',
+        targetPublicId: sourcePublicId,
+        recipient: integration.publicId,
+        subject: 'notification.queued',
+        body: JSON.stringify({
+          event: 'notification.queued',
+          notificationPublicId: sourcePublicId,
+          kind: input.kind,
+          targetType: input.targetType,
+          targetPublicId: input.targetPublicId,
+        }),
       });
     }
   }

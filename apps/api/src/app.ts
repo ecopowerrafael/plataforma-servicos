@@ -15,6 +15,7 @@ import { type DatabaseConnection } from './database/connection.js';
 import { AppError } from './errors/AppError.js';
 import { registerErrorHandlers } from './errors/error-handler.js';
 import { appointmentOperationsRoutes } from './modules/appointments/appointment-operations.routes.js';
+import { appointmentWaitlistRoutes } from './modules/appointments/appointment-waitlist.routes.js';
 import { appointmentRoutes } from './modules/appointments/appointment.routes.js';
 import { customerAppointmentsRoutes } from './modules/appointments/customer-appointments.routes.js';
 import { customerReviewsRoutes } from './modules/appointments/customer-reviews.routes.js';
@@ -36,6 +37,7 @@ import { customerAuthRoutes } from './modules/customers/customer-auth.routes.js'
 import { customerFavoriteRoutes } from './modules/customers/customer-favorite.routes.js';
 import { customerRecoveryRoutes } from './modules/customers/customer-recovery.routes.js';
 import { customerRoutes } from './modules/customers/customer.routes.js';
+import { integrationRoutes } from './modules/integrations/integration.routes.js';
 import { automationRoutes } from './modules/notifications/automation.routes.js';
 import { notificationTemplateRoutes } from './modules/notifications/notification-template.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
@@ -75,6 +77,11 @@ import { serviceVariationRoutes } from './modules/services/service-variation.rou
 import { serviceRoutes } from './modules/services/service.routes.js';
 import { businessUnitDateOverridesRoutes } from './modules/tenants/business-unit-date-overrides.routes.js';
 import { businessUnitOperatingHoursRoutes } from './modules/tenants/business-unit-operating-hours.routes.js';
+import { multiUnitRoutes } from './modules/tenants/multi-unit.routes.js';
+import {
+  publicTenantDomainRoutes,
+  tenantDomainRoutes,
+} from './modules/tenants/tenant-domain.routes.js';
 import { tenantSubscriptionRoutes } from './modules/tenants/tenant-subscription.routes.js';
 import {
   publicTenantWhiteLabelRoutes,
@@ -276,6 +283,28 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });
   }
+  if (options.database.multiUnit !== undefined) {
+    await app.register(multiUnitRoutes, {
+      service: options.database.multiUnit,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  }
+  if (options.database.tenantDomains !== undefined) {
+    await app.register(tenantDomainRoutes, {
+      service: options.database.tenantDomains,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+    await app.register(publicTenantDomainRoutes, { service: options.database.tenantDomains });
+  }
+  if (options.database.integrations !== undefined) {
+    await app.register(integrationRoutes, {
+      service: options.database.integrations,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  }
   if (options.database.tenantWhiteLabel !== undefined) {
     await app.register(publicTenantWhiteLabelRoutes, {
       service: options.database.tenantWhiteLabel,
@@ -385,6 +414,12 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.appointmentNotifications === undefined
         ? {}
         : { notifications: options.database.appointmentNotifications }),
+    });
+  if (options.database.appointmentWaitlists !== undefined)
+    await app.register(appointmentWaitlistRoutes, {
+      service: options.database.appointmentWaitlists,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
     });
   if (options.database.payments !== undefined)
     await app.register(paymentRoutes, {

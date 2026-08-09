@@ -165,24 +165,38 @@ export function ProductInventoryModule({
             <input
               placeholder="Nova categoria"
               value={categoryName}
-              onChange={(e) => { setCategoryName(e.target.value); }}
+              onChange={(e) => {
+                setCategoryName(e.target.value);
+              }}
             />
-            <button onClick={() => { createCategory.mutate(); }}>Criar categoria</button>
+            <button
+              onClick={() => {
+                createCategory.mutate();
+              }}
+            >
+              Criar categoria
+            </button>
           </div>
           <div className="filter-row">
             <input
               placeholder="Produto"
               value={product.name}
-              onChange={(e) => { setProduct({ ...product, name: e.target.value }); }}
+              onChange={(e) => {
+                setProduct({ ...product, name: e.target.value });
+              }}
             />
             <input
               placeholder="Preço em centavos"
               value={product.salePriceCents}
-              onChange={(e) => { setProduct({ ...product, salePriceCents: e.target.value }); }}
+              onChange={(e) => {
+                setProduct({ ...product, salePriceCents: e.target.value });
+              }}
             />
             <select
               value={product.commissionType}
-              onChange={(e) => { setProduct({ ...product, commissionType: e.target.value }); }}
+              onChange={(e) => {
+                setProduct({ ...product, commissionType: e.target.value });
+              }}
             >
               <option value="">Sem comissão</option>
               <option value="PERCENTAGE">Percentual</option>
@@ -191,9 +205,17 @@ export function ProductInventoryModule({
             <input
               placeholder="Comissão"
               value={product.commissionValue}
-              onChange={(e) => { setProduct({ ...product, commissionValue: e.target.value }); }}
+              onChange={(e) => {
+                setProduct({ ...product, commissionValue: e.target.value });
+              }}
             />
-            <button onClick={() => { createProduct.mutate(); }}>Criar produto</button>
+            <button
+              onClick={() => {
+                createProduct.mutate();
+              }}
+            >
+              Criar produto
+            </button>
           </div>
         </>
       )}
@@ -217,7 +239,9 @@ export function ProductInventoryModule({
           <div className="filter-row">
             <select
               value={sale.productPublicId}
-              onChange={(e) => { setSale({ ...sale, productPublicId: e.target.value }); }}
+              onChange={(e) => {
+                setSale({ ...sale, productPublicId: e.target.value });
+              }}
             >
               <option value="">Produto</option>
               {products.data?.items.map((x) => (
@@ -230,11 +254,15 @@ export function ProductInventoryModule({
               type="number"
               min="1"
               value={sale.quantity}
-              onChange={(e) => { setSale({ ...sale, quantity: e.target.value }); }}
+              onChange={(e) => {
+                setSale({ ...sale, quantity: e.target.value });
+              }}
             />
             <select
               value={sale.customerPublicId}
-              onChange={(e) => { setSale({ ...sale, customerPublicId: e.target.value }); }}
+              onChange={(e) => {
+                setSale({ ...sale, customerPublicId: e.target.value });
+              }}
             >
               <option value="">Sem cliente</option>
               {customers.data?.items.map((x) => (
@@ -245,7 +273,9 @@ export function ProductInventoryModule({
             </select>
             <select
               value={sale.professionalPublicId}
-              onChange={(e) => { setSale({ ...sale, professionalPublicId: e.target.value }); }}
+              onChange={(e) => {
+                setSale({ ...sale, professionalPublicId: e.target.value });
+              }}
             >
               <option value="">Sem profissional</option>
               {professionals.data?.items.map((x) => (
@@ -256,7 +286,9 @@ export function ProductInventoryModule({
             </select>
             <select
               value={sale.paymentMethodPublicId}
-              onChange={(e) => { setSale({ ...sale, paymentMethodPublicId: e.target.value }); }}
+              onChange={(e) => {
+                setSale({ ...sale, paymentMethodPublicId: e.target.value });
+              }}
             >
               <option value="">Forma de pagamento</option>
               {methods.data?.items.map((x) => (
@@ -265,7 +297,12 @@ export function ProductInventoryModule({
                 </option>
               ))}
             </select>
-            <button onClick={() => { createSale.mutate(); }} disabled={unit === ''}>
+            <button
+              onClick={() => {
+                createSale.mutate();
+              }}
+              disabled={unit === ''}
+            >
               Concluir venda
             </button>
           </div>

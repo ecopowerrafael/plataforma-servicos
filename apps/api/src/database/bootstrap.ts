@@ -60,6 +60,8 @@ const permissions = [
   ['appointment.status.manage', 'Gerenciar status de agendamentos.'],
   ['appointment.fit_in.manage', 'Criar encaixes administrativos na agenda.'],
   ['appointment.checkin.manage', 'Registrar check-in de agendamentos na recepção.'],
+  ['appointment.waitlist.read', 'Consultar lista de espera de agendamentos.'],
+  ['appointment.waitlist.manage', 'Gerenciar oportunidades e conversões da lista de espera.'],
   ['professional.self.read', 'Consultar o próprio perfil profissional e a própria agenda.'],
   [
     'professional.self.update',
@@ -92,6 +94,8 @@ const permissions = [
   ['coupon.manage', 'Criar, atualizar e aplicar cupons de desconto.'],
   ['loyalty.read', 'Consultar regras e saldos de fidelidade (pontos e cashback).'],
   ['loyalty.manage', 'Configurar regras de fidelidade e resgatar pontos/cashback em agendamentos.'],
+  ['integration.read', 'Consultar integrações externas do estabelecimento.'],
+  ['integration.manage', 'Configurar integrações externas do estabelecimento.'],
 ] as const;
 
 const roles = [
@@ -163,6 +167,8 @@ const roles = [
       'appointment.status.manage',
       'appointment.fit_in.manage',
       'appointment.checkin.manage',
+      'appointment.waitlist.read',
+      'appointment.waitlist.manage',
       'notification.read',
       'notification.template.manage',
       'product.read',
@@ -186,6 +192,8 @@ const roles = [
       'coupon.manage',
       'loyalty.read',
       'loyalty.manage',
+      'integration.read',
+      'integration.manage',
     ],
   },
   {
@@ -200,6 +208,7 @@ const roles = [
       'session.revoke_own',
       'customer.read',
       'appointment.read',
+      'appointment.waitlist.read',
       'appointment.checkin.manage',
       'payment.read',
       'payment.manage',

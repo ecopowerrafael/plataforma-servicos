@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AppointmentModule } from '../components/appointments/AppointmentModule.js';
+import { AppointmentWaitlistModule } from '../components/appointments/AppointmentWaitlistModule.js';
 import { CalendarModule } from '../components/calendar/CalendarModule.js';
 import { CustomerModule } from '../components/customers/CustomerModule.js';
 import { MyAgendaModule } from '../components/professionals/MyAgendaModule.js';
@@ -26,8 +27,10 @@ import { CustomerRecoveryModule } from '../components/tenants/CustomerRecoveryMo
 import { DelinquencyModule } from '../components/tenants/DelinquencyModule.js';
 import { FinancialClosingModule } from '../components/tenants/FinancialClosingModule.js';
 import { FinancialReportModule } from '../components/tenants/FinancialReportModule.js';
+import { IntegrationsModule } from '../components/tenants/IntegrationsModule.js';
 import { LoyaltyModule } from '../components/tenants/LoyaltyModule.js';
 import { MembersModule } from '../components/tenants/MembersModule.js';
+import { MultiUnitOverviewModule } from '../components/tenants/MultiUnitOverviewModule.js';
 import { NotificationLogModule } from '../components/tenants/NotificationLogModule.js';
 import { NotificationTemplateModule } from '../components/tenants/NotificationTemplateModule.js';
 import { OperationsDashboardModule } from '../components/tenants/OperationsDashboardModule.js';
@@ -35,6 +38,7 @@ import { PaymentGatewayModule } from '../components/tenants/PaymentGatewayModule
 import { PaymentMethodsModule } from '../components/tenants/PaymentMethodsModule.js';
 import { PaymentOptionsModule } from '../components/tenants/PaymentOptionsModule.js';
 import { ProductInventoryModule } from '../components/tenants/ProductInventoryModule.js';
+import { TenantDomainModule } from '../components/tenants/TenantDomainModule.js';
 import { TenantSettingsModule } from '../components/tenants/TenantSettingsModule.js';
 import { TenantSubscriptionModule } from '../components/tenants/TenantSubscriptionModule.js';
 import { UnitsModule } from '../components/tenants/UnitsModule.js';
@@ -113,6 +117,8 @@ export function HomePage() {
   const canManageUnits =
     (me.data?.currentTenant?.membership.permissions.includes('unit.create') ?? false) ||
     (me.data?.currentTenant?.membership.permissions.includes('unit.update') ?? false);
+  const canReadUnits =
+    me.data?.currentTenant?.membership.permissions.includes('unit.read') ?? false;
   const canFitIn =
     me.data?.currentTenant?.membership.permissions.includes('appointment.fit_in.manage') ?? false;
   const canCheckIn =
@@ -156,6 +162,8 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('tenant.subscription.read') ?? false;
   const canViewOperations =
     me.data?.currentTenant?.membership.permissions.includes('appointment.read') ?? false;
+  const canViewWaitlist =
+    me.data?.currentTenant?.membership.permissions.includes('appointment.waitlist.read') ?? false;
   const canViewNotifications =
     me.data?.currentTenant?.membership.permissions.includes('notification.read') ?? false;
   const canManageNotificationTemplates =
@@ -167,10 +175,16 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('product.manage') ?? false;
   const canSellProducts =
     me.data?.currentTenant?.membership.permissions.includes('product_sale.manage') ?? false;
+  const canManageBranding =
+    me.data?.currentTenant?.membership.permissions.includes('tenant.branding.manage') ?? false;
   const canReadAutomations =
     me.data?.currentTenant?.membership.permissions.includes('automation.read') ?? false;
   const canManageAutomations =
     me.data?.currentTenant?.membership.permissions.includes('automation.manage') ?? false;
+  const canReadIntegrations =
+    me.data?.currentTenant?.membership.permissions.includes('integration.read') ?? false;
+  const canManageIntegrations =
+    me.data?.currentTenant?.membership.permissions.includes('integration.manage') ?? false;
 
   useEffect(() => {
     if (me.error instanceof HttpError && me.error.status === 401) void navigate('/login');
@@ -231,6 +245,7 @@ export function HomePage() {
             canUpdate={canUpdateTenantSettings}
           />
           <UnitsModule tenantPublicId={selectedTenant} canManage={canManageUnits} />
+          {canReadUnits && <MultiUnitOverviewModule tenantPublicId={selectedTenant} />}
           {canViewSubscription && <TenantSubscriptionModule tenantPublicId={selectedTenant} />}
           {canViewOperations && <OperationsDashboardModule tenantPublicId={selectedTenant} />}
           {canReadPayments && (
@@ -300,6 +315,7 @@ export function HomePage() {
             canReadPayments={canReadPayments}
             canManagePayments={canManagePayments}
           />
+          {canViewWaitlist && <AppointmentWaitlistModule tenantPublicId={selectedTenant} />}
           <ServiceCategoryModule tenantPublicId={selectedTenant} />
           <ProfessionalModule
             tenantPublicId={selectedTenant}
@@ -315,6 +331,10 @@ export function HomePage() {
           />
           <ComboModule tenantPublicId={selectedTenant} />
           <WhiteLabelModule tenantPublicId={selectedTenant} />
+          <TenantDomainModule tenantPublicId={selectedTenant} canManage={canManageBranding} />
+          {canReadIntegrations && (
+            <IntegrationsModule tenantPublicId={selectedTenant} canManage={canManageIntegrations} />
+          )}
         </>
       )}
       <section className="sessions-panel" aria-labelledby="sessions-title">

@@ -6,6 +6,7 @@ export * from './business-unit-date-overrides.js';
 export * from './auth.js';
 export * from './availability.js';
 export * from './appointment.js';
+export * from './appointment-waitlist.js';
 export * from './appointment-history.js';
 export * from './appointment-review.js';
 export * from './customer-favorite.js';
@@ -22,6 +23,7 @@ export * from './professional-unit.js';
 export * from './professional-schedule.js';
 export * from './professional-unavailability.js';
 export * from './tenant-white-label.js';
+export * from './tenant-domain.js';
 export * from './customer.js';
 export * from './customer-auth.js';
 export * from './customer-profile.js';
@@ -46,6 +48,8 @@ export * from './automation.js';
 export * from './customer-recovery.js';
 export * from './coupon.js';
 export * from './loyalty.js';
+export * from './multi-unit.js';
+export * from './integration.js';
 
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),

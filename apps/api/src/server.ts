@@ -19,6 +19,9 @@ const bootstrapLogger = pino({
 
 async function start(environment: Environment): Promise<void> {
   const database = createDatabaseConnection(environment.DATABASE_URL, {
+    ...(environment.PUBLIC_BASE_DOMAIN === undefined
+      ? {}
+      : { publicBaseDomain: environment.PUBLIC_BASE_DOMAIN }),
     passwordArgon2: {
       memoryCost: environment.PASSWORD_ARGON2_MEMORY_COST,
       timeCost: environment.PASSWORD_ARGON2_TIME_COST,

@@ -34,7 +34,7 @@ export class CustomerNotificationDispatcher {
   ): Promise<boolean> {
     const customer = await this.client.customer.findUnique({
       where: { id: customerId },
-      select: { email: true, acceptsCommunications: true },
+      select: { email: true, whatsapp: true, acceptsCommunications: true },
     });
     if (!customer?.acceptsCommunications) return false;
 
@@ -42,7 +42,16 @@ export class CustomerNotificationDispatcher {
       where: { tenantId, customerId, active: true },
       select: { publicId: true },
     });
-    if (customer.email === null && subscriptions.length === 0) return false;
+    const whatsappConfigured =
+      customer.whatsapp === null
+        ? false
+        : (
+            await this.client.tenantWhatsAppConfig.findUnique({
+              where: { tenantId },
+              select: { active: true },
+            })
+          )?.active === true;
+    if (customer.email === null && subscriptions.length === 0 && !whatsappConfigured) return false;
 
     const { subject, body } = await this.templates.render(tenantId, kind, variables);
 
@@ -65,6 +74,17 @@ export class CustomerNotificationDispatcher {
         targetType,
         targetPublicId,
         recipient: subscription.publicId,
+        subject,
+        body,
+      });
+    }
+    if (whatsappConfigured && customer.whatsapp !== null) {
+      await this.notifications.enqueue(tenantId, {
+        channel: 'WHATSAPP',
+        kind,
+        targetType,
+        targetPublicId,
+        recipient: customer.whatsapp.replace(/\D/gu, ''),
         subject,
         body,
       });

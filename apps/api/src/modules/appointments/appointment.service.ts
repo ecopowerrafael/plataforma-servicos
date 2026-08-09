@@ -6,8 +6,9 @@ import {
   AppointmentPublicSchema,
 } from '@plataforma/shared';
 
+import { type AppointmentWaitlistService } from './appointment-waitlist.service.js';
 import { type AppointmentRepository } from './appointment.repository.js';
-import { type Prisma } from '../../database-client/client.js';
+import { type AppointmentStatus, type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 interface Actor {
@@ -61,10 +62,16 @@ const pub = (x: AppointmentRecord) =>
     updatedAt: x.updatedAt.toISOString(),
   });
 export class AppointmentService {
+  private waitlistService?: AppointmentWaitlistService;
+
   constructor(
     private readonly repo: AppointmentRepository,
     private readonly availability: AvailabilityService,
   ) {}
+
+  setWaitlistService(service: AppointmentWaitlistService): void {
+    this.waitlistService = service;
+  }
   async list(
     t: bigint,
     q: {
@@ -80,7 +87,7 @@ export class AppointmentService {
   ) {
     const items = await this.repo.list(t, {
       startsAt: { gte: new Date(q.from), lte: new Date(q.to) },
-      ...(q.status === undefined ? {} : { status: q.status as never }),
+      ...(q.status === undefined ? {} : { status: this.appointmentStatus(q.status) }),
       ...(q.professionalPublicId === undefined
         ? {}
         : { professional: { publicId: q.professionalPublicId } }),
@@ -258,13 +265,16 @@ export class AppointmentService {
         message: 'Este agendamento não pode ser alterado.',
         statusCode: 400,
       });
-    const allowed = {
+    const allowed: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
       PENDING: ['CONFIRMED', 'CANCELED', 'NO_SHOW'],
       CONFIRMED: ['IN_PROGRESS', 'CANCELED', 'NO_SHOW'],
       IN_PROGRESS: ['COMPLETED', 'CANCELED'],
       NO_SHOW: [],
-    } as const;
-    if (!allowed[old.status as keyof typeof allowed].includes(status as never))
+      COMPLETED: [],
+      CANCELED: [],
+    };
+    const transitions: readonly AppointmentStatus[] = allowed[old.status];
+    if (!transitions.includes(status))
       throw new AppError({
         code: 'APPOINTMENT_STATUS_TRANSITION_INVALID',
         message: 'A transição de status não é permitida.',
@@ -280,6 +290,9 @@ export class AppointmentService {
       status,
       ...(status === 'CANCELED' ? { canceledReason: reason ?? null } : {}),
     });
+    if (status === 'CANCELED' && this.waitlistService !== undefined) {
+      await this.waitlistService.markWaitlistOpportunityOnAppointmentCancellation(t, old.id);
+    }
     await this.recordHistory(t, old.id, {
       action: 'STATUS_CHANGED',
       previousStatus: old.status,
@@ -290,6 +303,23 @@ export class AppointmentService {
     });
     await this.audit(t, id, `appointment.${status.toLowerCase()}`, a);
     return { success: true } as const;
+  }
+  private appointmentStatus(value: string): AppointmentStatus {
+    switch (value) {
+      case 'PENDING':
+      case 'CONFIRMED':
+      case 'IN_PROGRESS':
+      case 'COMPLETED':
+      case 'CANCELED':
+      case 'NO_SHOW':
+        return value;
+      default:
+        throw new AppError({
+          code: 'APPOINTMENT_STATUS_INVALID',
+          message: 'Status de agendamento inválido.',
+          statusCode: 400,
+        });
+    }
   }
   async checkIn(t: bigint, id: string, checkedInAt: string | undefined, a: Actor) {
     const old = await this.repo.find(t, id);

@@ -92,6 +92,8 @@ export const PermissionCodeSchema = z.enum([
   'appointment.status.manage',
   'appointment.fit_in.manage',
   'appointment.checkin.manage',
+  'appointment.waitlist.read',
+  'appointment.waitlist.manage',
   'professional.self.read',
   'professional.self.update',
   'notification.read',
@@ -118,6 +120,8 @@ export const PermissionCodeSchema = z.enum([
   'coupon.manage',
   'loyalty.read',
   'loyalty.manage',
+  'integration.read',
+  'integration.manage',
 ]);
 
 export const UserPublicSchema = z.object({
@@ -147,6 +151,7 @@ export const SessionPublicSchema = z.object({
 export const AuthenticatedTenantSchema = AvailableTenantSchema.extend({
   membership: AvailableTenantSchema.shape.membership.extend({
     permissions: z.array(PermissionCodeSchema),
+    unitPublicIds: z.array(z.uuid()).nullable().optional(),
   }),
 });
 
@@ -202,6 +207,7 @@ export const MembershipPublicSchema = z.object({
   isOwner: z.boolean(),
   joinedAt: z.iso.datetime({ offset: true }).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
+  unitPublicIds: z.array(z.uuid()).nullable().optional(),
 });
 export const MembershipListResponseSchema = z.object({ members: z.array(MembershipPublicSchema) });
 export const MembershipListQuerySchema = z
@@ -229,11 +235,18 @@ export const UpdateMembershipRequestSchema = z
   .object({
     roleCode: AssignableRoleCodeSchema.optional(),
     status: z.enum(['ACTIVE', 'SUSPENDED', 'INACTIVE']).optional(),
+    unitPublicIds: z.array(z.uuid()).max(100).nullable().optional(),
   })
   .strict()
-  .refine((value) => value.roleCode !== undefined || value.status !== undefined, {
-    message: 'Informe ao menos uma alteração.',
-  });
+  .refine(
+    (value) =>
+      value.roleCode !== undefined ||
+      value.status !== undefined ||
+      value.unitPublicIds !== undefined,
+    {
+      message: 'Informe ao menos uma alteração.',
+    },
+  );
 
 export const CreateTenantWithOwnerRequestSchema = CreateTenantRequestSchema.extend({
   owner: z.object({ email: EmailSchema, password: PasswordSchema }).strict(),

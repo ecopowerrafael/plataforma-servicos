@@ -4,6 +4,8 @@ import { PrismaClient } from '../database-client/client.js';
 import { AppointmentOperationsService } from '../modules/appointments/appointment-operations.service.js';
 import { AppointmentReviewRepository } from '../modules/appointments/appointment-review.repository.js';
 import { AppointmentReviewService } from '../modules/appointments/appointment-review.service.js';
+import { AppointmentWaitlistRepository } from '../modules/appointments/appointment-waitlist.repository.js';
+import { AppointmentWaitlistService } from '../modules/appointments/appointment-waitlist.service.js';
 import { AppointmentRepository } from '../modules/appointments/appointment.repository.js';
 import { AppointmentService } from '../modules/appointments/appointment.service.js';
 import { type IdentityRepository } from '../modules/auth/identity.repository.js';
@@ -21,6 +23,12 @@ import { CustomerRecoveryRepository } from '../modules/customers/customer-recove
 import { CustomerRecoveryService } from '../modules/customers/customer-recovery.service.js';
 import { CustomerRepository } from '../modules/customers/customer.repository.js';
 import { CustomerService } from '../modules/customers/customer.service.js';
+import {
+  MetaWhatsAppDelivery,
+  WebhookDelivery,
+} from '../modules/integrations/integration-delivery.js';
+import { IntegrationRepository } from '../modules/integrations/integration.repository.js';
+import { IntegrationService } from '../modules/integrations/integration.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
 import { AutomationService } from '../modules/notifications/automation.service.js';
@@ -85,7 +93,14 @@ import { PrismaBusinessUnitDateOverridesRepository } from '../modules/tenants/bu
 import { BusinessUnitDateOverridesService } from '../modules/tenants/business-unit-date-overrides.service.js';
 import { PrismaBusinessUnitOperatingHoursRepository } from '../modules/tenants/business-unit-operating-hours.repository.js';
 import { BusinessUnitOperatingHoursService } from '../modules/tenants/business-unit-operating-hours.service.js';
+import { MultiUnitRepository } from '../modules/tenants/multi-unit.repository.js';
+import { MultiUnitService } from '../modules/tenants/multi-unit.service.js';
 import { PrismaTenantRepository } from '../modules/tenants/prisma-tenant.repository.js';
+import { TenantDomainRepository } from '../modules/tenants/tenant-domain.repository.js';
+import {
+  DnsDomainVerifier,
+  TenantDomainService,
+} from '../modules/tenants/tenant-domain.service.js';
 import { TenantExperienceResolver } from '../modules/tenants/tenant-experience.resolver.js';
 import { LocalTenantMediaStorage } from '../modules/tenants/tenant-media.storage.js';
 import { TenantSubscriptionService } from '../modules/tenants/tenant-subscription.service.js';
@@ -100,6 +115,7 @@ export interface DatabaseConnection {
   readonly identities: IdentityRepository;
   readonly availability?: AvailabilityService;
   readonly appointments?: AppointmentService;
+  readonly appointmentWaitlists?: AppointmentWaitlistService;
   readonly platform?: PlatformService;
   readonly customers?: CustomerService;
   readonly customerAuth?: CustomerAuthService;
@@ -118,6 +134,8 @@ export interface DatabaseConnection {
   readonly professionalUnavailabilities?: ProfessionalUnavailabilityService;
   readonly businessUnitOperatingHours?: BusinessUnitOperatingHoursService;
   readonly businessUnitDateOverrides?: BusinessUnitDateOverridesService;
+  readonly multiUnit?: MultiUnitService;
+  readonly tenantDomains?: TenantDomainService;
   readonly tenantExperience?: TenantExperienceResolver;
   readonly tenantWhiteLabel?: TenantWhiteLabelService;
   readonly tenantSubscription?: TenantSubscriptionService;
@@ -141,6 +159,7 @@ export interface DatabaseConnection {
   readonly financialReports?: FinancialReportService;
   readonly paymentGateway?: PaymentGatewayService;
   readonly tenantPaymentOptions?: TenantPaymentOptionsService;
+  readonly integrations?: IntegrationService;
   readonly publicBooking?: PublicBookingService;
   readonly products?: ProductCatalogService;
   readonly stockMovements?: StockMovementService;
@@ -157,6 +176,7 @@ function readPositiveInteger(value: string | null, fallback: number): number {
 }
 
 interface CustomerAuthOptions {
+  publicBaseDomain?: string;
   passwordArgon2?: { memoryCost: number; timeCost: number; parallelism: number };
   sessionTtlHours?: number;
   smtp?: {
@@ -205,10 +225,14 @@ export function createDatabaseConnection(
   };
 
   const appointmentRepository = new AppointmentRepository(client);
-  const appointments = new AppointmentService(
-    appointmentRepository,
-    new AvailabilityService(new AvailabilityRepository(client)),
+  const availability = new AvailabilityService(new AvailabilityRepository(client));
+  const appointments = new AppointmentService(appointmentRepository, availability);
+  const appointmentWaitlists = new AppointmentWaitlistService(
+    new AppointmentWaitlistRepository(client),
+    appointments,
+    availability,
   );
+  appointments.setWaitlistService(appointmentWaitlists);
   const appointmentReviews = new AppointmentReviewService(
     new AppointmentReviewRepository(client),
     appointmentRepository,
@@ -261,9 +285,15 @@ export function createDatabaseConnection(
     customerAuthOptions?.vapid === undefined
       ? new UnconfiguredPushDelivery()
       : new WebPushDelivery(customerAuthOptions.vapid);
+  const credentialsCipher =
+    customerAuthOptions?.paymentGatewayEncryptionKey === undefined
+      ? undefined
+      : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
   const notifications = new NotificationService(client, {
     email: emailDelivery,
     push: pushDelivery,
+    whatsapp: new MetaWhatsAppDelivery(client, credentialsCipher),
+    webhook: new WebhookDelivery(client, credentialsCipher),
   });
   const notificationTemplates = new NotificationTemplateService(client);
   const notificationDispatcher = new CustomerNotificationDispatcher(
@@ -289,17 +319,13 @@ export function createDatabaseConnection(
   const delinquency = new DelinquencyService(client);
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
-  const paymentGatewayCipher =
-    customerAuthOptions?.paymentGatewayEncryptionKey === undefined
-      ? undefined
-      : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
   paymentGatewayRegistry.register(new PixLocalProviderAdapter());
   paymentGatewayRegistry.register(new MercadoPagoProviderAdapter(new FetchHttpClient()));
   const paymentGateway = new PaymentGatewayService(
     client,
     paymentGatewayRegistry,
-    paymentGatewayCipher,
+    credentialsCipher,
     paymentMethods,
     payments,
   );
@@ -312,8 +338,9 @@ export function createDatabaseConnection(
 
   return {
     identities: new PrismaIdentityRepository(client),
-    availability: new AvailabilityService(new AvailabilityRepository(client)),
+    availability,
     appointments: appointments,
+    appointmentWaitlists: appointmentWaitlists,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
     customers: customers,
@@ -350,6 +377,12 @@ export function createDatabaseConnection(
     businessUnitDateOverrides: new BusinessUnitDateOverridesService(
       new PrismaBusinessUnitDateOverridesRepository(client),
     ),
+    multiUnit: new MultiUnitService(new MultiUnitRepository(client)),
+    tenantDomains: new TenantDomainService(
+      new TenantDomainRepository(client),
+      new DnsDomainVerifier(),
+      customerAuthOptions?.publicBaseDomain ?? null,
+    ),
     tenantExperience: new TenantExperienceResolver(client),
     tenantWhiteLabel: tenantWhiteLabel,
     tenantSubscription: new TenantSubscriptionService(client),
@@ -373,6 +406,7 @@ export function createDatabaseConnection(
     financialReports: new FinancialReportService(client, delinquency),
     paymentGateway: paymentGateway,
     tenantPaymentOptions: tenantPaymentOptions,
+    integrations: new IntegrationService(new IntegrationRepository(client), credentialsCipher),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,
       tenantWhiteLabel,

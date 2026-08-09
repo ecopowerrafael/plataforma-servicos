@@ -33,6 +33,7 @@ const environmentSchema = z
       .pipe(z.array(z.url()).min(1)),
     LOG_LEVEL: z.enum(logLevels),
     APP_WEB_URL: z.url().default('http://localhost:5173'),
+    PUBLIC_BASE_DOMAIN: z.string().trim().toLowerCase().optional(),
     AUTH_COOKIE_NAME: z
       .string()
       .trim()

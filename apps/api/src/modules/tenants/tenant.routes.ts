@@ -18,6 +18,8 @@ import { z } from 'zod';
 import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type TenantExperienceResolver } from './tenant-experience.resolver.js';
 import { type TenantService } from './tenant.service.js';
+import { canAccessUnit } from './unit-scope.js';
+import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
 
 interface TenantRoutesOptions {
@@ -28,6 +30,14 @@ interface TenantRoutesOptions {
 }
 
 const EmptyQuerySchema = z.object({}).strict();
+const ensureUnitAccess = (allowed: string[] | null, publicId: string) => {
+  if (!canAccessUnit(allowed, publicId))
+    throw new AppError({
+      code: 'UNIT_NOT_FOUND',
+      message: 'A unidade não foi encontrada.',
+      statusCode: 404,
+    });
+};
 const UnitParamsSchema = z.object({ publicId: z.uuid() }).strict();
 const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
   userId: r.auth.user.id,
@@ -94,7 +104,12 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     },
     async (request): Promise<TenantUnitsResponse> => {
       options.authService.requirePermission(request.tenant, 'unit.read');
-      return { units: await options.service.listBusinessUnits(request.tenant.id) };
+      const units = await options.service.listBusinessUnits(request.tenant.id);
+      const allowed = request.tenant.membership.unitPublicIds ?? null;
+      return {
+        units:
+          allowed === null ? units : units.filter(({ publicId }) => allowed.includes(publicId)),
+      };
     },
   );
 
@@ -109,6 +124,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     },
     async (request): Promise<TenantUnitResponse> => {
       options.authService.requirePermission(request.tenant, 'unit.read');
+      ensureUnitAccess(request.tenant.membership.unitPublicIds ?? null, request.params.publicId);
       return {
         unit: await options.service.getBusinessUnit(request.tenant.id, request.params.publicId),
       };
@@ -146,6 +162,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     },
     async (request): Promise<TenantUnitResponse> => {
       options.authService.requirePermission(request.tenant, 'unit.update');
+      ensureUnitAccess(request.tenant.membership.unitPublicIds ?? null, request.params.publicId);
       const unit = await options.service.updateBusinessUnit(
         request.tenant.id,
         request.params.publicId,
@@ -166,6 +183,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
       { schema: { params: UnitParamsSchema, response: { 200: TenantUnitResponseSchema } } },
       async (request): Promise<TenantUnitResponse> => {
         options.authService.requirePermission(request.tenant, 'unit.update');
+        ensureUnitAccess(request.tenant.membership.unitPublicIds ?? null, request.params.publicId);
         const unit = await options.service.setBusinessUnitActive(
           request.tenant.id,
           request.params.publicId,
@@ -181,6 +199,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     { schema: { params: UnitParamsSchema, response: { 200: TenantUnitResponseSchema } } },
     async (request): Promise<TenantUnitResponse> => {
       options.authService.requirePermission(request.tenant, 'unit.update');
+      ensureUnitAccess(request.tenant.membership.unitPublicIds ?? null, request.params.publicId);
       const unit = await options.service.setHeadquarters(
         request.tenant.id,
         request.params.publicId,

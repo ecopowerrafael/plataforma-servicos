@@ -72,6 +72,7 @@ function isoTenant(tenant: AuthorizedTenantContext): AuthenticatedTenant {
       publicId: tenant.membership.publicId,
       roleCode: tenant.membership.roleCode,
       permissions: tenant.membership.permissions as PermissionCode[],
+      unitPublicIds: tenant.membership.unitPublicIds ?? null,
     },
   };
 }

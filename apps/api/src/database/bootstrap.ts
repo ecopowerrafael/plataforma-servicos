@@ -82,6 +82,8 @@ const permissions = [
   ],
   ['automation.read', 'Consultar automações e regras de recuperação de clientes.'],
   ['automation.manage', 'Configurar automações e regras de recuperação de clientes.'],
+  ['integration.read', 'Consultar integrações externas do estabelecimento.'],
+  ['integration.manage', 'Configurar integrações externas do estabelecimento.'],
 ] as const;
 
 const roles = [
@@ -166,6 +168,8 @@ const roles = [
       'payment_gateway.read',
       'automation.read',
       'automation.manage',
+      'integration.read',
+      'integration.manage',
     ],
   },
   {

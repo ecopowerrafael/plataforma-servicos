@@ -36,6 +36,7 @@ import { customerAuthRoutes } from './modules/customers/customer-auth.routes.js'
 import { customerFavoriteRoutes } from './modules/customers/customer-favorite.routes.js';
 import { customerRecoveryRoutes } from './modules/customers/customer-recovery.routes.js';
 import { customerRoutes } from './modules/customers/customer.routes.js';
+import { integrationRoutes } from './modules/integrations/integration.routes.js';
 import { automationRoutes } from './modules/notifications/automation.routes.js';
 import { notificationTemplateRoutes } from './modules/notifications/notification-template.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
@@ -290,6 +291,13 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });
     await app.register(publicTenantDomainRoutes, { service: options.database.tenantDomains });
+  }
+  if (options.database.integrations !== undefined) {
+    await app.register(integrationRoutes, {
+      service: options.database.integrations,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
   }
   if (options.database.tenantWhiteLabel !== undefined) {
     await app.register(publicTenantWhiteLabelRoutes, {

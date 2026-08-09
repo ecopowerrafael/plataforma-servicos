@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const NotificationChannelSchema = z.enum(['EMAIL', 'PUSH']);
+export const NotificationChannelSchema = z.enum(['EMAIL', 'PUSH', 'WHATSAPP', 'WEBHOOK']);
 export const NotificationStatusSchema = z.enum([
   'PENDING',
   'PROCESSING',

@@ -223,6 +223,8 @@ enum InvitationStatus {
 enum NotificationChannel {
   EMAIL
   PUSH
+  WHATSAPP
+  WEBHOOK
 }
 
 enum NotificationStatus {
@@ -373,9 +375,45 @@ model Tenant {
   recoveryRules                CustomerRecoveryRule[]
   recoveryExecutions           CustomerRecoveryExecution[]
   domains                      TenantDomain[]
+  whatsappConfig               TenantWhatsAppConfig?
+  externalIntegrations         ExternalIntegration[]
 
   @@index([status])
   @@map("tenants")
+}
+
+model TenantWhatsAppConfig {
+  id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId             String   @unique @map("public_id") @db.Char(36)
+  tenantId             BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
+  active               Boolean  @default(false)
+  phoneNumberId        String   @map("phone_number_id") @db.VarChar(80)
+  businessAccountId    String   @map("business_account_id") @db.VarChar(80)
+  encryptedAccessToken String   @map("encrypted_access_token") @db.Text
+  apiVersion           String   @default("v23.0") @map("api_version") @db.VarChar(16)
+  createdAt            DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@map("tenant_whatsapp_configs")
+}
+
+model ExternalIntegration {
+  id              BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String   @unique @map("public_id") @db.Char(36)
+  tenantId        BigInt   @map("tenant_id") @db.UnsignedBigInt
+  name            String   @db.VarChar(120)
+  endpoint        String   @db.VarChar(2048)
+  encryptedSecret String?  @map("encrypted_secret") @db.Text
+  events          Json
+  active          Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active])
+  @@map("external_integrations")
 }
 
 model TenantDomain {

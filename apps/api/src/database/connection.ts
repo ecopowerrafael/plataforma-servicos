@@ -21,6 +21,12 @@ import { CustomerRecoveryRepository } from '../modules/customers/customer-recove
 import { CustomerRecoveryService } from '../modules/customers/customer-recovery.service.js';
 import { CustomerRepository } from '../modules/customers/customer.repository.js';
 import { CustomerService } from '../modules/customers/customer.service.js';
+import {
+  MetaWhatsAppDelivery,
+  WebhookDelivery,
+} from '../modules/integrations/integration-delivery.js';
+import { IntegrationRepository } from '../modules/integrations/integration.repository.js';
+import { IntegrationService } from '../modules/integrations/integration.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
 import { AutomationService } from '../modules/notifications/automation.service.js';
@@ -140,6 +146,7 @@ export interface DatabaseConnection {
   readonly financialReports?: FinancialReportService;
   readonly paymentGateway?: PaymentGatewayService;
   readonly tenantPaymentOptions?: TenantPaymentOptionsService;
+  readonly integrations?: IntegrationService;
   readonly publicBooking?: PublicBookingService;
 }
 
@@ -248,9 +255,15 @@ export function createDatabaseConnection(
     customerAuthOptions?.vapid === undefined
       ? new UnconfiguredPushDelivery()
       : new WebPushDelivery(customerAuthOptions.vapid);
+  const credentialsCipher =
+    customerAuthOptions?.paymentGatewayEncryptionKey === undefined
+      ? undefined
+      : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
   const notifications = new NotificationService(client, {
     email: emailDelivery,
     push: pushDelivery,
+    whatsapp: new MetaWhatsAppDelivery(client, credentialsCipher),
+    webhook: new WebhookDelivery(client, credentialsCipher),
   });
   const notificationTemplates = new NotificationTemplateService(client);
   const notificationDispatcher = new CustomerNotificationDispatcher(
@@ -274,17 +287,13 @@ export function createDatabaseConnection(
   const delinquency = new DelinquencyService(client);
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions);
-  const paymentGatewayCipher =
-    customerAuthOptions?.paymentGatewayEncryptionKey === undefined
-      ? undefined
-      : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
   paymentGatewayRegistry.register(new PixLocalProviderAdapter());
   paymentGatewayRegistry.register(new MercadoPagoProviderAdapter(new FetchHttpClient()));
   const paymentGateway = new PaymentGatewayService(
     client,
     paymentGatewayRegistry,
-    paymentGatewayCipher,
+    credentialsCipher,
     paymentMethods,
     payments,
   );
@@ -359,6 +368,7 @@ export function createDatabaseConnection(
     financialReports: new FinancialReportService(client, delinquency),
     paymentGateway: paymentGateway,
     tenantPaymentOptions: tenantPaymentOptions,
+    integrations: new IntegrationService(new IntegrationRepository(client), credentialsCipher),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,
       tenantWhiteLabel,

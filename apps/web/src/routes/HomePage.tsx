@@ -25,6 +25,7 @@ import { CustomerRecoveryModule } from '../components/tenants/CustomerRecoveryMo
 import { DelinquencyModule } from '../components/tenants/DelinquencyModule.js';
 import { FinancialClosingModule } from '../components/tenants/FinancialClosingModule.js';
 import { FinancialReportModule } from '../components/tenants/FinancialReportModule.js';
+import { IntegrationsModule } from '../components/tenants/IntegrationsModule.js';
 import { MembersModule } from '../components/tenants/MembersModule.js';
 import { MultiUnitOverviewModule } from '../components/tenants/MultiUnitOverviewModule.js';
 import { NotificationLogModule } from '../components/tenants/NotificationLogModule.js';
@@ -160,6 +161,10 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('automation.read') ?? false;
   const canManageAutomations =
     me.data?.currentTenant?.membership.permissions.includes('automation.manage') ?? false;
+  const canReadIntegrations =
+    me.data?.currentTenant?.membership.permissions.includes('integration.read') ?? false;
+  const canManageIntegrations =
+    me.data?.currentTenant?.membership.permissions.includes('integration.manage') ?? false;
 
   useEffect(() => {
     if (me.error instanceof HttpError && me.error.status === 401) void navigate('/login');
@@ -293,6 +298,9 @@ export function HomePage() {
           <ComboModule tenantPublicId={selectedTenant} />
           <WhiteLabelModule tenantPublicId={selectedTenant} />
           <TenantDomainModule tenantPublicId={selectedTenant} canManage={canManageBranding} />
+          {canReadIntegrations && (
+            <IntegrationsModule tenantPublicId={selectedTenant} canManage={canManageIntegrations} />
+          )}
         </>
       )}
       <section className="sessions-panel" aria-labelledby="sessions-title">

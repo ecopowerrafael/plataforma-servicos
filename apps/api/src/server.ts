@@ -1,6 +1,7 @@
 import pino from 'pino';
 
 import { buildApp } from './app.js';
+import { databaseOptionsFromEnvironment } from './config/database-options.js';
 import {
   EnvironmentValidationError,
   loadEnvironment,
@@ -18,43 +19,10 @@ const bootstrapLogger = pino({
 });
 
 async function start(environment: Environment): Promise<void> {
-  const database = createDatabaseConnection(environment.DATABASE_URL, {
-    ...(environment.PUBLIC_BASE_DOMAIN === undefined
-      ? {}
-      : { publicBaseDomain: environment.PUBLIC_BASE_DOMAIN }),
-    passwordArgon2: {
-      memoryCost: environment.PASSWORD_ARGON2_MEMORY_COST,
-      timeCost: environment.PASSWORD_ARGON2_TIME_COST,
-      parallelism: environment.PASSWORD_ARGON2_PARALLELISM,
-    },
-    sessionTtlHours: environment.AUTH_SESSION_TTL_HOURS,
-    ...(environment.SMTP_HOST === undefined || environment.SMTP_FROM === undefined
-      ? {}
-      : {
-          smtp: {
-            host: environment.SMTP_HOST,
-            port: environment.SMTP_PORT,
-            secure: environment.SMTP_SECURE,
-            user: environment.SMTP_USER,
-            pass: environment.SMTP_PASS,
-            from: environment.SMTP_FROM,
-          },
-        }),
-    ...(environment.VAPID_PUBLIC_KEY === undefined ||
-    environment.VAPID_PRIVATE_KEY === undefined ||
-    environment.VAPID_SUBJECT === undefined
-      ? {}
-      : {
-          vapid: {
-            publicKey: environment.VAPID_PUBLIC_KEY,
-            privateKey: environment.VAPID_PRIVATE_KEY,
-            subject: environment.VAPID_SUBJECT,
-          },
-        }),
-    ...(environment.PAYMENT_GATEWAY_ENCRYPTION_KEY === undefined
-      ? {}
-      : { paymentGatewayEncryptionKey: environment.PAYMENT_GATEWAY_ENCRYPTION_KEY }),
-  });
+  const database = createDatabaseConnection(
+    environment.DATABASE_URL,
+    databaseOptionsFromEnvironment(environment),
+  );
   const app = await buildApp({ environment, database });
   let shuttingDown = false;
 

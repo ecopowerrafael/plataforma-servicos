@@ -1,7 +1,16 @@
 import { type ErrorDetail, type ErrorResponse } from '@plataforma/shared';
-import { type FastifyError, type FastifyInstance } from 'fastify';
+import { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import { AppError } from './AppError.js';
+
+interface ErrorHandlerOptions {
+  /**
+   * Fallback opcional para navegação SPA. Retorna `true` quando já respondeu
+   * (ex.: enviou o index.html do frontend compilado); nesse caso o 404 JSON
+   * padrão é suprimido. Usado apenas no deploy single-origin.
+   */
+  spaFallback?: (request: FastifyRequest, reply: FastifyReply) => boolean;
+}
 
 function validationDetails(error: FastifyError): ErrorDetail[] | undefined {
   if (error.validation === undefined) {
@@ -43,8 +52,11 @@ function createErrorResponse(
   };
 }
 
-export function registerErrorHandlers(app: FastifyInstance): void {
+export function registerErrorHandlers(app: FastifyInstance, options: ErrorHandlerOptions = {}): void {
   app.setNotFoundHandler((request, reply) => {
+    if (options.spaFallback?.(request, reply) === true) {
+      return;
+    }
     void reply
       .status(404)
       .send(

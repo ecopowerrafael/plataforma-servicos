@@ -91,6 +91,7 @@ import {
 import { tenantRoutes } from './modules/tenants/tenant.routes.js';
 import { TenantService } from './modules/tenants/tenant.service.js';
 import { databasePlugin } from './plugins/database.js';
+import { registerStaticWeb } from './plugins/static-web.js';
 import { technicalRoutes } from './routes/technical.js';
 
 interface BuildAppOptions {
@@ -148,11 +149,19 @@ export async function buildApp(options: BuildAppOptions) {
     return503OnClosing: true,
   };
   const baseApp = Fastify(serverOptions);
-  registerErrorHandlers(baseApp);
   const app = baseApp.withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+
+  // Deploy single-origin (ex.: Node.js compartilhado da Hostinger): quando
+  // WEB_DIST_DIR aponta para o frontend compilado, a própria API o serve e faz
+  // o fallback SPA. Opt-in — sem a variável, o comportamento é o de antes.
+  const spaFallback =
+    options.environment.WEB_DIST_DIR === undefined
+      ? undefined
+      : await registerStaticWeb(app, options.environment.WEB_DIST_DIR);
+  registerErrorHandlers(baseApp, spaFallback === undefined ? {} : { spaFallback });
 
   await app.register(cookie);
   await app.register(multipart, {

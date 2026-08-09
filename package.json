@@ -15,6 +15,9 @@
   "scripts": {
     "dev": "concurrently --names api,web --prefix-colors blue,green \"npm run dev --workspace=@plataforma/api\" \"npm run dev --workspace=@plataforma/web\"",
     "build": "npm run build --workspace=@plataforma/shared && npm run build --workspace=@plataforma/api && npm run build --workspace=@plataforma/web",
+    "build:deploy": "npm run db:generate && npm run build",
+    "start": "npm run start --workspace=@plataforma/api",
+    "worker:once": "npm run worker:once --workspace=@plataforma/api",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier . --write",
     "format:check": "prettier . --check",

@@ -10,8 +10,13 @@ const logLevels = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']
 const environmentSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']),
-    API_HOST: z.string().trim().min(1),
-    API_PORT: z.coerce.number().int().min(1).max(65_535),
+    API_HOST: z.string().trim().min(1).default('0.0.0.0'),
+    API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+    // Diretório com o frontend Vite já compilado (apps/web/dist). Quando definido,
+    // a própria API serve os arquivos estáticos e faz o fallback SPA — usado no
+    // deploy single-origin (ex.: Node.js compartilhado da Hostinger). Opcional:
+    // em desenvolvimento o Vite serve o frontend separadamente.
+    WEB_DIST_DIR: z.string().trim().min(1).optional(),
     DATABASE_URL: z.url().superRefine((value, context) => {
       const databaseUrl = new URL(value);
 
@@ -109,7 +114,14 @@ export class EnvironmentValidationError extends Error {
 }
 
 export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Environment {
-  const result = environmentSchema.safeParse(source);
+  // Hospedagens Node.js gerenciadas (Hostinger, entre outras) injetam a porta
+  // exclusivamente via `PORT`. Reaproveitamos esse valor para `API_PORT` quando
+  // este não é definido explicitamente, sem alterar o contrato interno da API.
+  const normalized: NodeJS.ProcessEnv =
+    source.API_PORT === undefined && source.PORT !== undefined
+      ? { ...source, API_PORT: source.PORT }
+      : source;
+  const result = environmentSchema.safeParse(normalized);
 
   if (!result.success) {
     throw new EnvironmentValidationError(result.error.issues);

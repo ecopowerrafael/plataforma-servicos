@@ -180,7 +180,7 @@ function readPositiveInteger(value: string | null, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-interface CustomerAuthOptions {
+export interface CustomerAuthOptions {
   publicBaseDomain?: string;
   passwordArgon2?: { memoryCost: number; timeCost: number; parallelism: number };
   sessionTtlHours?: number;

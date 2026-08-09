@@ -163,10 +163,18 @@ export const PlanLimitPublicSchema = z.object({
   booleanValue: z.boolean().nullable(),
   stringValue: z.string().nullable(),
 });
+export const PlanBenefitPublicSchema = z.object({
+  publicId: z.uuid(),
+  text: z.string(),
+  sortOrder: z.number().int(),
+  enabled: z.boolean(),
+});
 export const CommercialPlanPublicSchema = z.object({
   publicId: z.uuid(),
   code: z.string().regex(/^[A-Z][A-Z0-9_]{1,63}$/u),
   name: z.string(),
+  subtitle: z.string().nullable(),
+  shortDescription: z.string().nullable(),
   description: z.string().nullable(),
   status: CommercialPlanStatusSchema,
   billingCycle: BillingCycleSchema,
@@ -174,8 +182,12 @@ export const CommercialPlanPublicSchema = z.object({
   currency: CurrencySchema,
   trialDays: z.number().int().nonnegative().max(3650).nullable(),
   isPublic: z.boolean(),
+  highlighted: z.boolean(),
+  badge: z.string().nullable(),
+  ctaText: z.string().nullable(),
   sortOrder: z.number().int(),
   limits: z.array(PlanLimitPublicSchema),
+  benefits: z.array(PlanBenefitPublicSchema),
   createdAt: IsoDateSchema,
   updatedAt: IsoDateSchema,
 });
@@ -186,12 +198,17 @@ const CommercialPlanRequestObjectSchema = z
       .trim()
       .regex(/^[A-Z][A-Z0-9_]{1,63}$/u),
     name: z.string().trim().min(2).max(120),
+    subtitle: z.string().trim().min(1).max(160).nullable().optional(),
+    shortDescription: z.string().trim().min(1).max(240).nullable().optional(),
     description: z.string().trim().min(1).max(500).nullable().optional(),
     billingCycle: BillingCycleSchema,
     priceCents: MoneyInputSchema,
     currency: CurrencySchema.default('BRL'),
     trialDays: z.coerce.number().int().min(0).max(3650).nullable().optional(),
     isPublic: z.boolean().default(false),
+    highlighted: z.boolean().default(false),
+    badge: z.string().trim().min(1).max(40).nullable().optional(),
+    ctaText: z.string().trim().min(1).max(60).nullable().optional(),
     sortOrder: z.coerce.number().int().min(0).max(10_000).default(0),
     limits: z.array(PlanLimitInputSchema).max(9).default([]),
   })
@@ -241,6 +258,21 @@ export const PlanListResponseSchema = z.object({
 export const PublicCommercialPlansResponseSchema = z.object({
   plans: z.array(CommercialPlanPublicSchema),
   defaultTrialDays: z.number().int().nonnegative().max(3650),
+});
+
+export const CreatePlanBenefitRequestSchema = z
+  .object({
+    text: z.string().trim().min(1).max(160),
+    sortOrder: z.coerce.number().int().min(0).max(10_000).default(0),
+    enabled: z.boolean().default(true),
+  })
+  .strict();
+export const UpdatePlanBenefitRequestSchema = CreatePlanBenefitRequestSchema.partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, 'Informe ao menos uma alteração.');
+export const PlanBenefitResponseSchema = z.object({ benefit: PlanBenefitPublicSchema });
+export const PlanBenefitListResponseSchema = z.object({
+  items: z.array(PlanBenefitPublicSchema),
 });
 
 export const SubscriptionPublicSchema = z.object({
@@ -471,3 +503,5 @@ export type PlatformPermissionCode = z.infer<typeof PlatformPermissionCodeSchema
 export type CreateCommercialPlanRequest = z.infer<typeof CreateCommercialPlanRequestSchema>;
 export type UpdateCommercialPlanRequest = z.infer<typeof UpdateCommercialPlanRequestSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
+export type CreatePlanBenefitRequest = z.infer<typeof CreatePlanBenefitRequestSchema>;
+export type UpdatePlanBenefitRequest = z.infer<typeof UpdatePlanBenefitRequestSchema>;

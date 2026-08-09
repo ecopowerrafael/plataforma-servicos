@@ -90,12 +90,17 @@ export function PlanModule() {
     if (selected === null) return;
     const body = {
       name: value.name,
+      subtitle: value.subtitle ?? null,
+      shortDescription: value.shortDescription ?? null,
       description: value.description,
       billingCycle: value.billingCycle,
       priceCents: value.priceCents,
       currency: value.currency,
-      trialDays: value.trialDays,
+      trialDays: value.trialDays ?? null,
       isPublic: value.isPublic,
+      highlighted: value.highlighted,
+      badge: value.badge ?? null,
+      ctaText: value.ctaText ?? null,
       sortOrder: value.sortOrder,
       limits: value.limits,
     };

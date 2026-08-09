@@ -25,7 +25,7 @@ export function LoginPage() {
         if (availableTenant === undefined)
           throw new Error('O tenant disponível não foi encontrado.');
         selectTenant(availableTenant.tenant.publicId);
-        await navigate('/');
+        await navigate('/app');
       } else {
         await navigate('/select-tenant');
       }

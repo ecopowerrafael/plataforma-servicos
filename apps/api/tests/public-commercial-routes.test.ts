@@ -30,6 +30,8 @@ describe('planos comerciais públicos', () => {
       publicId: '11111111-1111-4111-8111-111111111111',
       code: 'ESSENCIAL',
       name: 'Essencial',
+      subtitle: 'Para quem está começando',
+      shortDescription: 'Agenda, clientes e financeiro básico em um só lugar.',
       description: 'Plano público configurado.',
       status: 'ACTIVE',
       billingCycle: 'MONTHLY',
@@ -38,7 +40,18 @@ describe('planos comerciais públicos', () => {
       trialDays: 7,
       isPublic: true,
       sortOrder: 1,
+      highlighted: false,
+      badge: null,
+      ctaText: null,
       limits: [],
+      benefits: [
+        {
+          publicId: '22222222-2222-4222-8222-222222222222',
+          text: 'Agenda online',
+          sortOrder: 1,
+          enabled: true,
+        },
+      ],
       createdAt: '2026-08-09T12:00:00.000Z',
       updatedAt: '2026-08-09T12:00:00.000Z',
     });

@@ -1,11 +1,14 @@
 import {
   ChangePlanRequestSchema,
   CreateCommercialPlanRequestSchema,
+  CreatePlanBenefitRequestSchema,
   CreatePlatformTenantRequestSchema,
   CreateSubscriptionRequestSchema,
   DashboardQuerySchema,
   ExtendTrialRequestSchema,
   PaginationQuerySchema,
+  PlanBenefitListResponseSchema,
+  PlanBenefitResponseSchema,
   PlanListQuerySchema,
   PlanListResponseSchema,
   PlatformAuditQuerySchema,
@@ -31,6 +34,7 @@ import {
   UpdateTenantTerminologyRequestSchema,
   UpdateTenantFeaturesRequestSchema,
   UpdateCommercialPlanRequestSchema,
+  UpdatePlanBenefitRequestSchema,
   UpdatePlatformTenantRequestSchema,
   TenantCommercialPolicySchema,
   UpdateTenantCommercialPolicyRequestSchema,
@@ -344,6 +348,74 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         return { success: true } as const;
       },
     );
+
+  app.get(
+    '/platform/plans/:publicId/benefits',
+    { schema: { params: PublicIdParamsSchema, response: { 200: PlanBenefitListResponseSchema } } },
+    (request) => {
+      allow(request, 'platform.plan.read');
+      return options.service.listPlanBenefits(request.params.publicId);
+    },
+  );
+  app.post(
+    '/platform/plans/:publicId/benefits',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      schema: {
+        params: PublicIdParamsSchema,
+        body: CreatePlanBenefitRequestSchema,
+        response: { 201: PlanBenefitResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      allow(request, 'platform.plan.update');
+      return reply
+        .status(201)
+        .send(
+          await options.service.createPlanBenefit(
+            request.params.publicId,
+            request.body,
+            request.platformAuth,
+            requestMetadata(request),
+          ),
+        );
+    },
+  );
+  app.patch(
+    '/platform/plan-benefits/:publicId',
+    {
+      schema: {
+        params: PublicIdParamsSchema,
+        body: UpdatePlanBenefitRequestSchema,
+        response: { 200: PlanBenefitResponseSchema },
+      },
+    },
+    (request) => {
+      allow(request, 'platform.plan.update');
+      return options.service.updatePlanBenefit(
+        request.params.publicId,
+        request.body,
+        request.platformAuth,
+        requestMetadata(request),
+      );
+    },
+  );
+  app.delete(
+    '/platform/plan-benefits/:publicId',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      schema: { params: PublicIdParamsSchema, response: { 200: SuccessResponseSchema } },
+    },
+    async (request) => {
+      allow(request, 'platform.plan.update');
+      await options.service.deletePlanBenefit(
+        request.params.publicId,
+        request.platformAuth,
+        requestMetadata(request),
+      );
+      return { success: true } as const;
+    },
+  );
 
   app.get(
     '/platform/subscriptions',

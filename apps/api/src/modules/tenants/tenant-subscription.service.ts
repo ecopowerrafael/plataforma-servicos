@@ -35,7 +35,7 @@ export class TenantSubscriptionService {
 
     const plan = await this.client.commercialPlan.findUniqueOrThrow({
       where: { id: subscription.planId },
-      include: { limits: true },
+      include: { limits: true, benefits: { where: { enabled: true }, orderBy: { sortOrder: 'asc' } } },
     });
 
     const usageByKey = await this.usageByKey(

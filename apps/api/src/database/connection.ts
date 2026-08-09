@@ -77,6 +77,8 @@ import { PrismaBusinessUnitDateOverridesRepository } from '../modules/tenants/bu
 import { BusinessUnitDateOverridesService } from '../modules/tenants/business-unit-date-overrides.service.js';
 import { PrismaBusinessUnitOperatingHoursRepository } from '../modules/tenants/business-unit-operating-hours.repository.js';
 import { BusinessUnitOperatingHoursService } from '../modules/tenants/business-unit-operating-hours.service.js';
+import { MultiUnitRepository } from '../modules/tenants/multi-unit.repository.js';
+import { MultiUnitService } from '../modules/tenants/multi-unit.service.js';
 import { PrismaTenantRepository } from '../modules/tenants/prisma-tenant.repository.js';
 import { TenantExperienceResolver } from '../modules/tenants/tenant-experience.resolver.js';
 import { LocalTenantMediaStorage } from '../modules/tenants/tenant-media.storage.js';
@@ -110,6 +112,7 @@ export interface DatabaseConnection {
   readonly professionalUnavailabilities?: ProfessionalUnavailabilityService;
   readonly businessUnitOperatingHours?: BusinessUnitOperatingHoursService;
   readonly businessUnitDateOverrides?: BusinessUnitDateOverridesService;
+  readonly multiUnit?: MultiUnitService;
   readonly tenantExperience?: TenantExperienceResolver;
   readonly tenantWhiteLabel?: TenantWhiteLabelService;
   readonly tenantSubscription?: TenantSubscriptionService;
@@ -322,6 +325,7 @@ export function createDatabaseConnection(
     businessUnitDateOverrides: new BusinessUnitDateOverridesService(
       new PrismaBusinessUnitDateOverridesRepository(client),
     ),
+    multiUnit: new MultiUnitService(new MultiUnitRepository(client)),
     tenantExperience: new TenantExperienceResolver(client),
     tenantWhiteLabel: tenantWhiteLabel,
     tenantSubscription: new TenantSubscriptionService(client),

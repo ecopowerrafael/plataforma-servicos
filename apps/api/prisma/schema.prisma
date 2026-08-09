@@ -441,25 +441,39 @@ model RolePermission {
 }
 
 model TenantMembership {
-  id        BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId  String           @unique @map("public_id") @db.Char(36)
-  tenantId  BigInt           @map("tenant_id") @db.UnsignedBigInt
-  userId    BigInt           @map("user_id") @db.UnsignedBigInt
-  roleId    BigInt           @map("role_id") @db.UnsignedBigInt
-  status    MembershipStatus @default(INVITED)
-  isOwner   Boolean          @default(false) @map("is_owner")
-  joinedAt  DateTime?        @map("joined_at") @db.DateTime(3)
-  createdAt DateTime         @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt DateTime         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  role      Role             @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id        BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId  String                 @unique @map("public_id") @db.Char(36)
+  tenantId  BigInt                 @map("tenant_id") @db.UnsignedBigInt
+  userId    BigInt                 @map("user_id") @db.UnsignedBigInt
+  roleId    BigInt                 @map("role_id") @db.UnsignedBigInt
+  status    MembershipStatus       @default(INVITED)
+  isOwner   Boolean                @default(false) @map("is_owner")
+  allUnits  Boolean                @default(true) @map("all_units")
+  joinedAt  DateTime?              @map("joined_at") @db.DateTime(3)
+  createdAt DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime               @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant    Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  role      Role                   @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  units     TenantMembershipUnit[]
 
   @@unique([tenantId, userId])
   @@index([userId, status])
   @@index([tenantId, status])
   @@index([roleId])
   @@map("tenant_memberships")
+}
+
+model TenantMembershipUnit {
+  membershipId BigInt           @map("membership_id") @db.UnsignedBigInt
+  unitId       BigInt           @map("unit_id") @db.UnsignedBigInt
+  createdAt    DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+  membership   TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  unit         BusinessUnit     @relation(fields: [unitId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([membershipId, unitId])
+  @@index([unitId])
+  @@map("tenant_membership_units")
 }
 
 model UserSession {
@@ -972,6 +986,7 @@ model BusinessUnit {
   appointments                 Appointment[]
   cashRegisters                CashRegister[]
   financialClosings            FinancialClosing[]
+  membershipUnits              TenantMembershipUnit[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])

@@ -334,6 +334,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
       include: {
         tenant: true,
         role: { include: { permissions: { include: { permission: true } } } },
+        units: { include: { unit: { select: { publicId: true } } } },
       },
     });
     if (membership === null) return null;
@@ -347,6 +348,9 @@ export class PrismaIdentityRepository implements IdentityRepository {
         roleCode: membership.role.code,
         permissions: membership.role.permissions.map(({ permission }) => permission.code),
         isOwner: membership.isOwner,
+        unitPublicIds: membership.allUnits
+          ? null
+          : membership.units.map(({ unit }) => unit.publicId),
       },
     };
   }
@@ -737,7 +741,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
         skip: (input.page - 1) * input.limit,
         take: input.limit,
         orderBy: [{ isOwner: 'desc' }, orderBy],
-        include: { user: true, role: true },
+        include: { user: true, role: true, units: { include: { unit: true } } },
       }),
     ]);
     return {
@@ -750,6 +754,9 @@ export class PrismaIdentityRepository implements IdentityRepository {
           isOwner: membership.isOwner,
           joinedAt: membership.joinedAt?.toISOString() ?? null,
           createdAt: membership.createdAt.toISOString(),
+          unitPublicIds: membership.allUnits
+            ? null
+            : membership.units.map(({ unit }) => unit.publicId),
         }),
       ),
       page: {
@@ -771,7 +778,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     return this.client.$transaction(async (transaction) => {
       const membership = await transaction.tenantMembership.findFirst({
         where: { tenantId, publicId: membershipPublicId },
-        include: { user: true, role: true },
+        include: { user: true, role: true, units: { include: { unit: true } } },
       });
       if (membership === null) return null;
       if (membership.isOwner) throw new IdentityConflictError('MEMBERSHIP');
@@ -782,19 +789,39 @@ export class PrismaIdentityRepository implements IdentityRepository {
               where: { code: request.roleCode, isSystem: true, tenantId: null },
             });
       if (role === null || role.code === 'OWNER') throw new IdentityConflictError('STRUCTURE');
+      const scopedUnits =
+        request.unitPublicIds === undefined || request.unitPublicIds === null
+          ? []
+          : await transaction.businessUnit.findMany({
+              where: { tenantId, publicId: { in: request.unitPublicIds } },
+              select: { id: true, publicId: true },
+            });
+      if (
+        request.unitPublicIds !== undefined &&
+        request.unitPublicIds !== null &&
+        scopedUnits.length !== new Set(request.unitPublicIds).size
+      )
+        throw new IdentityConflictError('STRUCTURE');
       const updated = await transaction.tenantMembership.update({
         where: { id: membership.id },
         data: {
           roleId: role.id,
           ...(request.status === undefined ? {} : { status: request.status }),
+          ...(request.unitPublicIds === undefined
+            ? {}
+            : {
+                allUnits: request.unitPublicIds === null,
+                units: { deleteMany: {}, create: scopedUnits.map((unit) => ({ unitId: unit.id })) },
+              }),
         },
-        include: { user: true, role: true },
+        include: { user: true, role: true, units: { include: { unit: true } } },
       });
       const actions: string[] = [];
       if (request.roleCode !== undefined) actions.push('membership.role_changed');
       if (request.status === 'SUSPENDED') actions.push('membership.suspended');
       if (request.status === 'ACTIVE') actions.push('membership.reactivated');
       if (request.status === 'INACTIVE') actions.push('membership.inactivated');
+      if (request.unitPublicIds !== undefined) actions.push('membership.unit_scope_changed');
       for (const action of actions) {
         await transaction.auditLog.create({
           data: auditData({
@@ -818,6 +845,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
         isOwner: updated.isOwner,
         joinedAt: updated.joinedAt?.toISOString() ?? null,
         createdAt: updated.createdAt.toISOString(),
+        unitPublicIds: updated.allUnits ? null : updated.units.map(({ unit }) => unit.publicId),
       });
     });
   }

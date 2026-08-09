@@ -70,6 +70,7 @@ import { serviceVariationRoutes } from './modules/services/service-variation.rou
 import { serviceRoutes } from './modules/services/service.routes.js';
 import { businessUnitDateOverridesRoutes } from './modules/tenants/business-unit-date-overrides.routes.js';
 import { businessUnitOperatingHoursRoutes } from './modules/tenants/business-unit-operating-hours.routes.js';
+import { multiUnitRoutes } from './modules/tenants/multi-unit.routes.js';
 import { tenantSubscriptionRoutes } from './modules/tenants/tenant-subscription.routes.js';
 import {
   publicTenantWhiteLabelRoutes,
@@ -267,6 +268,13 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.businessUnitDateOverrides !== undefined) {
     await app.register(businessUnitDateOverridesRoutes, {
       service: options.database.businessUnitDateOverrides,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  }
+  if (options.database.multiUnit !== undefined) {
+    await app.register(multiUnitRoutes, {
+      service: options.database.multiUnit,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });

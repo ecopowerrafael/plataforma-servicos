@@ -26,6 +26,7 @@ import { DelinquencyModule } from '../components/tenants/DelinquencyModule.js';
 import { FinancialClosingModule } from '../components/tenants/FinancialClosingModule.js';
 import { FinancialReportModule } from '../components/tenants/FinancialReportModule.js';
 import { MembersModule } from '../components/tenants/MembersModule.js';
+import { MultiUnitOverviewModule } from '../components/tenants/MultiUnitOverviewModule.js';
 import { NotificationLogModule } from '../components/tenants/NotificationLogModule.js';
 import { NotificationTemplateModule } from '../components/tenants/NotificationTemplateModule.js';
 import { OperationsDashboardModule } from '../components/tenants/OperationsDashboardModule.js';
@@ -110,6 +111,8 @@ export function HomePage() {
   const canManageUnits =
     (me.data?.currentTenant?.membership.permissions.includes('unit.create') ?? false) ||
     (me.data?.currentTenant?.membership.permissions.includes('unit.update') ?? false);
+  const canReadUnits =
+    me.data?.currentTenant?.membership.permissions.includes('unit.read') ?? false;
   const canFitIn =
     me.data?.currentTenant?.membership.permissions.includes('appointment.fit_in.manage') ?? false;
   const canCheckIn =
@@ -214,6 +217,7 @@ export function HomePage() {
             canUpdate={canUpdateTenantSettings}
           />
           <UnitsModule tenantPublicId={selectedTenant} canManage={canManageUnits} />
+          {canReadUnits && <MultiUnitOverviewModule tenantPublicId={selectedTenant} />}
           {canViewSubscription && <TenantSubscriptionModule tenantPublicId={selectedTenant} />}
           {canViewOperations && <OperationsDashboardModule tenantPublicId={selectedTenant} />}
           {canReadPayments && (

@@ -49,6 +49,7 @@ export interface AuthorizedTenantContext extends Omit<AuthenticatedTenant['tenan
     roleCode: string;
     permissions: string[];
     isOwner: boolean;
+    unitPublicIds?: string[] | null;
   };
 }
 

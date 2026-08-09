@@ -15,7 +15,7 @@ ETAPAS
 14 Financeiro: PARCIAL
 15 Fidelização: não iniciada
 16 Estoque e produtos: não iniciada
-17 Recursos avançados: PARCIAL (relatórios avançados, automações e recuperação de clientes integrados; lista de espera, multiunidade avançada, domínio próprio/subdomínios, WhatsApp oficial e integrações externas ainda pendentes)
+17 Recursos avançados: PARCIAL (relatórios avançados, automações, recuperação de clientes e multiunidade avançada integrados; lista de espera, domínio próprio/subdomínios, WhatsApp oficial e integrações externas ainda pendentes)
 18: não iniciada
 
 ETAPA ATUAL
@@ -171,4 +171,6 @@ Já existe (Etapa 17 — PARCIAL):
 
 \- testes: novo teste unitário customer-recovery.service.test.ts (função pura birthdayMatches, sem dependência de banco) e o teste pré-existente notification-template-mysql-integration.test.ts atualizado (a lista de tipos de notificação padrão passou de 3 para 8 com a adição dos 5 tipos de recuperação de clientes — mudança de contagem esperada, não uma regressão). Regressão direcionada executada (arquivos isolados): customer-recovery.service (1/1), appointment-operations-mysql-integration (4/4), notification-mysql-integration, notification-template-mysql-integration (4/4), push-notification-mysql-integration, tenant-payment-options-mysql-integration (14/14) e payment-gateway-mysql-integration (11/11) — 54 testes no total, todos passando, confirmando que a integração do commit paralelo não quebrou nenhum fluxo financeiro da Etapa 14 nem os fluxos de notificação já existentes. npx prisma migrate status: "Database schema is up to date!", 44 migrations aplicadas (as 2 novas desta rodada mais as 42 já existentes).
 
-\- pendências reais restantes da Etapa 17 (não implementadas nesta rodada, por instrução explícita do usuário): lista de espera (existe uma branch paralela paralelo-etapa17-waitlist no repositório remoto, deliberadamente não integrada nesta rodada); recursos avançados de multiunidade; domínio próprio; subdomínios; WhatsApp oficial; integrações externas.
+\- recursos avançados de multiunidade: escopo opcional de unidades por vínculo de membro (`TenantMembershipUnit`, migration `20260809050000_add_membership_unit_scope`), mantendo acesso global como padrão retrocompatível e permitindo restringir um membro a uma lista explícita — inclusive lista vazia. A resolução autenticada do tenant carrega o escopo real e as rotas de unidades ocultam/recusam unidades fora dele com resposta 404, sem revelar dados de outra unidade. A administração de membros permite selecionar as unidades autorizadas. Nova visão comparativa `GET /tenant/multi-unit/overview`, sob `unit.read`, agrega por unidade acessível atendimentos totais/concluídos, receita concluída pelo snapshot real `priceCents`, clientes vinculados e profissionais ativos, sempre filtrando `tenantId` e o escopo do membro. Frontend: `MultiUnitOverviewModule` exibe o comparativo do mês corrente. Testes unitários cobrem acesso global, unidade autorizada, unidade não autorizada e escopo vazio. Relatórios, agenda, profissionais e unidades existentes foram reutilizados; nenhum sistema paralelo foi criado.
+
+\- pendências reais restantes da Etapa 17: lista de espera (branch paralela `paralelo-etapa17-waitlist`, deliberadamente não tocada); domínio próprio; subdomínios; WhatsApp oficial; integrações externas.

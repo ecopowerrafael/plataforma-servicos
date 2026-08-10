@@ -6,10 +6,11 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  retriedChunk: boolean;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public override state: ErrorBoundaryState = { hasError: false };
+  public override state: ErrorBoundaryState = { hasError: false, retriedChunk: false };
 
   public static getDerivedStateFromError(): ErrorBoundaryState {
     return { hasError: true };
@@ -29,7 +30,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 window.location.reload();
               }}
             >
-              Recarregar
+              Atualizar página
             </button>
           </section>
         </main>

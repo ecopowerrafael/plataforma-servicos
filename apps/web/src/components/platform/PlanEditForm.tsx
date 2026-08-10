@@ -98,6 +98,7 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
         { key: 'services.max', valueType: 'INTEGER', integerValue: 1 },
         { key: 'monthly_appointments.max', valueType: 'INTEGER', integerValue: null },
         { key: 'custom_domain.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'branding.customization.enabled', valueType: 'BOOLEAN', booleanValue: false },
       ],
     };
   }
@@ -126,7 +127,7 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
     badge: plan.badge ?? undefined,
     ctaText: plan.ctaText ?? undefined,
     sortOrder: plan.sortOrder,
-    limits: (['units.max', 'professionals.max', 'members.max', 'services.max', 'monthly_appointments.max', 'custom_domain.enabled'] as const).map((key) => {
+    limits: (['units.max', 'professionals.max', 'members.max', 'services.max', 'monthly_appointments.max', 'custom_domain.enabled', 'branding.customization.enabled'] as const).map((key) => {
       const limit = plan.limits.find((item) => item.key === key);
       return key === 'custom_domain.enabled'
         ? { key, valueType: 'BOOLEAN' as const, booleanValue: limit?.booleanValue ?? false }

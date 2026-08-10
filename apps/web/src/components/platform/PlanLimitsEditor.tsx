@@ -41,6 +41,12 @@ export function PlanLimitsEditor() {
           <input {...register('limits.5.booleanValue')} type="checkbox" />
           Domínio próprio
         </label>
+        <label className="feature-switch">
+          <input type="hidden" {...register('limits.6.key')} />
+          <input type="hidden" {...register('limits.6.valueType')} />
+          <input {...register('limits.6.booleanValue')} type="checkbox" />
+          Personalização da marca
+        </label>
       </fieldset>
     </>
   );

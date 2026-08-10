@@ -80,7 +80,11 @@ export async function registerStaticWeb(
     // index.html precisa revalidar para que novos deploys sejam vistos.
     setHeaders(reply, path) {
       if (path.endsWith('index.html')) {
-        reply.setHeader('cache-control', 'no-cache');
+        reply.setHeader('cache-control', 'no-store, max-age=0, must-revalidate');
+      } else if (/[/\\]assets[/\\].+\.[a-zA-Z0-9_-]{8,}\.(?:js|css|svg|png|webp|woff2?)$/u.test(path)) {
+        reply.setHeader('cache-control', 'public, max-age=31536000, immutable');
+      } else {
+        reply.setHeader('cache-control', 'public, max-age=300');
       }
     },
   });

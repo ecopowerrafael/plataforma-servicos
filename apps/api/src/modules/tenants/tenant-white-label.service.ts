@@ -17,6 +17,7 @@ import { type TenantMediaStorage } from './tenant-media.storage.js';
 import { type TenantWhiteLabelRepository } from './tenant-white-label.repository.js';
 import { type PrismaClient, type TenantMediaKind } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { PlanEntitlementService } from './plan-entitlement.service.js';
 import { type TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
 import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
 import { type ServiceImageStorage } from '../services/service-image.storage.js';
@@ -148,6 +149,8 @@ export class TenantWhiteLabelService {
     input: { [Key in keyof TenantBranding]?: TenantBranding[Key] | undefined },
     actor: Actor,
   ) {
+    if (this.commercialClient !== undefined)
+      await new PlanEntitlementService().assertFeatureEnabledForTenant(this.commercialClient, tenantId, 'branding.customization.enabled');
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
 
@@ -212,6 +215,8 @@ export class TenantWhiteLabelService {
     actor: Actor,
     altText?: string | null,
   ) {
+    if (this.commercialClient !== undefined)
+      await new PlanEntitlementService().assertFeatureEnabledForTenant(this.commercialClient, tenantId, 'branding.customization.enabled');
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
     const publicId = randomUUID();
@@ -261,6 +266,8 @@ export class TenantWhiteLabelService {
   }
 
   public async updateSite(tenantId: bigint, input: UpdateTenantPublicSiteRequest, actor: Actor) {
+    if (this.commercialClient !== undefined)
+      await new PlanEntitlementService().assertFeatureEnabledForTenant(this.commercialClient, tenantId, 'branding.customization.enabled');
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
     const site = await this.repository.upsertSite(tenantId, {

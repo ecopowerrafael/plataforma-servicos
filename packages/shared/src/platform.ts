@@ -61,6 +61,7 @@ export const PlanLimitKeys = [
   'professionals.max',
   'services.max',
   'monthly_appointments.max',
+  'branding.customization.enabled',
   'custom_domain.enabled',
 ] as const;
 export const PlanLimitKeySchema = z.enum(PlanLimitKeys);
@@ -70,6 +71,7 @@ export const PlanLimitCatalog = {
   'professionals.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'services.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'monthly_appointments.max': { valueType: 'INTEGER', allowsUnlimited: true },
+  'branding.customization.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
   'custom_domain.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
 } as const satisfies Record<
   (typeof PlanLimitKeys)[number],

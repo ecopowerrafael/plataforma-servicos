@@ -1,4 +1,4 @@
-import { type Prisma } from '../../database-client/client.js';
+import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
 type Transaction = Prisma.TransactionClient;
@@ -33,7 +33,7 @@ export class PlanEntitlementService {
   public async assertFeatureEnabled(
     transaction: Transaction,
     tenantId: bigint,
-    key: 'custom_domain.enabled',
+    key: 'custom_domain.enabled' | 'branding.customization.enabled',
   ): Promise<void> {
     await this.lockTenant(transaction, tenantId);
     const subscription = await transaction.tenantSubscription.findFirst({
@@ -46,6 +46,19 @@ export class PlanEntitlementService {
       message: 'Este recurso não está disponível no seu plano.',
       statusCode: 403,
     });
+  }
+
+  public async assertFeatureEnabledForTenant(
+    client: PrismaClient,
+    tenantId: bigint,
+    key: 'custom_domain.enabled' | 'branding.customization.enabled',
+  ): Promise<void> {
+    const subscription = await client.tenantSubscription.findFirst({
+      where: { tenantId, effectiveKey: 'EFFECTIVE' },
+      include: { plan: { include: { limits: { where: { key } } } } },
+    });
+    if (subscription?.plan.limits[0]?.booleanValue === true) return;
+    throw new AppError({ code: 'PLAN_FEATURE_UNAVAILABLE', message: 'Este recurso não está disponível no seu plano.', statusCode: 403 });
   }
 
   private async assertLimit(

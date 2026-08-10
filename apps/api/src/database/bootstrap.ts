@@ -4,6 +4,8 @@ import { config } from 'dotenv';
 
 import { createPrismaClient } from './connection.js';
 import { buildDatabaseUrl } from '../config/database-url.js';
+import { PasswordService } from '../modules/auth/password.service.js';
+import { PlatformService } from '../modules/platform/platform.service.js';
 
 // Carrega o .env local (desenvolvimento) sem exigir a validação completa do
 // ambiente da aplicação — o bootstrap precisa apenas da conexão com o banco,
@@ -332,6 +334,32 @@ async function bootstrap(): Promise<void> {
         skipDuplicates: true,
       });
     });
+
+    // Provisionamento idempotente do primeiro Super Admin durante o deploy,
+    // quando PLATFORM_ADMIN_EMAIL/PLATFORM_ADMIN_PASSWORD estão presentes. Cria o
+    // usuário (senha só como hash argon2) se não existir e o promove a
+    // PLATFORM_ADMIN; se já existir, não altera a senha. A senha nunca é logada.
+    const adminEmail = process.env.PLATFORM_ADMIN_EMAIL?.trim();
+    const adminPassword = process.env.PLATFORM_ADMIN_PASSWORD;
+    if (
+      adminEmail !== undefined &&
+      adminEmail.length > 0 &&
+      adminPassword !== undefined &&
+      adminPassword.length > 0
+    ) {
+      const platform = new PlatformService(client);
+      const passwords = new PasswordService({
+        memoryCost: Number(process.env.PASSWORD_ARGON2_MEMORY_COST) || 65_536,
+        timeCost: Number(process.env.PASSWORD_ARGON2_TIME_COST) || 3,
+        parallelism: Number(process.env.PASSWORD_ARGON2_PARALLELISM) || 1,
+      });
+      const result = await platform.ensureInitialAdministrator({
+        email: adminEmail,
+        hashPassword: () => passwords.hash(adminPassword),
+        metadata: { ipAddress: null, userAgent: 'bootstrap-platform-admin-provisioning' },
+      });
+      process.stdout.write(`Administrador da plataforma provisionado: ${result} (${adminEmail})\n`);
+    }
   } finally {
     await client.$disconnect();
   }

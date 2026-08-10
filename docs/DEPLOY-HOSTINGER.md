@@ -8,13 +8,26 @@ removida.
 
 ## Requisitos
 
-- **Node.js 22** (defina a versão 22 no painel Node da Hostinger; o projeto
-  fixa `engines.node >= 22.0.0` e traz um `.nvmrc` com `22`). Uma dependência do
-  Prisma exige Node 22; versões anteriores (ex.: 20.19) falham no build.
+- **Node.js**: recomendado **22** (LTS); **mínimo suportado 20.19** — que é o
+  que as dependências reais de build/runtime exigem (`@prisma/client`, `prisma`,
+  `vite` declaram `^20.19 || ^22.12 || >=24`). O projeto fixa
+  `engines.node >= 20.19.0` e traz um `.nvmrc` com `22` (preferência). **Não é
+  necessário Node 22** para o build funcionar — a Hostinger pode buildar em
+  20.19.x. (Há um único pacote, `@prisma/streams-local`, que declara `>=22`, mas
+  ele **não** é usado no build/generate/runtime da API — é apenas um aviso
+  `EBADENGINE` não-fatal, já que o projeto não usa `engine-strict`.)
+  Se o painel oferecer Node 22, selecione-o; se só houver 20.19, também funciona.
 - MySQL da Hostinger (criado no hPanel).
-- O **build precisa das devDependencies** (TypeScript, Prisma CLI, Vite, `@types/*`).
-  Se o ambiente estiver em modo produção, force a inclusão delas no install
-  (ver seção 2) — senão o build falha com "módulo/tipagens ausentes".
+- **As ferramentas de build ficam em `dependencies`** (TypeScript, Prisma CLI,
+  Vite, `@types/*` usados na compilação), então o build **funciona mesmo com um
+  `npm install` em modo produção** — não depende de o painel instalar
+  devDependencies. As devDependencies restantes (ESLint, Vitest, tsx) são só
+  para desenvolvimento/testes.
+- **Geração do Prisma Client é automática no build:** os scripts `build` e
+  `typecheck` da API rodam `prisma generate` como `pre`-hook, então o cliente em
+  `apps/api/src/database-client` (não versionado) é gerado antes de qualquer
+  `tsc`, **independentemente do comando** que o painel executar (`npm run build`
+  ou `npm run build:deploy`).
 
 ## Modelo adotado: single-origin (uma aplicação só)
 
@@ -60,14 +73,13 @@ No painel Node da Hostinger, configure o **Build command** (ou rode via SSH na
 raiz do projeto, uma vez, após cada envio de código):
 
 ```bash
-npm ci --include=dev && npm run build:deploy
+npm install && npm run build:deploy
 ```
 
-- `npm ci --include=dev` — instala dependências de todos os workspaces a partir
-  do `package-lock.json`. O `--include=dev` garante que **devDependencies**
-  (TypeScript, Prisma CLI, Vite, `@types/*`) sejam instaladas mesmo se o
-  ambiente estiver com `NODE_ENV=production` — elas são necessárias **só no
-  build**. (Se `npm ci` não estiver disponível, use `npm install --include=dev`.)
+- `npm install` — instala dependências de todos os workspaces. As ferramentas
+  de build ficam em `dependencies`, então **mesmo um install em modo produção**
+  traz tudo o que o build precisa (TypeScript, Prisma CLI, Vite, `@types/*`).
+  (Se preferir, `npm ci` também funciona.)
 - `npm run build:deploy` — roda, **nesta ordem**: `prisma generate` (gera o
   Prisma Client em `apps/api/src/database-client`, que **não** é versionado) e
   depois compila **shared → api → web** (`packages/shared`, `apps/api` →
@@ -294,11 +306,12 @@ clientes e a varredura comercial de assinaturas continuam sendo processados.
 - **Ferramentas de backup por linha de comando** (`mysqldump`/`mysql`) podem não
   estar no `PATH` — use os backups do hPanel como alternativa.
 - **Limite de conexões MySQL:** mantenha `DB_CONNECTION_LIMIT` baixo (seção 5).
-- **Versão do Node:** use **Node 22** no painel (versões anteriores, ex.: 20.19,
-  falham no build por causa de uma dependência do Prisma que exige Node 22).
-- **DevDependencies no build:** o build precisa de TypeScript/Prisma/Vite/`@types`
-  (devDependencies). Instale com `--include=dev` (seção 2) — em modo produção o
-  `npm ci`/`npm install` as omitiria e o build falharia.
+- **Versão do Node:** recomendado **Node 22**; **20.19.x também funciona** (é o
+  mínimo que as dependências exigem). O aviso `EBADENGINE` de `@prisma/streams-local`
+  (`>=22`) é não-fatal e não afeta o build/runtime da API.
+- **Ferramentas de build em `dependencies`:** TypeScript/Prisma CLI/Vite/`@types`
+  de build ficam em `dependencies` (não em devDependencies), então o build
+  funciona com qualquer modo de install do painel — inclusive produção.
 - **Recursos de CPU/RAM restritos:** se houver erro de memória no hash de senha,
   reduza `PASSWORD_ARGON2_MEMORY_COST` (mínimo 19456).
 
@@ -310,7 +323,8 @@ periódicas).
 
 ## 10. Checklist de primeiro deploy
 
-1. Definir **Node 22** no painel Node da Hostinger.
+1. No painel Node da Hostinger, selecionar **Node 22** (recomendado) ou, se não
+   houver, deixar em **20.19.x** — ambos funcionam.
 2. Criar banco MySQL no hPanel e anotar host/porta/nome/usuário/senha (para as
    variáveis `DB_*` — **não** é preciso `DATABASE_URL`).
 3. Enviar o código (sem `node_modules`/`.env`/`dist`).

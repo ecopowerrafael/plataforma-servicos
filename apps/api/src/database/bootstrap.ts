@@ -1,5 +1,15 @@
+import { resolve } from 'node:path';
+
+import { config } from 'dotenv';
+
 import { createPrismaClient } from './connection.js';
-import { loadEnvironment } from '../config/environment.js';
+import { buildDatabaseUrl } from '../config/database-url.js';
+
+// Carrega o .env local (desenvolvimento) sem exigir a validação completa do
+// ambiente da aplicação — o bootstrap precisa apenas da conexão com o banco,
+// construída a partir de DB_*/DATABASE_URL. Assim ele roda com segurança no
+// passo de build/deploy (onde nem todas as variáveis da API estão presentes).
+config({ path: resolve(import.meta.dirname, '../../../../.env'), quiet: true });
 
 const permissions = [
   ['tenant.read', 'Consultar dados do estabelecimento.'],
@@ -256,8 +266,13 @@ const platformPermissions = [
 ] as const;
 
 async function bootstrap(): Promise<void> {
-  const environment = loadEnvironment();
-  const client = createPrismaClient(environment.DATABASE_URL);
+  const databaseUrl = buildDatabaseUrl(process.env);
+  if (databaseUrl === undefined) {
+    throw new Error(
+      'Configuração de banco ausente: defina DATABASE_URL ou DB_NAME/DB_USER/DB_PASSWORD.',
+    );
+  }
+  const client = createPrismaClient(databaseUrl);
   try {
     await client.$transaction(async (transaction) => {
       for (const [code, description] of permissions) {

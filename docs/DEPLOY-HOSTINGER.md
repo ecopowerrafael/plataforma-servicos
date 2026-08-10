@@ -21,13 +21,26 @@ removida.
 - **As ferramentas de build ficam em `dependencies`** (TypeScript, Prisma CLI,
   Vite, `@types/*` usados na compilação), então o build **funciona mesmo com um
   `npm install` em modo produção** — não depende de o painel instalar
-  devDependencies. As devDependencies restantes (ESLint, Vitest, tsx) são só
-  para desenvolvimento/testes.
+  devDependencies. As devDependencies restantes (ESLint, Vitest) são só para
+  desenvolvimento/testes.
 - **Geração do Prisma Client é automática no build:** os scripts `build` e
   `typecheck` da API rodam `prisma generate` como `pre`-hook, então o cliente em
   `apps/api/src/database-client` (não versionado) é gerado antes de qualquer
-  `tsc`, **independentemente do comando** que o painel executar (`npm run build`
-  ou `npm run build:deploy`).
+  `tsc`, **independentemente do comando** que o painel executar.
+
+## Resumo dos comandos (para o painel Web App da Hostinger)
+
+| Campo | Valor |
+| --- | --- |
+| **Build command** | `npm run build:hostinger` |
+| **Start command** | `npm run start` |
+| **Node version** | `22` (recomendado; mínimo 20.19) |
+| **Root directory** | `./` |
+| **Output directory** | *(vazio — a API serve o frontend)* |
+| **Entry file** (se o painel pedir) | `apps/api/dist/server.js` |
+
+`build:hostinger` **aplica migrations e bootstrap automaticamente** durante o
+deploy — não é necessário nenhum comando por SSH. Detalhes na seção 2.
 
 ## Modelo adotado: single-origin (uma aplicação só)
 
@@ -73,18 +86,33 @@ No painel Node da Hostinger, configure o **Build command** (ou rode via SSH na
 raiz do projeto, uma vez, após cada envio de código):
 
 ```bash
-npm install && npm run build:deploy
+npm run build:hostinger
 ```
 
-- `npm install` — instala dependências de todos os workspaces. As ferramentas
-  de build ficam em `dependencies`, então **mesmo um install em modo produção**
-  traz tudo o que o build precisa (TypeScript, Prisma CLI, Vite, `@types/*`).
-  (Se preferir, `npm ci` também funciona.)
-- `npm run build:deploy` — roda, **nesta ordem**: `prisma generate` (gera o
-  Prisma Client em `apps/api/src/database-client`, que **não** é versionado) e
-  depois compila **shared → api → web** (`packages/shared`, `apps/api` →
-  `apps/api/dist`, `apps/web` → `apps/web/dist`). O `prisma generate` roda
-  **antes** de qualquer TypeScript que importe `database-client/client.js`.
+(o painel roda `npm install` antes do build command automaticamente; se quiser
+explicitar: `npm ci && npm run build:hostinger`.)
+
+`build:hostinger` é **autossuficiente** e executa, **nesta ordem exata**,
+falhando o deploy inteiro se qualquer passo falhar (sem mascarar erro):
+
+1. `prisma generate` — gera o Prisma Client (`apps/api/src/database-client`, não
+   versionado) **antes** de qualquer TypeScript que o importe.
+2. build **shared** (`@plataforma/shared`) — necessário antes do bootstrap, que
+   importa esse pacote.
+3. `prisma migrate deploy` — aplica **apenas as migrations pendentes** já
+   versionadas (nunca `migrate dev`/`db push`/reset). Se não houver pendentes,
+   segue normalmente.
+4. `db:bootstrap` — semeia papéis/permissões/roles globais de forma
+   **idempotente** (só `upsert`/`skipDuplicates`; nada é duplicado a cada deploy).
+5. build **api** e **web**.
+
+Migrations (passo 2) e bootstrap (passo 3) usam a conexão montada a partir das
+variáveis `DB_*` (não exigem `DATABASE_URL`; a senha nunca é impressa em log).
+As ferramentas de build ficam em `dependencies`, então funciona mesmo com
+install em modo produção.
+
+> **Você não precisa rodar `npm run db:migrate` nem `npm run db:bootstrap`
+> manualmente por SSH.** O deploy pelo GitHub já faz isso automaticamente.
 
 > ⚠️ O `prisma generate` **não** exige `DATABASE_URL`: a URL é montada a partir
 > das variáveis `DB_*` (seção 4/5). Configure-as (ou a `.env`) antes do build.
@@ -93,19 +121,9 @@ npm install && npm run build:deploy
 > ambiente **no momento do build** (ela é embutida no bundle). Garanta que o
 > `.env` de produção já exista antes de buildar o web. Veja a seção 4.
 
-Migrações do banco (rode após o build, sempre que houver migrações novas):
-
-```bash
-npm run db:migrate
-```
-
-Primeiro deploy — criar o administrador da plataforma (Super Admin) e/ou dados
-iniciais, se aplicável ao seu fluxo:
-
-```bash
-npm run db:bootstrap --workspace=@plataforma/api        # se o projeto usar seed
-npm run platform-admin:create --workspace=@plataforma/api
-```
+As migrações do banco e o bootstrap **já rodam dentro de `build:hostinger`** a
+cada deploy — não é preciso executá-los à parte. Para criar o primeiro Super
+Admin, veja a seção 11.
 
 ---
 
@@ -196,15 +214,11 @@ necessário. A lista completa comentada está em `.env.production.example`.
    automaticamente, então caracteres especiais na senha funcionam sem ajuste.
    - Em plano compartilhado, mantenha `DB_CONNECTION_LIMIT` **baixo** (3–5) para
      não estourar o limite de conexões da conta.
-3. Aplique o schema com as migrações (não use `db push` em produção):
-   ```bash
-   npm run db:migrate
-   ```
-   Isso roda `prisma migrate deploy` (aplica as migrações versionadas do
-   projeto, sem shadow database — compatível com usuários MySQL sem permissão
-   para criar bancos temporários). O comando **também** usa as variáveis `DB_*`
-   (via `prisma.config.ts`) — não é preciso `DATABASE_URL` para migrar. O mesmo
-   vale para `npm run db:generate`.
+3. O schema é aplicado **automaticamente no deploy** por `build:hostinger`
+   (`prisma migrate deploy` — só migrations pendentes, sem shadow database, sem
+   `db push`/reset), usando as variáveis `DB_*` (não precisa `DATABASE_URL`). O
+   bootstrap de papéis/permissões roda em seguida, de forma idempotente. Você
+   **não** precisa rodar nada disso manualmente.
 4. Backups: o projeto já traz utilitários em `docs/database-backups.md`
    (`npm run db:backup` etc.), que dependem dos clientes `mysqldump`/`mysql` no
    `PATH`. Em hospedagem compartilhada eles podem não estar disponíveis — nesse
@@ -336,13 +350,13 @@ periódicas).
 3. Enviar o código (sem `node_modules`/`.env`/`dist`).
 4. Criar o `.env` de produção a partir de `.env.production.example` — com as
    `DB_*` e `VITE_API_URL` definidas **antes** do build.
-5. Build: `npm ci --include=dev && npm run build:deploy`.
-6. `npm run db:migrate` (e, no 1º deploy, criar o Super Admin).
-7. Definir start: `npm run start`; garantir `WEB_DIST_DIR=./apps/web/dist`.
-8. Apontar `agendei.site`/`www` + ativar HTTPS.
-9. Criar o cron `npm run worker:once` (seção 8).
-10. Validar: abrir o domínio (site carrega), `GET /health` responde `ok`,
-    `GET /ready` responde `ready` (banco conectado), login funciona.
+5. **Build command:** `npm run build:hostinger` (aplica migrations + bootstrap
+   automaticamente; não rode nada por SSH).
+6. **Start command:** `npm run start`.
+7. Apontar `agendei.site`/`www` + ativar HTTPS.
+8. Criar o Super Admin (seção 11) e o cron `npm run worker:once` (seção 8).
+9. Validar: abrir o domínio (site carrega), `GET /health` responde `ok`,
+   `GET /ready` responde `ready` (banco conectado), login em `/platform` funciona.
 
 ---
 
@@ -352,16 +366,12 @@ O painel de administração global (Super Admin) fica em **`/platform`** —
 ex.: `https://agendei.site/platform`. Ele **não** tem link no site comercial e é
 **distinto** dos sites públicos de tenant (`/public/:slug`).
 
-Para o primeiro acesso, é preciso: (1) o schema aplicado (`db:migrate`), (2) os
-papéis/permissões globais (`db:bootstrap`) e (3) um usuário Super Admin.
+O schema e os papéis/permissões globais (incluindo `PLATFORM_ADMIN`) já são
+aplicados automaticamente no deploy (migrations + bootstrap dentro de
+`build:hostinger`). Falta apenas provisionar o usuário Super Admin:
 
-1. **Migrations + bootstrap** (uma vez; rode via SSH, ou inclua temporariamente
-   no *Build command* se o build tiver acesso às variáveis `DB_*`):
-   ```bash
-   npm run db:migrate && npm run db:bootstrap
-   ```
-2. **Provisionar o Super Admin** de forma segura, por variáveis de ambiente
-   **temporárias** (a senha é gravada só como hash; nunca em texto puro):
+1. **Provisione o Super Admin** por variáveis de ambiente **temporárias** (a
+   senha é gravada só como hash; nunca em texto puro):
    - Defina no ambiente do Web App:
      - `PLATFORM_ADMIN_EMAIL=admin@agendei.site`
      - `PLATFORM_ADMIN_PASSWORD=<senha forte temporária>`
@@ -369,14 +379,7 @@ papéis/permissões globais (`db:bootstrap`) e (3) um usuário Super Admin.
      com esse e-mail, senha (hash) e o promove a `PLATFORM_ADMIN`. É idempotente:
      se já existir, não altera a senha.
    - Confira nos **Runtime logs**: `Provisionamento do administrador da plataforma concluído`.
-3. **Entre** em `https://agendei.site/platform` com o e-mail e a senha temporária.
-4. **Remova `PLATFORM_ADMIN_PASSWORD`** do ambiente (e reinicie). A conta continua
+2. **Entre** em `https://agendei.site/platform` com o e-mail e a senha temporária.
+3. **Remova `PLATFORM_ADMIN_PASSWORD`** do ambiente (e reinicie). A conta continua
    funcionando pelo hash já armazenado. Troque a senha pela área de conta quando
    possível.
-
-Alternativa (se preferir promover um usuário já existente por SSH):
-```bash
-npm run platform-admin:create --workspace=@plataforma/api -- --email admin@agendei.site
-```
-(esse comando exige que o usuário já exista; o fluxo por `PLATFORM_ADMIN_*` acima
-cria o usuário quando necessário).

@@ -4,10 +4,12 @@ import {
   HealthResponseSchema,
   SuccessResponseSchema,
   TenantExperienceResponseSchema,
+  TenantSubscriptionResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { z } from 'zod';
 
 import { AppointmentModule } from '../components/appointments/AppointmentModule.js';
 import { AppointmentWaitlistModule } from '../components/appointments/AppointmentWaitlistModule.js';
@@ -44,10 +46,11 @@ import { TenantSubscriptionModule } from '../components/tenants/TenantSubscripti
 import { UnitsModule } from '../components/tenants/UnitsModule.js';
 import { WhiteLabelModule } from '../components/tenants/WhiteLabelModule.js';
 import { HttpError, httpClient } from '../lib/http.js';
-import { clearSelectedTenant, readSelectedTenant } from '../lib/tenant-selection.js';
+import { clearSelectedTenant, readSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
 
 export function HomePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const selectedTenant = readSelectedTenant();
   const me = useQuery({
@@ -79,6 +82,23 @@ export function HomePage() {
     queryFn: () => httpClient.request('/auth/sessions', { schema: AuthSessionsResponseSchema }),
     retry: false,
   });
+  useEffect(() => {
+    const selection = new URLSearchParams(location.search);
+    const planPublicId = selection.get('plan');
+    const billingCycle = selection.get('billing');
+    if (planPublicId === null || billingCycle === null) return;
+    if (selectedTenant === undefined) {
+      if (me.data === undefined || me.data.tenants.length > 0) return;
+      void httpClient.request('/auth/onboarding', { method: 'POST', body: { name: me.data.user.email.split('@')[0] ?? 'Meu estabelecimento', planPublicId, billingCycle }, schema: z.object({ tenantPublicId: z.uuid() }) })
+        .then((result) => { selectTenant(result.tenantPublicId); return navigate('/app', { replace: true }); })
+        .catch(() => undefined);
+      return;
+    }
+    void httpClient.request('/tenant/subscription/select-plan', {
+      method: 'POST', tenantPublicId: selectedTenant,
+      body: { planPublicId, billingCycle }, schema: TenantSubscriptionResponseSchema,
+    }).then(() => navigate('/app', { replace: true })).catch(() => undefined);
+  }, [location.search, me.data, navigate, selectedTenant]);
   const finishSession = () => {
     clearSelectedTenant();
     queryClient.clear();

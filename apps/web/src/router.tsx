@@ -9,6 +9,7 @@ import { LoginPage } from './routes/LoginPage.js';
 import { NotFoundPage } from './routes/NotFoundPage.js';
 import { PlatformPageRebuild } from './routes/PlatformPageRebuild.js';
 import { PublicTenantPage } from './routes/PublicTenantPage.js';
+import { RegisterPage } from './routes/RegisterPage.js';
 import { ResetPasswordPage } from './routes/ResetPasswordPage.js';
 import { RootPage } from './routes/RootPage.js';
 import { SelectTenantPage } from './routes/SelectTenantPage.js';
@@ -52,6 +53,7 @@ export const router = createBrowserRouter([
   { path: '/planos', element: lazyPage(PricingPage) },
   { path: '/profissionais', element: lazyPage(ProfessionalPage) },
   { path: '/login', element: <LoginPage /> },
+  { path: '/cadastro', element: <RegisterPage /> },
   { path: '/app', element: <HomePage /> },
   { path: '/select-tenant', element: <SelectTenantPage /> },
   { path: '/forgot-password', element: <ForgotPasswordPage /> },

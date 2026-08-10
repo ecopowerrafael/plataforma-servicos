@@ -1,10 +1,12 @@
-import { type CommercialPlanPublicSchema } from '@plataforma/shared';
+import { AuthMeResponseSchema, type CommercialPlanPublicSchema } from '@plataforma/shared';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type z } from 'zod';
 
 import { planLimitLabels } from './marketing-data.js';
 import { annualSavingsCents } from './pricing.js';
+import { httpClient } from '../lib/http.js';
 
 type CommercialPlan = z.infer<typeof CommercialPlanPublicSchema>;
 
@@ -43,6 +45,7 @@ export function PricingCards({
 }) {
   const availableCycles = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const;
   const [cycle, setCycle] = useState<(typeof availableCycles)[number]>('MONTHLY');
+  const session = useQuery({ queryKey: ['auth', 'me', 'marketing'], queryFn: () => httpClient.request('/auth/me', { schema: AuthMeResponseSchema }), retry: false });
   if (plans.length === 0)
     return (
       <div className="pricing-empty">
@@ -105,7 +108,7 @@ export function PricingCards({
                 </li>
               ))}
             </ul>
-            <Link className="marketing-button marketing-button--full" to="/login">
+            <Link className="marketing-button marketing-button--full" to={`${session.data === undefined ? '/cadastro' : '/app'}?plan=${encodeURIComponent(plan.publicId)}&billing=${encodeURIComponent(cycle)}`}>
               {plan.ctaText ?? 'Começar grátis'}
             </Link>
           </article>

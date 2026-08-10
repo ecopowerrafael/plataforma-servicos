@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { type CookieSerializeOptions } from '@fastify/cookie';
 import {
   AcceptInvitationRequestSchema,
@@ -9,6 +11,8 @@ import {
   ForgotPasswordResponseSchema,
   LoginRequestSchema,
   LoginResponseSchema,
+  PublicRegistrationRequestSchema,
+  PublicRegistrationResponseSchema,
   normalizeEmail,
   ResetPasswordRequestSchema,
   SuccessResponseSchema,
@@ -23,9 +27,12 @@ import { z } from 'zod';
 import { type AuthService } from './auth.service.js';
 import { authenticationPlugin } from './authentication.plugin.js';
 import { requestMetadata } from './request-context.js';
+import { type PrismaClient } from '../../database-client/client.js';
+import { AppError } from '../../errors/AppError.js';
 
 interface AuthRoutesOptions {
   service: AuthService;
+  client: PrismaClient;
   cookieName: string;
   cookieSecure: boolean;
   sessionTtlHours: number;
@@ -54,6 +61,12 @@ function clearAuthCookie(reply: FastifyReply, options: AuthRoutesOptions) {
     path: '/',
   });
 }
+function periodEnd(now: Date, cycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM') {
+  const months = cycle === 'ANNUAL' ? 12 : cycle === 'SEMIANNUAL' ? 6 : cycle === 'QUARTERLY' ? 3 : 1;
+  const end = new Date(now);
+  end.setMonth(end.getMonth() + months);
+  return end;
+}
 
 const rateLimitConfig = (options: AuthRoutesOptions) => ({
   rateLimit: {
@@ -77,6 +90,38 @@ export const publicAuthRoutes: FastifyPluginCallbackZod<AuthRoutesOptions> = (
   options,
   done,
 ) => {
+  app.post(
+    '/auth/register',
+    { config: rateLimitConfig(options), schema: { body: PublicRegistrationRequestSchema, response: { 201: PublicRegistrationResponseSchema } } },
+    async (request, reply) => {
+      const plan = await options.client.commercialPlan.findUnique({ where: { publicId: request.body.planPublicId }, include: { billingOptions: true } });
+      if (plan?.status !== 'ACTIVE' || !plan.isPublic)
+        throw new AppError({ code: 'PLAN_UNAVAILABLE', message: 'O plano escolhido não está disponível.', statusCode: 409 });
+      const option = plan.billingOptions.find((item) => item.billingCycle === request.body.billingCycle && item.active);
+      if (option === undefined)
+        throw new AppError({ code: 'BILLING_OPTION_UNAVAILABLE', message: 'A periodicidade escolhida não está disponível para este plano.', statusCode: 409 });
+      const baseSlug = request.body.name.normalize('NFD').replace(/[^\w\s-]/gu, '').trim().replace(/\s+/gu, '-').toLowerCase().slice(0, 48) || 'estabelecimento';
+      const created = await options.service.createTenantWithOwner({
+        legalName: request.body.name,
+        displayName: request.body.name,
+        slug: `${baseSlug}-${randomUUID().slice(0, 8)}`,
+        timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL',
+        settings: { allowMultipleUnits: false, defaultAppointmentIntervalMinutes: 15, minimumAdvanceMinutes: 0, maximumAdvanceDays: 180, weekStartsOn: 'MONDAY', dateFormat: 'DD/MM/YYYY', timeFormat: '24H' },
+        initialUnit: { name: 'Unidade principal', slug: 'principal' },
+        owner: { email: request.body.email, password: request.body.password },
+      });
+      const now = new Date();
+      const policy = await options.client.tenantCommercialPolicy.findFirst();
+      const trialDays = plan.trialDays ?? policy?.defaultTrialDays ?? 0;
+      const trialEndsAt = trialDays > 0 ? new Date(now.getTime() + trialDays * 86_400_000) : null;
+      const tenant = await options.client.tenant.findUniqueOrThrow({ where: { publicId: created.tenant.publicId }, select: { id: true } });
+      const subscription = await options.client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId: tenant.id, planId: plan.id, status: trialEndsAt === null ? 'ACTIVE' : 'TRIALING', startsAt: now, trialStartedAt: trialEndsAt === null ? null : now, trialEndsAt, currentPeriodStartsAt: now, currentPeriodEndsAt: periodEnd(now, request.body.billingCycle), priceCents: option.priceCents, currency: plan.currency, billingCycle: request.body.billingCycle, effectiveKey: 'EFFECTIVE' } });
+      await options.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId: tenant.id, action: trialEndsAt === null ? 'CREATED' : 'TRIAL_STARTED', newStatus: subscription.status, newPlanId: plan.id, reason: 'Cadastro público com plano selecionado.' } });
+      const result = await options.service.login({ email: request.body.email, password: request.body.password }, requestMetadata(request));
+      reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
+      return reply.status(201).send({ user: result.user, tenants: result.tenants, requiresTenantSelection: result.requiresTenantSelection, tenantPublicId: created.tenant.publicId });
+    },
+  );
   app.post(
     '/auth/login',
     {
@@ -159,6 +204,26 @@ export const protectedAuthRoutes: FastifyPluginAsyncZod<AuthRoutesOptions> = asy
   await app.register(authenticationPlugin, {
     service: options.service,
     cookieName: options.cookieName,
+  });
+
+  app.post('/auth/onboarding', { schema: { body: z.object({ name: z.string().trim().min(2).max(120), planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']) }).strict() } }, async (request) => {
+    const plan = await options.client.commercialPlan.findUnique({ where: { publicId: request.body.planPublicId }, include: { billingOptions: true } });
+    const option = plan?.billingOptions.find((item) => item.billingCycle === request.body.billingCycle && item.active);
+    if (plan?.status !== 'ACTIVE' || !plan.isPublic || option === undefined)
+      throw new AppError({ code: 'PLAN_UNAVAILABLE', message: 'O plano ou a periodicidade escolhidos não estão disponíveis.', statusCode: 409 });
+    const slug = `${request.body.name.normalize('NFD').replace(/[^\w\s-]/gu, '').trim().replace(/\s+/gu, '-').toLowerCase().slice(0, 48) || 'estabelecimento'}-${randomUUID().slice(0, 8)}`;
+    const now = new Date();
+    const trialDays = plan.trialDays ?? (await options.client.tenantCommercialPolicy.findFirst())?.defaultTrialDays ?? 0;
+    return options.client.$transaction(async (tx) => {
+      const ownerRole = await tx.role.findFirstOrThrow({ where: { code: 'OWNER', isSystem: true, tenantId: null }, select: { id: true } });
+      const tenant = await tx.tenant.create({ data: { publicId: randomUUID(), slug, legalName: request.body.name, displayName: request.body.name, status: 'ACTIVE', timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL' } });
+      await tx.tenantSettings.create({ data: { tenantId: tenant.id, allowMultipleUnits: false, defaultAppointmentIntervalMinutes: 15, minimumAdvanceMinutes: 0, maximumAdvanceDays: 180, weekStartsOn: 'MONDAY', dateFormat: 'DD/MM/YYYY', timeFormat: 'H24' } });
+      await tx.businessUnit.create({ data: { publicId: randomUUID(), tenantId: tenant.id, name: 'Unidade principal', slug: 'principal', status: 'ACTIVE', isHeadquarters: true, timezone: 'America/Sao_Paulo' } });
+      await tx.tenantMembership.create({ data: { publicId: randomUUID(), tenantId: tenant.id, userId: request.auth.user.id, roleId: ownerRole.id, status: 'ACTIVE', isOwner: true, joinedAt: now } });
+      const trialEndsAt = trialDays > 0 ? new Date(now.getTime() + trialDays * 86_400_000) : null;
+      await tx.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId: tenant.id, planId: plan.id, status: trialEndsAt === null ? 'ACTIVE' : 'TRIALING', startsAt: now, trialStartedAt: trialEndsAt === null ? null : now, trialEndsAt, currentPeriodStartsAt: now, currentPeriodEndsAt: periodEnd(now, request.body.billingCycle), priceCents: option.priceCents, currency: plan.currency, billingCycle: request.body.billingCycle, effectiveKey: 'EFFECTIVE' } });
+      return { tenantPublicId: tenant.publicId };
+    });
   });
 
   app.get('/auth/me', { schema: { response: { 200: AuthMeResponseSchema } } }, (request) =>

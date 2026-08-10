@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoginRequestSchema, LoginResponseSchema, type LoginRequest } from '@plataforma/shared';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AuthLayout } from '../components/AuthLayout.js';
 import { HttpError, httpClient } from '../lib/http.js';
@@ -9,6 +9,7 @@ import { clearSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const form = useForm<LoginRequest>({ resolver: zodResolver(LoginRequestSchema) });
 
   const submit = form.handleSubmit(async (values) => {
@@ -20,14 +21,17 @@ export function LoginPage() {
         schema: LoginResponseSchema,
       });
       clearSelectedTenant();
+      const continuation = params.get('plan') === null || params.get('billing') === null
+        ? ''
+        : `?plan=${encodeURIComponent(params.get('plan') ?? '')}&billing=${encodeURIComponent(params.get('billing') ?? '')}`;
       if (result.tenants.length === 1) {
         const availableTenant = result.tenants[0];
         if (availableTenant === undefined)
           throw new Error('O tenant disponível não foi encontrado.');
         selectTenant(availableTenant.tenant.publicId);
-        await navigate('/app');
+        await navigate(`/app${continuation}`);
       } else {
-        await navigate('/select-tenant');
+        await navigate(`/select-tenant${continuation}`);
       }
     } catch (error) {
       form.setError('root', {
@@ -40,7 +44,7 @@ export function LoginPage() {
     <AuthLayout
       title="Acesse sua conta"
       description="Use o e-mail e a senha vinculados ao seu estabelecimento."
-      footer={<Link to="/forgot-password">Esqueci minha senha</Link>}
+      footer={<><Link to="/forgot-password">Esqueci minha senha</Link><Link to={`/cadastro${params.toString() === '' ? '' : `?${params.toString()}`}`}>Ainda não tem uma conta? Criar conta</Link></>}
     >
       <form className="auth-form" onSubmit={(event) => void submit(event)} noValidate>
         <label>

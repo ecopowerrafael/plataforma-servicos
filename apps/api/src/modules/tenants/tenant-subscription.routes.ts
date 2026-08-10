@@ -1,5 +1,6 @@
 import { TenantSubscriptionResponseSchema } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 
 import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type TenantSubscriptionService } from './tenant-subscription.service.js';
@@ -26,6 +27,16 @@ export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (a
     (r) => {
       options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
       return options.service.get(r.tenant.id);
+    },
+  );
+  app.post(
+    '/tenant/subscription/select-plan',
+    { schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']) }).strict(), response: { 200: TenantSubscriptionResponseSchema } } },
+    (r) => {
+      options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+      if (!r.tenant.membership.isOwner)
+        throw new Error('Apenas o proprietário pode alterar o plano.');
+      return options.service.selectPlan(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
     },
   );
 };

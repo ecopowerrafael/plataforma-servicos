@@ -256,6 +256,17 @@ export const CreateTenantWithOwnerResponseSchema = CreateTenantResponseSchema.ex
   membershipPublicId: z.uuid(),
 });
 
+export const PublicRegistrationRequestSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  email: EmailSchema,
+  password: PasswordSchema,
+  planPublicId: z.uuid(),
+  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL', 'CUSTOM']),
+}).strict();
+export const PublicRegistrationResponseSchema = LoginResponseSchema.extend({
+  tenantPublicId: z.uuid(),
+});
+
 export const AuthErrorCodeSchema = z.enum([
   'AUTH_REQUIRED',
   'AUTH_INVALID_CREDENTIALS',
@@ -292,4 +303,5 @@ export type AcceptInvitationRequest = z.infer<typeof AcceptInvitationRequestSche
 export type MembershipPublic = z.infer<typeof MembershipPublicSchema>;
 export type UpdateMembershipRequest = z.infer<typeof UpdateMembershipRequestSchema>;
 export type CreateTenantWithOwnerRequest = z.infer<typeof CreateTenantWithOwnerRequestSchema>;
+export type PublicRegistrationRequest = z.infer<typeof PublicRegistrationRequestSchema>;
 export type CreateTenantWithOwnerResponse = z.infer<typeof CreateTenantWithOwnerResponseSchema>;

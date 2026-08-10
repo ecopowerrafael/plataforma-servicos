@@ -2570,14 +2570,22 @@ a {
   font-weight: 650;
 }
 .app-navigation a.active { background: var(--color-primary, #2457d6); color: #fff; }
+.app-navigation-brand { display:block; padding:.85rem .75rem 1rem; color:#0f172a; font-size:1rem; }
+.app-navigation details { width:100%; }
+.app-navigation summary { padding:.65rem .75rem; border-radius:.6rem; color:#334155; cursor:pointer; font-size:.9rem; font-weight:750; list-style:none; }
+.app-navigation summary::-webkit-details-marker { display:none; }
+.app-navigation summary::after { content:'›'; float:right; transition:transform .15s ease; }
+.app-navigation details[open] > summary { background:#f1f5f9; }
+.app-navigation details[open] > summary::after { transform:rotate(90deg); }
+.app-navigation-submenu { display:grid; gap:.15rem; padding:.25rem 0 .5rem .55rem; }
+.app-navigation-submenu a { padding:.5rem .7rem; font-size:.82rem; }
 .app-mobile-nav,.mobile-sheet { display:none; }
 @media (min-width: 900px) {
-  .app-shell { width:min(100%, 1440px); padding-left: 1.5rem; padding-right: 1.5rem; }
-  .app-navigation { position: sticky; top: 1rem; align-items: stretch; flex-direction: column; float: left; width: 14rem; margin: 0 2rem 2rem 0; }
-  .app-navigation + .session-grid { min-height: 6rem; }
+  .app-shell { width:100%; max-width:none; margin:0; padding:1.5rem 2rem 2rem 18rem; }
+  .app-navigation { position:fixed; z-index:20; top:1rem; bottom:1rem; left:1rem; align-content:start; align-items:stretch; flex-direction:column; flex-wrap:nowrap; width:15rem; height:calc(100vh - 2rem); margin:0; overflow-y:auto; overscroll-behavior:contain; box-shadow:0 12px 36px rgb(15 23 42 / 8%); }
 }
 @media (max-width: 699px) {
-  .app-shell { padding-bottom: calc(5.25rem + env(safe-area-inset-bottom)); }
+  .app-shell { width:100%; padding:1rem 1rem calc(5.25rem + env(safe-area-inset-bottom)); }
   .app-navigation { display:none; }
   .app-mobile-nav { display:grid; grid-template-columns:repeat(5,1fr); align-items:center; position:fixed; z-index:30; bottom:0; left:0; right:0; padding:.45rem .5rem calc(.45rem + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid #e2e8f0; box-shadow:0 -8px 22px rgb(15 23 42 / 9%); }
   .app-mobile-nav a,.app-mobile-nav button { display:grid; place-items:center; min-height:2.8rem; border:0; background:transparent; color:#475569; font:inherit; font-size:.72rem; text-decoration:none; }
@@ -2585,8 +2593,17 @@ a {
   .app-mobile-nav .mobile-plus { width:2.8rem; height:2.8rem; margin:auto; border-radius:999px; background:var(--color-primary,#2457d6); color:#fff; font-size:1.7rem; line-height:1; box-shadow:0 5px 14px rgb(37 87 214 / 35%); }
   .mobile-sheet { display:grid; gap:.4rem; position:fixed; z-index:29; right:.75rem; bottom:5.4rem; left:.75rem; padding:1rem; border:1px solid #e2e8f0; border-radius:1rem; background:#fff; box-shadow:0 16px 42px rgb(15 23 42 / 18%); }
   .mobile-sheet button,.mobile-sheet a { padding:.8rem 1rem; border:0; border-radius:.65rem; background:#f8fafc; color:#1e293b; font:inherit; font-weight:700; text-align:left; text-decoration:none; }
-  .mobile-menu-sheet { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .mobile-menu-sheet { display:block; max-height:min(72vh,640px); overflow-y:auto; }
+  .mobile-menu-sheet details { border-bottom:1px solid #e2e8f0; }
+  .mobile-menu-sheet summary { padding:.8rem .4rem; cursor:pointer; font-weight:800; }
+  .mobile-menu-sheet details a { display:block; margin:.2rem 0 .35rem .5rem; }
 }
+
+.app-shell :where(input:not([type='checkbox']):not([type='radio']):not([type='color']),select,textarea) { min-height:2.65rem; border:1px solid #cbd5e1; border-radius:.65rem; background:#fff; color:#0f172a; font:inherit; }
+.app-shell :where(input:not([type='checkbox']):not([type='radio']):not([type='color']),select) { width:min(100%,20rem); padding:.55rem .75rem; }
+.app-shell textarea { width:min(100%,42rem); min-height:7rem; padding:.7rem .8rem; resize:vertical; }
+.app-shell label { gap:.4rem; color:#334155; font-weight:650; }
+.app-shell small { color:#64748b; font-size:.82rem; font-weight:400; }
 
 /* Super Admin: superfície administrativa clara, densa e responsiva. */
 .platform-shell { min-height:100vh; background:#f6f8fb; color:#172033; padding:28px; }

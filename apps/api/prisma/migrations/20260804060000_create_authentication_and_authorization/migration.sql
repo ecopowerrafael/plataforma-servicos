@@ -68,13 +68,18 @@ CREATE TABLE `tenant_memberships` (
   `joined_at` DATETIME(3) NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  -- Coluna gerada compatível com MySQL 8 e MariaDB: assume `tenant_id` apenas no
+  -- membro dono (owner) e NULL nos demais. O índice UNIQUE abaixo garante, no
+  -- banco, no máximo UM dono por tenant (múltiplos NULL são distintos),
+  -- substituindo o índice funcional por expressão (não suportado no MariaDB).
+  `owner_key` BIGINT UNSIGNED
+    GENERATED ALWAYS AS (CASE WHEN `is_owner` = 1 THEN `tenant_id` ELSE NULL END) STORED,
 
   CONSTRAINT `tenant_memberships_owner_active_check`
     CHECK (`is_owner` = false OR `status` = 'ACTIVE'),
   UNIQUE INDEX `tenant_memberships_public_id_key` (`public_id`),
   UNIQUE INDEX `tenant_memberships_tenant_id_user_id_key` (`tenant_id`, `user_id`),
-  UNIQUE INDEX `tenant_memberships_one_owner_per_tenant`
-    ((CASE WHEN `is_owner` = true THEN `tenant_id` ELSE NULL END)),
+  UNIQUE INDEX `tenant_memberships_one_owner_per_tenant` (`owner_key`),
   INDEX `tenant_memberships_user_id_status_idx` (`user_id`, `status`),
   INDEX `tenant_memberships_tenant_id_status_idx` (`tenant_id`, `status`),
   INDEX `tenant_memberships_role_id_idx` (`role_id`),

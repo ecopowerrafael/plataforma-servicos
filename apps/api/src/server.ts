@@ -74,15 +74,23 @@ async function start(environment: Environment): Promise<void> {
   app.log.info({ host: environment.API_HOST, port: environment.API_PORT }, 'API inicializada');
 }
 
-try {
-  const environment = loadEnvironment();
-  await start(environment);
-} catch (error) {
-  if (error instanceof EnvironmentValidationError) {
-    bootstrapLogger.fatal({ fields: error.fields }, error.message);
-  } else {
-    bootstrapLogger.fatal({ err: error }, 'Falha ao inicializar a API');
-  }
+// Sem `await` de topo: o loader de Node.js da Hostinger (LiteSpeed lsnode)
+// carrega o entry file com `require()`, que não aceita um grafo ESM com
+// top-level await (ERR_REQUIRE_ASYNC_MODULE). Encapsulamos a inicialização em
+// uma função assíncrona disparada sem await no escopo do módulo.
+async function bootstrap(): Promise<void> {
+  try {
+    const environment = loadEnvironment();
+    await start(environment);
+  } catch (error) {
+    if (error instanceof EnvironmentValidationError) {
+      bootstrapLogger.fatal({ fields: error.fields }, error.message);
+    } else {
+      bootstrapLogger.fatal({ err: error }, 'Falha ao inicializar a API');
+    }
 
-  process.exitCode = 1;
+    process.exitCode = 1;
+  }
 }
+
+void bootstrap();

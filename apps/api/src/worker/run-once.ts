@@ -55,13 +55,17 @@ async function runOnce(): Promise<void> {
   }
 }
 
-try {
-  await runOnce();
-} catch (error) {
-  if (error instanceof EnvironmentValidationError) {
-    logger.fatal({ fields: error.fields }, error.message);
-  } else {
-    logger.fatal({ err: error }, 'Falha ao executar a rodada de tarefas periódicas.');
+async function main(): Promise<void> {
+  try {
+    await runOnce();
+  } catch (error) {
+    if (error instanceof EnvironmentValidationError) {
+      logger.fatal({ fields: error.fields }, error.message);
+    } else {
+      logger.fatal({ err: error }, 'Falha ao executar a rodada de tarefas periódicas.');
+    }
+    process.exitCode = 1;
   }
-  process.exitCode = 1;
 }
+
+void main();

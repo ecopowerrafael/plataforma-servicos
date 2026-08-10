@@ -8,15 +8,8 @@ removida.
 
 ## Requisitos
 
-- **Node.js**: recomendado **22** (LTS); **mínimo suportado 20.19** — que é o
-  que as dependências reais de build/runtime exigem (`@prisma/client`, `prisma`,
-  `vite` declaram `^20.19 || ^22.12 || >=24`). O projeto fixa
-  `engines.node >= 20.19.0` e traz um `.nvmrc` com `22` (preferência). **Não é
-  necessário Node 22** para o build funcionar — a Hostinger pode buildar em
-  20.19.x. (Há um único pacote, `@prisma/streams-local`, que declara `>=22`, mas
-  ele **não** é usado no build/generate/runtime da API — é apenas um aviso
-  `EBADENGINE` não-fatal, já que o projeto não usa `engine-strict`.)
-  Se o painel oferecer Node 22, selecione-o; se só houver 20.19, também funciona.
+- **Node.js 22.x** — selecione no painel. O projeto fixa
+  `engines.node >= 22.0.0` (e traz um `.nvmrc` com `22`).
 - MySQL da Hostinger (criado no hPanel).
 - **As ferramentas de build ficam em `dependencies`** (TypeScript, Prisma CLI,
   Vite, `@types/*` usados na compilação), então o build **funciona mesmo com um
@@ -32,15 +25,18 @@ removida.
 
 | Campo | Valor |
 | --- | --- |
-| **Build command** | `npm run build:hostinger` |
-| **Start command** | `npm run start` |
-| **Node version** | `22` (recomendado; mínimo 20.19) |
+| **Framework** | Other |
+| **Node version** | `22.x` |
 | **Root directory** | `./` |
+| **Build command** | `npm run build` |
 | **Output directory** | *(vazio — a API serve o frontend)* |
-| **Entry file** (se o painel pedir) | `apps/api/dist/server.js` |
+| **Entry file** | `apps/api/dist/server.js` |
 
-`build:hostinger` **aplica migrations e bootstrap automaticamente** durante o
-deploy — não é necessário nenhum comando por SSH. Detalhes na seção 2.
+O **`npm run build`** (o único comando que o painel oferece) já é o **pipeline
+completo de produção**: aplica migrations e bootstrap (e provisiona o Super
+Admin) automaticamente — não é necessário nenhum comando por SSH. Detalhes na
+seção 2. A aplicação é iniciada pelo **Entry file** `apps/api/dist/server.js`,
+que escuta em `process.env.PORT` (host `0.0.0.0`).
 
 ## Modelo adotado: single-origin (uma aplicação só)
 
@@ -82,32 +78,39 @@ o painel indicar como raiz da aplicação):
 
 ## 2. Comando de build
 
-No painel Node da Hostinger, configure o **Build command** (ou rode via SSH na
-raiz do projeto, uma vez, após cada envio de código):
+No painel Node da Hostinger, o **Build command** é simplesmente:
 
 ```bash
-npm run build:hostinger
+npm run build
 ```
 
-(o painel roda `npm install` antes do build command automaticamente; se quiser
-explicitar: `npm ci && npm run build:hostinger`.)
+(o painel roda `npm install` antes do build command automaticamente. O `npm run
+build` **na branch `deploy/hostinger-node` é o pipeline completo de produção** —
+não é o build de código puro.)
 
-`build:hostinger` é **autossuficiente** e executa, **nesta ordem exata**,
-falhando o deploy inteiro se qualquer passo falhar (sem mascarar erro):
+`npm run build` é **autossuficiente** e executa, **nesta ordem exata**, falhando
+o deploy inteiro se qualquer passo falhar (sem mascarar erro):
 
 1. `prisma generate` — gera o Prisma Client (`apps/api/src/database-client`, não
    versionado) **antes** de qualquer TypeScript que o importe.
-2. build **shared** (`@plataforma/shared`) — necessário antes do bootstrap, que
+2. `build:shared` (`@plataforma/shared`) — necessário antes do bootstrap, que
    importa esse pacote.
 3. `prisma migrate deploy` — aplica **apenas as migrations pendentes** já
    versionadas (nunca `migrate dev`/`db push`/reset). Se não houver pendentes,
    segue normalmente.
 4. `db:bootstrap` — semeia papéis/permissões/roles globais de forma
-   **idempotente** (só `upsert`/`skipDuplicates`; nada é duplicado a cada deploy).
-5. build **api** e **web**.
+   **idempotente** (só `upsert`/`skipDuplicates`) e, quando
+   `PLATFORM_ADMIN_EMAIL`/`PLATFORM_ADMIN_PASSWORD` existem, **provisiona o Super
+   Admin** de forma idempotente (cria o usuário com senha só em hash Argon2 se
+   não existir; se já existir, não altera a senha).
+5. `build:api` e `build:web`.
 
-Migrations (passo 2) e bootstrap (passo 3) usam a conexão montada a partir das
-variáveis `DB_*` (não exigem `DATABASE_URL`; a senha nunca é impressa em log).
+Os scripts auxiliares `build:shared`/`build:api`/`build:web` fazem apenas a
+compilação de cada workspace (sem banco) — `npm run build` os orquestra na
+ordem acima, sem recursão. `build:code` compila os três sem tocar no banco.
+
+Migrations e bootstrap usam a conexão montada a partir das variáveis `DB_*`
+(não exigem `DATABASE_URL`; a senha nunca é impressa em log).
 As ferramentas de build ficam em `dependencies`, então funciona mesmo com
 install em modo produção.
 
@@ -121,7 +124,7 @@ install em modo produção.
 > ambiente **no momento do build** (ela é embutida no bundle). Garanta que o
 > `.env` de produção já exista antes de buildar o web. Veja a seção 4.
 
-As migrações do banco e o bootstrap **já rodam dentro de `build:hostinger`** a
+As migrações do banco e o bootstrap **já rodam dentro de `npm run build`** a
 cada deploy — não é preciso executá-los à parte. Para criar o primeiro Super
 Admin, veja a seção 11.
 
@@ -214,7 +217,7 @@ necessário. A lista completa comentada está em `.env.production.example`.
    automaticamente, então caracteres especiais na senha funcionam sem ajuste.
    - Em plano compartilhado, mantenha `DB_CONNECTION_LIMIT` **baixo** (3–5) para
      não estourar o limite de conexões da conta.
-3. O schema é aplicado **automaticamente no deploy** por `build:hostinger`
+3. O schema é aplicado **automaticamente no deploy** por `npm run build`
    (`prisma migrate deploy` — só migrations pendentes, sem shadow database, sem
    `db push`/reset), usando as variáveis `DB_*` (não precisa `DATABASE_URL`). O
    bootstrap de papéis/permissões roda em seguida, de forma idempotente. Você
@@ -350,7 +353,7 @@ periódicas).
 3. Enviar o código (sem `node_modules`/`.env`/`dist`).
 4. Criar o `.env` de produção a partir de `.env.production.example` — com as
    `DB_*` e `VITE_API_URL` definidas **antes** do build.
-5. **Build command:** `npm run build:hostinger` (aplica migrations + bootstrap
+5. **Build command:** `npm run build` (aplica migrations + bootstrap
    automaticamente; não rode nada por SSH).
 6. **Start command:** `npm run start`.
 7. Apontar `agendei.site`/`www` + ativar HTTPS.
@@ -368,7 +371,7 @@ ex.: `https://agendei.site/platform`. Ele **não** tem link no site comercial e 
 
 O schema e os papéis/permissões globais (incluindo `PLATFORM_ADMIN`) já são
 aplicados automaticamente no deploy (migrations + bootstrap dentro de
-`build:hostinger`). Falta apenas provisionar o usuário Super Admin:
+`npm run build`). Falta apenas provisionar o usuário Super Admin:
 
 1. **Provisione o Super Admin** por variáveis de ambiente **temporárias** (a
    senha é gravada só como hash; nunca em texto puro):

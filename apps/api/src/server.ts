@@ -8,6 +8,7 @@ import {
   type Environment,
 } from './config/environment.js';
 import { createDatabaseConnection } from './database/connection.js';
+import { PasswordService } from './modules/auth/password.service.js';
 import { startNotificationWorker } from './modules/notifications/notification-worker.js';
 
 const bootstrapLogger = pino({
@@ -69,6 +70,34 @@ async function start(environment: Environment): Promise<void> {
   process.once('SIGTERM', () => {
     void shutdown('SIGTERM');
   });
+
+  // Provisionamento idempotente do primeiro administrador da plataforma quando
+  // PLATFORM_ADMIN_EMAIL/PLATFORM_ADMIN_PASSWORD estão presentes (primeiro
+  // acesso). Não-fatal: falha aqui não impede a API de subir. A senha só é usada
+  // para gerar o hash caso o usuário ainda não exista; nunca é registrada.
+  if (
+    environment.PLATFORM_ADMIN_EMAIL !== undefined &&
+    environment.PLATFORM_ADMIN_PASSWORD !== undefined &&
+    database.platform !== undefined
+  ) {
+    const email = environment.PLATFORM_ADMIN_EMAIL;
+    const password = environment.PLATFORM_ADMIN_PASSWORD;
+    try {
+      const passwordService = new PasswordService({
+        memoryCost: environment.PASSWORD_ARGON2_MEMORY_COST,
+        timeCost: environment.PASSWORD_ARGON2_TIME_COST,
+        parallelism: environment.PASSWORD_ARGON2_PARALLELISM,
+      });
+      const result = await database.platform.ensureInitialAdministrator({
+        email,
+        hashPassword: () => passwordService.hash(password),
+        metadata: { ipAddress: null, userAgent: 'startup-platform-admin-provisioning' },
+      });
+      app.log.info({ email, result }, 'Provisionamento do administrador da plataforma concluído.');
+    } catch (error) {
+      app.log.error({ err: error }, 'Falha ao provisionar o administrador da plataforma.');
+    }
+  }
 
   await app.listen({ host: environment.API_HOST, port: environment.API_PORT });
   app.log.info({ host: environment.API_HOST, port: environment.API_PORT }, 'API inicializada');

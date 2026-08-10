@@ -57,7 +57,7 @@ export function usePageMetadata({ title, description, path }: PageMetadata) {
     structuredData.text = JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'SoftwareApplication',
-      name: 'Plataforma de Serviços',
+      name: 'Agendei',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       description,

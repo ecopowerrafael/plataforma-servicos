@@ -35,7 +35,7 @@ export function CommercialHomePage() {
   const trial = trialMessage(planData?.plans, planData?.defaultTrialDays);
 
   usePageMetadata({
-    title: 'Plataforma de Serviços | Agenda, clientes, equipe e financeiro',
+    title: 'Agendei - Aplicativo de agendamento',
     description:
       'Sistema de agendamento e gestão para negócios de serviços: agenda online, clientes, equipe, financeiro, estoque, automações e multiunidade.',
     path: '/',

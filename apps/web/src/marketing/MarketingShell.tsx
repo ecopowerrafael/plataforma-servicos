@@ -3,16 +3,14 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 
 function Brand() {
   return (
-    <Link className="marketing-brand" to="/" aria-label="Plataforma de Serviços — início">
-      <span className="marketing-brand-mark" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </span>
-      <span>
-        Plataforma
-        <small>de Serviços</small>
-      </span>
+    <Link className="marketing-brand" to="/" aria-label="Agendei — início">
+      <img
+        className="marketing-brand-logo"
+        src="/brand/logo-agendei.png"
+        alt="Agendei"
+        width={1536}
+        height={1024}
+      />
     </Link>
   );
 }
@@ -106,7 +104,7 @@ function MarketingFooter() {
         </div>
       </div>
       <div className="marketing-container marketing-footer-bottom">
-        <span>© {new Date().getFullYear()} Plataforma de Serviços</span>
+        <span>© {new Date().getFullYear()} Agendei</span>
         <span>Feito para operações de serviços.</span>
       </div>
     </footer>

@@ -343,3 +343,40 @@ periódicas).
 9. Criar o cron `npm run worker:once` (seção 8).
 10. Validar: abrir o domínio (site carrega), `GET /health` responde `ok`,
     `GET /ready` responde `ready` (banco conectado), login funciona.
+
+---
+
+## 11. Primeiro acesso ao Super Admin (administração global)
+
+O painel de administração global (Super Admin) fica em **`/platform`** —
+ex.: `https://agendei.site/platform`. Ele **não** tem link no site comercial e é
+**distinto** dos sites públicos de tenant (`/public/:slug`).
+
+Para o primeiro acesso, é preciso: (1) o schema aplicado (`db:migrate`), (2) os
+papéis/permissões globais (`db:bootstrap`) e (3) um usuário Super Admin.
+
+1. **Migrations + bootstrap** (uma vez; rode via SSH, ou inclua temporariamente
+   no *Build command* se o build tiver acesso às variáveis `DB_*`):
+   ```bash
+   npm run db:migrate && npm run db:bootstrap
+   ```
+2. **Provisionar o Super Admin** de forma segura, por variáveis de ambiente
+   **temporárias** (a senha é gravada só como hash; nunca em texto puro):
+   - Defina no ambiente do Web App:
+     - `PLATFORM_ADMIN_EMAIL=admin@agendei.site`
+     - `PLATFORM_ADMIN_PASSWORD=<senha forte temporária>`
+   - **Reinicie/Redeploy**. No start, o servidor cria (se não existir) o usuário
+     com esse e-mail, senha (hash) e o promove a `PLATFORM_ADMIN`. É idempotente:
+     se já existir, não altera a senha.
+   - Confira nos **Runtime logs**: `Provisionamento do administrador da plataforma concluído`.
+3. **Entre** em `https://agendei.site/platform` com o e-mail e a senha temporária.
+4. **Remova `PLATFORM_ADMIN_PASSWORD`** do ambiente (e reinicie). A conta continua
+   funcionando pelo hash já armazenado. Troque a senha pela área de conta quando
+   possível.
+
+Alternativa (se preferir promover um usuário já existente por SSH):
+```bash
+npm run platform-admin:create --workspace=@plataforma/api -- --email admin@agendei.site
+```
+(esse comando exige que o usuário já exista; o fluxo por `PLATFORM_ADMIN_*` acima
+cria o usuário quando necessário).

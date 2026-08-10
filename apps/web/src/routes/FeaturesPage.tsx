@@ -41,9 +41,9 @@ const outcomes = {
 
 export function FeaturesPage() {
   usePageMetadata({
-    title: 'Funcionalidades | Plataforma de Serviços',
+    title: 'Funcionalidades | Agendei',
     description:
-      'Conheça as funcionalidades de agenda, clientes, equipe, financeiro, estoque, automações e multiunidade da Plataforma de Serviços.',
+      'Conheça as funcionalidades de agenda, clientes, equipe, financeiro, estoque, automações e multiunidade do Agendei.',
     path: '/funcionalidades',
   });
 

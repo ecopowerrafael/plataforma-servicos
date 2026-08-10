@@ -5,9 +5,9 @@ import { usePageMetadata } from '../marketing/use-page-metadata.js';
 
 export function ProfessionalPage() {
   usePageMetadata({
-    title: 'Para profissionais | Plataforma de Serviços',
+    title: 'Para profissionais | Agendei',
     description:
-      'Veja como a Plataforma de Serviços facilita a rotina da equipe com agenda própria, disponibilidade, atendimentos, histórico e comissões.',
+      'Veja como o Agendei facilita a rotina da equipe com agenda própria, disponibilidade, atendimentos, histórico e comissões.',
     path: '/profissionais',
   });
 

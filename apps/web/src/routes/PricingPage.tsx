@@ -19,9 +19,9 @@ export function PricingPage() {
   const trial = trialMessage(query.data?.plans, query.data?.defaultTrialDays);
 
   usePageMetadata({
-    title: 'Planos e assinaturas | Plataforma de Serviços',
+    title: 'Planos | Agendei',
     description:
-      'Compare os planos da Plataforma de Serviços com preços, períodos, trial, limites de unidades, equipe, agendamentos e recursos habilitados.',
+      'Compare os planos do Agendei com preços, períodos, trial, limites de unidades, equipe, agendamentos e recursos habilitados.',
     path: '/planos',
   });
 

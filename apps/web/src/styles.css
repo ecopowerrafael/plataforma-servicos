@@ -150,6 +150,18 @@ a {
   letter-spacing: 0.015em;
 }
 
+.marketing-brand-logo {
+  display: block;
+  width: auto;
+  height: 40px;
+  max-width: 180px;
+  object-fit: contain;
+}
+
+.marketing-footer .marketing-brand-logo {
+  height: 36px;
+}
+
 .marketing-brand-mark {
   display: grid;
   width: 36px;

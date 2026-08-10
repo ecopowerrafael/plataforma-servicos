@@ -76,6 +76,13 @@ const environmentSchema = z
       .trim()
       .regex(/^[0-9a-f]{64}$/iu, 'Deve ser uma chave hexadecimal de 32 bytes (64 caracteres).')
       .optional(),
+    // Provisionamento do primeiro administrador da plataforma (Super Admin).
+    // Opcional e temporário: quando ambos são definidos, o servidor garante, no
+    // start, que exista um administrador com esse e-mail (cria o usuário com a
+    // senha informada, apenas com hash, se ainda não existir). Remova a senha do
+    // ambiente após o primeiro acesso.
+    PLATFORM_ADMIN_EMAIL: z.email().trim().optional(),
+    PLATFORM_ADMIN_PASSWORD: z.string().min(12).max(200).optional(),
   })
   .superRefine((value, context) => {
     if (value.NODE_ENV === 'production' && value.CORS_ORIGINS.includes('*')) {

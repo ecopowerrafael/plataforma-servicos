@@ -309,6 +309,78 @@ export class PlatformService {
       });
   }
 
+  /**
+   * Provisionamento idempotente do primeiro administrador da plataforma a partir
+   * de credenciais fornecidas por ambiente (uso: primeiro acesso). Cria o usuário
+   * (ACTIVE, senha já com hash) caso não exista e o promove a PLATFORM_ADMIN.
+   * Se o usuário já existe, apenas promove; se já é administrador, não faz nada.
+   * A senha NUNCA trafega/armazena em texto puro — o hash é calculado pelo
+   * mecanismo de autenticação existente antes de chamar este método, e só é
+   * aplicado quando o usuário é criado (nunca sobrescreve senha existente).
+   */
+  public async ensureInitialAdministrator(input: {
+    email: string;
+    hashPassword: () => Promise<string>;
+    metadata: RequestMetadata;
+  }): Promise<'created' | 'promoted' | 'exists'> {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    return this.client.$transaction(async (transaction) => {
+      const role = await transaction.platformRole.findUnique({
+        where: { code: 'PLATFORM_ADMIN' },
+      });
+      if (role === null)
+        throw new Error('O bootstrap global não foi executado (papel PLATFORM_ADMIN ausente).');
+
+      let user = await transaction.user.findUnique({
+        where: { normalizedEmail },
+        select: { id: true, publicId: true },
+      });
+
+      let created = false;
+      if (user === null) {
+        const now = new Date();
+        user = await transaction.user.create({
+          data: {
+            publicId: randomUUID(),
+            email: input.email.trim(),
+            normalizedEmail,
+            passwordHash: await input.hashPassword(),
+            status: 'ACTIVE',
+            emailVerifiedAt: now,
+            passwordChangedAt: now,
+          },
+          select: { id: true, publicId: true },
+        });
+        created = true;
+      }
+
+      const existing = await transaction.platformAdministrator.findFirst({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+      if (existing !== null) {
+        return 'exists';
+      }
+
+      const administrator = await transaction.platformAdministrator.create({
+        data: { publicId: randomUUID(), userId: user.id, status: 'ACTIVE' },
+      });
+      await transaction.platformAdministratorRole.create({
+        data: { administratorId: administrator.id, roleId: role.id },
+      });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.admin.provisioned',
+          targetType: 'platform_administrator',
+          targetPublicId: administrator.publicId,
+          userId: user.id,
+          request: input.metadata,
+        }),
+      });
+      return created ? 'created' : 'promoted';
+    });
+  }
+
   public async getMe(context: PlatformAuthContext) {
     return {
       administrator: {

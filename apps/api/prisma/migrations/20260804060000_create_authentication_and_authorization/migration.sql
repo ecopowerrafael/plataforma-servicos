@@ -68,12 +68,9 @@ CREATE TABLE `tenant_memberships` (
   `joined_at` DATETIME(3) NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  -- Coluna gerada compatível com MySQL 8 e MariaDB: assume `tenant_id` apenas no
-  -- membro dono (owner) e NULL nos demais. O índice UNIQUE abaixo garante, no
-  -- banco, no máximo UM dono por tenant (múltiplos NULL são distintos),
-  -- substituindo o índice funcional por expressão (não suportado no MariaDB).
-  `owner_key` BIGINT UNSIGNED
-    GENERATED ALWAYS AS (CASE WHEN `is_owner` = 1 THEN `tenant_id` ELSE NULL END) STORED,
+  -- Coluna física preenchida pelos triggers abaixo: usa `tenant_id` apenas no
+  -- membro OWNER e NULL nos demais. O índice UNIQUE garante no máximo um OWNER.
+  `owner_key` BIGINT UNSIGNED NULL,
 
   CONSTRAINT `tenant_memberships_owner_active_check`
     CHECK (`is_owner` = false OR `status` = 'ACTIVE'),
@@ -197,3 +194,11 @@ ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_user_id_fkey`
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_session_id_fkey`
   FOREIGN KEY (`session_id`) REFERENCES `user_sessions` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+CREATE TRIGGER `tenant_memberships_owner_before_insert`
+BEFORE INSERT ON `tenant_memberships`
+FOR EACH ROW SET NEW.`owner_key` = IF(NEW.`is_owner` = 1, NEW.`tenant_id`, NULL);
+
+CREATE TRIGGER `tenant_memberships_owner_before_update`
+BEFORE UPDATE ON `tenant_memberships`
+FOR EACH ROW SET NEW.`owner_key` = IF(NEW.`is_owner` = 1, NEW.`tenant_id`, NULL);

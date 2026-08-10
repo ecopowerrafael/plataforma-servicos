@@ -15,7 +15,11 @@ describe('garantias estruturais da migration multiempresa', () => {
     expect(sql).toContain('UNIQUE INDEX `tenants_slug_key`');
     expect(sql).toContain('UNIQUE INDEX `business_units_tenant_id_slug_key`');
     expect(sql).toContain('business_units_one_headquarters_per_tenant');
-    expect(sql).toContain('CASE WHEN `is_headquarters` = true THEN `tenant_id` ELSE NULL END');
+    expect(sql).toContain('`headquarters_key` BIGINT UNSIGNED NULL');
+    expect(sql).toContain('CREATE TRIGGER `business_units_headquarters_before_insert`');
+    expect(sql).toContain('CREATE TRIGGER `business_units_headquarters_before_update`');
+    expect(sql).toContain('SET NEW.`headquarters_key` = IF(NEW.`is_headquarters` = 1, NEW.`tenant_id`, NULL)');
+    expect(sql).not.toContain('GENERATED ALWAYS');
     expect(sql).toContain('ON DELETE RESTRICT ON UPDATE CASCADE');
     expect(sql).toContain(
       'CHECK (`default_appointment_interval_minutes` IN (5, 10, 15, 20, 30, 60))',

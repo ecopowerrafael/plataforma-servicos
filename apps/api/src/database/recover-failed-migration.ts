@@ -52,6 +52,39 @@ async function rowCount(
   return Number(rows[0]?.total ?? 0);
 }
 
+async function repairEmptyGeneratedHeadquartersKey(
+  client: ReturnType<typeof createPrismaClient>,
+): Promise<boolean> {
+  if (!(await tableExists(client, 'business_units'))) return true;
+
+  if ((await rowCount(client, 'business_units')) > 0) {
+    console.warn(
+      `[recover] A tabela parcial business_units contém dados; recuperação abortada para preservá-los.`,
+    );
+    return false;
+  }
+
+  const columns = await client.$queryRawUnsafe<{ extra: string }[]>(
+    'SELECT `EXTRA` AS extra FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
+    'business_units',
+    'headquarters_key',
+  );
+  if (!columns[0]?.extra.includes('GENERATED')) {
+    console.warn(
+      `[recover] Estado inesperado para ${MIGRATION} (business_units sem headquarters_key gerada). Não será tocado; o migrate deploy decidirá.`,
+    );
+    return false;
+  }
+
+  // Este é o único estado adicional recuperável: a tentativa anterior criou uma
+  // tabela vazia com a coluna GENERATED incompatível. Nenhum dado é removido.
+  await client.$executeRawUnsafe(
+    'ALTER TABLE `business_units` DROP INDEX `business_units_one_headquarters_per_tenant`, DROP COLUMN `headquarters_key`, ADD COLUMN `headquarters_key` BIGINT UNSIGNED NULL, ADD UNIQUE INDEX `business_units_one_headquarters_per_tenant` (`headquarters_key`)',
+  );
+  console.log('[recover] headquarters_key gerada e vazia substituída por coluna física.');
+  return true;
+}
+
 async function recover(): Promise<void> {
   const databaseUrl = buildDatabaseUrl(process.env);
   if (databaseUrl === undefined) {
@@ -79,12 +112,7 @@ async function recover(): Promise<void> {
     if (record.rolled_back_at !== null) return; // já rolled-back → migrate deploy re-aplica
 
     // Estado FALHO. Confirmar que é EXATAMENTE o estado parcial conhecido e seguro.
-    if (await tableExists(client, 'business_units')) {
-      console.warn(
-        `[recover] Estado inesperado para ${MIGRATION} (business_units existe). Não será tocado; o migrate deploy decidirá.`,
-      );
-      return;
-    }
+    if (!(await repairEmptyGeneratedHeadquartersKey(client))) return;
     for (const table of ['tenants', 'tenant_settings']) {
       if ((await tableExists(client, table)) && (await rowCount(client, table)) > 0) {
         console.warn(

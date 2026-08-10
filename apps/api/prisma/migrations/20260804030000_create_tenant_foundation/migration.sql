@@ -61,12 +61,9 @@ CREATE TABLE IF NOT EXISTS `business_units` (
   `city` VARCHAR(100) NULL,
   `state` VARCHAR(64) NULL,
   `country_code` CHAR(2) NULL,
-  -- Coluna gerada compatível com MySQL 8 e MariaDB: assume `tenant_id` apenas
-  -- na unidade matriz e NULL nas demais. O índice UNIQUE abaixo garante, no
-  -- banco, no máximo UMA matriz por tenant (múltiplos NULL são distintos),
-  -- substituindo o índice funcional por expressão (não suportado no MariaDB).
-  `headquarters_key` BIGINT UNSIGNED
-    GENERATED ALWAYS AS (CASE WHEN `is_headquarters` = 1 THEN `tenant_id` ELSE NULL END) STORED,
+  -- Coluna física preenchida pelos triggers abaixo: usa `tenant_id` apenas na
+  -- matriz e NULL nas demais. O índice UNIQUE garante no máximo uma matriz.
+  `headquarters_key` BIGINT UNSIGNED NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
@@ -90,3 +87,11 @@ ALTER TABLE `business_units`
   ADD CONSTRAINT `business_units_tenant_id_fkey`
   FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
   ON DELETE RESTRICT ON UPDATE CASCADE;
+
+CREATE TRIGGER `business_units_headquarters_before_insert`
+BEFORE INSERT ON `business_units`
+FOR EACH ROW SET NEW.`headquarters_key` = IF(NEW.`is_headquarters` = 1, NEW.`tenant_id`, NULL);
+
+CREATE TRIGGER `business_units_headquarters_before_update`
+BEFORE UPDATE ON `business_units`
+FOR EACH ROW SET NEW.`headquarters_key` = IF(NEW.`is_headquarters` = 1, NEW.`tenant_id`, NULL);

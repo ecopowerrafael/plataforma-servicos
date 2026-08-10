@@ -76,12 +76,13 @@ export async function registerStaticWeb(
     // catch-all `/*`, preservando o notFoundHandler para o fallback SPA.
     wildcard: false,
     index: ['index.html'],
+    cacheControl: false,
     // Assets versionados pelo Vite (hash no nome) podem ter cache longo; o
     // index.html precisa revalidar para que novos deploys sejam vistos.
     setHeaders(reply, path) {
       if (path.endsWith('index.html')) {
         reply.setHeader('cache-control', 'no-store, max-age=0, must-revalidate');
-      } else if (/[/\\]assets[/\\].+\.[a-zA-Z0-9_-]{8,}\.(?:js|css|svg|png|webp|woff2?)$/u.test(path)) {
+      } else if (/[/\\]assets[/\\].+[-.][a-zA-Z0-9_-]{8,}\.(?:js|css|svg|png|webp|woff2?)$/u.test(path)) {
         reply.setHeader('cache-control', 'public, max-age=31536000, immutable');
       } else {
         reply.setHeader('cache-control', 'public, max-age=300');

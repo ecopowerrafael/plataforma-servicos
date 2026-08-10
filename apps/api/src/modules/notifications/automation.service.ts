@@ -8,6 +8,7 @@ import {
 
 import { type CustomerNotificationDispatcher } from './customer-notification-dispatcher.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 type AutomationTrigger =
   'APPOINTMENT_REMINDER' | 'POST_APPOINTMENT' | 'INACTIVE_CUSTOMER' | 'CUSTOMER_BIRTHDAY';
@@ -16,7 +17,9 @@ export class AutomationService {
     private readonly client: PrismaClient,
     private readonly dispatcher: CustomerNotificationDispatcher,
   ) {}
+  private assertEnabled(tenantId: bigint) { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'automations.enabled'); }
   public async list(tenantId: bigint) {
+    await this.assertEnabled(tenantId);
     const rows = await this.client.tenantAutomation.findMany({
       where: { tenantId },
       orderBy: { trigger: 'asc' },
@@ -39,6 +42,7 @@ export class AutomationService {
     input: UpdateAutomationRequest,
     actor: { userId: bigint; sessionId: bigint },
   ) {
+    await this.assertEnabled(tenantId);
     const row = await this.client.tenantAutomation.upsert({
       where: { tenantId_trigger: { tenantId, trigger } },
       create: { publicId: randomUUID(), tenantId, trigger, ...input },

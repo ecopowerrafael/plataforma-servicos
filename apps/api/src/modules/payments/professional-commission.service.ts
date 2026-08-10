@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { CommissionListResponseSchema, CommissionRecordPublicSchema } from '@plataforma/shared';
 
 import { type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
   userId: bigint | null;
@@ -53,6 +54,7 @@ const pub = (commission: CommissionWithRelations) =>
 
 export class ProfessionalCommissionService {
   public constructor(private readonly client: PrismaClient) {}
+  private assertEnabled(tenantId: bigint) { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'commissions.enabled'); }
 
   /**
    * Calcula e registra, a partir do pagamento realmente recebido, um snapshot da regra de
@@ -66,6 +68,7 @@ export class ProfessionalCommissionService {
     appointment: { id: bigint; professionalId: bigint; serviceId: bigint },
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId);
     const [professional, override] = await Promise.all([
       this.client.professional.findFirst({
         where: { id: appointment.professionalId },
@@ -180,6 +183,7 @@ export class ProfessionalCommissionService {
 
   /** Comissões geradas do próprio profissional (self-service, isolado por professionalId). */
   public async listForProfessional(tenantId: bigint, professionalId: bigint) {
+    await this.assertEnabled(tenantId);
     const items = await this.client.professionalCommission.findMany({
       where: { tenantId, professionalId },
       orderBy: { createdAt: 'desc' },

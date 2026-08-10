@@ -6,6 +6,7 @@ import {
 
 import { type DelinquencyService } from './delinquency.service.js';
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface BreakdownAccumulator {
   key: string;
@@ -269,6 +270,7 @@ export class FinancialReportService {
   }
 
   public async get(tenantId: bigint, query: FinancialReportQuery) {
+    await new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'advanced_reports.enabled');
     const [unitId, professionalId] = await Promise.all([
       this.resolveUnitId(tenantId, query.unitPublicId),
       this.resolveProfessionalId(tenantId, query.professionalPublicId),

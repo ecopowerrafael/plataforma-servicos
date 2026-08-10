@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 
 export class IntegrationRepository {
-  public constructor(private readonly client: PrismaClient) {}
+  public constructor(public readonly client: PrismaClient) {}
   public whatsapp(tenantId: bigint) {
     return this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } });
   }

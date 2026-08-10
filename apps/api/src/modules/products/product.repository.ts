@@ -1,7 +1,7 @@
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 
 export class ProductRepository {
-  public constructor(private readonly client: PrismaClient) {}
+  public constructor(public readonly client: PrismaClient) {}
   public categories(tenantId: bigint) {
     return this.client.productCategory.findMany({ where: { tenantId }, orderBy: { name: 'asc' } });
   }

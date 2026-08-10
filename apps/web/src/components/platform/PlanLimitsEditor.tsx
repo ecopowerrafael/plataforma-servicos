@@ -10,6 +10,16 @@ const usageLimits = [
   ['services.max', 'Serviços'],
   ['monthly_appointments.max', 'Agendamentos/mês'],
 ] as const;
+const featureLimits = [
+  ['custom_domain.enabled', 'Domínio próprio'],
+  ['branding.customization.enabled', 'Personalização da marca'],
+  ['advanced_reports.enabled', 'Relatórios avançados'],
+  ['products.enabled', 'Produtos'], ['stock.enabled', 'Estoque'],
+  ['commissions.enabled', 'Comissões'], ['waitlist.enabled', 'Lista de espera'],
+  ['automations.enabled', 'Automações'], ['whatsapp.enabled', 'WhatsApp'],
+  ['integrations.enabled', 'Integrações externas'], ['loyalty.enabled', 'Fidelidade'],
+  ['coupons.enabled', 'Cupons'],
+] as const;
 
 export function PlanLimitsEditor() {
   const { control, register, setValue } = useFormContext<PlanFormInput>();
@@ -35,18 +45,15 @@ export function PlanLimitsEditor() {
       </fieldset>
       <fieldset className="plan-features">
         <legend>Recursos incluídos</legend>
-        <label className="feature-switch">
-          <input type="hidden" {...register('limits.5.key')} />
-          <input type="hidden" {...register('limits.5.valueType')} />
-          <input {...register('limits.5.booleanValue')} type="checkbox" />
-          Domínio próprio
-        </label>
-        <label className="feature-switch">
-          <input type="hidden" {...register('limits.6.key')} />
-          <input type="hidden" {...register('limits.6.valueType')} />
-          <input {...register('limits.6.booleanValue')} type="checkbox" />
-          Personalização da marca
-        </label>
+        {featureLimits.map(([key, label], position) => {
+          const index = usageLimits.length + position;
+          return <label className="feature-switch" key={key}>
+            <input type="hidden" {...register(`limits.${index}.key`)} />
+            <input type="hidden" {...register(`limits.${index}.valueType`)} />
+            <input {...register(`limits.${index}.booleanValue`)} type="checkbox" />
+            {label}
+          </label>;
+        })}
       </fieldset>
     </>
   );

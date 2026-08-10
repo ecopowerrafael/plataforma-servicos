@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { type IntegrationRepository } from './integration.repository.js';
 import { AppError } from '../../errors/AppError.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
+import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
   userId: bigint;
@@ -43,7 +44,11 @@ export class IntegrationService {
     private readonly repository: IntegrationRepository,
     private readonly cipher: CredentialsCipher | undefined,
   ) {}
+  private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {
+    return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repository.client, tenantId, key);
+  }
   public async whatsapp(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
     return whatsappPublic(await this.repository.whatsapp(tenantId));
   }
   public async updateWhatsapp(
@@ -57,6 +62,7 @@ export class IntegrationService {
     },
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
     const old = await this.repository.whatsapp(tenantId);
     const encryptedAccessToken =
       input.accessToken === undefined
@@ -79,6 +85,7 @@ export class IntegrationService {
     return whatsappPublic(result);
   }
   public async list(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'integrations.enabled');
     return { items: (await this.repository.integrations(tenantId)).map(externalPublic) };
   }
   public async save(
@@ -93,6 +100,7 @@ export class IntegrationService {
     },
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId, 'integrations.enabled');
     const old = publicId === null ? null : await this.repository.integration(tenantId, publicId);
     if (publicId !== null && old === null)
       throw new AppError({
@@ -117,6 +125,7 @@ export class IntegrationService {
     return externalPublic(result);
   }
   public async remove(tenantId: bigint, publicId: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'integrations.enabled');
     const item = await this.repository.integration(tenantId, publicId);
     if (item === null)
       throw new AppError({

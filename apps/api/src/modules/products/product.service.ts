@@ -16,6 +16,7 @@ import { type ProductRepository } from './product.repository.js';
 import { type StockMovementService } from './stock-movement.service.js';
 import { Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
   userId: bigint;
@@ -27,6 +28,7 @@ export class ProductCatalogService {
     private readonly repository: ProductRepository,
     private readonly movements?: StockMovementService,
   ) {}
+  private assertEnabled(tenantId: bigint, key: 'products.enabled' | 'stock.enabled') { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repository.client, tenantId, key); }
   private categoryPublic(row: {
     publicId: string;
     name: string;
@@ -88,11 +90,13 @@ export class ProductCatalogService {
     });
   }
   public async listCategories(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'products.enabled');
     return ProductCategoryListResponseSchema.parse({
       items: (await this.repository.categories(tenantId)).map((x) => this.categoryPublic(x)),
     });
   }
   public async createCategory(tenantId: bigint, input: CreateProductCategoryRequest, actor: Actor) {
+    await this.assertEnabled(tenantId, 'products.enabled');
     try {
       const row = await this.repository.createCategory({
         publicId: randomUUID(),
@@ -118,6 +122,7 @@ export class ProductCatalogService {
     input: CreateProductCategoryRequest,
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId, 'products.enabled');
     const old = await this.repository.category(tenantId, publicId);
     if (!old) throw missing('PRODUCT_CATEGORY_NOT_FOUND', 'Categoria de produto não encontrada.');
     try {
@@ -132,6 +137,7 @@ export class ProductCatalogService {
     }
   }
   public async listProducts(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'products.enabled');
     return ProductListResponseSchema.parse({
       items: (await this.repository.products(tenantId)).map((x) => this.productPublic(x)),
     });
@@ -158,6 +164,7 @@ export class ProductCatalogService {
     };
   }
   public async createProduct(tenantId: bigint, input: CreateProductRequest, actor: Actor) {
+    await this.assertEnabled(tenantId, 'products.enabled');
     try {
       const row = await this.repository.createProduct({
         publicId: randomUUID(),
@@ -176,6 +183,7 @@ export class ProductCatalogService {
     input: CreateProductRequest,
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId, 'products.enabled');
     const old = await this.repository.product(tenantId, publicId);
     if (!old) throw missing('PRODUCT_NOT_FOUND', 'Produto não encontrado.');
     try {
@@ -190,6 +198,7 @@ export class ProductCatalogService {
     }
   }
   public async listStock(tenantId: bigint, productPublicId?: string, unitPublicId?: string) {
+    await this.assertEnabled(tenantId, 'stock.enabled');
     const product = productPublicId
       ? await this.repository.product(tenantId, productPublicId)
       : null;
@@ -209,6 +218,7 @@ export class ProductCatalogService {
     input: SetProductStockRequest,
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId, 'stock.enabled');
     const product = await this.repository.product(tenantId, productPublicId);
     if (!product) throw missing('PRODUCT_NOT_FOUND', 'Produto não encontrado.');
     const unit = await this.repository.unit(tenantId, unitPublicId);

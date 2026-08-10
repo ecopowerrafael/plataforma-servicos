@@ -12,6 +12,7 @@ import {
   type StockMovementRepository,
 } from './stock-movement.repository.js';
 import { AppError } from '../../errors/AppError.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
   userId: bigint;
@@ -24,6 +25,7 @@ export class StockMovementService {
     private readonly repository: StockMovementRepository,
     private readonly products: ProductRepository,
   ) {}
+  private assertEnabled(tenantId: bigint) { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.products.client, tenantId, 'stock.enabled'); }
   private pub(row: {
     publicId: string;
     transferPublicId: string | null;
@@ -61,6 +63,7 @@ export class StockMovementService {
     return { product, unit };
   }
   public async list(tenantId: bigint, productPublicId?: string, unitPublicId?: string) {
+    await this.assertEnabled(tenantId);
     const product = productPublicId ? await this.products.product(tenantId, productPublicId) : null;
     if (productPublicId && !product) throw notFound('PRODUCT_NOT_FOUND', 'Produto não encontrado.');
     const unit = unitPublicId ? await this.products.unit(tenantId, unitPublicId) : null;
@@ -72,6 +75,7 @@ export class StockMovementService {
     });
   }
   public async create(tenantId: bigint, input: CreateStockMovementRequest, actor: Actor) {
+    await this.assertEnabled(tenantId);
     const { product, unit } = await this.resolve(
       tenantId,
       input.productPublicId,
@@ -94,6 +98,7 @@ export class StockMovementService {
     }
   }
   public async transfer(tenantId: bigint, input: TransferStockRequest, actor: Actor) {
+    await this.assertEnabled(tenantId);
     const { product, unit: source } = await this.resolve(
       tenantId,
       input.productPublicId,

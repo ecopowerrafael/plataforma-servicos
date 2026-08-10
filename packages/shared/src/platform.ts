@@ -63,6 +63,16 @@ export const PlanLimitKeys = [
   'monthly_appointments.max',
   'branding.customization.enabled',
   'custom_domain.enabled',
+  'advanced_reports.enabled',
+  'products.enabled',
+  'stock.enabled',
+  'commissions.enabled',
+  'waitlist.enabled',
+  'automations.enabled',
+  'whatsapp.enabled',
+  'integrations.enabled',
+  'loyalty.enabled',
+  'coupons.enabled',
 ] as const;
 export const PlanLimitKeySchema = z.enum(PlanLimitKeys);
 export const PlanLimitCatalog = {
@@ -73,6 +83,16 @@ export const PlanLimitCatalog = {
   'monthly_appointments.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'branding.customization.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
   'custom_domain.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'advanced_reports.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'products.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'stock.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'commissions.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'waitlist.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'automations.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'whatsapp.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'integrations.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'loyalty.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'coupons.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
 } as const satisfies Record<
   (typeof PlanLimitKeys)[number],
   {
@@ -227,7 +247,7 @@ const CommercialPlanRequestObjectSchema = z
     badge: z.string().trim().min(1).max(40).nullable().optional(),
     ctaText: z.string().trim().min(1).max(60).nullable().optional(),
     sortOrder: z.coerce.number().int().min(0).max(10_000).default(0),
-    limits: z.array(PlanLimitInputSchema).max(9).default([]),
+    limits: z.array(PlanLimitInputSchema).max(20).default([]),
   })
   .strict();
 function validateDistinctPlanLimitKeys(
@@ -520,6 +540,7 @@ export const PlatformAuditResponseSchema = z.object({
 });
 
 export type PlatformPermissionCode = z.infer<typeof PlatformPermissionCodeSchema>;
+export type PlanLimitKey = z.infer<typeof PlanLimitKeySchema>;
 export type CreateCommercialPlanRequest = z.infer<typeof CreateCommercialPlanRequestSchema>;
 export type UpdateCommercialPlanRequest = z.infer<typeof UpdateCommercialPlanRequestSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;

@@ -146,6 +146,17 @@ export const planLimitLabels = {
   'services.max': 'Serviços',
   'monthly_appointments.max': 'Agendamentos por mês',
   'custom_domain.enabled': 'Domínio próprio',
+  'branding.customization.enabled': 'Personalização da marca',
+  'advanced_reports.enabled': 'Relatórios avançados',
+  'products.enabled': 'Produtos',
+  'stock.enabled': 'Estoque',
+  'commissions.enabled': 'Comissões',
+  'waitlist.enabled': 'Lista de espera',
+  'automations.enabled': 'Automações',
+  'whatsapp.enabled': 'WhatsApp',
+  'integrations.enabled': 'Integrações externas',
+  'loyalty.enabled': 'Fidelidade',
+  'coupons.enabled': 'Cupons',
 } as const;
 
 export const billingCycleLabels = {

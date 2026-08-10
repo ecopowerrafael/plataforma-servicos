@@ -1,7 +1,10 @@
+import { type PlanLimitKey } from '@plataforma/shared';
+
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
 type Transaction = Prisma.TransactionClient;
+export type PlanFeatureKey = Extract<PlanLimitKey, `${string}.enabled`>;
 type LimitKey =
   | 'units.max'
   | 'members.max'
@@ -33,7 +36,7 @@ export class PlanEntitlementService {
   public async assertFeatureEnabled(
     transaction: Transaction,
     tenantId: bigint,
-    key: 'custom_domain.enabled' | 'branding.customization.enabled',
+    key: PlanFeatureKey,
   ): Promise<void> {
     await this.lockTenant(transaction, tenantId);
     const subscription = await transaction.tenantSubscription.findFirst({
@@ -51,7 +54,7 @@ export class PlanEntitlementService {
   public async assertFeatureEnabledForTenant(
     client: PrismaClient,
     tenantId: bigint,
-    key: 'custom_domain.enabled' | 'branding.customization.enabled',
+    key: PlanFeatureKey,
   ): Promise<void> {
     const subscription = await client.tenantSubscription.findFirst({
       where: { tenantId, effectiveKey: 'EFFECTIVE' },

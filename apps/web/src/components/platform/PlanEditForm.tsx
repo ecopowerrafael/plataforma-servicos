@@ -99,6 +99,16 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
         { key: 'monthly_appointments.max', valueType: 'INTEGER', integerValue: null },
         { key: 'custom_domain.enabled', valueType: 'BOOLEAN', booleanValue: false },
         { key: 'branding.customization.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'advanced_reports.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'products.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'stock.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'commissions.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'waitlist.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'automations.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'whatsapp.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'integrations.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'loyalty.enabled', valueType: 'BOOLEAN', booleanValue: false },
+        { key: 'coupons.enabled', valueType: 'BOOLEAN', booleanValue: false },
       ],
     };
   }
@@ -127,9 +137,9 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
     badge: plan.badge ?? undefined,
     ctaText: plan.ctaText ?? undefined,
     sortOrder: plan.sortOrder,
-    limits: (['units.max', 'professionals.max', 'members.max', 'services.max', 'monthly_appointments.max', 'custom_domain.enabled', 'branding.customization.enabled'] as const).map((key) => {
+    limits: (['units.max', 'professionals.max', 'members.max', 'services.max', 'monthly_appointments.max', 'custom_domain.enabled', 'branding.customization.enabled', 'advanced_reports.enabled', 'products.enabled', 'stock.enabled', 'commissions.enabled', 'waitlist.enabled', 'automations.enabled', 'whatsapp.enabled', 'integrations.enabled', 'loyalty.enabled', 'coupons.enabled'] as const).map((key) => {
       const limit = plan.limits.find((item) => item.key === key);
-      return key === 'custom_domain.enabled'
+      return key.endsWith('.enabled')
         ? { key, valueType: 'BOOLEAN' as const, booleanValue: limit?.booleanValue ?? false }
         : { key, valueType: 'INTEGER' as const, integerValue: limit?.integerValue === null ? null : Number(limit?.integerValue ?? 1) };
     }),

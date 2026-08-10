@@ -13,7 +13,21 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   public override state: ErrorBoundaryState = { hasError: false, retriedChunk: false };
 
   public static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+    return { hasError: true, retriedChunk: false };
+  }
+
+  public override componentDidCatch(error: Error): void {
+    const isChunkError = /dynamically imported module|importing a module script|loading chunk/iu.test(error.message);
+    if (!isChunkError) return;
+    try {
+      const key = `agendei:chunk-reload:${window.location.pathname}:${error.message}`;
+      if (window.sessionStorage.getItem(key) !== null) return;
+      window.sessionStorage.setItem(key, '1');
+      this.setState({ retriedChunk: true });
+      window.location.reload();
+    } catch {
+      // O fallback visual permanece disponível quando o storage não puder ser usado.
+    }
   }
 
   public override render(): ReactNode {

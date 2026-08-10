@@ -493,10 +493,23 @@ export class PrismaIdentityRepository implements IdentityRepository {
     try {
       return await this.client.$transaction(
         async (transaction) => {
+          // Serializa convites por tenant antes de revalidar o e-mail pendente.
+          await transaction.$queryRaw`
+            SELECT id FROM tenants WHERE id = ${input.tenantId} FOR UPDATE
+          `;
           const role = await transaction.role.findFirst({
             where: { code: input.request.roleCode, isSystem: true, tenantId: null },
           });
           if (role === null) throw new IdentityConflictError('STRUCTURE');
+          const pending = await transaction.userInvitation.findFirst({
+            where: {
+              tenantId: input.tenantId,
+              normalizedEmail: input.normalizedEmail,
+              status: 'PENDING',
+            },
+            select: { id: true },
+          });
+          if (pending !== null) throw new IdentityConflictError('INVITATION');
           const existingUser = await transaction.user.findUnique({
             where: { normalizedEmail: input.normalizedEmail },
             select: { id: true },
@@ -633,6 +646,17 @@ export class PrismaIdentityRepository implements IdentityRepository {
             });
             if (invitation?.status !== 'PENDING' || invitation.expiresAt <= input.now) {
               throw new IdentityConflictError('INVITATION');
+            }
+            if (invitation.role.code === 'OWNER') {
+              // A linha do tenant é o mutex transacional portátil para promoção a OWNER.
+              await transaction.$queryRaw`
+                SELECT id FROM tenants WHERE id = ${invitation.tenantId} FOR UPDATE
+              `;
+              const owner = await transaction.tenantMembership.findFirst({
+                where: { tenantId: invitation.tenantId, isOwner: true },
+                select: { id: true },
+              });
+              if (owner !== null) throw new IdentityConflictError('MEMBERSHIP');
             }
             let user = await transaction.user.findUnique({
               where: { normalizedEmail: invitation.normalizedEmail },

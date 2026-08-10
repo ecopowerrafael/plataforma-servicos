@@ -331,6 +331,10 @@ export class PrismaTenantRepository implements TenantRepository {
     if (target === null) return null;
 
     const unit = await this.client.$transaction(async (transaction) => {
+      // Serializa a troca de matriz por tenant sem depender de índices por expressão.
+      await transaction.$queryRaw`
+        SELECT id FROM tenants WHERE id = ${tenantId} FOR UPDATE
+      `;
       await transaction.businessUnit.updateMany({
         where: { tenantId, isHeadquarters: true },
         data: { isHeadquarters: false },

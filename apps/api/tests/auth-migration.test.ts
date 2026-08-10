@@ -26,13 +26,10 @@ describe('estrutura persistente de identidade', () => {
 
     expect(sql).toContain('UNIQUE INDEX `users_normalized_email_key`');
     expect(sql).toContain('UNIQUE INDEX `user_sessions_token_hash_key`');
-    expect(sql).toContain('tenant_memberships_one_owner_per_tenant');
-    expect(sql).toContain('`owner_key` BIGINT UNSIGNED NULL');
-    expect(sql).toContain('CREATE TRIGGER `tenant_memberships_owner_before_insert`');
-    expect(sql).toContain('CREATE TRIGGER `tenant_memberships_owner_before_update`');
-    expect(sql).toContain('SET NEW.`owner_key` = IF(NEW.`is_owner` = 1, NEW.`tenant_id`, NULL)');
+    expect(sql).not.toContain('owner_key');
+    expect(sql).not.toContain('CREATE TRIGGER');
     expect(sql).not.toContain('GENERATED ALWAYS');
-    expect(sql).toContain('user_invitations_one_pending_per_tenant_email');
+    expect(sql).not.toContain('user_invitations_one_pending_per_tenant_email');
     expect(sql).toContain('ON DELETE RESTRICT ON UPDATE CASCADE');
     expect(sql).not.toContain('ON DELETE CASCADE');
   });

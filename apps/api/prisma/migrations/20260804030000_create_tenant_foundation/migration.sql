@@ -61,9 +61,6 @@ CREATE TABLE IF NOT EXISTS `business_units` (
   `city` VARCHAR(100) NULL,
   `state` VARCHAR(64) NULL,
   `country_code` CHAR(2) NULL,
-  -- Coluna física preenchida pelos triggers abaixo: usa `tenant_id` apenas na
-  -- matriz e NULL nas demais. O índice UNIQUE garante no máximo uma matriz.
-  `headquarters_key` BIGINT UNSIGNED NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
@@ -73,7 +70,6 @@ CREATE TABLE IF NOT EXISTS `business_units` (
     CHECK (`country_code` IS NULL OR `country_code` REGEXP '^[A-Z]{2}$'),
   UNIQUE INDEX `business_units_public_id_key` (`public_id`),
   UNIQUE INDEX `business_units_tenant_id_slug_key` (`tenant_id`, `slug`),
-  UNIQUE INDEX `business_units_one_headquarters_per_tenant` (`headquarters_key`),
   INDEX `business_units_tenant_id_status_idx` (`tenant_id`, `status`),
   PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -87,11 +83,3 @@ ALTER TABLE `business_units`
   ADD CONSTRAINT `business_units_tenant_id_fkey`
   FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
   ON DELETE RESTRICT ON UPDATE CASCADE;
-
-CREATE TRIGGER `business_units_headquarters_before_insert`
-BEFORE INSERT ON `business_units`
-FOR EACH ROW SET NEW.`headquarters_key` = IF(NEW.`is_headquarters` = 1, NEW.`tenant_id`, NULL);
-
-CREATE TRIGGER `business_units_headquarters_before_update`
-BEFORE UPDATE ON `business_units`
-FOR EACH ROW SET NEW.`headquarters_key` = IF(NEW.`is_headquarters` = 1, NEW.`tenant_id`, NULL);

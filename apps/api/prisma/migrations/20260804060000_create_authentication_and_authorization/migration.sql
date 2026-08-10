@@ -68,15 +68,10 @@ CREATE TABLE `tenant_memberships` (
   `joined_at` DATETIME(3) NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  -- Coluna física preenchida pelos triggers abaixo: usa `tenant_id` apenas no
-  -- membro OWNER e NULL nos demais. O índice UNIQUE garante no máximo um OWNER.
-  `owner_key` BIGINT UNSIGNED NULL,
-
   CONSTRAINT `tenant_memberships_owner_active_check`
     CHECK (`is_owner` = false OR `status` = 'ACTIVE'),
   UNIQUE INDEX `tenant_memberships_public_id_key` (`public_id`),
   UNIQUE INDEX `tenant_memberships_tenant_id_user_id_key` (`tenant_id`, `user_id`),
-  UNIQUE INDEX `tenant_memberships_one_owner_per_tenant` (`owner_key`),
   INDEX `tenant_memberships_user_id_status_idx` (`user_id`, `status`),
   INDEX `tenant_memberships_tenant_id_status_idx` (`tenant_id`, `status`),
   INDEX `tenant_memberships_role_id_idx` (`role_id`),
@@ -135,8 +130,6 @@ CREATE TABLE `user_invitations` (
 
   UNIQUE INDEX `user_invitations_public_id_key` (`public_id`),
   UNIQUE INDEX `user_invitations_token_hash_key` (`token_hash`),
-  UNIQUE INDEX `user_invitations_one_pending_per_tenant_email`
-    (`tenant_id`, `normalized_email`, (CASE WHEN `status` = 'PENDING' THEN 1 ELSE NULL END)),
   INDEX `user_invitations_tenant_id_status_expires_at_idx` (`tenant_id`, `status`, `expires_at`),
   INDEX `user_invitations_normalized_email_status_idx` (`normalized_email`, `status`),
   INDEX `user_invitations_role_id_idx` (`role_id`),
@@ -194,11 +187,3 @@ ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_user_id_fkey`
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_session_id_fkey`
   FOREIGN KEY (`session_id`) REFERENCES `user_sessions` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
-CREATE TRIGGER `tenant_memberships_owner_before_insert`
-BEFORE INSERT ON `tenant_memberships`
-FOR EACH ROW SET NEW.`owner_key` = IF(NEW.`is_owner` = 1, NEW.`tenant_id`, NULL);
-
-CREATE TRIGGER `tenant_memberships_owner_before_update`
-BEFORE UPDATE ON `tenant_memberships`
-FOR EACH ROW SET NEW.`owner_key` = IF(NEW.`is_owner` = 1, NEW.`tenant_id`, NULL);

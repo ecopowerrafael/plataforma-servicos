@@ -8,7 +8,7 @@ ALTER TABLE `payments` ADD COLUMN `kind` ENUM('PAYMENT', 'DEPOSIT') NOT NULL DEF
 
 ALTER TABLE `payments` ADD CONSTRAINT `payments_payment_method_id_fkey` FOREIGN KEY (`payment_method_id`) REFERENCES `payment_methods`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
-ALTER TABLE `appointments` ADD COLUMN `deposit_type` ENUM('FIXED', 'PERCENTAGE') NULL AFTER `checked_in_at`;
+ALTER TABLE `appointments` ADD COLUMN `deposit_type` ENUM('FIXED', 'PERCENTAGE') NULL;
 
 ALTER TABLE `appointments` ADD COLUMN `deposit_percentage` TINYINT UNSIGNED NULL AFTER `deposit_type`;
 

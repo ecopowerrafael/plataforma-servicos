@@ -2120,6 +2120,8 @@ model CommercialPlan {
   status           CommercialPlanStatus @default(ACTIVE)
   billingCycle     BillingCycle         @map("billing_cycle")
   priceCents       BigInt               @map("price_cents") @db.UnsignedBigInt
+  monthlyPriceCents BigInt?             @map("monthly_price_cents") @db.UnsignedBigInt
+  annualPriceCents  BigInt?             @map("annual_price_cents") @db.UnsignedBigInt
   currency         String               @db.Char(3)
   trialDays        Int?                 @map("trial_days") @db.UnsignedSmallInt
   isPublic         Boolean              @default(false) @map("is_public")

@@ -32,6 +32,8 @@ export function TenantModule() {
   const [selected, setSelected] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
+  const [subscriptionPlan, setSubscriptionPlan] = useState('');
+  const [subscriptionCycle, setSubscriptionCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
   const client = useQueryClient();
   const tenants = useQuery({
     queryKey: ['platform', 'tenants', page, search, status],
@@ -129,7 +131,7 @@ export function TenantModule() {
       variant: suffix === 'deactivate' ? 'danger' : 'default',
       onConfirm: async (reason) => {
         await mutation.mutateAsync({
-          url: `/platform/tenants/${selected}/${suffix}`,
+          url: suffix.startsWith('subscriptions/') ? `/platform/${suffix}` : `/platform/tenants/${selected}/${suffix}`,
           body: { reason, ...(suffix === 'deactivate' ? { confirm: true } : {}) },
         });
       },
@@ -320,6 +322,13 @@ export function TenantModule() {
               <dd>{`${String(detail.data.settings.defaultAppointmentIntervalMinutes)} min · ${detail.data.settings.timeFormat}`}</dd>
             </div>
           </dl>
+          <section className="platform-subscription-actions">
+            <h4>Gestão da assinatura</h4>
+            {detail.data.subscription === null ? <p className="muted">Este estabelecimento ainda não possui uma assinatura efetiva.</p> : <>
+              <div className="platform-form"><label>Novo plano<select value={subscriptionPlan} onChange={(event) => setSubscriptionPlan(event.target.value)}><option value="">Manter plano atual</option>{(plans.data?.items ?? []).map((plan) => <option key={plan.publicId} value={plan.publicId}>{plan.name}</option>)}</select></label><label>Periodicidade<select value={subscriptionCycle} onChange={(event) => setSubscriptionCycle(event.target.value as 'MONTHLY' | 'ANNUAL')}><option value="MONTHLY">Mensal</option><option value="ANNUAL">Anual</option></select></label><button disabled={mutation.isPending || subscriptionPlan === ''} onClick={() => { const subscription = detail.data.subscription; if (subscription === null || subscriptionPlan === '') return; void mutation.mutateAsync({ url: `/platform/subscriptions/${subscription.publicId}/change-plan`, body: { planPublicId: subscriptionPlan, billingCycle: subscriptionCycle, reason: 'Alteração pelo detalhe do estabelecimento' } }); }} type="button">Trocar plano</button></div>
+              <div className="form-actions">{(['suspend','reactivate','cancel'] as const).map((action) => <button key={action} disabled={mutation.isPending} onClick={() => { const subscription = detail.data.subscription; if (subscription === null) return; requestAction(action === 'suspend' ? 'Suspender assinatura' : action === 'reactivate' ? 'Reativar assinatura' : 'Cancelar assinatura', `subscriptions/${subscription.publicId}/${action}`, 'A alteração comercial será registrada no histórico.'); }} type="button">{action === 'suspend' ? 'Suspender' : action === 'reactivate' ? 'Reativar' : 'Cancelar'}</button>)}</div>
+            </>}
+          </section>
           <h4>{'Unidades'}</h4>
           {detail.data.units.length === 0 ? (
             <p>{'Nenhuma unidade cadastrada.'}</p>

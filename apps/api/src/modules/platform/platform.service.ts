@@ -125,6 +125,8 @@ export function mapPlan(plan: {
   status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
   priceCents: bigint;
+  monthlyPriceCents: bigint | null;
+  annualPriceCents: bigint | null;
   currency: string;
   trialDays: number | null;
   isPublic: boolean;
@@ -153,6 +155,8 @@ export function mapPlan(plan: {
   return CommercialPlanPublicSchema.parse({
     ...plan,
     priceCents: publicMoney(plan.priceCents),
+    monthlyPriceCents: plan.monthlyPriceCents === null ? null : publicMoney(plan.monthlyPriceCents),
+    annualPriceCents: plan.annualPriceCents === null ? null : publicMoney(plan.annualPriceCents),
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
     limits: plan.limits.map((limit) => ({
@@ -482,6 +486,8 @@ export class PlatformService {
               description: input.description ?? null,
               billingCycle: input.billingCycle,
               priceCents: BigInt(input.priceCents),
+              monthlyPriceCents: input.monthlyPriceCents === undefined || input.monthlyPriceCents === null ? null : BigInt(input.monthlyPriceCents),
+              annualPriceCents: input.annualPriceCents === undefined || input.annualPriceCents === null ? null : BigInt(input.annualPriceCents),
               currency: input.currency,
               trialDays: input.trialDays ?? null,
               isPublic: input.isPublic,
@@ -563,6 +569,8 @@ export class PlatformService {
               ...(input.description === undefined ? {} : { description: input.description }),
               ...(input.billingCycle === undefined ? {} : { billingCycle: input.billingCycle }),
               ...(input.priceCents === undefined ? {} : { priceCents: BigInt(input.priceCents) }),
+              ...(input.monthlyPriceCents === undefined ? {} : { monthlyPriceCents: input.monthlyPriceCents === null ? null : BigInt(input.monthlyPriceCents) }),
+              ...(input.annualPriceCents === undefined ? {} : { annualPriceCents: input.annualPriceCents === null ? null : BigInt(input.annualPriceCents) }),
               ...(input.currency === undefined ? {} : { currency: input.currency }),
               ...(input.trialDays === undefined ? {} : { trialDays: input.trialDays }),
               ...(input.isPublic === undefined ? {} : { isPublic: input.isPublic }),
@@ -772,6 +780,8 @@ export class PlatformService {
             409,
           );
         const effectiveTrialDays = plan.trialDays ?? policy.defaultTrialDays;
+        const billingCycle = input.billingCycle ?? plan.billingCycle;
+        const priceCents = billingCycle === 'ANNUAL' ? (plan.annualPriceCents ?? plan.priceCents) : billingCycle === 'MONTHLY' ? (plan.monthlyPriceCents ?? plan.priceCents) : plan.priceCents;
         const trialEndsAt =
           input.trial && effectiveTrialDays > 0
             ? new Date(now.getTime() + effectiveTrialDays * 86_400_000)
@@ -779,7 +789,7 @@ export class PlatformService {
         const status = trialEndsAt === null ? 'ACTIVE' : 'TRIALING';
         const currentPeriodEndsAt =
           input.currentPeriodEndsAt === undefined
-            ? periodEnd(now, plan.billingCycle)
+            ? periodEnd(now, billingCycle)
             : new Date(input.currentPeriodEndsAt);
         if (currentPeriodEndsAt <= now)
           throw appError(
@@ -799,9 +809,9 @@ export class PlatformService {
               trialEndsAt,
               currentPeriodStartsAt: now,
               currentPeriodEndsAt,
-              priceCents: plan.priceCents,
+              priceCents,
               currency: plan.currency,
-              billingCycle: plan.billingCycle,
+              billingCycle,
               effectiveKey: 'EFFECTIVE',
             },
             include: { tenant: true, plan: true },
@@ -1043,6 +1053,7 @@ export class PlatformService {
   public async changeSubscriptionPlan(
     publicId: string,
     planPublicId: string,
+    requestedBillingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM' | undefined,
     reason: string,
     actor: PlatformAuthContext,
     metadata: RequestMetadata,
@@ -1058,11 +1069,13 @@ export class PlatformService {
       throw appError('PLATFORM_PLAN_UNAVAILABLE', 'O plano não está disponível.', 409);
     if (plan.currency !== subscription.currency)
       throw appError('PLATFORM_CURRENCY_CONFLICT', 'A moeda do plano é incompatível.', 409);
+    const billingCycle = requestedBillingCycle ?? plan.billingCycle;
+    const priceCents = billingCycle === 'ANNUAL' ? (plan.annualPriceCents ?? plan.priceCents) : billingCycle === 'MONTHLY' ? (plan.monthlyPriceCents ?? plan.priceCents) : plan.priceCents;
     const value = await this.client.$transaction(
       async (transaction) => {
         const updated = await transaction.tenantSubscription.update({
           where: { id: subscription.id },
-          data: { planId: plan.id, priceCents: plan.priceCents, billingCycle: plan.billingCycle },
+          data: { planId: plan.id, priceCents, billingCycle },
           include: { tenant: true, plan: true },
         });
         await transaction.subscriptionHistory.create({
@@ -1993,7 +2006,9 @@ export class PlatformService {
       units,
       trialingSubscriptions,
       activeSubscriptions,
+      pastDueSubscriptions,
       suspendedSubscriptions,
+      canceledSubscriptions,
       expiredSubscriptions,
       recentTenants,
       recentAudit,
@@ -2009,7 +2024,9 @@ export class PlatformService {
       this.client.businessUnit.count(),
       this.client.tenantSubscription.count({ where: { status: 'TRIALING' } }),
       this.client.tenantSubscription.count({ where: { status: 'ACTIVE' } }),
+      this.client.tenantSubscription.count({ where: { status: 'PAST_DUE' } }),
       this.client.tenantSubscription.count({ where: { status: 'SUSPENDED' } }),
+      this.client.tenantSubscription.count({ where: { status: 'CANCELED' } }),
       this.client.tenantSubscription.count({ where: { status: 'EXPIRED' } }),
       this.listTenants({ page: 1, limit: 5, orderBy: 'createdAt', direction: 'desc' }),
       this.client.auditLog.findMany({
@@ -2066,7 +2083,9 @@ export class PlatformService {
         units,
         trialingSubscriptions,
         activeSubscriptions,
+        pastDueSubscriptions,
         suspendedSubscriptions,
+        canceledSubscriptions,
         expiredSubscriptions,
       },
       estimatedRevenue: {

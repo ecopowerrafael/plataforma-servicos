@@ -177,14 +177,6 @@ describe.skipIf(url === undefined)(
       );
       expect(monthlyAppointmentsLimit?.usage).toBe(1);
 
-      const storageLimit = result.limits.find((limit) => limit.key === 'storage.megabytes');
-      expect(storageLimit?.usage).toBeNull();
-
-      const advancedReportsLimit = result.limits.find(
-        (limit) => limit.key === 'advanced_reports.enabled',
-      );
-      expect(advancedReportsLimit?.usage).toBeNull();
-      expect(advancedReportsLimit?.booleanValue).toBe(true);
     });
 
     it('não inventa dados de consumo para limites sem fonte real', async () => {

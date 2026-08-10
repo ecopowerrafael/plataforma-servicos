@@ -60,11 +60,7 @@ export const PlanLimitKeys = [
   'members.max',
   'professionals.max',
   'monthly_appointments.max',
-  'storage.megabytes',
-  'branding.customization.enabled',
   'custom_domain.enabled',
-  'advanced_reports.enabled',
-  'priority_support.enabled',
 ] as const;
 export const PlanLimitKeySchema = z.enum(PlanLimitKeys);
 export const PlanLimitCatalog = {
@@ -72,11 +68,7 @@ export const PlanLimitCatalog = {
   'members.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'professionals.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'monthly_appointments.max': { valueType: 'INTEGER', allowsUnlimited: true },
-  'storage.megabytes': { valueType: 'INTEGER', allowsUnlimited: false },
-  'branding.customization.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
   'custom_domain.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
-  'advanced_reports.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
-  'priority_support.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
 } as const satisfies Record<
   (typeof PlanLimitKeys)[number],
   {
@@ -171,7 +163,7 @@ export const PlanBenefitPublicSchema = z.object({
 });
 export const CommercialPlanPublicSchema = z.object({
   publicId: z.uuid(),
-  code: z.string().regex(/^[A-Z][A-Z0-9_]{1,63}$/u),
+  code: z.string().regex(/^(?:[A-Z][A-Z0-9_]{1,63}|[a-z0-9]+(?:-[a-z0-9]+)*)$/u),
   name: z.string(),
   subtitle: z.string().nullable(),
   shortDescription: z.string().nullable(),
@@ -179,6 +171,8 @@ export const CommercialPlanPublicSchema = z.object({
   status: CommercialPlanStatusSchema,
   billingCycle: BillingCycleSchema,
   priceCents: MoneyPublicSchema,
+  monthlyPriceCents: MoneyPublicSchema.nullable().default(null),
+  annualPriceCents: MoneyPublicSchema.nullable().default(null),
   currency: CurrencySchema,
   trialDays: z.number().int().nonnegative().max(3650).nullable(),
   isPublic: z.boolean(),
@@ -196,13 +190,15 @@ const CommercialPlanRequestObjectSchema = z
     code: z
       .string()
       .trim()
-      .regex(/^[A-Z][A-Z0-9_]{1,63}$/u),
+      .regex(/^(?:[A-Z][A-Z0-9_]{1,63}|[a-z0-9]+(?:-[a-z0-9]+)*)$/u),
     name: z.string().trim().min(2).max(120),
     subtitle: z.string().trim().min(1).max(160).nullable().optional(),
     shortDescription: z.string().trim().min(1).max(240).nullable().optional(),
     description: z.string().trim().min(1).max(500).nullable().optional(),
     billingCycle: BillingCycleSchema,
     priceCents: MoneyInputSchema,
+    monthlyPriceCents: MoneyInputSchema.nullable().optional(),
+    annualPriceCents: MoneyInputSchema.nullable().optional(),
     currency: CurrencySchema.default('BRL'),
     trialDays: z.coerce.number().int().min(0).max(3650).nullable().optional(),
     isPublic: z.boolean().default(false),
@@ -235,7 +231,7 @@ export const UpdateCommercialPlanRequestSchema = CommercialPlanRequestObjectSche
     code: z
       .string()
       .trim()
-      .regex(/^[A-Z][A-Z0-9_]{1,63}$/u)
+      .regex(/^(?:[A-Z][A-Z0-9_]{1,63}|[a-z0-9]+(?:-[a-z0-9]+)*)$/u)
       .optional(),
   })
   .strict()
@@ -305,6 +301,7 @@ export const SubscriptionHistoryPublicSchema = z.object({
 export const CreateSubscriptionRequestSchema = z
   .object({
     planPublicId: z.uuid(),
+    billingCycle: BillingCycleSchema.optional(),
     startsAt: IsoDateSchema.optional(),
     currentPeriodEndsAt: IsoDateSchema.optional(),
     trial: z.boolean().default(false),
@@ -324,7 +321,7 @@ export const ExtendTrialRequestSchema = z
   .object({ trialEndsAt: IsoDateSchema, reason: z.string().trim().min(3).max(500) })
   .strict();
 export const ChangePlanRequestSchema = z
-  .object({ planPublicId: z.uuid(), reason: z.string().trim().min(3).max(500) })
+  .object({ planPublicId: z.uuid(), billingCycle: BillingCycleSchema.optional(), reason: z.string().trim().min(3).max(500) })
   .strict();
 export const SubscriptionListQuerySchema = PaginationQuerySchema.extend({
   status: SubscriptionStatusSchema.optional(),
@@ -448,7 +445,9 @@ export const PlatformDashboardResponseSchema = z.object({
     units: z.number().int().nonnegative(),
     trialingSubscriptions: z.number().int().nonnegative(),
     activeSubscriptions: z.number().int().nonnegative(),
+    pastDueSubscriptions: z.number().int().nonnegative(),
     suspendedSubscriptions: z.number().int().nonnegative(),
+    canceledSubscriptions: z.number().int().nonnegative(),
     expiredSubscriptions: z.number().int().nonnegative(),
   }),
   estimatedRevenue: z.object({

@@ -26,6 +26,22 @@ describe('contratos comerciais da plataforma', () => {
     ).toBe(true);
   });
 
+  it('mantém preços mensal e anual no mesmo plano, em centavos', () => {
+    const result = CreateCommercialPlanRequestSchema.parse({
+      code: 'PRO',
+      name: 'Profissional',
+      billingCycle: 'MONTHLY',
+      priceCents: 5990,
+      monthlyPriceCents: 5990,
+      annualPriceCents: 59900,
+      currency: 'BRL',
+      limits: [],
+    });
+    expect(result.monthlyPriceCents).toBe(5990);
+    expect(result.annualPriceCents).toBe(59900);
+    expect(result.code).toBe('PRO');
+  });
+
   it.each([
     { key: 'unknown.limit', valueType: 'INTEGER', integerValue: 1 },
     { key: 'units.max', valueType: 'BOOLEAN', integerValue: 1 },
@@ -57,9 +73,9 @@ describe('contratos comerciais da plataforma', () => {
     ).toBe(true);
     expect(
       PlanLimitInputSchema.safeParse({
-        key: 'storage.megabytes',
-        valueType: 'INTEGER',
-        integerValue: null,
+        key: 'custom_domain.enabled',
+        valueType: 'BOOLEAN',
+        booleanValue: null,
       }).success,
     ).toBe(false);
   });

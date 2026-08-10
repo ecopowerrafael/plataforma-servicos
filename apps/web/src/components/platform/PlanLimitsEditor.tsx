@@ -4,6 +4,13 @@ import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import type { PlanFormInput } from './PlanEditForm.js';
 
 const limitKeys = PlanLimitKeys;
+const labels: Record<(typeof limitKeys)[number], { title: string; help: string }> = {
+  'units.max': { title: 'Unidades', help: 'Quantidade máxima de unidades do estabelecimento.' },
+  'members.max': { title: 'Membros da equipe', help: 'Usuários internos com acesso ao sistema.' },
+  'professionals.max': { title: 'Profissionais', help: 'Quantidade máxima de profissionais ativos.' },
+  'monthly_appointments.max': { title: 'Agendamentos por mês', help: 'Volume mensal incluído no plano.' },
+  'custom_domain.enabled': { title: 'Domínio próprio', help: 'Uso de domínio personalizado.' },
+};
 
 type LimitField = 'key' | 'valueType' | 'integerValue' | 'booleanValue' | 'stringValue';
 
@@ -45,9 +52,9 @@ export function PlanLimitsEditor() {
                   setValue(stringValuePath, undefined);
                 }}
               >
-                {limitKeys.map((key) => (
+                {limitKeys.filter((key) => key === limits?.[index]?.key || !limits?.some((limit, otherIndex) => otherIndex !== index && limit.key === key)).map((key) => (
                   <option key={key} value={key}>
-                    {key}
+                    {labels[key].title} — {key}
                   </option>
                 ))}
               </select>
@@ -58,14 +65,7 @@ export function PlanLimitsEditor() {
               <output>{valueType === 'INTEGER' ? 'Inteiro' : 'Booleano'}</output>
             </label>
             {valueType === 'INTEGER' ? (
-              <label>
-                Valor
-                <input
-                  min="0"
-                  {...register(integerValuePath, { valueAsNumber: true })}
-                  type="number"
-                />
-              </label>
+              <><label>Valor<input min="0" disabled={limits?.[index]?.integerValue === null} {...register(integerValuePath, { valueAsNumber: true })} type="number" /></label>{PlanLimitCatalog[limits?.[index]?.key ?? 'units.max'].allowsUnlimited && <label><input checked={limits?.[index]?.integerValue === null} onChange={(event) => setValue(integerValuePath, event.target.checked ? null : 1)} type="checkbox" /> Ilimitado</label>}</>
             ) : valueType === 'BOOLEAN' ? (
               <label>
                 Valor

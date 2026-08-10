@@ -10,6 +10,7 @@ import {
   type TimeFormat,
 } from '@plataforma/shared';
 
+import { PlanEntitlementService } from './plan-entitlement.service.js';
 import {
   type BusinessUnitAuditEntry,
   type CreateTenantPersistenceInput,
@@ -230,7 +231,9 @@ export class PrismaTenantRepository implements TenantRepository {
     input: BusinessUnitInput,
   ): Promise<BusinessUnit> {
     try {
-      const unit = await this.client.businessUnit.create({
+      const unit = await this.client.$transaction(async (transaction) => {
+        await new PlanEntitlementService().assertCanCreateUnit(transaction, tenantId);
+        return transaction.businessUnit.create({
         data: {
           publicId: randomUUID(),
           tenantId,
@@ -249,6 +252,7 @@ export class PrismaTenantRepository implements TenantRepository {
           countryCode: input.countryCode ?? null,
         },
         select: businessUnitSelect,
+        });
       });
 
       return BusinessUnitSchema.parse(unit);

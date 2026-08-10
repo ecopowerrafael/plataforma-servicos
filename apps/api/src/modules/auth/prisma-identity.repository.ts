@@ -35,6 +35,7 @@ import {
 } from './identity.repository.js';
 import { generatePublicId } from './token.service.js';
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 const userSelect = {
   id: true,
@@ -684,6 +685,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
               throw new IdentityConflictError('MEMBERSHIP');
             }
             if (existingMembership === null) {
+              await new PlanEntitlementService().assertCanAddMember(transaction, invitation.tenantId);
               await transaction.tenantMembership.create({
                 data: {
                   publicId: input.membershipPublicId,

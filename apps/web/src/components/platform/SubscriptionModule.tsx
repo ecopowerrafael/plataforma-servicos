@@ -30,6 +30,7 @@ export function SubscriptionModule() {
   const [createValues, setCreateValues] = useState({
     tenantPublicId: '',
     planPublicId: '',
+    billingCycle: 'MONTHLY',
     startsAt: '',
     currentPeriodEndsAt: '',
     trial: false,
@@ -257,6 +258,7 @@ export function SubscriptionModule() {
               ))}
             </select>
           </label>
+          <label>Periodicidade<select value={createValues.billingCycle} onChange={(event) => setCreateValues({ ...createValues, billingCycle: event.target.value })}><option value="MONTHLY">Mensal</option><option value="ANNUAL">Anual</option></select></label>
           <label>
             {'In\u00edcio (ISO, opcional)'}
             <input

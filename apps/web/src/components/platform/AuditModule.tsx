@@ -179,18 +179,7 @@ export function AuditModule() {
         <p>Nenhum evento encontrado para os filtros atuais.</p>
       ) : (
         <>
-          <div className="data-list">
-            {audit.data.items.map((item) => (
-              <article className="data-row" key={item.publicId}>
-                <span>{item.action}</span>
-                <span>{item.targetType}</span>
-                <span>{tenantNames.get(item.tenantPublicId ?? '') ?? 'Sem estabelecimento'}</span>
-                <span>{item.user?.email ?? 'Sistema'}</span>
-                <span>{item.targetPublicId ?? 'Sem alvo p\u00fablico'}</span>
-                <span>{item.createdAt}</span>
-              </article>
-            ))}
-          </div>
+          <div className="data-list"><table className="platform-table"><thead><tr><th>Data/hora</th><th>Administrador</th><th>Ação</th><th>Entidade</th><th>Estabelecimento</th><th>Detalhes</th></tr></thead><tbody>{audit.data.items.map((item) => <tr key={item.publicId}><td>{new Date(item.createdAt).toLocaleString('pt-BR')}</td><td>{item.user?.email ?? 'Sistema'}</td><td>{item.action}</td><td>{item.targetType}</td><td>{tenantNames.get(item.tenantPublicId ?? '') ?? '—'}</td><td>{item.targetPublicId ?? '—'}</td></tr>)}</tbody></table></div>
           <div className="form-actions">
             <button
               disabled={page <= 1}

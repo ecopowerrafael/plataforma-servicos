@@ -509,6 +509,7 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       return options.service.changeSubscriptionPlan(
         request.params.publicId,
         request.body.planPublicId,
+        request.body.billingCycle,
         request.body.reason,
         request.platformAuth,
         requestMetadata(request),

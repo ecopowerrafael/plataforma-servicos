@@ -144,11 +144,7 @@ export const planLimitLabels = {
   'members.max': 'Membros da equipe',
   'professionals.max': 'Profissionais',
   'monthly_appointments.max': 'Agendamentos por mês',
-  'storage.megabytes': 'Armazenamento',
-  'branding.customization.enabled': 'Personalização de marca',
   'custom_domain.enabled': 'Domínio próprio',
-  'advanced_reports.enabled': 'Relatórios avançados',
-  'priority_support.enabled': 'Suporte prioritário',
 } as const;
 
 export const billingCycleLabels = {

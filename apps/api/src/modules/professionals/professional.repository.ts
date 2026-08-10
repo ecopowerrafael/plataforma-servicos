@@ -1,4 +1,5 @@
 import { type Prisma, type PrismaClient, type Professional } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 export type ProfessionalRecord = Professional & {
   primaryUnit: { publicId: string } | null;
   tenant: { publicId: string };
@@ -54,7 +55,10 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
     return this.client.professional.findFirst({ where: { tenantId, userId }, include });
   }
   public create(data: Prisma.ProfessionalUncheckedCreateInput) {
-    return this.client.professional.create({ data, include });
+    return this.client.$transaction(async (transaction) => {
+      await new PlanEntitlementService().assertCanCreateProfessional(transaction, BigInt(data.tenantId));
+      return transaction.professional.create({ data, include });
+    });
   }
   public update(id: bigint, data: Prisma.ProfessionalUncheckedUpdateInput) {
     return this.client.professional.update({ where: { id }, data, include });

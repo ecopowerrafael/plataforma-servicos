@@ -1,8 +1,10 @@
 import { type CommercialPlanPublicSchema } from '@plataforma/shared';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type z } from 'zod';
 
-import { billingCycleLabels, planLimitLabels } from './marketing-data.js';
+import { planLimitLabels } from './marketing-data.js';
+import { annualSavingsCents } from './pricing.js';
 
 type CommercialPlan = z.infer<typeof CommercialPlanPublicSchema>;
 
@@ -18,12 +20,6 @@ export function formatPlanLimit(limit: CommercialPlan['limits'][number]) {
   if (limit.valueType === 'BOOLEAN')
     return limit.booleanValue === true ? 'Incluído' : 'Não incluído';
   if (limit.integerValue === null) return 'Ilimitado';
-  if (limit.key === 'storage.megabytes') {
-    const megabytes = Number(limit.integerValue);
-    return megabytes >= 1024
-      ? `${new Intl.NumberFormat('pt-BR').format(megabytes / 1024)} GB`
-      : `${new Intl.NumberFormat('pt-BR').format(megabytes)} MB`;
-  }
   return new Intl.NumberFormat('pt-BR').format(Number(limit.integerValue));
 }
 
@@ -45,6 +41,7 @@ export function PricingCards({
   plans: CommercialPlan[];
   compact?: boolean;
 }) {
+  const [cycle, setCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
   if (plans.length === 0)
     return (
       <div className="pricing-empty">
@@ -55,6 +52,8 @@ export function PricingCards({
     );
 
   return (
+    <>
+      <div className="pricing-toggle" role="group" aria-label="Periodicidade"><button className={cycle === 'MONTHLY' ? 'nav-active' : ''} onClick={() => { setCycle('MONTHLY'); }} type="button">Mensal</button><button className={cycle === 'ANNUAL' ? 'nav-active' : ''} onClick={() => { setCycle('ANNUAL'); }} type="button">Anual</button></div>
     <div className={compact ? 'pricing-grid pricing-grid--compact' : 'pricing-grid'}>
       {plans.slice(0, compact ? 3 : undefined).map((plan) => {
         const enabledBenefits = plan.benefits
@@ -79,9 +78,12 @@ export function PricingCards({
               )}
             </div>
             <p className="pricing-price">
-              <strong>{formatMoney(plan)}</strong>
-              <span>{billingCycleLabels[plan.billingCycle]}</span>
+              <strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: plan.currency }).format(Number((cycle === 'ANNUAL' ? plan.annualPriceCents : plan.monthlyPriceCents) ?? plan.priceCents) / 100)}</strong>
+              <span>{cycle === 'ANNUAL' ? 'por ano' : 'por mês'}</span>
             </p>
+            {cycle === 'ANNUAL' && annualSavingsCents(plan.monthlyPriceCents, plan.annualPriceCents) > 0 ? (
+              <p className="pricing-savings">Economize {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: plan.currency }).format(annualSavingsCents(plan.monthlyPriceCents, plan.annualPriceCents) / 100)} por ano</p>
+            ) : null}
             {plan.trialDays !== null && plan.trialDays > 0 ? (
               <span className="pricing-trial">{`${String(plan.trialDays)} dias grátis`}</span>
             ) : null}
@@ -106,6 +108,6 @@ export function PricingCards({
           </article>
         );
       })}
-    </div>
+    </div></>
   );
 }

@@ -137,7 +137,8 @@ function Dashboard({
       <p className="eyebrow">{'Resumo do per\u00edodo'}</p>
       <h2 id="platform-dashboard-title">{'Vis\u00e3o geral'}</h2>
       <div className="metric-grid">
-        <Metric label="Estabelecimentos ativos" value={String(dashboard.counts.activeTenants)} />
+        <Metric label="Estabelecimentos totais" value={String(dashboard.counts.tenants)} />
+        <Metric label="Novos estabelecimentos" value={String(dashboard.counts.tenantsCreated)} />
         <Metric label="Assinaturas ativas" value={String(dashboard.counts.activeSubscriptions)} />
         <Metric
           label="Receita mensal estimada"
@@ -147,6 +148,10 @@ function Dashboard({
           label="Assinaturas em teste"
           value={String(dashboard.counts.trialingSubscriptions)}
         />
+        <Metric label="Em carência" value={String(dashboard.counts.pastDueSubscriptions)} />
+        <Metric label="Suspensas" value={String(dashboard.counts.suspendedSubscriptions)} />
+        <Metric label="Canceladas" value={String(dashboard.counts.canceledSubscriptions)} />
+        <Metric label="ARR estimado" value={currency(dashboard.estimatedRevenue.arrCents, dashboard.estimatedRevenue.currency)} />
       </div>
       <p className="muted">{dashboard.estimatedRevenue.disclaimer}</p>
       <h3>Estabelecimentos recentes</h3>
@@ -163,6 +168,8 @@ function Dashboard({
           ))}
         </div>
       )}
+      <h3>Distribuição por plano</h3>
+      {dashboard.byPlan.length === 0 ? <p className="muted">Nenhuma assinatura ativa para distribuir por plano.</p> : <div className="data-list">{dashboard.byPlan.map((item) => <div className="data-row" key={item.planPublicId}><strong>{item.planName}</strong><span>{item.subscriptions} assinaturas</span><span>{currency(item.estimatedMonthlyCents, dashboard.estimatedRevenue.currency)} MRR</span></div>)}</div>}
     </section>
   );
 }

@@ -1,13 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CreateCommercialPlanRequestSchema, TenantCommercialPolicySchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { FormProvider, useForm, useWatch } from 'react-hook-form';
+import { type ChangeEvent, useEffect, useState } from 'react';
+import { Controller, FormProvider, useForm, useWatch } from 'react-hook-form';
 
 import { PlanBenefitsEditor } from './PlanBenefitsEditor.js';
 import { PlanLimitsEditor } from './PlanLimitsEditor.js';
 import { PlanPreviewCard, type PlanPreviewValue } from './PlanPreviewCard.js';
 import { httpClient } from '../../lib/http.js';
+import { brazilianMoneyToCents, centsToBrazilianMoney } from '../../marketing/pricing.js';
 
 import type { CommercialPlanPublicSchema } from '@plataforma/shared';
 import type { z } from 'zod';
@@ -36,6 +37,33 @@ const PlanFormSchema = CreateCommercialPlanRequestSchema.superRefine((value, con
 export type PlanFormInput = z.input<typeof PlanFormSchema>;
 export type PlanFormSubmission = z.output<typeof PlanFormSchema>;
 type Plan = z.infer<typeof CommercialPlanPublicSchema>;
+const planCode = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+function MoneyInput({
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+}: {
+  value: number | undefined;
+  onChange: (value: number | undefined) => void;
+  onBlur: () => void;
+  placeholder: string;
+}) {
+  const [text, setText] = useState(centsToBrazilianMoney(value));
+  return (
+    <input
+      inputMode="decimal"
+      placeholder={placeholder}
+      value={text}
+      onBlur={onBlur}
+      onChange={(event) => {
+        const next = event.target.value;
+        setText(next);
+        onChange(brazilianMoneyToCents(next));
+      }}
+    />
+  );
+}
 
 function valuesFromPlan(plan?: Plan): PlanFormInput {
   if (plan === undefined) {
@@ -47,6 +75,8 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
       description: undefined,
       billingCycle: 'MONTHLY',
       priceCents: 0,
+      monthlyPriceCents: undefined,
+      annualPriceCents: undefined,
       currency: 'BRL',
       trialDays: undefined,
       isPublic: false,
@@ -65,6 +95,8 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
     description: plan.description ?? undefined,
     billingCycle: plan.billingCycle,
     priceCents: Number(plan.priceCents),
+    monthlyPriceCents: plan.monthlyPriceCents === null ? undefined : Number(plan.monthlyPriceCents),
+    annualPriceCents: plan.annualPriceCents === null ? undefined : Number(plan.annualPriceCents),
     currency: plan.currency,
     trialDays: plan.trialDays ?? undefined,
     isPublic: plan.isPublic,
@@ -136,13 +168,14 @@ export function PlanEditForm({
           <label>
             {'C\u00f3digo'}
             <input {...register('code')} />
+            <small>Identificador interno do plano. Gerado automaticamente.</small>
           </label>
         ) : (
           <p className="muted">{`C\u00f3digo: ${plan.code}`}</p>
         )}
         <label>
           Nome
-          <input {...register('name')} />
+          <input {...register('name', { onChange: (event: ChangeEvent<HTMLInputElement>) => { if (plan === undefined) { setValue('code', planCode(event.target.value), { shouldValidate: true }); } } })} />
         </label>
         <label>
           {'Subt\u00edtulo'}
@@ -172,10 +205,42 @@ export function PlanEditForm({
             })}
           />
         </label>
-        <label>
-          {'Pre\u00e7o em centavos'}
-          <input min="0" {...register('priceCents', { valueAsNumber: true })} type="number" />
-        </label>
+        <fieldset>
+          <legend>Preços</legend>
+          <label>
+            Preço mensal (R$)
+            <Controller
+              control={control}
+              name="monthlyPriceCents"
+              render={({ field }) => (
+                <MoneyInput
+                  key={plan?.publicId ?? 'new-monthly'}
+                  value={field.value as number | undefined}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  placeholder="59,90"
+                />
+              )}
+            />
+          </label>
+          <label>
+            Preço anual (R$)
+            <Controller
+              control={control}
+              name="annualPriceCents"
+              render={({ field }) => (
+                <MoneyInput
+                  key={plan?.publicId ?? 'new-annual'}
+                  value={field.value as number | undefined}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  placeholder="599,00"
+                />
+              )}
+            />
+          </label>
+          <small>Digite valores em reais; a Agendei armazena centavos com precisão.</small>
+        </fieldset>
         <label>
           Ciclo
           <select {...register('billingCycle')}>

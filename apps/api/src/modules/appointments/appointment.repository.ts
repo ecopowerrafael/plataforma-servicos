@@ -1,4 +1,5 @@
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 const include = {
   customer: { select: { publicId: true, name: true } },
   professional: { select: { publicId: true, publicName: true } },
@@ -68,6 +69,7 @@ export class AppointmentRepository {
       `;
         if (lock[0]?.acquired !== 1 && lock[0]?.acquired !== 1n) return null;
         try {
+          await new PlanEntitlementService().assertCanCreateAppointment(transaction, BigInt(data.tenantId));
           const conflict = await transaction.appointment.findFirst({
             where: {
               tenantId: data.tenantId,

@@ -23,6 +23,12 @@ function fixture() {
     priceCents: 5990n,
     monthlyPriceCents: 5990n,
     annualPriceCents: 59900n,
+    billingOptions: [
+      { billingCycle: 'MONTHLY' as const, priceCents: 5990n, active: true, recommended: true, sortOrder: 0 },
+      { billingCycle: 'QUARTERLY' as const, priceCents: 16990n, active: true, recommended: false, sortOrder: 1 },
+      { billingCycle: 'SEMIANNUAL' as const, priceCents: 32990n, active: true, recommended: false, sortOrder: 2 },
+      { billingCycle: 'ANNUAL' as const, priceCents: 59900n, active: true, recommended: false, sortOrder: 3 },
+    ],
     currency: 'BRL',
     trialDays: null,
   };
@@ -100,5 +106,33 @@ describe('preço contratado da assinatura', () => {
     value.plan.monthlyPriceCents = 7990n;
     expect(contracted).toBe(5990n);
     expect(value.plan.monthlyPriceCents).toBe(7990n);
+  });
+
+  it.each([
+    ['MONTHLY', 5990n],
+    ['QUARTERLY', 16990n],
+    ['SEMIANNUAL', 32990n],
+  ] as const)('usa o preço da periodicidade %s', async (billingCycle, expectedPrice) => {
+    const value = fixture();
+    const result = await value.service.createSubscription(
+      tenantPublicId,
+      { planPublicId, billingCycle, trial: false, reason: 'Período disponível.' },
+      actor,
+      metadata,
+    );
+    expect(result.subscription.priceCents).toBe(expectedPrice.toString());
+  });
+
+  it('recusa periodicidade desativada', async () => {
+    const value = fixture();
+    const annual = value.plan.billingOptions.find((option) => option.billingCycle === 'ANNUAL');
+    if (annual === undefined) throw new Error('Periodicidade anual ausente no fixture.');
+    annual.active = false;
+    await expect(value.service.createSubscription(
+      tenantPublicId,
+      { planPublicId, billingCycle: 'ANNUAL', trial: false, reason: 'Período indisponível.' },
+      actor,
+      metadata,
+    )).rejects.toMatchObject({ code: 'PLATFORM_BILLING_OPTION_UNAVAILABLE' });
   });
 });

@@ -2919,3 +2919,50 @@ h1 {
   display: grid;
   align-content: center;
 }
+.legacy-billing-fields,
+.legacy-cycle {
+  display: none;
+}
+
+.plan-billing-options {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.billing-option {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(8rem, 12rem) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border, #d9dce3);
+  border-radius: 0.75rem;
+}
+
+.plan-usage-limits,
+.plan-features {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.plan-limit-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(6rem, 10rem) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border, #d9dce3);
+  border-radius: 0.75rem;
+}
+
+.feature-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+}
+
+@media (max-width: 720px) {
+  .billing-option { grid-template-columns: 1fr; }
+  .plan-limit-row { grid-template-columns: 1fr; }
+}

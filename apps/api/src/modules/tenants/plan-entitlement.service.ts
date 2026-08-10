@@ -2,7 +2,12 @@ import { type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
 type Transaction = Prisma.TransactionClient;
-type LimitKey = 'units.max' | 'members.max' | 'professionals.max' | 'monthly_appointments.max';
+type LimitKey =
+  | 'units.max'
+  | 'members.max'
+  | 'professionals.max'
+  | 'services.max'
+  | 'monthly_appointments.max';
 
 export class PlanEntitlementService {
   public async assertCanCreateUnit(transaction: Transaction, tenantId: bigint): Promise<void> {
@@ -11,6 +16,10 @@ export class PlanEntitlementService {
 
   public async assertCanCreateProfessional(transaction: Transaction, tenantId: bigint): Promise<void> {
     await this.assertLimit(transaction, tenantId, 'professionals.max', 'professional');
+  }
+
+  public async assertCanCreateService(transaction: Transaction, tenantId: bigint): Promise<void> {
+    await this.assertLimit(transaction, tenantId, 'services.max', 'service');
   }
 
   public async assertCanAddMember(transaction: Transaction, tenantId: bigint): Promise<void> {
@@ -43,7 +52,7 @@ export class PlanEntitlementService {
     transaction: Transaction,
     tenantId: bigint,
     key: LimitKey,
-    model: 'businessUnit' | 'professional' | 'tenantMembership' | 'appointment',
+    model: 'businessUnit' | 'professional' | 'service' | 'tenantMembership' | 'appointment',
   ): Promise<void> {
     await this.lockTenant(transaction, tenantId);
     const subscription = await transaction.tenantSubscription.findFirst({
@@ -58,6 +67,8 @@ export class PlanEntitlementService {
         ? await transaction.businessUnit.count({ where: { tenantId, status: 'ACTIVE' } })
         : model === 'professional'
           ? await transaction.professional.count({ where: { tenantId, active: true } })
+          : model === 'service'
+            ? await transaction.service.count({ where: { tenantId, active: true } })
           : model === 'tenantMembership'
             ? await transaction.tenantMembership.count({ where: { tenantId, status: 'ACTIVE' } })
             : await transaction.appointment.count({
@@ -74,6 +85,7 @@ export class PlanEntitlementService {
       'units.max': `Seu plano permite até ${limit.toString()} unidade${limit === 1n ? '' : 's'}.`,
       'professionals.max': `Seu plano permite até ${limit.toString()} profissionais.`,
       'members.max': `Seu plano permite até ${limit.toString()} membros da equipe.`,
+      'services.max': `Seu plano permite atÃ© ${limit.toString()} serviÃ§os ativos.`,
       'monthly_appointments.max': 'O limite mensal de agendamentos do seu plano foi atingido.',
     }[key];
     throw new AppError({ code: 'PLAN_LIMIT_REACHED', message, statusCode: 409 });

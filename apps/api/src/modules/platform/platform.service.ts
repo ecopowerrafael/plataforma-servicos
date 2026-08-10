@@ -151,6 +151,14 @@ export function mapPlan(plan: {
         enabled: boolean;
       }[]
     | undefined;
+  billingOptions?: {
+    publicId: string;
+    billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
+    priceCents: bigint;
+    active: boolean;
+    sortOrder: number;
+    recommended: boolean;
+  }[];
 }) {
   return CommercialPlanPublicSchema.parse({
     ...plan,
@@ -164,6 +172,9 @@ export function mapPlan(plan: {
       integerValue: limit.integerValue === null ? null : publicMoney(limit.integerValue),
     })),
     benefits: plan.benefits ?? [],
+    billingOptions: (plan.billingOptions ?? [])
+      .filter((option) => option.billingCycle !== 'CUSTOM')
+      .map((option) => ({ ...option, priceCents: publicMoney(option.priceCents) })),
   });
 }
 
@@ -435,7 +446,7 @@ export class PlatformService {
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         orderBy: { [query.orderBy]: query.direction },
-        include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+        include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } }, billingOptions: { orderBy: { sortOrder: 'asc' } } },
       }),
     ]);
     return { items: plans.map(mapPlan), page: pageMeta(total, query) };
@@ -448,6 +459,7 @@ export class PlatformService {
       include: {
         limits: { orderBy: { key: 'asc' } },
         benefits: { where: { enabled: true }, orderBy: { sortOrder: 'asc' } },
+        billingOptions: { where: { active: true }, orderBy: { sortOrder: 'asc' } },
       },
     });
     return plans.map((plan) =>
@@ -461,7 +473,7 @@ export class PlatformService {
   public async getPlan(publicId: string) {
     const plan = await this.client.commercialPlan.findUnique({
       where: { publicId },
-      include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+      include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } }, billingOptions: { orderBy: { sortOrder: 'asc' } } },
     });
     if (plan === null)
       throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano não foi encontrado.', 404);
@@ -476,6 +488,9 @@ export class PlatformService {
     try {
       const plan = await this.client.$transaction(
         async (transaction) => {
+          const defaultBillingOption =
+            input.billingOptions.find((option) => option.active && option.recommended) ??
+            input.billingOptions.find((option) => option.active);
           const created = await transaction.commercialPlan.create({
             data: {
               publicId: randomUUID(),
@@ -484,8 +499,8 @@ export class PlatformService {
               subtitle: input.subtitle ?? null,
               shortDescription: input.shortDescription ?? null,
               description: input.description ?? null,
-              billingCycle: input.billingCycle,
-              priceCents: BigInt(input.priceCents),
+              billingCycle: defaultBillingOption?.billingCycle ?? input.billingCycle,
+              priceCents: BigInt(defaultBillingOption?.priceCents ?? input.priceCents),
               monthlyPriceCents: input.monthlyPriceCents === undefined || input.monthlyPriceCents === null ? null : BigInt(input.monthlyPriceCents),
               annualPriceCents: input.annualPriceCents === undefined || input.annualPriceCents === null ? null : BigInt(input.annualPriceCents),
               currency: input.currency,
@@ -507,8 +522,18 @@ export class PlatformService {
                   stringValue: limit.stringValue ?? null,
                 })),
               },
+              billingOptions: {
+                create: input.billingOptions.map((option) => ({
+                  publicId: randomUUID(),
+                  billingCycle: option.billingCycle,
+                  priceCents: BigInt(option.priceCents),
+                  active: option.active,
+                  sortOrder: option.sortOrder,
+                  recommended: option.recommended,
+                })),
+              },
             },
-            include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+            include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } }, billingOptions: { orderBy: { sortOrder: 'asc' } } },
           });
           await transaction.auditLog.create({
             data: auditData({
@@ -593,10 +618,25 @@ export class PlatformService {
                         booleanValue: limit.booleanValue ?? null,
                         stringValue: limit.stringValue ?? null,
                       })),
+                  },
+                }),
+              ...(input.billingOptions === undefined
+                ? {}
+                : {
+                    billingOptions: {
+                      deleteMany: {},
+                      create: input.billingOptions.map((option) => ({
+                        publicId: randomUUID(),
+                        billingCycle: option.billingCycle,
+                        priceCents: BigInt(option.priceCents),
+                        active: option.active,
+                        sortOrder: option.sortOrder,
+                        recommended: option.recommended,
+                      })),
                     },
                   }),
             },
-            include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+            include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } }, billingOptions: { orderBy: { sortOrder: 'asc' } } },
           });
           await transaction.auditLog.create({
             data: auditData({
@@ -769,7 +809,7 @@ export class PlatformService {
       async (transaction) => {
         const [tenant, plan] = await Promise.all([
           transaction.tenant.findUnique({ where: { publicId: tenantPublicId } }),
-          transaction.commercialPlan.findUnique({ where: { publicId: input.planPublicId } }),
+          transaction.commercialPlan.findUnique({ where: { publicId: input.planPublicId }, include: { billingOptions: true } }),
         ]);
         if (tenant === null)
           throw appError('PLATFORM_TENANT_NOT_FOUND', 'O estabelecimento não foi encontrado.', 404);
@@ -780,8 +820,11 @@ export class PlatformService {
             409,
           );
         const effectiveTrialDays = plan.trialDays ?? policy.defaultTrialDays;
-        const billingCycle = input.billingCycle ?? plan.billingCycle;
-        const priceCents = billingCycle === 'ANNUAL' ? (plan.annualPriceCents ?? plan.priceCents) : billingCycle === 'MONTHLY' ? (plan.monthlyPriceCents ?? plan.priceCents) : plan.priceCents;
+        const billingCycle = input.billingCycle ?? plan.billingOptions.find((option) => option.recommended && option.active)?.billingCycle ?? plan.billingOptions.find((option) => option.active)?.billingCycle ?? plan.billingCycle;
+        const option = plan.billingOptions.find((item) => item.billingCycle === billingCycle && item.active);
+        if (plan.billingOptions.length > 0 && option === undefined)
+          throw appError('PLATFORM_BILLING_OPTION_UNAVAILABLE', 'Esta periodicidade não está disponível para o plano.', 409);
+        const priceCents = option?.priceCents ?? (billingCycle === 'ANNUAL' ? (plan.annualPriceCents ?? plan.priceCents) : billingCycle === 'MONTHLY' ? (plan.monthlyPriceCents ?? plan.priceCents) : plan.priceCents);
         const trialEndsAt =
           input.trial && effectiveTrialDays > 0
             ? new Date(now.getTime() + effectiveTrialDays * 86_400_000)
@@ -1062,15 +1105,18 @@ export class PlatformService {
       where: { publicId },
       include: { tenant: true, plan: true },
     });
-    const plan = await this.client.commercialPlan.findUnique({ where: { publicId: planPublicId } });
+    const plan = await this.client.commercialPlan.findUnique({ where: { publicId: planPublicId }, include: { billingOptions: true } });
     if (subscription === null)
       throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura não foi encontrada.', 404);
     if (plan?.status !== 'ACTIVE')
       throw appError('PLATFORM_PLAN_UNAVAILABLE', 'O plano não está disponível.', 409);
     if (plan.currency !== subscription.currency)
       throw appError('PLATFORM_CURRENCY_CONFLICT', 'A moeda do plano é incompatível.', 409);
-    const billingCycle = requestedBillingCycle ?? plan.billingCycle;
-    const priceCents = billingCycle === 'ANNUAL' ? (plan.annualPriceCents ?? plan.priceCents) : billingCycle === 'MONTHLY' ? (plan.monthlyPriceCents ?? plan.priceCents) : plan.priceCents;
+    const billingCycle = requestedBillingCycle ?? plan.billingOptions.find((option) => option.recommended && option.active)?.billingCycle ?? plan.billingOptions.find((option) => option.active)?.billingCycle ?? plan.billingCycle;
+    const option = plan.billingOptions.find((item) => item.billingCycle === billingCycle && item.active);
+    if (plan.billingOptions.length > 0 && option === undefined)
+      throw appError('PLATFORM_BILLING_OPTION_UNAVAILABLE', 'Esta periodicidade não está disponível para o plano.', 409);
+    const priceCents = option?.priceCents ?? (billingCycle === 'ANNUAL' ? (plan.annualPriceCents ?? plan.priceCents) : billingCycle === 'MONTHLY' ? (plan.monthlyPriceCents ?? plan.priceCents) : plan.priceCents);
     const value = await this.client.$transaction(
       async (transaction) => {
         const updated = await transaction.tenantSubscription.update({

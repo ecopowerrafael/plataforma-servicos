@@ -63,10 +63,11 @@ export class TenantSubscriptionService {
   }
 
   private async usageByKey(tenantId: bigint, periodStartsAt: Date, periodEndsAt: Date) {
-    const [units, members, professionals, monthlyAppointments] = await Promise.all([
+    const [units, members, professionals, services, monthlyAppointments] = await Promise.all([
       this.client.businessUnit.count({ where: { tenantId, status: 'ACTIVE' } }),
       this.client.tenantMembership.count({ where: { tenantId, status: 'ACTIVE' } }),
       this.client.professional.count({ where: { tenantId, active: true } }),
+      this.client.service.count({ where: { tenantId, active: true } }),
       this.client.appointment.count({
         where: { tenantId, createdAt: { gte: periodStartsAt, lte: periodEndsAt } },
       }),
@@ -75,6 +76,7 @@ export class TenantSubscriptionService {
       ['units.max', units],
       ['members.max', members],
       ['professionals.max', professionals],
+      ['services.max', services],
       ['monthly_appointments.max', monthlyAppointments],
     ]);
   }

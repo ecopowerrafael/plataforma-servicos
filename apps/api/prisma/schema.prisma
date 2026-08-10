@@ -2133,11 +2133,30 @@ model CommercialPlan {
   updatedAt        DateTime             @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   limits           PlanLimit[]
   benefits         PlanBenefit[]
+  billingOptions   PlanBillingOption[]
   subscriptions    TenantSubscription[]
 
   @@index([status, sortOrder])
   @@index([billingCycle])
   @@map("commercial_plans")
+}
+
+model PlanBillingOption {
+  id           BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId     String        @unique @map("public_id") @db.Char(36)
+  planId       BigInt        @map("plan_id") @db.UnsignedBigInt
+  billingCycle BillingCycle  @map("billing_cycle")
+  priceCents   BigInt        @map("price_cents") @db.UnsignedBigInt
+  active       Boolean       @default(true)
+  sortOrder    Int           @default(0) @map("sort_order")
+  recommended  Boolean       @default(false)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  plan         CommercialPlan @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([planId, billingCycle])
+  @@index([planId, active, sortOrder])
+  @@map("plan_billing_options")
 }
 
 model PlanBenefit {

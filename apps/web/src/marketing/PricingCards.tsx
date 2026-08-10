@@ -41,7 +41,8 @@ export function PricingCards({
   plans: CommercialPlan[];
   compact?: boolean;
 }) {
-  const [cycle, setCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
+  const availableCycles = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const;
+  const [cycle, setCycle] = useState<(typeof availableCycles)[number]>('MONTHLY');
   if (plans.length === 0)
     return (
       <div className="pricing-empty">
@@ -53,9 +54,11 @@ export function PricingCards({
 
   return (
     <>
-      <div className="pricing-toggle" role="group" aria-label="Periodicidade"><button className={cycle === 'MONTHLY' ? 'nav-active' : ''} onClick={() => { setCycle('MONTHLY'); }} type="button">Mensal</button><button className={cycle === 'ANNUAL' ? 'nav-active' : ''} onClick={() => { setCycle('ANNUAL'); }} type="button">Anual</button></div>
+      <div className="pricing-toggle" role="group" aria-label="Periodicidade">{availableCycles.filter((candidate) => plans.some((plan) => plan.billingOptions.some((option) => option.active && option.billingCycle === candidate) || (plan.billingOptions.length === 0 && (candidate === 'MONTHLY' || candidate === 'ANNUAL')))).map((candidate) => <button className={cycle === candidate ? 'nav-active' : ''} key={candidate} onClick={() => { setCycle(candidate); }} type="button">{{ MONTHLY: 'Mensal', QUARTERLY: 'Trimestral', SEMIANNUAL: 'Semestral', ANNUAL: 'Anual' }[candidate]}</button>)}</div>
     <div className={compact ? 'pricing-grid pricing-grid--compact' : 'pricing-grid'}>
       {plans.slice(0, compact ? 3 : undefined).map((plan) => {
+        const option = plan.billingOptions.find((item) => item.active && item.billingCycle === cycle);
+        if (plan.billingOptions.length > 0 && option === undefined) return null;
         const enabledBenefits = plan.benefits
           .filter((benefit) => benefit.enabled)
           .slice(0, compact ? 5 : undefined);
@@ -78,7 +81,7 @@ export function PricingCards({
               )}
             </div>
             <p className="pricing-price">
-              <strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: plan.currency }).format(Number((cycle === 'ANNUAL' ? plan.annualPriceCents : plan.monthlyPriceCents) ?? plan.priceCents) / 100)}</strong>
+              <strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: plan.currency }).format(Number(option?.priceCents ?? (cycle === 'ANNUAL' ? plan.annualPriceCents : plan.monthlyPriceCents) ?? plan.priceCents) / 100)}</strong>
               <span>{cycle === 'ANNUAL' ? 'por ano' : 'por mês'}</span>
             </p>
             {cycle === 'ANNUAL' && annualSavingsCents(plan.monthlyPriceCents, plan.annualPriceCents) > 0 ? (

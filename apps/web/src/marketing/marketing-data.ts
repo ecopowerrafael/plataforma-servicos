@@ -143,6 +143,7 @@ export const planLimitLabels = {
   'units.max': 'Unidades',
   'members.max': 'Membros da equipe',
   'professionals.max': 'Profissionais',
+  'services.max': 'Serviços',
   'monthly_appointments.max': 'Agendamentos por mês',
   'custom_domain.enabled': 'Domínio próprio',
 } as const;

@@ -1,4 +1,5 @@
 import { type Prisma, type PrismaClient, type Service } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 export type ServiceRecord = Service & { category: { publicId: string } | null };
 
@@ -57,9 +58,12 @@ export class PrismaServiceRepository implements ServiceRepository {
   }
 
   public create(data: Prisma.ServiceUncheckedCreateInput): Promise<ServiceRecord> {
-    return this.client.service.create({
-      data,
-      include: { category: { select: { publicId: true } } },
+    return this.client.$transaction(async (transaction) => {
+      await new PlanEntitlementService().assertCanCreateService(transaction, BigInt(data.tenantId));
+      return transaction.service.create({
+        data,
+        include: { category: { select: { publicId: true } } },
+      });
     });
   }
 

@@ -59,6 +59,7 @@ export const PlanLimitKeys = [
   'units.max',
   'members.max',
   'professionals.max',
+  'services.max',
   'monthly_appointments.max',
   'custom_domain.enabled',
 ] as const;
@@ -67,6 +68,7 @@ export const PlanLimitCatalog = {
   'units.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'members.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'professionals.max': { valueType: 'INTEGER', allowsUnlimited: true },
+  'services.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'monthly_appointments.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'custom_domain.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
 } as const satisfies Record<
@@ -161,6 +163,21 @@ export const PlanBenefitPublicSchema = z.object({
   sortOrder: z.number().int(),
   enabled: z.boolean(),
 });
+export const PlanBillingOptionPublicSchema = z.object({
+  publicId: z.uuid(),
+  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']),
+  priceCents: MoneyPublicSchema,
+  active: z.boolean(),
+  sortOrder: z.number().int(),
+  recommended: z.boolean(),
+});
+export const PlanBillingOptionInputSchema = z.object({
+  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']),
+  priceCents: MoneyInputSchema,
+  active: z.boolean().default(true),
+  sortOrder: z.number().int().min(0).max(100).default(0),
+  recommended: z.boolean().default(false),
+});
 export const CommercialPlanPublicSchema = z.object({
   publicId: z.uuid(),
   code: z.string().regex(/^(?:[A-Z][A-Z0-9_]{1,63}|[a-z0-9]+(?:-[a-z0-9]+)*)$/u),
@@ -173,6 +190,7 @@ export const CommercialPlanPublicSchema = z.object({
   priceCents: MoneyPublicSchema,
   monthlyPriceCents: MoneyPublicSchema.nullable().default(null),
   annualPriceCents: MoneyPublicSchema.nullable().default(null),
+  billingOptions: z.array(PlanBillingOptionPublicSchema).default([]),
   currency: CurrencySchema,
   trialDays: z.number().int().nonnegative().max(3650).nullable(),
   isPublic: z.boolean(),
@@ -199,6 +217,7 @@ const CommercialPlanRequestObjectSchema = z
     priceCents: MoneyInputSchema,
     monthlyPriceCents: MoneyInputSchema.nullable().optional(),
     annualPriceCents: MoneyInputSchema.nullable().optional(),
+    billingOptions: z.array(PlanBillingOptionInputSchema).max(4).default([]),
     currency: CurrencySchema.default('BRL'),
     trialDays: z.coerce.number().int().min(0).max(3650).nullable().optional(),
     isPublic: z.boolean().default(false),

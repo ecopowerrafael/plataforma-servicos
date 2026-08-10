@@ -42,6 +42,20 @@ describe('contratos comerciais da plataforma', () => {
     expect(result.code).toBe('PRO');
   });
 
+  it('aceita as quatro periodicidades configuradas em um único plano', () => {
+    const result = CreateCommercialPlanRequestSchema.safeParse({
+      code: 'PERIODOS', name: 'Plano com períodos', billingCycle: 'MONTHLY', priceCents: 5990,
+      currency: 'BRL', limits: [],
+      billingOptions: [
+        { billingCycle: 'MONTHLY', priceCents: 5990, active: true, sortOrder: 0, recommended: true },
+        { billingCycle: 'QUARTERLY', priceCents: 16990, active: true, sortOrder: 1, recommended: false },
+        { billingCycle: 'SEMIANNUAL', priceCents: 32990, active: true, sortOrder: 2, recommended: false },
+        { billingCycle: 'ANNUAL', priceCents: 59900, active: false, sortOrder: 3, recommended: false },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
   it.each([
     { key: 'unknown.limit', valueType: 'INTEGER', integerValue: 1 },
     { key: 'units.max', valueType: 'BOOLEAN', integerValue: 1 },

@@ -154,13 +154,17 @@ export async function buildApp(options: BuildAppOptions) {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  // Deploy single-origin (ex.: Node.js compartilhado da Hostinger): quando
-  // WEB_DIST_DIR aponta para o frontend compilado, a própria API o serve e faz
-  // o fallback SPA. Opt-in — sem a variável, o comportamento é o de antes.
-  const spaFallback =
-    options.environment.WEB_DIST_DIR === undefined
-      ? undefined
-      : await registerStaticWeb(app, options.environment.WEB_DIST_DIR);
+  // Deploy single-origin (ex.: Node.js compartilhado da Hostinger): a própria
+  // API serve o frontend Vite compilado e faz o fallback SPA. Em produção isso
+  // é ligado por padrão (localizando `apps/web/dist` automaticamente, mesmo sem
+  // `WEB_DIST_DIR`); fora de produção, só quando `WEB_DIST_DIR` é definido
+  // (evita servir um `dist` antigo em desenvolvimento, onde o Vite serve à parte).
+  const shouldServeWeb =
+    options.environment.WEB_DIST_DIR !== undefined ||
+    options.environment.NODE_ENV === 'production';
+  const spaFallback = shouldServeWeb
+    ? await registerStaticWeb(app, options.environment.WEB_DIST_DIR)
+    : undefined;
   registerErrorHandlers(baseApp, spaFallback === undefined ? {} : { spaFallback });
 
   await app.register(cookie);

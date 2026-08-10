@@ -5,28 +5,70 @@ import fastifyStatic from '@fastify/static';
 import { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 
 /**
- * Serve o frontend Vite já compilado a partir de um diretório configurável
- * (`WEB_DIST_DIR`), com fallback SPA: qualquer navegação do lado do cliente
- * (rota GET/HEAD que aceita `text/html` e não corresponde a um arquivo real
- * nem a uma rota da API) recebe o `index.html`, deixando o React Router
- * resolver a rota. Chamadas da API continuam retornando JSON — o cliente HTTP
- * envia `Accept: application/json`, então nunca casam com o fallback.
+ * Serve o frontend Vite já compilado (`apps/web/dist`), com fallback SPA:
+ * qualquer navegação do lado do cliente (GET/HEAD que aceita `text/html` e não
+ * corresponde a um arquivo real nem a uma rota da API) recebe o `index.html`,
+ * deixando o React Router resolver a rota. Chamadas da API continuam retornando
+ * JSON — o cliente HTTP envia `Accept: application/json`, então nunca casam com
+ * o fallback.
  *
- * É estritamente opt-in: quando `WEB_DIST_DIR` não está definido (ex.: em
- * desenvolvimento, com o Vite servindo o frontend à parte), nada é registrado
- * e o comportamento da API permanece idêntico ao anterior.
+ * O diretório pode ser informado por `WEB_DIST_DIR` (absoluto ou relativo ao
+ * diretório de trabalho). Quando não informado, tentamos localizar o `dist`
+ * automaticamente por candidatos **independentes do diretório de trabalho**
+ * (relativo ao cwd e relativo ao próprio módulo compilado), para funcionar
+ * mesmo que a hospedagem inicie o processo a partir de `apps/api` ou da raiz.
  */
 export function resolveWebDistDir(webDistDir: string): string {
   return isAbsolute(webDistDir) ? webDistDir : resolve(process.cwd(), webDistDir);
 }
 
+async function directoryHasIndex(candidate: string): Promise<boolean> {
+  try {
+    await access(join(candidate, 'index.html'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Candidatos padrão quando `WEB_DIST_DIR` não é informado. O módulo compilado
+ * fica em `apps/api/dist/plugins/static-web.js`, então `../../../web/dist`
+ * aponta para `apps/web/dist` na árvore do projeto, independentemente do cwd.
+ */
+function defaultCandidates(): string[] {
+  return [
+    resolve(process.cwd(), 'apps/web/dist'),
+    resolve(import.meta.dirname, '../../../web/dist'),
+  ];
+}
+
 export async function registerStaticWeb(
   app: FastifyInstance,
-  webDistDir: string,
-): Promise<(request: FastifyRequest, reply: FastifyReply) => boolean> {
-  const root = resolveWebDistDir(webDistDir);
-  const indexFile = join(root, 'index.html');
-  await access(indexFile);
+  webDistDir?: string,
+): Promise<((request: FastifyRequest, reply: FastifyReply) => boolean) | undefined> {
+  const candidates =
+    webDistDir === undefined || webDistDir.trim().length === 0
+      ? defaultCandidates()
+      : [resolveWebDistDir(webDistDir)];
+
+  let root: string | undefined;
+  for (const candidate of candidates) {
+    if (await directoryHasIndex(candidate)) {
+      root = candidate;
+      break;
+    }
+  }
+
+  if (root === undefined) {
+    app.log.warn(
+      { candidates },
+      'Frontend compilado (index.html) não encontrado; a API não servirá o site. Verifique WEB_DIST_DIR / o build de apps/web.',
+    );
+    return undefined;
+  }
+
+  app.log.info({ webDist: root }, 'Servindo o frontend compilado a partir deste diretório.');
 
   await app.register(fastifyStatic, {
     root,

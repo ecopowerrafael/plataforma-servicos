@@ -126,6 +126,12 @@ No painel Node, defina:
 A porta é lida de `process.env.PORT` automaticamente (a Hostinger injeta essa
 variável) — não fixe uma porta. O host padrão é `0.0.0.0`.
 
+`npm run start` executa `node apps/api/dist/server.js` a partir da **raiz** do
+projeto. Em produção a API **serve o frontend automaticamente** (localiza
+`apps/web/dist` mesmo sem `WEB_DIST_DIR`, de forma independente do diretório de
+trabalho), com fallback SPA — rotas do React (ex.: `/planos`) devolvem o
+`index.html`, e as rotas de API continuam devolvendo JSON.
+
 > Se preferir apontar o start file diretamente, use
 > `apps/api/dist/server.js`. Não use `tsx`/`ts-node` em produção — rode o
 > JavaScript já compilado em `dist`.
@@ -152,7 +158,7 @@ Mínimo obrigatório:
 | `CORS_ORIGINS` | `https://agendei.site,https://www.agendei.site` | domínio(s) público(s); nunca `*`. |
 | `VITE_API_URL` | `https://agendei.site` | mesmo domínio (single-origin); embutida no build do web. |
 | `APP_WEB_URL` | `https://agendei.site` | usada em links de e-mail; deve ser HTTPS. |
-| `WEB_DIST_DIR` | `./apps/web/dist` | faz a API servir o frontend + fallback SPA. |
+| `WEB_DIST_DIR` | *(opcional)* | frontend servido pela API. **Auto-detectado** em produção (`apps/web/dist`); só defina se o dist estiver em outro caminho. |
 | `AUTH_COOKIE_SECURE` | `true` | obrigatório em produção. |
 | `LOG_LEVEL` | `info` | |
 

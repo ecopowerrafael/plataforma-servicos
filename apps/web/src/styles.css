@@ -2524,6 +2524,70 @@ a {
   padding: 32px 20px;
 }
 
+.password-requirements {
+  margin: -0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted, #64748b);
+  font-size: 0.8rem;
+}
+
+.password-requirements .met {
+  color: #15803d;
+}
+
+.onboarding-welcome,.onboarding-checklist {
+  margin: 1rem 0;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid #bfdbfe;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #eff6ff, #fff);
+}
+.onboarding-checklist { display:grid; gap:.75rem; }
+.onboarding-checklist ul { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.5rem; margin:0; padding:0; list-style:none; }
+.onboarding-checklist li { color:#64748b; font-weight:650; }
+.onboarding-checklist li.complete { color:#15803d; }
+.brand-color-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; margin:1rem 0; }
+.brand-color-grid label { display:grid; gap:.4rem; font-weight:700; }
+.brand-color-grid input[type="color"] { width:100%; min-height:2.75rem; border:0; border-radius:.6rem; cursor:pointer; }
+@media (max-width: 520px) { .brand-color-grid { grid-template-columns:1fr; } }
+
+.app-navigation {
+  display: flex;
+  gap: .25rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 1.5rem;
+  padding: .5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+}
+.app-navigation a {
+  color: #475569;
+  text-decoration: none;
+  padding: .65rem .75rem;
+  border-radius: .6rem;
+  font-size: .9rem;
+  font-weight: 650;
+}
+.app-navigation a.active { background: var(--color-primary, #2457d6); color: #fff; }
+.app-mobile-nav,.mobile-sheet { display:none; }
+@media (min-width: 900px) {
+  .app-shell { width:min(100%, 1440px); padding-left: 1.5rem; padding-right: 1.5rem; }
+  .app-navigation { position: sticky; top: 1rem; align-items: stretch; flex-direction: column; float: left; width: 14rem; margin: 0 2rem 2rem 0; }
+  .app-navigation + .session-grid { min-height: 6rem; }
+}
+@media (max-width: 699px) {
+  .app-shell { padding-bottom: calc(5.25rem + env(safe-area-inset-bottom)); }
+  .app-navigation { display:none; }
+  .app-mobile-nav { display:grid; grid-template-columns:repeat(5,1fr); align-items:center; position:fixed; z-index:30; bottom:0; left:0; right:0; padding:.45rem .5rem calc(.45rem + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid #e2e8f0; box-shadow:0 -8px 22px rgb(15 23 42 / 9%); }
+  .app-mobile-nav a,.app-mobile-nav button { display:grid; place-items:center; min-height:2.8rem; border:0; background:transparent; color:#475569; font:inherit; font-size:.72rem; text-decoration:none; }
+  .app-mobile-nav a.active { color:var(--color-primary,#2457d6); font-weight:800; }
+  .app-mobile-nav .mobile-plus { width:2.8rem; height:2.8rem; margin:auto; border-radius:999px; background:var(--color-primary,#2457d6); color:#fff; font-size:1.7rem; line-height:1; box-shadow:0 5px 14px rgb(37 87 214 / 35%); }
+  .mobile-sheet { display:grid; gap:.4rem; position:fixed; z-index:29; right:.75rem; bottom:5.4rem; left:.75rem; padding:1rem; border:1px solid #e2e8f0; border-radius:1rem; background:#fff; box-shadow:0 16px 42px rgb(15 23 42 / 18%); }
+  .mobile-sheet button,.mobile-sheet a { padding:.8rem 1rem; border:0; border-radius:.65rem; background:#f8fafc; color:#1e293b; font:inherit; font-weight:700; text-align:left; text-decoration:none; }
+  .mobile-menu-sheet { grid-template-columns:repeat(2, minmax(0,1fr)); }
+}
+
 /* Super Admin: superfície administrativa clara, densa e responsiva. */
 .platform-shell { min-height:100vh; background:#f6f8fb; color:#172033; padding:28px; }
 .platform-header { align-items:center; background:#fff; border:1px solid #e4e9f2; border-radius:18px; box-shadow:0 8px 28px rgba(28,45,72,.06); padding:22px 26px; }

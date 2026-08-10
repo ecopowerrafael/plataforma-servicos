@@ -8,6 +8,17 @@ import {
 
 const commonPasswords = new Set(['1234567890', 'password123', 'senha12345', 'qwerty12345']);
 
+export function passwordRequirementStatus(value: string) {
+  return {
+    minLength: value.length >= 10,
+    maxLength: value.length <= 128,
+    letter: /\p{L}/u.test(value),
+    number: /\d/u.test(value),
+    notOnlyWhitespace: value.trim().length > 0,
+    notCommon: !commonPasswords.has(value.toLowerCase()),
+  };
+}
+
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }

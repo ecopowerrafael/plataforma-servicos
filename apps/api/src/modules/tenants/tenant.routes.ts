@@ -1,5 +1,7 @@
 import {
   CreateBusinessUnitRequestSchema,
+  BusinessProfileCodeSchema,
+  TenantSlugSchema,
   TenantContextResponseSchema,
   TenantSettingsInputSchema,
   TenantSettingsResponseSchema,
@@ -28,7 +30,7 @@ interface TenantRoutesOptions {
   authService: AuthService;
   cookieName: string;
   experience?: TenantExperienceResolver;
-  client?: PrismaClient;
+  client: PrismaClient;
 }
 
 const EmptyQuerySchema = z.object({}).strict();
@@ -41,6 +43,16 @@ const ensureUnitAccess = (allowed: string[] | null, publicId: string) => {
     });
 };
 const UnitParamsSchema = z.object({ publicId: z.uuid() }).strict();
+const OnboardingSlugQuerySchema = z.object({ slug: TenantSlugSchema }).strict();
+const OnboardingRequestSchema = z.object({
+  step: z.string().trim().min(1).max(40),
+  completed: z.boolean().optional(),
+  hideChecklist: z.boolean().optional(),
+  businessProfile: BusinessProfileCodeSchema.optional(),
+  businessTypeCustom: z.string().trim().min(2).max(120).nullable().optional(),
+  displayName: z.string().trim().min(2).max(120).optional(),
+  slug: TenantSlugSchema.optional(),
+}).strict();
 const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
   userId: r.auth.user.id,
   sessionId: r.auth.session.id,
@@ -51,6 +63,58 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     authService: options.authService,
     cookieName: options.cookieName,
     client: options.client,
+  });
+
+  app.get('/tenant/onboarding', async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    const tenant = await options.client.tenant.findUniqueOrThrow({ where: { id: request.tenant.id }, select: { onboardingStep: true, onboardingCompletedAt: true, onboardingChecklistHiddenAt: true } });
+    return tenant;
+  });
+  app.patch('/tenant/onboarding', { schema: { body: OnboardingRequestSchema } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.update');
+    if (!request.tenant.membership.isOwner) throw new AppError({ code: 'PERMISSION_DENIED', message: 'Apenas o proprietário pode atualizar o onboarding.', statusCode: 403 });
+    const now = new Date();
+    return options.client.tenant.update({
+      where: { id: request.tenant.id },
+      data: {
+        onboardingStep: request.body.step,
+        ...(request.body.completed === true ? { onboardingCompletedAt: now } : {}),
+        ...(request.body.hideChecklist === true ? { onboardingChecklistHiddenAt: now } : {}),
+        ...(request.body.businessProfile === undefined ? {} : { businessProfile: request.body.businessProfile }),
+        ...(request.body.businessTypeCustom === undefined ? {} : { businessTypeCustom: request.body.businessTypeCustom }),
+        ...(request.body.displayName === undefined ? {} : { displayName: request.body.displayName }),
+        ...(request.body.slug === undefined ? {} : { slug: request.body.slug }),
+      },
+      select: { onboardingStep: true, onboardingCompletedAt: true, onboardingChecklistHiddenAt: true },
+    });
+  });
+  app.get('/tenant/onboarding/slug-availability', { schema: { querystring: OnboardingSlugQuerySchema } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    const conflict = await options.client.tenant.findFirst({
+      where: { slug: request.query.slug, id: { not: request.tenant.id } },
+      select: { id: true },
+    });
+    return { available: conflict === null };
+  });
+  app.get('/tenant/onboarding/checklist', async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    const [tenant, services, professionals, schedules, appointments, branding] = await Promise.all([
+      options.client.tenant.findUniqueOrThrow({ where: { id: request.tenant.id }, select: { onboardingCompletedAt: true, onboardingChecklistHiddenAt: true } }),
+      options.client.service.count({ where: { tenantId: request.tenant.id, active: true } }),
+      options.client.professional.count({ where: { tenantId: request.tenant.id, active: true } }),
+      options.client.professionalWorkSchedule.count({ where: { tenantId: request.tenant.id } }),
+      options.client.appointment.count({ where: { tenantId: request.tenant.id } }),
+      options.client.tenantBranding.count({ where: { tenantId: request.tenant.id } }),
+    ]);
+    return { hidden: tenant.onboardingChecklistHiddenAt !== null, items: [
+      { key: 'company', complete: tenant.onboardingCompletedAt !== null },
+      { key: 'branding', complete: branding > 0 },
+      { key: 'service', complete: services > 0 },
+      { key: 'professional', complete: professionals > 0 },
+      { key: 'schedule', complete: schedules > 0 },
+      { key: 'appointment', complete: appointments > 0 },
+      { key: 'share', complete: false },
+    ] };
   });
 
   app.get(

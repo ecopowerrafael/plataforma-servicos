@@ -368,6 +368,10 @@ model Tenant {
   locale                       String                           @db.VarChar(16)
   currency                     String                           @db.Char(3)
   businessProfile              BusinessProfile                  @default(GENERIC) @map("business_profile")
+  businessTypeCustom           String?                           @map("business_type_custom") @db.VarChar(120)
+  onboardingStep               String                           @default("WELCOME") @map("onboarding_step") @db.VarChar(40)
+  onboardingCompletedAt        DateTime?                        @map("onboarding_completed_at") @db.DateTime(3)
+  onboardingChecklistHiddenAt  DateTime?                        @map("onboarding_checklist_hidden_at") @db.DateTime(3)
   createdAt                    DateTime                         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                    DateTime                         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   settings                     TenantSettings?

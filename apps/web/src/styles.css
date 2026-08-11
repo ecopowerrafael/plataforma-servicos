@@ -2628,6 +2628,7 @@ a {
 .app-shell :where(input,select,textarea):focus-visible { border-color:#2563eb !important; box-shadow:0 0 0 3px rgb(37 99 235 / 14%) !important; outline:0; }
 .app-shell .primary-button,.app-shell .platform-form button { min-height:2.65rem; padding:.65rem 1rem; border-radius:.7rem; background:#2563eb; box-shadow:0 4px 10px rgb(37 99 235 / 20%); }
 .app-shell .secondary-button,.app-shell .text-button { min-height:2.65rem; padding:.6rem .9rem; border:1px solid #cbd5e1; border-radius:.7rem; background:#fff; color:#334155; }
+.app-shell .platform-form .secondary-button { background:#fff; color:#334155; box-shadow:none; }
 .app-shell .primary-button:hover,.app-shell .platform-form button:hover { background:#1d4ed8; transform:translateY(-1px); }
 .app-shell .secondary-button:hover,.app-shell .text-button:hover { background:#f8fafc; border-color:#94a3b8; }
 .app-shell .platform-table { overflow:hidden; border:1px solid #e2e8f0; border-radius:.85rem; min-width:680px; }
@@ -2637,6 +2638,21 @@ a {
 .app-shell .module-header { grid-column:1/-1; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:.35rem; }
 .app-shell .module-header h3,.app-shell .drawer-header h4 { margin:.15rem 0; }
 .app-shell .module-header p:not(.eyebrow) { margin:.35rem 0 0; color:#64748b; }
+.app-filter-bar { display:flex; flex-wrap:wrap; align-items:end; gap:.8rem; margin:0 0 1rem; padding:1rem; border:1px solid #e2e8f0; border-radius:.9rem; background:#fff; box-shadow:0 6px 18px rgb(15 23 42 / 4%); }
+.app-filter-bar label { display:grid; gap:.4rem; min-width:0; color:#334155; font-size:.88rem; font-weight:650; }
+.app-filter-bar input,.app-filter-bar select { width:min(100%,15rem); min-height:2.65rem; }
+.app-filter-bar label:last-of-type input { width:min(100%,22.5rem); }
+.dashboard-module { display:block !important; }
+.dashboard-date { margin:.5rem 0 1rem; color:#64748b; text-transform:capitalize; }
+.dashboard-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; }
+.metric-card { min-height:7.4rem; display:grid; align-content:space-between; border-color:#dbeafe; background:linear-gradient(135deg,#fff,#f5f9ff); }
+.dashboard-breakdown { margin-top:1.25rem; padding-top:1.1rem; border-top:1px solid #e2e8f0; }
+.dashboard-breakdown h3 { margin:0 0 .65rem; color:#1e293b; font-size:1rem; }
+.status-summary-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:.55rem; margin:0; padding:0; list-style:none; }
+.status-summary-list li { padding:.6rem .7rem; border-radius:.65rem; background:#f8fafc; color:#475569; font-size:.86rem; }
+.appointment-module > .data-list { margin-top:1rem; }
+.appointment-module .data-row { border:1px solid #e2e8f0; border-radius:.75rem; background:#fff; transition:border-color .15s ease,box-shadow .15s ease; }
+.appointment-module .data-row:hover { border-color:#93c5fd; box-shadow:0 7px 17px rgb(15 23 42 / 6%); }
 .coupon-list { display:grid; grid-column:1/-1; gap:.65rem; width:100%; margin:0; padding:0; list-style:none; }
 .coupon-item { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:1rem; padding:1rem; border:1px solid #e2e8f0; border-radius:.85rem; background:#fbfdff; }
 .coupon-item > div { display:grid; gap:.2rem; }
@@ -2673,6 +2689,9 @@ a {
   .app-shell .platform-table { min-width:600px; }
   .app-shell .module-header,.drawer-header { flex-direction:column; }
   .coupon-item { grid-template-columns:1fr; gap:.6rem; }
+  .app-filter-bar { display:grid; grid-template-columns:1fr; }
+  .app-filter-bar input,.app-filter-bar select,.app-filter-bar label:last-of-type input { width:100%; }
+  .dashboard-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 
 /* Super Admin: superfície administrativa clara, densa e responsiva. */

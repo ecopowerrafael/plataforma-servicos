@@ -13,9 +13,9 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import { persistLayoutAndAdvance } from './onboarding-flow.js';
+import { ErrorBoundary } from '../components/ErrorBoundary.js';
 import { HttpError, httpClient } from '../lib/http.js';
 import { clearSelectedTenant, readSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
-import { ErrorBoundary } from '../components/ErrorBoundary.js';
 
 // Dynamic module boundaries keep inactive product areas out of the initial panel bundle.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -57,6 +57,7 @@ export function AppointmentModule({
   const [selected, setSelected] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [editorOpen, setEditorOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const customers = useQuery({
@@ -246,9 +247,12 @@ export function AppointmentModule({
       });
   };
   return (
-    <section className="sessions-panel">
-      <p className="eyebrow">Agenda</p>
-      <h2>Agendamentos</h2>
+    <section className="sessions-panel appointment-module">
+      <div className="module-header">
+        <div><p className="eyebrow">Agenda</p><h2>Agendamentos</h2><p>Organize os próximos atendimentos da sua equipe.</p></div>
+        <button className="primary-button" type="button" onClick={() => { setSelected(null); setEditorOpen(true); }}>Novo agendamento</button>
+      </div>
+      <div className="app-filter-bar">
       <label>
         De
         <input
@@ -295,7 +299,7 @@ export function AppointmentModule({
           }}
         />
       </label>
-      <button
+      <button className="secondary-button"
         type="button"
         onClick={() => {
           const start = new Date();
@@ -308,7 +312,9 @@ export function AppointmentModule({
       >
         Hoje (recepção)
       </button>
-      <div className="platform-form">
+      </div>
+      {editorOpen && <div className="app-drawer platform-form">
+        <div className="drawer-header"><div><h3>{selected === null ? 'Novo agendamento' : 'Editar agendamento'}</h3><p>Preencha os dados para reservar este horário.</p></div><button className="secondary-button" type="button" onClick={() => { setEditorOpen(false); }}>Fechar</button></div>
         {selected !== null && (
           <label>
             Motivo do reagendamento
@@ -436,14 +442,14 @@ export function AppointmentModule({
             />
           </label>
         )}
-        <button
+        <button className="primary-button"
           type="button"
           disabled={mutation.isPending || customer === '' || professional === '' || service === ''}
           onClick={create}
         >
           {selected === null ? 'Criar agendamento' : 'Salvar alterações'}
         </button>
-      </div>
+      </div>}
       {feedback !== null && <p className="form-success">{feedback}</p>}
       {mutation.error instanceof Error && (
         <p className="form-error">
@@ -458,6 +464,7 @@ export function AppointmentModule({
             key={item.publicId}
             onClick={() => {
               setSelected(item.publicId);
+              setEditorOpen(true);
             }}
           >
             <span>{item.protocol}</span>
@@ -473,6 +480,7 @@ export function AppointmentModule({
           </button>
         ))}
       </div>
+      {list.data?.items.length === 0 ? <div className="empty-state"><strong>Nenhum agendamento neste período</strong><span>Altere os filtros ou crie um novo atendimento.</span></div> : null}
       {selected !== null && (
         <section className="sessions-panel" aria-label="Detalhes do agendamento">
           {detail.isPending ? <p>Carregando detalhes...</p> : null}

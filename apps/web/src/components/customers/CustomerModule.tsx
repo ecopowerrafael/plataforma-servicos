@@ -11,8 +11,8 @@ import { type ZodType } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
-import { UnitSelect } from '../tenants/UnitSelect.js';
 import { CustomerForm } from './CustomerForm.js';
+import { UnitSelect } from '../tenants/UnitSelect.js';
 
 export function CustomerModule({
   tenantPublicId,
@@ -121,28 +121,29 @@ export function CustomerModule({
     });
   };
   return (
-    <section aria-labelledby="customers-title" className="sessions-panel">
-      <p className="eyebrow">Relacionamento</p>
-      <h2 id="customers-title">{`${terminology}s`}</h2>
+    <section aria-labelledby="customers-title" className="sessions-panel customer-module">
+      <div className="module-header">
+        <div><p className="eyebrow">Relacionamento</p><h2 id="customers-title">{`${terminology}s`}</h2><p>Centralize os cadastros e acompanhe a sua base.</p></div>
+        <button className="primary-button"
+          type="button"
+          onClick={() => {
+            setCreating((value) => !value);
+          }}
+        >
+          {creating ? 'Fechar cadastro' : `Novo ${terminology.toLowerCase()}`}
+        </button>
+      </div>
       {notice !== null && <p className="success-message">{notice}</p>}
-      <button
-        type="button"
-        onClick={() => {
-          setCreating((value) => !value);
-        }}
-      >
-        {creating ? 'Fechar criação' : `Criar ${terminology.toLowerCase()}`}
-      </button>
       {creating && (
-        <CustomerForm
+        <div className="app-drawer"><CustomerForm
           busy={mutation.isPending}
           error={mutation.error instanceof Error ? mutation.error.message : null}
           fields={fields.data?.fields.filter((field) => field.scope === 'CUSTOMER') ?? []}
           terminology={terminology}
           onSave={save}
-        />
+        /></div>
       )}
-      <div className="platform-form">
+      <div className="app-filter-bar">
         <label>
           Busca
           <input
@@ -185,7 +186,7 @@ export function CustomerModule({
       ) : customers.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar os cadastros.</p>
       ) : customers.data === undefined || customers.data.items.length === 0 ? (
-        <p>Nenhum cadastro encontrado.</p>
+        <div className="empty-state"><strong>Nenhum cadastro encontrado</strong><span>Ajuste os filtros ou crie o primeiro {terminology.toLowerCase()}.</span></div>
       ) : (
         <>
           <div className="data-list">

@@ -33,6 +33,12 @@ export function LoyaltyModule({
       {rules.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar as regras de fidelidade.</p>
       ) : null}
+      {rules.data?.items.length === 0 ? (
+        <div className="empty-state" role="status">
+          <strong>Programa de fidelidade ainda não configurado</strong>
+          <span>Quando as regras estiverem disponíveis, os controles de pontos e cashback aparecerão aqui.</span>
+        </div>
+      ) : null}
       {rules.data?.items.map((rule) => (
         <LoyaltyRuleForm
           key={rule.type}

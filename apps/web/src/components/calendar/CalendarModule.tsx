@@ -143,10 +143,9 @@ export function CalendarModule({ tenantPublicId }: { tenantPublicId: string }) {
   const hasError =
     view === 'day' ? availability.error instanceof Error : calendar.error instanceof Error;
   return (
-    <section className="sessions-panel" aria-labelledby="calendar-title">
-      <p className="eyebrow">Agenda</p>
-      <h2 id="calendar-title">Disponibilidade</h2>
-      <div className="platform-form">
+    <section className="sessions-panel calendar-module" aria-labelledby="calendar-title">
+      <div className="module-header"><div><p className="eyebrow">Agenda</p><h2 id="calendar-title">Disponibilidade</h2><p>Consulte os horários livres antes de criar um novo atendimento.</p></div></div>
+      <div className="app-filter-bar">
         <label>
           Profissional
           <select
@@ -190,7 +189,7 @@ export function CalendarModule({ tenantPublicId }: { tenantPublicId: string }) {
           />
         </label>
       </div>
-      <div className="form-actions">
+      <div className="form-actions calendar-toolbar">
         <button
           type="button"
           onClick={() => {
@@ -239,7 +238,7 @@ export function CalendarModule({ tenantPublicId }: { tenantPublicId: string }) {
       ) : hasError ? (
         <p className="form-error">Não foi possível carregar a agenda.</p>
       ) : professionalPublicId === '' || servicePublicId === '' ? (
-        <p>Selecione profissional e serviço.</p>
+        <div className="empty-state"><strong>Escolha profissional e serviço</strong><span>Com os filtros definidos, os horários disponíveis aparecerão aqui.</span></div>
       ) : (
         <div className="data-list">
           {data?.map((day) => (

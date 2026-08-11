@@ -93,15 +93,15 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
   };
   return (
     <section className="sessions-panel">
-      <p className="eyebrow">Cat\u00e1logo</p>
-      <h2>Categorias de servi\u00e7os</h2>
+      <p className="eyebrow">Catálogo</p>
+      <h2>Categorias de serviços</h2>
       <button
         type="button"
         onClick={() => {
           setCreating((value) => !value);
         }}
       >
-        {creating ? 'Fechar cria\u00e7\u00e3o' : 'Criar categoria'}
+        {creating ? 'Fechar criação' : 'Criar categoria'}
       </button>
       {creating && (
         <ServiceCategoryForm

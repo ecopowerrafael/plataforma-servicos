@@ -23,7 +23,13 @@ interface ListInput {
 }
 function toPublic(category: ServiceCategory) {
   return ServiceCategoryPublicSchema.parse({
-    ...category,
+    publicId: category.publicId,
+    name: category.name,
+    description: category.description,
+    color: category.color,
+    icon: category.icon,
+    sortOrder: category.sortOrder,
+    active: category.active,
     createdAt: category.createdAt.toISOString(),
     updatedAt: category.updatedAt.toISOString(),
   });

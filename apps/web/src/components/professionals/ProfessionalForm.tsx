@@ -9,6 +9,14 @@ import { UnitSelect } from '../tenants/UnitSelect.js';
 type Input = z.input<typeof CreateProfessionalRequestSchema>;
 type Value = z.output<typeof CreateProfessionalRequestSchema>;
 type Professional = z.infer<typeof ProfessionalPublicSchema>;
+
+export function parseProfessionalSpecialties(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 const defaults = (p?: Professional): Input =>
   p === undefined
     ? {
@@ -112,14 +120,18 @@ export function ProfessionalForm({
       </label>
       <label>
         Especialidades (separadas por v\u00edrgula)
-        <input
-          {...register('specialties', {
-            setValueAs: (value: string) =>
-              value
-                .split(',')
-                .map((item) => item.trim())
-                .filter(Boolean),
-          })}
+        <Controller
+          control={control}
+          name="specialties"
+          render={({ field }) => (
+            <input
+              value={(field.value ?? []).join(', ')}
+              onBlur={field.onBlur}
+              onChange={(event) => {
+                field.onChange(parseProfessionalSpecialties(event.target.value));
+              }}
+            />
+          )}
         />
       </label>
       <label>

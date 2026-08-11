@@ -40,6 +40,46 @@ function errorCode(action: () => void): string {
 }
 
 describe('tenant Brand Studio behavior', () => {
+  it('returns safe structured diagnostics when the white-label repository fails', async () => {
+    const repository = {
+      findTenant: vi.fn().mockRejectedValue({
+        name: 'PrismaClientKnownRequestError',
+        code: 'P2022',
+        meta: {
+          modelName: 'Tenant',
+          driverAdapterError: {
+            cause: {
+              originalCode: '1054',
+              originalMessage: "Unknown column 'tenants.slug_changed_at' in 'field list'",
+              kind: 'ColumnNotFound',
+            },
+          },
+        },
+      }),
+    };
+    const unusedStorage = {} as ServiceImageStorage;
+    const service = new TenantWhiteLabelService(
+      repository as never,
+      unusedStorage,
+      unusedStorage,
+      unusedStorage,
+    );
+
+    const error: unknown = await service.get(tenantId).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(AppError);
+    if (!(error instanceof AppError)) throw error;
+    expect(error.code).toBe('TENANT_WHITE_LABEL_DIAGNOSTIC');
+    expect(error.statusCode).toBe(500);
+    expect(error.details).toEqual(
+      expect.arrayContaining([
+        { path: 'stage', message: 'repository.findTenant' },
+        { path: 'error.code', message: 'P2022' },
+        { path: 'error.meta.modelName', message: 'Tenant' },
+        { path: 'error.meta.driver.originalCode', message: '1054' },
+      ]),
+    );
+  });
+
   it('returns safe white-label defaults for a legacy tenant with no branding or banners', async () => {
     const repository = {
       findTenant: vi.fn().mockResolvedValue({

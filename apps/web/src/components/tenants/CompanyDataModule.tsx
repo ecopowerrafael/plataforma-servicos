@@ -53,6 +53,7 @@ export function CompanyDataModule({ tenantPublicId }: { tenantPublicId: string }
     customType: persisted?.businessTypeCustom ?? '',
   };
   const { displayName, legalName, slug, profile, customType } = values;
+  const publicAddress = `${window.location.origin}/public/${slug || 'seu-negocio'}`;
   const parsedSlug = useMemo(() => TenantSlugSchema.safeParse(slug), [slug]);
   const slugChanged = persisted !== undefined && slug !== persisted.slug;
   const slugChangeAvailable = persisted?.slugChangeAvailable ?? false;
@@ -214,7 +215,7 @@ export function CompanyDataModule({ tenantPublicId }: { tenantPublicId: string }
             <h3>Endereço do seu aplicativo</h3>
             <p>
               Seu endereço público será exibido como{' '}
-              <strong>https://{slug || 'seu-negocio'}.agendei.site</strong>.
+              <strong>{publicAddress}</strong>.
             </p>
             <label>
               Endereço
@@ -270,7 +271,7 @@ export function CompanyDataModule({ tenantPublicId }: { tenantPublicId: string }
             <strong>{displayName || 'Seu estabelecimento'}</strong>
             <small>{BusinessProfileCatalog[profile].publicName}</small>
           </div>
-          <code>{slug || 'seu-negocio'}.agendei.site</code>
+          <code>{publicAddress}</code>
         </aside>
       </div>
       {confirmation === null ? null : (

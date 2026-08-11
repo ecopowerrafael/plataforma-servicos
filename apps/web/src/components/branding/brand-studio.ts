@@ -33,6 +33,12 @@ export const SUGGESTED_BRAND_COLORS = [
 ] as const;
 
 const channel = (hex: string, offset: number) => Number.parseInt(hex.slice(offset, offset + 2), 16);
+const linearChannel = (value: number) => {
+  const normalized = value / 255;
+  return normalized <= 0.04045
+    ? normalized / 12.92
+    : Math.pow((normalized + 0.055) / 1.055, 2.4);
+};
 const hex = (value: number) =>
   Math.max(0, Math.min(255, Math.round(value)))
     .toString(16)
@@ -41,6 +47,16 @@ const hex = (value: number) =>
 
 export function mixHex(base: string, target: string, amount: number): string {
   return `#${[1, 3, 5].map((offset) => hex(channel(base, offset) * (1 - amount) + channel(target, offset) * amount)).join('')}`;
+}
+
+export function contrastTextColor(background: string): '#0F172A' | '#FFFFFF' {
+  const luminance =
+    0.2126 * linearChannel(channel(background, 1)) +
+    0.7152 * linearChannel(channel(background, 3)) +
+    0.0722 * linearChannel(channel(background, 5));
+  const darkContrast = (luminance + 0.05) / 0.068;
+  const lightContrast = 1.05 / (luminance + 0.05);
+  return darkContrast >= lightContrast ? '#0F172A' : '#FFFFFF';
 }
 
 export function deriveBrandPalette(

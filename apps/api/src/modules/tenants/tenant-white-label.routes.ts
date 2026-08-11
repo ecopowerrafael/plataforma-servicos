@@ -13,11 +13,11 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { tenantContextPlugin } from './tenant-context.plugin.js';
+import { validateTenantMediaUpload } from './tenant-media.storage.js';
 import { type TenantWhiteLabelService } from './tenant-white-label.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
-import { validateServiceImageUpload } from '../services/service-image.storage.js';
 
 interface Options {
   service: TenantWhiteLabelService;
@@ -95,7 +95,7 @@ export const tenantWhiteLabelRoutes: FastifyPluginAsyncZod<Options> = async (app
           statusCode: 400,
         });
       const image = await upload.toBuffer();
-      validateServiceImageUpload(image, upload.filename, upload.mimetype);
+      validateTenantMediaUpload(image, upload.filename, upload.mimetype, request.params.kind);
       return reply
         .status(201)
         .send(

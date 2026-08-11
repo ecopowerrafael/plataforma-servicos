@@ -5,6 +5,7 @@ import {
   SuccessResponseSchema,
   TenantExperienceResponseSchema,
   TenantSubscriptionResponseSchema,
+  TenantWhiteLabelResponseSchema,
   type PlanLimitKey,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,8 +17,10 @@ import { persistLayoutAndAdvance } from './onboarding-flow.js';
 import { deriveBrandPalette, type BrandThemeCode } from '../components/branding/brand-studio.js';
 import { BrandAssetDropzone } from '../components/branding/BrandAssetDropzone.js';
 import { BrandColorPicker } from '../components/branding/BrandColorPicker.js';
+import { BrandPreview } from '../components/branding/BrandPreview.js';
 import { BrandThemePicker } from '../components/branding/BrandThemePicker.js';
 import { ErrorBoundary } from '../components/ErrorBoundary.js';
+import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
 import { clearSelectedTenant, readSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
 
@@ -90,7 +93,7 @@ function slugify(value: string): string {
 }
 
 function previousOnboardingStep(step: string): string | null {
-  return ({ BUSINESS_TYPE: 'WELCOME', BUSINESS_IDENTITY: 'BUSINESS_TYPE', CUSTOMIZE: 'BUSINESS_IDENTITY', LAYOUT: 'CUSTOMIZE', COLORS: 'LAYOUT', SPLASH: 'COLORS', APP_ICON: 'SPLASH', READY: 'APP_ICON' } as Record<string, string>)[step] ?? null;
+  return ({ BUSINESS_TYPE: 'WELCOME', BUSINESS_IDENTITY: 'BUSINESS_TYPE', BUSINESS_ADDRESS: 'BUSINESS_IDENTITY', CUSTOMIZE: 'BUSINESS_ADDRESS', LAYOUT: 'CUSTOMIZE', COLORS: 'LAYOUT', SPLASH: 'COLORS', APP_ICON: 'SPLASH', READY: 'SPLASH' } as Record<string, string>)[step] ?? null;
 }
 
 export function HomePage() {
@@ -100,8 +103,8 @@ export function HomePage() {
   const selectedTenant = readSelectedTenant();
   const [profile, setProfile] = useState('GENERIC');
   const [customBusinessType, setCustomBusinessType] = useState('');
-  const [publicTheme, setPublicTheme] = useState<BrandThemeCode>('MODERN');
-  const [primaryColor, setPrimaryColor] = useState('#2563EB');
+  const [publicThemeOverride, setPublicTheme] = useState<BrandThemeCode | null>(null);
+  const [primaryColorOverride, setPrimaryColor] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
@@ -142,7 +145,28 @@ export function HomePage() {
     enabled: selectedTenant !== undefined,
     retry: false,
   });
-  const suggestedSlug = slugify(businessName);
+  const onboardingBrand = useQuery({
+    queryKey: ['tenant', selectedTenant, 'white-label'],
+    queryFn: () => {
+      if (selectedTenant === undefined)
+        throw new Error('Selecione um estabelecimento para continuar.');
+      return httpClient.request('/tenant/white-label', {
+        schema: TenantWhiteLabelResponseSchema,
+        tenantPublicId: selectedTenant,
+      });
+    },
+    enabled: selectedTenant !== undefined && onboarding.data?.onboardingCompletedAt === null,
+    retry: false,
+  });
+  const publicTheme = publicThemeOverride ?? onboardingBrand.data?.site.theme ?? 'MODERN';
+  const primaryColor =
+    primaryColorOverride ?? onboardingBrand.data?.branding.primaryColor ?? '#2563EB';
+  const onboardingLogo = onboardingBrand.data?.assets.find((asset) => asset.kind === 'LOGO');
+  const onboardingLogoUrl =
+    onboardingLogo === undefined ? undefined : `${environment.apiUrl}${onboardingLogo.url}`;
+  const effectiveBusinessName =
+    businessName === '' ? (me.data?.currentTenant?.tenant.displayName ?? '') : businessName;
+  const suggestedSlug = slugify(effectiveBusinessName);
   const slugAvailability = useQuery({
     queryKey: ['tenant', selectedTenant, 'onboarding-slug', suggestedSlug],
     queryFn: () => {
@@ -431,14 +455,15 @@ export function HomePage() {
           <p className="eyebrow">Primeiros passos</p>
           {previousStep !== null && <button className="text-button" onClick={() => { updateOnboarding.mutate({ step: previousStep }); }}>Voltar</button>}
           {onboarding.data.onboardingStep === 'WELCOME' && <><h2>Vamos criar sua empresa?</h2><p>Em poucos passos vamos preparar sua página de agendamentos e deixar a Agendei com a identidade do seu negócio.</p><button className="primary-button" onClick={() => { updateOnboarding.mutate({ step: 'BUSINESS_TYPE' }); }}>Começar</button></>}
-          {onboarding.data.onboardingStep === 'BUSINESS_TYPE' && <><h2>Qual é o tipo do seu negócio?</h2><label>Tipo de negócio<select value={profile} onChange={(event) => { setProfile(event.target.value); }}>{Object.values(BusinessProfileCatalog).map((item) => <option key={item.code} value={item.code}>{item.publicName}</option>)}<option value="OTHER">Outro</option></select></label>{profile === 'OTHER' && <label>Conte um pouco sobre o seu negócio<input value={customBusinessType} onChange={(event) => { setCustomBusinessType(event.target.value); }} placeholder="Ex.: Oficina mecânica" /></label>}<button className="primary-button" disabled={profile === 'OTHER' && customBusinessType.trim().length < 2} onClick={() => { updateOnboarding.mutate({ step: 'BUSINESS_IDENTITY', businessProfile: profile === 'OTHER' ? 'GENERIC' : profile, ...(profile === 'OTHER' ? { businessTypeCustom: customBusinessType.trim() } : {}) }); }}>Continuar</button></>}
-          {onboarding.data.onboardingStep === 'BUSINESS_IDENTITY' && <><h2>Como seus clientes conhecem sua empresa?</h2><label>Nome a ser exibido<input value={businessName} onChange={(event) => { setBusinessName(event.target.value); }} placeholder={me.data.currentTenant.tenant.displayName} /></label><label>Endereço público<input value={suggestedSlug} readOnly aria-describedby="slug-help" /><small id="slug-help">{suggestedSlug.length < 2 ? 'Digite um nome para gerar o endereço.' : slugAvailability.isPending ? 'Verificando disponibilidade…' : slugAvailability.data?.available ? `Disponível: ${suggestedSlug}.agendei.site` : 'Este endereço já está em uso. Ajuste o nome.'}</small></label><button className="primary-button" disabled={businessName.trim().length < 2 || !slugAvailability.data?.available} onClick={() => { updateOnboarding.mutate({ step: 'CUSTOMIZE', displayName: businessName.trim(), slug: suggestedSlug }); }}>Continuar</button></>}
+          {onboarding.data.onboardingStep === 'BUSINESS_TYPE' && <><h2>Qual é o tipo do seu negócio?</h2><label>Tipo de negócio<select value={profile} onChange={(event) => { setProfile(event.target.value); }}>{Object.values(BusinessProfileCatalog).map((item) => <option key={item.code} value={item.code}>{item.publicName}</option>)}</select></label>{profile === 'GENERIC' && <label>Conte um pouco sobre o seu negócio<input value={customBusinessType} onChange={(event) => { setCustomBusinessType(event.target.value); }} placeholder="Ex.: Clínica veterinária" /></label>}<button className="primary-button" disabled={profile === 'GENERIC' && customBusinessType.trim().length < 2} onClick={() => { updateOnboarding.mutate({ step: 'BUSINESS_IDENTITY', businessProfile: profile, ...(profile === 'GENERIC' ? { businessTypeCustom: customBusinessType.trim() } : { businessTypeCustom: null }) }); }}>Continuar</button></>}
+          {onboarding.data.onboardingStep === 'BUSINESS_IDENTITY' && <><h2>Como seus clientes conhecem sua empresa?</h2><p>Este é o nome que seus clientes verão no aplicativo e na página de agendamento.</p><label>Nome a ser exibido<input value={businessName} onChange={(event) => { setBusinessName(event.target.value); }} placeholder={me.data.currentTenant.tenant.displayName} /></label><button className="primary-button" disabled={businessName.trim().length < 2} onClick={() => { updateOnboarding.mutate({ step: 'BUSINESS_ADDRESS', displayName: businessName.trim() }); }}>Continuar</button></>}
+          {onboarding.data.onboardingStep === 'BUSINESS_ADDRESS' && <><h2>Escolha o endereço do seu aplicativo</h2><p>Escolha com atenção. Por segurança e consistência dos seus links, o endereço poderá ser alterado somente uma vez.</p><label>Endereço público<input value={suggestedSlug} readOnly aria-describedby="slug-help" /><small id="slug-help">{suggestedSlug.length < 2 ? 'Volte e informe o nome para gerar o endereço.' : slugAvailability.isPending ? 'Verificando disponibilidade…' : slugAvailability.data?.available ? `Disponível: ${window.location.origin}/public/${suggestedSlug}` : 'Este endereço já está em uso. Volte e ajuste o nome.'}</small></label><button className="primary-button" disabled={!slugAvailability.data?.available} onClick={() => { updateOnboarding.mutate({ step: 'CUSTOMIZE', slug: suggestedSlug }); }}>Confirmar endereço</button></>}
           {onboarding.data.onboardingStep === 'CUSTOMIZE' && <><h2>Agora vamos colocar sua marca</h2><BrandAssetDropzone title="Logo da empresa" description="Envie um logo em PNG, JPG ou WebP." busy={uploadBrandAsset.isPending} onUpload={(file) => { uploadBrandAsset.mutate({ kind: 'LOGO', file }); }} /><div className="button-row"><button className="primary-button" onClick={() => { updateOnboarding.mutate({ step: 'LAYOUT' }); }}>Continuar</button><button className="secondary-button" onClick={() => { updateOnboarding.mutate({ step: 'LAYOUT' }); }}>Continuar sem logo</button></div></>}
           {onboarding.data.onboardingStep === 'LAYOUT' && <><h2>Como você quer apresentar seu negócio?</h2><p>Escolha um tema real da sua página pública.</p><BrandThemePicker value={publicTheme} onChange={setPublicTheme} /><button className="primary-button" disabled={savePublicTheme.isPending || updateOnboarding.isPending} onClick={() => { void persistLayoutAndAdvance({ theme: publicTheme, persistTheme: (theme) => savePublicTheme.mutateAsync(theme), advance: (step) => updateOnboarding.mutateAsync({ step }) }).catch(() => undefined); }}>Continuar</button></>}
           {onboarding.data.onboardingStep === 'COLORS' && <><h2>Escolha as cores da sua empresa</h2><BrandColorPicker value={primaryColor} onChange={setPrimaryColor} /><button className="primary-button" onClick={() => { saveBranding.mutate(deriveBrandPalette(primaryColor), { onSuccess: () => { updateOnboarding.mutate({ step: 'SPLASH' }); } }); }}>Continuar</button></>}
-          {onboarding.data.onboardingStep === 'SPLASH' && <><h2>Como seu aplicativo deve aparecer ao abrir?</h2><BrandAssetDropzone title="Tela de abertura" description="Use uma imagem vertical; sem envio, o logo será usado." busy={uploadBrandAsset.isPending} onUpload={(file) => { uploadBrandAsset.mutate({ kind: 'SPLASH', file }); }} /><div className="button-row"><button className="primary-button" onClick={() => { updateOnboarding.mutate({ step: 'APP_ICON' }); }}>Continuar</button><button className="secondary-button" onClick={() => { updateOnboarding.mutate({ step: 'APP_ICON' }); }}>Fazer depois</button></div></>}
-          {onboarding.data.onboardingStep === 'APP_ICON' && <><h2>Escolha o ícone do seu aplicativo</h2><BrandAssetDropzone title="Ícone do aplicativo" description="Prefira uma imagem quadrada para a tela inicial." busy={uploadBrandAsset.isPending} onUpload={(file) => { uploadBrandAsset.mutate({ kind: 'APP_ICON', file }); }} /><div className="button-row"><button className="primary-button" onClick={() => { updateOnboarding.mutate({ step: 'READY' }); }}>Continuar</button><button className="secondary-button" onClick={() => { updateOnboarding.mutate({ step: 'READY' }); }}>Fazer depois</button></div></>}
-          {onboarding.data.onboardingStep === 'READY' && <><h2>Ótimo! A identidade da sua empresa está pronta.</h2><p>Com isso já conseguimos montar a base da sua empresa. Agora vamos configurar o que você oferece aos seus clientes.</p><button className="primary-button" onClick={() => { updateOnboarding.mutate({ step: 'COMPLETE', completed: true }, { onSuccess: () => { void navigate('/app/servicos'); } }); }}>Criar meus serviços</button></>}
+          {onboarding.data.onboardingStep === 'SPLASH' && <><h2>Como seu aplicativo deve aparecer ao abrir?</h2><BrandAssetDropzone title="Tela de abertura" description="Use uma imagem vertical; sem envio, o logo será usado." busy={uploadBrandAsset.isPending} onUpload={(file) => { uploadBrandAsset.mutate({ kind: 'SPLASH', file }); }} /><div className="button-row"><button className="primary-button" onClick={() => { updateOnboarding.mutate({ step: 'READY' }); }}>Continuar</button><button className="secondary-button" onClick={() => { updateOnboarding.mutate({ step: 'READY' }); }}>Fazer depois</button></div></>}
+          {onboarding.data.onboardingStep === 'APP_ICON' && <><h2>Escolha o ícone do seu aplicativo</h2><BrandAssetDropzone title="Ícone do aplicativo" description="Use uma imagem quadrada para a tela inicial." busy={uploadBrandAsset.isPending} square onUpload={(file) => { uploadBrandAsset.mutate({ kind: 'APP_ICON', file }); }} /><div className="button-row"><button className="primary-button" onClick={() => { updateOnboarding.mutate({ step: 'READY' }); }}>Continuar</button><button className="secondary-button" onClick={() => { updateOnboarding.mutate({ step: 'READY' }); }}>Fazer depois</button></div></>}
+          {onboarding.data.onboardingStep === 'READY' && <><h2>Seu espaço está ficando com a sua cara.</h2><BrandPreview displayName={effectiveBusinessName} theme={publicTheme} color={primaryColor} logoUrl={onboardingLogoUrl} mode="mobile" /><p>Agora vamos cadastrar os serviços que seus clientes poderão agendar.</p><button className="primary-button" onClick={() => { updateOnboarding.mutate({ step: 'COMPLETE', completed: true }, { onSuccess: () => { void navigate('/app/servicos'); } }); }}>Cadastrar meus serviços</button></>}
           {onboardingActionError !== undefined && <p className="form-error">{onboardingActionError.message}</p>}
         </section>
       )}

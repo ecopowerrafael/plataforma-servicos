@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import { BusinessProfileLabels, TenantSlugSchema } from '@plataforma/shared';
 import { describe, expect, it } from 'vitest';
 
-import { deriveBrandPalette } from '../../../../web/src/components/branding/brand-studio.js';
+import {
+  contrastTextColor,
+  deriveBrandPalette,
+} from '../../../../web/src/components/branding/brand-studio.js';
 
 const routesSource = readFileSync(new URL('./tenant.routes.ts', import.meta.url), 'utf8');
 const identityServiceSource = readFileSync(
@@ -28,6 +31,10 @@ const homeSource = readFileSync(
 );
 const publicPageSource = readFileSync(
   new URL('../../../../web/src/routes/PublicTenantPage.tsx', import.meta.url),
+  'utf8',
+);
+const stylesSource = readFileSync(
+  new URL('../../../../web/src/styles.css', import.meta.url),
   'utf8',
 );
 const brandStudioSource = readFileSync(
@@ -66,6 +73,8 @@ describe('tenant Brand Studio contracts', () => {
     expect(palette.backgroundColor).not.toBe(palette.primaryColor);
     expect(palette.surfaceColor).toBe('#FFFFFF');
     expect(palette.textColor).toBe('#0F172A');
+    expect(contrastTextColor('#FFFFFF')).toBe('#0F172A');
+    expect(contrastTextColor('#111827')).toBe('#FFFFFF');
   });
 
   it('persists theme, color, splash and PWA icon through existing tenant endpoints', () => {
@@ -88,6 +97,8 @@ describe('tenant Brand Studio contracts', () => {
     expect(bannersSource).toContain("'BANNER_MOBILE'");
     expect(bannersSource).toContain('/tenant/media/');
     expect(publicPageSource).toContain("asset('BANNER_MOBILE')");
+    expect(stylesSource).toContain('var(--tenant-banner-desktop)');
+    expect(stylesSource).toContain('var(--tenant-banner-mobile)');
   });
 
   it('applies identity to the public page and PWA manifest', () => {
@@ -103,5 +114,15 @@ describe('tenant Brand Studio contracts', () => {
     expect(homeSource).toContain('<BrandThemePicker');
     expect(homeSource).toContain('<BrandColorPicker');
     expect(homeSource).toContain("navigate('/app/servicos')");
+    expect(homeSource).toContain("BUSINESS_ADDRESS: 'BUSINESS_IDENTITY'");
+    expect(homeSource).toContain('Seu espaço está ficando com a sua cara.');
+    expect(homeSource).toContain('Cadastrar meus serviços');
+  });
+
+  it('renders three compositionally distinct public themes', () => {
+    expect(stylesSource).toContain('.public-theme-classic .public-hero');
+    expect(stylesSource).toContain('.public-theme-premium .public-hero h1');
+    expect(stylesSource).toContain('.public-theme-modern .public-cards article:hover');
+    expect(stylesSource).toContain("font-family: Georgia, 'Times New Roman', serif");
   });
 });

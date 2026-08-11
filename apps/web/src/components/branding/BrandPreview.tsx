@@ -1,6 +1,11 @@
 import { type CSSProperties } from 'react';
 
-import { type BrandThemeCode, brandThemeName, deriveBrandPalette } from './brand-studio.js';
+import {
+  type BrandThemeCode,
+  brandThemeName,
+  contrastTextColor,
+  deriveBrandPalette,
+} from './brand-studio.js';
 
 export function BrandPreview({
   displayName,
@@ -24,8 +29,13 @@ export function BrandPreview({
       style={
         {
           '--preview-primary': palette.primaryColor,
+          '--preview-on-primary': contrastTextColor(palette.primaryColor),
           '--preview-primary-dark': palette.secondaryColor,
+          '--preview-secondary': palette.secondaryColor,
           '--preview-soft': palette.backgroundColor,
+          '--preview-background': palette.backgroundColor,
+          '--preview-surface': palette.surfaceColor,
+          '--preview-text': palette.textColor,
           '--preview-border': palette.borderColor,
         } as CSSProperties
       }

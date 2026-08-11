@@ -4,6 +4,7 @@ import {
   TenantWhiteLabelResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
@@ -13,6 +14,7 @@ type BannerKind = 'BANNER_DESKTOP' | 'BANNER_MOBILE';
 
 export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
   const client = useQueryClient();
+  const [notice, setNotice] = useState<string | null>(null);
   const queryKey = ['tenant', tenantPublicId, 'white-label'];
   const settings = useQuery({
     queryKey,
@@ -37,7 +39,10 @@ export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
         tenantPublicId,
       });
     },
-    onSuccess: refresh,
+    onSuccess: async () => {
+      setNotice('Banner atualizado e publicado.');
+      await refresh();
+    },
   });
   const remove = useMutation({
     mutationFn: (publicId: string) =>
@@ -46,7 +51,10 @@ export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
         schema: SuccessResponseSchema,
         tenantPublicId,
       }),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      setNotice('Banner removido.');
+      await refresh();
+    },
   });
   if (settings.isPending) return <section className="module-loading">Carregando banners…</section>;
   if (settings.error instanceof Error || settings.data === undefined)
@@ -75,7 +83,11 @@ export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
             estabelecimento.
           </p>
         </div>
+        <a className="primary-button" href="#banner-uploads">
+          + Novo banner
+        </a>
       </div>
+      {notice === null ? null : <p className="success-message">{notice}</p>}
       {upload.error instanceof Error || remove.error instanceof Error ? (
         <p className="form-error">
           {upload.error instanceof Error
@@ -85,7 +97,7 @@ export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
               : ''}
         </p>
       ) : null}
-      <div className="banner-manager-grid">
+      <div className="banner-manager-grid" id="banner-uploads">
         <BrandAssetDropzone
           title="Banner para desktop"
           description="Recomendado: proporção 16:6, até 4096 px. O conteúdo central permanece visível em telas largas."

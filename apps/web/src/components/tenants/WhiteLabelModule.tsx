@@ -178,16 +178,6 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
                   : undefined
               }
             />
-            <div className="brand-device-preview brand-device-preview--splash">
-              {(assetUrl('SPLASH') ?? assetUrl('LOGO')) ? (
-                <img
-                  src={assetUrl('SPLASH') ?? assetUrl('LOGO')}
-                  alt="Simulação da tela de abertura"
-                />
-              ) : (
-                <strong>{settings.data.displayName}</strong>
-              )}
-            </div>
           </section>
           <section className="brand-settings-card">
             <span className="brand-section-number">02</span>
@@ -244,15 +234,15 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
                   : undefined
               }
             />
-            <div className="brand-home-screen-preview">
-              <div>
-                {assetUrl('APP_ICON') === undefined ? (
-                  <span>{settings.data.displayName.slice(0, 1)}</span>
-                ) : (
-                  <img src={assetUrl('APP_ICON')} alt="Ícone instalado" />
-                )}
-                <small>{settings.data.site.pwaShortName ?? settings.data.displayName}</small>
-              </div>
+            <div className="brand-device-preview brand-device-preview--splash">
+              {(assetUrl('SPLASH') ?? assetUrl('LOGO')) ? (
+                <img
+                  src={assetUrl('SPLASH') ?? assetUrl('LOGO')}
+                  alt="Simulação da tela de abertura"
+                />
+              ) : (
+                <strong>{settings.data.displayName}</strong>
+              )}
             </div>
           </section>
           <section className="brand-settings-card">
@@ -267,6 +257,7 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
               description="Use uma imagem quadrada, simples e legível em tamanho pequeno."
               previewUrl={assetUrl('APP_ICON')}
               busy={upload.isPending || remove.isPending}
+              square
               onUpload={(file) => {
                 upload.mutate({ kind: 'APP_ICON', file });
               }}
@@ -278,6 +269,16 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
                   : undefined
               }
             />
+            <div className="brand-home-screen-preview">
+              <div>
+                {assetUrl('APP_ICON') === undefined ? (
+                  <span>{settings.data.displayName.slice(0, 1)}</span>
+                ) : (
+                  <img src={assetUrl('APP_ICON')} alt="Ícone instalado" />
+                )}
+                <small>{settings.data.site.pwaShortName ?? settings.data.displayName}</small>
+              </div>
+            </div>
           </section>
         </div>
         <aside className="brand-preview-panel">

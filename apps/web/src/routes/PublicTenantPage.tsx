@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
+import { contrastTextColor } from '../components/branding/brand-studio.js';
 import { CustomerAuth } from '../components/CustomerAuth.js';
 import { PublicBookingFlow } from '../components/PublicBookingFlow.js';
 import { environment } from '../config/environment.js';
@@ -98,6 +99,7 @@ export function PublicTenantPage() {
         style={
           {
             '--tenant-primary': site.data.branding.primaryColor,
+            '--tenant-on-primary': contrastTextColor(site.data.branding.primaryColor),
             '--tenant-secondary': site.data.branding.secondaryColor,
             '--tenant-accent': site.data.branding.accentColor,
             '--tenant-background': site.data.branding.backgroundColor,

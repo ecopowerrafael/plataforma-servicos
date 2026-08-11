@@ -19,10 +19,10 @@ export function BrandThemePicker({
             onChange(theme.code);
           }}
         >
-          <span className="theme-miniature">
-            <i />
-            <i />
-            <i />
+          <span className="theme-miniature" aria-hidden="true">
+            <span className="theme-miniature-header"><i /><b /></span>
+            <span className="theme-miniature-hero"><i /><i /><b /></span>
+            <span className="theme-miniature-services"><i /><i /><i /></span>
           </span>
           <strong>{theme.name}</strong>
           <span>{theme.description}</span>

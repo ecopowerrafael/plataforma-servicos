@@ -18,11 +18,13 @@ describe('TenantWhiteLabelRepository', () => {
       slug: true,
       displayName: true,
       businessProfile: true,
-      branding: true,
-      terminology: true,
-      publicSite: true,
+      branding: { select: { primaryColor: true, splashUrl: true } },
+      terminology: { select: { professionalSingular: true, unitPlural: true } },
+      publicSite: { select: { theme: true, pwaDescription: true } },
     });
     expect(input.select).not.toHaveProperty('slugChangedAt');
     expect(input.select).not.toHaveProperty('businessTypeCustom');
+    expect(input.select.branding).not.toHaveProperty('select.createdAt');
+    expect(input.select.publicSite).not.toHaveProperty('select.updatedAt');
   });
 });

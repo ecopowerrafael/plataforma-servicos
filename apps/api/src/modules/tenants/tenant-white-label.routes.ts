@@ -25,6 +25,7 @@ interface Options {
   cookieName: string;
   client?: PrismaClient;
 }
+const ImageVariantQuerySchema = z.object({ variant: z.enum(['original', 'thumbnail']).default('original') }).strict();
 const AssetKindSchema = z
   .object({
     kind: z.enum([
@@ -191,10 +192,13 @@ export const publicTenantWhiteLabelRoutes: FastifyPluginAsyncZod<{
     '/public/services/:publicId/image',
     {
       config: { rateLimit: { max: 240, timeWindow: '1 minute' } },
-      schema: { params: PublicEntityParamsSchema },
+      schema: { params: PublicEntityParamsSchema, querystring: ImageVariantQuerySchema },
     },
     async (request, reply) => {
-      const image = await options.service.publicServiceImage(request.params.publicId);
+      const image = await options.service.publicServiceImage(
+        request.params.publicId,
+        request.query.variant,
+      );
       return reply
         .header('Cache-Control', 'public, max-age=300')
         .type(image.mimeType)
@@ -205,10 +209,13 @@ export const publicTenantWhiteLabelRoutes: FastifyPluginAsyncZod<{
     '/public/professionals/:publicId/image',
     {
       config: { rateLimit: { max: 240, timeWindow: '1 minute' } },
-      schema: { params: PublicEntityParamsSchema },
+      schema: { params: PublicEntityParamsSchema, querystring: ImageVariantQuerySchema },
     },
     async (request, reply) => {
-      const image = await options.service.publicProfessionalImage(request.params.publicId);
+      const image = await options.service.publicProfessionalImage(
+        request.params.publicId,
+        request.query.variant,
+      );
       return reply
         .header('Cache-Control', 'public, max-age=300')
         .type(image.mimeType)

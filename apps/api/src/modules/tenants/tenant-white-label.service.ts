@@ -298,18 +298,24 @@ export class TenantWhiteLabelService {
     return this.storage.read(asset.storageKey);
   }
 
-  public async publicServiceImage(publicId: string) {
+  public async publicServiceImage(
+    publicId: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ) {
     const service = await this.repository.findPublicServiceImage(publicId);
     const imagePath = service?.imagePath;
     if (imagePath === undefined || imagePath === null) throw publicImageNotFound();
-    return this.serviceImages.read(imagePath);
+    return this.serviceImages.read(imagePath, variant);
   }
 
-  public async publicProfessionalImage(publicId: string) {
+  public async publicProfessionalImage(
+    publicId: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ) {
     const professional = await this.repository.findPublicProfessionalImage(publicId);
     const photoPath = professional?.photoPath;
     if (photoPath === undefined || photoPath === null) throw publicImageNotFound();
-    return this.professionalImages.read(photoPath);
+    return this.professionalImages.read(photoPath, variant);
   }
 
   public async publicSite(slug: string) {
@@ -330,7 +336,10 @@ export class TenantWhiteLabelService {
         publicId: service.publicId,
         name: service.name,
         description: service.description,
-        imageUrl: service.imagePath === null ? null : `/public/services/${service.publicId}/image`,
+        imageUrl:
+          service.imagePath === null
+            ? null
+            : `/public/services/${service.publicId}/image?variant=thumbnail`,
         priceCents: service.priceCents.toString(),
         durationMinutes: service.durationMinutes,
       })),
@@ -341,7 +350,7 @@ export class TenantWhiteLabelService {
         photoUrl:
           professional.photoPath === null
             ? null
-            : `/public/professionals/${professional.publicId}/image`,
+            : `/public/professionals/${professional.publicId}/image?variant=thumbnail`,
       })),
       unit:
         tenant.businessUnits[0] === undefined

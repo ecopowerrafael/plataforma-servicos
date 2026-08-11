@@ -150,11 +150,15 @@ export class ProfessionalService {
     await this.log(tenantId, id, 'professional.photo_removed', actor);
     return publicValue(updated);
   }
-  public async photo(tenantId: bigint, id: string) {
+  public async photo(
+    tenantId: bigint,
+    id: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ) {
     const item = await this.repository.find(tenantId, id);
     const photoPath = item?.photoPath;
     if (photoPath === null || photoPath === undefined) throw this.notFound();
-    return this.images.read(photoPath);
+    return this.images.read(photoPath, variant);
   }
   private async data(
     tenantId: bigint,

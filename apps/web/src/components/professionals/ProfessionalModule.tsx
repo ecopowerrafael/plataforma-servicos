@@ -11,6 +11,7 @@ import { ProfessionalSchedule } from './ProfessionalSchedule.js';
 import { ProfessionalServiceLinks } from './ProfessionalServiceLinks.js';
 import { ProfessionalUnavailability } from './ProfessionalUnavailability.js';
 import { ProfessionalUnitLinks } from './ProfessionalUnitLinks.js';
+import { TenantProfessionalPhoto } from './TenantProfessionalPhoto.js';
 import { httpClient } from '../../lib/http.js';
 
 export function ProfessionalModule({
@@ -77,17 +78,18 @@ export function ProfessionalModule({
     });
   };
   return (
-    <section className="sessions-panel">
-      <p className="eyebrow">Equipe</p>
-      <h2>{`${terminology}s`}</h2>
-      <button
+    <section className="sessions-panel professional-workspace">
+      <header className="professional-workspace-header">
+        <div><p className="eyebrow">Equipe</p><h2>{`${terminology}s`}</h2><p>Gerencie perfis, serviços, jornada e disponibilidade da equipe.</p></div>
+      <button className="primary-button"
         type="button"
         onClick={() => {
           setCreating((value) => !value);
         }}
       >
-        {creating ? 'Fechar cria\u00e7\u00e3o' : `Criar ${terminology.toLowerCase()}`}
+        {creating ? 'Fechar criação' : `Adicionar ${terminology.toLowerCase()}`}
       </button>
+      </header>
       {creating && (
         <ProfessionalForm
           busy={mutation.isPending}
@@ -100,23 +102,31 @@ export function ProfessionalModule({
       {list.isPending ? (
         <p>Carregando profissionais\u2026</p>
       ) : (
-        list.data?.items.map((professional) => (
+        <div className="professional-card-grid">
+        {list.data?.items.map((professional) => (
           <button
-            className="data-row"
+            className={`professional-card${selected === professional.publicId ? ' selected' : ''}`}
             key={professional.publicId}
             type="button"
             onClick={() => {
               setSelected(professional.publicId);
             }}
           >
-            <span>{professional.publicName}</span>
-            <span>{professional.active ? 'Ativo' : 'Inativo'}</span>
+            <TenantProfessionalPhoto name={professional.publicName} professionalPublicId={professional.publicId} tenantPublicId={tenantPublicId} />
+            <span><strong>{professional.publicName}</strong><small>{professional.specialties.length > 0 ? professional.specialties.join(' · ') : 'Sem especialidades'}</small></span>
+            <span className={`status-badge ${professional.active ? 'status-active' : 'status-muted'}`}>{professional.active ? 'Ativo' : 'Inativo'}</span>
           </button>
-        ))
+        ))}
+        {list.data?.items.length === 0 ? <div className="empty-state"><strong>Nenhum profissional cadastrado</strong><span>Adicione o primeiro perfil da sua equipe.</span></div> : null}
+        </div>
       )}
       {detail.data !== undefined && (
-        <article className="sessions-panel">
-          <h3>{detail.data.publicName}</h3>
+        <article className="professional-detail">
+          <header className="professional-detail-header">
+            <TenantProfessionalPhoto name={detail.data.publicName} professionalPublicId={detail.data.publicId} tenantPublicId={tenantPublicId} size="large" />
+            <div><p className="eyebrow">Perfil selecionado</p><h3>{detail.data.publicName}</h3><span className={`status-badge ${detail.data.active ? 'status-active' : 'status-muted'}`}>{detail.data.active ? 'Ativo' : 'Inativo'}</span></div>
+            <label className="photo-upload-button">Alterar foto<input accept="image/jpeg,image/png,image/webp" type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file !== undefined) void uploadPhoto(file); }} /></label>
+          </header>
           <ProfessionalForm
             professional={detail.data}
             busy={mutation.isPending}
@@ -125,17 +135,6 @@ export function ProfessionalModule({
             tenantPublicId={tenantPublicId}
             onSave={save}
           />
-          <label>
-            Foto (JPEG, PNG ou WebP)
-            <input
-              accept="image/jpeg,image/png,image/webp"
-              type="file"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file !== undefined) void uploadPhoto(file);
-              }}
-            />
-          </label>
           <ProfessionalUnitLinks
             tenantPublicId={tenantPublicId}
             professionalPublicId={detail.data.publicId}

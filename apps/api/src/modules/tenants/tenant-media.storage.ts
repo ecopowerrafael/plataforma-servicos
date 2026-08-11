@@ -37,6 +37,9 @@ export class LocalTenantMediaStorage
   implements TenantMediaStorage
 {
   public constructor() {
-    super(process.env.TENANT_MEDIA_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'tenant-media'));
+    super(
+      process.env.TENANT_MEDIA_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'tenant-media'),
+      'passthrough',
+    );
   }
 }

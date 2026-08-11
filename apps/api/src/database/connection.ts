@@ -286,7 +286,7 @@ export function createDatabaseConnection(
     tenantWhiteLabelRepository,
     new LocalTenantMediaStorage(),
     new LocalServiceImageStorage(),
-    new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR),
+    new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR, 'professional'),
     commercialPolicy,
     client,
   );
@@ -377,7 +377,7 @@ export function createDatabaseConnection(
     combos: new ComboService(new PrismaComboRepository(client), new LocalServiceImageStorage()),
     professionals: new ProfessionalService(
       new PrismaProfessionalRepository(client),
-      new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR),
+      new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR, 'professional'),
     ),
     professionalServices: professionalServices,
     professionalUnits: professionalUnits,

@@ -2,27 +2,27 @@ import { useEffect, useState } from 'react';
 
 import { environment } from '../../config/environment.js';
 
-export function TenantServiceImage({
-  alt,
-  servicePublicId,
+export function TenantProfessionalPhoto({
+  name,
+  professionalPublicId,
   tenantPublicId,
-  kind = 'services',
+  size = 'small',
 }: {
-  alt: string;
-  servicePublicId: string;
+  name: string;
+  professionalPublicId: string;
   tenantPublicId: string;
-  kind?: 'services' | 'combos';
+  size?: 'small' | 'large';
 }) {
   const [source, setSource] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     let objectUrl: string | null = null;
-    void fetch(`${environment.apiUrl}/tenant/${kind}/${servicePublicId}/image?variant=thumbnail`, {
+    void fetch(`${environment.apiUrl}/tenant/professionals/${professionalPublicId}/photo?variant=thumbnail`, {
       credentials: 'include',
       headers: { 'X-Tenant-Id': tenantPublicId },
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error('IMAGE_UNAVAILABLE');
+        if (!response.ok) throw new Error('PHOTO_UNAVAILABLE');
         objectUrl = URL.createObjectURL(await response.blob());
         if (active) setSource(objectUrl);
       })
@@ -33,6 +33,16 @@ export function TenantServiceImage({
       active = false;
       if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
     };
-  }, [servicePublicId, tenantPublicId, kind]);
-  return source === null ? null : <img alt={alt} className="service-thumbnail" src={source} />;
+  }, [professionalPublicId, tenantPublicId]);
+
+  const initials = name
+    .split(/\s+/u)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+  return (
+    <span className={`professional-avatar professional-avatar-${size}`} aria-label={name}>
+      {source === null ? initials : <img alt={name} src={source} />}
+    </span>
+  );
 }

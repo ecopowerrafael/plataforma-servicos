@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve, sep } from 'node:path';
 
+import sharp from 'sharp';
+
 import { AppError } from '../../errors/AppError.js';
 
 export type ServiceImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
@@ -20,7 +22,10 @@ export interface StoredServiceImage {
 
 export interface ServiceImageStorage {
   save(tenantPublicId: string, servicePublicId: string, image: Buffer): Promise<StoredServiceImage>;
-  read(key: string): Promise<{ buffer: Buffer; mimeType: ServiceImageMimeType }>;
+  read(
+    key: string,
+    variant?: 'original' | 'thumbnail',
+  ): Promise<{ buffer: Buffer; mimeType: ServiceImageMimeType }>;
   remove(key: string): Promise<void>;
 }
 
@@ -207,6 +212,7 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
 
   public constructor(
     root = process.env.SERVICE_IMAGE_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'services'),
+    private readonly preset: 'service' | 'professional' | 'passthrough' = 'service',
   ) {
     this.root = resolve(root);
   }
@@ -221,21 +227,41 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
     if (!directory.startsWith(`${this.root}${sep}`))
       throw imageError('SERVICE_IMAGE_PATH_INVALID', 'Local de armazenamento inv\u00e1lido.', 500);
     await mkdir(directory, { recursive: true });
-    const filename = `${randomUUID()}.${detected.extension}`;
+    const filename = `${randomUUID()}.${this.preset === 'passthrough' ? detected.extension : 'webp'}`;
     const target = resolve(directory, filename);
     const temporary = resolve(directory, `.${randomUUID()}.tmp`);
-    await writeFile(temporary, image, { flag: 'wx' });
+    const normalized = await this.normalize(image, 'original');
+    await writeFile(temporary, normalized, { flag: 'wx' });
     await rename(temporary, target);
+    if (this.preset !== 'passthrough') {
+      const thumbnail = await this.normalize(image, 'thumbnail');
+      const thumbnailTarget = this.thumbnailPath(target);
+      const thumbnailTemporary = resolve(directory, `.${randomUUID()}.thumb.tmp`);
+      await writeFile(thumbnailTemporary, thumbnail, { flag: 'wx' });
+      await rename(thumbnailTemporary, thumbnailTarget);
+    }
     return {
       key: join(tenantPublicId, servicePublicId, filename).replaceAll('\\', '/'),
-      mimeType: detected.mimeType,
+      mimeType: this.preset === 'passthrough' ? detected.mimeType : 'image/webp',
     };
   }
 
-  public async read(key: string): Promise<{ buffer: Buffer; mimeType: ServiceImageMimeType }> {
+  public async read(
+    key: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ): Promise<{ buffer: Buffer; mimeType: ServiceImageMimeType }> {
     const path = this.resolveKey(key);
     try {
-      const buffer = await readFile(path);
+      let buffer: Buffer;
+      if (variant === 'thumbnail' && this.preset !== 'passthrough') {
+        try {
+          buffer = await readFile(this.thumbnailPath(path));
+        } catch {
+          buffer = await this.normalize(await readFile(path), 'thumbnail');
+        }
+      } else {
+        buffer = await readFile(path);
+      }
       return { buffer, mimeType: inspectServiceImage(buffer).mimeType };
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -249,7 +275,11 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
 
   public async remove(key: string): Promise<void> {
     try {
-      await rm(this.resolveKey(key), { force: true });
+      const path = this.resolveKey(key);
+      await Promise.all([
+        rm(path, { force: true }),
+        ...(this.preset === 'passthrough' ? [] : [rm(this.thumbnailPath(path), { force: true })]),
+      ]);
     } catch {
       // The persisted service record remains authoritative if filesystem cleanup fails.
     }
@@ -264,6 +294,23 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
     if (!path.startsWith(`${this.root}${sep}`))
       throw imageError('SERVICE_IMAGE_PATH_INVALID', 'Caminho da imagem inv\u00e1lido.', 400);
     return path;
+  }
+
+  private thumbnailPath(path: string): string {
+    const extension = extname(path);
+    return `${path.slice(0, -extension.length)}.thumb.webp`;
+  }
+
+  private async normalize(image: Buffer, variant: 'original' | 'thumbnail'): Promise<Buffer> {
+    if (this.preset === 'passthrough') return image;
+    const square = this.preset === 'professional';
+    const width = variant === 'thumbnail' ? (square ? 320 : 400) : square ? 800 : 1200;
+    const height = variant === 'thumbnail' ? (square ? 320 : 300) : square ? 800 : 900;
+    return sharp(image)
+      .rotate()
+      .resize(width, height, { fit: 'cover', position: 'attention' })
+      .webp({ quality: variant === 'thumbnail' ? 78 : 86, effort: 4 })
+      .toBuffer();
   }
 }
 

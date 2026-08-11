@@ -21,6 +21,7 @@ interface Options {
   client?: PrismaClient;
 }
 const params = z.object({ publicId: z.uuid() }).strict();
+const ImageVariantQuerySchema = z.object({ variant: z.enum(['original', 'thumbnail']).default('original') }).strict();
 const query = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
@@ -125,9 +126,9 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
       return options.service.removePhoto(r.tenant.id, r.params.publicId, actor(r));
     },
   );
-  app.get('/tenant/professionals/:publicId/photo', { schema: { params } }, async (r, reply) => {
+  app.get('/tenant/professionals/:publicId/photo', { schema: { params, querystring: ImageVariantQuerySchema } }, async (r, reply) => {
     options.authService.requirePermission(r.tenant, 'professional.read');
-    const photo = await options.service.photo(r.tenant.id, r.params.publicId);
+    const photo = await options.service.photo(r.tenant.id, r.params.publicId, r.query.variant);
     return reply
       .header('Cache-Control', 'private, max-age=300')
       .type(photo.mimeType)

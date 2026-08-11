@@ -83,7 +83,7 @@ export function ProfessionalForm({
   }, [professional, reset]);
   return (
     <form
-      className="platform-form"
+      className="platform-form professional-profile-form"
       onSubmit={(event) => {
         event.preventDefault();
         void handleSubmit(onSave)();
@@ -99,7 +99,7 @@ export function ProfessionalForm({
         <input {...register('name')} />
       </label>
       <label>
-        Nome p\u00fablico
+        Nome público
         <input {...register('publicName')} />
       </label>
       <label>
@@ -119,7 +119,7 @@ export function ProfessionalForm({
         <input {...register('professionalDocument')} />
       </label>
       <label>
-        Especialidades (separadas por v\u00edrgula)
+        Especialidades
         <Controller
           control={control}
           name="specialties"
@@ -160,7 +160,7 @@ export function ProfessionalForm({
         />
       </label>
       <label>
-        Usuário vinculado (acesso ao painel do profissional)
+        Usuário vinculado
         <Controller
           control={control}
           name="userPublicId"
@@ -189,7 +189,7 @@ export function ProfessionalForm({
       {Object.keys(errors).length > 0 && <p className="form-error">Revise os campos informados.</p>}
       {error !== null && <p className="form-error">{error}</p>}
       <button disabled={busy} type="submit">
-        {busy ? 'Salvando\u2026' : 'Salvar'}
+        {busy ? 'Salvando…' : 'Salvar alterações'}
       </button>
     </form>
   );

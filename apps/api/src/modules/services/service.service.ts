@@ -196,11 +196,15 @@ export class ServiceService {
     return toPublic(updated);
   }
 
-  public async getImage(tenantId: bigint, publicId: string) {
+  public async getImage(
+    tenantId: bigint,
+    publicId: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ) {
     const service = await this.repository.find(tenantId, publicId);
     const imagePath = service?.imagePath;
     if (imagePath === null || imagePath === undefined) throw serviceNotFound();
-    return this.images.read(imagePath);
+    return this.images.read(imagePath, variant);
   }
 
   private async recordAudit(

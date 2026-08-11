@@ -13,6 +13,14 @@ import { useState } from 'react';
 import { httpClient } from '../../lib/http.js';
 
 const types = ['BLOCK', 'DAY_OFF', 'VACATION', 'SICK_LEAVE', 'PERSONAL', 'OTHER'] as const;
+const typeLabels: Record<(typeof types)[number], string> = {
+  BLOCK: 'Bloqueio',
+  DAY_OFF: 'Folga',
+  VACATION: 'Férias',
+  SICK_LEAVE: 'Afastamento médico',
+  PERSONAL: 'Compromisso pessoal',
+  OTHER: 'Outro',
+};
 
 interface FormState {
   type: (typeof types)[number];
@@ -230,8 +238,16 @@ export function ProfessionalUnavailability({
     );
   };
   return (
-    <section className="platform-form">
-      <h4>{'Indisponibilidades'}</h4>
+    <section className="platform-form professional-settings-card">
+      <header className="settings-card-header">
+        <div>
+          <span className="settings-card-icon" aria-hidden="true">◴</span>
+          <div>
+            <h4>Ausências e bloqueios</h4>
+            <p>Registre folgas, férias e períodos sem atendimento.</p>
+          </div>
+        </div>
+      </header>
       <div className="form-grid">
         <label>
           Tipo
@@ -243,7 +259,7 @@ export function ProfessionalUnavailability({
           >
             {types.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {typeLabels[type]}
               </option>
             ))}
           </select>
@@ -392,7 +408,7 @@ export function ProfessionalUnavailability({
             <option value="">Todos</option>
             {types.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {typeLabels[type]}
               </option>
             ))}
           </select>

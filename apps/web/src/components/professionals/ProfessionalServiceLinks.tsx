@@ -85,8 +85,10 @@ export function ProfessionalServiceLinks({
     onSuccess: refresh,
   });
   return (
-    <section className="platform-form">
-      <h4>Vínculos</h4>
+    <section className="platform-form professional-settings-card">
+      <header className="settings-card-header">
+        <div><span className="settings-card-icon" aria-hidden="true">✦</span><div><h4>Serviços e valores</h4><p>Personalize duração, pausa e comissão quando necessário.</p></div></div>
+      </header>
       <select
         value={target}
         onChange={(e) => {
@@ -161,8 +163,8 @@ export function ProfessionalServiceLinks({
       </button>
       {links.data?.items.map((x) => (
         <div key={x.publicId}>
-          <span>{isProfessional ? x.servicePublicId : x.professionalPublicId}</span>
-          <span>{` Preço ${String(x.priceCents ?? 'padrão')} · Duração ${String(x.durationMinutes ?? 'padrão')} · Pausa ${String(x.postServiceBreakMinutes ?? 'padrão')} · Comissão ${x.commissionType === null ? 'padrão' : String(x.commissionValue) + (x.commissionType === 'PERCENTAGE' ? '%' : '')}`}</span>
+          <strong>{isProfessional ? (services.data?.items.find((service) => service.publicId === x.servicePublicId)?.name ?? 'Serviço') : (professionals.data?.items.find((professional) => professional.publicId === x.professionalPublicId)?.publicName ?? 'Profissional')}</strong>
+          <span>{`Preço ${String(x.priceCents ?? 'padrão')} · Duração ${String(x.durationMinutes ?? 'padrão')} min · Pausa ${String(x.postServiceBreakMinutes ?? 'padrão')} min · Comissão ${x.commissionType === null ? 'padrão' : String(x.commissionValue) + (x.commissionType === 'PERCENTAGE' ? '%' : '')}`}</span>
           <button
             type="button"
             onClick={() => {

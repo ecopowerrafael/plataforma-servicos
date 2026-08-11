@@ -21,6 +21,7 @@ interface Options {
   cookieName: string;
   client?: PrismaClient;
 }
+const ImageVariantQuerySchema = z.object({ variant: z.enum(['original', 'thumbnail']).default('original') }).strict();
 
 function auditActor(request: { auth: { user: { id: bigint }; session: { id: bigint } } }) {
   return { userId: request.auth.user.id, sessionId: request.auth.session.id };
@@ -149,10 +150,14 @@ export const serviceRoutes: FastifyPluginAsyncZod<Options> = async (app, options
   );
   app.get(
     '/tenant/services/:publicId/image',
-    { schema: { params: PublicIdParamsSchema } },
+    { schema: { params: PublicIdParamsSchema, querystring: ImageVariantQuerySchema } },
     async (request, reply) => {
       options.authService.requirePermission(request.tenant, 'service.read');
-      const image = await options.service.getImage(request.tenant.id, request.params.publicId);
+      const image = await options.service.getImage(
+        request.tenant.id,
+        request.params.publicId,
+        request.query.variant,
+      );
       return reply
         .header('Cache-Control', 'private, max-age=300')
         .type(image.mimeType)

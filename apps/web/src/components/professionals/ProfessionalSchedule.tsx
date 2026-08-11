@@ -36,6 +36,30 @@ const initialDraft: DraftPeriod = {
   unitPublicId: '',
 };
 
+export function buildSchedulePeriods(
+  draft: DraftPeriod,
+  lunchBreak?: { startsAt: string; endsAt: string },
+) {
+  const periods = lunchBreak
+    ? [
+        { startsAt: draft.startsAt, endsAt: lunchBreak.startsAt },
+        { startsAt: lunchBreak.endsAt, endsAt: draft.endsAt },
+      ]
+    : [{ startsAt: draft.startsAt, endsAt: draft.endsAt }];
+
+  return periods.map((period) => ({
+    weekday: Number(draft.weekday),
+    ...period,
+    unitPublicId: draft.unitPublicId || null,
+    active: true,
+  }));
+}
+
+const friendlyError = (error: Error) =>
+  error.message.startsWith('[') || error.message.includes('Invalid input')
+    ? 'Revise os horários informados e tente novamente.'
+    : error.message;
+
 export function ProfessionalSchedule({
   tenantPublicId,
   professionalPublicId,
@@ -48,6 +72,9 @@ export function ProfessionalSchedule({
   const [copyToWeekdays, setCopyToWeekdays] = useState<number[]>([]);
   const [professionalPublicIds, setProfessionalPublicIds] = useState<string[]>([]);
   const [editingPeriodPublicId, setEditingPeriodPublicId] = useState<string | null>(null);
+  const [hasLunchBreak, setHasLunchBreak] = useState(true);
+  const [lunchStartsAt, setLunchStartsAt] = useState('12:00');
+  const [lunchEndsAt, setLunchEndsAt] = useState('13:00');
 
   const schedule = useQuery({
     queryKey: ['professional-schedule', professionalPublicId],
@@ -86,15 +113,10 @@ export function ProfessionalSchedule({
       httpClient.request(`/tenant/professionals/${professionalPublicId}/schedule`, {
         method: 'POST',
         body: UpsertProfessionalScheduleRequestSchema.parse({
-          periods: [
-            ProfessionalSchedulePeriodInputSchema.parse({
-              weekday: Number(draft.weekday),
-              startsAt: draft.startsAt,
-              endsAt: draft.endsAt,
-              unitPublicId: draft.unitPublicId || null,
-              active: true,
-            }),
-          ],
+          periods: buildSchedulePeriods(
+            draft,
+            hasLunchBreak ? { startsAt: lunchStartsAt, endsAt: lunchEndsAt } : undefined,
+          ).map((period) => ProfessionalSchedulePeriodInputSchema.parse(period)),
           copyToWeekdays,
           professionalPublicIds,
         }),
@@ -160,7 +182,14 @@ export function ProfessionalSchedule({
 
   const busy = create.isPending || update.isPending || setStatus.isPending || remove.isPending;
   const error = create.error ?? update.error ?? setStatus.error ?? remove.error;
+  const lunchBreakError =
+    editingPeriodPublicId === null &&
+    hasLunchBreak &&
+    !(draft.startsAt < lunchStartsAt && lunchStartsAt < lunchEndsAt && lunchEndsAt < draft.endsAt)
+      ? 'O intervalo deve ficar dentro da jornada e o retorno deve ser posterior ao início da pausa.'
+      : null;
   const savePeriod = () => {
+    if (lunchBreakError !== null) return;
     if (editingPeriodPublicId === null) {
       void create.mutateAsync();
       return;
@@ -194,11 +223,19 @@ export function ProfessionalSchedule({
   };
 
   return (
-    <section className="platform-form">
-      <h4>{'Jornada semanal'}</h4>
-      <p>{`Total semanal: ${String(schedule.data?.weeklyMinutes ?? 0)} minutos`}</p>
+    <section className="platform-form professional-settings-card schedule-editor">
+      <header className="settings-card-header">
+        <div>
+          <span className="settings-card-icon" aria-hidden="true">◷</span>
+          <div>
+            <h4>Jornada semanal</h4>
+            <p>Defina os horários de atendimento e o intervalo de almoço.</p>
+          </div>
+        </div>
+        <strong>{`${String(Math.floor((schedule.data?.weeklyMinutes ?? 0) / 60))}h ${String((schedule.data?.weeklyMinutes ?? 0) % 60)}min/semana`}</strong>
+      </header>
       {schedule.isPending ? <p>{'Carregando jornada\u2026'}</p> : null}
-      {schedule.error instanceof Error ? <p role="alert">{schedule.error.message}</p> : null}
+      {schedule.error instanceof Error ? <p role="alert">{friendlyError(schedule.error)}</p> : null}
       <div className="form-grid">
         <label>
           {'Dia da semana'}
@@ -253,6 +290,47 @@ export function ProfessionalSchedule({
         </label>
       </div>
       {editingPeriodPublicId === null ? (
+        <div className="lunch-break-card">
+          <label className="switch-row">
+            <input
+              checked={hasLunchBreak}
+              type="checkbox"
+              onChange={(event) => {
+                setHasLunchBreak(event.target.checked);
+              }}
+            />
+            <span>
+              <strong>Pausa para almoço</strong>
+              <small>Cria dois períodos de trabalho no mesmo dia.</small>
+            </span>
+          </label>
+          {hasLunchBreak ? (
+            <div className="lunch-time-grid">
+              <label>
+                Início da pausa
+                <input
+                  type="time"
+                  value={lunchStartsAt}
+                  onChange={(event) => {
+                    setLunchStartsAt(event.target.value);
+                  }}
+                />
+              </label>
+              <label>
+                Retorno
+                <input
+                  type="time"
+                  value={lunchEndsAt}
+                  onChange={(event) => {
+                    setLunchEndsAt(event.target.value);
+                  }}
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {editingPeriodPublicId === null ? (
         <>
           <fieldset>
             <legend>{'Copiar para outros dias'}</legend>
@@ -288,7 +366,8 @@ export function ProfessionalSchedule({
           </fieldset>
         </>
       ) : null}
-      <button disabled={busy} type="button" onClick={savePeriod}>
+      {lunchBreakError !== null ? <p className="form-error" role="alert">{lunchBreakError}</p> : null}
+      <button disabled={busy || lunchBreakError !== null} type="button" onClick={savePeriod}>
         {editingPeriodPublicId === null ? 'Adicionar per\u00edodo' : 'Salvar altera\u00e7\u00f5es'}
       </button>
       {editingPeriodPublicId !== null ? (
@@ -307,16 +386,20 @@ export function ProfessionalSchedule({
       {schedule.data?.items.length === 0 && !schedule.isPending ? (
         <p>{'Nenhum per\u00edodo cadastrado.'}</p>
       ) : null}
-      <ul>
+      <ul className="schedule-period-list">
         {schedule.data?.items.map((period) => {
           const weekday = weekdays[period.weekday] ?? 'Dia';
           return (
             <li key={period.publicId}>
-              <span>{`${weekday}: ${period.startsAt} \u2013 ${period.endsAt}`}</span>
-              <span>
+              <div>
+                <strong>{weekday}</strong>
+                <span>{`${period.startsAt} - ${period.endsAt}`}</span>
+              </div>
+              <small>
                 {period.unitPublicId === null ? ' Todas as unidades' : ' Unidade espec\u00edfica'}
-              </span>
-              {!period.active ? ' (inativo)' : ''}
+                {!period.active ? ' · Inativo' : ''}
+              </small>
+              <div className="row-actions">
               <button
                 disabled={busy}
                 type="button"
@@ -347,6 +430,7 @@ export function ProfessionalSchedule({
               >
                 Remover
               </button>
+              </div>
             </li>
           );
         })}

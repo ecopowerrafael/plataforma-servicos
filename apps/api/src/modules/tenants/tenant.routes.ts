@@ -3,11 +3,13 @@ import {
   BusinessProfileCodeSchema,
   TenantSlugSchema,
   TenantContextResponseSchema,
+  TenantIdentityResponseSchema,
   TenantSettingsInputSchema,
   TenantSettingsResponseSchema,
   TenantUnitResponseSchema,
   TenantUnitsResponseSchema,
   TenantExperienceResponseSchema,
+  UpdateTenantIdentityRequestSchema,
   UpdateBusinessUnitRequestSchema,
   type TenantContextResponse,
   type TenantSettingsResponse,
@@ -18,6 +20,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { tenantContextPlugin } from './tenant-context.plugin.js';
+import { getTenantIdentity, updateTenantIdentity, updateTenantOnboarding } from './tenant-identity.service.js';
 import { type TenantExperienceResolver } from './tenant-experience.resolver.js';
 import { type TenantService } from './tenant.service.js';
 import { canAccessUnit } from './unit-scope.js';
@@ -73,20 +76,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
   app.patch('/tenant/onboarding', { schema: { body: OnboardingRequestSchema } }, async (request) => {
     options.authService.requirePermission(request.tenant, 'tenant.update');
     if (!request.tenant.membership.isOwner) throw new AppError({ code: 'PERMISSION_DENIED', message: 'Apenas o proprietário pode atualizar o onboarding.', statusCode: 403 });
-    const now = new Date();
-    return options.client.tenant.update({
-      where: { id: request.tenant.id },
-      data: {
-        onboardingStep: request.body.step,
-        ...(request.body.completed === true ? { onboardingCompletedAt: now } : {}),
-        ...(request.body.hideChecklist === true ? { onboardingChecklistHiddenAt: now } : {}),
-        ...(request.body.businessProfile === undefined ? {} : { businessProfile: request.body.businessProfile }),
-        ...(request.body.businessTypeCustom === undefined ? {} : { businessTypeCustom: request.body.businessTypeCustom }),
-        ...(request.body.displayName === undefined ? {} : { displayName: request.body.displayName }),
-        ...(request.body.slug === undefined ? {} : { slug: request.body.slug }),
-      },
-      select: { onboardingStep: true, onboardingCompletedAt: true, onboardingChecklistHiddenAt: true },
-    });
+    return updateTenantOnboarding(options.client, request.tenant.id, request.body);
   });
   app.get('/tenant/onboarding/slug-availability', { schema: { querystring: OnboardingSlugQuerySchema } }, async (request) => {
     options.authService.requirePermission(request.tenant, 'tenant.read');
@@ -140,6 +130,18 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
       };
     },
   );
+
+  app.get('/tenant/identity', { schema: { response: { 200: TenantIdentityResponseSchema } } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    return getTenantIdentity(options.client, request.tenant.id);
+  });
+
+  app.patch('/tenant/identity', { schema: { body: UpdateTenantIdentityRequestSchema, response: { 200: TenantIdentityResponseSchema } } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.update');
+    if (!request.tenant.membership.isOwner)
+      throw new AppError({ code: 'PERMISSION_DENIED', message: 'Apenas o proprietário pode alterar a identidade do estabelecimento.', statusCode: 403 });
+    return updateTenantIdentity(options.client, request.tenant.id, request.body);
+  });
 
   const experienceResolver = options.experience;
   if (experienceResolver !== undefined) {

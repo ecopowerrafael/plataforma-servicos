@@ -3136,3 +3136,180 @@ h1 {
   .billing-option { grid-template-columns: 1fr; }
   .plan-limit-row { grid-template-columns: 1fr; }
 }
+
+/* Brand Studio and company identity */
+.brand-studio,
+.company-data-page,
+.banner-manager,
+.public-page-settings {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.brand-studio-layout,
+.company-data-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.brand-editor,
+.company-data-form,
+.public-page-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.brand-settings-card,
+.brand-upload-card,
+.company-name-preview,
+.brand-preview-panel,
+.brand-info-alert {
+  position: relative;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  background: #fff;
+  padding: 1.25rem;
+  box-shadow: 0 16px 40px rgb(15 23 42 / 6%);
+}
+
+.brand-section-number {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.75rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 800;
+}
+
+.brand-dropzone {
+  display: grid;
+  place-items: center;
+  min-height: 190px;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 2px dashed #cbd5e1;
+  border-radius: 1rem;
+  background: #f8fafc;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.brand-dropzone:hover { border-color: #6366f1; background: #eef2ff; }
+.brand-dropzone img { max-width: 100%; max-height: 150px; object-fit: contain; border-radius: 0.75rem; }
+.brand-upload-placeholder { color: #64748b; }
+
+.brand-theme-grid,
+.banner-manager-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.banner-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.brand-theme-card {
+  display: grid;
+  gap: 0.55rem;
+  min-height: 210px;
+  padding: 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+}
+
+.brand-theme-card.is-selected { border-color: #4f46e5; box-shadow: 0 0 0 3px rgb(79 70 229 / 12%); }
+.brand-theme-card--premium { background: #111827; color: #f8fafc; }
+.brand-theme-card--modern { background: linear-gradient(145deg, #eef2ff, #fff7ed); }
+.theme-miniature { display: flex; gap: 0.35rem; align-items: end; height: 70px; }
+.theme-miniature i { display: block; flex: 1; height: 45%; border-radius: 0.4rem; background: #c7d2fe; }
+.theme-miniature i:nth-child(2) { height: 80%; background: #818cf8; }
+.theme-miniature i:nth-child(3) { height: 60%; background: #f59e0b; }
+
+.brand-color-picker,
+.brand-swatches,
+.brand-color-field,
+.brand-choice-row,
+.brand-preview-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.brand-color-picker { flex-direction: column; align-items: stretch; }
+.brand-swatches button { width: 2.6rem; height: 2.6rem; border: 3px solid #fff; border-radius: 999px; box-shadow: 0 0 0 1px #cbd5e1; cursor: pointer; }
+.brand-swatches button[aria-pressed='true'] { box-shadow: 0 0 0 3px #0f172a; }
+.brand-color-field input[type='color'] { width: 3.25rem; height: 2.75rem; padding: 0.15rem; }
+
+.brand-preview-panel { position: sticky; top: 1rem; background: #0f172a; color: #f8fafc; }
+.brand-preview-toolbar { justify-content: space-between; margin-bottom: 1rem; }
+.brand-preview-frame { margin: auto; overflow: hidden; border: 8px solid #020617; background: #fff; color: #0f172a; box-shadow: 0 24px 70px rgb(2 6 23 / 35%); }
+.brand-preview-frame--mobile { max-width: 290px; border-radius: 2rem; }
+.brand-preview-frame--desktop { width: 100%; border-radius: 0.8rem; }
+.brand-preview-page { min-height: 470px; background: var(--preview-background); }
+.brand-preview-page header { display: flex; justify-content: space-between; align-items: center; padding: 0.9rem; background: var(--preview-surface); }
+.brand-preview-page header img { width: 42px; height: 42px; object-fit: contain; }
+.brand-preview-hero { padding: 2.25rem 1rem; color: #fff; background: var(--preview-primary); }
+.brand-preview-page--premium .brand-preview-hero { background: #111827; text-align: center; }
+.brand-preview-page--modern .brand-preview-hero { margin: 0.75rem; border-radius: 1.25rem; background: linear-gradient(135deg, var(--preview-primary), var(--preview-secondary)); }
+.brand-preview-services { display: grid; gap: 0.6rem; padding: 1rem; }
+.brand-preview-services article { padding: 0.85rem; border: 1px solid var(--preview-border); border-radius: 0.75rem; background: var(--preview-surface); }
+
+.brand-device-preview,
+.brand-home-screen-preview {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  margin-top: 1rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(145deg, #111827, #334155);
+}
+.brand-device-preview img,
+.brand-home-screen-preview img { max-width: 120px; max-height: 120px; border-radius: 1.25rem; object-fit: contain; }
+
+.brand-action-bar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 16px 40px rgb(15 23 42 / 15%);
+  backdrop-filter: blur(12px);
+}
+
+.company-name-preview { display: grid; gap: 0.5rem; position: sticky; top: 1rem; }
+.brand-info-alert { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+
+@media (max-width: 1024px) {
+  .brand-studio-layout,
+  .company-data-grid { grid-template-columns: 1fr; }
+  .brand-preview-panel,
+  .company-name-preview { position: static; }
+}
+
+@media (max-width: 700px) {
+  .brand-theme-grid,
+  .banner-manager-grid { grid-template-columns: 1fr; }
+  .brand-settings-card,
+  .brand-upload-card,
+  .company-name-preview,
+  .brand-preview-panel { padding: 1rem; border-radius: 1rem; }
+  .brand-action-bar { align-items: stretch; flex-direction: column; bottom: 4.75rem; }
+  .brand-action-bar .button-row { width: 100%; }
+  .brand-action-bar button { flex: 1; }
+}

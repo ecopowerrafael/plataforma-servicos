@@ -12,12 +12,12 @@ import {
   type UpdateTenantPublicSiteRequest,
 } from '@plataforma/shared';
 
+import { PlanEntitlementService } from './plan-entitlement.service.js';
 import { resolveTenantExperience } from './tenant-experience.resolver.js';
 import { type TenantMediaStorage } from './tenant-media.storage.js';
 import { type TenantWhiteLabelRepository } from './tenant-white-label.repository.js';
 import { type PrismaClient, type TenantMediaKind } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
-import { PlanEntitlementService } from './plan-entitlement.service.js';
 import { type TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
 import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
 import { type ServiceImageStorage } from '../services/service-image.storage.js';
@@ -138,6 +138,8 @@ export class TenantWhiteLabelService {
     if (tenant === null) throw notFound();
     return TenantWhiteLabelResponseSchema.parse({
       slug: tenant.slug,
+      displayName: tenant.displayName,
+      businessProfile: tenant.businessProfile,
       branding: resolveTenantExperience(tenant).branding,
       site: sitePublic(tenant.publicSite),
       assets: (await this.repository.listAssets(tenantId)).map(assetPublic),
@@ -150,7 +152,11 @@ export class TenantWhiteLabelService {
     actor: Actor,
   ) {
     if (this.commercialClient !== undefined)
-      await new PlanEntitlementService().assertFeatureEnabledForTenant(this.commercialClient, tenantId, 'branding.customization.enabled');
+      await new PlanEntitlementService().assertFeatureEnabledForTenant(
+        this.commercialClient,
+        tenantId,
+        'branding.customization.enabled',
+      );
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
 
@@ -216,7 +222,11 @@ export class TenantWhiteLabelService {
     altText?: string | null,
   ) {
     if (this.commercialClient !== undefined)
-      await new PlanEntitlementService().assertFeatureEnabledForTenant(this.commercialClient, tenantId, 'branding.customization.enabled');
+      await new PlanEntitlementService().assertFeatureEnabledForTenant(
+        this.commercialClient,
+        tenantId,
+        'branding.customization.enabled',
+      );
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
     const publicId = randomUUID();
@@ -267,7 +277,11 @@ export class TenantWhiteLabelService {
 
   public async updateSite(tenantId: bigint, input: UpdateTenantPublicSiteRequest, actor: Actor) {
     if (this.commercialClient !== undefined)
-      await new PlanEntitlementService().assertFeatureEnabledForTenant(this.commercialClient, tenantId, 'branding.customization.enabled');
+      await new PlanEntitlementService().assertFeatureEnabledForTenant(
+        this.commercialClient,
+        tenantId,
+        'branding.customization.enabled',
+      );
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
     const site = await this.repository.upsertSite(tenantId, {
@@ -286,14 +300,16 @@ export class TenantWhiteLabelService {
 
   public async publicServiceImage(publicId: string) {
     const service = await this.repository.findPublicServiceImage(publicId);
-    if (service === null || service.imagePath === null) throw publicImageNotFound();
-    return this.serviceImages.read(service.imagePath);
+    const imagePath = service?.imagePath;
+    if (imagePath === undefined || imagePath === null) throw publicImageNotFound();
+    return this.serviceImages.read(imagePath);
   }
 
   public async publicProfessionalImage(publicId: string) {
     const professional = await this.repository.findPublicProfessionalImage(publicId);
-    if (professional === null || professional.photoPath === null) throw publicImageNotFound();
-    return this.professionalImages.read(professional.photoPath);
+    const photoPath = professional?.photoPath;
+    if (photoPath === undefined || photoPath === null) throw publicImageNotFound();
+    return this.professionalImages.read(photoPath);
   }
 
   public async publicSite(slug: string) {

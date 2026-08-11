@@ -3,43 +3,25 @@ import {
   TenantMediaAssetSchema,
   TenantPublicSiteSchema,
   TenantWhiteLabelResponseSchema,
-  UpdateTenantBrandingRequestSchema,
-  UpdateTenantPublicSiteRequestSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
+import { deriveBrandPalette, type BrandThemeCode } from '../branding/brand-studio.js';
+import { BrandAssetDropzone } from '../branding/BrandAssetDropzone.js';
+import { BrandColorPicker } from '../branding/BrandColorPicker.js';
+import { BrandPreview } from '../branding/BrandPreview.js';
+import { BrandThemePicker } from '../branding/BrandThemePicker.js';
 
-const FONT_OPTIONS = ['system-ui', 'Inter', 'Poppins', 'Montserrat'] as const;
-const RADIUS_OPTIONS = ['0.25rem', '0.5rem', '0.75rem', '1rem'] as const;
-const THEME_PREVIEW_OPTIONS = ['CLASSIC', 'MODERN', 'PREMIUM'] as const;
-const COLOR_FIELDS = [
-  ['primaryColor', 'Cor prim\u00e1ria'],
-  ['secondaryColor', 'Cor secund\u00e1ria'],
-  ['accentColor', 'Cor de destaque'],
-  ['backgroundColor', 'Cor de fundo'],
-  ['surfaceColor', 'Cor de superf\u00edcie'],
-  ['textColor', 'Cor do texto'],
-  ['mutedTextColor', 'Cor do texto secund\u00e1rio'],
-  ['borderColor', 'Cor da borda'],
-] as const;
-
-function optionalText(value: FormDataEntryValue | undefined): string | null {
-  if (typeof value !== 'string') return null;
-  const text = value.trim();
-  return text === '' ? null : text;
-}
+type AssetKind = 'LOGO' | 'APP_ICON' | 'SPLASH';
 
 export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string }) {
   const client = useQueryClient();
-  const [preview, setPreview] = useState(false);
-  const [previewTheme, setPreviewTheme] =
-    useState<(typeof THEME_PREVIEW_OPTIONS)[number]>('CLASSIC');
-  const [notice, setNotice] = useState<string | null>(null);
+  const queryKey = ['tenant', tenantPublicId, 'white-label'];
   const settings = useQuery({
-    queryKey: ['tenant', tenantPublicId, 'white-label'],
+    queryKey,
     queryFn: () =>
       httpClient.request('/tenant/white-label', {
         schema: TenantWhiteLabelResponseSchema,
@@ -47,34 +29,41 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
       }),
     retry: false,
   });
+  const [themeOverride, setThemeOverride] = useState<BrandThemeCode | null>(null);
+  const [colorOverride, setColorOverride] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
+  const [notice, setNotice] = useState<string | null>(null);
+  const theme = themeOverride ?? settings.data?.site.theme ?? 'CLASSIC';
+  const color = colorOverride ?? settings.data?.branding.primaryColor ?? '#2457D6';
+  const dirty = themeOverride !== null || colorOverride !== null;
+  const refresh = async () => {
+    await client.invalidateQueries({ queryKey });
+  };
   const save = useMutation({
-    mutationFn: (body: unknown) =>
-      httpClient.request('/tenant/public-site', {
+    mutationFn: async () => {
+      const palette = deriveBrandPalette(color);
+      await httpClient.request('/tenant/branding', {
         method: 'PATCH',
-        body,
-        schema: TenantPublicSiteSchema,
         tenantPublicId,
-      }),
-    onSuccess: async () => {
-      setNotice('Configura\u00e7\u00e3o salva.');
-      await client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'white-label'] });
-    },
-  });
-  const saveBranding = useMutation({
-    mutationFn: (body: unknown) =>
-      httpClient.request('/tenant/branding', {
-        method: 'PATCH',
-        body,
+        body: { ...palette, useProfileDefaults: false },
         schema: TenantWhiteLabelResponseSchema,
+      });
+      await httpClient.request('/tenant/public-site', {
+        method: 'PATCH',
         tenantPublicId,
-      }),
+        body: { theme },
+        schema: TenantPublicSiteSchema,
+      });
+    },
     onSuccess: async () => {
-      setNotice('Identidade visual salva.');
-      await client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'white-label'] });
+      setThemeOverride(null);
+      setColorOverride(null);
+      setNotice('Identidade visual atualizada.');
+      await refresh();
     },
   });
   const upload = useMutation({
-    mutationFn: ({ kind, file }: { kind: string; file: File }) => {
+    mutationFn: ({ kind, file }: { kind: AssetKind; file: File }) => {
       const body = new FormData();
       body.set('file', file, file.name);
       return httpClient.request(`/tenant/media/${kind}`, {
@@ -85,8 +74,8 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
       });
     },
     onSuccess: async () => {
-      setNotice('Imagem atualizada.');
-      await client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'white-label'] });
+      setNotice('Imagem atualizada com sucesso.');
+      await refresh();
     },
   });
   const remove = useMutation({
@@ -98,267 +87,260 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
       }),
     onSuccess: async () => {
       setNotice('Imagem removida.');
-      await client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'white-label'] });
+      await refresh();
     },
   });
+  const assets = useMemo(
+    () => new Map(settings.data?.assets.map((asset) => [asset.kind, asset])),
+    [settings.data?.assets],
+  );
+  const assetUrl = (kind: AssetKind) => {
+    const asset = assets.get(kind);
+    return asset === undefined ? undefined : `${environment.apiUrl}${asset.url}`;
+  };
+  const removeKind = (kind: AssetKind) => {
+    const asset = assets.get(kind);
+    if (asset !== undefined) remove.mutate(asset.publicId);
+  };
   if (settings.isPending)
     return (
-      <section className="sessions-panel">
-        <p>{'Carregando personaliza\u00e7\u00e3o\u2026'}</p>
+      <section className="module-loading" aria-busy="true">
+        Abrindo Brand Studio…
       </section>
     );
-  if (settings.data === undefined) return null;
-  const submit = (form: HTMLFormElement) => {
-    const values = Object.fromEntries(new FormData(form));
-    const body = UpdateTenantPublicSiteRequestSchema.parse({
-      theme: values.theme,
-      heroTitle: optionalText(values.heroTitle),
-      heroSubtitle: optionalText(values.heroSubtitle),
-      aboutText: optionalText(values.aboutText),
-      primaryCallToAction: optionalText(values.primaryCallToAction),
-      footerText: optionalText(values.footerText),
-      seoTitle: optionalText(values.seoTitle),
-      seoDescription: optionalText(values.seoDescription),
-      pwaName: optionalText(values.pwaName),
-      pwaShortName: optionalText(values.pwaShortName),
-      pwaDescription: optionalText(values.pwaDescription),
-    });
-    save.mutate(body);
-  };
-  const submitBranding = (form: HTMLFormElement) => {
-    const values = Object.fromEntries(new FormData(form));
-    const body = UpdateTenantBrandingRequestSchema.parse({
-      useProfileDefaults: values.useProfileDefaults === 'on',
-      primaryColor: values.primaryColor,
-      secondaryColor: values.secondaryColor,
-      accentColor: values.accentColor,
-      backgroundColor: values.backgroundColor,
-      surfaceColor: values.surfaceColor,
-      textColor: values.textColor,
-      mutedTextColor: values.mutedTextColor,
-      borderColor: values.borderColor,
-      borderRadius: values.borderRadius,
-      fontFamily: values.fontFamily,
-    });
-    saveBranding.mutate(body);
-  };
-  return (
-    <section className="sessions-panel" aria-labelledby="white-label-title">
-      <p className="eyebrow">Identidade</p>
-      <h2 id="white-label-title">{'P\u00e1gina p\u00fablica e PWA'}</h2>
-      {notice === null ? null : <p className="success-message">{notice}</p>}
-      {save.error instanceof Error ? <p className="form-error">{save.error.message}</p> : null}
-      {saveBranding.error instanceof Error ? (
-        <p className="form-error">{saveBranding.error.message}</p>
-      ) : null}
-      {upload.error instanceof Error ? <p className="form-error">{upload.error.message}</p> : null}
-      <form
-        className="platform-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit(event.currentTarget);
-        }}
-      >
-        <label>
-          Tema
-          <select name="theme" defaultValue={settings.data.site.theme}>
-            <option value="CLASSIC">Classic</option>
-            <option value="MODERN">Modern</option>
-            <option value="PREMIUM">Premium</option>
-          </select>
-        </label>
-        <label>
-          {'T\u00edtulo principal'}
-          <input name="heroTitle" defaultValue={settings.data.site.heroTitle ?? ''} />
-        </label>
-        <label>
-          {'Subt\u00edtulo'}
-          <input name="heroSubtitle" defaultValue={settings.data.site.heroSubtitle ?? ''} />
-        </label>
-        <label>
-          Sobre
-          <textarea name="aboutText" defaultValue={settings.data.site.aboutText ?? ''} />
-        </label>
-        <label>
-          Chamada principal
-          <input
-            name="primaryCallToAction"
-            defaultValue={settings.data.site.primaryCallToAction ?? ''}
-          />
-        </label>
-        <label>
-          Rodap\u00e9
-          <input name="footerText" defaultValue={settings.data.site.footerText ?? ''} />
-        </label>
-        <label>
-          {'SEO: t\u00edtulo'}
-          <input name="seoTitle" maxLength={70} defaultValue={settings.data.site.seoTitle ?? ''} />
-        </label>
-        <label>
-          {'SEO: descri\u00e7\u00e3o'}
-          <textarea
-            name="seoDescription"
-            maxLength={160}
-            defaultValue={settings.data.site.seoDescription ?? ''}
-          />
-        </label>
-        <label>
-          Nome PWA
-          <input name="pwaName" maxLength={80} defaultValue={settings.data.site.pwaName ?? ''} />
-        </label>
-        <label>
-          Nome curto PWA
-          <input
-            name="pwaShortName"
-            maxLength={30}
-            defaultValue={settings.data.site.pwaShortName ?? ''}
-          />
-        </label>
-        <label>
-          {'Descri\u00e7\u00e3o PWA'}
-          <input
-            name="pwaDescription"
-            maxLength={160}
-            defaultValue={settings.data.site.pwaDescription ?? ''}
-          />
-        </label>
-        <div className="form-actions">
-          <button type="submit" disabled={save.isPending}>
-            {save.isPending ? 'Salvando\u2026' : 'Salvar textos e tema'}
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => {
-              setPreview((value) => !value);
-            }}
-          >
-            Preview
-          </button>
-        </div>
-      </form>
-      <form
-        className="platform-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submitBranding(event.currentTarget);
-        }}
-      >
-        <strong>Cores e fonte</strong>
-        <label>
-          Usar cores padr\u00e3o do perfil de neg\u00f3cio
-          <input
-            type="checkbox"
-            name="useProfileDefaults"
-            defaultChecked={settings.data.branding.useProfileDefaults}
-          />
-        </label>
-        {COLOR_FIELDS.map(([name, label]) => (
-          <label key={name}>
-            {label}
-            <input type="color" name={name} defaultValue={settings.data.branding[name]} />
-          </label>
-        ))}
-        <label>
-          Raio da borda
-          <select name="borderRadius" defaultValue={settings.data.branding.borderRadius}>
-            {RADIUS_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Fonte
-          <select name="fontFamily" defaultValue={settings.data.branding.fontFamily}>
-            {FONT_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" disabled={saveBranding.isPending}>
-          {saveBranding.isPending ? 'Salvando\u2026' : 'Salvar identidade visual'}
+  if (settings.error instanceof Error || settings.data === undefined)
+    return (
+      <section className="area-error-state">
+        <h2>Não foi possível carregar o Brand Studio.</h2>
+        <button
+          type="button"
+          onClick={() => {
+            void settings.refetch();
+          }}
+        >
+          Tentar novamente
         </button>
-      </form>
-      <div className="platform-form">
-        <strong>Biblioteca de m\u00eddia</strong>
-        {(
-          [
-            'LOGO',
-            'LOGO_COMPACT',
-            'FAVICON',
-            'APP_ICON',
-            'SPLASH',
-            'BANNER_DESKTOP',
-            'BANNER_MOBILE',
-            'INSTITUTIONAL',
-          ] as const
-        ).map((kind) => (
-          <label key={kind}>
-            {kind}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              disabled={upload.isPending}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file !== undefined) upload.mutate({ kind, file });
+      </section>
+    );
+  return (
+    <section className="brand-studio" aria-labelledby="brand-studio-title">
+      <div className="module-header brand-studio-header">
+        <div>
+          <p className="eyebrow">Minha empresa</p>
+          <h2 id="brand-studio-title">Brand Studio</h2>
+          <p>
+            Crie uma experiência com a personalidade do seu negócio e acompanhe o resultado em tempo
+            real.
+          </p>
+        </div>
+        <a
+          className="secondary-button"
+          href={`/public/${settings.data.slug}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Abrir página pública
+        </a>
+      </div>
+      {notice === null ? null : <p className="success-message">{notice}</p>}
+      {save.error instanceof Error ||
+      upload.error instanceof Error ||
+      remove.error instanceof Error ? (
+        <p className="form-error">
+          {save.error instanceof Error
+            ? save.error.message
+            : upload.error instanceof Error
+              ? upload.error.message
+              : remove.error instanceof Error
+                ? remove.error.message
+                : 'Não foi possível concluir a alteração.'}
+        </p>
+      ) : null}
+      <div className="brand-studio-layout">
+        <div className="brand-editor">
+          <section className="brand-settings-card">
+            <span className="brand-section-number">01</span>
+            <h3>Logo</h3>
+            <p>Use uma imagem nítida, preferencialmente com fundo transparente.</p>
+            <BrandAssetDropzone
+              title="Logo do estabelecimento"
+              description="Será exibido na página pública e no aplicativo."
+              previewUrl={assetUrl('LOGO')}
+              busy={upload.isPending || remove.isPending}
+              onUpload={(file) => {
+                upload.mutate({ kind: 'LOGO', file });
+              }}
+              onRemove={
+                assets.has('LOGO')
+                  ? () => {
+                      removeKind('LOGO');
+                    }
+                  : undefined
+              }
+            />
+            <div className="brand-device-preview brand-device-preview--splash">
+              {(assetUrl('SPLASH') ?? assetUrl('LOGO')) ? (
+                <img
+                  src={assetUrl('SPLASH') ?? assetUrl('LOGO')}
+                  alt="Simulação da tela de abertura"
+                />
+              ) : (
+                <strong>{settings.data.displayName}</strong>
+              )}
+            </div>
+          </section>
+          <section className="brand-settings-card">
+            <span className="brand-section-number">02</span>
+            <h3>Escolha um tema</h3>
+            <p>Três direções visuais com composições realmente diferentes.</p>
+            <BrandThemePicker
+              value={theme}
+              onChange={(value) => {
+                setThemeOverride(value);
               }}
             />
-          </label>
-        ))}
-      </div>
-      <div className="data-list" aria-label="Arquivos ativos">
-        {settings.data.assets.map((asset) => (
-          <div className="data-row" key={asset.publicId}>
-            <img
-              src={`${environment.apiUrl}${asset.url}`}
-              alt={asset.altText ?? asset.kind}
-              width="48"
-              height="48"
-            />
-            <span>{asset.kind}</span>
-            <span>{asset.originalName}</span>
-            <button
-              className="secondary-button"
-              disabled={remove.isPending}
-              onClick={() => {
-                remove.mutate(asset.publicId);
+          </section>
+          <section className="brand-settings-card">
+            <span className="brand-section-number">03</span>
+            <BrandColorPicker
+              value={color}
+              onChange={(value) => {
+                setColorOverride(value);
               }}
-              type="button"
-            >
-              Remover
-            </button>
-          </div>
-        ))}
-      </div>
-      {preview ? (
-        <div className="platform-form">
-          <strong>Preview dos temas</strong>
-          <div className="form-actions" role="tablist" aria-label="Selecionar tema para preview">
-            {THEME_PREVIEW_OPTIONS.map((theme) => (
+            />
+          </section>
+          <section className="brand-settings-card">
+            <span className="brand-section-number">04</span>
+            <h3>Tela de abertura</h3>
+            <p>
+              A tela de abertura é a imagem exibida por alguns instantes quando seu aplicativo é
+              aberto.
+            </p>
+            <div className="brand-choice-row">
               <button
-                key={theme}
+                className={assets.has('SPLASH') ? 'secondary-button' : 'primary-button'}
                 type="button"
-                role="tab"
-                aria-selected={previewTheme === theme}
-                className={previewTheme === theme ? '' : 'secondary-button'}
                 onClick={() => {
-                  setPreviewTheme(theme);
+                  removeKind('SPLASH');
                 }}
               >
-                {theme === 'CLASSIC' ? 'Classic' : theme === 'MODERN' ? 'Modern' : 'Premium'}
+                Usar meu logo automaticamente
               </button>
-            ))}
+              <span>ou envie uma imagem personalizada</span>
+            </div>
+            <BrandAssetDropzone
+              title="Splash personalizada"
+              description="Recomendamos uma imagem vertical com área central livre."
+              previewUrl={assetUrl('SPLASH')}
+              busy={upload.isPending || remove.isPending}
+              onUpload={(file) => {
+                upload.mutate({ kind: 'SPLASH', file });
+              }}
+              onRemove={
+                assets.has('SPLASH')
+                  ? () => {
+                      removeKind('SPLASH');
+                    }
+                  : undefined
+              }
+            />
+            <div className="brand-home-screen-preview">
+              <div>
+                {assetUrl('APP_ICON') === undefined ? (
+                  <span>{settings.data.displayName.slice(0, 1)}</span>
+                ) : (
+                  <img src={assetUrl('APP_ICON')} alt="Ícone instalado" />
+                )}
+                <small>{settings.data.site.pwaShortName ?? settings.data.displayName}</small>
+              </div>
+            </div>
+          </section>
+          <section className="brand-settings-card">
+            <span className="brand-section-number">05</span>
+            <h3>Ícone do aplicativo</h3>
+            <p>
+              Este será o ícone exibido quando seus clientes ou sua equipe adicionarem o aplicativo
+              à tela inicial.
+            </p>
+            <BrandAssetDropzone
+              title="Ícone PWA"
+              description="Use uma imagem quadrada, simples e legível em tamanho pequeno."
+              previewUrl={assetUrl('APP_ICON')}
+              busy={upload.isPending || remove.isPending}
+              onUpload={(file) => {
+                upload.mutate({ kind: 'APP_ICON', file });
+              }}
+              onRemove={
+                assets.has('APP_ICON')
+                  ? () => {
+                      removeKind('APP_ICON');
+                    }
+                  : undefined
+              }
+            />
+          </section>
+        </div>
+        <aside className="brand-preview-panel">
+          <div className="brand-preview-toolbar">
+            <strong>Preview em tempo real</strong>
+            <div role="tablist" aria-label="Formato do preview">
+              <button
+                className={previewMode === 'mobile' ? 'primary-button' : 'secondary-button'}
+                type="button"
+                onClick={() => {
+                  setPreviewMode('mobile');
+                }}
+              >
+                Celular
+              </button>
+              <button
+                className={previewMode === 'desktop' ? 'primary-button' : 'secondary-button'}
+                type="button"
+                onClick={() => {
+                  setPreviewMode('desktop');
+                }}
+              >
+                Desktop
+              </button>
+            </div>
           </div>
-          <iframe
-            className="public-preview"
-            title="Preview da p\u00e1gina p\u00fablica"
-            src={`/public/${settings.data.slug}?previewTheme=${previewTheme}`}
+          <BrandPreview
+            displayName={settings.data.displayName}
+            theme={theme}
+            color={color}
+            logoUrl={assetUrl('LOGO')}
+            mode={previewMode}
           />
+        </aside>
+      </div>
+      {dirty ? (
+        <div className="brand-action-bar" role="status">
+          <span>
+            <strong>Alterações não salvas</strong>
+            <small>O preview já mostra o novo resultado.</small>
+          </span>
+          <div>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                setThemeOverride(null);
+                setColorOverride(null);
+              }}
+            >
+              Descartar
+            </button>
+            <button
+              className="primary-button"
+              disabled={save.isPending || !/^#[0-9A-Fa-f]{6}$/u.test(color)}
+              type="button"
+              onClick={() => {
+                save.mutate();
+              }}
+            >
+              {save.isPending ? 'Salvando…' : 'Salvar alterações'}
+            </button>
+          </div>
         </div>
       ) : null}
     </section>

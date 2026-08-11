@@ -1,6 +1,6 @@
 import { PublicTenantSiteResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
-import { type CSSProperties, useEffect } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { CustomerAuth } from '../components/CustomerAuth.js';
@@ -14,6 +14,9 @@ import { PremiumTheme } from '../themes/premium/PremiumTheme.js';
 export function PublicTenantPage() {
   const { slug = '' } = useParams();
   const [searchParams] = useSearchParams();
+  const [showSplash, setShowSplash] = useState(
+    () => window.matchMedia('(display-mode: standalone)').matches,
+  );
   const mediaUrl = (path: string) => `${environment.apiUrl}${path}`;
   const site = useQuery({
     queryKey: ['public-site', slug],
@@ -38,6 +41,27 @@ export function PublicTenantPage() {
       document.head.append(manifest);
     }
     manifest.href = `${environment.apiUrl}/public/sites/${site.data.slug}/manifest.webmanifest`;
+    const faviconAsset = site.data.assets.find(
+      (asset) => asset.kind === 'FAVICON' || asset.kind === 'APP_ICON',
+    );
+    if (faviconAsset !== undefined) {
+      let favicon = document.head.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      if (favicon === null) {
+        favicon = document.createElement('link');
+        favicon.rel = 'icon';
+        document.head.append(favicon);
+      }
+      favicon.href = mediaUrl(faviconAsset.url);
+    }
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      const timer = window.setTimeout(() => {
+        setShowSplash(false);
+      }, 1100);
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+    return undefined;
   }, [site.data]);
   if (site.isPending)
     return (
@@ -60,6 +84,8 @@ export function PublicTenantPage() {
   const asset = (kind: string) => site.data.assets.find((item) => item.kind === kind);
   const logo = asset('LOGO');
   const banner = asset('BANNER_DESKTOP');
+  const mobileBanner = asset('BANNER_MOBILE');
+  const splash = asset('SPLASH') ?? logo;
   const address =
     site.data.unit === null
       ? null
@@ -81,9 +107,26 @@ export function PublicTenantPage() {
             '--tenant-border': site.data.branding.borderColor,
             '--tenant-radius': site.data.branding.borderRadius,
             '--tenant-font': site.data.branding.fontFamily,
+            '--tenant-banner-desktop':
+              banner === undefined ? 'none' : `url(${mediaUrl(banner.url)})`,
+            '--tenant-banner-mobile':
+              mobileBanner === undefined
+                ? banner === undefined
+                  ? 'none'
+                  : `url(${mediaUrl(banner.url)})`
+                : `url(${mediaUrl(mobileBanner.url)})`,
           } as CSSProperties
         }
       >
+        {showSplash ? (
+          <div className="public-splash" aria-label="Abrindo aplicativo">
+            {splash === undefined ? (
+              <strong>{site.data.displayName}</strong>
+            ) : (
+              <img src={mediaUrl(splash.url)} alt={site.data.displayName} />
+            )}
+          </div>
+        ) : null}
         <header className="public-header">
           {logo === undefined ? (
             <strong>{site.data.displayName}</strong>
@@ -97,16 +140,7 @@ export function PublicTenantPage() {
           services={site.data.services}
           professionals={site.data.professionals}
         />
-        <section
-          className="public-hero"
-          style={
-            banner === undefined
-              ? undefined
-              : {
-                  backgroundImage: `linear-gradient(90deg, ${site.data.branding.primaryColor}dd, ${site.data.branding.secondaryColor}aa), url(${mediaUrl(banner.url)})`,
-                }
-          }
-        >
+        <section className="public-hero">
           <h1>{site.data.site.heroTitle ?? site.data.displayName}</h1>
           <p>
             {site.data.site.heroSubtitle ?? 'Conhe\u00e7a nossos servi\u00e7os e nossa equipe.'}

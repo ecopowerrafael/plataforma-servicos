@@ -361,6 +361,7 @@ model Tenant {
   id                           BigInt                           @id @default(autoincrement()) @db.UnsignedBigInt
   publicId                     String                           @unique @map("public_id") @db.Char(36)
   slug                         String                           @unique @db.VarChar(63)
+  slugChangedAt                DateTime?                        @map("slug_changed_at") @db.DateTime(3)
   legalName                    String                           @map("legal_name") @db.VarChar(160)
   displayName                  String                           @map("display_name") @db.VarChar(120)
   status                       TenantStatus                     @default(ACTIVE)

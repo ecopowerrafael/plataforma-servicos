@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { BusinessTerminologySchema, TenantBrandingSchema } from './business-profile.js';
+import {
+  BusinessProfileCodeSchema,
+  BusinessTerminologySchema,
+  TenantBrandingSchema,
+} from './business-profile.js';
 import { TenantPublicIdSchema, TenantSlugSchema } from './tenant.js';
 
 export const TenantMediaKindSchema = z.enum([
@@ -64,6 +68,8 @@ export const TenantPublicSiteSchema = UpdateTenantPublicSiteRequestSchema.safeEx
 });
 export const TenantWhiteLabelResponseSchema = z.object({
   slug: TenantSlugSchema,
+  displayName: z.string().min(2),
+  businessProfile: BusinessProfileCodeSchema,
   branding: TenantBrandingSchema,
   site: TenantPublicSiteSchema,
   assets: z.array(TenantMediaAssetSchema),

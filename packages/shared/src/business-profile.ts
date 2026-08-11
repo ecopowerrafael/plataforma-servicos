@@ -19,6 +19,24 @@ export const BusinessProfileCodeSchema = z.enum([
 ]);
 export type BusinessProfileCode = z.infer<typeof BusinessProfileCodeSchema>;
 
+export const BusinessProfileLabels: Record<BusinessProfileCode, string> = Object.freeze({
+  BARBERSHOP: 'Barbearia',
+  BEAUTY_SALON: 'Salão de beleza',
+  AESTHETIC_CLINIC: 'Clínica de estética',
+  MEDICAL_CLINIC: 'Clínica médica',
+  PSYCHOLOGY: 'Psicologia',
+  NUTRITION: 'Nutrição',
+  DENTISTRY: 'Clínica odontológica',
+  STUDIO: 'Estúdio',
+  TATTOO_STUDIO: 'Estúdio de tatuagem',
+  PET_CARE: 'Pet shop / Banho e tosa',
+  SPA: 'Spa',
+  MASSAGE: 'Massoterapia',
+  PERSONAL_TRAINER: 'Personal trainer',
+  CONSULTING: 'Consultoria',
+  GENERIC: 'Outro',
+});
+
 export const TenantFeatureCodeSchema = z.enum([
   'MULTIPLE_UNITS',
   'PROFESSIONAL_SELECTION',
@@ -400,7 +418,7 @@ export const BusinessProfileCatalog = Object.freeze(
       code,
       {
         code,
-        publicName: code === 'GENERIC' ? 'Genérico' : code.replaceAll('_', ' '),
+        publicName: BusinessProfileLabels[code],
         description: 'Perfil operacional para negócios com atendimento agendado.',
         category: code.includes('CLINIC') ? 'HEALTH' : 'SERVICES',
         terminology: profileTerminology[code] ?? genericTerminology,

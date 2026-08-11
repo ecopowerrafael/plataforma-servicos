@@ -212,6 +212,26 @@ export const CreateTenantResponseSchema = z.object({
 });
 
 export const TenantContextResponseSchema = z.object({ tenant: TenantPublicSchema });
+export const TenantIdentitySchema = z.object({
+  legalName: z.string().min(2).max(160),
+  displayName: z.string().min(2).max(120),
+  slug: TenantSlugSchema,
+  slugChangeAvailable: z.boolean(),
+  businessProfile: BusinessProfileCodeSchema,
+  businessTypeCustom: z.string().nullable(),
+});
+export const UpdateTenantIdentityRequestSchema = z
+  .object({
+    legalName: RequiredNameSchema(160).optional(),
+    displayName: RequiredNameSchema(120).optional(),
+    slug: TenantSlugSchema.optional(),
+    businessProfile: BusinessProfileCodeSchema.optional(),
+    businessTypeCustom: z.string().trim().min(2).max(120).nullable().optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, 'Informe ao menos uma alteração.');
+export type UpdateTenantIdentityRequest = z.infer<typeof UpdateTenantIdentityRequestSchema>;
+export const TenantIdentityResponseSchema = z.object({ identity: TenantIdentitySchema });
 export const TenantUnitsResponseSchema = z.object({ units: z.array(BusinessUnitSchema) });
 export const TenantUnitResponseSchema = z.object({ unit: BusinessUnitSchema });
 export const TenantSettingsResponseSchema = z.object({ settings: TenantSettingsSchema });
@@ -247,6 +267,7 @@ export type UpdateBusinessUnitRequest = z.infer<typeof UpdateBusinessUnitRequest
 export type TenantSettings = z.infer<typeof TenantSettingsSchema>;
 export type CreateTenantResponse = z.infer<typeof CreateTenantResponseSchema>;
 export type TenantContextResponse = z.infer<typeof TenantContextResponseSchema>;
+export type TenantIdentity = z.infer<typeof TenantIdentitySchema>;
 export type TenantUnitsResponse = z.infer<typeof TenantUnitsResponseSchema>;
 export type TenantUnitResponse = z.infer<typeof TenantUnitResponseSchema>;
 export type TenantSettingsResponse = z.infer<typeof TenantSettingsResponseSchema>;

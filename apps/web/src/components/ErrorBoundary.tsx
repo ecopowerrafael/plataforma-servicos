@@ -2,6 +2,9 @@ import { Component, type ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
+  area?: string;
+  onRetry?: () => void;
+  onBack?: () => void;
 }
 
 interface ErrorBoundaryState {
@@ -32,6 +35,21 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   public override render(): ReactNode {
     if (this.state.hasError) {
+      if (this.props.area !== undefined)
+        return (
+          <section className="area-error-state" role="alert">
+            <p className="eyebrow">Área indisponível</p>
+            <h2>Não foi possível carregar {this.props.area}.</h2>
+            <p>Tente novamente. Seus dados não foram alterados.</p>
+            <div className="button-row">
+              <button type="button" className="primary-button" onClick={() => {
+                this.setState({ hasError: false });
+                this.props.onRetry?.();
+              }}>Tentar novamente</button>
+              {this.props.onBack !== undefined && <button type="button" className="secondary-button" onClick={this.props.onBack}>Voltar ao início</button>}
+            </div>
+          </section>
+        );
       return (
         <main className="page-shell">
           <section className="status-panel" role="alert">

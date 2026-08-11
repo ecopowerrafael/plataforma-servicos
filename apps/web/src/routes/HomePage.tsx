@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { persistLayoutAndAdvance } from './onboarding-flow.js';
 import { HttpError, httpClient } from '../lib/http.js';
 import { clearSelectedTenant, readSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
+import { ErrorBoundary } from '../components/ErrorBoundary.js';
 
 // Dynamic module boundaries keep inactive product areas out of the initial panel bundle.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -437,7 +438,7 @@ export function HomePage() {
       <nav className="app-navigation" aria-label="Navegação principal">
         <strong className="app-navigation-brand">{me.data.currentTenant?.tenant.displayName ?? 'Agendei'}</strong>
         <NavLink to="/app" end>Início</NavLink>
-        {menuGroups.map((group) => <details key={group.path} open={expandedGroups[group.path] ?? location.pathname.startsWith(group.path)} onToggle={(event) => { setExpandedGroups((current) => ({ ...current, [group.path]: event.currentTarget.open })); }}><summary>{group.label}</summary><div className="app-navigation-submenu">{group.items.map((item) => <NavLink key={item.to} to={item.to} end>{item.label}</NavLink>)}</div></details>)}
+        {menuGroups.map((group) => <details key={group.path} open={expandedGroups[group.path] ?? location.pathname.startsWith(group.path)} onToggle={(event) => { const open = event.currentTarget.open; setExpandedGroups((current) => ({ ...current, [group.path]: open })); }}><summary>{group.label}</summary><div className="app-navigation-submenu">{group.items.map((item) => <NavLink key={item.to} to={item.to} end>{item.label}</NavLink>)}</div></details>)}
       </nav>
       <nav className="app-mobile-nav" aria-label="Navegação móvel">
         <NavLink to="/app" end>Início</NavLink>
@@ -447,7 +448,7 @@ export function HomePage() {
         <button aria-expanded={mobileMenuOpen} onClick={() => { setMobileMenuOpen((open) => !open); }}>Menu</button>
       </nav>
       {quickActionsOpen && <div className="mobile-sheet" role="dialog" aria-label="Ações rápidas"><button onClick={() => { setQuickActionsOpen(false); void navigate('/app/agenda/agendamentos'); }}>Novo agendamento</button><button onClick={() => { setQuickActionsOpen(false); void navigate('/app/clientes'); }}>Novo cliente</button><button onClick={() => { setQuickActionsOpen(false); void navigate('/app/servicos'); }}>Novo serviço</button>{canSellProducts && <button onClick={() => { setQuickActionsOpen(false); void navigate('/app/produtos'); }}>Nova venda</button>}</div>}
-      {mobileMenuOpen && <div className="mobile-sheet mobile-menu-sheet" role="dialog" aria-label="Mais opções">{menuGroups.map((group) => <details key={group.path} open={expandedGroups[group.path] ?? location.pathname.startsWith(group.path)} onToggle={(event) => { setExpandedGroups((current) => ({ ...current, [group.path]: event.currentTarget.open })); }}><summary>{group.label}</summary>{group.items.map((item) => <NavLink key={item.to} to={item.to} end onClick={() => { setMobileMenuOpen(false); }}>{item.label}</NavLink>)}</details>)}</div>}
+      {mobileMenuOpen && <div className="mobile-sheet mobile-menu-sheet" role="dialog" aria-label="Mais opções">{menuGroups.map((group) => <details key={group.path} open={expandedGroups[group.path] ?? location.pathname.startsWith(group.path)} onToggle={(event) => { const open = event.currentTarget.open; setExpandedGroups((current) => ({ ...current, [group.path]: open })); }}><summary>{group.label}</summary>{group.items.map((item) => <NavLink key={item.to} to={item.to} end onClick={() => { setMobileMenuOpen(false); }}>{item.label}</NavLink>)}</details>)}</div>}
       {isRoute('/app') && onboardingChecklist.data !== undefined && !onboardingChecklist.data.hidden && <section className="onboarding-checklist" aria-labelledby="onboarding-checklist-title"><div><p className="eyebrow">Primeiros passos</p><h2 id="onboarding-checklist-title">{onboardingChecklist.data.items.filter((item) => item.complete).length} de {onboardingChecklist.data.items.length} concluídos</h2></div><button className="text-button" onClick={() => { updateOnboarding.mutate({ step: onboarding.data?.onboardingStep ?? 'COMPLETE', hideChecklist: true }); }}>Ocultar</button><ul>{onboardingChecklist.data.items.map((item) => <li key={item.key} className={item.complete ? 'complete' : undefined}>{item.complete ? '✓' : '○'} {({ company: 'Criar sua empresa', branding: 'Personalizar sua marca', service: 'Criar primeiro serviço', professional: 'Adicionar profissional', schedule: 'Definir horários', appointment: 'Testar primeiro agendamento', share: 'Compartilhar sua página' } as Record<string, string>)[item.key]}</li>)}</ul></section>}
       {me.data.tenants.length > 1 || me.data.currentTenant === null ? (
         <button className="text-button" onClick={() => void navigate('/select-tenant')}>
@@ -455,7 +456,7 @@ export function HomePage() {
         </button>
       ) : null}
       {selectedTenant !== undefined && me.data.currentTenant !== null && (
-        <Suspense fallback={<p className="module-loading">Carregando área…</p>}>
+        <ErrorBoundary area={pageTitle.toLocaleLowerCase('pt-BR')} onRetry={() => { void queryClient.invalidateQueries({ queryKey: ['tenant', selectedTenant] }); }} onBack={() => { void navigate('/app'); }}><Suspense fallback={<section className="module-loading" aria-busy="true"><span className="loading-spinner" />Carregando área…</section>}>
           {isRoute('/app/empresa', '/app/configuracoes') && <TenantSettingsModule
             tenantPublicId={selectedTenant}
             canUpdate={canUpdateTenantSettings}
@@ -551,7 +552,7 @@ export function HomePage() {
           {isRoute('/app/empresa/integracoes') && canReadIntegrations && planFeatureEnabled('integrations.enabled') && (
             <IntegrationsModule tenantPublicId={selectedTenant} canManage={canManageIntegrations} />
           )}
-        </Suspense>
+        </Suspense></ErrorBoundary>
       )}
       {isRoute('/app/configuracoes/sessoes') && <section className="sessions-panel" aria-labelledby="sessions-title">
         <div className="sessions-heading">

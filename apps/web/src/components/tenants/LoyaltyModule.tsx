@@ -27,8 +27,8 @@ export function LoyaltyModule({
   });
 
   return (
-    <section className="platform-form" aria-label="Fidelidade (pontos e cashback)">
-      <h3>Fidelidade (pontos e cashback)</h3>
+    <section className="platform-form loyalty-module" aria-label="Fidelidade (pontos e cashback)">
+      <div className="module-header"><div><p className="eyebrow">Relacionamento</p><h3>Programa de fidelidade</h3><p>Configure pontos e cashback para incentivar novas compras.</p></div></div>
       {rules.isPending ? <p>Carregando…</p> : null}
       {rules.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar as regras de fidelidade.</p>
@@ -95,9 +95,9 @@ function LoyaltyRuleForm({
   });
 
   return (
-    <article className="info-card" aria-label={typeLabels[rule.type] ?? rule.type}>
+    <article className="info-card loyalty-card" aria-label={typeLabels[rule.type] ?? rule.type}>
       <h4>{typeLabels[rule.type] ?? rule.type}</h4>
-      <p>{`Status: ${rule.active ? 'ativo' : 'inativo'}`}</p>
+      <p>{rule.type === 'POINTS' ? 'Clientes acumulam pontos a cada compra e podem resgatá-los depois.' : 'Defina uma recompensa comercial para incentivar o retorno dos clientes.'}</p>
       {canManage && (
         <form
           className="form-actions"
@@ -109,6 +109,7 @@ function LoyaltyRuleForm({
           <label>
             <input
               type="checkbox"
+              role="switch"
               checked={active}
               onChange={(event) => {
                 setActive(event.target.checked);

@@ -2605,6 +2605,76 @@ a {
 .app-shell label { gap:.4rem; color:#334155; font-weight:650; }
 .app-shell small { color:#64748b; font-size:.82rem; font-weight:400; }
 
+/* Sistema visual do produto: mantém módulos existentes sob a mesma linguagem. */
+.app-shell { background:#f6f8fc; color:#172033; }
+.app-page-description { margin:.35rem 0 0; color:#64748b; font-size:.95rem; }
+.app-header { margin-bottom:1.25rem; padding:0; }
+.app-header h1 { margin:0; color:#102a43; font-size:clamp(1.65rem,3vw,2.25rem); letter-spacing:-.035em; }
+.app-shell .platform-form,.app-shell .sessions-panel,.app-shell .onboarding-checklist { margin:0 0 1rem; padding:clamp(1rem,2.5vw,1.5rem); border:1px solid #e2e8f0; border-radius:1rem; background:#fff; box-shadow:0 10px 28px rgb(15 23 42 / 5%); }
+.app-shell .platform-form { align-items:end; grid-template-columns:repeat(auto-fit,minmax(160px,max-content)); }
+.app-shell .platform-form > h2,.app-shell .platform-form > h3 { grid-column:1/-1; margin:0 0 .25rem; color:#102a43; font-size:1.18rem; }
+.app-shell .platform-form > h4 { grid-column:1/-1; margin:1rem 0 .15rem; color:#334155; }
+.app-shell .platform-form fieldset { border-color:#e2e8f0; border-radius:.85rem; background:#fbfdff; }
+.app-shell .platform-form label { min-width:0; font-size:.88rem; }
+.app-shell .platform-form :where(input,select,textarea) { border-color:#cbd5e1; box-shadow:none; }
+.app-shell .platform-form :where(input,select):not([type='checkbox']):not([type='radio']) { width:min(100%,20rem); }
+.app-shell .platform-form textarea { width:min(100%,42rem); }
+.control-xs { width:7.5rem !important; }
+.control-sm { width:10rem !important; }
+.control-md { width:15rem !important; }
+.control-lg { width:22.5rem !important; }
+.control-full { width:100% !important; max-width:none !important; }
+.app-shell select { appearance:none; background-image:linear-gradient(45deg,transparent 50%,#64748b 50%),linear-gradient(135deg,#64748b 50%,transparent 50%); background-position:calc(100% - 17px) calc(50% - 2px),calc(100% - 12px) calc(50% - 2px); background-repeat:no-repeat; background-size:5px 5px,5px 5px; padding-right:2.4rem !important; }
+.app-shell :where(input,select,textarea):focus-visible { border-color:#2563eb !important; box-shadow:0 0 0 3px rgb(37 99 235 / 14%) !important; outline:0; }
+.app-shell .primary-button,.app-shell .platform-form button { min-height:2.65rem; padding:.65rem 1rem; border-radius:.7rem; background:#2563eb; box-shadow:0 4px 10px rgb(37 99 235 / 20%); }
+.app-shell .secondary-button,.app-shell .text-button { min-height:2.65rem; padding:.6rem .9rem; border:1px solid #cbd5e1; border-radius:.7rem; background:#fff; color:#334155; }
+.app-shell .primary-button:hover,.app-shell .platform-form button:hover { background:#1d4ed8; transform:translateY(-1px); }
+.app-shell .secondary-button:hover,.app-shell .text-button:hover { background:#f8fafc; border-color:#94a3b8; }
+.app-shell .platform-table { overflow:hidden; border:1px solid #e2e8f0; border-radius:.85rem; min-width:680px; }
+.app-shell .platform-table th { background:#f8fafc; color:#64748b; }
+.app-shell .platform-table td { color:#334155; }
+.app-shell .form-row { display:flex; flex-wrap:wrap; gap:.75rem; align-items:end; }
+.app-shell .module-header { grid-column:1/-1; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:.35rem; }
+.app-shell .module-header h3,.app-shell .drawer-header h4 { margin:.15rem 0; }
+.app-shell .module-header p:not(.eyebrow) { margin:.35rem 0 0; color:#64748b; }
+.coupon-list { display:grid; grid-column:1/-1; gap:.65rem; width:100%; margin:0; padding:0; list-style:none; }
+.coupon-item { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:1rem; padding:1rem; border:1px solid #e2e8f0; border-radius:.85rem; background:#fbfdff; }
+.coupon-item > div { display:grid; gap:.2rem; }
+.coupon-item small,.coupon-item span:not(.status-badge) { color:#64748b; }
+.status-badge { display:inline-flex; align-items:center; min-height:1.65rem; padding:0 .55rem; border-radius:999px; font-size:.75rem; font-weight:800; }
+.status-active { background:#dcfce7; color:#166534; }
+.status-muted { background:#e2e8f0; color:#475569; }
+.empty-state { display:grid; gap:.35rem; place-items:center; min-height:10rem; padding:1.5rem; border:1px dashed #cbd5e1; border-radius:.85rem; color:#64748b; text-align:center; }
+.empty-state strong { color:#334155; }
+.app-drawer { grid-column:1/-1; position:relative; margin-top:.75rem; padding:1rem; border:1px solid #bfdbfe; border-radius:.9rem; background:#f8fbff; box-shadow:0 14px 28px rgb(15 23 42 / 8%); }
+.drawer-header { grid-column:1/-1; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; }
+.loyalty-module .loyalty-card { display:grid; gap:.8rem; min-width:0; padding:1.2rem; }
+.loyalty-card h4 { margin:0; color:#102a43; font-size:1.08rem; }
+.loyalty-card > p { margin:0; color:#64748b; line-height:1.5; }
+.loyalty-card .form-actions { display:grid; gap:.75rem; }
+.loyalty-card input[role='switch'] { appearance:none; width:2.6rem; min-height:1.45rem; padding:0; border-radius:999px; background:#cbd5e1; cursor:pointer; transition:.15s ease; }
+.loyalty-card input[role='switch']::before { content:''; display:block; width:1.1rem; height:1.1rem; margin:.15rem; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgb(15 23 42 / 20%); transition:.15s ease; }
+.loyalty-card input[role='switch']:checked { background:#2563eb; }
+.loyalty-card input[role='switch']:checked::before { transform:translateX(1.15rem); }
+.app-shell .form-error { border:1px solid #fecaca; background:#fff1f2; color:#b42318; }
+.module-loading,.area-error-state { display:flex; align-items:center; gap:.65rem; margin:1rem 0; padding:1.25rem; border:1px solid #dbeafe; border-radius:1rem; background:#eff6ff; color:#1e40af; }
+.area-error-state { display:block; border-color:#fecaca; background:#fff7f7; color:#7f1d1d; }
+.area-error-state h2 { margin:.2rem 0 .45rem; font-size:1.15rem; }
+.loading-spinner { width:1rem; height:1rem; border:2px solid #bfdbfe; border-top-color:#2563eb; border-radius:999px; animation:app-spin .7s linear infinite; }
+@keyframes app-spin { to { transform:rotate(360deg); } }
+.app-navigation { border-color:#e2e8f0; background:linear-gradient(180deg,#fff,#f8fafc); }
+.app-navigation-brand { border-bottom:1px solid #e2e8f0; font-size:1.05rem; }
+.app-navigation summary:hover,.app-navigation a:hover { background:#eef2ff; color:#1d4ed8; }
+.app-navigation-submenu a.active { box-shadow:none; }
+@media (max-width:699px) {
+  .app-shell .platform-form { grid-template-columns:1fr; }
+  .app-shell .platform-form :where(input,select,textarea),.control-xs,.control-sm,.control-md,.control-lg { width:100% !important; }
+  .app-header { align-items:flex-start; padding:.5rem 0 1rem; }
+  .app-shell .platform-table { min-width:600px; }
+  .app-shell .module-header,.drawer-header { flex-direction:column; }
+  .coupon-item { grid-template-columns:1fr; gap:.6rem; }
+}
+
 /* Super Admin: superfície administrativa clara, densa e responsiva. */
 .platform-shell { min-height:100vh; background:#f6f8fb; color:#172033; padding:28px; }
 .platform-header { align-items:center; background:#fff; border:1px solid #e4e9f2; border-radius:18px; box-shadow:0 8px 28px rgba(28,45,72,.06); padding:22px 26px; }

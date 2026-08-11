@@ -40,6 +40,36 @@ function errorCode(action: () => void): string {
 }
 
 describe('tenant Brand Studio behavior', () => {
+  it('returns safe white-label defaults for a legacy tenant with no branding or banners', async () => {
+    const repository = {
+      findTenant: vi.fn().mockResolvedValue({
+        id: tenantId,
+        publicId: 'legacy-tenant-public-id',
+        slug: 'empresa-legada',
+        displayName: 'Empresa Legada',
+        businessProfile: 'GENERIC',
+        branding: null,
+        terminology: null,
+        publicSite: null,
+      }),
+      listAssets: vi.fn().mockResolvedValue([]),
+    };
+    const unusedStorage = {} as ServiceImageStorage;
+    const service = new TenantWhiteLabelService(
+      repository as never,
+      unusedStorage,
+      unusedStorage,
+      unusedStorage,
+    );
+
+    const response = await service.get(tenantId);
+
+    expect(response.slug).toBe('empresa-legada');
+    expect(response.site.theme).toBe('CLASSIC');
+    expect(response.assets).toEqual([]);
+    expect(response.branding.primaryColor).toBeDefined();
+  });
+
   it('locks a slug change atomically inside the current tenant', async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const update = vi.fn().mockResolvedValue({});

@@ -96,6 +96,9 @@ describe('tenant Brand Studio contracts', () => {
     expect(bannersSource).toContain("'BANNER_DESKTOP'");
     expect(bannersSource).toContain("'BANNER_MOBILE'");
     expect(bannersSource).toContain('/tenant/media/');
+    expect(bannersSource).toContain("httpClient.request('/tenant/media'");
+    expect(bannersSource).toContain('Nenhum banner cadastrado ainda.');
+    expect(bannersSource).toContain('Adicionar banner');
     expect(publicPageSource).toContain("asset('BANNER_MOBILE')");
     expect(stylesSource).toContain('var(--tenant-banner-desktop)');
     expect(stylesSource).toContain('var(--tenant-banner-mobile)');

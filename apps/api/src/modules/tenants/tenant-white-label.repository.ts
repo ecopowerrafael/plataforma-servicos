@@ -10,14 +10,32 @@ export class TenantWhiteLabelRepository {
   public findTenant(tenantId: bigint) {
     return this.client.tenant.findUnique({
       where: { id: tenantId },
-      include: { branding: true, terminology: true, publicSite: true },
+      select: {
+        id: true,
+        publicId: true,
+        slug: true,
+        displayName: true,
+        businessProfile: true,
+        branding: true,
+        terminology: true,
+        publicSite: true,
+      },
     });
   }
 
   public findTenantByPublicId(publicId: string) {
     return this.client.tenant.findUnique({
       where: { publicId },
-      include: { branding: true, terminology: true, publicSite: true },
+      select: {
+        id: true,
+        publicId: true,
+        slug: true,
+        displayName: true,
+        businessProfile: true,
+        branding: true,
+        terminology: true,
+        publicSite: true,
+      },
     });
   }
 
@@ -31,7 +49,12 @@ export class TenantWhiteLabelRepository {
   public findPublicTenant(slug: string) {
     return this.client.tenant.findFirst({
       where: { slug, status: 'ACTIVE' },
-      include: {
+      select: {
+        id: true,
+        publicId: true,
+        slug: true,
+        displayName: true,
+        businessProfile: true,
         branding: true,
         terminology: true,
         publicSite: true,

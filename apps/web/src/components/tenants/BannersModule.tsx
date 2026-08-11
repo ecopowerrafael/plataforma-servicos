@@ -1,7 +1,7 @@
 import {
   SuccessResponseSchema,
   TenantMediaAssetSchema,
-  TenantWhiteLabelResponseSchema,
+  TenantMediaListResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -15,16 +15,17 @@ type BannerKind = 'BANNER_DESKTOP' | 'BANNER_MOBILE';
 export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
   const client = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
-  const queryKey = ['tenant', tenantPublicId, 'white-label'];
-  const settings = useQuery({
+  const queryKey = ['tenant', tenantPublicId, 'media'];
+  const media = useQuery({
     queryKey,
     queryFn: () =>
-      httpClient.request('/tenant/white-label', {
-        schema: TenantWhiteLabelResponseSchema,
+      httpClient.request('/tenant/media', {
+        schema: TenantMediaListResponseSchema,
         tenantPublicId,
       }),
     retry: false,
   });
+  const settings = media;
   const refresh = async () => {
     await client.invalidateQueries({ queryKey });
   };
@@ -57,13 +58,14 @@ export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
     },
   });
   if (settings.isPending) return <section className="module-loading">Carregando banners…</section>;
-  if (settings.error instanceof Error || settings.data === undefined)
+  if (media.error instanceof Error || media.data === undefined)
     return (
       <section className="area-error-state">
         <h2>Não foi possível carregar os banners.</h2>
       </section>
     );
-  const asset = (kind: BannerKind) => settings.data.assets.find((item) => item.kind === kind);
+  const asset = (kind: BannerKind) => media.data.assets.find((item) => item.kind === kind);
+  const hasBanners = asset('BANNER_DESKTOP') !== undefined || asset('BANNER_MOBILE') !== undefined;
   const url = (kind: BannerKind) => {
     const current = asset(kind);
     return current === undefined ? undefined : `${environment.apiUrl}${current.url}`;
@@ -88,6 +90,14 @@ export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
         </a>
       </div>
       {notice === null ? null : <p className="success-message">{notice}</p>}
+      {!hasBanners ? (
+        <div className="empty-state" role="status">
+          <p>Nenhum banner cadastrado ainda.</p>
+          <a className="secondary-button" href="#banner-uploads">
+            Adicionar banner
+          </a>
+        </div>
+      ) : null}
       {upload.error instanceof Error || remove.error instanceof Error ? (
         <p className="form-error">
           {upload.error instanceof Error

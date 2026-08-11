@@ -35,11 +35,17 @@ function legacyTenant() {
   };
 }
 
-async function createApp() {
+async function createApp(
+  tenantOverrides: Omit<Partial<ReturnType<typeof legacyTenant>>, 'publicSite' | 'branding'> & {
+    publicSite?: Record<string, unknown> | null;
+    branding?: Record<string, unknown> | null;
+  } = {},
+) {
+  const tenant = { ...legacyTenant(), ...tenantOverrides };
   const repository = {
-    findTenant: vi.fn().mockResolvedValue(legacyTenant()),
+    findTenant: vi.fn().mockResolvedValue(tenant),
     findPublicTenant: vi.fn().mockResolvedValue({
-      ...legacyTenant(),
+      ...tenant,
       mediaAssets: [],
       services: [],
       professionals: [],
@@ -117,7 +123,39 @@ describe('Brand Studio HTTP', () => {
   );
 
   it('serializes the public site response without the same Zod encode failure', async () => {
-    const app = await createApp();
+    const app = await createApp({
+      publicSite: {
+        theme: 'MODERN',
+        heroTitle: 'Barbearia Silva',
+        heroSubtitle: 'Seu estilo, no seu tempo.',
+        aboutText: 'Agende seu horário de forma rápida e prática.',
+        primaryCallToAction: 'Agendar horário',
+        footerText: null,
+        seoTitle: null,
+        seoDescription: null,
+        pwaName: 'Barbearia Silva',
+        pwaShortName: 'Barbearia Silva',
+        pwaDescription: null,
+      },
+      branding: {
+        useProfileDefaults: false,
+        primaryColor: '#2457D6',
+        secondaryColor: '#1B419F',
+        accentColor: '#4F78DE',
+        backgroundColor: '#F6F8FD',
+        surfaceColor: '#FFFFFF',
+        textColor: '#0F172A',
+        mutedTextColor: '#64748B',
+        borderColor: '#D5DDF4',
+        borderRadius: '0.75rem',
+        fontFamily: 'Inter',
+        logoUrl: null,
+        faviconUrl: null,
+        bannerUrl: null,
+        pwaIconUrl: null,
+        splashUrl: null,
+      },
+    });
 
     const response = await app.inject({ method: 'GET', url: '/public/sites/barbearia-silva' });
 
@@ -125,6 +163,13 @@ describe('Brand Studio HTTP', () => {
     const body = PublicTenantSiteResponseSchema.parse(JSON.parse(response.body) as unknown);
     expect(body.slug).toBe('barbearia-silva');
     expect(body.displayName).toBe('Barbearia Silva');
+    expect(body.site).toMatchObject({
+      theme: 'MODERN',
+      heroTitle: 'Barbearia Silva',
+      heroSubtitle: 'Seu estilo, no seu tempo.',
+      primaryCallToAction: 'Agendar horário',
+    });
+    expect(body.branding.primaryColor).toBe('#2457D6');
     expect(body.assets).toEqual([]);
   });
 });

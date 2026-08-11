@@ -16,6 +16,7 @@ export class TenantWhiteLabelRepository {
         slug: true,
         displayName: true,
         businessProfile: true,
+        onboardingCompletedAt: true,
         branding: {
           select: {
             useProfileDefaults: true,
@@ -78,6 +79,7 @@ export class TenantWhiteLabelRepository {
         slug: true,
         displayName: true,
         businessProfile: true,
+        onboardingCompletedAt: true,
         branding: {
           select: {
             useProfileDefaults: true,
@@ -149,7 +151,21 @@ export class TenantWhiteLabelRepository {
         businessProfile: true,
         branding: true,
         terminology: true,
-        publicSite: true,
+        publicSite: {
+          select: {
+            theme: true,
+            heroTitle: true,
+            heroSubtitle: true,
+            aboutText: true,
+            primaryCallToAction: true,
+            footerText: true,
+            seoTitle: true,
+            seoDescription: true,
+            pwaName: true,
+            pwaShortName: true,
+            pwaDescription: true,
+          },
+        },
         mediaAssets: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
         services: { where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] },
         professionals: {
@@ -233,6 +249,19 @@ export class TenantWhiteLabelRepository {
       where: { tenantId },
       create: data,
       update: data,
+      select: {
+        theme: true,
+        heroTitle: true,
+        heroSubtitle: true,
+        aboutText: true,
+        primaryCallToAction: true,
+        footerText: true,
+        seoTitle: true,
+        seoDescription: true,
+        pwaName: true,
+        pwaShortName: true,
+        pwaDescription: true,
+      },
     });
   }
 

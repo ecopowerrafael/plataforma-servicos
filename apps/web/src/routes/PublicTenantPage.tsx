@@ -7,7 +7,7 @@ import { contrastTextColor } from '../components/branding/brand-studio.js';
 import { CustomerAuth } from '../components/CustomerAuth.js';
 import { PublicBookingFlow } from '../components/PublicBookingFlow.js';
 import { environment } from '../config/environment.js';
-import { httpClient } from '../lib/http.js';
+import { HttpError, httpClient } from '../lib/http.js';
 import { ClassicTheme } from '../themes/classic/ClassicTheme.js';
 import { ModernTheme } from '../themes/modern/ModernTheme.js';
 import { PremiumTheme } from '../themes/premium/PremiumTheme.js';
@@ -70,12 +70,22 @@ export function PublicTenantPage() {
         <p>{'Carregando estabelecimento\u2026'}</p>
       </main>
     );
-  if (site.data === undefined)
+  if (site.data === undefined) {
+    const notFound = site.error instanceof HttpError && site.error.status === 404;
     return (
       <main className="app-shell">
-        <h1>{'P\u00e1gina n\u00e3o encontrada'}</h1>
+        <h1>{notFound ? 'Página não encontrada' : 'Página temporariamente indisponível'}</h1>
+        {!notFound ? (
+          <>
+            <p>Não foi possível carregar este estabelecimento agora.</p>
+            <button className="primary-button" onClick={() => void site.refetch()}>
+              Tentar novamente
+            </button>
+          </>
+        ) : null}
       </main>
     );
+  }
   const Theme =
     (searchParams.get('previewTheme') ?? site.data.site.theme) === 'MODERN'
       ? ModernTheme

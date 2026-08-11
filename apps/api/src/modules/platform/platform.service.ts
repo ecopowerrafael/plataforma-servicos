@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   BusinessProfileCatalog,
+  publicSiteDefaultsFor,
   CreateTenantCustomFieldRequestSchema,
   CommercialPlanPublicSchema,
   PlanBenefitPublicSchema,
@@ -1840,6 +1841,10 @@ export class PlatformService {
             },
           });
           const profileTheme = BusinessProfileCatalog[input.businessProfile].theme;
+          const publicSiteDefaults = publicSiteDefaultsFor(
+            input.businessProfile,
+            input.displayName,
+          );
           const profileFeatures = BusinessProfileCatalog[input.businessProfile].recommendedFeatures;
           const profileCustomFields = BusinessProfileCatalog[
             input.businessProfile
@@ -1868,7 +1873,7 @@ export class PlatformService {
               data: {
                 tenantId: tenant.id,
                 theme: 'CLASSIC',
-                heroTitle: input.displayName,
+                ...publicSiteDefaults,
                 pwaName: input.displayName,
                 pwaShortName: input.displayName.slice(0, 30),
               },

@@ -151,14 +151,14 @@ export class TenantWhiteLabelService {
     input: { [Key in keyof TenantBranding]?: TenantBranding[Key] | undefined },
     actor: Actor,
   ) {
-    if (this.commercialClient !== undefined)
+    const tenant = await this.repository.findTenant(tenantId);
+    if (tenant === null) throw notFound();
+    if (this.commercialClient !== undefined && tenant.onboardingCompletedAt !== null)
       await new PlanEntitlementService().assertFeatureEnabledForTenant(
         this.commercialClient,
         tenantId,
         'branding.customization.enabled',
       );
-    const tenant = await this.repository.findTenant(tenantId);
-    if (tenant === null) throw notFound();
 
     const defaults = BusinessProfileCatalog[tenant.businessProfile].theme;
     const themeFields = [
@@ -221,14 +221,14 @@ export class TenantWhiteLabelService {
     actor: Actor,
     altText?: string | null,
   ) {
-    if (this.commercialClient !== undefined)
+    const tenant = await this.repository.findTenant(tenantId);
+    if (tenant === null) throw notFound();
+    if (this.commercialClient !== undefined && tenant.onboardingCompletedAt !== null)
       await new PlanEntitlementService().assertFeatureEnabledForTenant(
         this.commercialClient,
         tenantId,
         'branding.customization.enabled',
       );
-    const tenant = await this.repository.findTenant(tenantId);
-    if (tenant === null) throw notFound();
     const publicId = randomUUID();
     const stored = await this.storage.save(tenant.publicId, publicId, image);
     try {
@@ -276,14 +276,14 @@ export class TenantWhiteLabelService {
   }
 
   public async updateSite(tenantId: bigint, input: UpdateTenantPublicSiteRequest, actor: Actor) {
-    if (this.commercialClient !== undefined)
+    const tenant = await this.repository.findTenant(tenantId);
+    if (tenant === null) throw notFound();
+    if (this.commercialClient !== undefined && tenant.onboardingCompletedAt !== null)
       await new PlanEntitlementService().assertFeatureEnabledForTenant(
         this.commercialClient,
         tenantId,
         'branding.customization.enabled',
       );
-    const tenant = await this.repository.findTenant(tenantId);
-    if (tenant === null) throw notFound();
     const site = await this.repository.upsertSite(tenantId, {
       tenantId,
       ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),

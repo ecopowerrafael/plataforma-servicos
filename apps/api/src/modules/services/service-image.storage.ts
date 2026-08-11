@@ -125,7 +125,7 @@ export function inspectServiceImage(buffer: Buffer): DetectedImage {
   if (detected === null)
     throw imageError(
       'SERVICE_IMAGE_TYPE_INVALID',
-      'O arquivo enviado n\u00e3o \u00e9 uma imagem permitida.',
+      'N\u00e3o foi poss\u00edvel identificar o formato da imagem. Tente export\u00e1-la novamente como JPG ou PNG.',
     );
   const dimensions = configuredDimensions();
   if (
@@ -170,25 +170,35 @@ function validateUpload(
   originalName: string,
   declaredMimeType: string,
 ): DetectedImage {
-  if (buffer.length === 0 || buffer.length > serviceImageMaxBytes()) {
-    throw imageError('SERVICE_IMAGE_SIZE_INVALID', 'O arquivo excede o tamanho permitido.');
+  if (buffer.length === 0) {
+    throw imageError('SERVICE_IMAGE_TYPE_INVALID', 'O arquivo enviado n\u00e3o \u00e9 uma imagem v\u00e1lida.');
+  }
+  if (buffer.length > serviceImageMaxBytes()) {
+    const maximumMegabytes = Math.floor(serviceImageMaxBytes() / (1024 * 1024));
+    throw imageError(
+      'SERVICE_IMAGE_SIZE_INVALID',
+      `A imagem excede o limite permitido de ${String(maximumMegabytes)} MB.`,
+    );
+  }
+  const extension = extname(basename(originalName)).toLowerCase();
+  if (!['.jpg', '.jpeg', '.png', '.webp'].includes(extension)) {
+    throw imageError('SERVICE_IMAGE_EXTENSION_INVALID', 'Use uma imagem JPG, JPEG, PNG ou WebP.');
   }
   const detected = inspectServiceImage(buffer);
-  const extension = extname(basename(originalName)).toLowerCase();
   const allowedExtensions: Record<ServiceImageMimeType, readonly string[]> = {
     'image/jpeg': ['.jpg', '.jpeg'],
     'image/png': ['.png'],
     'image/webp': ['.webp'],
   };
   if (
-    declaredMimeType !== detected.mimeType ||
     !allowedExtensions[detected.mimeType].includes(extension)
   ) {
     throw imageError(
       'SERVICE_IMAGE_MIME_MISMATCH',
-      'O tipo declarado da imagem n\u00e3o corresponde ao arquivo enviado.',
+      'A extens\u00e3o do arquivo n\u00e3o corresponde ao formato real da imagem.',
     );
   }
+  void declaredMimeType;
   return detected;
 }
 

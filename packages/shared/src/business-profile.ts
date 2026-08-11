@@ -37,6 +37,97 @@ export const BusinessProfileLabels: Record<BusinessProfileCode, string> = Object
   GENERIC: 'Outro',
 });
 
+export interface BusinessPublicSiteDefaults {
+  heroSubtitle: string;
+  aboutText: string;
+  primaryCallToAction: string;
+}
+
+const businessPublicSiteDefaults: Record<BusinessProfileCode, BusinessPublicSiteDefaults> = {
+  BARBERSHOP: {
+    heroSubtitle: 'Seu estilo, no seu tempo.',
+    aboutText: 'Agende seu horário de forma rápida e prática.',
+    primaryCallToAction: 'Agendar horário',
+  },
+  BEAUTY_SALON: {
+    heroSubtitle: 'Beleza e cuidado para você.',
+    aboutText: 'Escolha seu serviço e agende seu horário com facilidade.',
+    primaryCallToAction: 'Agendar horário',
+  },
+  AESTHETIC_CLINIC: {
+    heroSubtitle: 'Cuidado que valoriza você.',
+    aboutText: 'Conheça nossos atendimentos e agende sua visita.',
+    primaryCallToAction: 'Agendar atendimento',
+  },
+  MEDICAL_CLINIC: {
+    heroSubtitle: 'Saúde e atenção em cada consulta.',
+    aboutText: 'Consulte os atendimentos disponíveis e escolha o melhor horário.',
+    primaryCallToAction: 'Agendar consulta',
+  },
+  PSYCHOLOGY: {
+    heroSubtitle: 'Um espaço de escuta e cuidado.',
+    aboutText: 'Agende seu atendimento de forma simples e reservada.',
+    primaryCallToAction: 'Agendar sessão',
+  },
+  NUTRITION: {
+    heroSubtitle: 'Cuidado e equilíbrio para sua rotina.',
+    aboutText: 'Agende sua consulta e comece seu acompanhamento.',
+    primaryCallToAction: 'Agendar consulta',
+  },
+  DENTISTRY: {
+    heroSubtitle: 'Cuidado e confiança para o seu sorriso.',
+    aboutText: 'Conheça nossos tratamentos e agende sua consulta.',
+    primaryCallToAction: 'Agendar consulta',
+  },
+  STUDIO: {
+    heroSubtitle: 'Seu momento, do seu jeito.',
+    aboutText: 'Conheça nossos serviços e reserve seu horário.',
+    primaryCallToAction: 'Reservar horário',
+  },
+  TATTOO_STUDIO: {
+    heroSubtitle: 'Arte com identidade.',
+    aboutText: 'Conheça nosso trabalho e agende seu atendimento.',
+    primaryCallToAction: 'Agendar atendimento',
+  },
+  PET_CARE: {
+    heroSubtitle: 'Cuidado e carinho para seu pet.',
+    aboutText: 'Escolha o serviço e agende o melhor horário.',
+    primaryCallToAction: 'Agendar serviço',
+  },
+  SPA: {
+    heroSubtitle: 'Seu momento de cuidado e bem-estar.',
+    aboutText: 'Conheça nossas experiências e agende seu horário.',
+    primaryCallToAction: 'Agendar horário',
+  },
+  MASSAGE: {
+    heroSubtitle: 'Bem-estar para corpo e mente.',
+    aboutText: 'Escolha seu atendimento e agende com facilidade.',
+    primaryCallToAction: 'Agendar sessão',
+  },
+  PERSONAL_TRAINER: {
+    heroSubtitle: 'Treino alinhado aos seus objetivos.',
+    aboutText: 'Agende seu treino e avance no seu ritmo.',
+    primaryCallToAction: 'Agendar treino',
+  },
+  CONSULTING: {
+    heroSubtitle: 'Soluções para o seu próximo passo.',
+    aboutText: 'Conheça nossos serviços e agende uma conversa.',
+    primaryCallToAction: 'Agendar conversa',
+  },
+  GENERIC: {
+    heroSubtitle: 'Atendimento simples, no melhor horário para você.',
+    aboutText: 'Conheça nossos serviços e faça seu agendamento.',
+    primaryCallToAction: 'Agendar atendimento',
+  },
+};
+
+export function publicSiteDefaultsFor(
+  businessProfile: BusinessProfileCode,
+  displayName: string,
+): BusinessPublicSiteDefaults & { heroTitle: string } {
+  return { heroTitle: displayName, ...businessPublicSiteDefaults[businessProfile] };
+}
+
 export const TenantFeatureCodeSchema = z.enum([
   'MULTIPLE_UNITS',
   'PROFESSIONAL_SELECTION',
@@ -428,6 +519,7 @@ export const BusinessProfileCatalog = Object.freeze(
         defaultAppointmentDurationMinutes: 60,
         defaultAppointmentIntervalMinutes: 15,
         onboardingTemplate: 'STANDARD',
+        publicSiteDefaults: businessPublicSiteDefaults[code],
       },
     ]),
   ) as Record<
@@ -444,6 +536,7 @@ export const BusinessProfileCatalog = Object.freeze(
       defaultAppointmentDurationMinutes: number;
       defaultAppointmentIntervalMinutes: number;
       onboardingTemplate: string;
+      publicSiteDefaults: BusinessPublicSiteDefaults;
     }
   >,
 );

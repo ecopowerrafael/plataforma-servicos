@@ -52,37 +52,6 @@ function createErrorResponse(
   };
 }
 
-function publicSiteDiagnosticDetails(error: unknown): ErrorDetail[] {
-  if (typeof error !== 'object' || error === null) return [];
-  const record = error as Record<string, unknown>;
-  const details: ErrorDetail[] = [];
-  for (const key of ['name', 'code', 'message']) {
-    const value = record[key];
-    if (typeof value === 'string') {
-      details.push({ path: `error.${key}`, message: value.slice(0, 500) });
-    }
-  }
-  if (Array.isArray(record.issues)) {
-    for (const issue of record.issues.slice(0, 8)) {
-      if (typeof issue !== 'object' || issue === null) continue;
-      const item = issue as Record<string, unknown>;
-      const path = Array.isArray(item.path) ? item.path.join('.') : 'unknown';
-      if (typeof item.message === 'string') {
-        details.push({ path: `validation.${path || 'root'}`, message: item.message.slice(0, 500) });
-      }
-    }
-  }
-  const meta = record.meta;
-  if (typeof meta === 'object' && meta !== null) {
-    for (const [key, value] of Object.entries(meta as Record<string, unknown>)) {
-      if (typeof value === 'string' || typeof value === 'number') {
-        details.push({ path: `error.meta.${key}`, message: String(value).slice(0, 500) });
-      }
-    }
-  }
-  return details;
-}
-
 export function registerErrorHandlers(app: FastifyInstance, options: ErrorHandlerOptions = {}): void {
   app.setNotFoundHandler((request, reply) => {
     if (options.spaFallback?.(request, reply) === true) {
@@ -159,21 +128,6 @@ export function registerErrorHandlers(app: FastifyInstance, options: ErrorHandle
     }
 
     request.log.error({ err: error, requestId: request.id }, 'Falha interna na requisição');
-    if (
-      request.method === 'GET' &&
-      request.url.startsWith('/public/sites/') &&
-      request.url.includes('debug=1')
-    ) {
-      void reply.status(500).send(
-        createErrorResponse(
-          request.id,
-          'PUBLIC_SITE_DIAGNOSTIC',
-          'Falha diagnosticada ao carregar a página pública.',
-          publicSiteDiagnosticDetails(error),
-        ),
-      );
-      return;
-    }
     void reply
       .status(500)
       .send(

@@ -1,4 +1,8 @@
-import { type UpdateTenantIdentityRequest } from '@plataforma/shared';
+import {
+  publicSiteDefaultsFor,
+  type BusinessProfileCode,
+  type UpdateTenantIdentityRequest,
+} from '@plataforma/shared';
 
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -111,14 +115,26 @@ export async function updateTenantOnboarding(
   const now = new Date();
   const current = await client.tenant.findUniqueOrThrow({
     where: { id: tenantId },
-    select: { slug: true, slugChangedAt: true },
+    select: {
+      slug: true,
+      slugChangedAt: true,
+      businessProfile: true,
+      publicSite: {
+        select: {
+          heroTitle: true,
+          heroSubtitle: true,
+          aboutText: true,
+          primaryCallToAction: true,
+        },
+      },
+    },
   });
   if (input.slug !== undefined && input.slug !== current.slug && current.slugChangedAt !== null)
     throw slugAlreadyChanged();
   try {
     return await client.$transaction(async (transaction) => {
       await lockSlugChange(transaction, tenantId, current.slug, input.slug, now);
-      return transaction.tenant.update({
+      const tenant = await transaction.tenant.update({
         where: { id: tenantId },
         data: {
           onboardingStep: input.step,
@@ -136,6 +152,33 @@ export async function updateTenantOnboarding(
           onboardingChecklistHiddenAt: true,
         },
       });
+      if (input.displayName !== undefined) {
+        const profile = (input.businessProfile ?? current.businessProfile) as BusinessProfileCode;
+        const defaults = publicSiteDefaultsFor(profile, input.displayName);
+        await transaction.tenantPublicSite.upsert({
+          where: { tenantId },
+          create: {
+            tenantId,
+            theme: 'CLASSIC',
+            ...defaults,
+            pwaName: input.displayName,
+            pwaShortName: input.displayName.slice(0, 30),
+          },
+          update: {
+            ...(current.publicSite?.heroTitle === null ? { heroTitle: defaults.heroTitle } : {}),
+            ...(current.publicSite?.heroSubtitle === null
+              ? { heroSubtitle: defaults.heroSubtitle }
+              : {}),
+            ...(current.publicSite?.aboutText === null ? { aboutText: defaults.aboutText } : {}),
+            ...(current.publicSite?.primaryCallToAction === null
+              ? { primaryCallToAction: defaults.primaryCallToAction }
+              : {}),
+            pwaName: input.displayName,
+            pwaShortName: input.displayName.slice(0, 30),
+          },
+        });
+      }
+      return tenant;
     });
   } catch (error) {
     if (isUniqueConflict(error)) throw slugConflict(error);

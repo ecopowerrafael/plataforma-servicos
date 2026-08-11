@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { updateTenantIdentity } from './tenant-identity.service.js';
+import { updateTenantIdentity, updateTenantOnboarding } from './tenant-identity.service.js';
 import { validateTenantMediaUpload } from './tenant-media.storage.js';
 import { TenantWhiteLabelService } from './tenant-white-label.service.js';
 import {
@@ -27,6 +27,18 @@ function png(width: number, height: number): Buffer {
   image.writeUInt32BE(width, 16);
   image.writeUInt32BE(height, 20);
   return image;
+}
+
+function jpeg(width: number, height: number): Buffer {
+  return Buffer.from([
+    0xff, 0xd8,
+    0xff, 0xe1, 0x00, 0x04, 0x45, 0x78,
+    0xff, 0xc0, 0x00, 0x11, 0x08,
+    (height >> 8) & 0xff, height & 0xff,
+    (width >> 8) & 0xff, width & 0xff,
+    0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
+    0xff, 0xd9,
+  ]);
 }
 
 function errorCode(action: () => void): string {
@@ -143,6 +155,80 @@ describe('tenant Brand Studio behavior', () => {
     ).toBe('SERVICE_IMAGE_MIME_MISMATCH');
   });
 
+  it('accepts valid JPEG and PNG by magic bytes despite common browser MIME aliases', () => {
+    expect(() => {
+      validateTenantMediaUpload(jpeg(640, 480), 'foto.JPEG', 'image/jpg', 'LOGO');
+    }).not.toThrow();
+    expect(() => {
+      validateTenantMediaUpload(png(640, 480), 'banner.PNG', 'image/x-png', 'BANNER_DESKTOP');
+    }).not.toThrow();
+    expect(() => {
+      validateTenantMediaUpload(jpeg(640, 480), 'foto.jpeg', 'application/octet-stream', 'SPLASH');
+    }).not.toThrow();
+  });
+
+  it('rejects a renamed file when its extension conflicts with its real signature', () => {
+    expect(
+      errorCode(() => {
+        validateTenantMediaUpload(jpeg(640, 480), 'arquivo.png', 'image/png', 'LOGO');
+      }),
+    ).toBe('SERVICE_IMAGE_MIME_MISMATCH');
+    expect(
+      errorCode(() => {
+        validateTenantMediaUpload(Buffer.from('not an image'), 'arquivo.png', 'image/png', 'LOGO');
+      }),
+    ).toBe('SERVICE_IMAGE_TYPE_INVALID');
+  });
+
+  it('persists profile-specific public content after business type and name are chosen', async () => {
+    const upsert = vi.fn().mockResolvedValue({});
+    const transaction = {
+      tenant: {
+        updateMany: vi.fn(),
+        update: vi.fn().mockResolvedValue({
+          onboardingStep: 'BUSINESS_ADDRESS',
+          onboardingCompletedAt: null,
+          onboardingChecklistHiddenAt: null,
+        }),
+      },
+      tenantPublicSite: { upsert },
+    };
+    const client = {
+      tenant: {
+        findUniqueOrThrow: vi.fn().mockResolvedValue({
+          slug: 'barbearia-silva',
+          slugChangedAt: null,
+          displayName: 'Novo estabelecimento',
+          businessProfile: 'BARBERSHOP',
+          publicSite: null,
+        }),
+      },
+      $transaction: vi.fn((operation: (tx: typeof transaction) => unknown) =>
+        Promise.resolve(operation(transaction)),
+      ),
+    } as unknown as PrismaClient;
+
+    await updateTenantOnboarding(client, tenantId, {
+      step: 'BUSINESS_ADDRESS',
+      displayName: 'Barbearia Silva',
+    });
+
+    const upsertInput = upsert.mock.calls[0]?.[0] as {
+      where: { tenantId: bigint };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    };
+    expect(upsertInput.where).toEqual({ tenantId });
+    expect(upsertInput.create).toMatchObject({
+      tenantId,
+      heroTitle: 'Barbearia Silva',
+      heroSubtitle: 'Seu estilo, no seu tempo.',
+      aboutText: 'Agende seu horário de forma rápida e prática.',
+      primaryCallToAction: 'Agendar horário',
+    });
+    expect(upsertInput.update).toBeDefined();
+  });
+
   it('stores and replaces media only in the authenticated tenant scope', async () => {
     const repository = {
       findTenant: vi.fn().mockResolvedValue({ id: tenantId, publicId: 'tenant-public-id' }),
@@ -198,6 +284,7 @@ describe('tenant Brand Studio behavior', () => {
       slug: 'empresa-teste',
       displayName: 'Empresa Teste',
       businessProfile: 'GENERIC' as const,
+      onboardingCompletedAt: null,
       branding: null,
       terminology: null,
       publicSite: null,
@@ -229,6 +316,8 @@ describe('tenant Brand Studio behavior', () => {
       unusedStorage,
       unusedStorage,
       unusedStorage,
+      undefined,
+      { tenantSubscription: { findFirst: vi.fn(() => Promise.reject(new Error('gate called'))) } } as never,
     );
 
     await service.updateBranding(
@@ -265,5 +354,139 @@ describe('tenant Brand Studio behavior', () => {
       expect.objectContaining({ tenantId, theme: 'PREMIUM' }),
     );
     expect(site.theme).toBe('PREMIUM');
+  });
+
+  it('completes the focused onboarding-to-public-site flow with persisted content and media', async () => {
+    const state = {
+      displayName: 'Novo estabelecimento',
+      businessProfile: 'GENERIC' as 'GENERIC' | 'BARBERSHOP',
+      publicSite: null as null | Record<string, unknown>,
+      branding: null as null | Record<string, unknown>,
+      assets: [] as Record<string, unknown>[],
+    };
+    const transaction = {
+      tenant: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        update: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+          if (typeof data.displayName === 'string') state.displayName = data.displayName;
+          if (data.businessProfile === 'BARBERSHOP') state.businessProfile = data.businessProfile;
+          return Promise.resolve({
+            onboardingStep: data.onboardingStep,
+            onboardingCompletedAt: null,
+            onboardingChecklistHiddenAt: null,
+          });
+        }),
+      },
+      tenantPublicSite: {
+        upsert: vi.fn(({ create }: { create: Record<string, unknown> }) => {
+          state.publicSite = {
+            footerText: null,
+            seoTitle: null,
+            seoDescription: null,
+            pwaDescription: null,
+            ...Object.fromEntries(Object.entries(create).filter(([key]) => key !== 'tenantId')),
+          };
+          return Promise.resolve(state.publicSite);
+        }),
+      },
+    };
+    const onboardingClient = {
+      tenant: {
+        findUniqueOrThrow: vi.fn(() =>
+          Promise.resolve({
+            slug: 'barbearia-silva',
+            slugChangedAt: null,
+            businessProfile: state.businessProfile,
+            publicSite: state.publicSite,
+          }),
+        ),
+      },
+      $transaction: vi.fn((operation: (tx: typeof transaction) => unknown) =>
+        Promise.resolve(operation(transaction)),
+      ),
+    } as unknown as PrismaClient;
+
+    await updateTenantOnboarding(onboardingClient, tenantId, {
+      step: 'BUSINESS_IDENTITY',
+      businessProfile: 'BARBERSHOP',
+    });
+    await updateTenantOnboarding(onboardingClient, tenantId, {
+      step: 'BUSINESS_ADDRESS',
+      displayName: 'Barbearia Silva',
+    });
+
+    const tenantRecord = () => ({
+      id: tenantId,
+      publicId: '11111111-1111-4111-8111-111111111111',
+      slug: 'barbearia-silva',
+      displayName: state.displayName,
+      businessProfile: state.businessProfile,
+      onboardingCompletedAt: null,
+      branding: state.branding,
+      terminology: null,
+      publicSite: state.publicSite,
+    });
+    const repository = {
+      findTenant: vi.fn(() => Promise.resolve(tenantRecord())),
+      listAssets: vi.fn(() => Promise.resolve(state.assets)),
+      upsertSite: vi.fn((_id: bigint, data: Record<string, unknown>) => {
+        state.publicSite = Object.fromEntries(
+          Object.entries({ ...state.publicSite, ...data }).filter(([key]) => key !== 'tenantId'),
+        );
+        return Promise.resolve(state.publicSite);
+      }),
+      upsertBranding: vi.fn((_id: bigint, data: Record<string, unknown>) => {
+        state.branding = data;
+        return Promise.resolve(data);
+      }),
+      replaceKind: vi.fn((_id: bigint, kind: string, data: Record<string, unknown>) => {
+        const asset = { ...data, kind, createdAt: new Date('2026-08-11T00:00:00.000Z') };
+        state.assets = [asset];
+        return Promise.resolve(asset);
+      }),
+      recordAudit: vi.fn().mockResolvedValue(undefined),
+      findPublicTenant: vi.fn(() =>
+        Promise.resolve({
+          ...tenantRecord(),
+          mediaAssets: state.assets,
+          services: [],
+          professionals: [],
+          businessUnits: [],
+        }),
+      ),
+    };
+    const storage = {
+      save: vi.fn().mockResolvedValue({ key: 'tenant/asset/foto.jpg', mimeType: 'image/jpeg' }),
+      remove: vi.fn(),
+    };
+    const service = new TenantWhiteLabelService(
+      repository as never,
+      storage as never,
+      {} as ServiceImageStorage,
+      {} as ServiceImageStorage,
+    );
+    const actor = { userId: 7n, sessionId: 8n };
+
+    await service.updateSite(tenantId, { theme: 'MODERN' }, actor);
+    await service.updateBranding(tenantId, { primaryColor: '#2457D6' }, actor);
+    const photo = jpeg(640, 480);
+    validateTenantMediaUpload(photo, 'foto.JPEG', 'image/jpg', 'LOGO');
+    await service.upload(tenantId, 'LOGO', 'foto.JPEG', photo, actor);
+    const publicSite = await service.publicSite('barbearia-silva');
+
+    expect(publicSite).toMatchObject({
+      slug: 'barbearia-silva',
+      displayName: 'Barbearia Silva',
+      site: {
+        theme: 'MODERN',
+        heroTitle: 'Barbearia Silva',
+        heroSubtitle: 'Seu estilo, no seu tempo.',
+      },
+      branding: { primaryColor: '#2457D6' },
+    });
+    expect(publicSite.assets).toHaveLength(1);
+    expect(() => {
+      validateTenantMediaUpload(png(640, 480), 'banner.PNG', 'image/x-png', 'BANNER_DESKTOP');
+    }).not.toThrow();
   });
 });

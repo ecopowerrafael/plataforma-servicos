@@ -27,69 +27,6 @@ interface Actor {
   sessionId: bigint;
 }
 
-interface DiagnosticError {
-  name?: unknown;
-  code?: unknown;
-  message?: unknown;
-  meta?: unknown;
-  issues?: unknown;
-}
-
-function diagnosticValue(value: unknown): string | null {
-  if (typeof value === 'string' || typeof value === 'number') return String(value).slice(0, 500);
-  return null;
-}
-
-function diagnosticDetails(stage: string, error: unknown) {
-  const candidate = (typeof error === 'object' && error !== null ? error : {}) as DiagnosticError;
-  const details = [{ path: 'stage', message: stage }];
-  const name = diagnosticValue(candidate.name);
-  const code = diagnosticValue(candidate.code);
-  if (name !== null) details.push({ path: 'error.name', message: name });
-  if (code !== null) details.push({ path: 'error.code', message: code });
-
-  if (typeof candidate.meta === 'object' && candidate.meta !== null) {
-    const meta = candidate.meta as Record<string, unknown>;
-    for (const key of ['modelName', 'field_name', 'column', 'table']) {
-      const value = diagnosticValue(meta[key]);
-      if (value !== null) details.push({ path: `error.meta.${key}`, message: value });
-    }
-    const adapter = meta.driverAdapterError;
-    if (typeof adapter === 'object' && adapter !== null) {
-      const cause = (adapter as Record<string, unknown>).cause;
-      if (typeof cause === 'object' && cause !== null) {
-        const causeRecord = cause as Record<string, unknown>;
-        for (const key of ['originalCode', 'originalMessage', 'kind']) {
-          const value = diagnosticValue(causeRecord[key]);
-          if (value !== null)
-            details.push({ path: `error.meta.driver.${key}`, message: value });
-        }
-      }
-    }
-  }
-
-  if (Array.isArray(candidate.issues)) {
-    for (const issue of candidate.issues.slice(0, 5)) {
-      if (typeof issue !== 'object' || issue === null) continue;
-      const record = issue as Record<string, unknown>;
-      const issuePath = Array.isArray(record.path) ? record.path.join('.') : 'unknown';
-      const message = diagnosticValue(record.message);
-      if (message !== null)
-        details.push({ path: `validation.${issuePath || 'root'}`, message });
-    }
-  }
-  return details;
-}
-
-function diagnosticError(stage: string, error: unknown): AppError {
-  return new AppError({
-    code: 'TENANT_WHITE_LABEL_DIAGNOSTIC',
-    message: 'Falha diagnosticada ao carregar Marca e aparência.',
-    statusCode: 500,
-    details: diagnosticDetails(stage, error),
-  });
-}
-
 function notFound(): AppError {
   return new AppError({
     code: 'TENANT_WHITE_LABEL_NOT_FOUND',
@@ -197,31 +134,16 @@ export class TenantWhiteLabelService {
   }
 
   public async get(tenantId: bigint) {
-    let tenant: Awaited<ReturnType<TenantWhiteLabelRepository['findTenant']>>;
-    try {
-      tenant = await this.repository.findTenant(tenantId);
-    } catch (error) {
-      throw diagnosticError('repository.findTenant', error);
-    }
+    const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
-    let assets: Awaited<ReturnType<TenantWhiteLabelRepository['listAssets']>>;
-    try {
-      assets = await this.repository.listAssets(tenantId);
-    } catch (error) {
-      throw diagnosticError('repository.listAssets', error);
-    }
-    try {
-      return TenantWhiteLabelResponseSchema.parse({
-        slug: tenant.slug,
-        displayName: tenant.displayName,
-        businessProfile: tenant.businessProfile,
-        branding: resolveTenantExperience(tenant).branding,
-        site: sitePublic(tenant.publicSite),
-        assets: assets.map(assetPublic),
-      });
-    } catch (error) {
-      throw diagnosticError('service.serializeWhiteLabel', error);
-    }
+    return TenantWhiteLabelResponseSchema.parse({
+      slug: tenant.slug,
+      displayName: tenant.displayName,
+      businessProfile: tenant.businessProfile,
+      branding: resolveTenantExperience(tenant).branding,
+      site: sitePublic(tenant.publicSite),
+      assets: (await this.repository.listAssets(tenantId)).map(assetPublic),
+    });
   }
 
   public async updateBranding(

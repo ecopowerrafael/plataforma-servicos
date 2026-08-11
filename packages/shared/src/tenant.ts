@@ -77,6 +77,13 @@ export const TenantSlugSchema = NormalizedSlugSchema.refine(
   'O slug informado é reservado.',
 );
 
+export const TenantSlugOutputSchema = z
+  .string()
+  .min(2)
+  .max(63)
+  .regex(slugPattern)
+  .refine((slug) => !reservedTenantSlugs.has(slug));
+
 export const BusinessUnitSlugSchema = NormalizedSlugSchema;
 
 export const AppointmentIntervalSchema = z.union([
@@ -215,7 +222,7 @@ export const TenantContextResponseSchema = z.object({ tenant: TenantPublicSchema
 export const TenantIdentitySchema = z.object({
   legalName: z.string().min(2).max(160),
   displayName: z.string().min(2).max(120),
-  slug: TenantSlugSchema,
+  slug: TenantSlugOutputSchema,
   slugChangeAvailable: z.boolean(),
   businessProfile: BusinessProfileCodeSchema,
   businessTypeCustom: z.string().nullable(),

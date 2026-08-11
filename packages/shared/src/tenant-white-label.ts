@@ -5,7 +5,7 @@ import {
   BusinessTerminologySchema,
   TenantBrandingSchema,
 } from './business-profile.js';
-import { TenantPublicIdSchema, TenantSlugSchema } from './tenant.js';
+import { TenantPublicIdSchema, TenantSlugOutputSchema, TenantSlugSchema } from './tenant.js';
 
 export const TenantMediaKindSchema = z.enum([
   'LOGO',
@@ -67,7 +67,7 @@ export const TenantPublicSiteSchema = UpdateTenantPublicSiteRequestSchema.safeEx
   pwaDescription: z.string().nullable(),
 });
 export const TenantWhiteLabelResponseSchema = z.object({
-  slug: TenantSlugSchema,
+  slug: TenantSlugOutputSchema,
   displayName: z.string().min(2),
   businessProfile: BusinessProfileCodeSchema,
   branding: TenantBrandingSchema,
@@ -76,7 +76,7 @@ export const TenantWhiteLabelResponseSchema = z.object({
 });
 
 export const PublicTenantSiteResponseSchema = z.object({
-  slug: TenantSlugSchema,
+  slug: TenantSlugOutputSchema,
   displayName: z.string(),
   branding: TenantBrandingSchema,
   terminology: BusinessTerminologySchema,

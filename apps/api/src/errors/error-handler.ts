@@ -52,55 +52,6 @@ function createErrorResponse(
   };
 }
 
-function diagnosticValue(value: unknown): string | null {
-  if (typeof value === 'string' || typeof value === 'number') return String(value).slice(0, 500);
-  return null;
-}
-
-function whiteLabelDiagnosticDetails(error: unknown): ErrorDetail[] {
-  const candidate =
-    typeof error === 'object' && error !== null
-      ? (error as Record<string, unknown>)
-      : ({} as Record<string, unknown>);
-  const details: ErrorDetail[] = [];
-  for (const key of ['name', 'code', 'message']) {
-    const value = diagnosticValue(candidate[key]);
-    if (value !== null) details.push({ path: `error.${key}`, message: value });
-  }
-  const meta = candidate.meta;
-  if (typeof meta === 'object' && meta !== null) {
-    const metaRecord = meta as Record<string, unknown>;
-    for (const key of ['modelName', 'field_name', 'column', 'table']) {
-      const value = diagnosticValue(metaRecord[key]);
-      if (value !== null) details.push({ path: `error.meta.${key}`, message: value });
-    }
-    const adapter = metaRecord.driverAdapterError;
-    if (typeof adapter === 'object' && adapter !== null) {
-      const cause = (adapter as Record<string, unknown>).cause;
-      if (typeof cause === 'object' && cause !== null) {
-        const causeRecord = cause as Record<string, unknown>;
-        for (const key of ['originalCode', 'originalMessage', 'kind']) {
-          const value = diagnosticValue(causeRecord[key]);
-          if (value !== null)
-            details.push({ path: `error.meta.driver.${key}`, message: value });
-        }
-      }
-    }
-  }
-  const issues = candidate.issues;
-  if (Array.isArray(issues)) {
-    for (const issue of issues.slice(0, 5)) {
-      if (typeof issue !== 'object' || issue === null) continue;
-      const issueRecord = issue as Record<string, unknown>;
-      const path = Array.isArray(issueRecord.path) ? issueRecord.path.join('.') : 'unknown';
-      const message = diagnosticValue(issueRecord.message);
-      if (message !== null)
-        details.push({ path: `validation.${path || 'root'}`, message });
-    }
-  }
-  return details;
-}
-
 export function registerErrorHandlers(app: FastifyInstance, options: ErrorHandlerOptions = {}): void {
   app.setNotFoundHandler((request, reply) => {
     if (options.spaFallback?.(request, reply) === true) {
@@ -177,19 +128,6 @@ export function registerErrorHandlers(app: FastifyInstance, options: ErrorHandle
     }
 
     request.log.error({ err: error, requestId: request.id }, 'Falha interna na requisição');
-    if (request.method === 'GET' && request.url.split('?')[0] === '/tenant/white-label') {
-      void reply
-        .status(500)
-        .send(
-          createErrorResponse(
-            request.id,
-            'TENANT_WHITE_LABEL_GLOBAL_DIAGNOSTIC',
-            'Falha diagnosticada globalmente ao carregar Marca e aparência.',
-            whiteLabelDiagnosticDetails(error),
-          ),
-        );
-      return;
-    }
     void reply
       .status(500)
       .send(

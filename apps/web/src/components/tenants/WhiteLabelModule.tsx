@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { environment } from '../../config/environment.js';
-import { httpClient } from '../../lib/http.js';
+import { HttpError, httpClient } from '../../lib/http.js';
 import { deriveBrandPalette, type BrandThemeCode } from '../branding/brand-studio.js';
 import { BrandAssetDropzone } from '../branding/BrandAssetDropzone.js';
 import { BrandColorPicker } from '../branding/BrandColorPicker.js';
@@ -22,11 +22,22 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
   const queryKey = ['tenant', tenantPublicId, 'white-label'];
   const settings = useQuery({
     queryKey,
-    queryFn: () =>
-      httpClient.request('/tenant/white-label', {
-        schema: TenantWhiteLabelResponseSchema,
-        tenantPublicId,
-      }),
+    queryFn: async () => {
+      try {
+        return await httpClient.request('/tenant/white-label', {
+          schema: TenantWhiteLabelResponseSchema,
+          tenantPublicId,
+        });
+      } catch (error) {
+        if (import.meta.env.DEV)
+          console.error('[BrandStudio] request failed', {
+            request: 'GET /tenant/white-label',
+            status: error instanceof HttpError ? error.status : null,
+            errorCode: error instanceof HttpError ? error.code : 'UNKNOWN_ERROR',
+          });
+        throw error;
+      }
+    },
     retry: false,
   });
   const [themeOverride, setThemeOverride] = useState<BrandThemeCode | null>(null);

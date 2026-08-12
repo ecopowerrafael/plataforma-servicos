@@ -249,214 +249,250 @@ export function AppointmentModule({
   return (
     <section className="sessions-panel appointment-module">
       <div className="module-header">
-        <div><p className="eyebrow">Agenda</p><h2>Agendamentos</h2><p>Organize os próximos atendimentos da sua equipe.</p></div>
-        <button className="primary-button" type="button" onClick={() => { setSelected(null); setEditorOpen(true); }}>Novo agendamento</button>
-      </div>
-      <div className="app-filter-bar">
-      <label>
-        De
-        <input
-          type="datetime-local"
-          value={from.slice(0, 16)}
-          onChange={(event) => {
-            setFrom(new Date(event.target.value).toISOString());
-          }}
-        />
-      </label>
-      <label>
-        Até
-        <input
-          type="datetime-local"
-          value={to.slice(0, 16)}
-          onChange={(event) => {
-            setTo(new Date(event.target.value).toISOString());
-          }}
-        />
-      </label>
-      <label>
-        Filtrar por status
-        <select
-          value={statusFilter}
-          onChange={(event) => {
-            setStatusFilter(event.target.value);
-          }}
-        >
-          <option value="">Todos</option>
-          <option value="PENDING">Pendente</option>
-          <option value="CONFIRMED">Confirmado</option>
-          <option value="IN_PROGRESS">Em atendimento</option>
-          <option value="COMPLETED">Concluído</option>
-          <option value="CANCELED">Cancelado</option>
-          <option value="NO_SHOW">Falta</option>
-        </select>
-      </label>
-      <label>
-        Buscar por cliente ou protocolo
-        <input
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value);
-          }}
-        />
-      </label>
-      <button className="secondary-button"
-        type="button"
-        onClick={() => {
-          const start = new Date();
-          start.setHours(0, 0, 0, 0);
-          const end = new Date();
-          end.setHours(23, 59, 59, 999);
-          setFrom(start.toISOString());
-          setTo(end.toISOString());
-        }}
-      >
-        Hoje (recepção)
-      </button>
-      </div>
-      {editorOpen && <div className="app-drawer platform-form">
-        <div className="drawer-header"><div><h3>{selected === null ? 'Novo agendamento' : 'Editar agendamento'}</h3><p>Preencha os dados para reservar este horário.</p></div><button className="secondary-button" type="button" onClick={() => { setEditorOpen(false); }}>Fechar</button></div>
-        {selected !== null && (
-          <label>
-            Motivo do reagendamento
-            <input
-              value={rescheduleReason}
-              onChange={(event) => {
-                setRescheduleReason(event.target.value);
-              }}
-            />
-          </label>
-        )}
-        <label>
-          Cliente
-          <select
-            value={customer}
-            onChange={(e) => {
-              setCustomer(e.target.value);
-            }}
-          >
-            <option value="">Selecione</option>
-            {customers.data?.items.map((x) => (
-              <option key={x.publicId} value={x.publicId}>
-                {x.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Profissional
-          <select
-            value={professional}
-            onChange={(e) => {
-              setProfessional(e.target.value);
-            }}
-          >
-            <option value="">Selecione</option>
-            {professionals.data?.items.map((x) => (
-              <option key={x.publicId} value={x.publicId}>
-                {x.publicName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Serviço
-          <select
-            value={service}
-            onChange={(e) => {
-              setService(e.target.value);
-            }}
-          >
-            <option value="">Selecione</option>
-            {services.data?.items.map((x) => (
-              <option key={x.publicId} value={x.publicId}>
-                {x.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Início
-          <input
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => {
-              setStartsAt(e.target.value);
-            }}
-          />
-        </label>
-        <label>
-          Unidade
-          <UnitSelect
-            tenantPublicId={tenantPublicId}
-            value={unitPublicId}
-            onChange={(value) => {
-              setUnitPublicId(value);
-            }}
-          />
-        </label>
-        <label>
-          Observações
-          <textarea
-            value={notes}
-            onChange={(e) => {
-              setNotes(e.target.value);
-            }}
-          />
-        </label>
-        {canFitIn && (
-          <label>
-            <input
-              checked={isFitIn}
-              type="checkbox"
-              onChange={(event) => {
-                setIsFitIn(event.target.checked);
-              }}
-            />
-            {' Encaixe administrativo (ignora horário normal, exige motivo e confirmação)'}
-          </label>
-        )}
-        <label>
-          Sinal (opcional)
-          <select
-            value={depositType}
-            onChange={(event) => {
-              setDepositType(event.target.value);
-            }}
-          >
-            <option value="">Sem sinal</option>
-            <option value="FIXED">Valor fixo (R$)</option>
-            <option value="PERCENTAGE">Percentual (%)</option>
-          </select>
-        </label>
-        {depositType !== '' && (
-          <label>
-            {depositType === 'FIXED' ? 'Valor do sinal (R$)' : 'Percentual do sinal (%)'}
-            <input
-              type="number"
-              min="0"
-              step={depositType === 'FIXED' ? '0.01' : '1'}
-              value={depositValue}
-              onChange={(event) => {
-                setDepositValue(event.target.value);
-              }}
-            />
-          </label>
-        )}
-        <button className="primary-button"
+        <div>
+          <p className="eyebrow">Agenda</p>
+          <h2>Agendamentos</h2>
+          <p>Organize os próximos atendimentos da sua equipe.</p>
+        </div>
+        <button
+          className="primary-button"
           type="button"
-          disabled={mutation.isPending || customer === '' || professional === '' || service === ''}
-          onClick={create}
+          onClick={() => {
+            setSelected(null);
+            setEditorOpen(true);
+          }}
         >
-          {selected === null ? 'Criar agendamento' : 'Salvar alterações'}
+          Novo agendamento
         </button>
-      </div>}
+      </div>
+      <details className="ds-toolbar-disclosure">
+        <summary>Filtros</summary>
+        <div className="app-filter-bar ds-toolbar--appointments">
+          <label>
+            De
+            <input
+              type="datetime-local"
+              value={from.slice(0, 16)}
+              onChange={(event) => {
+                setFrom(new Date(event.target.value).toISOString());
+              }}
+            />
+          </label>
+          <label>
+            Até
+            <input
+              type="datetime-local"
+              value={to.slice(0, 16)}
+              onChange={(event) => {
+                setTo(new Date(event.target.value).toISOString());
+              }}
+            />
+          </label>
+          <label>
+            Filtrar por status
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+              }}
+            >
+              <option value="">Todos</option>
+              <option value="PENDING">Pendente</option>
+              <option value="CONFIRMED">Confirmado</option>
+              <option value="IN_PROGRESS">Em atendimento</option>
+              <option value="COMPLETED">Concluído</option>
+              <option value="CANCELED">Cancelado</option>
+              <option value="NO_SHOW">Falta</option>
+            </select>
+          </label>
+          <label>
+            Buscar por cliente ou protocolo
+            <input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+              }}
+            />
+          </label>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              const start = new Date();
+              start.setHours(0, 0, 0, 0);
+              const end = new Date();
+              end.setHours(23, 59, 59, 999);
+              setFrom(start.toISOString());
+              setTo(end.toISOString());
+            }}
+          >
+            Hoje (recepção)
+          </button>
+        </div>
+      </details>
+      {editorOpen && (
+        <div className="app-drawer platform-form">
+          <div className="drawer-header">
+            <div>
+              <h3>{selected === null ? 'Novo agendamento' : 'Editar agendamento'}</h3>
+              <p>Preencha os dados para reservar este horário.</p>
+            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                setEditorOpen(false);
+              }}
+            >
+              Fechar
+            </button>
+          </div>
+          {selected !== null && (
+            <label>
+              Motivo do reagendamento
+              <input
+                value={rescheduleReason}
+                onChange={(event) => {
+                  setRescheduleReason(event.target.value);
+                }}
+              />
+            </label>
+          )}
+          <label>
+            Cliente
+            <select
+              value={customer}
+              onChange={(e) => {
+                setCustomer(e.target.value);
+              }}
+            >
+              <option value="">Selecione</option>
+              {customers.data?.items.map((x) => (
+                <option key={x.publicId} value={x.publicId}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Profissional
+            <select
+              value={professional}
+              onChange={(e) => {
+                setProfessional(e.target.value);
+              }}
+            >
+              <option value="">Selecione</option>
+              {professionals.data?.items.map((x) => (
+                <option key={x.publicId} value={x.publicId}>
+                  {x.publicName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Serviço
+            <select
+              value={service}
+              onChange={(e) => {
+                setService(e.target.value);
+              }}
+            >
+              <option value="">Selecione</option>
+              {services.data?.items.map((x) => (
+                <option key={x.publicId} value={x.publicId}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Início
+            <input
+              type="datetime-local"
+              value={startsAt}
+              onChange={(e) => {
+                setStartsAt(e.target.value);
+              }}
+            />
+          </label>
+          <label>
+            Unidade
+            <UnitSelect
+              tenantPublicId={tenantPublicId}
+              value={unitPublicId}
+              onChange={(value) => {
+                setUnitPublicId(value);
+              }}
+            />
+          </label>
+          <label>
+            Observações
+            <textarea
+              value={notes}
+              onChange={(e) => {
+                setNotes(e.target.value);
+              }}
+            />
+          </label>
+          {canFitIn && (
+            <label>
+              <input
+                checked={isFitIn}
+                type="checkbox"
+                onChange={(event) => {
+                  setIsFitIn(event.target.checked);
+                }}
+              />
+              {' Encaixe administrativo (ignora horário normal, exige motivo e confirmação)'}
+            </label>
+          )}
+          <label>
+            Sinal (opcional)
+            <select
+              value={depositType}
+              onChange={(event) => {
+                setDepositType(event.target.value);
+              }}
+            >
+              <option value="">Sem sinal</option>
+              <option value="FIXED">Valor fixo (R$)</option>
+              <option value="PERCENTAGE">Percentual (%)</option>
+            </select>
+          </label>
+          {depositType !== '' && (
+            <label>
+              {depositType === 'FIXED' ? 'Valor do sinal (R$)' : 'Percentual do sinal (%)'}
+              <input
+                type="number"
+                min="0"
+                step={depositType === 'FIXED' ? '0.01' : '1'}
+                value={depositValue}
+                onChange={(event) => {
+                  setDepositValue(event.target.value);
+                }}
+              />
+            </label>
+          )}
+          <button
+            className="primary-button"
+            type="button"
+            disabled={
+              mutation.isPending || customer === '' || professional === '' || service === ''
+            }
+            onClick={create}
+          >
+            {selected === null ? 'Criar agendamento' : 'Salvar alterações'}
+          </button>
+        </div>
+      )}
       {feedback !== null && <p className="form-success">{feedback}</p>}
       {mutation.error instanceof Error && (
         <p className="form-error">
           N\u00e3o foi poss\u00edvel salvar o agendamento. Revise os dados e tente novamente.
         </p>
       )}
-      <div className="data-list">
+      <div className="data-list entity-list">
         {list.data?.items.map((item) => (
           <button
             className="data-row"
@@ -480,7 +516,12 @@ export function AppointmentModule({
           </button>
         ))}
       </div>
-      {list.data?.items.length === 0 ? <div className="empty-state"><strong>Nenhum agendamento neste período</strong><span>Altere os filtros ou crie um novo atendimento.</span></div> : null}
+      {list.data?.items.length === 0 ? (
+        <div className="empty-state">
+          <strong>Nenhum agendamento neste período</strong>
+          <span>Altere os filtros ou crie um novo atendimento.</span>
+        </div>
+      ) : null}
       {selected !== null && (
         <section className="sessions-panel" aria-label="Detalhes do agendamento">
           {detail.isPending ? <p>Carregando detalhes...</p> : null}

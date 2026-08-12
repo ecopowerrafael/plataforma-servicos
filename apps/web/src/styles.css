@@ -2772,41 +2772,7 @@ a {
   }
 }
 
-.app-shell
-  :where(input:not([type='checkbox']):not([type='radio']):not([type='color']), select, textarea) {
-  min-height: 2.65rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.65rem;
-  background: #fff;
-  color: #0f172a;
-  font: inherit;
-}
-.app-shell :where(input:not([type='checkbox']):not([type='radio']):not([type='color']), select) {
-  width: min(100%, 20rem);
-  padding: 0.55rem 0.75rem;
-}
-.app-shell textarea {
-  width: min(100%, 42rem);
-  min-height: 7rem;
-  padding: 0.7rem 0.8rem;
-  resize: vertical;
-}
-.app-shell label {
-  gap: 0.4rem;
-  color: #334155;
-  font-weight: 650;
-}
-.app-shell small {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 400;
-}
-
-/* Sistema visual do produto: mantém módulos existentes sob a mesma linguagem. */
-.app-shell {
-  background: #f6f8fc;
-  color: #172033;
-}
+/* O design system do /app foi centralizado em app-design-system.css. */
 .app-page-description {
   margin: 0.35rem 0 0;
   color: #64748b;

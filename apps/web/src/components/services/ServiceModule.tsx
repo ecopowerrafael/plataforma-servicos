@@ -16,6 +16,7 @@ import { ServiceImageUpload } from './ServiceImageUpload.js';
 import { ServiceVariations } from './ServiceVariations.js';
 import { TenantServiceImage } from './TenantServiceImage.js';
 import { ProfessionalServiceLinks } from '../professionals/ProfessionalServiceLinks.js';
+import { PageToolbar, StatusBadge } from '../ui/AppUi.js';
 
 export function ServiceModule({
   tenantPublicId,
@@ -163,7 +164,7 @@ export function ServiceModule({
           onSave={save}
         />
       )}
-      <div className="platform-form">
+      <PageToolbar>
         <label>
           Busca
           <input
@@ -189,7 +190,7 @@ export function ServiceModule({
             <option value="false">Inativos</option>
           </select>
         </label>
-      </div>
+      </PageToolbar>
       {services.isPending ? (
         <p>{`Carregando ${terminology.toLowerCase()}s\u2026`}</p>
       ) : services.error instanceof Error ? (
@@ -216,7 +217,9 @@ export function ServiceModule({
                 />
                 <span>{service.name}</span>
                 <span>{`${String(service.durationMinutes)} min`}</span>
-                <span>{service.active ? 'Ativo' : 'Inativo'}</span>
+                <StatusBadge active={service.active}>
+                  {service.active ? 'Ativo' : 'Inativo'}
+                </StatusBadge>
               </button>
             ))}
           </div>

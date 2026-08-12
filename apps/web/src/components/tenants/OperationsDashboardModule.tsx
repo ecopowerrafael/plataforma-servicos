@@ -25,7 +25,7 @@ export function OperationsDashboardModule({ tenantPublicId }: { tenantPublicId: 
 
   return (
     <>
-      <section className="platform-form dashboard-module" aria-label="Resumo do dia">
+      <section className="app-card dashboard-module" aria-label="Resumo do dia">
         <div className="module-header">
           <div>
             <p className="eyebrow">Visão geral</p>
@@ -39,7 +39,14 @@ export function OperationsDashboardModule({ tenantPublicId }: { tenantPublicId: 
         ) : null}
         {dashboard.data !== undefined && (
           <>
-            <p className="dashboard-date">Hoje, {new Date(`${dashboard.data.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
+            <p className="dashboard-date">
+              Hoje,{' '}
+              {new Date(`${dashboard.data.date}T12:00:00`).toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+              })}
+            </p>
             <div className="dashboard-metrics">
               <article className="info-card metric-card">
                 <span>Atendimentos de hoje</span>
@@ -59,14 +66,14 @@ export function OperationsDashboardModule({ tenantPublicId }: { tenantPublicId: 
               </article>
             </div>
             <div className="dashboard-breakdown">
-            <h3>Atendimentos por status</h3>
-            <ul className="status-summary-list">
-              {Object.entries(dashboard.data.today.byStatus).map(([status, count]) => (
-                <li key={status}>
-                  {statusLabels[status] ?? status}: {count}
-                </li>
-              ))}
-            </ul>
+              <h3>Atendimentos por status</h3>
+              <ul className="status-summary-list">
+                {Object.entries(dashboard.data.today.byStatus).map(([status, count]) => (
+                  <li key={status}>
+                    {statusLabels[status] ?? status}: {count}
+                  </li>
+                ))}
+              </ul>
             </div>
             {dashboard.data.today.byProfessional.length > 0 && (
               <>

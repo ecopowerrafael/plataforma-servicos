@@ -13,6 +13,7 @@ import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { CustomerForm } from './CustomerForm.js';
 import { UnitSelect } from '../tenants/UnitSelect.js';
+import { PageHeader, PageToolbar, StatusBadge } from '../ui/AppUi.js';
 
 export function CustomerModule({
   tenantPublicId,
@@ -122,28 +123,35 @@ export function CustomerModule({
   };
   return (
     <section aria-labelledby="customers-title" className="sessions-panel customer-module">
-      <div className="module-header">
-        <div><p className="eyebrow">Relacionamento</p><h2 id="customers-title">{`${terminology}s`}</h2><p>Centralize os cadastros e acompanhe a sua base.</p></div>
-        <button className="primary-button"
-          type="button"
-          onClick={() => {
-            setCreating((value) => !value);
-          }}
-        >
-          {creating ? 'Fechar cadastro' : `Novo ${terminology.toLowerCase()}`}
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Relacionamento"
+        title={`${terminology}s`}
+        description="Centralize os cadastros e acompanhe a sua base."
+        actions={
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => {
+              setCreating((value) => !value);
+            }}
+          >
+            {creating ? 'Fechar cadastro' : `Novo ${terminology.toLowerCase()}`}
+          </button>
+        }
+      />
       {notice !== null && <p className="success-message">{notice}</p>}
       {creating && (
-        <div className="app-drawer"><CustomerForm
-          busy={mutation.isPending}
-          error={mutation.error instanceof Error ? mutation.error.message : null}
-          fields={fields.data?.fields.filter((field) => field.scope === 'CUSTOMER') ?? []}
-          terminology={terminology}
-          onSave={save}
-        /></div>
+        <div className="app-drawer">
+          <CustomerForm
+            busy={mutation.isPending}
+            error={mutation.error instanceof Error ? mutation.error.message : null}
+            fields={fields.data?.fields.filter((field) => field.scope === 'CUSTOMER') ?? []}
+            terminology={terminology}
+            onSave={save}
+          />
+        </div>
       )}
-      <div className="app-filter-bar">
+      <PageToolbar>
         <label>
           Busca
           <input
@@ -180,13 +188,16 @@ export function CustomerModule({
             }}
           />
         </label>
-      </div>
+      </PageToolbar>
       {customers.isPending ? (
         <p>{`Carregando ${terminology.toLowerCase()}s…`}</p>
       ) : customers.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar os cadastros.</p>
       ) : customers.data === undefined || customers.data.items.length === 0 ? (
-        <div className="empty-state"><strong>Nenhum cadastro encontrado</strong><span>Ajuste os filtros ou crie o primeiro {terminology.toLowerCase()}.</span></div>
+        <div className="empty-state">
+          <strong>Nenhum cadastro encontrado</strong>
+          <span>Ajuste os filtros ou crie o primeiro {terminology.toLowerCase()}.</span>
+        </div>
       ) : (
         <>
           <div className="data-list">
@@ -202,7 +213,9 @@ export function CustomerModule({
               >
                 <span>{customer.name}</span>
                 <span>{customer.email ?? customer.phone ?? 'Sem contato'}</span>
-                <span>{customer.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</span>
+                <StatusBadge active={customer.status === 'ACTIVE'}>
+                  {customer.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
+                </StatusBadge>
               </button>
             ))}
           </div>

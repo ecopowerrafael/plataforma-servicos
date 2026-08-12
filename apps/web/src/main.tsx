@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { AppProviders } from './AppProviders.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import './styles.css';
+import './app-design-system.css';
 
 const rootElement = document.getElementById('root');
 

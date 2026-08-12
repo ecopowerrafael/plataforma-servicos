@@ -7,9 +7,13 @@ import {
   UpsertProfessionalServiceRequestSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
+
+const money = (cents: string | number) =>
+  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 export function ProfessionalServiceLinks({
   tenantPublicId,
   professionalPublicId,
@@ -21,6 +25,8 @@ export function ProfessionalServiceLinks({
 }) {
   const client = useQueryClient();
   const isProfessional = professionalPublicId !== undefined;
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const [target, setTarget] = useState('');
   const [price, setPrice] = useState('');
   const [duration, setDuration] = useState('');
@@ -34,6 +40,7 @@ export function ProfessionalServiceLinks({
     queryKey: ['links', url],
     queryFn: () =>
       httpClient.request(url, { schema: ProfessionalServicesResponseSchema, tenantPublicId }),
+    retry: false,
   });
   const services = useQuery({
     queryKey: ['services', tenantPublicId],
@@ -43,6 +50,7 @@ export function ProfessionalServiceLinks({
         tenantPublicId,
       }),
     enabled: isProfessional,
+    retry: false,
   });
   const professionals = useQuery({
     queryKey: ['professionals', tenantPublicId],
@@ -52,8 +60,19 @@ export function ProfessionalServiceLinks({
         tenantPublicId,
       }),
     enabled: !isProfessional,
+    retry: false,
   });
   const refresh = () => client.invalidateQueries({ queryKey: ['links', url] });
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setTarget('');
+    setSearch('');
+    setPrice('');
+    setDuration('');
+    setPause('');
+    setCommissionType('');
+    setCommissionValue('');
+  };
   const save = useMutation({
     mutationFn: () =>
       httpClient.request(
@@ -74,7 +93,10 @@ export function ProfessionalServiceLinks({
           tenantPublicId,
         },
       ),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      await refresh();
+      closeDrawer();
+    },
   });
   const status = useMutation({
     mutationFn: (item: { serviceId: string; active: boolean }) =>
@@ -84,110 +106,276 @@ export function ProfessionalServiceLinks({
       ),
     onSuccess: refresh,
   });
+  const available = useMemo(
+    () =>
+      (services.data?.items ?? []).filter((service) =>
+        service.name.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')),
+      ),
+    [search, services.data?.items],
+  );
+  if (links.isPending || (isProfessional && services.isPending))
+    return (
+      <div className="profile-skeleton">
+        <span />
+        <span />
+        <span />
+      </div>
+    );
+  if (links.error instanceof Error || services.error instanceof Error)
+    return (
+      <div className="profile-inline-error">
+        <strong>Não foi possível carregar os serviços.</strong>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => {
+            void links.refetch();
+            void services.refetch();
+          }}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  if (!isProfessional)
+    return (
+      <section className="profile-section">
+        <header>
+          <div>
+            <h3>Profissionais vinculados</h3>
+          </div>
+        </header>
+        {professionals.data?.items.map((item) => (
+          <p key={item.publicId}>{item.publicName}</p>
+        ))}
+      </section>
+    );
   return (
-    <section className="platform-form professional-settings-card">
-      <header className="settings-card-header">
-        <div><span className="settings-card-icon" aria-hidden="true">✦</span><div><h4>Serviços e valores</h4><p>Personalize duração, pausa e comissão quando necessário.</p></div></div>
+    <section className="profile-section service-manager">
+      <header>
+        <div>
+          <p className="eyebrow">Catálogo</p>
+          <h3>Serviços executados</h3>
+          <p>Gerencie vínculos e personalizações específicas deste profissional.</p>
+        </div>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => {
+            setDrawerOpen(true);
+          }}
+        >
+          + Vincular serviço
+        </button>
       </header>
-      <select
-        value={target}
-        onChange={(e) => {
-          setTarget(e.target.value);
-        }}
-      >
-        <option value="">Selecionar</option>
-        {isProfessional
-          ? services.data?.items.map((x) => (
-              <option key={x.publicId} value={x.publicId}>
-                {x.name}
-              </option>
-            ))
-          : professionals.data?.items.map((x) => (
-              <option key={x.publicId} value={x.publicId}>
-                {x.publicName}
-              </option>
-            ))}
-      </select>
-      <input
-        min="0"
-        placeholder="Preço em centavos"
-        type="number"
-        value={price}
-        onChange={(e) => {
-          setPrice(e.target.value);
-        }}
-      />
-      <input
-        min="1"
-        placeholder="Duração"
-        type="number"
-        value={duration}
-        onChange={(e) => {
-          setDuration(e.target.value);
-        }}
-      />
-      <input
-        min="0"
-        placeholder="Pausa"
-        type="number"
-        value={pause}
-        onChange={(e) => {
-          setPause(e.target.value);
-        }}
-      />
-      <select
-        value={commissionType}
-        onChange={(e) => {
-          setCommissionType(e.target.value as '' | 'PERCENTAGE' | 'FIXED');
-        }}
-      >
-        <option value="">Comissão padrão</option>
-        <option value="PERCENTAGE">Comissão percentual</option>
-        <option value="FIXED">Comissão fixa</option>
-      </select>
-      <input
-        min="0"
-        placeholder="Valor da comissão"
-        type="number"
-        value={commissionValue}
-        onChange={(e) => {
-          setCommissionValue(e.target.value);
-        }}
-      />
-      <button
-        disabled={target === '' || save.isPending}
-        type="button"
-        onClick={() => void save.mutateAsync()}
-      >
-        Salvar
-      </button>
-      {links.data?.items.map((x) => (
-        <div key={x.publicId}>
-          <strong>{isProfessional ? (services.data?.items.find((service) => service.publicId === x.servicePublicId)?.name ?? 'Serviço') : (professionals.data?.items.find((professional) => professional.publicId === x.professionalPublicId)?.publicName ?? 'Profissional')}</strong>
-          <span>{`Preço ${String(x.priceCents ?? 'padrão')} · Duração ${String(x.durationMinutes ?? 'padrão')} min · Pausa ${String(x.postServiceBreakMinutes ?? 'padrão')} min · Comissão ${x.commissionType === null ? 'padrão' : String(x.commissionValue) + (x.commissionType === 'PERCENTAGE' ? '%' : '')}`}</span>
-          <button
-            type="button"
-            onClick={() => {
-              setTarget(isProfessional ? x.servicePublicId : x.professionalPublicId);
-              setPrice(x.priceCents === null ? '' : String(x.priceCents));
-              setDuration(x.durationMinutes === null ? '' : String(x.durationMinutes));
-              setPause(x.postServiceBreakMinutes === null ? '' : String(x.postServiceBreakMinutes));
-              setCommissionType(x.commissionType ?? '');
-              setCommissionValue(x.commissionValue === null ? '' : String(x.commissionValue));
+      <div className="service-assignment-list">
+        {links.data?.items.map((link) => {
+          const service = services.data?.items.find(
+            (item) => item.publicId === link.servicePublicId,
+          );
+          return (
+            <article className="service-assignment-card" key={link.publicId}>
+              <span
+                className="service-assignment-icon"
+                style={{ background: service?.color ?? '#e2e8f0' }}
+              >
+                ✦
+              </span>
+              <div>
+                <strong>{service?.name ?? 'Serviço'}</strong>
+                <span>
+                  {String(link.durationMinutes ?? service?.durationMinutes ?? '—')} min ·{' '}
+                  {money(link.priceCents ?? service?.priceCents ?? 0)}
+                </span>
+              </div>
+              <span className={`profile-status ${link.active ? 'active' : 'inactive'}`}>
+                {link.active ? 'Ativo' : 'Inativo'}
+              </span>
+              <div className="service-assignment-actions">
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    setTarget(link.servicePublicId);
+                    setPrice(link.priceCents === null ? '' : String(link.priceCents));
+                    setDuration(link.durationMinutes === null ? '' : String(link.durationMinutes));
+                    setPause(
+                      link.postServiceBreakMinutes === null
+                        ? ''
+                        : String(link.postServiceBreakMinutes),
+                    );
+                    setCommissionType(link.commissionType ?? '');
+                    setCommissionValue(
+                      link.commissionValue === null ? '' : String(link.commissionValue),
+                    );
+                    setDrawerOpen(true);
+                  }}
+                >
+                  Editar
+                </button>
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    void status.mutateAsync({
+                      serviceId: link.servicePublicId,
+                      active: !link.active,
+                    });
+                  }}
+                >
+                  {link.active ? 'Desativar' : 'Ativar'}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+        {links.data?.items.length === 0 && (
+          <div className="profile-empty">
+            <strong>Nenhum serviço vinculado.</strong>
+            <span>Vincule os serviços que este profissional executa.</span>
+          </div>
+        )}
+      </div>
+      {drawerOpen && (
+        <div className="profile-drawer-backdrop" role="presentation" onMouseDown={closeDrawer}>
+          <aside
+            className="profile-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Vincular serviço"
+            onMouseDown={(event) => {
+              event.stopPropagation();
             }}
           >
-            Editar
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              void status.mutateAsync({ serviceId: x.servicePublicId, active: !x.active })
-            }
-          >
-            {x.active ? 'Desativar' : 'Ativar'}
-          </button>
+            <header>
+              <div>
+                <p className="eyebrow">Serviços</p>
+                <h3>{target === '' ? 'Vincular serviço' : 'Editar vínculo'}</h3>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="Fechar"
+                onClick={closeDrawer}
+              >
+                ×
+              </button>
+            </header>
+            <label>
+              Pesquisar serviço
+              <input
+                type="search"
+                value={search}
+                placeholder="Digite o nome"
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                }}
+              />
+            </label>
+            <div className="service-picker">
+              {available.map((service) => (
+                <button
+                  className={target === service.publicId ? 'selected' : ''}
+                  type="button"
+                  key={service.publicId}
+                  onClick={() => {
+                    setTarget(service.publicId);
+                  }}
+                >
+                  <strong>{service.name}</strong>
+                  <span>
+                    {service.durationMinutes} min · {money(service.priceCents)}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {target !== '' && (
+              <div className="service-override-grid">
+                <label>
+                  Preço personalizado (centavos)
+                  <input
+                    min="0"
+                    type="number"
+                    value={price}
+                    placeholder="Usar padrão"
+                    onChange={(event) => {
+                      setPrice(event.target.value);
+                    }}
+                  />
+                </label>
+                <label>
+                  Duração personalizada
+                  <input
+                    min="1"
+                    type="number"
+                    value={duration}
+                    placeholder="Usar padrão"
+                    onChange={(event) => {
+                      setDuration(event.target.value);
+                    }}
+                  />
+                </label>
+                <label>
+                  Pausa após serviço
+                  <input
+                    min="0"
+                    type="number"
+                    value={pause}
+                    placeholder="Usar padrão"
+                    onChange={(event) => {
+                      setPause(event.target.value);
+                    }}
+                  />
+                </label>
+                <label>
+                  Comissão
+                  <select
+                    value={commissionType}
+                    onChange={(event) => {
+                      setCommissionType(event.target.value as '' | 'PERCENTAGE' | 'FIXED');
+                    }}
+                  >
+                    <option value="">Usar padrão</option>
+                    <option value="PERCENTAGE">Percentual</option>
+                    <option value="FIXED">Fixa</option>
+                  </select>
+                </label>
+                {commissionType !== '' && (
+                  <label>
+                    Valor da comissão
+                    <input
+                      min="0"
+                      type="number"
+                      value={commissionValue}
+                      onChange={(event) => {
+                        setCommissionValue(event.target.value);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+            {save.error instanceof Error && (
+              <p className="form-error">Não foi possível salvar o vínculo.</p>
+            )}
+            <footer>
+              <button className="secondary-button" type="button" onClick={closeDrawer}>
+                Cancelar
+              </button>
+              <button
+                className="primary-button"
+                disabled={target === '' || save.isPending}
+                type="button"
+                onClick={() => {
+                  void save.mutateAsync();
+                }}
+              >
+                {save.isPending ? 'Salvando…' : 'Confirmar vínculo'}
+              </button>
+            </footer>
+          </aside>
         </div>
-      ))}
+      )}
     </section>
   );
 }

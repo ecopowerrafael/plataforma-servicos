@@ -68,6 +68,7 @@ export const router = createBrowserRouter([
   { path: '/app/servicos/categorias', element: <HomePage /> },
   { path: '/app/servicos/combos', element: <HomePage /> },
   { path: '/app/equipe/profissionais', element: <HomePage /> },
+  { path: '/app/equipe/profissionais/:id', element: <HomePage /> },
   { path: '/app/equipe/membros', element: <HomePage /> },
   { path: '/app/equipe/comissoes', element: <HomePage /> },
   { path: '/app/financeiro', element: <HomePage /> },

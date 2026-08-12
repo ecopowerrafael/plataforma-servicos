@@ -567,7 +567,7 @@ export function HomePage() {
           />}
           {isRoute('/app/agenda/lista-espera') && canViewWaitlist && planFeatureEnabled('waitlist.enabled') && <AppointmentWaitlistModule tenantPublicId={selectedTenant} />}
           {isRoute('/app/servicos/categorias') && canReadServices && <ServiceCategoryModule tenantPublicId={selectedTenant} />}
-          {isRoute('/app/equipe/profissionais') && canReadProfessionals && <ProfessionalModule
+          {(isRoute('/app/equipe/profissionais') || location.pathname.startsWith('/app/equipe/profissionais/')) && canReadProfessionals && <ProfessionalModule
             tenantPublicId={selectedTenant}
             terminology={experience.data?.terminology.professional.singular ?? 'Profissional'}
           />}

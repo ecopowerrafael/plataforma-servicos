@@ -90,6 +90,7 @@ export function ProfessionalUnavailability({
 }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(initialForm);
+  const [showEditor, setShowEditor] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [selectedProfessionals, setSelectedProfessionals] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState('');
@@ -167,6 +168,7 @@ export function ProfessionalUnavailability({
     onSuccess: async () => {
       setForm(initialForm);
       setSelectedProfessionals([]);
+      setShowEditor(false);
       await invalidate();
     },
   });
@@ -186,6 +188,7 @@ export function ProfessionalUnavailability({
     onSuccess: async () => {
       setEditing(null);
       setForm(initialForm);
+      setShowEditor(false);
       await invalidate();
     },
   });
@@ -217,6 +220,7 @@ export function ProfessionalUnavailability({
   };
   const edit = (item: NonNullable<typeof data.data>['items'][number]) => {
     setEditing(item.publicId);
+    setShowEditor(true);
     setForm({
       type: item.type,
       title: item.title,
@@ -241,161 +245,186 @@ export function ProfessionalUnavailability({
     <section className="platform-form professional-settings-card">
       <header className="settings-card-header">
         <div>
-          <span className="settings-card-icon" aria-hidden="true">◴</span>
+          <span className="settings-card-icon" aria-hidden="true">
+            ◴
+          </span>
           <div>
             <h4>Ausências e bloqueios</h4>
             <p>Registre folgas, férias e períodos sem atendimento.</p>
           </div>
         </div>
-      </header>
-      <div className="form-grid">
-        <label>
-          Tipo
-          <select
-            value={form.type}
-            onChange={(event) => {
-              change('type', event.target.value as FormState['type']);
-            }}
-          >
-            {types.map((type) => (
-              <option key={type} value={type}>
-                {typeLabels[type]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Título
-          <input
-            value={form.title}
-            onChange={(event) => {
-              change('title', event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          Motivo
-          <input
-            value={form.reason}
-            onChange={(event) => {
-              change('reason', event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          Início
-          <input
-            required
-            type="datetime-local"
-            value={form.startsAt}
-            onChange={(event) => {
-              change('startsAt', event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          Fim
-          <input
-            required
-            type="datetime-local"
-            value={form.endsAt}
-            onChange={(event) => {
-              change('endsAt', event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          Unidade
-          <select
-            value={form.unitPublicId}
-            onChange={(event) => {
-              change('unitPublicId', event.target.value);
-            }}
-          >
-            <option value="">Todas as unidades</option>
-            {units.data?.units.map((unit) => (
-              <option key={unit.publicId} value={unit.publicId}>
-                {unit.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <label>
-        <input
-          checked={form.allDay}
-          type="checkbox"
-          onChange={(event) => {
-            change('allDay', event.target.checked);
-          }}
-        />
-        Dia inteiro
-      </label>
-      <label>
-        <input
-          checked={form.repeatsWeekly}
-          type="checkbox"
-          onChange={(event) => {
-            change('repeatsWeekly', event.target.checked);
-          }}
-        />
-        Repetir semanalmente
-      </label>
-      {form.repeatsWeekly ? (
-        <label>
-          Repetir até
-          <input
-            required
-            type="datetime-local"
-            value={form.recurrenceEndsAt}
-            onChange={(event) => {
-              change('recurrenceEndsAt', event.target.value);
-            }}
-          />
-        </label>
-      ) : null}
-      {editing === null ? (
-        <fieldset>
-          <legend>{'Aplicar a outros profissionais'}</legend>
-          {professionals.data?.items
-            .filter((professional) => professional.publicId !== professionalPublicId)
-            .map((professional) => (
-              <label key={professional.publicId}>
-                <input
-                  checked={selectedProfessionals.includes(professional.publicId)}
-                  type="checkbox"
-                  onChange={() => {
-                    toggleProfessional(professional.publicId);
-                  }}
-                />
-                {professional.publicName}
-              </label>
-            ))}
-        </fieldset>
-      ) : null}
-      <button
-        disabled={busy}
-        type="button"
-        onClick={() => {
-          if (editing === null) void create.mutateAsync();
-          else void update.mutateAsync();
-        }}
-      >
-        {editing === null ? 'Criar indisponibilidade' : 'Salvar alterações'}
-      </button>
-      {editing !== null ? (
         <button
-          disabled={busy}
+          className="secondary-button"
           type="button"
           onClick={() => {
-            setEditing(null);
-            setForm(initialForm);
+            setShowEditor((value) => !value);
           }}
         >
-          Cancelar edição
+          {showEditor ? 'Fechar editor' : '+ Nova exceção'}
         </button>
+      </header>
+      {showEditor ? (
+        <div className="unavailability-editor">
+          <div className="form-grid">
+            <label>
+              Tipo
+              <select
+                value={form.type}
+                onChange={(event) => {
+                  change('type', event.target.value as FormState['type']);
+                }}
+              >
+                {types.map((type) => (
+                  <option key={type} value={type}>
+                    {typeLabels[type]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Título
+              <input
+                value={form.title}
+                onChange={(event) => {
+                  change('title', event.target.value);
+                }}
+              />
+            </label>
+            <label>
+              Motivo
+              <input
+                value={form.reason}
+                onChange={(event) => {
+                  change('reason', event.target.value);
+                }}
+              />
+            </label>
+            <label>
+              Início
+              <input
+                required
+                type="datetime-local"
+                value={form.startsAt}
+                onChange={(event) => {
+                  change('startsAt', event.target.value);
+                }}
+              />
+            </label>
+            <label>
+              Fim
+              <input
+                required
+                type="datetime-local"
+                value={form.endsAt}
+                onChange={(event) => {
+                  change('endsAt', event.target.value);
+                }}
+              />
+            </label>
+            <label>
+              Unidade
+              <select
+                value={form.unitPublicId}
+                onChange={(event) => {
+                  change('unitPublicId', event.target.value);
+                }}
+              >
+                <option value="">Todas as unidades</option>
+                {units.data?.units.map((unit) => (
+                  <option key={unit.publicId} value={unit.publicId}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label>
+            <input
+              checked={form.allDay}
+              type="checkbox"
+              onChange={(event) => {
+                change('allDay', event.target.checked);
+              }}
+            />
+            Dia inteiro
+          </label>
+          <label>
+            <input
+              checked={form.repeatsWeekly}
+              type="checkbox"
+              onChange={(event) => {
+                change('repeatsWeekly', event.target.checked);
+              }}
+            />
+            Repetir semanalmente
+          </label>
+          {form.repeatsWeekly ? (
+            <label>
+              Repetir até
+              <input
+                required
+                type="datetime-local"
+                value={form.recurrenceEndsAt}
+                onChange={(event) => {
+                  change('recurrenceEndsAt', event.target.value);
+                }}
+              />
+            </label>
+          ) : null}
+          {editing === null ? (
+            <fieldset>
+              <legend>{'Aplicar a outros profissionais'}</legend>
+              {professionals.data?.items
+                .filter((professional) => professional.publicId !== professionalPublicId)
+                .map((professional) => (
+                  <label key={professional.publicId}>
+                    <input
+                      checked={selectedProfessionals.includes(professional.publicId)}
+                      type="checkbox"
+                      onChange={() => {
+                        toggleProfessional(professional.publicId);
+                      }}
+                    />
+                    {professional.publicName}
+                  </label>
+                ))}
+            </fieldset>
+          ) : null}
+          <button
+            disabled={busy}
+            type="button"
+            onClick={() => {
+              if (editing === null) void create.mutateAsync();
+              else void update.mutateAsync();
+            }}
+          >
+            {editing === null ? 'Criar indisponibilidade' : 'Salvar alterações'}
+          </button>
+          {editing !== null ? (
+            <button
+              disabled={busy}
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setForm(initialForm);
+              }}
+            >
+              Cancelar edição
+            </button>
+          ) : null}
+          {error instanceof Error ? (
+            <p className="form-error" role="alert">
+              Não foi possível salvar a exceção de agenda.
+            </p>
+          ) : null}
+        </div>
       ) : null}
-      {error instanceof Error ? <p role="alert">{error.message}</p> : null}
+      <div className="exception-list-heading">
+        <div>
+          <p className="eyebrow">Exceções de agenda</p>
+          <h4>Folgas, férias e bloqueios</h4>
+        </div>
+      </div>
       <div className="form-grid">
         <label>
           Filtrar tipo
@@ -448,7 +477,20 @@ export function ProfessionalUnavailability({
         </label>
       </div>
       {data.isPending ? <p>{'Carregando indisponibilidades\u2026'}</p> : null}
-      {data.error instanceof Error ? <p role="alert">{data.error.message}</p> : null}
+      {data.error instanceof Error ? (
+        <div className="profile-inline-error">
+          <strong>Não foi possível carregar as exceções.</strong>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              void data.refetch();
+            }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      ) : null}
       <ul>
         {data.data?.items.map((item) => (
           <li key={item.publicId}>
@@ -476,7 +518,8 @@ export function ProfessionalUnavailability({
               disabled={busy}
               type="button"
               onClick={() => {
-                void remove.mutateAsync(item.publicId);
+                if (window.confirm('Remover esta exceção de agenda?'))
+                  void remove.mutateAsync(item.publicId);
               }}
             >
               Remover

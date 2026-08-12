@@ -2,18 +2,28 @@ import {
   CreateCustomerRequestSchema,
   CustomerListResponseSchema,
   CustomerPublicSchema,
-  CustomerStatusResponseSchema,
   TenantCustomFieldsResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { type ZodType } from 'zod';
+import { useNavigate } from 'react-router-dom';
 
-import { httpClient } from '../../lib/http.js';
-import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { CustomerForm } from './CustomerForm.js';
+import { httpClient } from '../../lib/http.js';
 import { UnitSelect } from '../tenants/UnitSelect.js';
-import { PageHeader, PageToolbar, StatusBadge } from '../ui/AppUi.js';
+import {
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+  PageToolbar,
+  Pagination,
+  StatusBadge,
+} from '../ui/AppUi.js';
+
+const shortDate = (value: string | null) =>
+  value === null
+    ? '—'
+    : new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(value));
 
 export function CustomerModule({
   tenantPublicId,
@@ -22,37 +32,25 @@ export function CustomerModule({
   tenantPublicId: string;
   terminology: string;
 }) {
-  const client = useQueryClient();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [active, setActive] = useState('');
   const [unitPublicId, setUnitPublicId] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const customers = useQuery({
     queryKey: ['tenant', tenantPublicId, 'customers', page, search, active, unitPublicId],
     queryFn: () => {
       const query = new URLSearchParams({ page: String(page), limit: '10' });
       if (search.trim() !== '') query.set('search', search.trim());
       if (active !== '') query.set('active', active);
-      if (unitPublicId.trim() !== '') query.set('unitPublicId', unitPublicId.trim());
+      if (unitPublicId !== '') query.set('unitPublicId', unitPublicId);
       return httpClient.request(`/tenant/customers?${query.toString()}`, {
         schema: CustomerListResponseSchema,
         tenantPublicId,
       });
     },
-    retry: false,
-  });
-  const detail = useQuery({
-    queryKey: ['tenant', tenantPublicId, 'customer', selected],
-    queryFn: () =>
-      httpClient.request(`/tenant/customers/${selected ?? ''}`, {
-        schema: CustomerPublicSchema,
-        tenantPublicId,
-      }),
-    enabled: selected !== null,
     retry: false,
   });
   const fields = useQuery({
@@ -64,103 +62,61 @@ export function CustomerModule({
       }),
     retry: false,
   });
-  const mutation = useMutation({
-    mutationFn: ({
-      url,
-      method,
-      body,
-      status,
-    }: {
-      url: string;
-      method: 'POST' | 'PATCH';
-      body?: unknown;
-      status?: boolean;
-    }) => {
-      const schema: ZodType = status === true ? CustomerStatusResponseSchema : CustomerPublicSchema;
-      return httpClient.request<unknown>(url, {
-        method,
-        ...(body === undefined ? {} : { body }),
-        schema,
+  const create = useMutation({
+    mutationFn: (body: unknown) =>
+      httpClient.request('/tenant/customers', {
+        method: 'POST',
+        body: CreateCustomerRequestSchema.parse(body),
+        schema: CustomerPublicSchema,
         tenantPublicId,
-      });
-    },
-    onSuccess: async () => {
-      setNotice('Operação concluída com sucesso.');
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'customers'] }),
-        client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'customer', selected] }),
-      ]);
+      }),
+    onSuccess: async (customer) => {
+      await queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'customers'] });
+      void navigate(`/app/clientes/${customer.publicId}`);
     },
   });
-  const save = async (value: unknown) => {
-    const output = await mutation.mutateAsync({
-      url: selected === null ? '/tenant/customers' : `/tenant/customers/${selected}`,
-      method: selected === null ? 'POST' : 'PATCH',
-      body: CreateCustomerRequestSchema.parse(value),
-    });
-    const customer = CustomerPublicSchema.parse(output);
-    setSelected(customer.publicId);
-    setCreating(false);
-  };
-  const requestStatus = (enabled: boolean) => {
-    if (selected === null) return;
-    setConfirmation({
-      title: `${enabled ? 'Ativar' : 'Desativar'} ${terminology.toLowerCase()}?`,
-      description: enabled
-        ? 'O cadastro voltará a ficar disponível para novos atendimentos.'
-        : 'O cadastro deixará de estar disponível para novos atendimentos.',
-      confirmLabel: enabled ? 'Ativar' : 'Desativar',
-      requiresReason: false,
-      variant: enabled ? 'default' : 'danger',
-      onConfirm: async () => {
-        await mutation.mutateAsync({
-          url: `/tenant/customers/${selected}/${enabled ? 'activate' : 'deactivate'}`,
-          method: 'POST',
-          status: true,
-        });
-      },
-    });
-  };
   return (
-    <section aria-labelledby="customers-title" className="sessions-panel customer-module">
+    <section
+      aria-labelledby="customers-title"
+      className="sessions-panel customer-module crm-list-page"
+    >
       <PageHeader
         eyebrow="Relacionamento"
         title={`${terminology}s`}
-        description="Centralize os cadastros e acompanhe a sua base."
+        description="Consulte o relacionamento e aja sem perder o contexto do atendimento."
         actions={
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => {
-              setCreating((value) => !value);
-            }}
-          >
-            {creating ? 'Fechar cadastro' : `Novo ${terminology.toLowerCase()}`}
+          <button className="primary-button" type="button" onClick={() => { setCreating(true); }}>
+            Adicionar {terminology.toLowerCase()}
           </button>
         }
       />
-      {notice !== null && <p className="success-message">{notice}</p>}
       {creating && (
-        <div className="app-drawer">
+        <div className="app-drawer" role="dialog" aria-label={`Novo ${terminology.toLowerCase()}`}>
+          <div className="drawer-header">
+            <h3>Novo {terminology.toLowerCase()}</h3>
+            <button className="secondary-button" type="button" onClick={() => { setCreating(false); }}>
+              Fechar
+            </button>
+          </div>
           <CustomerForm
-            busy={mutation.isPending}
-            error={mutation.error instanceof Error ? mutation.error.message : null}
+            busy={create.isPending}
+            error={create.error instanceof Error ? 'Não foi possível salvar o cliente.' : null}
             fields={fields.data?.fields.filter((field) => field.scope === 'CUSTOMER') ?? []}
             terminology={terminology}
-            onSave={save}
+            onSave={(value) => create.mutateAsync(value).then(() => undefined)}
           />
         </div>
       )}
       <PageToolbar>
-        <label>
+        <label className="ds-field--wide">
           Busca
           <input
             value={search}
+            placeholder="Buscar por nome, telefone ou e-mail"
             onChange={(event) => {
               setPage(1);
               setSearch(event.target.value);
             }}
-            placeholder={`Nome do ${terminology.toLowerCase()}`}
           />
         </label>
         <label>
@@ -190,116 +146,61 @@ export function CustomerModule({
         </label>
       </PageToolbar>
       {customers.isPending ? (
-        <p>{`Carregando ${terminology.toLowerCase()}s…`}</p>
+        <ListSkeleton rows={6} />
       ) : customers.error instanceof Error ? (
-        <p className="form-error">Não foi possível carregar os cadastros.</p>
+        <EmptyState
+          title="Não foi possível carregar os clientes."
+          description="Verifique sua conexão e tente novamente."
+          action={<button onClick={() => void customers.refetch()}>Tentar novamente</button>}
+        />
       ) : customers.data === undefined || customers.data.items.length === 0 ? (
-        <div className="empty-state">
-          <strong>Nenhum cadastro encontrado</strong>
-          <span>Ajuste os filtros ou crie o primeiro {terminology.toLowerCase()}.</span>
-        </div>
+        <EmptyState
+          title="Seus clientes aparecerão aqui."
+          description="Você também pode cadastrar um cliente manualmente."
+          action={<button onClick={() => { setCreating(true); }}>Adicionar cliente</button>}
+        />
       ) : (
         <>
-          <div className="data-list">
+          <div className="crm-customer-table" role="table" aria-label="Clientes">
+            <div className="crm-customer-table__head" role="row">
+              <span>Nome</span>
+              <span>Contato</span>
+              <span>Último atendimento</span>
+              <span>Próximo agendamento</span>
+              <span>Atendimentos</span>
+              <span>Status</span>
+              <span>Ações</span>
+            </div>
             {customers.data.items.map((customer) => (
               <button
-                className="data-row"
+                className="crm-customer-row"
                 key={customer.publicId}
+                role="row"
                 type="button"
-                onClick={() => {
-                  setSelected(customer.publicId);
-                  setCreating(false);
-                }}
+                onClick={() => void navigate(`/app/clientes/${customer.publicId}`)}
               >
-                <span>{customer.name}</span>
-                <span>{customer.email ?? customer.phone ?? 'Sem contato'}</span>
+                <span className="crm-customer-row__identity">
+                  <b aria-hidden="true">{customer.name.slice(0, 2).toUpperCase()}</b>
+                  <strong>{customer.socialName ?? customer.name}</strong>
+                </span>
+                <span>{customer.phone ?? customer.email ?? 'Sem contato'}</span>
+                <span data-label="Último atendimento">{shortDate(customer.lastCompletedAt)}</span>
+                <span data-label="Próximo">{shortDate(customer.nextAppointmentAt)}</span>
+                <span data-label="Atendimentos">{customer.appointmentCount}</span>
                 <StatusBadge active={customer.status === 'ACTIVE'}>
                   {customer.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
                 </StatusBadge>
+                <span aria-hidden="true">›</span>
               </button>
             ))}
           </div>
-          <div className="form-actions">
-            <button
-              disabled={page <= 1}
-              type="button"
-              onClick={() => {
-                setPage((value) => value - 1);
-              }}
-            >
-              Anterior
-            </button>
-            <span>{`Página ${String(customers.data.page.page)} de ${String(customers.data.page.totalPages)}`}</span>
-            <button
-              disabled={page >= customers.data.page.totalPages}
-              type="button"
-              onClick={() => {
-                setPage((value) => value + 1);
-              }}
-            >
-              Próxima
-            </button>
-          </div>
-        </>
-      )}
-      {detail.data !== undefined && (
-        <article className="sessions-panel">
-          <h3>{detail.data.name}</h3>
-          <dl className="platform-details">
-            <div>
-              <dt>Status</dt>
-              <dd>{detail.data.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</dd>
-            </div>
-            <div>
-              <dt>E-mail</dt>
-              <dd>{detail.data.email ?? 'Não informado'}</dd>
-            </div>
-            <div>
-              <dt>Telefone</dt>
-              <dd>{detail.data.phone ?? 'Não informado'}</dd>
-            </div>
-            <div>
-              <dt>Unidade</dt>
-              <dd>{detail.data.primaryUnitPublicId ?? 'Não informada'}</dd>
-            </div>
-          </dl>
-          <CustomerForm
-            customer={detail.data}
-            busy={mutation.isPending}
-            error={mutation.error instanceof Error ? mutation.error.message : null}
-            fields={fields.data?.fields.filter((field) => field.scope === 'CUSTOMER') ?? []}
-            terminology={terminology}
-            onSave={save}
+          <Pagination
+            page={customers.data.page.page}
+            totalPages={customers.data.page.totalPages}
+            onPrevious={() => { setPage((value) => value - 1); }}
+            onNext={() => { setPage((value) => value + 1); }}
           />
-          <div className="form-actions">
-            <button
-              disabled={mutation.isPending || detail.data.status === 'ACTIVE'}
-              type="button"
-              onClick={() => {
-                requestStatus(true);
-              }}
-            >
-              Ativar
-            </button>
-            <button
-              disabled={mutation.isPending || detail.data.status !== 'ACTIVE'}
-              type="button"
-              onClick={() => {
-                requestStatus(false);
-              }}
-            >
-              Desativar
-            </button>
-          </div>
-        </article>
-      )}
-      {confirmation !== null && (
-        <ConfirmationDialog
-          request={confirmation}
-          onClose={() => {
-            setConfirmation(null);
-          }}
-        />
+        </>
       )}
     </section>
   );

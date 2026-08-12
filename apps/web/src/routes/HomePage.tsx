@@ -40,6 +40,10 @@ const AppointmentWaitlistModule = load(
 );
 const CalendarModule = load(import('../components/calendar/CalendarModule.js'), 'CalendarModule');
 const CustomerModule = load(import('../components/customers/CustomerModule.js'), 'CustomerModule');
+const CustomerProfile = load(
+  import('../components/customers/CustomerProfile.js'),
+  'CustomerProfile',
+);
 const MyAgendaModule = load(
   import('../components/professionals/MyAgendaModule.js'),
   'MyAgendaModule',
@@ -1364,6 +1368,19 @@ export function HomePage() {
                 terminology={experience.data?.terminology.customer.singular ?? 'Cliente'}
               />
             )}
+            {location.pathname.startsWith('/app/clientes/') &&
+              !isRoute(
+                '/app/clientes/recuperacao',
+                '/app/clientes/fidelidade',
+                '/app/clientes/cupons',
+              ) &&
+              canReadCustomers && (
+                <CustomerProfile
+                  tenantPublicId={selectedTenant}
+                  publicId={location.pathname.slice('/app/clientes/'.length)}
+                  terminology={experience.data?.terminology.customer.singular ?? 'Cliente'}
+                />
+              )}
             {isRoute('/app/servicos') && canReadServices && (
               <ServiceModule
                 tenantPublicId={selectedTenant}

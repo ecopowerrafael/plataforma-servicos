@@ -61,6 +61,7 @@ export const router = createBrowserRouter([
   { path: '/app/agenda/disponibilidade', element: <HomePage /> },
   { path: '/app/agenda/lista-espera', element: <HomePage /> },
   { path: '/app/clientes', element: <HomePage /> },
+  { path: '/app/clientes/:id', element: <HomePage /> },
   { path: '/app/clientes/recuperacao', element: <HomePage /> },
   { path: '/app/clientes/fidelidade', element: <HomePage /> },
   { path: '/app/clientes/cupons', element: <HomePage /> },

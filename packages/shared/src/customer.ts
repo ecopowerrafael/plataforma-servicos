@@ -39,13 +39,88 @@ export const CustomerPublicSchema = z
     updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
+const CustomerAppointmentStatusSchema = z.enum([
+  'PENDING',
+  'CONFIRMED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELED',
+  'NO_SHOW',
+]);
+export const CustomerListItemSchema = CustomerPublicSchema.extend({
+  lastCompletedAt: z.iso.datetime({ offset: true }).nullable(),
+  nextAppointmentAt: z.iso.datetime({ offset: true }).nullable(),
+  appointmentCount: z.number().int().nonnegative(),
+}).strict();
 export const CustomerListResponseSchema = z.object({
-  items: z.array(CustomerPublicSchema),
+  items: z.array(CustomerListItemSchema),
   page: z.object({
     page: z.number().int(),
     limit: z.number().int(),
     total: z.number().int(),
     totalPages: z.number().int(),
+  }),
+});
+export const CustomerCrmAppointmentSchema = z.object({
+  publicId: z.uuid(),
+  startsAt: z.iso.datetime({ offset: true }),
+  priceCents: z.string().regex(/^\d+$/u),
+  status: CustomerAppointmentStatusSchema,
+  professionalPublicId: z.uuid(),
+  professionalName: z.string(),
+  servicePublicId: z.uuid(),
+  serviceName: z.string(),
+  unitPublicId: z.uuid().nullable(),
+  unitName: z.string().nullable(),
+});
+const CustomerCrmRankingSchema = z.object({
+  publicId: z.uuid(),
+  name: z.string(),
+  count: z.number().int().positive(),
+});
+export const CustomerCrmProfileSchema = z.object({
+  customer: CustomerPublicSchema,
+  appointments: z.array(CustomerCrmAppointmentSchema),
+  summary: z.object({
+    completedCount: z.number().int().nonnegative(),
+    canceledCount: z.number().int().nonnegative(),
+    noShowCount: z.number().int().nonnegative(),
+    nextAppointment: CustomerCrmAppointmentSchema.nullable(),
+    lastCompleted: CustomerCrmAppointmentSchema.nullable(),
+    recurringServices: z.array(CustomerCrmRankingSchema),
+    recurringProfessionals: z.array(CustomerCrmRankingSchema),
+  }),
+  relationship: z.object({
+    loyaltyBalances: z.array(
+      z.object({ type: z.enum(['POINTS', 'CASHBACK']), balance: z.string() }),
+    ),
+    usedCoupons: z.array(z.object({ code: z.string(), usedAt: z.iso.datetime({ offset: true }) })),
+    waitlist: z.array(
+      z.object({
+        publicId: z.uuid(),
+        serviceName: z.string(),
+        professionalName: z.string().nullable(),
+        unitName: z.string(),
+        preferredDateFrom: z.iso.date(),
+        preferredDateTo: z.iso.date(),
+        preferredTimeStart: z.string(),
+        preferredTimeEnd: z.string(),
+        status: z.enum(['WAITING', 'MATCHED']),
+      }),
+    ),
+  }),
+  financial: z.object({
+    paidTotalCents: z.string(),
+    paidCount: z.number().int().nonnegative(),
+    recentPayments: z.array(
+      z.object({
+        publicId: z.uuid(),
+        amountCents: z.string(),
+        kind: z.enum(['PAYMENT', 'DEPOSIT']),
+        createdAt: z.iso.datetime({ offset: true }),
+        appointmentPublicId: z.uuid(),
+      }),
+    ),
   }),
 });
 export const CustomerStatusResponseSchema = z.object({ success: z.literal(true) });

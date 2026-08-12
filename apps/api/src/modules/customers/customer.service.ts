@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  CustomerCrmProfileSchema,
   CustomerListResponseSchema,
   CustomerPublicSchema,
   TenantCustomFieldsResponseSchema,
@@ -67,8 +68,22 @@ export class CustomerService {
       i.limit,
       { [i.orderBy]: i.direction },
     );
+    const summaries = await this.repo.appointmentSummaries(
+      t,
+      items.map((item) => item.id),
+      new Date(),
+    );
+    const byCustomer = new Map(summaries.map((summary) => [summary.customerId, summary]));
     return CustomerListResponseSchema.parse({
-      items: items.map(publicValue),
+      items: items.map((item) => {
+        const summary = byCustomer.get(item.id);
+        return {
+          ...publicValue(item),
+          lastCompletedAt: summary?.lastCompletedAt?.toISOString() ?? null,
+          nextAppointmentAt: summary?.nextAppointmentAt?.toISOString() ?? null,
+          appointmentCount: Number(summary?.appointmentCount ?? 0),
+        };
+      }),
       page: { page: i.page, limit: i.limit, total, totalPages: Math.ceil(total / i.limit) },
     });
   }
@@ -76,6 +91,112 @@ export class CustomerService {
     const x = await this.repo.find(t, id);
     if (x === null) throw this.err('CUSTOMER_NOT_FOUND', 'Cliente não encontrado.', 404);
     return publicValue(x);
+  }
+  async crmProfile(t: bigint, id: string) {
+    const customer = await this.repo.find(t, id);
+    if (customer === null) throw this.err('CUSTOMER_NOT_FOUND', 'Cliente não encontrado.', 404);
+    const [appointments, loyalty, coupons, waitlist, payments] = await Promise.all([
+      this.repo.appointmentsForCustomer(t, customer.id),
+      this.repo.loyaltyForCustomer(t, customer.id),
+      this.repo.couponsForCustomer(t, customer.id),
+      this.repo.waitlistForCustomer(t, customer.id),
+      this.repo.paymentsForCustomer(t, customer.id),
+    ]);
+    const appointmentValues = appointments.map((appointment) => ({
+      publicId: appointment.publicId,
+      startsAt: appointment.startsAt.toISOString(),
+      priceCents: appointment.priceCents.toString(),
+      status: appointment.status,
+      professionalPublicId: appointment.professional.publicId,
+      professionalName: appointment.professional.publicName,
+      servicePublicId: appointment.service.publicId,
+      serviceName: appointment.service.name,
+      unitPublicId: appointment.unit?.publicId ?? null,
+      unitName: appointment.unit?.name ?? null,
+    }));
+    const completed = appointmentValues.filter((appointment) => appointment.status === 'COMPLETED');
+    const nextAppointment =
+      appointmentValues
+        .filter(
+          (appointment) =>
+            ['PENDING', 'CONFIRMED', 'IN_PROGRESS'].includes(appointment.status) &&
+            new Date(appointment.startsAt).getTime() >= Date.now(),
+        )
+        .sort((left, right) => left.startsAt.localeCompare(right.startsAt))[0] ?? null;
+    const rank = (
+      values: typeof completed,
+      get: (value: (typeof completed)[number]) => { publicId: string; name: string },
+    ) => {
+      const counts = new Map<string, { publicId: string; name: string; count: number }>();
+      for (const value of values) {
+        const item = get(value);
+        const current = counts.get(item.publicId);
+        counts.set(item.publicId, { ...item, count: (current?.count ?? 0) + 1 });
+      }
+      return [...counts.values()].sort((left, right) => right.count - left.count).slice(0, 5);
+    };
+    const balances = new Map<'POINTS' | 'CASHBACK', bigint>([
+      ['POINTS', 0n],
+      ['CASHBACK', 0n],
+    ]);
+    for (const entry of loyalty)
+      balances.set(
+        entry.type,
+        (balances.get(entry.type) ?? 0n) +
+          (entry.direction === 'CREDIT' ? entry.amount : -entry.amount),
+      );
+    const paidTotal = payments.reduce((total, payment) => total + payment.amountCents, 0n);
+    return CustomerCrmProfileSchema.parse({
+      customer: publicValue(customer),
+      appointments: appointmentValues,
+      summary: {
+        completedCount: completed.length,
+        canceledCount: appointmentValues.filter((item) => item.status === 'CANCELED').length,
+        noShowCount: appointmentValues.filter((item) => item.status === 'NO_SHOW').length,
+        nextAppointment,
+        lastCompleted: completed[0] ?? null,
+        recurringServices: rank(completed, (item) => ({
+          publicId: item.servicePublicId,
+          name: item.serviceName,
+        })),
+        recurringProfessionals: rank(completed, (item) => ({
+          publicId: item.professionalPublicId,
+          name: item.professionalName,
+        })),
+      },
+      relationship: {
+        loyaltyBalances: [...balances].map(([type, balance]) => ({
+          type,
+          balance: balance.toString(),
+        })),
+        usedCoupons: coupons.map((item) => ({
+          code: item.coupon.code,
+          usedAt: item.createdAt.toISOString(),
+        })),
+        waitlist: waitlist.map((item) => ({
+          publicId: item.publicId,
+          serviceName: item.service.name,
+          professionalName: item.professional?.publicName ?? null,
+          unitName: item.unit.name,
+          preferredDateFrom: item.preferredDateFrom.toISOString().slice(0, 10),
+          preferredDateTo: item.preferredDateTo.toISOString().slice(0, 10),
+          preferredTimeStart: item.preferredTimeStart,
+          preferredTimeEnd: item.preferredTimeEnd,
+          status: item.status,
+        })),
+      },
+      financial: {
+        paidTotalCents: paidTotal.toString(),
+        paidCount: payments.length,
+        recentPayments: payments.slice(0, 20).map((item) => ({
+          publicId: item.publicId,
+          amountCents: item.amountCents.toString(),
+          kind: item.kind,
+          createdAt: item.createdAt.toISOString(),
+          appointmentPublicId: item.appointment.publicId,
+        })),
+      },
+    });
   }
   async customFields(t: bigint) {
     const tenant = await this.repo.tenantProfile(t);
@@ -124,7 +245,7 @@ export class CustomerService {
       source: 'PUBLIC_BOOKING',
       acceptsCommunications: false,
       primaryUnitId: null,
-      customFields: {} as Prisma.InputJsonValue,
+      customFields: {},
     });
     await this.repo.audit({
       publicId: randomUUID(),

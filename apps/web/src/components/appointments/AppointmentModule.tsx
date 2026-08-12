@@ -11,6 +11,7 @@ import {
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { type ZodType } from 'zod';
 
 import { AppointmentPaymentsPanel } from './AppointmentPaymentsPanel.js';
@@ -41,10 +42,14 @@ export function AppointmentModule({
   canReadPayments?: boolean;
   canManagePayments?: boolean;
 }) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const presetCustomer = searchParams.get('customerPublicId') ?? '';
+  const returnTo = searchParams.get('returnTo');
   const client = useQueryClient();
   const [from, setFrom] = useState(() => new Date().toISOString());
   const [to, setTo] = useState(() => new Date(Date.now() + 7 * 86400000).toISOString());
-  const [customer, setCustomer] = useState('');
+  const [customer, setCustomer] = useState(presetCustomer);
   const [professional, setProfessional] = useState('');
   const [service, setService] = useState('');
   const [unitPublicId, setUnitPublicId] = useState('');
@@ -57,7 +62,7 @@ export function AppointmentModule({
   const [selected, setSelected] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(presetCustomer !== '');
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const customers = useQuery({
@@ -486,7 +491,20 @@ export function AppointmentModule({
           </button>
         </div>
       )}
-      {feedback !== null && <p className="form-success">{feedback}</p>}
+      {feedback !== null && (
+        <div className="form-success">
+          <p>{feedback}</p>
+          {returnTo !== null && (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void navigate(returnTo)}
+            >
+              Voltar ao cliente
+            </button>
+          )}
+        </div>
+      )}
       {mutation.error instanceof Error && (
         <p className="form-error">
           N\u00e3o foi poss\u00edvel salvar o agendamento. Revise os dados e tente novamente.

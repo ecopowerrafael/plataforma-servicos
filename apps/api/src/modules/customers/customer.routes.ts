@@ -1,5 +1,6 @@
 import {
   CreateCustomerRequestSchema,
+  CustomerCrmProfileSchema,
   CustomerListResponseSchema,
   CustomerPublicSchema,
   CustomerStatusResponseSchema,
@@ -29,7 +30,11 @@ export const customerRoutes: FastifyPluginAsyncZod<{
   cookieName: string;
   client?: PrismaClient;
 }> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
+  await app.register(tenantContextPlugin, {
+    authService: o.authService,
+    cookieName: o.cookieName,
+    client: o.client,
+  });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: r.auth.user.id,
     sessionId: r.auth.session.id,
@@ -59,6 +64,14 @@ export const customerRoutes: FastifyPluginAsyncZod<{
     (r) => {
       o.authService.requirePermission(r.tenant, 'customer.read');
       return o.service.get(r.tenant.id, r.params.publicId);
+    },
+  );
+  app.get(
+    '/tenant/customers/:publicId/crm',
+    { schema: { params, response: { 200: CustomerCrmProfileSchema } } },
+    (r) => {
+      o.authService.requirePermission(r.tenant, 'customer.read');
+      return o.service.crmProfile(r.tenant.id, r.params.publicId);
     },
   );
   app.post(

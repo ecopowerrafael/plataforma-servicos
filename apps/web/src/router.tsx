@@ -66,6 +66,7 @@ export const router = createBrowserRouter([
   { path: '/app/clientes/fidelidade', element: <HomePage /> },
   { path: '/app/clientes/cupons', element: <HomePage /> },
   { path: '/app/servicos', element: <HomePage /> },
+  { path: '/app/servicos/:id', element: <HomePage /> },
   { path: '/app/servicos/categorias', element: <HomePage /> },
   { path: '/app/servicos/combos', element: <HomePage /> },
   { path: '/app/equipe/profissionais', element: <HomePage /> },

@@ -143,11 +143,101 @@ export function ProfessionalServiceLinks({
         <header>
           <div>
             <h3>Profissionais vinculados</h3>
+            <p>Os mesmos vínculos usados no perfil de cada profissional.</p>
           </div>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => {
+              setDrawerOpen(true);
+            }}
+          >
+            + Vincular profissional
+          </button>
         </header>
-        {professionals.data?.items.map((item) => (
-          <p key={item.publicId}>{item.publicName}</p>
-        ))}
+        <div className="service-assignment-list">
+          {links.data?.items.map((link) => {
+            const professional = professionals.data?.items.find(
+              (item) => item.publicId === link.professionalPublicId,
+            );
+            return (
+              <article className="service-assignment-card" key={link.publicId}>
+                <span className="service-assignment-icon">
+                  {professional?.publicName.slice(0, 1) ?? 'P'}
+                </span>
+                <div>
+                  <strong>{professional?.publicName ?? 'Profissional'}</strong>
+                  <span>
+                    {link.priceCents == null ? 'Preço padrão' : money(link.priceCents)} ·{' '}
+                    {link.durationMinutes == null
+                      ? 'Duração padrão'
+                      : `${String(link.durationMinutes)} min`}
+                  </span>
+                </div>
+                <span className={`profile-status ${link.active ? 'active' : 'inactive'}`}>
+                  {link.active ? 'Ativo' : 'Inativo'}
+                </span>
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    setTarget(link.professionalPublicId);
+                    setPrice(link.priceCents == null ? '' : String(link.priceCents));
+                    setDuration(link.durationMinutes == null ? '' : String(link.durationMinutes));
+                    setDrawerOpen(true);
+                  }}
+                >
+                  Editar
+                </button>
+              </article>
+            );
+          })}
+        </div>
+        {drawerOpen && (
+          <div className="profile-drawer-backdrop" role="presentation" onMouseDown={closeDrawer}>
+            <aside
+              className="profile-drawer"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Vincular profissional"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <header>
+                <div>
+                  <p className="eyebrow">Profissionais</p>
+                  <h3>{target === '' ? 'Vincular profissional' : 'Editar vínculo'}</h3>
+                </div>
+                <button className="icon-button" type="button" aria-label="Fechar" onClick={closeDrawer}>×</button>
+              </header>
+              <label>
+                Pesquisar profissional
+                <input type="search" value={search} placeholder="Digite o nome" onChange={(event) => setSearch(event.target.value)} />
+              </label>
+              <div className="service-picker">
+                {(professionals.data?.items ?? [])
+                  .filter((professional) => professional.publicName.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
+                  .map((professional) => (
+                    <button className={target === professional.publicId ? 'selected' : ''} type="button" key={professional.publicId} onClick={() => setTarget(professional.publicId)}>
+                      <strong>{professional.publicName}</strong>
+                      <span>Profissional ativo</span>
+                    </button>
+                  ))}
+              </div>
+              {target !== '' && (
+                <div className="service-override-grid">
+                  <label>Preço personalizado (centavos)<input min="0" type="number" value={price} placeholder="Usar padrão" onChange={(event) => setPrice(event.target.value)} /></label>
+                  <label>Duração personalizada<input min="1" type="number" value={duration} placeholder="Usar padrão" onChange={(event) => setDuration(event.target.value)} /></label>
+                  <label>Pausa após serviço<input min="0" type="number" value={pause} placeholder="Usar padrão" onChange={(event) => setPause(event.target.value)} /></label>
+                </div>
+              )}
+              {save.error instanceof Error && <p className="form-error">Não foi possível salvar o vínculo.</p>}
+              <footer>
+                <button className="secondary-button" type="button" onClick={closeDrawer}>Cancelar</button>
+                <button className="primary-button" disabled={target === '' || save.isPending} type="button" onClick={() => { void save.mutateAsync(); }}>{save.isPending ? 'Salvando…' : 'Confirmar vínculo'}</button>
+              </footer>
+            </aside>
+          </div>
+        )}
       </section>
     );
   return (
@@ -274,20 +364,20 @@ export function ProfessionalServiceLinks({
             </label>
             <div className="service-picker">
               {available.map((service) => (
-                <button
-                  className={target === service.publicId ? 'selected' : ''}
-                  type="button"
-                  key={service.publicId}
-                  onClick={() => {
-                    setTarget(service.publicId);
-                  }}
-                >
-                  <strong>{service.name}</strong>
-                  <span>
-                    {service.durationMinutes} min · {money(service.priceCents)}
-                  </span>
-                </button>
-              ))}
+                  <button
+                    className={target === service.publicId ? 'selected' : ''}
+                    type="button"
+                    key={service.publicId}
+                    onClick={() => {
+                      setTarget(service.publicId);
+                    }}
+                  >
+                    <strong>{service.name}</strong>
+                    <span>
+                      {service.durationMinutes} min · {money(service.priceCents)}
+                    </span>
+                  </button>
+                ))}
             </div>
             {target !== '' && (
               <div className="service-override-grid">

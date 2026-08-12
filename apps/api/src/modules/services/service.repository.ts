@@ -1,7 +1,10 @@
 import { type Prisma, type PrismaClient, type Service } from '../../database-client/client.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
-export type ServiceRecord = Service & { category: { publicId: string } | null };
+export type ServiceRecord = Service & {
+  category: { publicId: string; name: string } | null;
+  _count: { professionalServices: number };
+};
 
 export interface ServiceRepository {
   list(
@@ -34,7 +37,10 @@ export class PrismaServiceRepository implements ServiceRepository {
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
-        include: { category: { select: { publicId: true } } },
+        include: {
+          category: { select: { publicId: true, name: true } },
+          _count: { select: { professionalServices: { where: { active: true } } } },
+        },
       }),
     ]);
     return { total, services };
@@ -43,7 +49,10 @@ export class PrismaServiceRepository implements ServiceRepository {
   public find(tenantId: bigint, publicId: string): Promise<ServiceRecord | null> {
     return this.client.service.findFirst({
       where: { tenantId, publicId },
-      include: { category: { select: { publicId: true } } },
+      include: {
+        category: { select: { publicId: true, name: true } },
+        _count: { select: { professionalServices: { where: { active: true } } } },
+      },
     });
   }
 
@@ -53,7 +62,11 @@ export class PrismaServiceRepository implements ServiceRepository {
   ): Promise<(ServiceRecord & { tenant: { publicId: string } }) | null> {
     return this.client.service.findFirst({
       where: { tenantId, publicId },
-      include: { tenant: { select: { publicId: true } }, category: { select: { publicId: true } } },
+      include: {
+        tenant: { select: { publicId: true } },
+        category: { select: { publicId: true, name: true } },
+        _count: { select: { professionalServices: { where: { active: true } } } },
+      },
     });
   }
 
@@ -62,7 +75,10 @@ export class PrismaServiceRepository implements ServiceRepository {
       await new PlanEntitlementService().assertCanCreateService(transaction, BigInt(data.tenantId));
       return transaction.service.create({
         data,
-        include: { category: { select: { publicId: true } } },
+        include: {
+          category: { select: { publicId: true, name: true } },
+          _count: { select: { professionalServices: { where: { active: true } } } },
+        },
       });
     });
   }
@@ -71,7 +87,10 @@ export class PrismaServiceRepository implements ServiceRepository {
     return this.client.service.update({
       where: { id },
       data,
-      include: { category: { select: { publicId: true } } },
+      include: {
+        category: { select: { publicId: true, name: true } },
+        _count: { select: { professionalServices: { where: { active: true } } } },
+      },
     });
   }
 

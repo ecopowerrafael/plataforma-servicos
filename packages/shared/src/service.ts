@@ -51,6 +51,8 @@ export const ServicePublicSchema = z
     description: z.string().nullable(),
     imageAlt: z.string().nullable(),
     categoryPublicId: z.uuid().nullable(),
+    categoryName: z.string().nullable().optional(),
+    enabledProfessionalCount: z.number().int().nonnegative().optional(),
     imageUrl: z
       .string()
       .regex(/^\/tenant\/services\/[0-9a-f-]{36}\/image$/iu)

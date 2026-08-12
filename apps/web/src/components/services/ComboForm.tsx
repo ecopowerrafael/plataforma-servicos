@@ -69,6 +69,8 @@ export function ComboForm({
     handleSubmit,
     reset,
     control,
+    getValues,
+    setValue,
     formState: { errors },
   } = useForm<ComboInput, unknown, ComboSubmission>({
     defaultValues: defaults(combo),
@@ -101,8 +103,19 @@ export function ComboForm({
         <input {...register('imageAlt')} />
       </label>
       <label>
-        {'Preço do combo em centavos'}
-        <input min="0" type="number" {...register('priceCents', { valueAsNumber: true })} />
+        Preço do combo
+        <input
+          min="0"
+          step="0.01"
+          inputMode="decimal"
+          type="number"
+          defaultValue={Number(getValues('priceCents')) / 100}
+          onChange={(event) => {
+            setValue('priceCents', Math.round(Number(event.target.value.replace(',', '.')) * 100), {
+              shouldDirty: true,
+            });
+          }}
+        />
       </label>
       <label>
         Ordem de {'exibição'}
@@ -127,7 +140,12 @@ export function ComboForm({
                 <option value="">Selecionar</option>
                 {services.map((service) => (
                   <option key={service.publicId} value={service.publicId}>
-                    {service.name}
+                    {service.name} ·{' '}
+                    {(Number(service.priceCents) / 100).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}{' '}
+                    · {service.durationMinutes} min
                   </option>
                 ))}
               </select>

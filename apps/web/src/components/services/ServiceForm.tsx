@@ -70,6 +70,8 @@ export function ServiceForm({
     handleSubmit,
     reset,
     control,
+    getValues,
+    setValue,
     formState: { errors },
   } = form;
   const [duration, hasBreak, breakMinutes] = useWatch({
@@ -84,6 +86,8 @@ export function ServiceForm({
     hasBreak === true,
     Number(breakMinutes) || 0,
   );
+  const formatMoney = (value: number) =>
+    (value / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <form
@@ -130,17 +134,34 @@ export function ServiceForm({
         <input {...register('imageAlt')} />
       </label>
       <label>
-        {'Dura\u00e7\u00e3o em minutos'}
-        <input
-          min="1"
-          max="1440"
-          type="number"
-          {...register('durationMinutes', { valueAsNumber: true })}
-        />
+        Duração
+        <select {...register('durationMinutes', { valueAsNumber: true })}>
+          {[30, 45, 60, 90, 120].map((minutes) => (
+            <option key={minutes} value={minutes}>
+              {minutes < 60
+                ? `${minutes} min`
+                : minutes % 60 === 0
+                  ? `${minutes / 60} h`
+                  : `${Math.floor(minutes / 60)} h ${minutes % 60}`}
+            </option>
+          ))}
+        </select>
       </label>
       <label>
-        {'Pre\u00e7o em centavos'}
-        <input min="0" type="number" {...register('priceCents', { valueAsNumber: true })} />
+        Preço
+        <input
+          min="0"
+          inputMode="decimal"
+          type="number"
+          step="0.01"
+          defaultValue={Number(getValues('priceCents')) / 100}
+          onChange={(event) =>
+            setValue('priceCents', Math.round(Number(event.target.value.replace(',', '.')) * 100), {
+              shouldDirty: true,
+            })
+          }
+        />
+        <small>{formatMoney(Number(getValues('priceCents')) || 0)}</small>
       </label>
       <label>
         Cor para agenda

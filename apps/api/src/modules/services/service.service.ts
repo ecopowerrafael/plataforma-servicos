@@ -31,6 +31,8 @@ function toPublic(service: ServiceRecord) {
     description: service.description,
     imageAlt: service.imageAlt,
     categoryPublicId: service.category?.publicId ?? null,
+    categoryName: service.category?.name ?? null,
+    enabledProfessionalCount: service._count.professionalServices,
     imageUrl: service.imagePath === null ? null : `/tenant/services/${service.publicId}/image`,
     durationMinutes: service.durationMinutes,
     hasPostServiceBreak: service.hasPostServiceBreak,

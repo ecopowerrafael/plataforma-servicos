@@ -7432,3 +7432,110 @@ h1 {
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
+/* Service catalog */
+.service-catalog-list {
+  display: grid;
+  gap: 8px;
+}
+.service-catalog-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 130px 90px 24px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  text-align: left;
+}
+.service-catalog-row:hover {
+  background: var(--ds-surface-subtle);
+}
+.service-catalog-row span {
+  display: grid;
+  gap: 4px;
+}
+.service-catalog-row small {
+  color: var(--ds-text-muted);
+}
+.service-profile {
+  display: grid;
+  gap: 20px;
+}
+.service-profile-header {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-xl);
+  background: var(--ds-surface);
+}
+.service-profile-header img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--ds-radius-md);
+}
+.service-profile-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--ds-radius-md);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.service-profile-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.service-profile-title h2,
+.service-profile-header p {
+  margin: 0;
+}
+.service-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 899px) {
+  .service-catalog-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .service-catalog-row > span:nth-of-type(2) {
+    grid-column: 2;
+  }
+  .service-catalog-row .ds-badge {
+    display: none;
+  }
+  .service-catalog-row i {
+    grid-column: 3;
+    grid-row: 1/3;
+  }
+  .service-profile-header {
+    grid-template-columns: 48px minmax(0, 1fr);
+    padding: 16px;
+  }
+  .service-profile-header img,
+  .service-profile-icon {
+    width: 48px;
+    height: 48px;
+  }
+  .service-profile-header .crm-quick-actions {
+    grid-column: 1/-1;
+    justify-content: start;
+  }
+  .service-profile-grid {
+    grid-template-columns: 1fr;
+  }
+  .service-profile {
+    padding-bottom: 76px;
+  }
+}

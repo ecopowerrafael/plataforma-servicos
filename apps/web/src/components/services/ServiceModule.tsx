@@ -1,63 +1,57 @@
 import {
   CreateServiceRequestSchema,
+  ServiceCategoryListResponseSchema,
   ServiceListResponseSchema,
   ServicePublicSchema,
-  ServiceStatusResponseSchema,
-  ServiceCategoryListResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { type z } from 'zod';
+import { useNavigate } from 'react-router-dom';
 
-import { httpClient } from '../../lib/http.js';
-import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { ServiceForm, type ServiceSubmission } from './ServiceForm.js';
-import { ServiceImageUpload } from './ServiceImageUpload.js';
-import { ServiceVariations } from './ServiceVariations.js';
 import { TenantServiceImage } from './TenantServiceImage.js';
-import { ProfessionalServiceLinks } from '../professionals/ProfessionalServiceLinks.js';
-import { PageToolbar, StatusBadge } from '../ui/AppUi.js';
+import { httpClient } from '../../lib/http.js';
+import {
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+  PageToolbar,
+  Pagination,
+  StatusBadge,
+} from '../ui/AppUi.js';
+
+const money = (cents: string) =>
+  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function ServiceModule({
   tenantPublicId,
-  terminology = 'Servi\u00e7o',
+  terminology = 'Serviço',
 }: {
   tenantPublicId: string;
   terminology?: string;
 }) {
-  const client = useQueryClient();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [active, setActive] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
+  const [category, setCategory] = useState('');
   const [creating, setCreating] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const services = useQuery({
     queryKey: ['tenant', tenantPublicId, 'services', page, search, active],
     queryFn: () => {
-      const query = new URLSearchParams({ page: String(page), limit: '10' });
-      if (search.trim() !== '') query.set('search', search.trim());
-      if (active !== '') query.set('active', active);
-      return httpClient.request(`/tenant/services?${query.toString()}`, {
+      const q = new URLSearchParams({ page: String(page), limit: '10' });
+      if (search.trim()) q.set('search', search.trim());
+      if (active) q.set('active', active);
+      return httpClient.request(`/tenant/services?${q}`, {
         schema: ServiceListResponseSchema,
         tenantPublicId,
       });
     },
     retry: false,
   });
-  const detail = useQuery({
-    queryKey: ['tenant', tenantPublicId, 'service', selected],
-    queryFn: () =>
-      httpClient.request(`/tenant/services/${selected ?? ''}`, {
-        schema: ServicePublicSchema,
-        tenantPublicId,
-      }),
-    enabled: selected !== null,
-    retry: false,
-  });
   const categories = useQuery({
-    queryKey: ['tenant', tenantPublicId, 'service-categories', 'active'],
+    queryKey: ['tenant', tenantPublicId, 'service-categories'],
     queryFn: () =>
       httpClient.request('/tenant/service-categories?limit=100&active=true', {
         schema: ServiceCategoryListResponseSchema,
@@ -65,125 +59,80 @@ export function ServiceModule({
       }),
     retry: false,
   });
-  const mutation = useMutation({
-    mutationFn: ({
-      url,
-      method = 'POST',
-      body,
-      schema = ServicePublicSchema,
-    }: {
-      url: string;
-      method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-      body?: unknown;
-      schema?: z.ZodType;
-    }) =>
-      httpClient.request(url, {
-        method,
-        ...(body === undefined ? {} : { body }),
-        schema,
+  const create = useMutation({
+    mutationFn: (body: ServiceSubmission) =>
+      httpClient.request('/tenant/services', {
+        method: 'POST',
+        body: CreateServiceRequestSchema.parse(body),
+        schema: ServicePublicSchema,
         tenantPublicId,
       }),
-    onSuccess: async () => {
-      setNotice('Opera\u00e7\u00e3o conclu\u00edda com sucesso.');
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'services'] }),
-        client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'service', selected] }),
-      ]);
+    onSuccess: async (service) => {
+      await queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'services'] });
+      void navigate(`/app/servicos/${service.publicId}`);
     },
   });
-  const save = async (value: ServiceSubmission) => {
-    const result = await mutation.mutateAsync({
-      url: selected === null ? '/tenant/services' : `/tenant/services/${selected}`,
-      method: selected === null ? 'POST' : 'PATCH',
-      body: CreateServiceRequestSchema.parse(value),
-    });
-    const parsed = ServicePublicSchema.parse(result);
-    setSelected(parsed.publicId);
-    setCreating(false);
-  };
-  const updateImage = async (file: File) => {
-    if (selected === null) return;
-    const body = new FormData();
-    body.set('file', file, file.name);
-    await mutation.mutateAsync({ url: `/tenant/services/${selected}/image`, method: 'PUT', body });
-  };
-  const removeImage = async () => {
-    if (selected === null) return;
-    await mutation.mutateAsync({ url: `/tenant/services/${selected}/image`, method: 'DELETE' });
-  };
-  const requestRemoveImage = () => {
-    setConfirmation({
-      title: 'Remover imagem?',
-      description: 'A imagem principal ser\u00e1 removida deste item.',
-      confirmLabel: 'Remover imagem',
-      requiresReason: false,
-      variant: 'danger',
-      onConfirm: removeImage,
-    });
-    return Promise.resolve();
-  };
-  const requestStatus = (enabled: boolean) => {
-    if (selected === null) return;
-    setConfirmation({
-      title: enabled
-        ? `Ativar ${terminology.toLowerCase()}?`
-        : `Desativar ${terminology.toLowerCase()}?`,
-      description: enabled
-        ? 'O item voltar\u00e1 a ficar dispon\u00edvel.'
-        : 'O item deixar\u00e1 de ficar dispon\u00edvel.',
-      confirmLabel: enabled ? 'Ativar' : 'Desativar',
-      requiresReason: false,
-      variant: enabled ? 'default' : 'danger',
-      onConfirm: async () => {
-        await mutation.mutateAsync({
-          url: `/tenant/services/${selected}/${enabled ? 'activate' : 'deactivate'}`,
-          schema: ServiceStatusResponseSchema,
-        });
-      },
-    });
-  };
+  const items =
+    services.data?.items.filter(
+      (service) => category === '' || service.categoryPublicId === category,
+    ) ?? [];
   return (
-    <section aria-labelledby="service-title" className="sessions-panel">
-      <p className="eyebrow">Cat\u00e1logo</p>
-      <h2 id="service-title">{`${terminology}s`}</h2>
-      {notice !== null && <p className="success-message">{notice}</p>}
-      <button
-        onClick={() => {
-          setCreating((value) => !value);
-        }}
-        type="button"
-      >
-        {creating ? 'Fechar cria\u00e7\u00e3o' : `Criar ${terminology.toLowerCase()}`}
-      </button>
+    <section className="sessions-panel service-catalog">
+      <PageHeader
+        eyebrow="Catálogo"
+        title={`${terminology}s`}
+        description="Gerencie o que seus clientes podem agendar."
+        actions={
+          <button className="primary-button" type="button" onClick={() => { setCreating(true); }}>
+            + Novo serviço
+          </button>
+        }
+      />
       {creating && (
-        <ServiceForm
-          busy={mutation.isPending}
-          error={mutation.error instanceof Error ? mutation.error.message : null}
-          terminology={terminology}
-          categories={categories.data?.items ?? []}
-          onSave={save}
-        />
+        <div className="app-drawer">
+          <ServiceForm
+            busy={create.isPending}
+            error={create.error instanceof Error ? 'Não foi possível salvar o serviço.' : null}
+            terminology={terminology}
+            categories={categories.data?.items ?? []}
+            onSave={(value) => create.mutateAsync(value).then(() => undefined)}
+          />
+          <button className="secondary-button" type="button" onClick={() => { setCreating(false); }}>
+            Cancelar
+          </button>
+        </div>
       )}
       <PageToolbar>
-        <label>
+        <label className="ds-field--wide">
           Busca
           <input
+            value={search}
+            placeholder="Buscar por nome"
             onChange={(event) => {
               setPage(1);
               setSearch(event.target.value);
             }}
-            placeholder={`Nome do ${terminology.toLowerCase()}`}
-            value={search}
           />
+        </label>
+        <label>
+          Categoria
+          <select value={category} onChange={(event) => { setCategory(event.target.value); }}>
+            <option value="">Todas</option>
+            {categories.data?.items.map((item) => (
+              <option key={item.publicId} value={item.publicId}>
+                {item.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Status
           <select
+            value={active}
             onChange={(event) => {
               setPage(1);
               setActive(event.target.value);
             }}
-            value={active}
           >
             <option value="">Todos</option>
             <option value="true">Ativos</option>
@@ -192,143 +141,59 @@ export function ServiceModule({
         </label>
       </PageToolbar>
       {services.isPending ? (
-        <p>{`Carregando ${terminology.toLowerCase()}s\u2026`}</p>
+        <ListSkeleton rows={6} />
       ) : services.error instanceof Error ? (
-        <p className="form-error">{`N\u00e3o foi poss\u00edvel carregar ${terminology.toLowerCase()}s.`}</p>
-      ) : services.data === undefined || services.data.items.length === 0 ? (
-        <p>Nenhum item encontrado.</p>
+        <EmptyState
+          title="Não foi possível carregar os serviços."
+          description="Tente novamente."
+          action={<button onClick={() => void services.refetch()}>Tentar novamente</button>}
+        />
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="Crie seu primeiro serviço"
+          description="Cadastre o que seus clientes poderão agendar."
+          action={<button onClick={() => { setCreating(true); }}>+ Criar serviço</button>}
+        />
       ) : (
         <>
-          <div className="data-list">
-            {services.data.items.map((service) => (
+          <div className="service-catalog-list">
+            {items.map((service) => (
               <button
-                className="data-row"
                 key={service.publicId}
-                onClick={() => {
-                  setSelected(service.publicId);
-                  setCreating(false);
-                }}
+                className="service-catalog-row"
                 type="button"
+                onClick={() => void navigate(`/app/servicos/${service.publicId}`)}
               >
                 <TenantServiceImage
                   alt={service.imageAlt ?? service.name}
                   servicePublicId={service.publicId}
                   tenantPublicId={tenantPublicId}
                 />
-                <span>{service.name}</span>
-                <span>{`${String(service.durationMinutes)} min`}</span>
+                <span>
+                  <strong>{service.name}</strong>
+                  <small>
+                    {service.categoryName ?? 'Sem categoria'} · {service.enabledProfessionalCount ?? 0}{' '}
+                    profissional(is)
+                  </small>
+                </span>
+                <span>
+                  <strong>{money(service.priceCents)}</strong>
+                  <small>{service.durationMinutes} min</small>
+                </span>
                 <StatusBadge active={service.active}>
                   {service.active ? 'Ativo' : 'Inativo'}
                 </StatusBadge>
+                <i aria-hidden="true">›</i>
               </button>
             ))}
           </div>
-          <div className="form-actions">
-            <button
-              disabled={page <= 1}
-              onClick={() => {
-                setPage((value) => value - 1);
-              }}
-              type="button"
-            >
-              Anterior
-            </button>
-            <span>{`P\u00e1gina ${String(services.data.page.page)} de ${String(services.data.page.totalPages)}`}</span>
-            <button
-              disabled={page >= services.data.page.totalPages}
-              onClick={() => {
-                setPage((value) => value + 1);
-              }}
-              type="button"
-            >
-              Pr\u00f3xima
-            </button>
-          </div>
-          <ProfessionalServiceLinks
-            tenantPublicId={tenantPublicId}
-            servicePublicId={selected ?? ''}
+          <Pagination
+            page={services.data?.page.page ?? 1}
+            totalPages={services.data?.page.totalPages ?? 1}
+            onPrevious={() => { setPage((value) => value - 1); }}
+            onNext={() => { setPage((value) => value + 1); }}
           />
         </>
-      )}
-      {detail.data !== undefined && (
-        <article className="sessions-panel">
-          <h3>{detail.data.name}</h3>
-          {detail.data.imageUrl !== null && (
-            <TenantServiceImage
-              alt={detail.data.imageAlt ?? detail.data.name}
-              servicePublicId={detail.data.publicId}
-              tenantPublicId={tenantPublicId}
-            />
-          )}
-          <dl className="platform-details">
-            <div>
-              <dt>Dura\u00e7\u00e3o</dt>
-              <dd>{`${String(detail.data.durationMinutes)} minutos`}</dd>
-            </div>
-            <div>
-              <dt>Pausa</dt>
-              <dd>
-                {detail.data.hasPostServiceBreak
-                  ? `${String(detail.data.postServiceBreakMinutes)} minutos`
-                  : 'Sem pausa'}
-              </dd>
-            </div>
-            <div>
-              <dt>Pre\u00e7o</dt>
-              <dd>{detail.data.priceCents}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{detail.data.active ? 'Ativo' : 'Inativo'}</dd>
-            </div>
-          </dl>
-          <ServiceForm
-            busy={mutation.isPending}
-            error={mutation.error instanceof Error ? mutation.error.message : null}
-            service={detail.data}
-            terminology={terminology}
-            categories={categories.data?.items ?? []}
-            onSave={save}
-          />
-          <ServiceImageUpload
-            busy={mutation.isPending}
-            hasImage={detail.data.imageUrl !== null}
-            onRemove={requestRemoveImage}
-            onUpload={updateImage}
-          />
-          <ServiceVariations
-            servicePublicId={detail.data.publicId}
-            tenantPublicId={tenantPublicId}
-          />
-          <div className="form-actions">
-            <button
-              disabled={mutation.isPending || detail.data.active}
-              onClick={() => {
-                requestStatus(true);
-              }}
-              type="button"
-            >
-              Ativar
-            </button>
-            <button
-              disabled={mutation.isPending || !detail.data.active}
-              onClick={() => {
-                requestStatus(false);
-              }}
-              type="button"
-            >
-              Desativar
-            </button>
-          </div>
-        </article>
-      )}
-      {confirmation !== null && (
-        <ConfirmationDialog
-          request={confirmation}
-          onClose={() => {
-            setConfirmation(null);
-          }}
-        />
       )}
     </section>
   );

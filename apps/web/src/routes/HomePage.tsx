@@ -66,6 +66,7 @@ const ServiceCategoryModule = load(
   'ServiceCategoryModule',
 );
 const ServiceModule = load(import('../components/services/ServiceModule.js'), 'ServiceModule');
+const ServiceProfile = load(import('../components/services/ServiceProfile.js'), 'ServiceProfile');
 const CashRegisterModule = load(
   import('../components/tenants/CashRegisterModule.js'),
   'CashRegisterModule',
@@ -1387,6 +1388,15 @@ export function HomePage() {
                 terminology={experience.data?.terminology.service.singular ?? 'Servi\u00e7o'}
               />
             )}
+            {location.pathname.startsWith('/app/servicos/') &&
+              !isRoute('/app/servicos/categorias', '/app/servicos/combos') &&
+              canReadServices && (
+                <ServiceProfile
+                  tenantPublicId={selectedTenant}
+                  publicId={location.pathname.slice('/app/servicos/'.length)}
+                  terminology={experience.data?.terminology.service.singular ?? 'Serviço'}
+                />
+              )}
             {isRoute('/app/servicos/combos') && canReadServices && (
               <ComboModule tenantPublicId={selectedTenant} />
             )}

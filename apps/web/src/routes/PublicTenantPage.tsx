@@ -158,7 +158,9 @@ export function PublicTenantPage() {
             {site.data.site.heroSubtitle ?? 'Conhe\u00e7a nossos servi\u00e7os e nossa equipe.'}
           </p>
           {site.data.site.primaryCallToAction === null ? null : (
-            <span className="public-cta">{site.data.site.primaryCallToAction}</span>
+            <a className="public-cta" href="#agendar">
+              {site.data.site.primaryCallToAction}
+            </a>
           )}
         </section>
         <section>
@@ -172,6 +174,12 @@ export function PublicTenantPage() {
                 <h3>{service.name}</h3>
                 <p>{service.description}</p>
                 <small>{`${String(service.durationMinutes)} min`}</small>
+                <a
+                  className="public-service-booking-link"
+                  href={`?service=${service.publicId}#agendar`}
+                >
+                  Agendar este serviço
+                </a>
               </article>
             ))}
           </div>
@@ -190,7 +198,7 @@ export function PublicTenantPage() {
             ))}
           </div>
         </section>
-        <section>
+        <section id="agendar">
           <h2>{site.data.terminology.appointment.singular}</h2>
           <PublicBookingFlow slug={slug} site={site.data} />
         </section>

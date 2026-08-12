@@ -3473,6 +3473,18 @@ h1 {
 .professional-detail-header { display:flex; align-items:center; gap:1rem; padding:1.3rem; border:1px solid var(--panel-line); border-radius:1.15rem; background:linear-gradient(135deg,#fbfcff,#f2f5ff); }
 .professional-detail-header h3 { margin:.1rem 0 .45rem; color:var(--panel-ink); font-size:1.35rem; }
 .professional-detail-header .photo-upload-button { margin-left:auto; }
+.professional-header-summary { margin:.55rem 0 0; color:var(--panel-muted); font-size:.86rem; }
+.professional-tabs { display:flex; gap:.35rem; overflow-x:auto; padding:.35rem; border:1px solid var(--panel-line); border-radius:1rem; background:#f8faff; }
+.professional-tabs button { flex:0 0 auto; border:0; border-radius:.7rem; padding:.65rem .85rem; background:transparent; color:var(--panel-muted); font-weight:700; cursor:pointer; }
+.professional-tabs button.active { color:var(--panel-ink); background:#fff; box-shadow:0 2px 8px rgba(30,41,59,.1); }
+.weekly-schedule { display:grid; gap:1rem; }
+.week-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; }
+.week-day { padding:1rem; border:1px solid var(--panel-line); border-radius:1rem; background:#fff; display:grid; gap:.8rem; }
+.week-day.closed { background:#fafafa; color:var(--panel-muted); }
+.week-day p { margin:0; font-size:.9rem; }
+.week-day-heading { display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+.toggle { display:flex; gap:.4rem; align-items:center; font-size:.78rem; color:var(--panel-muted); cursor:pointer; }.toggle input { position:absolute; opacity:0; }.toggle span { width:2rem; height:1.1rem; border-radius:999px; background:#cbd5e1; position:relative; }.toggle span:after { content:''; position:absolute; top:.15rem; left:.15rem; width:.8rem; height:.8rem; background:#fff; border-radius:50%; transition:.15s; }.toggle input:checked + span { background:#2563eb; }.toggle input:checked + span:after { transform:translateX(.9rem); }
+.time-row,.pause-row { display:flex; align-items:center; gap:.4rem; }.time-row input,.pause-row input { width:6.4rem; min-height:2.35rem; }.pause-row { flex-wrap:wrap; }.pause-row small { width:2.7rem; color:var(--panel-muted); }.day-actions,.form-actions { display:flex; gap:.65rem; flex-wrap:wrap; }.text-button { border:0; background:transparent; color:#2563eb; font-weight:700; cursor:pointer; padding:.25rem 0; }.schedule-empty { display:grid; gap:.3rem; padding:1rem; border-radius:.8rem; background:#eff6ff; color:#1e3a8a; }.schedule-empty span { font-size:.9rem; }.schedule-save-bar { position:sticky; bottom:1rem; z-index:5; display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.85rem 1rem; border:1px solid #bfdbfe; border-radius:1rem; background:#fff; box-shadow:0 12px 30px rgba(15,23,42,.15); }.schedule-save-bar>div { display:flex; gap:.5rem; }.schedule-copy-modal { position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:1rem; background:rgba(15,23,42,.45); }.schedule-copy-modal>div { width:min(34rem,100%); padding:1.35rem; border-radius:1.1rem; background:#fff; box-shadow:0 22px 60px rgba(15,23,42,.3); }.schedule-copy-modal h4,.schedule-copy-modal p { margin:.1rem 0 .7rem; }.copy-options { display:grid; grid-template-columns:repeat(2,1fr); gap:.6rem; margin:1rem 0; }
 .photo-upload-button { display:inline-flex !important; align-items:center; justify-content:center; min-height:2.65rem; padding:.65rem 1rem; border:1px solid #cbd5e1; border-radius:.75rem; background:#fff; color:#334155 !important; cursor:pointer; }
 .photo-upload-button input { position:absolute; width:1px !important; height:1px; opacity:0; pointer-events:none; }
 .professional-profile-form { grid-template-columns:repeat(2,minmax(0,1fr)) !important; align-items:start !important; padding:1.4rem !important; }
@@ -3506,6 +3518,7 @@ h1 {
   .professional-profile-form label { grid-column:auto !important; }
   .professional-workspace-header,.professional-detail-header,.settings-card-header { align-items:flex-start; flex-direction:column; }
   .professional-detail-header .photo-upload-button { margin-left:0; }
+  .week-grid { grid-template-columns:1fr; }.schedule-save-bar { bottom:4.8rem; align-items:flex-start; flex-direction:column; width:calc(100% - 1.5rem); }.time-row input,.pause-row input { width:5.5rem; }
   .schedule-period-list li { grid-template-columns:1fr; }
 }
 .public-theme-premium footer { max-width: none; border-top: 1px solid rgb(255 255 255 / 15%); background: #050506; text-align: center; }

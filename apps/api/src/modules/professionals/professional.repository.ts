@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { type Prisma, type PrismaClient, type Professional } from '../../database-client/client.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 export type ProfessionalRecord = Professional & {
@@ -57,7 +59,13 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
   public create(data: Prisma.ProfessionalUncheckedCreateInput) {
     return this.client.$transaction(async (transaction) => {
       await new PlanEntitlementService().assertCanCreateProfessional(transaction, BigInt(data.tenantId));
-      return transaction.professional.create({ data, include });
+      const professional = await transaction.professional.create({ data, include });
+      const periods = [1, 2, 3, 4, 5, 6].flatMap((weekday) => [
+        { publicId: randomUUID(), tenantId: professional.tenantId, professionalId: professional.id, weekday, startsAt: '09:00', endsAt: '12:00', active: true },
+        { publicId: randomUUID(), tenantId: professional.tenantId, professionalId: professional.id, weekday, startsAt: '13:00', endsAt: '18:00', active: true },
+      ]);
+      await transaction.professionalWorkSchedule.createMany({ data: periods });
+      return professional;
     });
   }
   public update(id: bigint, data: Prisma.ProfessionalUncheckedUpdateInput) {

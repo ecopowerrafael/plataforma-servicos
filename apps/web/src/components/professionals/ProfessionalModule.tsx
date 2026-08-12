@@ -24,6 +24,7 @@ export function ProfessionalModule({
   const client = useQueryClient();
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState<'profile' | 'services' | 'schedule' | 'commission' | 'access'>('profile');
   const list = useQuery({
     queryKey: ['tenant', tenantPublicId, 'professionals'],
     queryFn: () =>
@@ -61,6 +62,7 @@ export function ProfessionalModule({
       body: CreateProfessionalRequestSchema.parse(value),
     });
     setSelected(out.publicId);
+    setTab('schedule');
     setCreating(false);
   };
   const uploadPhoto = async (file: File) => {
@@ -110,6 +112,7 @@ export function ProfessionalModule({
             type="button"
             onClick={() => {
               setSelected(professional.publicId);
+              setTab('profile');
             }}
           >
             <TenantProfessionalPhoto name={professional.publicName} professionalPublicId={professional.publicId} tenantPublicId={tenantPublicId} />
@@ -124,33 +127,38 @@ export function ProfessionalModule({
         <article className="professional-detail">
           <header className="professional-detail-header">
             <TenantProfessionalPhoto name={detail.data.publicName} professionalPublicId={detail.data.publicId} tenantPublicId={tenantPublicId} size="large" />
-            <div><p className="eyebrow">Perfil selecionado</p><h3>{detail.data.publicName}</h3><span className={`status-badge ${detail.data.active ? 'status-active' : 'status-muted'}`}>{detail.data.active ? 'Ativo' : 'Inativo'}</span></div>
+            <div><p className="eyebrow">Perfil selecionado</p><h3>{detail.data.publicName}</h3><span className={`status-badge ${detail.data.active ? 'status-active' : 'status-muted'}`}>{detail.data.active ? 'Ativo' : 'Inativo'}</span><p className="professional-header-summary">Agenda padrão configurada · ajuste os horários na guia Agenda.</p></div>
             <label className="photo-upload-button">Alterar foto<input accept="image/jpeg,image/png,image/webp" type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file !== undefined) void uploadPhoto(file); }} /></label>
           </header>
-          <ProfessionalForm
+          <nav className="professional-tabs" aria-label="Seções do profissional">
+            {([['profile', 'Perfil'], ['services', 'Serviços'], ['schedule', 'Agenda'], ['commission', 'Comissões'], ['access', 'Acesso']] as const).map(([id, label]) => <button className={tab === id ? 'active' : ''} key={id} type="button" onClick={() => { setTab(id); }}>{label}</button>)}
+          </nav>
+          {tab === 'profile' && <ProfessionalForm
             professional={detail.data}
             busy={mutation.isPending}
             error={mutation.error instanceof Error ? mutation.error.message : null}
             terminology={terminology}
             tenantPublicId={tenantPublicId}
             onSave={save}
-          />
-          <ProfessionalUnitLinks
+          />}
+          {tab === 'profile' && <ProfessionalUnitLinks
             tenantPublicId={tenantPublicId}
             professionalPublicId={detail.data.publicId}
-          />
-          <ProfessionalServiceLinks
+          />}
+          {tab === 'services' && <ProfessionalServiceLinks
             tenantPublicId={tenantPublicId}
             professionalPublicId={detail.data.publicId}
-          />
-          <ProfessionalSchedule
+          />}
+          {tab === 'schedule' && <><ProfessionalSchedule
             tenantPublicId={tenantPublicId}
             professionalPublicId={detail.data.publicId}
           />
           <ProfessionalUnavailability
             tenantPublicId={tenantPublicId}
             professionalPublicId={detail.data.publicId}
-          />
+          /></>}
+          {tab === 'commission' && <ProfessionalForm professional={detail.data} busy={mutation.isPending} error={mutation.error instanceof Error ? mutation.error.message : null} terminology={terminology} tenantPublicId={tenantPublicId} onSave={save} section="commission" />}
+          {tab === 'access' && <ProfessionalForm professional={detail.data} busy={mutation.isPending} error={mutation.error instanceof Error ? mutation.error.message : null} terminology={terminology} tenantPublicId={tenantPublicId} onSave={save} section="access" />}
         </article>
       )}
     </section>

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 
 import { environment } from '../../../config/environment.js';
 import { AppointmentPaymentPanel } from '../../PublicBookingFlow.js';
+import { DEMO_AVATAR } from '../demo-assets.js';
 import { ServiceVisual } from '../ServiceVisual.js';
 import {
   BOOKING_STEPS,
@@ -300,11 +301,18 @@ export function PremiumBooking({
                   }}
                 >
                   <span className="premium-pick-avatar">
-                    {item.photoUrl === null ? (
-                      <b>{initialsOf(item.name)}</b>
-                    ) : (
-                      <img src={`${environment.apiUrl}${item.photoUrl}`} alt="" />
-                    )}
+                    <b>{initialsOf(item.name)}</b>
+                    <img
+                      alt=""
+                      src={
+                        item.photoUrl === null
+                          ? DEMO_AVATAR
+                          : `${environment.apiUrl}${item.photoUrl}`
+                      }
+                      onError={(event) => {
+                        event.currentTarget.style.display = 'none';
+                      }}
+                    />
                   </span>
                   <span className="premium-pick-body">
                     <strong>{item.name}</strong>

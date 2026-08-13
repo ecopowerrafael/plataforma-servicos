@@ -82,6 +82,7 @@ export const TenantWhiteLabelResponseSchema = z.object({
 export const PublicTenantSiteResponseSchema = z.object({
   slug: TenantSlugOutputSchema,
   displayName: z.string(),
+  businessProfile: BusinessProfileCodeSchema,
   branding: TenantBrandingSchema,
   terminology: BusinessTerminologySchema,
   site: TenantPublicSiteSchema,

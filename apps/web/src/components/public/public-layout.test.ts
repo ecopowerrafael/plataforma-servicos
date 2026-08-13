@@ -1,6 +1,7 @@
 import { TenantPublicSiteSchema, UpdateTenantPublicSiteRequestSchema } from '@plataforma/shared';
 import { describe, expect, it } from 'vitest';
 
+import { DEMO_AVATAR, demoBannerFor } from './demo-assets.js';
 import { SERVICE_ICON_KEYS, serviceIcon } from './service-icons.js';
 import { deriveBrandPalette, PUBLIC_LAYOUTS } from '../branding/brand-studio.js';
 
@@ -55,5 +56,18 @@ describe('catálogo curado de ícones de serviço', () => {
   it('mantém a lista enxuta e sem chaves repetidas', () => {
     expect(new Set(SERVICE_ICON_KEYS).size).toBe(SERVICE_ICON_KEYS.length);
     expect(SERVICE_ICON_KEYS.length).toBeLessThanOrEqual(30);
+  });
+});
+
+describe('assets padrão do app público', () => {
+  it('mapeia o banner por tipo de negócio e cai no genérico quando desconhecido', () => {
+    expect(demoBannerFor('BARBERSHOP')).toBe('/demo/banners/barbershop.webp');
+    expect(demoBannerFor('PSYCHOLOGY')).toBe('/demo/banners/health.webp');
+    expect(demoBannerFor('QUALQUER_COISA')).toBe('/demo/banners/generic.webp');
+  });
+
+  it('usa o avatar versionado no projeto, sem URL externa', () => {
+    expect(DEMO_AVATAR).toBe('/demo/professional-avatar.webp');
+    expect(DEMO_AVATAR.startsWith('/')).toBe(true);
   });
 });

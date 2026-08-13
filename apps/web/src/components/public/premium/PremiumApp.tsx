@@ -10,6 +10,7 @@ import { PremiumBooking } from './PremiumBooking.js';
 import { PremiumBottomNav, type PremiumTab } from './PremiumBottomNav.js';
 import { environment } from '../../../config/environment.js';
 import { httpClient } from '../../../lib/http.js';
+import { DEMO_AVATAR, demoBannerFor } from '../demo-assets.js';
 import { ServiceVisual } from '../ServiceVisual.js';
 
 type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
@@ -66,6 +67,14 @@ export function PremiumApp({
     retry: false,
   });
   const upcoming = nextAppointmentOf(appointments.data?.items ?? []);
+  const hasBanner = site.assets.some(
+    (asset) => asset.kind === 'BANNER_MOBILE' || asset.kind === 'BANNER_DESKTOP',
+  );
+  // Banner de exemplo enquanto o tenant não envia o próprio; se o arquivo não
+  // existir, sobra apenas o gradiente do tema.
+  const heroStyle = hasBanner
+    ? undefined
+    : { '--tenant-banner-mobile': `url(${demoBannerFor(site.businessProfile)})` };
 
   return (
     <div className="premium-app">
@@ -96,7 +105,7 @@ export function PremiumApp({
 
       {tab === 'home' ? (
         <main className="premium-main">
-          <section className="premium-hero">
+          <section className="premium-hero" style={heroStyle as React.CSSProperties | undefined}>
             <div>
               <p className="premium-eyebrow">
                 {site.site.heroSubtitle ?? 'Agende em poucos toques'}
@@ -161,14 +170,18 @@ export function PremiumApp({
                 {site.professionals.map((professional) => (
                   <article key={professional.publicId} className="premium-professional">
                     <span className="premium-avatar">
-                      {professional.photoUrl === null ? (
-                        <b>{initials(professional.name)}</b>
-                      ) : (
-                        <img
-                          src={`${environment.apiUrl}${professional.photoUrl}`}
-                          alt={professional.name}
-                        />
-                      )}
+                      <b>{initials(professional.name)}</b>
+                      <img
+                        alt=""
+                        src={
+                          professional.photoUrl === null
+                            ? DEMO_AVATAR
+                            : `${environment.apiUrl}${professional.photoUrl}`
+                        }
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none';
+                        }}
+                      />
                     </span>
                     <strong>{professional.name}</strong>
                     {professional.bio === null ? null : <small>{professional.bio}</small>}

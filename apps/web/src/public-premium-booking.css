@@ -131,9 +131,13 @@
   overflow: hidden;
   width: 3rem;
 }
+.premium-pick-avatar {
+  position: relative;
+}
 .premium-pick-avatar img {
   height: 100%;
   object-fit: cover;
+  position: absolute;
   width: 100%;
 }
 .premium-unit-row,

@@ -201,12 +201,27 @@ function slugify(value: string): string {
     .slice(0, 63);
 }
 
+const GUIDED_STEPS = [
+  'WELCOME',
+  'BUSINESS_TYPE',
+  'STARTER_CONTENT',
+  'BUSINESS_IDENTITY',
+  'BUSINESS_ADDRESS',
+  'CUSTOMIZE',
+  'LAYOUT',
+  'COLORS',
+  'SPLASH',
+  'APP_ICON',
+  'READY',
+];
+
 function previousOnboardingStep(step: string): string | null {
   return (
     (
       {
         BUSINESS_TYPE: 'WELCOME',
-        BUSINESS_IDENTITY: 'BUSINESS_TYPE',
+        STARTER_CONTENT: 'BUSINESS_TYPE',
+        BUSINESS_IDENTITY: 'STARTER_CONTENT',
         BUSINESS_ADDRESS: 'BUSINESS_IDENTITY',
         CUSTOMIZE: 'BUSINESS_ADDRESS',
         LAYOUT: 'CUSTOMIZE',
@@ -232,6 +247,14 @@ export function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  // "Sair do início guiado" apenas pausa: o CTA no painel retoma a etapa pendente.
+  const [guidedPaused, setGuidedPaused] = useState(
+    () => sessionStorage.getItem('agendei:onboarding-paused') === '1',
+  );
+  const pauseGuided = (paused: boolean) => {
+    sessionStorage.setItem('agendei:onboarding-paused', paused ? '1' : '0');
+    setGuidedPaused(paused);
+  };
   const me = useQuery({
     queryKey: ['auth', 'me', selectedTenant],
     queryFn: () =>
@@ -730,9 +753,17 @@ export function HomePage() {
   const isRoute = (...paths: string[]) => paths.includes(location.pathname);
   const previousStep =
     onboarding.data === undefined ? null : previousOnboardingStep(onboarding.data.onboardingStep);
+  // O início guiado é uma experiência própria: ocupa a tela e esconde a navegação.
+  const guidedData = onboarding.data;
+  const guidedActive =
+    selectedTenant !== undefined &&
+    me.data.currentTenant?.membership.roleCode === 'OWNER' &&
+    guidedData?.onboardingCompletedAt === null;
+  const guidedStep = guidedData?.onboardingStep ?? 'WELCOME';
+  const guidedStepIndex = Math.max(0, GUIDED_STEPS.indexOf(guidedStep));
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell${guidedActive && !guidedPaused ? ' is-onboarding' : ''}`}>
       <header className="app-header">
         <div>
           <p className="eyebrow">
@@ -754,23 +785,52 @@ export function HomePage() {
           Sair
         </button>
       </header>
-      {location.pathname === '/app' &&
-        selectedTenant !== undefined &&
-        me.data.currentTenant?.membership.roleCode === 'OWNER' &&
-        onboarding.data?.onboardingCompletedAt === null && (
+      {guidedActive && guidedPaused && (
+        <button
+          className="onboarding-resume"
+          type="button"
+          onClick={() => {
+            pauseGuided(false);
+          }}
+        >
+          <span>Continuar configuração</span>
+          <small>{`Etapa ${String(guidedStepIndex + 1)} de ${String(GUIDED_STEPS.length)}`}</small>
+        </button>
+      )}
+      {guidedActive && !guidedPaused && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="Início guiado">
           <section className="onboarding-welcome" aria-label="Primeiros passos">
-            <p className="eyebrow">Primeiros passos</p>
-            {previousStep !== null && (
+            <header className="onboarding-topbar">
+              {previousStep === null ? (
+                <span />
+              ) : (
+                <button
+                  className="onboarding-back"
+                  aria-label="Voltar"
+                  onClick={() => {
+                    updateOnboarding.mutate({ step: previousStep });
+                  }}
+                >
+                  ←
+                </button>
+              )}
+              <span className="onboarding-progress" aria-label={`Etapa ${String(guidedStepIndex + 1)} de ${String(GUIDED_STEPS.length)}`}>
+                {GUIDED_STEPS.map((id, position) => (
+                  <i key={id} className={position <= guidedStepIndex ? 'is-done' : ''} />
+                ))}
+              </span>
               <button
-                className="text-button"
+                className="onboarding-exit"
+                type="button"
                 onClick={() => {
-                  updateOnboarding.mutate({ step: previousStep });
+                  pauseGuided(true);
                 }}
               >
-                Voltar
+                Sair do início guiado
               </button>
-            )}
-            {onboarding.data.onboardingStep === 'WELCOME' && (
+            </header>
+            <div className="onboarding-body">
+            {guidedStep === 'WELCOME' && (
               <>
                 <h2>Vamos criar sua empresa?</h2>
                 <p>
@@ -787,7 +847,7 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {onboarding.data.onboardingStep === 'BUSINESS_TYPE' && (
+            {guidedStep === 'BUSINESS_TYPE' && (
               <>
                 <h2>Qual é o tipo do seu negócio?</h2>
                 <label>
@@ -822,7 +882,7 @@ export function HomePage() {
                   disabled={profile === 'GENERIC' && customBusinessType.trim().length < 2}
                   onClick={() => {
                     updateOnboarding.mutate({
-                      step: 'BUSINESS_IDENTITY',
+                      step: 'STARTER_CONTENT',
                       businessProfile: profile,
                       ...(profile === 'GENERIC'
                         ? { businessTypeCustom: customBusinessType.trim() }
@@ -834,7 +894,32 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {onboarding.data.onboardingStep === 'BUSINESS_IDENTITY' && (
+            {guidedStep === 'STARTER_CONTENT' && (
+              <>
+                <h2>Preparamos seu espaço para você começar mais rápido.</h2>
+                <p>
+                  Adicionamos alguns serviços, um profissional, horários e conteúdo de exemplo com
+                  base no seu tipo de negócio. Você pode editar ou excluir tudo e criar seus
+                  próprios dados quando quiser.
+                </p>
+                <ul className="onboarding-checklist-preview">
+                  <li>3 serviços com ícones</li>
+                  <li>1 combo</li>
+                  <li>1 profissional</li>
+                  <li>agenda de segunda a sábado, das 09:00 às 18:00</li>
+                  <li>visual inicial do aplicativo</li>
+                </ul>
+                <button
+                  className="primary-button"
+                  onClick={() => {
+                    updateOnboarding.mutate({ step: 'BUSINESS_IDENTITY' });
+                  }}
+                >
+                  Continuar
+                </button>
+              </>
+            )}
+            {guidedStep === 'BUSINESS_IDENTITY' && (
               <>
                 <h2>Como seus clientes conhecem sua empresa?</h2>
                 <p>
@@ -847,7 +932,7 @@ export function HomePage() {
                     onChange={(event) => {
                       setBusinessName(event.target.value);
                     }}
-                    placeholder={me.data.currentTenant.tenant.displayName}
+                    placeholder={me.data.currentTenant?.tenant.displayName ?? ''}
                   />
                 </label>
                 <button
@@ -864,7 +949,7 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {onboarding.data.onboardingStep === 'BUSINESS_ADDRESS' && (
+            {guidedStep === 'BUSINESS_ADDRESS' && (
               <>
                 <h2>Escolha o endereço do seu aplicativo</h2>
                 <p>
@@ -895,7 +980,7 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {onboarding.data.onboardingStep === 'CUSTOMIZE' && (
+            {guidedStep === 'CUSTOMIZE' && (
               <>
                 <h2>Agora vamos colocar sua marca</h2>
                 <BrandAssetDropzone
@@ -926,7 +1011,7 @@ export function HomePage() {
                 </div>
               </>
             )}
-            {onboarding.data.onboardingStep === 'LAYOUT' && (
+            {guidedStep === 'LAYOUT' && (
               <>
                 <h2>Como você quer apresentar seu negócio?</h2>
                 <p>Escolha um tema real da sua página pública.</p>
@@ -946,7 +1031,7 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {onboarding.data.onboardingStep === 'COLORS' && (
+            {guidedStep === 'COLORS' && (
               <>
                 <h2>Escolha as cores da sua empresa</h2>
                 <BrandColorPicker value={primaryColor} onChange={setPrimaryColor} />
@@ -964,7 +1049,7 @@ export function HomePage() {
                 </button>
               </>
             )}
-            {onboarding.data.onboardingStep === 'SPLASH' && (
+            {guidedStep === 'SPLASH' && (
               <>
                 <h2>Como seu aplicativo deve aparecer ao abrir?</h2>
                 <BrandAssetDropzone
@@ -995,7 +1080,7 @@ export function HomePage() {
                 </div>
               </>
             )}
-            {onboarding.data.onboardingStep === 'APP_ICON' && (
+            {guidedStep === 'APP_ICON' && (
               <>
                 <h2>Escolha o ícone do seu aplicativo</h2>
                 <BrandAssetDropzone
@@ -1027,7 +1112,7 @@ export function HomePage() {
                 </div>
               </>
             )}
-            {onboarding.data.onboardingStep === 'READY' && (
+            {guidedStep === 'READY' && (
               <>
                 <h2>Seu espaço está ficando com a sua cara.</h2>
                 <BrandPreview
@@ -1037,29 +1122,54 @@ export function HomePage() {
                   logoUrl={onboardingLogoUrl}
                   mode="mobile"
                 />
-                <p>Agora vamos cadastrar os serviços que seus clientes poderão agendar.</p>
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    updateOnboarding.mutate(
-                      { step: 'COMPLETE', completed: true },
-                      {
-                        onSuccess: () => {
-                          void navigate('/app/servicos');
+                <p>
+                  Seu aplicativo já tem serviços, profissional e horários. Veja como ficou ou vá
+                  direto para o painel.
+                </p>
+                <div className="onboarding-final-actions">
+                  <button
+                    className="primary-button"
+                    onClick={() => {
+                      updateOnboarding.mutate(
+                        { step: 'COMPLETE', completed: true },
+                        {
+                          onSuccess: () => {
+                            pauseGuided(false);
+                            if (onboardingBrand.data !== undefined)
+                              window.open(`/public/${onboardingBrand.data.slug}`, '_blank');
+                          },
                         },
-                      },
-                    );
-                  }}
-                >
-                  Cadastrar meus serviços
-                </button>
+                      );
+                    }}
+                  >
+                    Ver meu aplicativo
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() => {
+                      updateOnboarding.mutate(
+                        { step: 'COMPLETE', completed: true },
+                        {
+                          onSuccess: () => {
+                            pauseGuided(false);
+                            void navigate('/app');
+                          },
+                        },
+                      );
+                    }}
+                  >
+                    Ir para o painel
+                  </button>
+                </div>
               </>
             )}
             {onboardingActionError !== undefined && (
               <p className="form-error">{onboardingActionError.message}</p>
             )}
+            </div>
           </section>
-        )}
+        </div>
+      )}
       <nav className="app-navigation" aria-label="Navegação principal">
         <strong className="app-navigation-brand">
           {me.data.currentTenant?.tenant.displayName ?? 'Agendei'}

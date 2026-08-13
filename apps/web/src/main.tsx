@@ -7,6 +7,7 @@ import './styles.css';
 import './app-design-system.css';
 import './public-premium.css';
 import './public-premium-booking.css';
+import './onboarding.css';
 
 const rootElement = document.getElementById('root');
 

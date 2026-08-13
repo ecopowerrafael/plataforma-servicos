@@ -119,7 +119,9 @@ describe('tenant Brand Studio contracts', () => {
     expect(homeSource).toContain("navigate('/app/servicos')");
     expect(homeSource).toContain("BUSINESS_ADDRESS: 'BUSINESS_IDENTITY'");
     expect(homeSource).toContain('Seu espaço está ficando com a sua cara.');
-    expect(homeSource).toContain('Cadastrar meus serviços');
+    // A etapa final passou a oferecer o app público e o painel.
+    expect(homeSource).toContain('Ver meu aplicativo');
+    expect(homeSource).toContain('Ir para o painel');
   });
 
   it('renders three compositionally distinct public themes', () => {

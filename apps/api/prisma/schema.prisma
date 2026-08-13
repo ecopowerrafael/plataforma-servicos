@@ -380,6 +380,11 @@ model Tenant {
   onboardingStep               String                           @default("WELCOME") @map("onboarding_step") @db.VarChar(40)
   onboardingCompletedAt        DateTime?                        @map("onboarding_completed_at") @db.DateTime(3)
   onboardingChecklistHiddenAt  DateTime?                        @map("onboarding_checklist_hidden_at") @db.DateTime(3)
+  /// Marca técnica do bootstrap de conteúdo inicial; garante idempotência.
+  starterContentSeededAt       DateTime?                        @map("starter_content_seeded_at") @db.DateTime(3)
+  /// publicIds do conteúdo inicial gerado pelo sistema, para poder substituí-lo
+  /// quando o tipo de negócio muda durante o onboarding.
+  starterContentIds            Json?                            @map("starter_content_ids")
   createdAt                    DateTime                         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                    DateTime                         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   settings                     TenantSettings?

@@ -4,6 +4,7 @@ import {
   type UpdateTenantIdentityRequest,
 } from '@plataforma/shared';
 
+import { seedStarterContent } from './starter-content.service.js';
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
@@ -132,7 +133,7 @@ export async function updateTenantOnboarding(
   if (input.slug !== undefined && input.slug !== current.slug && current.slugChangedAt !== null)
     throw slugAlreadyChanged();
   try {
-    return await client.$transaction(async (transaction) => {
+    const result = await client.$transaction(async (transaction) => {
       await lockSlugChange(transaction, tenantId, current.slug, input.slug, now);
       const tenant = await transaction.tenant.update({
         where: { id: tenantId },
@@ -180,6 +181,15 @@ export async function updateTenantOnboarding(
       }
       return tenant;
     });
+    // Conteúdo inicial só depois de conhecer o tipo de negócio; a própria função
+    // é idempotente e não toca em tenants que já possuem catálogo.
+    if (input.businessProfile !== undefined)
+      await seedStarterContent(
+        client,
+        tenantId,
+        (input.businessProfile ?? current.businessProfile) as BusinessProfileCode,
+      );
+    return result;
   } catch (error) {
     if (isUniqueConflict(error)) throw slugConflict(error);
     throw error;

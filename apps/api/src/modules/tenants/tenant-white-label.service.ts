@@ -330,6 +330,7 @@ export class TenantWhiteLabelService {
     return PublicTenantSiteResponseSchema.parse({
       slug: tenant.slug,
       displayName: tenant.displayName,
+      businessProfile: tenant.businessProfile,
       branding: experience.branding,
       terminology: experience.terminology,
       site: sitePublic(tenant.publicSite),

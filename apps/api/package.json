@@ -18,7 +18,8 @@
     "db:reset-initial": "tsx src/database/reset-initial-database.ts",
     "db:bootstrap": "tsx src/database/bootstrap.ts",
     "platform-admin:create": "tsx src/database/create-platform-admin.ts",
-    "worker:once": "node dist/worker/run-once.js"
+    "worker:once": "node dist/worker/run-once.js",
+    "db:migrate:recover": "tsx src/database/recover-failed-migrations.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.0",

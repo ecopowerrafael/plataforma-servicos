@@ -1438,11 +1438,12 @@ model CustomerPasswordResetToken {
   usedAt      DateTime? @map("used_at") @db.DateTime(3)
   createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
   requestedIp String?   @map("requested_ip") @db.VarChar(45)
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "cust_pwd_reset_tenant_id_fkey")
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "cust_pwd_reset_customer_id_fkey")
 
-  @@index([customerId, usedAt, expiresAt])
-  @@index([expiresAt])
+  // Nomes curtos: identificador do MySQL tem limite de 64 caracteres.
+  @@index([customerId, usedAt, expiresAt], map: "cust_pwd_reset_customer_used_exp_idx")
+  @@index([expiresAt], map: "cust_pwd_reset_expires_at_idx")
   @@map("customer_password_reset_tokens")
 }
 

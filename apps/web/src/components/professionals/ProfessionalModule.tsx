@@ -108,9 +108,12 @@ export function ProfessionalModule({
       schema: ProfessionalPublicSchema,
       tenantPublicId,
     });
-    await client.invalidateQueries({
-      queryKey: ['tenant', tenantPublicId, 'professional', selected],
-    });
+    await Promise.all([
+      client.invalidateQueries({
+        queryKey: ['tenant', tenantPublicId, 'professional', selected],
+      }),
+      client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'professionals'] }),
+    ]);
   };
   const changeTab = (next: ProfessionalTab) => {
     setEditing(null);
@@ -173,6 +176,7 @@ export function ProfessionalModule({
                   name={professional.publicName}
                   professionalPublicId={professional.publicId}
                   tenantPublicId={tenantPublicId}
+                  version={professional.updatedAt}
                 />
                 <span>
                   <strong>{professional.publicName}</strong>

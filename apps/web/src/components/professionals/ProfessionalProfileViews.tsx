@@ -45,6 +45,7 @@ export function ProfileHeader({
         professionalPublicId={professional.publicId}
         tenantPublicId={tenantPublicId}
         size="large"
+        version={professional.updatedAt}
       />
       <div className="profile-hero-copy">
         <p className="eyebrow">Perfil profissional</p>

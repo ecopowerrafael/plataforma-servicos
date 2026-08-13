@@ -8144,6 +8144,254 @@ h1 {
   gap: 16px;
 }
 .service-editor-card {
+  max-width: 68rem;
+}
+.service-form-section {
+  border: 0;
+  border-top: 1px solid var(--ds-border);
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 0 4px;
+}
+.service-form-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.service-form-section > legend {
+  color: var(--ds-text);
+  font-size: 0.94rem;
+  font-weight: 800;
+  padding: 0;
+}
+.service-image-picker {
+  display: grid;
+  gap: 10px;
+  max-width: 28rem;
+}
+.service-image-picker .service-image-frame {
+  min-height: 8.5rem;
+}
+.service-image-picker img {
+  max-height: 12rem;
+  max-width: 100%;
+  object-fit: contain;
+}
+.service-image-warning {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+/* Combos */
+.combo-form {
+  display: grid;
+  gap: 16px;
+}
+.combo-form-section {
+  border: 0;
+  border-top: 1px solid var(--ds-border);
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 0 4px;
+}
+.combo-form-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.combo-form-section > legend {
+  color: var(--ds-text);
+  font-size: 0.94rem;
+  font-weight: 800;
+  padding: 0;
+}
+.combo-form-grid {
+  display: grid;
+  gap: 12px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.combo-form-grid > label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.combo-form-grid .combo-field--wide {
+  grid-column: 1/-1;
+}
+.combo-form-grid :where(input, select) {
+  max-width: 22rem;
+  width: 100%;
+}
+.combo-form-grid textarea {
+  max-width: 46rem;
+  width: 100%;
+}
+.combo-picker-toolbar {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+.combo-picker-toolbar label {
+  display: grid;
+  gap: 4px;
+}
+.combo-picker-toolbar input {
+  max-width: 18rem;
+}
+.combo-selection-count {
+  color: var(--ds-text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.combo-service-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.combo-service-card {
+  align-items: center;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  color: var(--ds-text);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 10px 12px;
+  text-align: left;
+}
+.combo-service-card:hover {
+  border-color: var(--app-accent, #2563eb);
+}
+.combo-service-card.is-selected {
+  background: var(--app-accent-soft, #eef2ff);
+  border-color: var(--app-accent, #2563eb);
+  box-shadow: 0 0 0 1px var(--app-accent, #2563eb) inset;
+}
+.combo-service-check {
+  align-items: center;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: 6px;
+  color: #fff;
+  display: flex;
+  font-size: 0.8rem;
+  font-weight: 800;
+  height: 1.25rem;
+  justify-content: center;
+  width: 1.25rem;
+}
+.combo-service-card.is-selected .combo-service-check {
+  background: var(--app-accent, #2563eb);
+  border-color: var(--app-accent, #2563eb);
+}
+.combo-service-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.combo-service-body small {
+  color: var(--ds-text-muted);
+  font-size: 0.78rem;
+}
+.combo-price-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin: 0;
+}
+.combo-price-summary div {
+  background: var(--ds-surface-subtle);
+  border-radius: var(--ds-radius-md);
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+}
+.combo-price-summary dt {
+  color: var(--ds-text-muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+.combo-price-summary dd {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0;
+}
+.combo-form-actions {
+  display: flex;
+  gap: 10px;
+}
+/* Financeiro — visão geral */
+.financial-overview {
+  display: grid;
+  gap: 16px;
+}
+.financial-section-title {
+  font-size: 1rem;
+  margin: 4px 0 0;
+}
+.delinquency-list {
+  display: grid;
+  gap: 8px;
+}
+.delinquency-row {
+  align-items: center;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  color: var(--ds-text);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto 20px;
+  padding: 12px;
+  text-align: left;
+  width: 100%;
+}
+.delinquency-row:hover {
+  background: var(--ds-surface-subtle);
+}
+.delinquency-identity,
+.delinquency-amounts {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.delinquency-amounts {
+  justify-items: end;
+  text-align: right;
+}
+.delinquency-identity small,
+.delinquency-amounts small {
+  color: var(--ds-text-muted);
+  font-size: 0.78rem;
+}
+@media (max-width: 899px) {
+  .combo-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .combo-form-grid :where(input, select, textarea) {
+    max-width: none;
+  }
+  .combo-service-grid {
+    grid-template-columns: 1fr;
+  }
+  .delinquency-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .delinquency-amounts {
+    grid-column: 1/-1;
+    justify-items: start;
+    text-align: left;
+  }
+  .financial-overview {
+    padding-bottom: 76px;
+  }
+}
+.service-editor-card {
   display: grid;
   gap: 12px;
 }

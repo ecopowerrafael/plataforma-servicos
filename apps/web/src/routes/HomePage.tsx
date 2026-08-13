@@ -1352,7 +1352,12 @@ export function HomePage() {
               />
             )}
             {isRoute('/app/financeiro') && canReadPayments && (
-              <DelinquencyModule tenantPublicId={selectedTenant} />
+              <DelinquencyModule
+                tenantPublicId={selectedTenant}
+                showSummary={
+                  canReadFinancialReports && planFeatureEnabled('advanced_reports.enabled')
+                }
+              />
             )}
             {isRoute('/app/financeiro/relatorios') &&
               canReadFinancialReports &&
@@ -1465,7 +1470,6 @@ export function HomePage() {
                 <ServiceProfile
                   tenantPublicId={selectedTenant}
                   publicId={location.pathname.slice('/app/servicos/'.length)}
-                  terminology={experience.data?.terminology.service.singular ?? 'Serviço'}
                 />
               )}
             {isRoute('/app/servicos/combos') && canReadServices && (

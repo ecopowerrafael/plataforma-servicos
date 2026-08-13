@@ -7,11 +7,14 @@ export function TenantProfessionalPhoto({
   professionalPublicId,
   tenantPublicId,
   size = 'small',
+  version,
 }: {
   name: string;
   professionalPublicId: string;
   tenantPublicId: string;
   size?: 'small' | 'large';
+  /** Muda quando a foto é trocada ou removida, forçando o recarregamento. */
+  version?: string;
 }) {
   const [source, setSource] = useState<string | null>(null);
   useEffect(() => {
@@ -33,7 +36,7 @@ export function TenantProfessionalPhoto({
       active = false;
       if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
     };
-  }, [professionalPublicId, tenantPublicId]);
+  }, [professionalPublicId, tenantPublicId, version]);
 
   const initials = name
     .split(/\s+/u)

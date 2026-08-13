@@ -22,11 +22,9 @@ const money = (cents: string) =>
 export function ServiceProfile({
   tenantPublicId,
   publicId,
-  terminology,
 }: {
   tenantPublicId: string;
   publicId: string;
-  terminology: string;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -209,7 +207,6 @@ export function ServiceProfile({
             service={service}
             busy={mutate.isPending}
             error={mutate.error instanceof Error ? 'Não foi possível salvar as alterações.' : null}
-            terminology={terminology}
             categories={categories.data?.items ?? []}
             fields="operational"
             onCancel={() => {
@@ -341,8 +338,7 @@ export function ServiceProfile({
               error={
                 mutate.error instanceof Error ? 'Não foi possível salvar as alterações.' : null
               }
-              terminology={terminology}
-              categories={categories.data?.items ?? []}
+                  categories={categories.data?.items ?? []}
               fields="public"
               submitLabel="Salvar apresentação"
               onSave={savePublic}

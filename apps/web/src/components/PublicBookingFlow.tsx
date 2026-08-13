@@ -1,9 +1,14 @@
 import {
   AppointmentPaymentOptionsResponseSchema,
   AvailabilityResponseSchema,
+  CUSTOMER_PASSWORD_RULES,
+  CustomerAuthResponseSchema,
+  CustomerPasswordSchema,
+  CustomerRegisterRequestSchema,
   PaymentGatewayChargePublicSchema,
   PixChargeResponseSchema,
   PublicBookingConfirmationSchema,
+  PublicPaymentOptionsResponseSchema,
   PublicServiceProfessionalsResponseSchema,
   type PublicTenantSiteResponseSchema,
 } from '@plataforma/shared';
@@ -15,7 +20,7 @@ import { environment } from '../config/environment.js';
 import { httpClient, HttpError } from '../lib/http.js';
 
 type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
-type Step = 'service' | 'professional' | 'date' | 'time' | 'customer' | 'review';
+type Step = 'service' | 'professional' | 'date' | 'time' | 'customer' | 'payment' | 'review';
 type Professional = z.infer<
   typeof PublicServiceProfessionalsResponseSchema
 >['professionals'][number];
@@ -26,6 +31,7 @@ const steps: { id: Step; label: string }[] = [
   { id: 'date', label: 'Data' },
   { id: 'time', label: 'Horário' },
   { id: 'customer', label: 'Seus dados' },
+  { id: 'payment', label: 'Pagamento' },
   { id: 'review', label: 'Revisão' },
 ];
 
@@ -64,15 +70,16 @@ function humanError(error: unknown): string {
   return 'Não conseguimos concluir agora. Tente novamente em alguns instantes.';
 }
 
-function BookingProgress({ step }: { step: Step }) {
-  const activeIndex = steps.findIndex((item) => item.id === step);
+function BookingProgress({ step, flow }: { step: Step; flow: Step[] }) {
+  const activeIndex = flow.indexOf(step);
+  const label = steps.find((item) => item.id === step)?.label;
   return (
     <nav className="booking-progress" aria-label="Progresso do agendamento">
-      <span>{`Etapa ${String(activeIndex + 1)} de ${String(steps.length)}`}</span>
+      <span>{`Etapa ${String(activeIndex + 1)} de ${String(flow.length)}`}</span>
       <div className="booking-progress-track" aria-hidden="true">
-        <i style={{ width: `${String(((activeIndex + 1) / steps.length) * 100)}%` }} />
+        <i style={{ width: `${String(((activeIndex + 1) / flow.length) * 100)}%` }} />
       </div>
-      <strong>{steps[activeIndex]?.label}</strong>
+      <strong>{label}</strong>
     </nav>
   );
 }
@@ -370,13 +377,23 @@ function CustomerStep({
   phone,
   email,
   notes,
+  createAccount,
+  accountPassword,
+  canCreateAccount,
   onChange,
+  onToggleAccount,
+  onPasswordChange,
 }: {
   name: string;
   phone: string;
   email: string;
   notes: string;
+  createAccount: boolean;
+  accountPassword: string;
+  canCreateAccount: boolean;
   onChange: (field: 'name' | 'phone' | 'email' | 'notes', value: string) => void;
+  onToggleAccount: (value: boolean) => void;
+  onPasswordChange: (value: string) => void;
 }) {
   return (
     <section className="booking-step">
@@ -435,6 +452,90 @@ function CustomerStep({
             }}
           />
         </label>
+      </div>
+      {canCreateAccount ? (
+        <div className="booking-account-optin">
+          <label className="booking-checkbox">
+            <input
+              type="checkbox"
+              checked={createAccount}
+              onChange={(event) => {
+                onToggleAccount(event.target.checked);
+              }}
+            />
+            <span>Quero criar uma conta para acompanhar meus agendamentos</span>
+          </label>
+          <p className="booking-helper">
+            Com uma conta você acompanha seus horários e pagamentos sem preencher seus dados
+            novamente.
+          </p>
+          {createAccount ? (
+            <label>
+              <span>Senha</span>
+              <input
+                autoComplete="new-password"
+                type="password"
+                value={accountPassword}
+                onChange={(event) => {
+                  onPasswordChange(event.target.value);
+                }}
+              />
+              <ul className="booking-password-rules">
+                {CUSTOMER_PASSWORD_RULES.map((rule) => (
+                  <li key={rule}>{rule}</li>
+                ))}
+              </ul>
+            </label>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/** Etapa exibida somente quando existe escolha real entre online e presencial. */
+function PaymentChoiceStep({
+  choice,
+  onSelect,
+}: {
+  choice: 'online' | 'local' | null;
+  onSelect: (value: 'online' | 'local') => void;
+}) {
+  return (
+    <section className="booking-step">
+      <StepHeader
+        title="Como você prefere pagar?"
+        subtitle="Você pode pagar agora ou diretamente no atendimento."
+      />
+      <div className="booking-card-grid">
+        <button
+          type="button"
+          className="booking-choice-card booking-payment-choice"
+          aria-pressed={choice === 'online'}
+          onClick={() => {
+            onSelect('online');
+          }}
+        >
+          <span className="booking-choice-content">
+            <strong>Pagar agora online</strong>
+            <small>Seguro e rápido.</small>
+          </span>
+          <i aria-hidden="true">✓</i>
+        </button>
+        <button
+          type="button"
+          className="booking-choice-card booking-payment-choice"
+          aria-pressed={choice === 'local'}
+          onClick={() => {
+            onSelect('local');
+          }}
+        >
+          <span className="booking-choice-content">
+            <strong>Pagar no atendimento</strong>
+            <small>Você paga diretamente no estabelecimento.</small>
+          </span>
+          <i aria-hidden="true">✓</i>
+        </button>
       </div>
     </section>
   );
@@ -515,12 +616,18 @@ function BookingSummary({
   );
 }
 
+/**
+ * Cobrança online do agendamento já criado. Reutiliza os endpoints de cobrança
+ * existentes; `mode` só muda a apresentação (obrigatória ou lembrete discreto).
+ */
 function AppointmentPaymentStep({
   slug,
   appointmentPublicId,
+  mode,
 }: {
   slug: string;
   appointmentPublicId: string;
+  mode: 'required' | 'reminder';
 }) {
   const [pixCharge, setPixCharge] = useState<z.infer<typeof PixChargeResponseSchema> | null>(null);
   const [mpCharge, setMpCharge] = useState<z.infer<typeof PaymentGatewayChargePublicSchema> | null>(
@@ -584,38 +691,75 @@ function AppointmentPaymentStep({
   }
   const data = options.data;
   if (!data.pixLocalAvailable && !data.mercadoPagoAvailable) return null;
+  // Nada em aberto: não oferecer pagamento novamente.
+  if (!data.depositRequired && Number(data.balanceCents) <= 0)
+    return mode === 'required' ? (
+      <section className="booking-payment">
+        <strong>Pagamento concluído</strong>
+        <p>Não há valor pendente para este agendamento.</p>
+      </section>
+    ) : null;
+  const methods = [
+    data.pixLocalAvailable
+      ? {
+          id: 'pix',
+          label: 'PIX',
+          hint: 'Copia e cola ou QR Code.',
+          busy: createPix.isPending,
+          run: () => {
+            createPix.mutate();
+          },
+        }
+      : null,
+    data.mercadoPagoAvailable
+      ? {
+          id: 'mercadopago',
+          label: 'Mercado Pago',
+          hint: 'Pagamento pelo Mercado Pago.',
+          busy: createMercadoPago.isPending,
+          run: () => {
+            createMercadoPago.mutate();
+          },
+        }
+      : null,
+  ].filter((method) => method !== null);
   return (
-    <section className="booking-payment">
-      <h3>Pagamento</h3>
+    <section className={`booking-payment${mode === 'reminder' ? ' is-reminder' : ''}`}>
+      <strong>
+        {mode === 'reminder'
+          ? 'Prefere adiantar o pagamento?'
+          : data.depositRequired
+            ? 'Este agendamento exige um sinal'
+            : 'Pagamento online'}
+      </strong>
       <p>
-        {data.depositRequired
-          ? 'Este agendamento exige um sinal.'
-          : 'Você pode realizar o pagamento online.'}
+        {mode === 'reminder'
+          ? 'Seu horário está confirmado para pagamento no atendimento. Se preferir, pague online agora.'
+          : `Valor: ${centsToBrl(data.depositRequired ? (data.depositAmountCents ?? data.balanceCents) : data.balanceCents)}`}
       </p>
-      <div>
-        {data.pixLocalAvailable ? (
+      <div className="booking-payment-methods">
+        {methods.map((method) => (
           <button
+            key={method.id}
             type="button"
-            disabled={createPix.isPending}
-            onClick={() => {
-              createPix.mutate();
-            }}
+            className="booking-payment-method"
+            disabled={method.busy}
+            onClick={method.run}
           >
-            Pagar com PIX
+            <strong>
+              {methods.length === 1 && mode === 'reminder'
+                ? 'Pagar online agora'
+                : `Pagar com ${method.label}`}
+            </strong>
+            <small>{method.hint}</small>
           </button>
-        ) : null}
-        {data.mercadoPagoAvailable ? (
-          <button
-            type="button"
-            disabled={createMercadoPago.isPending}
-            onClick={() => {
-              createMercadoPago.mutate();
-            }}
-          >
-            Mercado Pago
-          </button>
-        ) : null}
+        ))}
       </div>
+      {createPix.error instanceof Error || createMercadoPago.error instanceof Error ? (
+        <p className="booking-inline-error" role="alert">
+          Não foi possível iniciar o pagamento agora. Tente novamente.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -657,6 +801,51 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
   const [customerEmail, setCustomerEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [validation, setValidation] = useState<string | null>(null);
+  const [createAccount, setCreateAccount] = useState(false);
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [paymentChoice, setPaymentChoice] = useState<'online' | 'local' | null>(null);
+
+  const customerSession = useQuery({
+    queryKey: ['public', slug, 'customer', 'me'],
+    queryFn: () =>
+      httpClient.request(`/public/sites/${slug}/customer/me`, {
+        schema: CustomerAuthResponseSchema,
+      }),
+    retry: false,
+  });
+  const tenantOptions = useQuery({
+    queryKey: ['public-booking', slug, 'payment-options'],
+    queryFn: () =>
+      httpClient.request(`/public/sites/${slug}/payment-options`, {
+        schema: PublicPaymentOptionsResponseSchema,
+      }),
+    retry: false,
+  });
+  const onlineAvailable =
+    (tenantOptions.data?.pixLocalAvailable ?? false) ||
+    (tenantOptions.data?.mercadoPagoAvailable ?? false);
+  const localAvailable = tenantOptions.data?.payLocalAvailable ?? true;
+  // Só existe etapa de pagamento quando há de fato uma escolha a fazer.
+  const needsPaymentChoice = onlineAvailable && localAvailable;
+  const flow = steps
+    .map((item) => item.id)
+    .filter((id) => id !== 'payment' || needsPaymentChoice);
+  const payOnline = needsPaymentChoice ? paymentChoice === 'online' : onlineAvailable;
+
+  const registerAccount = useMutation({
+    mutationFn: () =>
+      httpClient.request(`/public/sites/${slug}/customer/register`, {
+        method: 'POST',
+        body: CustomerRegisterRequestSchema.parse({
+          name: customerName.trim(),
+          email: customerEmail.trim(),
+          phone: customerPhone.trim() === '' ? null : customerPhone.trim(),
+          password: accountPassword,
+        }),
+        schema: CustomerAuthResponseSchema,
+      }),
+  });
 
   useEffect(() => {
     sessionStorage.setItem(
@@ -730,8 +919,20 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
         },
         schema: PublicBookingConfirmationSchema,
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       sessionStorage.removeItem(storageKey);
+      // A conta é criada depois do agendamento, com os dados já informados.
+      if (createAccount && accountPassword !== '') {
+        try {
+          await registerAccount.mutateAsync();
+        } catch (error) {
+          setAccountError(
+            error instanceof HttpError
+              ? error.message
+              : 'O agendamento foi confirmado, mas não conseguimos criar sua conta agora.',
+          );
+        }
+      }
     },
     onError: (error) => {
       if (error instanceof HttpError && error.status === 409) {
@@ -743,8 +944,8 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
   });
 
   const goBack = () => {
-    const index = steps.findIndex((item) => item.id === step);
-    if (index > 0) setStep(steps[index - 1]?.id ?? 'service');
+    const index = flow.indexOf(step);
+    if (index > 0) setStep(flow[index - 1] ?? 'service');
     setValidation(null);
   };
   const continueFlow = () => {
@@ -788,6 +989,25 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
         setValidation('Informe um e-mail válido.');
         return;
       }
+      if (createAccount) {
+        if (customerEmail.trim() === '') {
+          setValidation('Informe um e-mail para criar sua conta.');
+          return;
+        }
+        const passwordCheck = CustomerPasswordSchema.safeParse(accountPassword);
+        if (!passwordCheck.success) {
+          setValidation(
+            passwordCheck.error.issues[0]?.message ?? 'Escolha uma senha válida para sua conta.',
+          );
+          return;
+        }
+      }
+      setStep(needsPaymentChoice ? 'payment' : 'review');
+    } else if (step === 'payment') {
+      if (paymentChoice === null) {
+        setValidation('Escolha como prefere pagar.');
+        return;
+      }
       setStep('review');
     } else booking.mutate();
   };
@@ -817,10 +1037,23 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
         <small>
           Protocolo: <strong>{confirmation.protocol}</strong>
         </small>
-        <AppointmentPaymentStep
-          slug={slug}
-          appointmentPublicId={confirmation.appointmentPublicId}
-        />
+        {accountError !== null ? (
+          <p className="booking-inline-error" role="alert">
+            {accountError}
+          </p>
+        ) : null}
+        {registerAccount.isSuccess ? (
+          <p className="booking-account-created">
+            Sua conta foi criada. Use o avatar no topo para acompanhar seus agendamentos.
+          </p>
+        ) : null}
+        {onlineAvailable ? (
+          <AppointmentPaymentStep
+            slug={slug}
+            appointmentPublicId={confirmation.appointmentPublicId}
+            mode={payOnline ? 'required' : 'reminder'}
+          />
+        ) : null}
       </section>
     );
   }
@@ -849,7 +1082,7 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
           <span>Agendar horário</span>
         </div>
       </header>
-      <BookingProgress step={step} />
+      <BookingProgress step={step} flow={flow} />
       <div className="booking-layout">
         <main className="booking-main">
           {step !== 'service' ? (
@@ -927,13 +1160,21 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
               phone={customerPhone}
               email={customerEmail}
               notes={notes}
+              createAccount={createAccount}
+              accountPassword={accountPassword}
+              canCreateAccount={customerSession.data === undefined}
               onChange={(field, value) => {
                 if (field === 'name') setCustomerName(value);
                 else if (field === 'phone') setCustomerPhone(value);
                 else if (field === 'email') setCustomerEmail(value);
                 else setNotes(value);
               }}
+              onToggleAccount={setCreateAccount}
+              onPasswordChange={setAccountPassword}
             />
+          ) : null}
+          {step === 'payment' ? (
+            <PaymentChoiceStep choice={paymentChoice} onSelect={setPaymentChoice} />
           ) : null}
           {step === 'review' ? (
             <section className="booking-step booking-review">
@@ -954,6 +1195,13 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
                 <span>Agendamento para</span>
                 <strong>{customerName}</strong>
                 <small>{customerPhone || customerEmail}</small>
+                {needsPaymentChoice && paymentChoice !== null ? (
+                  <small>
+                    {paymentChoice === 'online'
+                      ? 'Pagamento: online, logo após confirmar.'
+                      : 'Pagamento: no atendimento.'}
+                  </small>
+                ) : null}
               </div>
             </section>
           ) : null}

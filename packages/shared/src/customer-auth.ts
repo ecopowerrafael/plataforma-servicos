@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { EmailSchema, PasswordSchema } from './auth.js';
+import { CustomerPasswordSchema, EmailSchema } from './auth.js';
 
 const phone = z.string().trim().min(3).max(32);
 
@@ -9,7 +9,7 @@ export const CustomerRegisterRequestSchema = z
     name: z.string().trim().min(2).max(120),
     email: EmailSchema,
     phone: phone.nullable().optional(),
-    password: PasswordSchema,
+    password: CustomerPasswordSchema,
     acceptsCommunications: z.boolean().default(false),
   })
   .strict();

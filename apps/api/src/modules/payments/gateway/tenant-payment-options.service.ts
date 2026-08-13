@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   AppointmentPaymentOptionsResponseSchema,
   PixChargeResponseSchema,
+  PublicPaymentOptionsResponseSchema,
   QrCodeResponseSchema,
   TenantPaymentOptionsOverviewSchema,
   type CreateOnlineChargeRequest,
@@ -182,8 +183,9 @@ export class TenantPaymentOptionsService {
    * Reaproveita PaymentService.listForAppointment (mesmo cálculo de sinal/saldo) — nenhuma
    * lógica de sinal é duplicada aqui.
    */
-  public async getAvailableOptionsForAppointment(tenantId: bigint, appointmentPublicId: string) {
-    const [settings, pixConfig, mpConfig, appointmentPayments] = await Promise.all([
+  /** Fonte única da disponibilidade por estabelecimento, sem considerar sinal. */
+  private async resolveTenantOptions(tenantId: bigint) {
+    const [settings, pixConfig, mpConfig] = await Promise.all([
       this.client.tenantSettings.findFirst({
         where: { tenantId },
         select: { payLocalEnabled: true },
@@ -192,6 +194,28 @@ export class TenantPaymentOptionsService {
         where: { tenantId, provider: PIX_LOCAL_PROVIDER },
       }),
       this.gateway.getConfig(tenantId, MERCADOPAGO_PROVIDER),
+    ]);
+    return {
+      payLocalEnabled: settings?.payLocalEnabled ?? true,
+      pixLocalAvailable: (pixConfig?.active ?? false) && pixConfig?.credentialsCiphertext !== null,
+      mercadoPagoAvailable: (mpConfig?.active ?? false) && (mpConfig?.hasCredentials ?? false),
+    };
+  }
+
+  /** Usado pelo site público antes da confirmação: nenhum agendamento existe ainda. */
+  public async getPublicSiteOptions(slug: string) {
+    const tenantId = await this.resolveTenantIdBySlug(slug);
+    const options = await this.resolveTenantOptions(tenantId);
+    return PublicPaymentOptionsResponseSchema.parse({
+      payLocalAvailable: options.payLocalEnabled,
+      pixLocalAvailable: options.pixLocalAvailable,
+      mercadoPagoAvailable: options.mercadoPagoAvailable,
+    });
+  }
+
+  public async getAvailableOptionsForAppointment(tenantId: bigint, appointmentPublicId: string) {
+    const [options, appointmentPayments] = await Promise.all([
+      this.resolveTenantOptions(tenantId),
       this.payments.listForAppointment(tenantId, appointmentPublicId),
     ]);
 
@@ -202,9 +226,9 @@ export class TenantPaymentOptionsService {
     const depositRequired = depositAmountCents !== null && depositPaidCents < depositAmountCents;
 
     return AppointmentPaymentOptionsResponseSchema.parse({
-      payLocalAvailable: (settings?.payLocalEnabled ?? true) && !depositRequired,
-      pixLocalAvailable: (pixConfig?.active ?? false) && pixConfig?.credentialsCiphertext !== null,
-      mercadoPagoAvailable: (mpConfig?.active ?? false) && (mpConfig?.hasCredentials ?? false),
+      payLocalAvailable: options.payLocalEnabled && !depositRequired,
+      pixLocalAvailable: options.pixLocalAvailable,
+      mercadoPagoAvailable: options.mercadoPagoAvailable,
       depositRequired,
       depositAmountCents: summary.depositAmountCents,
       depositPaidCents: summary.depositPaidCents,

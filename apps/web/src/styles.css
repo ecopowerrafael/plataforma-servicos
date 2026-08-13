@@ -3924,7 +3924,90 @@ a {
   max-width: 13rem;
 }
 .booking-payment textarea {
+  background: var(--booking-surface);
+  border: 1px solid var(--booking-border);
+  border-radius: 0.75rem;
+  color: var(--booking-text);
+  font: inherit;
+  padding: 0.6rem;
   width: 100%;
+}
+.booking-payment.is-reminder {
+  background: color-mix(in srgb, var(--booking-primary) 6%, var(--booking-surface));
+  border: 1px solid color-mix(in srgb, var(--booking-primary) 24%, var(--booking-border));
+  border-radius: 1rem;
+  padding: 1rem;
+  text-align: left;
+}
+.booking-payment p {
+  color: var(--booking-muted);
+  font-size: 0.86rem;
+  margin: 0;
+}
+.booking-payment-methods {
+  display: grid;
+  gap: 0.6rem;
+}
+.booking-payment-method {
+  background: var(--booking-primary) !important;
+  border: 0 !important;
+  border-radius: 0.85rem !important;
+  color: var(--booking-on-primary) !important;
+  cursor: pointer;
+  display: grid;
+  gap: 0.15rem;
+  min-height: 3rem;
+  padding: 0.7rem 0.9rem !important;
+  text-align: left;
+}
+.booking-payment-method small {
+  color: color-mix(in srgb, var(--booking-on-primary) 82%, transparent);
+  font-size: 0.76rem;
+}
+.booking-payment-method:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.booking-payment-choice {
+  grid-template-columns: 1fr auto;
+}
+.booking-account-optin {
+  background: color-mix(in srgb, var(--booking-primary) 5%, var(--booking-surface));
+  border: 1px solid var(--booking-border);
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+}
+.booking-account-optin label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+.booking-account-optin input[type='password'] {
+  background: var(--booking-surface);
+  border: 1px solid var(--booking-border);
+  border-radius: 0.7rem;
+  color: var(--booking-text);
+  font: inherit;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  width: 100%;
+}
+.booking-checkbox {
+  align-items: center;
+  display: flex !important;
+  gap: 0.6rem;
+}
+.booking-checkbox input {
+  height: 1.15rem;
+  width: 1.15rem;
+}
+.booking-account-created {
+  color: var(--booking-primary);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 @keyframes booking-enter {
   from {
@@ -5848,12 +5931,401 @@ h1 {
 .public-header {
   display: flex;
   align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-block: 1.1rem;
+}
+.public-brand {
+  align-items: center;
+  display: flex;
+  min-width: 0;
+}
+.public-brand-logo {
+  height: auto;
+  max-height: 68px;
+  max-width: min(260px, 55vw);
+  object-fit: contain;
+  width: auto;
+}
+.public-brand-name {
+  font-size: clamp(1.1rem, 3.2vw, 1.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.public-account-button {
+  align-items: center;
+  background: color-mix(in srgb, var(--tenant-primary) 12%, var(--tenant-surface));
+  border: 1px solid color-mix(in srgb, var(--tenant-primary) 28%, var(--tenant-border));
+  border-radius: 999px;
+  color: var(--tenant-primary);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font-size: 0.85rem;
+  font-weight: 800;
+  height: 44px;
+  justify-content: center;
+  padding: 0;
+  transition:
+    background 0.16s,
+    transform 0.16s;
+  width: 44px;
+}
+.public-account-button:hover {
+  background: color-mix(in srgb, var(--tenant-primary) 20%, var(--tenant-surface));
+  transform: translateY(-1px);
+}
+.public-account-button.is-logged {
+  background: var(--tenant-primary);
+  color: var(--tenant-on-primary);
+}
+.public-account-button svg {
+  fill: none;
+  height: 22px;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+  width: 22px;
+}
+.public-section {
+  display: grid;
+  gap: 1.25rem;
+}
+.public-service-grid,
+.public-professional-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+/* Com poucos itens os cards mantêm largura de catálogo, sem esticar. */
+.public-service-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 320px));
+}
+.public-professional-grid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 220px));
+}
+.public-service-card,
+.public-professional-card {
+  background: var(--tenant-surface);
+  border: 1px solid var(--tenant-border);
+  border-radius: var(--tenant-radius);
+  display: grid;
+  overflow: hidden;
+}
+.public-service-media {
+  align-items: center;
+  aspect-ratio: 16 / 10;
+  background: color-mix(in srgb, var(--tenant-primary) 10%, var(--tenant-surface));
+  color: var(--tenant-primary);
+  display: flex;
+  font-size: 2rem;
+  font-weight: 800;
+  justify-content: center;
+  overflow: hidden;
+}
+.public-service-media img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.public-service-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+.public-service-body h3 {
+  font-size: 1.02rem;
+  margin: 0;
+}
+.public-service-body p {
+  color: var(--tenant-muted);
+  display: -webkit-box;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.public-service-meta {
+  align-items: baseline;
+  display: flex;
+  gap: 0.6rem;
   justify-content: space-between;
 }
-.public-header img {
-  max-height: 52px;
-  max-width: 190px;
-  object-fit: contain;
+.public-service-meta strong {
+  font-size: 1.05rem;
+}
+.public-service-meta span {
+  color: var(--tenant-muted);
+  font-size: 0.82rem;
+}
+.public-service-cta,
+.public-professional-cta {
+  align-items: center;
+  background: var(--tenant-primary);
+  border-radius: calc(var(--tenant-radius) * 0.8);
+  color: var(--tenant-on-primary);
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 1rem;
+  text-decoration: none;
+  transition:
+    filter 0.16s,
+    transform 0.16s;
+}
+.public-service-cta:hover,
+.public-professional-cta:hover {
+  filter: brightness(0.94);
+  transform: translateY(-1px);
+}
+.public-professional-card {
+  align-content: start;
+  gap: 0.5rem;
+  justify-items: center;
+  padding: 1.1rem 1rem;
+  text-align: center;
+}
+.public-professional-avatar {
+  align-items: center;
+  background: color-mix(in srgb, var(--tenant-primary) 12%, var(--tenant-surface));
+  border-radius: 50%;
+  color: var(--tenant-primary);
+  display: flex;
+  font-size: 1.15rem;
+  font-weight: 800;
+  height: 84px;
+  justify-content: center;
+  overflow: hidden;
+  width: 84px;
+}
+.public-professional-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.public-professional-card h3 {
+  font-size: 0.98rem;
+  margin: 0;
+}
+.public-professional-card p {
+  color: var(--tenant-muted);
+  display: -webkit-box;
+  font-size: 0.82rem;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.public-sheet-backdrop {
+  align-items: center;
+  background: rgb(9 12 20 / 55%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 60;
+}
+.public-sheet {
+  background: var(--tenant-surface);
+  border-radius: clamp(1rem, var(--tenant-radius), 1.5rem);
+  color: var(--tenant-text);
+  display: grid;
+  font-family: var(--tenant-font, inherit);
+  grid-template-rows: auto 1fr;
+  max-height: min(88dvh, 40rem);
+  overflow: hidden;
+  width: min(420px, 100%);
+}
+.public-sheet-header {
+  align-items: center;
+  border-bottom: 1px solid var(--tenant-border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem 1.15rem;
+}
+.public-sheet-header strong {
+  font-size: 1rem;
+}
+.public-sheet-header button {
+  background: transparent;
+  border: 0;
+  color: var(--tenant-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  min-height: 40px;
+  min-width: 40px;
+}
+.public-sheet-body {
+  display: grid;
+  gap: 0.9rem;
+  overflow: auto;
+  padding: 1.15rem;
+}
+.public-auth-form {
+  display: grid;
+  gap: 0.85rem;
+}
+.public-auth-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.86rem;
+}
+.public-auth-form label em {
+  color: var(--tenant-muted);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+.public-auth-form input {
+  background: var(--tenant-surface);
+  border: 1px solid var(--tenant-border);
+  border-radius: calc(var(--tenant-radius) * 0.7);
+  color: inherit;
+  font: inherit;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  width: 100%;
+}
+.public-auth-form input:focus-visible {
+  border-color: var(--tenant-primary);
+  outline: 2px solid color-mix(in srgb, var(--tenant-primary) 45%, transparent);
+  outline-offset: 1px;
+}
+.public-auth-tabs {
+  background: color-mix(in srgb, var(--tenant-primary) 8%, var(--tenant-surface));
+  border-radius: 999px;
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: 1fr 1fr;
+  padding: 0.25rem;
+}
+.public-auth-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--tenant-muted);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 700;
+  min-height: 38px;
+}
+.public-auth-tabs button[aria-selected='true'] {
+  background: var(--tenant-surface);
+  box-shadow: 0 2px 8px rgb(15 23 42 / 10%);
+  color: var(--tenant-text);
+}
+.public-primary-button {
+  background: var(--tenant-primary);
+  border: 0;
+  border-radius: calc(var(--tenant-radius) * 0.7);
+  color: var(--tenant-on-primary);
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 800;
+  min-height: 46px;
+  width: 100%;
+}
+.public-primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.public-password-rules,
+.booking-password-rules {
+  color: var(--tenant-muted, #64748b);
+  display: grid;
+  font-size: 0.78rem;
+  gap: 0.15rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.public-form-error {
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  border-radius: calc(var(--tenant-radius) * 0.6);
+  color: #b42318;
+  font-size: 0.84rem;
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+}
+.public-sheet-hint,
+.public-sheet-loading {
+  color: var(--tenant-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.public-account-menu {
+  display: grid;
+  gap: 0.5rem;
+}
+.public-account-menu button {
+  background: var(--tenant-surface);
+  border: 1px solid var(--tenant-border);
+  border-radius: calc(var(--tenant-radius) * 0.7);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 600;
+  min-height: 48px;
+  padding: 0 0.9rem;
+  text-align: left;
+}
+.public-account-menu button:hover {
+  border-color: var(--tenant-primary);
+}
+.public-account-menu button.is-danger {
+  color: #b42318;
+}
+.public-sheet-back {
+  background: transparent;
+  border: 0;
+  color: var(--tenant-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  justify-self: start;
+  min-height: 40px;
+  padding: 0;
+}
+.public-account-panel {
+  display: grid;
+  gap: 1rem;
+}
+/* Dentro do site público, nada usa a paleta do painel administrativo. */
+.public-sheet .platform-form,
+.public-sheet .sessions-panel {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+.public-sheet button:not(.is-danger):not(.public-sheet-back):not(.public-auth-tabs button) {
+  background: var(--tenant-primary);
+  color: var(--tenant-on-primary);
+}
+.public-sheet .public-account-menu button,
+.public-sheet .public-sheet-header button {
+  background: transparent;
+  color: inherit;
+}
+@media (max-width: 640px) {
+  .public-sheet-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .public-sheet {
+    border-radius: 1.25rem 1.25rem 0 0;
+    max-height: 92dvh;
+    width: 100%;
+  }
+  .public-service-grid,
+  .public-professional-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .public-hero {
   max-width: none !important;

@@ -38,6 +38,38 @@ export const PasswordSchema = z
   .refine((value) => value.trim().length > 0, 'A senha não pode conter somente espaços.')
   .refine((value) => !commonPasswords.has(value.toLowerCase()), 'Escolha uma senha menos comum.');
 
+/**
+ * Senha de conta de CLIENTE do site público. É intencionalmente mais simples que
+ * `PasswordSchema` (usada por OWNER/staff, que administram o estabelecimento),
+ * mantendo um mínimo seguro: comprimento e bloqueio de senhas muito comuns.
+ */
+const commonCustomerPasswords = new Set([
+  ...commonPasswords,
+  '12345678',
+  '123456789',
+  'password',
+  'senha123',
+  'qwerty123',
+  'abc12345',
+]);
+export const CUSTOMER_PASSWORD_MIN_LENGTH = 8;
+export const CUSTOMER_PASSWORD_RULES = [
+  `Use pelo menos ${String(CUSTOMER_PASSWORD_MIN_LENGTH)} caracteres.`,
+  'Evite senhas muito comuns, como "12345678".',
+] as const;
+export const CustomerPasswordSchema = z
+  .string()
+  .min(
+    CUSTOMER_PASSWORD_MIN_LENGTH,
+    `A senha deve possuir pelo menos ${String(CUSTOMER_PASSWORD_MIN_LENGTH)} caracteres.`,
+  )
+  .max(128, 'A senha deve possuir no máximo 128 caracteres.')
+  .refine((value) => value.trim().length > 0, 'A senha não pode conter somente espaços.')
+  .refine(
+    (value) => !commonCustomerPasswords.has(value.toLowerCase()),
+    'Escolha uma senha menos comum.',
+  );
+
 export const UserStatusSchema = z.enum(['ACTIVE', 'INVITED', 'SUSPENDED', 'INACTIVE']);
 export const MembershipStatusSchema = z.enum(['ACTIVE', 'INVITED', 'SUSPENDED', 'INACTIVE']);
 export const InvitationStatusSchema = z.enum(['PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED']);

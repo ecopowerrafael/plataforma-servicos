@@ -1,10 +1,11 @@
-import { PublicTenantSiteResponseSchema } from '@plataforma/shared';
+import { CustomerAuthResponseSchema, PublicTenantSiteResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { contrastTextColor } from '../components/branding/brand-studio.js';
-import { CustomerAuth } from '../components/CustomerAuth.js';
+import { CustomerAccountSheet } from '../components/public/CustomerAccountSheet.js';
+import { PublicHeader } from '../components/public/PublicHeader.js';
 import { PublicBookingFlow } from '../components/PublicBookingFlow.js';
 import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
@@ -12,13 +13,32 @@ import { ClassicTheme } from '../themes/classic/ClassicTheme.js';
 import { ModernTheme } from '../themes/modern/ModernTheme.js';
 import { PremiumTheme } from '../themes/premium/PremiumTheme.js';
 
+const brl = (cents: string) =>
+  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/u)
+    .slice(0, 2)
+    .map((part) => part[0]?.toLocaleUpperCase('pt-BR') ?? '')
+    .join('');
+
 export function PublicTenantPage() {
   const { slug = '' } = useParams();
   const [searchParams] = useSearchParams();
   const [showSplash, setShowSplash] = useState(
     () => window.matchMedia('(display-mode: standalone)').matches,
   );
+  const [accountOpen, setAccountOpen] = useState(false);
   const mediaUrl = (path: string) => `${environment.apiUrl}${path}`;
+  const customer = useQuery({
+    queryKey: ['public', slug, 'customer', 'me'],
+    queryFn: () =>
+      httpClient.request(`/public/sites/${slug}/customer/me`, {
+        schema: CustomerAuthResponseSchema,
+      }),
+    retry: false,
+  });
   const site = useQuery({
     queryKey: ['public-site', slug],
     queryFn: () =>
@@ -139,19 +159,25 @@ export function PublicTenantPage() {
             )}
           </div>
         ) : null}
-        <header className="public-header">
-          {logo === undefined ? (
-            <strong>{site.data.displayName}</strong>
-          ) : (
-            <img src={mediaUrl(logo.url)} alt={logo.altText ?? site.data.displayName} />
-          )}
-          <span>{site.data.terminology.service.plural}</span>
-        </header>
-        <CustomerAuth
-          slug={slug}
-          services={site.data.services}
-          professionals={site.data.professionals}
+        <PublicHeader
+          displayName={site.data.displayName}
+          logoUrl={logo?.url ?? null}
+          logoAlt={logo?.altText ?? null}
+          customerName={customer.data?.customer.name ?? null}
+          onOpenAccount={() => {
+            setAccountOpen(true);
+          }}
         />
+        {accountOpen ? (
+          <CustomerAccountSheet
+            slug={slug}
+            services={site.data.services}
+            professionals={site.data.professionals}
+            onClose={() => {
+              setAccountOpen(false);
+            }}
+          />
+        ) : null}
         <section className="public-hero">
           <h1>{site.data.site.heroTitle ?? site.data.displayName}</h1>
           <p>
@@ -163,41 +189,58 @@ export function PublicTenantPage() {
             </a>
           )}
         </section>
-        <section>
-          <h2>{site.data.terminology.service.plural}</h2>
-          <div className="public-cards">
-            {site.data.services.map((service) => (
-              <article key={service.publicId}>
-                {service.imageUrl === null ? null : (
-                  <img src={mediaUrl(service.imageUrl)} alt={service.name} />
-                )}
-                <h3>{service.name}</h3>
-                <p>{service.description}</p>
-                <small>{`${String(service.durationMinutes)} min`}</small>
-                <a
-                  className="public-service-booking-link"
-                  href={`?service=${service.publicId}#agendar`}
-                >
-                  Agendar este serviço
-                </a>
-              </article>
-            ))}
-          </div>
-        </section>
-        <section>
-          <h2>{site.data.terminology.professional.plural}</h2>
-          <div className="public-cards">
-            {site.data.professionals.map((professional) => (
-              <article key={professional.publicId}>
-                {professional.photoUrl === null ? null : (
-                  <img src={mediaUrl(professional.photoUrl)} alt={professional.name} />
-                )}
-                <h3>{professional.name}</h3>
-                <p>{professional.bio}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+        {site.data.services.length === 0 ? null : (
+          <section className="public-section">
+            <h2>{site.data.terminology.service.plural}</h2>
+            <div className="public-service-grid">
+              {site.data.services.map((service) => (
+                <article key={service.publicId} className="public-service-card">
+                  <div className="public-service-media">
+                    {service.imageUrl === null ? (
+                      <span aria-hidden="true">{service.name.slice(0, 1)}</span>
+                    ) : (
+                      <img src={mediaUrl(service.imageUrl)} alt={service.name} />
+                    )}
+                  </div>
+                  <div className="public-service-body">
+                    <h3>{service.name}</h3>
+                    {service.description === null ? null : <p>{service.description}</p>}
+                    <div className="public-service-meta">
+                      <strong>{brl(service.priceCents)}</strong>
+                      <span>{`${String(service.durationMinutes)} min`}</span>
+                    </div>
+                    <a className="public-service-cta" href={`?service=${service.publicId}#agendar`}>
+                      Agendar horário
+                    </a>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+        {site.data.professionals.length === 0 ? null : (
+          <section className="public-section">
+            <h2>{site.data.terminology.professional.plural}</h2>
+            <div className="public-professional-grid">
+              {site.data.professionals.map((professional) => (
+                <article key={professional.publicId} className="public-professional-card">
+                  <div className="public-professional-avatar">
+                    {professional.photoUrl === null ? (
+                      <span aria-hidden="true">{initials(professional.name)}</span>
+                    ) : (
+                      <img src={mediaUrl(professional.photoUrl)} alt={professional.name} />
+                    )}
+                  </div>
+                  <h3>{professional.name}</h3>
+                  {professional.bio === null ? null : <p>{professional.bio}</p>}
+                  <a className="public-professional-cta" href="#agendar">
+                    Agendar
+                  </a>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
         <section id="agendar">
           <h2>{site.data.terminology.appointment.singular}</h2>
           <PublicBookingFlow slug={slug} site={site.data} />

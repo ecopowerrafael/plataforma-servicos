@@ -7,7 +7,7 @@ import {
   loadEnvironment,
   type Environment,
 } from './config/environment.js';
-import { createDatabaseConnection } from './database/connection.js';
+import { createDatabaseConnection, type DatabaseConnection } from './database/connection.js';
 import { PasswordService } from './modules/auth/password.service.js';
 import { startNotificationWorker } from './modules/notifications/notification-worker.js';
 
@@ -19,15 +19,18 @@ const bootstrapLogger = pino({
   },
 });
 
-async function start(environment: Environment): Promise<void> {
+async function start(environment: Environment, startedAt: number): Promise<void> {
+  const since = () => `${String(Date.now() - startedAt)}ms`;
   const database = createDatabaseConnection(
     environment.DATABASE_URL,
     databaseOptionsFromEnvironment(environment),
   );
+  bootstrapLogger.info({ elapsed: since() }, 'Conexão de banco criada');
   const app = await buildApp({ environment, database });
+  bootstrapLogger.info({ elapsed: since() }, 'Aplicação construída');
   let shuttingDown = false;
 
-  const stopNotificationWorker =
+  const startWorker = () =>
     database.appointmentReminders !== undefined && database.notifications !== undefined
       ? startNotificationWorker(
           {
@@ -45,6 +48,7 @@ async function start(environment: Environment): Promise<void> {
           { intervalMs: 60_000, logger: app.log },
         )
       : undefined;
+  const worker: { stop: (() => void) | undefined } = { stop: undefined };
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) {
@@ -53,7 +57,7 @@ async function start(environment: Environment): Promise<void> {
 
     shuttingDown = true;
     app.log.info({ signal }, 'Encerramento iniciado');
-    stopNotificationWorker?.();
+    worker.stop?.();
 
     try {
       await app.close();
@@ -71,36 +75,53 @@ async function start(environment: Environment): Promise<void> {
     void shutdown('SIGTERM');
   });
 
-  // Provisionamento idempotente do primeiro administrador da plataforma quando
-  // PLATFORM_ADMIN_EMAIL/PLATFORM_ADMIN_PASSWORD estão presentes (primeiro
-  // acesso). Não-fatal: falha aqui não impede a API de subir. A senha só é usada
-  // para gerar o hash caso o usuário ainda não exista; nunca é registrada.
-  if (
-    environment.PLATFORM_ADMIN_EMAIL !== undefined &&
-    environment.PLATFORM_ADMIN_PASSWORD !== undefined &&
-    database.platform !== undefined
-  ) {
-    const email = environment.PLATFORM_ADMIN_EMAIL;
-    const password = environment.PLATFORM_ADMIN_PASSWORD;
-    try {
-      const passwordService = new PasswordService({
-        memoryCost: environment.PASSWORD_ARGON2_MEMORY_COST,
-        timeCost: environment.PASSWORD_ARGON2_TIME_COST,
-        parallelism: environment.PASSWORD_ARGON2_PARALLELISM,
-      });
-      const result = await database.platform.ensureInitialAdministrator({
-        email,
-        hashPassword: () => passwordService.hash(password),
-        metadata: { ipAddress: null, userAgent: 'startup-platform-admin-provisioning' },
-      });
-      app.log.info({ email, result }, 'Provisionamento do administrador da plataforma concluído.');
-    } catch (error) {
-      app.log.error({ err: error }, 'Falha ao provisionar o administrador da plataforma.');
-    }
-  }
-
+  // A partir daqui nada mais pode atrasar o listen: o ambiente da Hostinger
+  // derruba o processo se o servidor não abrir a porta em poucos segundos.
   await app.listen({ host: environment.API_HOST, port: environment.API_PORT });
-  app.log.info({ host: environment.API_HOST, port: environment.API_PORT }, 'API inicializada');
+  app.log.info(
+    { host: environment.API_HOST, port: environment.API_PORT, elapsed: since() },
+    'API inicializada',
+  );
+
+  // Tarefas auxiliares só depois que o HTTP já responde.
+  void runPostStartTasks(environment, database, app);
+  worker.stop = startWorker();
+  app.log.info({ elapsed: since() }, 'Tarefas pós-início disparadas');
+}
+
+/**
+ * Provisionamento idempotente do primeiro administrador da plataforma quando
+ * PLATFORM_ADMIN_EMAIL/PLATFORM_ADMIN_PASSWORD estão presentes. Não-fatal e
+ * fora do caminho crítico: roda depois do `listen`, sem bloquear o HTTP.
+ */
+async function runPostStartTasks(
+  environment: Environment,
+  database: DatabaseConnection,
+  app: Awaited<ReturnType<typeof buildApp>>,
+): Promise<void> {
+  if (
+    environment.PLATFORM_ADMIN_EMAIL === undefined ||
+    environment.PLATFORM_ADMIN_PASSWORD === undefined ||
+    database.platform === undefined
+  )
+    return;
+  const email = environment.PLATFORM_ADMIN_EMAIL;
+  const password = environment.PLATFORM_ADMIN_PASSWORD;
+  try {
+    const passwordService = new PasswordService({
+      memoryCost: environment.PASSWORD_ARGON2_MEMORY_COST,
+      timeCost: environment.PASSWORD_ARGON2_TIME_COST,
+      parallelism: environment.PASSWORD_ARGON2_PARALLELISM,
+    });
+    const result = await database.platform.ensureInitialAdministrator({
+      email,
+      hashPassword: () => passwordService.hash(password),
+      metadata: { ipAddress: null, userAgent: 'startup-platform-admin-provisioning' },
+    });
+    app.log.info({ email, result }, 'Provisionamento do administrador da plataforma concluído.');
+  } catch (error) {
+    app.log.error({ err: error }, 'Falha ao provisionar o administrador da plataforma.');
+  }
 }
 
 // Sem `await` de topo: o loader de Node.js da Hostinger (LiteSpeed lsnode)
@@ -109,8 +130,10 @@ async function start(environment: Environment): Promise<void> {
 // uma função assíncrona disparada sem await no escopo do módulo.
 async function bootstrap(): Promise<void> {
   try {
+    const startedAt = Date.now();
     const environment = loadEnvironment();
-    await start(environment);
+    bootstrapLogger.info({ elapsed: `${String(Date.now() - startedAt)}ms` }, 'Ambiente carregado');
+    await start(environment, startedAt);
   } catch (error) {
     if (error instanceof EnvironmentValidationError) {
       bootstrapLogger.fatal({ fields: error.fields }, error.message);

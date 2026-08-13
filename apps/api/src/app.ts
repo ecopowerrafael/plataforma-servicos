@@ -247,7 +247,7 @@ export async function buildApp(options: BuildAppOptions) {
     timeCost: options.environment.PASSWORD_ARGON2_TIME_COST,
     parallelism: options.environment.PASSWORD_ARGON2_PARALLELISM,
   });
-  const authService = await AuthService.create(
+  const authService = AuthService.create(
     options.database.identities,
     passwordService,
     options.messageDelivery ?? new UnconfiguredAccountMessageDelivery(),

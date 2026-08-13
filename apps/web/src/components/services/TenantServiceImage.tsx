@@ -11,7 +11,7 @@ export function TenantServiceImage({
   alt: string;
   servicePublicId: string;
   tenantPublicId: string;
-  kind?: 'services' | 'combos';
+  kind?: 'services' | 'combos' | 'products';
 }) {
   const [source, setSource] = useState<string | null>(null);
   useEffect(() => {

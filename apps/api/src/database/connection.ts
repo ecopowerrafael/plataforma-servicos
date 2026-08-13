@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
 import { PrismaClient } from '../database-client/client.js';
@@ -370,7 +372,13 @@ export function createDatabaseConnection(
       new LocalServiceImageStorage(),
     ),
     serviceCategories: new ServiceCategoryService(new PrismaServiceCategoryRepository(client)),
-    products: new ProductCatalogService(productRepository, stockMovements),
+    products: new ProductCatalogService(
+      productRepository,
+      stockMovements,
+      new LocalServiceImageStorage(
+        process.env.PRODUCT_IMAGE_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'products'),
+      ),
+    ),
     stockMovements,
     productSales,
     serviceVariations: new ServiceVariationService(new PrismaServiceVariationRepository(client)),

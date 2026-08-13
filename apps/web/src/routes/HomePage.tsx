@@ -20,6 +20,7 @@ import { BrandColorPicker } from '../components/branding/BrandColorPicker.js';
 import { BrandPreview } from '../components/branding/BrandPreview.js';
 import { BrandThemePicker } from '../components/branding/BrandThemePicker.js';
 import { ErrorBoundary } from '../components/ErrorBoundary.js';
+import { PageHeader } from '../components/ui/AppUi.js';
 import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
 import { clearSelectedTenant, readSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
@@ -131,9 +132,15 @@ const PaymentOptionsModule = load(
   import('../components/tenants/PaymentOptionsModule.js'),
   'PaymentOptionsModule',
 );
-const ProductInventoryModule = load(
-  import('../components/tenants/ProductInventoryModule.js'),
-  'ProductInventoryModule',
+const ProductCatalog = load(import('../components/products/ProductCatalog.js'), 'ProductCatalog');
+const ProductProfile = load(import('../components/products/ProductProfile.js'), 'ProductProfile');
+const ProductStockModule = load(
+  import('../components/products/ProductStockModule.js'),
+  'ProductStockModule',
+);
+const ProductMovementsModule = load(
+  import('../components/products/ProductMovementsModule.js'),
+  'ProductMovementsModule',
 );
 const PublicPageSettingsModule = load(
   import('../components/tenants/PublicPageSettingsModule.js'),
@@ -503,6 +510,8 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('product.manage') ?? false;
   const canSellProducts =
     me.data?.currentTenant?.membership.permissions.includes('product_sale.manage') ?? false;
+  const canReadProductSales =
+    me.data?.currentTenant?.membership.permissions.includes('product_sale.read') ?? false;
   const canManageBranding =
     me.data?.currentTenant?.membership.permissions.includes('tenant.branding.manage') ?? false;
   const canReadAutomations =
@@ -613,8 +622,18 @@ export function HomePage() {
       path: '/app/produtos',
       items: [
         {
-          label: 'Produtos e estoque',
+          label: 'Produtos',
           to: '/app/produtos',
+          visible: canReadProducts && planFeatureEnabled('products.enabled'),
+        },
+        {
+          label: 'Estoque',
+          to: '/app/produtos/estoque',
+          visible: canReadProducts && planFeatureEnabled('products.enabled'),
+        },
+        {
+          label: 'Movimentações',
+          to: '/app/produtos/movimentacoes',
           visible: canReadProducts && planFeatureEnabled('products.enabled'),
         },
       ],
@@ -1271,13 +1290,55 @@ export function HomePage() {
               planFeatureEnabled('loyalty.enabled') && (
                 <LoyaltyModule tenantPublicId={selectedTenant} canManage={canManageLoyalty} />
               )}
+            {isRoute('/app/produtos') && canReadProducts && !planFeatureEnabled('products.enabled') && (
+              <section className="sessions-panel">
+                <PageHeader
+                  eyebrow="Catálogo"
+                  title="Produtos"
+                  description="Controle de produtos e estoque não está incluído no seu plano atual."
+                  actions={
+                    <button
+                      className="primary-button"
+                      type="button"
+                      onClick={() => void navigate('/app/plano')}
+                    >
+                      Ver planos
+                    </button>
+                  }
+                />
+              </section>
+            )}
             {isRoute('/app/produtos') &&
               canReadProducts &&
               planFeatureEnabled('products.enabled') && (
-                <ProductInventoryModule
+                <ProductCatalog
                   tenantPublicId={selectedTenant}
                   canManage={canManageProducts}
                   canSell={canSellProducts}
+                />
+              )}
+            {isRoute('/app/produtos/estoque') &&
+              canReadProducts &&
+              planFeatureEnabled('products.enabled') && (
+                <ProductStockModule
+                  tenantPublicId={selectedTenant}
+                  canManage={canManageProducts}
+                />
+              )}
+            {isRoute('/app/produtos/movimentacoes') &&
+              canReadProducts &&
+              planFeatureEnabled('products.enabled') && (
+                <ProductMovementsModule tenantPublicId={selectedTenant} />
+              )}
+            {location.pathname.startsWith('/app/produtos/') &&
+              !isRoute('/app/produtos/estoque', '/app/produtos/movimentacoes') &&
+              canReadProducts &&
+              planFeatureEnabled('products.enabled') && (
+                <ProductProfile
+                  tenantPublicId={selectedTenant}
+                  publicId={location.pathname.slice('/app/produtos/'.length)}
+                  canManage={canManageProducts}
+                  canReadSales={canReadProductSales}
                 />
               )}
             {isRoute('/app/financeiro/fechamentos') && canReadFinancialClosings && (

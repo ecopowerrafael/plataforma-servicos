@@ -44,6 +44,7 @@ export class ProductSaleService {
     t: bigint,
     q: {
       unitPublicId?: string | undefined;
+      productPublicId?: string | undefined;
       customerPublicId?: string | undefined;
       professionalPublicId?: string | undefined;
       from?: string | undefined;
@@ -54,6 +55,9 @@ export class ProductSaleService {
       items: (
         await this.repo.list(t, {
           ...(q.unitPublicId === undefined ? {} : { unit: { publicId: q.unitPublicId } }),
+          ...(q.productPublicId === undefined
+            ? {}
+            : { items: { some: { product: { publicId: q.productPublicId } } } }),
           ...(q.customerPublicId === undefined
             ? {}
             : { customer: { publicId: q.customerPublicId } }),

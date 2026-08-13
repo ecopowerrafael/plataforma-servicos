@@ -1004,6 +1004,8 @@ model Product {
   description     String?           @db.VarChar(1000)
   sku             String?           @db.VarChar(80)
   barcode         String?           @db.VarChar(80)
+  imagePath       String?           @map("image_path") @db.VarChar(512)
+  imageAlt        String?           @map("image_alt") @db.VarChar(160)
   costPriceCents  BigInt            @default(0) @map("cost_price_cents") @db.UnsignedBigInt
   salePriceCents  BigInt            @map("sale_price_cents") @db.UnsignedBigInt
   commissionType  CommissionType?   @map("commission_type")

@@ -30,6 +30,7 @@ const ProductInputShape = {
   description: z.string().trim().min(1).max(1000).nullable().optional(),
   sku: z.string().trim().min(1).max(80).nullable().optional(),
   barcode: z.string().trim().min(1).max(80).nullable().optional(),
+  imageAlt: z.string().trim().min(1).max(160).nullable().optional(),
   costPriceCents: MoneySchema.default('0'),
   salePriceCents: MoneySchema,
   commissionType: z.enum(['PERCENTAGE', 'FIXED']).nullable().optional(),
@@ -38,24 +39,65 @@ const ProductInputShape = {
 };
 export const CreateProductRequestSchema = z.object(ProductInputShape).strict();
 export const UpdateProductRequestSchema = z.object(ProductInputShape).strict();
+export const ProductStockStatusSchema = z.enum(['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK']);
 export const ProductPublicSchema = z
   .object({
     publicId: z.uuid(),
     categoryPublicId: z.uuid().nullable(),
+    categoryName: z.string().nullable(),
     name: z.string(),
     description: z.string().nullable(),
     sku: z.string().nullable(),
     barcode: z.string().nullable(),
+    imageUrl: z.string().nullable(),
+    imageAlt: z.string().nullable(),
     costPriceCents: z.string(),
     salePriceCents: z.string(),
     commissionType: z.enum(['PERCENTAGE', 'FIXED']).nullable(),
     commissionValue: z.number().int().nullable(),
     active: z.boolean(),
+    stockQuantity: z.number().int(),
+    stockMinimumQuantity: z.number().int(),
+    stockStatus: ProductStockStatusSchema,
+    stockUnitCount: z.number().int(),
     createdAt: z.iso.datetime({ offset: true }),
     updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
-export const ProductListResponseSchema = z.object({ items: z.array(ProductPublicSchema) });
+export const ProductPageSchema = z
+  .object({
+    page: z.number().int(),
+    limit: z.number().int(),
+    total: z.number().int(),
+    totalPages: z.number().int(),
+  })
+  .strict();
+export const ProductListResponseSchema = z.object({
+  items: z.array(ProductPublicSchema),
+  page: ProductPageSchema,
+});
+export const ProductQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    search: z.string().trim().min(1).max(120).optional(),
+    active: z.enum(['true', 'false']).optional(),
+    categoryPublicId: z.uuid().optional(),
+    stock: z.enum(['in', 'low', 'out']).optional(),
+    unitPublicId: z.uuid().optional(),
+  })
+  .strict();
+export const ProductCatalogSummaryResponseSchema = z
+  .object({
+    activeCount: z.number().int(),
+    inactiveCount: z.number().int(),
+    lowStockCount: z.number().int(),
+    outOfStockCount: z.number().int(),
+    stockValueCents: z.string(),
+    stockValueReliable: z.boolean(),
+  })
+  .strict();
+export const ProductStatusResponseSchema = z.object({ success: z.literal(true) }).strict();
 
 export const SetProductStockRequestSchema = z
   .object({
@@ -63,14 +105,20 @@ export const SetProductStockRequestSchema = z
     minimumQuantity: z.coerce.number().int().min(0).max(2_000_000_000).default(0),
   })
   .strict();
+export const SetMinimumStockRequestSchema = z
+  .object({ minimumQuantity: z.coerce.number().int().min(0).max(2_000_000_000) })
+  .strict();
 export const ProductStockPublicSchema = z
   .object({
     publicId: z.uuid(),
     productPublicId: z.uuid(),
+    productName: z.string(),
     unitPublicId: z.uuid(),
+    unitName: z.string(),
     quantity: z.number().int(),
     minimumQuantity: z.number().int(),
     lowStock: z.boolean(),
+    status: ProductStockStatusSchema,
     createdAt: z.iso.datetime({ offset: true }),
     updatedAt: z.iso.datetime({ offset: true }),
   })
@@ -82,6 +130,11 @@ export const ProductStockListResponseSchema = z.object({
 export type CreateProductCategoryRequest = z.infer<typeof CreateProductCategoryRequestSchema>;
 export type CreateProductRequest = z.infer<typeof CreateProductRequestSchema>;
 export type SetProductStockRequest = z.infer<typeof SetProductStockRequestSchema>;
+export type SetMinimumStockRequest = z.infer<typeof SetMinimumStockRequestSchema>;
+export type ProductQuery = z.infer<typeof ProductQuerySchema>;
+export type ProductPublic = z.infer<typeof ProductPublicSchema>;
+export type ProductStockStatus = z.infer<typeof ProductStockStatusSchema>;
+export type StockMovementQuery = z.infer<typeof StockMovementQuerySchema>;
 
 export const StockMovementTypeSchema = z.enum([
   'ENTRY',
@@ -127,18 +180,36 @@ export const StockMovementPublicSchema = z
     transferPublicId: z.uuid().nullable(),
     type: StockMovementTypeSchema,
     productPublicId: z.uuid(),
+    productName: z.string(),
     unitPublicId: z.uuid(),
+    unitName: z.string(),
     relatedUnitPublicId: z.uuid().nullable(),
+    relatedUnitName: z.string().nullable(),
     quantity: z.number().int(),
     previousQuantity: z.number().int(),
     resultingQuantity: z.number().int(),
     reason: z.string().nullable(),
     responsibleUserPublicId: z.uuid(),
+    responsibleName: z.string().nullable(),
+    salePublicId: z.uuid().nullable(),
+    saleCustomerName: z.string().nullable(),
     createdAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+export const StockMovementQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    productPublicId: z.uuid().optional(),
+    unitPublicId: z.uuid().optional(),
+    type: StockMovementTypeSchema.optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
   })
   .strict();
 export const StockMovementListResponseSchema = z.object({
   items: z.array(StockMovementPublicSchema),
+  page: ProductPageSchema,
 });
 export const TransferStockResponseSchema = z.object({
   transferPublicId: z.uuid(),
@@ -201,6 +272,7 @@ export const ProductSaleListResponseSchema = z.object({ items: z.array(ProductSa
 export const ProductSaleQuerySchema = z
   .object({
     unitPublicId: z.uuid().optional(),
+    productPublicId: z.uuid().optional(),
     customerPublicId: z.uuid().optional(),
     professionalPublicId: z.uuid().optional(),
     from: z.iso.datetime({ offset: true }).optional(),

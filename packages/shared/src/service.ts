@@ -8,6 +8,8 @@ const ServiceInputShape = {
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().min(1).max(1000).nullable().optional(),
   imageAlt: z.string().trim().min(1).max(160).nullable().optional(),
+  /** Identificador do catálogo curado de ícones (sem SVG livre do usuário). */
+  iconKey: z.string().trim().min(1).max(60).nullable().optional(),
   categoryPublicId: z.uuid().nullable().optional(),
   durationMinutes: z.coerce.number().int().min(1).max(1440),
   hasPostServiceBreak: z.boolean().default(false),
@@ -50,6 +52,7 @@ export const ServicePublicSchema = z
     name: z.string(),
     description: z.string().nullable(),
     imageAlt: z.string().nullable(),
+    iconKey: z.string().nullable(),
     categoryPublicId: z.uuid().nullable(),
     categoryName: z.string().nullable().optional(),
     enabledProfessionalCount: z.number().int().nonnegative().optional(),

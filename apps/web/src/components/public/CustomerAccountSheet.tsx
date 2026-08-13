@@ -30,7 +30,11 @@ type Panel = 'menu' | 'appointments' | 'profile';
 export function fallbackName(name: string, email: string): string {
   const informed = name.trim();
   if (informed.length >= 2) return informed;
-  const local = email.split('@')[0]?.replace(/[._-]+/gu, ' ').trim() ?? '';
+  const local =
+    email
+      .split('@')[0]
+      ?.replace(/[._-]+/gu, ' ')
+      .trim() ?? '';
   return local.length >= 2 ? local : 'Cliente';
 }
 
@@ -318,7 +322,11 @@ export function CustomerAccountSheet({
               {panel === 'appointments' ? (
                 <div className="public-account-panel">
                   <CustomerAppointments slug={slug} />
-                  <CustomerFavorites slug={slug} services={services} professionals={professionals} />
+                  <CustomerFavorites
+                    slug={slug}
+                    services={services}
+                    professionals={professionals}
+                  />
                   <CustomerReviews slug={slug} />
                 </div>
               ) : (

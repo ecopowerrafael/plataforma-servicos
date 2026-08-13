@@ -17,6 +17,7 @@ function service(overrides: Record<string, unknown> = {}) {
     description: null,
     imagePath: null,
     imageAlt: null,
+    iconKey: null,
     category: null,
     _count: { professionalServices: 0 },
     durationMinutes: 30,

@@ -19,7 +19,29 @@ export const BRAND_THEMES = [
     description: 'Moderno, comercial e expressivo.',
     audience: 'Beleza, tatuagem, academias e negócios criativos.',
   },
+  {
+    code: 'LUXURY',
+    name: 'Luxury',
+    description: 'Grafite profundo com dourado e contraste alto.',
+    audience: 'Barbearias, studios e marcas premium.',
+  },
 ] as const;
+
+/** Modelo (estrutura/UX) do app público — não define cores. */
+export const PUBLIC_LAYOUTS = [
+  {
+    code: 'CLASSIC',
+    name: 'Clássico',
+    description: 'Página institucional com seções e agendamento na própria página.',
+  },
+  {
+    code: 'PREMIUM_APP',
+    name: 'App Premium',
+    description: 'Experiência de aplicativo, com navegação inferior e blocos compactos.',
+  },
+] as const;
+
+export type PublicLayoutCode = (typeof PUBLIC_LAYOUTS)[number]['code'];
 
 export type BrandThemeCode = (typeof BRAND_THEMES)[number]['code'];
 
@@ -59,8 +81,10 @@ export function contrastTextColor(background: string): '#0F172A' | '#FFFFFF' {
   return darkContrast >= lightContrast ? '#0F172A' : '#FFFFFF';
 }
 
+/** O tema Luxury trabalha sobre superfícies escuras; os demais seguem claros. */
 export function deriveBrandPalette(
   primaryColor: string,
+  theme: BrandThemeCode = 'CLASSIC',
 ): Pick<
   TenantBranding,
   | 'primaryColor'
@@ -73,6 +97,17 @@ export function deriveBrandPalette(
   | 'borderColor'
 > {
   const primary = primaryColor.toUpperCase();
+  if (theme === 'LUXURY')
+    return {
+      primaryColor: primary,
+      secondaryColor: mixHex(primary, '#000000', 0.35),
+      accentColor: mixHex(primary, '#FFFFFF', 0.22),
+      backgroundColor: '#0B0B0C',
+      surfaceColor: '#141416',
+      textColor: '#F5F1E8',
+      mutedTextColor: '#A7A29A',
+      borderColor: '#2A2A2E',
+    };
   return {
     primaryColor: primary,
     secondaryColor: mixHex(primary, '#000000', 0.24),

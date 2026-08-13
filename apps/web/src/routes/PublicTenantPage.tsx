@@ -5,11 +5,13 @@ import { useParams, useSearchParams } from 'react-router-dom';
 
 import { contrastTextColor } from '../components/branding/brand-studio.js';
 import { CustomerAccountSheet } from '../components/public/CustomerAccountSheet.js';
+import { PremiumApp } from '../components/public/premium/PremiumApp.js';
 import { PublicHeader } from '../components/public/PublicHeader.js';
 import { PublicBookingFlow } from '../components/PublicBookingFlow.js';
 import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
 import { ClassicTheme } from '../themes/classic/ClassicTheme.js';
+import { LuxuryTheme } from '../themes/luxury/LuxuryTheme.js';
 import { ModernTheme } from '../themes/modern/ModernTheme.js';
 import { PremiumTheme } from '../themes/premium/PremiumTheme.js';
 
@@ -106,12 +108,17 @@ export function PublicTenantPage() {
       </main>
     );
   }
+  const activeTheme = searchParams.get('previewTheme') ?? site.data.site.theme;
   const Theme =
-    (searchParams.get('previewTheme') ?? site.data.site.theme) === 'MODERN'
+    activeTheme === 'MODERN'
       ? ModernTheme
-      : (searchParams.get('previewTheme') ?? site.data.site.theme) === 'PREMIUM'
+      : activeTheme === 'PREMIUM'
         ? PremiumTheme
-        : ClassicTheme;
+        : activeTheme === 'LUXURY'
+          ? LuxuryTheme
+          : ClassicTheme;
+  // Modelo e tema são independentes: o modelo define a estrutura, o tema as cores.
+  const layout = searchParams.get('previewLayout') ?? site.data.site.layout;
   const asset = (kind: string) => site.data.assets.find((item) => item.kind === kind);
   const logo = asset('LOGO');
   const banner = asset('BANNER_DESKTOP');
@@ -159,15 +166,6 @@ export function PublicTenantPage() {
             )}
           </div>
         ) : null}
-        <PublicHeader
-          displayName={site.data.displayName}
-          logoUrl={logo?.url ?? null}
-          logoAlt={logo?.altText ?? null}
-          customerName={customer.data?.customer.name ?? null}
-          onOpenAccount={() => {
-            setAccountOpen(true);
-          }}
-        />
         {accountOpen ? (
           <CustomerAccountSheet
             slug={slug}
@@ -178,87 +176,113 @@ export function PublicTenantPage() {
             }}
           />
         ) : null}
-        <section className="public-hero">
-          <h1>{site.data.site.heroTitle ?? site.data.displayName}</h1>
-          <p>
-            {site.data.site.heroSubtitle ?? 'Conhe\u00e7a nossos servi\u00e7os e nossa equipe.'}
-          </p>
-          {site.data.site.primaryCallToAction === null ? null : (
-            <a className="public-cta" href="#agendar">
-              {site.data.site.primaryCallToAction}
-            </a>
-          )}
-        </section>
-        {site.data.services.length === 0 ? null : (
-          <section className="public-section">
-            <h2>{site.data.terminology.service.plural}</h2>
-            <div className="public-service-grid">
-              {site.data.services.map((service) => (
-                <article key={service.publicId} className="public-service-card">
-                  <div className="public-service-media">
-                    {service.imageUrl === null ? (
-                      <span aria-hidden="true">{service.name.slice(0, 1)}</span>
-                    ) : (
-                      <img src={mediaUrl(service.imageUrl)} alt={service.name} />
-                    )}
-                  </div>
-                  <div className="public-service-body">
-                    <h3>{service.name}</h3>
-                    {service.description === null ? null : <p>{service.description}</p>}
-                    <div className="public-service-meta">
-                      <strong>{brl(service.priceCents)}</strong>
-                      <span>{`${String(service.durationMinutes)} min`}</span>
-                    </div>
-                    <a className="public-service-cta" href={`?service=${service.publicId}#agendar`}>
-                      Agendar horário
-                    </a>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
+        {layout === 'PREMIUM_APP' ? (
+          <PremiumApp
+            slug={slug}
+            site={site.data}
+            logoUrl={logo?.url ?? null}
+            customerName={customer.data?.customer.name ?? null}
+            onOpenAccount={() => {
+              setAccountOpen(true);
+            }}
+          />
+        ) : (
+          <>
+            <PublicHeader
+              displayName={site.data.displayName}
+              logoUrl={logo?.url ?? null}
+              logoAlt={logo?.altText ?? null}
+              customerName={customer.data?.customer.name ?? null}
+              onOpenAccount={() => {
+                setAccountOpen(true);
+              }}
+            />
+            <section className="public-hero">
+              <h1>{site.data.site.heroTitle ?? site.data.displayName}</h1>
+              <p>
+                {site.data.site.heroSubtitle ?? 'Conhe\u00e7a nossos servi\u00e7os e nossa equipe.'}
+              </p>
+              {site.data.site.primaryCallToAction === null ? null : (
+                <a className="public-cta" href="#agendar">
+                  {site.data.site.primaryCallToAction}
+                </a>
+              )}
+            </section>
+            {site.data.services.length === 0 ? null : (
+              <section className="public-section">
+                <h2>{site.data.terminology.service.plural}</h2>
+                <div className="public-service-grid">
+                  {site.data.services.map((service) => (
+                    <article key={service.publicId} className="public-service-card">
+                      <div className="public-service-media">
+                        {service.imageUrl === null ? (
+                          <span aria-hidden="true">{service.name.slice(0, 1)}</span>
+                        ) : (
+                          <img src={mediaUrl(service.imageUrl)} alt={service.name} />
+                        )}
+                      </div>
+                      <div className="public-service-body">
+                        <h3>{service.name}</h3>
+                        {service.description === null ? null : <p>{service.description}</p>}
+                        <div className="public-service-meta">
+                          <strong>{brl(service.priceCents)}</strong>
+                          <span>{`${String(service.durationMinutes)} min`}</span>
+                        </div>
+                        <a
+                          className="public-service-cta"
+                          href={`?service=${service.publicId}#agendar`}
+                        >
+                          Agendar horário
+                        </a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+            {site.data.professionals.length === 0 ? null : (
+              <section className="public-section">
+                <h2>{site.data.terminology.professional.plural}</h2>
+                <div className="public-professional-grid">
+                  {site.data.professionals.map((professional) => (
+                    <article key={professional.publicId} className="public-professional-card">
+                      <div className="public-professional-avatar">
+                        {professional.photoUrl === null ? (
+                          <span aria-hidden="true">{initials(professional.name)}</span>
+                        ) : (
+                          <img src={mediaUrl(professional.photoUrl)} alt={professional.name} />
+                        )}
+                      </div>
+                      <h3>{professional.name}</h3>
+                      {professional.bio === null ? null : <p>{professional.bio}</p>}
+                      <a className="public-professional-cta" href="#agendar">
+                        Agendar
+                      </a>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+            <section id="agendar">
+              <h2>{site.data.terminology.appointment.singular}</h2>
+              <PublicBookingFlow slug={slug} site={site.data} />
+            </section>
+            <section>
+              <h2>Sobre</h2>
+              <p>{site.data.site.aboutText ?? site.data.displayName}</p>
+            </section>
+            <section>
+              <h2>Contato e localiza\u00e7\u00e3o</h2>
+              {address === null ? (
+                <p>Entre em contato para mais informa\u00e7\u00f5es.</p>
+              ) : (
+                <p>{address}</p>
+              )}
+              <p>{site.data.unit?.timezone}</p>
+            </section>
+            <footer>{site.data.site.footerText ?? site.data.displayName}</footer>
+          </>
         )}
-        {site.data.professionals.length === 0 ? null : (
-          <section className="public-section">
-            <h2>{site.data.terminology.professional.plural}</h2>
-            <div className="public-professional-grid">
-              {site.data.professionals.map((professional) => (
-                <article key={professional.publicId} className="public-professional-card">
-                  <div className="public-professional-avatar">
-                    {professional.photoUrl === null ? (
-                      <span aria-hidden="true">{initials(professional.name)}</span>
-                    ) : (
-                      <img src={mediaUrl(professional.photoUrl)} alt={professional.name} />
-                    )}
-                  </div>
-                  <h3>{professional.name}</h3>
-                  {professional.bio === null ? null : <p>{professional.bio}</p>}
-                  <a className="public-professional-cta" href="#agendar">
-                    Agendar
-                  </a>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
-        <section id="agendar">
-          <h2>{site.data.terminology.appointment.singular}</h2>
-          <PublicBookingFlow slug={slug} site={site.data} />
-        </section>
-        <section>
-          <h2>Sobre</h2>
-          <p>{site.data.site.aboutText ?? site.data.displayName}</p>
-        </section>
-        <section>
-          <h2>Contato e localiza\u00e7\u00e3o</h2>
-          {address === null ? (
-            <p>Entre em contato para mais informa\u00e7\u00f5es.</p>
-          ) : (
-            <p>{address}</p>
-          )}
-          <p>{site.data.unit?.timezone}</p>
-        </section>
-        <footer>{site.data.site.footerText ?? site.data.displayName}</footer>
       </div>
     </Theme>
   );

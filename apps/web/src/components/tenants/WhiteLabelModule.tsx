@@ -9,11 +9,16 @@ import { useMemo, useState } from 'react';
 
 import { environment } from '../../config/environment.js';
 import { HttpError, httpClient } from '../../lib/http.js';
-import { deriveBrandPalette, type BrandThemeCode } from '../branding/brand-studio.js';
+import {
+  deriveBrandPalette,
+  type BrandThemeCode,
+  type PublicLayoutCode,
+} from '../branding/brand-studio.js';
 import { BrandAssetDropzone } from '../branding/BrandAssetDropzone.js';
 import { BrandColorPicker } from '../branding/BrandColorPicker.js';
 import { BrandPreview } from '../branding/BrandPreview.js';
 import { BrandThemePicker } from '../branding/BrandThemePicker.js';
+import { PublicLayoutPicker } from '../branding/PublicLayoutPicker.js';
 
 type AssetKind = 'LOGO' | 'APP_ICON' | 'SPLASH';
 
@@ -41,18 +46,21 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
     retry: false,
   });
   const [themeOverride, setThemeOverride] = useState<BrandThemeCode | null>(null);
+  const [layoutOverride, setLayoutOverride] = useState<PublicLayoutCode | null>(null);
   const [colorOverride, setColorOverride] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
   const [notice, setNotice] = useState<string | null>(null);
   const theme = themeOverride ?? settings.data?.site.theme ?? 'CLASSIC';
+  // Tenants sem escolha explícita permanecem no modelo clássico.
+  const layout = layoutOverride ?? settings.data?.site.layout ?? 'CLASSIC';
   const color = colorOverride ?? settings.data?.branding.primaryColor ?? '#2457D6';
-  const dirty = themeOverride !== null || colorOverride !== null;
+  const dirty = themeOverride !== null || colorOverride !== null || layoutOverride !== null;
   const refresh = async () => {
     await client.invalidateQueries({ queryKey });
   };
   const save = useMutation({
     mutationFn: async () => {
-      const palette = deriveBrandPalette(color);
+      const palette = deriveBrandPalette(color, theme);
       await httpClient.request('/tenant/branding', {
         method: 'PATCH',
         tenantPublicId,
@@ -62,13 +70,14 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
       await httpClient.request('/tenant/public-site', {
         method: 'PATCH',
         tenantPublicId,
-        body: { theme },
+        body: { theme, layout },
         schema: TenantPublicSiteSchema,
       });
     },
     onSuccess: async () => {
       setThemeOverride(null);
       setColorOverride(null);
+      setLayoutOverride(null);
       setNotice('Identidade visual atualizada.');
       await refresh();
     },
@@ -192,6 +201,17 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
           </section>
           <section className="brand-settings-card">
             <span className="brand-section-number">02</span>
+            <h3>Modelo do aplicativo</h3>
+            <p>Define a estrutura e a navegação da página pública — não altera as cores.</p>
+            <PublicLayoutPicker
+              value={layout}
+              onChange={(value) => {
+                setLayoutOverride(value);
+              }}
+            />
+          </section>
+          <section className="brand-settings-card">
+            <span className="brand-section-number">03</span>
             <h3>Escolha um tema</h3>
             <p>Três direções visuais com composições realmente diferentes.</p>
             <BrandThemePicker
@@ -202,7 +222,7 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
             />
           </section>
           <section className="brand-settings-card">
-            <span className="brand-section-number">03</span>
+            <span className="brand-section-number">04</span>
             <BrandColorPicker
               value={color}
               onChange={(value) => {
@@ -211,7 +231,7 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
             />
           </section>
           <section className="brand-settings-card">
-            <span className="brand-section-number">04</span>
+            <span className="brand-section-number">05</span>
             <h3>Tela de abertura</h3>
             <p>
               A tela de abertura é a imagem exibida por alguns instantes quando seu aplicativo é
@@ -257,7 +277,7 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
             </div>
           </section>
           <section className="brand-settings-card">
-            <span className="brand-section-number">05</span>
+            <span className="brand-section-number">06</span>
             <h3>Ícone do aplicativo</h3>
             <p>
               Este será o ícone exibido quando seus clientes ou sua equipe adicionarem o aplicativo

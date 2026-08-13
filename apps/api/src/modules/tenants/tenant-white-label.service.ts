@@ -67,6 +67,7 @@ function assetPublic(asset: {
 function sitePublic(
   site: {
     theme: string;
+    layout?: string;
     heroTitle: string | null;
     heroSubtitle: string | null;
     aboutText: string | null;
@@ -82,6 +83,7 @@ function sitePublic(
   return TenantPublicSiteSchema.parse(
     site ?? {
       theme: 'CLASSIC',
+      layout: 'CLASSIC',
       heroTitle: null,
       heroSubtitle: null,
       aboutText: null,
@@ -340,6 +342,7 @@ export class TenantWhiteLabelService {
           service.imagePath === null
             ? null
             : `/public/services/${service.publicId}/image?variant=thumbnail`,
+        iconKey: service.iconKey,
         priceCents: service.priceCents.toString(),
         durationMinutes: service.durationMinutes,
       })),

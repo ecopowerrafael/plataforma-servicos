@@ -75,6 +75,13 @@ enum TenantPublicTheme {
   CLASSIC
   MODERN
   PREMIUM
+  LUXURY
+}
+
+/// Modelo (estrutura/UX) do aplicativo público, independente do tema visual.
+enum TenantPublicLayout {
+  CLASSIC
+  PREMIUM_APP
 }
 
 enum ProfessionalUnavailabilityType {
@@ -901,7 +908,8 @@ model TenantMediaAsset {
 model TenantPublicSite {
   id                  BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
   tenantId            BigInt            @unique @map("tenant_id") @db.UnsignedBigInt
-  theme               TenantPublicTheme @default(CLASSIC)
+  theme               TenantPublicTheme  @default(CLASSIC)
+  layout              TenantPublicLayout @default(CLASSIC)
   heroTitle           String?           @map("hero_title") @db.VarChar(160)
   heroSubtitle        String?           @map("hero_subtitle") @db.VarChar(500)
   aboutText           String?           @map("about_text") @db.VarChar(4000)
@@ -1138,6 +1146,7 @@ model Service {
   description             String?                          @db.VarChar(1000)
   imagePath               String?                          @map("image_path") @db.VarChar(512)
   imageAlt                String?                          @map("image_alt") @db.VarChar(160)
+  iconKey                 String?                          @map("icon_key") @db.VarChar(60)
   durationMinutes         Int                              @map("duration_minutes") @db.UnsignedSmallInt
   hasPostServiceBreak     Boolean                          @default(false) @map("has_post_service_break")
   postServiceBreakMinutes Int                              @default(0) @map("post_service_break_minutes") @db.UnsignedSmallInt

@@ -54,6 +54,7 @@ export class TenantWhiteLabelRepository {
         publicSite: {
           select: {
             theme: true,
+            layout: true,
             heroTitle: true,
             heroSubtitle: true,
             aboutText: true,
@@ -117,6 +118,7 @@ export class TenantWhiteLabelRepository {
         publicSite: {
           select: {
             theme: true,
+            layout: true,
             heroTitle: true,
             heroSubtitle: true,
             aboutText: true,
@@ -154,6 +156,7 @@ export class TenantWhiteLabelRepository {
         publicSite: {
           select: {
             theme: true,
+            layout: true,
             heroTitle: true,
             heroSubtitle: true,
             aboutText: true,
@@ -251,6 +254,7 @@ export class TenantWhiteLabelRepository {
       update: data,
       select: {
         theme: true,
+        layout: true,
         heroTitle: true,
         heroSubtitle: true,
         aboutText: true,

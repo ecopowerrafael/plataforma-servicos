@@ -12,6 +12,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
     "@plataforma/shared": "^0.1.0",
+    "@tabler/icons-react": "^3.46.0",
     "@tanstack/react-query": "^5.101.4",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
@@ -22,6 +23,5 @@
     "react-router-dom": "7.18.2",
     "vite": "^8.2.0",
     "zod": "^4.4.3"
-  },
-  "devDependencies": {}
+  }
 }

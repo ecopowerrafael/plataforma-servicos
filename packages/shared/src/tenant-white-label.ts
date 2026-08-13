@@ -17,7 +17,9 @@ export const TenantMediaKindSchema = z.enum([
   'BANNER_MOBILE',
   'INSTITUTIONAL',
 ]);
-export const TenantPublicThemeSchema = z.enum(['CLASSIC', 'MODERN', 'PREMIUM']);
+export const TenantPublicThemeSchema = z.enum(['CLASSIC', 'MODERN', 'PREMIUM', 'LUXURY']);
+/** Modelo (estrutura/UX) do app público — independente do tema visual. */
+export const TenantPublicLayoutSchema = z.enum(['CLASSIC', 'PREMIUM_APP']);
 
 export const TenantMediaAssetSchema = z.object({
   publicId: z.uuid(),
@@ -39,6 +41,7 @@ const NullableText = (maximum: number) =>
 export const UpdateTenantPublicSiteRequestSchema = z
   .object({
     theme: TenantPublicThemeSchema.optional(),
+    layout: TenantPublicLayoutSchema.optional(),
     heroTitle: NullableText(160),
     heroSubtitle: NullableText(500),
     aboutText: NullableText(4000),
@@ -55,6 +58,7 @@ export const UpdateTenantPublicSiteRequestSchema = z
 
 export const TenantPublicSiteSchema = UpdateTenantPublicSiteRequestSchema.safeExtend({
   theme: TenantPublicThemeSchema,
+  layout: TenantPublicLayoutSchema,
   heroTitle: z.string().nullable(),
   heroSubtitle: z.string().nullable(),
   aboutText: z.string().nullable(),
@@ -88,6 +92,7 @@ export const PublicTenantSiteResponseSchema = z.object({
       name: z.string(),
       description: z.string().nullable(),
       imageUrl: z.string().nullable(),
+      iconKey: z.string().nullable(),
       priceCents: z.string(),
       durationMinutes: z.number().int(),
     }),

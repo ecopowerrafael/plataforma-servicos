@@ -8,6 +8,8 @@ import {
 import { useEffect, type ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 
+import { ServiceIconPicker } from './ServiceIconPicker.js';
+
 import type { z } from 'zod';
 
 type ServiceInput = z.input<typeof CreateServiceRequestSchema>;
@@ -21,6 +23,7 @@ function defaults(service?: Service): ServiceInput {
       name: '',
       description: null,
       imageAlt: null,
+      iconKey: null,
       categoryPublicId: null,
       durationMinutes: 30,
       hasPostServiceBreak: false,
@@ -35,6 +38,7 @@ function defaults(service?: Service): ServiceInput {
     name: service.name,
     description: service.description,
     imageAlt: service.imageAlt,
+    iconKey: service.iconKey,
     categoryPublicId: service.categoryPublicId,
     durationMinutes: service.durationMinutes,
     hasPostServiceBreak: service.hasPostServiceBreak,
@@ -84,9 +88,15 @@ export function ServiceForm({
     setValue,
     formState: { errors },
   } = form;
-  const [duration, hasBreak, breakMinutes, priceCents] = useWatch({
+  const [duration, hasBreak, breakMinutes, priceCents, iconKey] = useWatch({
     control,
-    name: ['durationMinutes', 'hasPostServiceBreak', 'postServiceBreakMinutes', 'priceCents'],
+    name: [
+      'durationMinutes',
+      'hasPostServiceBreak',
+      'postServiceBreakMinutes',
+      'priceCents',
+      'iconKey',
+    ],
   });
   useEffect(() => {
     reset(defaults(service));
@@ -214,6 +224,16 @@ export function ServiceForm({
       />
     </label>
   );
+  const iconField = (
+    <div className="service-field--wide">
+      <ServiceIconPicker
+        value={typeof iconKey === 'string' ? iconKey : null}
+        onChange={(value) => {
+          setValue('iconKey', value, { shouldDirty: true });
+        }}
+      />
+    </div>
+  );
   const imageAltField = (
     <label className="service-field--wide">
       Texto alternativo da imagem
@@ -256,6 +276,7 @@ export function ServiceForm({
                 <div className="service-field--wide">{imageSlot}</div>
               )}
               {descriptionField}
+              {iconField}
               {imageAltField}
               {sortOrderField}
             </div>
@@ -277,6 +298,7 @@ export function ServiceForm({
       {fields === 'public' ? (
         <div className="service-form-grid">
           {descriptionField}
+          {iconField}
           {imageAltField}
         </div>
       ) : null}

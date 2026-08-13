@@ -5,6 +5,8 @@ import { AppProviders } from './AppProviders.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import './styles.css';
 import './app-design-system.css';
+import './public-premium.css';
+import './public-premium-booking.css';
 
 const rootElement = document.getElementById('root');
 

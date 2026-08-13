@@ -32,6 +32,7 @@ const baseResponse = TenantWhiteLabelResponseSchema.parse({
   },
   site: {
     theme: 'CLASSIC',
+    layout: 'CLASSIC',
     heroTitle: null,
     heroSubtitle: null,
     aboutText: null,

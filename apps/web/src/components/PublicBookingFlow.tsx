@@ -1,74 +1,33 @@
 import {
   AppointmentPaymentOptionsResponseSchema,
-  AvailabilityResponseSchema,
   CUSTOMER_PASSWORD_RULES,
-  CustomerAuthResponseSchema,
-  CustomerPasswordSchema,
-  CustomerRegisterRequestSchema,
   PaymentGatewayChargePublicSchema,
   PixChargeResponseSchema,
-  PublicBookingConfirmationSchema,
-  PublicPaymentOptionsResponseSchema,
-  PublicServiceProfessionalsResponseSchema,
-  type PublicTenantSiteResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { type z } from 'zod';
 
+import {
+  BOOKING_STEPS as steps,
+  centsToBrl,
+  dateFromIso,
+  humanError,
+  initialsOf,
+  isoFromDate,
+  todayIsoDate,
+  usePublicBooking,
+  type BookingProfessional as Professional,
+  type BookingStep as Step,
+  type Site,
+} from './public/use-public-booking.js';
 import { environment } from '../config/environment.js';
 import { httpClient, HttpError } from '../lib/http.js';
 
-type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
-type Step = 'service' | 'professional' | 'date' | 'time' | 'customer' | 'payment' | 'review';
-type Professional = z.infer<
-  typeof PublicServiceProfessionalsResponseSchema
->['professionals'][number];
 
-const steps: { id: Step; label: string }[] = [
-  { id: 'service', label: 'Serviço' },
-  { id: 'professional', label: 'Profissional' },
-  { id: 'date', label: 'Data' },
-  { id: 'time', label: 'Horário' },
-  { id: 'customer', label: 'Seus dados' },
-  { id: 'payment', label: 'Pagamento' },
-  { id: 'review', label: 'Revisão' },
-];
 
-function centsToBrl(cents: string): string {
-  return (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
 
-function todayIsoDate(): string {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-}
 
-function dateFromIso(value: string): Date {
-  return new Date(`${value}T12:00:00`);
-}
-
-function isoFromDate(value: Date): string {
-  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-}
-
-function initialsOf(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
-function humanError(error: unknown): string {
-  if (error instanceof HttpError) {
-    if (error.status === 409)
-      return 'Esse horário acabou de ser reservado. Escolha outro horário para continuar.';
-    if (error.status === 400 || error.status === 422)
-      return 'Não foi possível confirmar com esses dados. Revise as informações e tente novamente.';
-  }
-  return 'Não conseguimos concluir agora. Tente novamente em alguns instantes.';
-}
 
 function BookingProgress({ step, flow }: { step: Step; flow: Step[] }) {
   const activeIndex = flow.indexOf(step);
@@ -620,7 +579,7 @@ function BookingSummary({
  * Cobrança online do agendamento já criado. Reutiliza os endpoints de cobrança
  * existentes; `mode` só muda a apresentação (obrigatória ou lembrete discreto).
  */
-function AppointmentPaymentStep({
+export function AppointmentPaymentPanel({
   slug,
   appointmentPublicId,
   mode,
@@ -765,252 +724,47 @@ function AppointmentPaymentStep({
 }
 
 export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) {
-  const storageKey = `agendei:booking:${slug}`;
-  const restored = useMemo(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem(storageKey) ?? '{}') as Record<string, string>;
-    } catch {
-      return {};
-    }
-  }, [storageKey]);
-  const serviceFromUrl = new URLSearchParams(window.location.search).get('service');
-  const initialService = serviceFromUrl ?? restored.servicePublicId ?? '';
-  const restoredStep = steps.some((item) => item.id === restored.step)
-    ? restored.step === 'review'
-      ? 'customer'
-      : (restored.step as Step)
-    : null;
-  const [step, setStep] = useState<Step>(
-    serviceFromUrl !== null
-      ? 'professional'
-      : (restoredStep ?? (initialService !== '' ? 'professional' : 'service')),
-  );
-  const [unitPublicId, setUnitPublicId] = useState(
-    site.units.length === 1 ? (site.units[0]?.publicId ?? '') : (restored.unitPublicId ?? ''),
-  );
-  const [servicePublicId, setServicePublicId] = useState(
-    site.services.some((item) => item.publicId === initialService) ? initialService : '',
-  );
-  const [professionalPublicId, setProfessionalPublicId] = useState(
-    restored.professionalPublicId ?? '',
-  );
-  const [date, setDate] = useState(restored.date ?? todayIsoDate());
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(restored.selectedSlot ?? null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [notes, setNotes] = useState('');
-  const [validation, setValidation] = useState<string | null>(null);
-  const [createAccount, setCreateAccount] = useState(false);
-  const [accountPassword, setAccountPassword] = useState('');
-  const [accountError, setAccountError] = useState<string | null>(null);
-  const [paymentChoice, setPaymentChoice] = useState<'online' | 'local' | null>(null);
-
-  const customerSession = useQuery({
-    queryKey: ['public', slug, 'customer', 'me'],
-    queryFn: () =>
-      httpClient.request(`/public/sites/${slug}/customer/me`, {
-        schema: CustomerAuthResponseSchema,
-      }),
-    retry: false,
-  });
-  const tenantOptions = useQuery({
-    queryKey: ['public-booking', slug, 'payment-options'],
-    queryFn: () =>
-      httpClient.request(`/public/sites/${slug}/payment-options`, {
-        schema: PublicPaymentOptionsResponseSchema,
-      }),
-    retry: false,
-  });
-  const onlineAvailable =
-    (tenantOptions.data?.pixLocalAvailable ?? false) ||
-    (tenantOptions.data?.mercadoPagoAvailable ?? false);
-  const localAvailable = tenantOptions.data?.payLocalAvailable ?? true;
-  // Só existe etapa de pagamento quando há de fato uma escolha a fazer.
-  const needsPaymentChoice = onlineAvailable && localAvailable;
-  const flow = steps
-    .map((item) => item.id)
-    .filter((id) => id !== 'payment' || needsPaymentChoice);
-  const payOnline = needsPaymentChoice ? paymentChoice === 'online' : onlineAvailable;
-
-  const registerAccount = useMutation({
-    mutationFn: () =>
-      httpClient.request(`/public/sites/${slug}/customer/register`, {
-        method: 'POST',
-        body: CustomerRegisterRequestSchema.parse({
-          name: customerName.trim(),
-          email: customerEmail.trim(),
-          phone: customerPhone.trim() === '' ? null : customerPhone.trim(),
-          password: accountPassword,
-        }),
-        schema: CustomerAuthResponseSchema,
-      }),
-  });
-
-  useEffect(() => {
-    sessionStorage.setItem(
-      storageKey,
-      JSON.stringify({
-        step,
-        unitPublicId,
-        servicePublicId,
-        professionalPublicId,
-        date,
-        selectedSlot,
-      }),
-    );
-  }, [date, professionalPublicId, selectedSlot, servicePublicId, step, storageKey, unitPublicId]);
-
-  const professionals = useQuery({
-    queryKey: ['public-booking', slug, 'professionals', servicePublicId],
-    queryFn: () =>
-      httpClient.request(`/public/sites/${slug}/services/${servicePublicId}/professionals`, {
-        schema: PublicServiceProfessionalsResponseSchema,
-      }),
-    enabled: servicePublicId !== '',
-    retry: false,
-  });
-  const availability = useQuery({
-    queryKey: [
-      'public-booking',
-      slug,
-      'availability',
-      servicePublicId,
-      professionalPublicId,
-      date,
-      unitPublicId,
-    ],
-    queryFn: () => {
-      const query = new URLSearchParams({ date, professionalPublicId, servicePublicId });
-      if (unitPublicId !== '') query.set('unitPublicId', unitPublicId);
-      return httpClient.request(`/public/sites/${slug}/availability?${query.toString()}`, {
-        schema: AvailabilityResponseSchema,
-      });
-    },
-    enabled:
-      step === 'time' &&
-      servicePublicId !== '' &&
-      professionalPublicId !== '' &&
-      date !== '' &&
-      (site.units.length <= 1 || unitPublicId !== ''),
-    retry: false,
-  });
-  const selectedProfessional = professionals.data?.professionals.find(
-    (item) => item.publicId === professionalPublicId,
-  );
-  const availableSlots =
-    availability.data?.slots.filter((slot) => slot.state === 'AVAILABLE') ?? [];
-
-  const booking = useMutation({
-    mutationFn: () =>
-      httpClient.request(`/public/sites/${slug}/bookings`, {
-        method: 'POST',
-        body: {
-          unitPublicId: unitPublicId === '' ? null : unitPublicId,
-          servicePublicId,
-          professionalPublicId,
-          startsAt: selectedSlot,
-          notes: notes.trim() === '' ? null : notes.trim(),
-          customer: {
-            name: customerName.trim(),
-            phone: customerPhone.trim() === '' ? null : customerPhone.trim(),
-            email: customerEmail.trim() === '' ? null : customerEmail.trim(),
-          },
-        },
-        schema: PublicBookingConfirmationSchema,
-      }),
-    onSuccess: async () => {
-      sessionStorage.removeItem(storageKey);
-      // A conta é criada depois do agendamento, com os dados já informados.
-      if (createAccount && accountPassword !== '') {
-        try {
-          await registerAccount.mutateAsync();
-        } catch (error) {
-          setAccountError(
-            error instanceof HttpError
-              ? error.message
-              : 'O agendamento foi confirmado, mas não conseguimos criar sua conta agora.',
-          );
-        }
-      }
-    },
-    onError: (error) => {
-      if (error instanceof HttpError && error.status === 409) {
-        setSelectedSlot(null);
-        setStep('time');
-        void availability.refetch();
-      }
-    },
-  });
-
-  const goBack = () => {
-    const index = flow.indexOf(step);
-    if (index > 0) setStep(flow[index - 1] ?? 'service');
-    setValidation(null);
-  };
-  const continueFlow = () => {
-    setValidation(null);
-    if (step === 'service') {
-      if (site.units.length > 1 && unitPublicId === '') {
-        setValidation('Escolha a unidade.');
-        return;
-      }
-      if (servicePublicId === '') {
-        setValidation('Escolha um serviço.');
-        return;
-      }
-      setStep('professional');
-    } else if (step === 'professional') {
-      if (professionalPublicId === '') {
-        setValidation('Escolha um profissional.');
-        return;
-      }
-      setStep('date');
-    } else if (step === 'date') setStep('time');
-    else if (step === 'time') {
-      if (selectedSlot === null) {
-        setValidation('Escolha um horário.');
-        return;
-      }
-      setStep('customer');
-    } else if (step === 'customer') {
-      if (customerName.trim().length < 2) {
-        setValidation('Informe seu nome.');
-        return;
-      }
-      if (customerPhone.trim() === '' && customerEmail.trim() === '') {
-        setValidation('Informe telefone ou e-mail para contato.');
-        return;
-      }
-      if (
-        customerEmail.trim() !== '' &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(customerEmail.trim())
-      ) {
-        setValidation('Informe um e-mail válido.');
-        return;
-      }
-      if (createAccount) {
-        if (customerEmail.trim() === '') {
-          setValidation('Informe um e-mail para criar sua conta.');
-          return;
-        }
-        const passwordCheck = CustomerPasswordSchema.safeParse(accountPassword);
-        if (!passwordCheck.success) {
-          setValidation(
-            passwordCheck.error.issues[0]?.message ?? 'Escolha uma senha válida para sua conta.',
-          );
-          return;
-        }
-      }
-      setStep(needsPaymentChoice ? 'payment' : 'review');
-    } else if (step === 'payment') {
-      if (paymentChoice === null) {
-        setValidation('Escolha como prefere pagar.');
-        return;
-      }
-      setStep('review');
-    } else booking.mutate();
-  };
+  // Toda a lógica vem do hook; aqui só existe a apresentação Clássica.
+  const {
+    step,
+    setStep,
+    flow,
+    goBack,
+    continueFlow,
+    validation,
+    unitPublicId,
+    setUnitPublicId,
+    servicePublicId,
+    selectService,
+    professionalPublicId,
+    selectProfessional,
+    professionals,
+    selectedProfessional,
+    date,
+    selectDate,
+    selectedSlot,
+    setSelectedSlot,
+    availability,
+    availableSlots,
+    customerName,
+    customerPhone,
+    customerEmail,
+    notes,
+    changeCustomer,
+    createAccount,
+    setCreateAccount,
+    accountPassword,
+    setAccountPassword,
+    accountError,
+    accountCreated,
+    canCreateAccount,
+    paymentChoice,
+    setPaymentChoice,
+    needsPaymentChoice,
+    onlineAvailable,
+    payOnline,
+    booking,
+  } = usePublicBooking(slug, site);
 
   if (booking.isSuccess) {
     const confirmation = booking.data;
@@ -1042,13 +796,13 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
             {accountError}
           </p>
         ) : null}
-        {registerAccount.isSuccess ? (
+        {accountCreated ? (
           <p className="booking-account-created">
             Sua conta foi criada. Use o avatar no topo para acompanhar seus agendamentos.
           </p>
         ) : null}
         {onlineAvailable ? (
-          <AppointmentPaymentStep
+          <AppointmentPaymentPanel
             slug={slug}
             appointmentPublicId={confirmation.appointmentPublicId}
             mode={payOnline ? 'required' : 'reminder'}
@@ -1095,11 +849,7 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
               <ServiceStep
                 site={site}
                 selected={servicePublicId}
-                onSelect={(id) => {
-                  setServicePublicId(id);
-                  setProfessionalPublicId('');
-                  setSelectedSlot(null);
-                }}
+                onSelect={selectService}
               />
               {site.units.length > 1 ? (
                 <fieldset className="booking-unit-picker">
@@ -1130,19 +880,13 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
               selected={professionalPublicId}
               loading={professionals.isPending}
               error={professionals.isError}
-              onSelect={(id) => {
-                setProfessionalPublicId(id);
-                setSelectedSlot(null);
-              }}
+              onSelect={selectProfessional}
             />
           ) : null}
           {step === 'date' ? (
             <DateStep
               date={date}
-              onSelect={(value) => {
-                setDate(value);
-                setSelectedSlot(null);
-              }}
+              onSelect={selectDate}
             />
           ) : null}
           {step === 'time' ? (
@@ -1162,13 +906,8 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
               notes={notes}
               createAccount={createAccount}
               accountPassword={accountPassword}
-              canCreateAccount={customerSession.data === undefined}
-              onChange={(field, value) => {
-                if (field === 'name') setCustomerName(value);
-                else if (field === 'phone') setCustomerPhone(value);
-                else if (field === 'email') setCustomerEmail(value);
-                else setNotes(value);
-              }}
+              canCreateAccount={canCreateAccount}
+              onChange={changeCustomer}
               onToggleAccount={setCreateAccount}
               onPasswordChange={setAccountPassword}
             />

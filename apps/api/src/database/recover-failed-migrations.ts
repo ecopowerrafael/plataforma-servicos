@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { config } from 'dotenv';
 
+import { buildDatabaseUrl } from '../config/database-url.js';
 import { PrismaClient } from '../database-client/client.js';
 
 config({ path: resolve(import.meta.dirname, '../../../../.env'), quiet: true });
@@ -19,9 +20,13 @@ config({ path: resolve(import.meta.dirname, '../../../../.env'), quiet: true });
  * falha deixou no banco. Nenhum dado é apagado e nenhum banco é resetado.
  */
 async function main(): Promise<void> {
-  const url = process.env.DATABASE_URL;
+  // Em produção o projeto costuma expor apenas DB_HOST/DB_PORT/DB_NAME/DB_USER/
+  // DB_PASSWORD; a URL é montada pelo mesmo helper usado pelo restante do app.
+  const url = buildDatabaseUrl(process.env);
   if (url === undefined || url === '') {
-    console.warn('[db:migrate:recover] DATABASE_URL ausente; nada a fazer.');
+    console.warn(
+      '[db:migrate:recover] Configuração de banco ausente (DATABASE_URL ou DB_NAME/DB_USER); nada a fazer.',
+    );
     return;
   }
   const client = new PrismaClient({ adapter: new PrismaMariaDb(url) });
@@ -40,7 +45,12 @@ async function main(): Promise<void> {
       const result = spawnSync(
         'npx',
         ['prisma', 'migrate', 'resolve', '--rolled-back', migration.migration_name],
-        { stdio: 'inherit', env: process.env, shell: process.platform === 'win32' },
+        {
+          stdio: 'inherit',
+          // A CLI precisa enxergar exatamente a mesma conexão resolvida acima.
+          env: { ...process.env, DATABASE_URL: url },
+          shell: process.platform === 'win32',
+        },
       );
       if (result.status !== 0)
         throw new Error(
@@ -48,9 +58,13 @@ async function main(): Promise<void> {
         );
     }
   } catch (error) {
-    // Banco novo (sem _prisma_migrations) não precisa de recuperação.
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.includes('_prisma_migrations')) throw error;
+    // Banco novo (sem `_prisma_migrations`) ou indisponível não deve derrubar o
+    // build: quem decide sobre conectividade é o `migrate deploy` logo a seguir.
+    console.warn(
+      `[db:migrate:recover] Não foi possível inspecionar as migrations: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
   } finally {
     await client.$disconnect();
   }

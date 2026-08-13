@@ -474,3 +474,147 @@
     max-width: 22rem;
   }
 }
+
+/* CTAs e painel de pagamento (Classic e Premium usam os mesmos blocos). */
+.payment-cta {
+  align-items: center;
+  display: grid !important;
+  gap: 0.85rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 4rem;
+  text-align: left;
+  transition:
+    filter 0.15s,
+    transform 0.15s;
+}
+.payment-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+.payment-cta:focus-visible {
+  outline: 2px solid var(--booking-on-primary, #fff);
+  outline-offset: 2px;
+}
+.payment-cta-icon {
+  align-items: center;
+  background: color-mix(in srgb, #000 18%, transparent);
+  border-radius: 0.7rem;
+  display: flex;
+  height: 2.5rem;
+  justify-content: center;
+  width: 2.5rem;
+}
+.payment-cta-body {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.payment-cta-arrow {
+  font-size: 1.2rem;
+  opacity: 0.8;
+}
+.payment-panel {
+  background: var(--booking-surface, var(--tenant-surface));
+  border: 1px solid var(--booking-border, var(--tenant-border));
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.9rem;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 26rem;
+  padding: 1.15rem;
+  text-align: center;
+}
+.payment-panel-header {
+  display: grid;
+  gap: 0.15rem;
+}
+.payment-panel-amount {
+  color: var(--booking-primary, var(--tenant-primary));
+  font-size: 1.9rem;
+  font-weight: 800;
+}
+.payment-panel-header small {
+  color: var(--booking-muted, var(--tenant-muted));
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+.payment-qr {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  margin: 0;
+}
+.payment-qr img {
+  background: #fff;
+  border-radius: 0.75rem;
+  max-width: 13rem;
+  padding: 0.6rem;
+  width: 100%;
+}
+.payment-qr figcaption {
+  color: var(--booking-muted, var(--tenant-muted));
+  font-size: 0.82rem;
+}
+.payment-code {
+  display: grid;
+  gap: 0.5rem;
+}
+.payment-code code {
+  background: color-mix(in srgb, var(--booking-primary, var(--tenant-primary)) 8%, transparent);
+  border: 1px solid var(--booking-border, var(--tenant-border));
+  border-radius: 0.7rem;
+  display: block;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  max-height: 5rem;
+  overflow: auto;
+  padding: 0.6rem;
+  word-break: break-all;
+}
+.payment-copy {
+  background: var(--booking-primary, var(--tenant-primary)) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: var(--booking-on-primary, var(--tenant-on-primary)) !important;
+  cursor: pointer;
+  font-weight: 800;
+  min-height: 46px;
+}
+.payment-status {
+  color: var(--booking-muted, var(--tenant-muted));
+  font-size: 0.82rem;
+  margin: 0;
+}
+/* Calendário compacto no desktop: não domina a viewport. */
+@media (min-width: 900px) {
+  .premium-calendar {
+    justify-self: start;
+    max-width: 22rem;
+    padding: 0.75rem;
+  }
+  .premium-calendar-grid {
+    gap: 0.15rem;
+  }
+  .premium-calendar-day {
+    font-size: 0.78rem;
+    min-height: 30px;
+  }
+  .premium-calendar > header strong {
+    font-size: 0.85rem;
+  }
+  .premium-calendar > header button {
+    height: 30px;
+    width: 30px;
+  }
+  .premium-day {
+    min-width: 3.2rem;
+    padding: 0.45rem 0.35rem;
+  }
+  .premium-day strong {
+    font-size: 1rem;
+  }
+  .payment-panel {
+    max-width: 24rem;
+  }
+}

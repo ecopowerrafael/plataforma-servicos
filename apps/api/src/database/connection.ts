@@ -20,6 +20,7 @@ import { CustomerAuthRepository } from '../modules/customers/customer-auth.repos
 import { CustomerAuthService } from '../modules/customers/customer-auth.service.js';
 import { CustomerFavoriteRepository } from '../modules/customers/customer-favorite.repository.js';
 import { CustomerFavoriteService } from '../modules/customers/customer-favorite.service.js';
+import { CustomerPhotoService } from '../modules/customers/customer-photo.service.js';
 import { CustomerProfileService } from '../modules/customers/customer-profile.service.js';
 import { CustomerRecoveryRepository } from '../modules/customers/customer-recovery.repository.js';
 import { CustomerRecoveryService } from '../modules/customers/customer-recovery.service.js';
@@ -127,6 +128,7 @@ export interface DatabaseConnection {
   readonly customers?: CustomerService;
   readonly customerAuth?: CustomerAuthService;
   readonly customerProfile?: CustomerProfileService;
+  readonly customerPhotos?: CustomerPhotoService;
   readonly customerFavorites?: CustomerFavoriteService;
   readonly customerRecovery?: CustomerRecoveryService;
   readonly appointmentReviews?: AppointmentReviewService;
@@ -282,7 +284,21 @@ export function createDatabaseConnection(
         parallelism: 1,
       },
     ),
-    { sessionTtlHours: customerAuthOptions?.sessionTtlHours ?? 168 },
+    {
+      sessionTtlHours: customerAuthOptions?.sessionTtlHours ?? 168,
+      passwordResetTtlMinutes: 60,
+      appWebUrl: process.env.APP_WEB_URL ?? '',
+    },
+    customerAuthOptions?.smtp === undefined
+      ? undefined
+      : new SmtpEmailDelivery(customerAuthOptions.smtp),
+  );
+  const customerPhotos = new CustomerPhotoService(
+    client,
+    new LocalServiceImageStorage(
+      process.env.CUSTOMER_PHOTO_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'customers'),
+      'professional',
+    ),
   );
   const tenantWhiteLabel = new TenantWhiteLabelService(
     tenantWhiteLabelRepository,
@@ -364,6 +380,7 @@ export function createDatabaseConnection(
     customers: customers,
     customerAuth: customerAuth,
     customerProfile: customerProfile,
+    customerPhotos,
     customerFavorites: customerFavorites,
     customerRecovery: customerRecovery,
     appointmentReviews: appointmentReviews,

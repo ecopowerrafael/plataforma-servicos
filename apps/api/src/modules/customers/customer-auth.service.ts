@@ -9,6 +9,7 @@ import { type CustomerRepository } from './customer.repository.js';
 import { AppError } from '../../errors/AppError.js';
 import { type PasswordService } from '../auth/password.service.js';
 import { generateOpaqueToken, generatePublicId, hashOpaqueToken } from '../auth/token.service.js';
+import { type EmailDelivery } from '../notifications/email-delivery.js';
 import { type TenantWhiteLabelRepository } from '../tenants/tenant-white-label.repository.js';
 
 interface RequestMetadata {
@@ -17,7 +18,13 @@ interface RequestMetadata {
 }
 
 export interface CustomerAuthResult {
-  customer: { publicId: string; name: string; email: string | null; phone: string | null };
+  customer: {
+    publicId: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    photoPath: string | null;
+  };
   rawSessionToken: string;
   sessionExpiresAt: Date;
 }
@@ -46,8 +53,77 @@ export class CustomerAuthService {
     private readonly sessions: CustomerAuthRepository,
     private readonly tenants: TenantWhiteLabelRepository,
     private readonly passwords: PasswordService,
-    private readonly options: { sessionTtlHours: number },
+    private readonly options: {
+      sessionTtlHours: number;
+      passwordResetTtlMinutes?: number;
+      appWebUrl?: string;
+    },
+    private readonly email?: EmailDelivery,
   ) {}
+
+  /**
+   * Resposta sempre neutra: a rota pública não revela se existe conta.
+   * Reaproveita o mesmo token opaco + hash usado no reset do staff.
+   */
+  public async forgotPassword(
+    slug: string,
+    email: string,
+    metadata: RequestMetadata,
+  ): Promise<void> {
+    const tenant = await this.tenants.findActiveTenantBySlug(slug);
+    if (tenant === null) return;
+    const customer = await this.customers.findByEmail(tenant.id, normalizeEmail(email));
+    if (customer?.passwordHash == null) return;
+    const token = generateOpaqueToken();
+    const expiresAt = new Date(
+      Date.now() + (this.options.passwordResetTtlMinutes ?? 60) * 60_000,
+    );
+    await this.sessions.createPasswordReset({
+      tenantId: tenant.id,
+      customerId: customer.id,
+      tokenHash: hashOpaqueToken(token),
+      expiresAt,
+      now: new Date(),
+      ipAddress: metadata.ipAddress,
+    });
+    if (this.email?.available !== true || customer.email === null) return;
+    const link = `${this.options.appWebUrl ?? ''}/public/${slug}/redefinir-senha?token=${encodeURIComponent(token)}`;
+    try {
+      await this.email.send({
+        to: customer.email,
+        subject: 'Redefinição de senha',
+        text: `Recebemos um pedido para redefinir sua senha.
+
+Abra o link abaixo para escolher uma nova senha:
+${link}
+
+Se não foi você, ignore esta mensagem.`,
+      });
+    } catch {
+      // A resposta pública continua neutra mesmo se o envio falhar.
+    }
+  }
+
+  public async resetPassword(
+    slug: string,
+    token: string,
+    newPassword: string,
+  ): Promise<void> {
+    const tenant = await this.tenants.findActiveTenantBySlug(slug);
+    if (tenant === null) throw tenantNotFound();
+    const changed = await this.sessions.consumePasswordReset(
+      tenant.id,
+      hashOpaqueToken(token),
+      await this.passwords.hash(newPassword),
+      new Date(),
+    );
+    if (!changed)
+      throw new AppError({
+        code: 'CUSTOMER_PASSWORD_RESET_INVALID',
+        message: 'O link de redefinição é inválido, expirou ou já foi utilizado.',
+        statusCode: 400,
+      });
+  }
 
   public async register(
     slug: string,
@@ -181,6 +257,7 @@ export class CustomerAuthService {
       name: string;
       email: string | null;
       phone: string | null;
+      photoPath?: string | null;
     },
     metadata: RequestMetadata,
   ): Promise<CustomerAuthResult> {
@@ -203,6 +280,7 @@ export class CustomerAuthService {
         name: customer.name,
         email: customer.email,
         phone: customer.phone,
+        photoPath: customer.photoPath ?? null,
       },
       rawSessionToken,
       sessionExpiresAt: expiresAt,

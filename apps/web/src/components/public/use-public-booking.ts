@@ -1,6 +1,7 @@
 import {
   AvailabilityResponseSchema,
   CustomerAuthResponseSchema,
+  CustomerProfileResponseSchema,
   CustomerPasswordSchema,
   CustomerRegisterRequestSchema,
   PublicBookingConfirmationSchema,
@@ -127,6 +128,29 @@ export function usePublicBooking(slug: string, site: Site) {
       }),
     retry: false,
   });
+  const authenticated = customerSession.data !== undefined;
+  // Cliente autenticado não redigita o que já está no perfil.
+  const customerProfile = useQuery({
+    queryKey: ['public', slug, 'customer', 'profile'],
+    queryFn: () =>
+      httpClient.request(`/public/sites/${slug}/customer/profile`, {
+        schema: CustomerProfileResponseSchema,
+      }),
+    enabled: authenticated,
+    retry: false,
+  });
+  const profile = customerProfile.data?.profile;
+  // Valores derivados: o que o cliente digitar prevalece, senão vale o perfil.
+  const effectiveName = customerName === '' ? (profile?.name ?? '') : customerName;
+  const effectivePhone =
+    customerPhone === '' ? (profile?.whatsapp ?? profile?.phone ?? '') : customerPhone;
+  const effectiveEmail = customerEmail === '' ? (profile?.email ?? '') : customerEmail;
+  // O passo "Seus dados" some quando o perfil já traz nome e um contato válido.
+  const profileComplete =
+    profile !== undefined &&
+    profile.name.trim().length >= 2 &&
+    ((profile.whatsapp ?? profile.phone ?? '').trim() !== '' ||
+      (profile.email ?? '').trim() !== '');
   const tenantOptions = useQuery({
     queryKey: ['public-booking', slug, 'payment-options'],
     queryFn: () =>
@@ -142,18 +166,23 @@ export function usePublicBooking(slug: string, site: Site) {
   // Só existe etapa de pagamento quando há de fato uma escolha a fazer.
   const needsPaymentChoice = onlineAvailable && localAvailable;
   const flow = BOOKING_STEPS.map((item) => item.id).filter(
-    (id) => id !== 'payment' || needsPaymentChoice,
+    (id) =>
+      (id !== 'payment' || needsPaymentChoice) && (id !== 'customer' || !profileComplete),
   );
   const payOnline = needsPaymentChoice ? paymentChoice === 'online' : onlineAvailable;
+  // Se o perfil já cobre os dados, o passo "Seus dados" nunca é apresentado:
+  // o passo efetivo é derivado, sem setState dentro de efeito.
+  const effectiveStep: BookingStep =
+    profileComplete && step === 'customer' ? (needsPaymentChoice ? 'payment' : 'review') : step;
 
   const registerAccount = useMutation({
     mutationFn: () =>
       httpClient.request(`/public/sites/${slug}/customer/register`, {
         method: 'POST',
         body: CustomerRegisterRequestSchema.parse({
-          name: customerName.trim(),
-          email: customerEmail.trim(),
-          phone: customerPhone.trim() === '' ? null : customerPhone.trim(),
+          name: effectiveName.trim(),
+          email: effectiveEmail.trim(),
+          phone: effectivePhone.trim() === '' ? null : effectivePhone.trim(),
           password: accountPassword,
         }),
         schema: CustomerAuthResponseSchema,
@@ -224,9 +253,9 @@ export function usePublicBooking(slug: string, site: Site) {
           startsAt: selectedSlot,
           notes: notes.trim() === '' ? null : notes.trim(),
           customer: {
-            name: customerName.trim(),
-            phone: customerPhone.trim() === '' ? null : customerPhone.trim(),
-            email: customerEmail.trim() === '' ? null : customerEmail.trim(),
+            name: effectiveName.trim(),
+            phone: effectivePhone.trim() === '' ? null : effectivePhone.trim(),
+            email: effectiveEmail.trim() === '' ? null : effectiveEmail.trim(),
           },
         },
         schema: PublicBookingConfirmationSchema,
@@ -256,12 +285,13 @@ export function usePublicBooking(slug: string, site: Site) {
   });
 
   const goBack = () => {
-    const index = flow.indexOf(step);
+    const index = flow.indexOf(effectiveStep);
     if (index > 0) setStep(flow[index - 1] ?? 'service');
     setValidation(null);
   };
   const continueFlow = () => {
     setValidation(null);
+    const step = effectiveStep;
     if (step === 'service') {
       if (site.units.length > 1 && unitPublicId === '') {
         setValidation('Escolha a unidade.');
@@ -284,22 +314,25 @@ export function usePublicBooking(slug: string, site: Site) {
         setValidation('Escolha um horário.');
         return;
       }
-      setStep('customer');
+      setStep(profileComplete ? (needsPaymentChoice ? 'payment' : 'review') : 'customer');
     } else if (step === 'customer') {
-      if (customerName.trim().length < 2) {
+      if (effectiveName.trim().length < 2) {
         setValidation('Informe seu nome.');
         return;
       }
-      if (customerPhone.trim() === '' && customerEmail.trim() === '') {
+      if (effectivePhone.trim() === '' && effectiveEmail.trim() === '') {
         setValidation('Informe telefone ou e-mail para contato.');
         return;
       }
-      if (customerEmail.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(customerEmail.trim())) {
+      if (
+        effectiveEmail.trim() !== '' &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(effectiveEmail.trim())
+      ) {
         setValidation('Informe um e-mail válido.');
         return;
       }
       if (createAccount) {
-        if (customerEmail.trim() === '') {
+        if (effectiveEmail.trim() === '') {
           setValidation('Informe um e-mail para criar sua conta.');
           return;
         }
@@ -342,7 +375,7 @@ export function usePublicBooking(slug: string, site: Site) {
   };
 
   return {
-    step,
+    step: effectiveStep,
     setStep,
     flow,
     goBack,
@@ -362,9 +395,9 @@ export function usePublicBooking(slug: string, site: Site) {
     setSelectedSlot,
     availability,
     availableSlots,
-    customerName,
-    customerPhone,
-    customerEmail,
+    customerName: effectiveName,
+    customerPhone: effectivePhone,
+    customerEmail: effectiveEmail,
     notes,
     changeCustomer,
     createAccount,
@@ -373,7 +406,9 @@ export function usePublicBooking(slug: string, site: Site) {
     setAccountPassword,
     accountError,
     accountCreated: registerAccount.isSuccess,
-    canCreateAccount: customerSession.data === undefined,
+    canCreateAccount: !authenticated,
+    authenticated,
+    profileComplete,
     paymentChoice,
     setPaymentChoice,
     needsPaymentChoice,

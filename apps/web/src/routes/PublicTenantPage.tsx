@@ -47,6 +47,21 @@ export function PublicTenantPage() {
       httpClient.request(`/public/sites/${slug}`, { schema: PublicTenantSiteResponseSchema }),
     retry: false,
   });
+  // A cor do navegador/PWA segue o tema do tenant enquanto a página pública
+  // estiver montada, e volta para a identidade global do Agendei ao sair.
+  useEffect(() => {
+    if (site.data === undefined) return undefined;
+    const meta = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (meta === null) return undefined;
+    const previous = meta.content;
+    meta.content =
+      site.data.site.theme === 'LUXURY'
+        ? site.data.branding.backgroundColor
+        : site.data.branding.primaryColor;
+    return () => {
+      meta.content = previous;
+    };
+  }, [site.data]);
   useEffect(() => {
     if (site.data === undefined) return;
     document.title = site.data.site.seoTitle ?? site.data.displayName;
@@ -182,6 +197,11 @@ export function PublicTenantPage() {
             site={site.data}
             logoUrl={logo?.url ?? null}
             customerName={customer.data?.customer.name ?? null}
+            customerPhotoVersion={
+              customer.data?.customer.photoUrl === null
+                ? null
+                : (customer.data?.customer.photoUpdatedAt ?? null)
+            }
             onOpenAccount={() => {
               setAccountOpen(true);
             }}

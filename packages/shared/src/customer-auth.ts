@@ -24,10 +24,19 @@ export const CustomerAuthPublicSchema = z
     name: z.string(),
     email: z.string().nullable(),
     phone: z.string().nullable(),
+    photoUrl: z.string().nullable(),
+    photoUpdatedAt: z.iso.datetime({ offset: true }).nullable(),
   })
+  .strict();
+
+export const CustomerForgotPasswordRequestSchema = z.object({ email: EmailSchema }).strict();
+export const CustomerResetPasswordRequestSchema = z
+  .object({ token: z.string().min(32).max(256), newPassword: CustomerPasswordSchema })
   .strict();
 
 export const CustomerAuthResponseSchema = z.object({ customer: CustomerAuthPublicSchema });
 
 export type CustomerRegisterRequest = z.infer<typeof CustomerRegisterRequestSchema>;
 export type CustomerLoginRequest = z.infer<typeof CustomerLoginRequestSchema>;
+export type CustomerForgotPasswordRequest = z.infer<typeof CustomerForgotPasswordRequestSchema>;
+export type CustomerResetPasswordRequest = z.infer<typeof CustomerResetPasswordRequestSchema>;

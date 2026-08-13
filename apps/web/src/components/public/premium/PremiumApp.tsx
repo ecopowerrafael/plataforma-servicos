@@ -48,15 +48,25 @@ export function PremiumApp({
   site,
   logoUrl,
   customerName,
+  customerPhotoVersion = null,
   onOpenAccount,
 }: {
   slug: string;
   site: Site;
   logoUrl: string | null;
   customerName: string | null;
+  customerPhotoVersion?: string | null;
   onOpenAccount: () => void;
 }) {
   const [tab, setTab] = useState<PremiumTab>('home');
+  // Perfil não é uma página intermediária: abre direto a conta (ou o login).
+  const openProfile = (next: PremiumTab) => {
+    if (next !== 'profile') {
+      setTab(next);
+      return;
+    }
+    onOpenAccount();
+  };
   const appointments = useQuery({
     queryKey: ['public', slug, 'customer', 'appointments', 'upcoming'],
     queryFn: () =>
@@ -98,7 +108,15 @@ export function PremiumApp({
               <path d="M4.6 20a7.4 7.4 0 0 1 14.8 0" />
             </svg>
           ) : (
-            <span aria-hidden="true">{initials(customerName)}</span>
+            <>
+              <span aria-hidden="true">{initials(customerName)}</span>
+              {customerPhotoVersion === null ? null : (
+                <img
+                  alt=""
+                  src={`${environment.apiUrl}/public/sites/${slug}/customer/photo?v=${encodeURIComponent(customerPhotoVersion)}`}
+                />
+              )}
+            </>
           )}
         </button>
       </header>
@@ -334,24 +352,8 @@ export function PremiumApp({
         </main>
       ) : null}
 
-      {tab === 'profile' ? (
-        <main className="premium-main">
-          <section className="premium-section">
-            <header>
-              <h2>Perfil</h2>
-            </header>
-            <div className="premium-empty">
-              <strong>{customerName ?? 'Você ainda não entrou'}</strong>
-              <button className="premium-cta" type="button" onClick={onOpenAccount}>
-                {customerName === null ? 'Entrar ou criar conta' : 'Abrir minha conta'}
-              </button>
-            </div>
-          </section>
-        </main>
-      ) : null}
-
       {/* Durante o agendamento a navegação é o próprio botão voltar do fluxo. */}
-      {tab === 'booking' ? null : <PremiumBottomNav active={tab} onChange={setTab} />}
+      {tab === 'booking' ? null : <PremiumBottomNav active={tab} onChange={openProfile} />}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   PaymentGatewayChargePublicSchema,
   PixChargeResponseSchema,
 } from '@plataforma/shared';
+import { IconCreditCard, IconQrcode } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { type z } from 'zod';
@@ -592,6 +593,7 @@ export function AppointmentPaymentPanel({
   const [mpCharge, setMpCharge] = useState<z.infer<typeof PaymentGatewayChargePublicSchema> | null>(
     null,
   );
+  const [copied, setCopied] = useState(false);
   const options = useQuery({
     queryKey: ['public-booking', slug, 'payment-options', appointmentPublicId],
     queryFn: () =>
@@ -630,21 +632,42 @@ export function AppointmentPaymentPanel({
     const charge = pixCharge?.charge ?? mpCharge;
     const code = pixCharge?.charge.pixCopyPaste ?? mpCharge?.pixCopyPaste;
     return (
-      <section className="booking-payment">
-        <h3>Pagamento</h3>
-        <strong>{charge == null ? null : centsToBrl(charge.amountCents)}</strong>
+      <section className="booking-payment payment-panel">
+        <header className="payment-panel-header">
+          <strong>{pixCharge === null ? 'Pagamento online' : 'Pagamento via PIX'}</strong>
+          <span className="payment-panel-amount">
+            {charge === null ? null : centsToBrl(charge.amountCents)}
+          </span>
+          <small>Valor a pagar</small>
+        </header>
         {pixCharge?.qrCodeDataUrl ? (
-          <img src={pixCharge.qrCodeDataUrl} alt="QR Code do PIX" />
+          <figure className="payment-qr">
+            <img src={pixCharge.qrCodeDataUrl} alt="QR Code do PIX" />
+            <figcaption>Escaneie o QR Code ou copie o código abaixo.</figcaption>
+          </figure>
         ) : null}
         {code ? (
-          <>
-            <textarea readOnly value={code} rows={3} />
-            <button type="button" onClick={() => void navigator.clipboard.writeText(code)}>
-              Copiar código PIX
+          <div className="payment-code">
+            <code>{code}</code>
+            <button
+              className="payment-copy"
+              type="button"
+              onClick={() => {
+                void navigator.clipboard.writeText(code).then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => {
+                    setCopied(false);
+                  }, 2500);
+                });
+              }}
+            >
+              {copied ? 'Código copiado' : 'Copiar código'}
             </button>
-          </>
+          </div>
         ) : null}
-        <p>O estabelecimento confirmará o recebimento do pagamento.</p>
+        <p className="payment-status" role="status">
+          Aguardando pagamento. O estabelecimento confirma o recebimento.
+        </p>
       </section>
     );
   }
@@ -701,16 +724,26 @@ export function AppointmentPaymentPanel({
           <button
             key={method.id}
             type="button"
-            className="booking-payment-method"
+            className="booking-payment-method payment-cta"
             disabled={method.busy}
             onClick={method.run}
           >
-            <strong>
-              {methods.length === 1 && mode === 'reminder'
-                ? 'Pagar online agora'
-                : `Pagar com ${method.label}`}
-            </strong>
-            <small>{method.hint}</small>
+            <span className="payment-cta-icon" aria-hidden="true">
+              {method.id === 'pix' ? <IconQrcode size={22} stroke={1.8} /> : <IconCreditCard size={22} stroke={1.8} />}
+            </span>
+            <span className="payment-cta-body">
+              <strong>
+                {method.busy
+                  ? 'Gerando cobrança…'
+                  : methods.length === 1 && mode === 'reminder'
+                    ? 'Pagar online agora'
+                    : `Pagar com ${method.label}`}
+              </strong>
+              <small>{method.hint}</small>
+            </span>
+            <span className="payment-cta-arrow" aria-hidden="true">
+              ›
+            </span>
           </button>
         ))}
       </div>

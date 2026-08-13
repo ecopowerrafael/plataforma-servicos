@@ -360,6 +360,9 @@ export async function buildApp(options: BuildAppOptions) {
     await app.register(customerAuthRoutes, {
       service: options.database.customerAuth,
       profileService: options.database.customerProfile,
+      ...(options.database.customerPhotos === undefined
+        ? {}
+        : { photoService: options.database.customerPhotos }),
       cookieName: 'customer_session',
       cookieSecure: options.environment.AUTH_COOKIE_SECURE,
       sessionTtlHours: options.environment.AUTH_SESSION_TTL_HOURS,

@@ -1,4 +1,4 @@
-import nodemailer, { type Transporter } from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
 export interface EmailMessage {
   to: string;
@@ -38,27 +38,37 @@ export interface SmtpEmailDeliveryOptions {
   from: string;
 }
 
+/**
+ * O `nodemailer` só é carregado no primeiro envio: importá-lo (e criar o
+ * transporter) no início custava segundos de cold start, e o ambiente da
+ * Hostinger derruba o processo se a porta não abrir em poucos segundos.
+ * Nada de rede, DNS ou `verify()` acontece antes do primeiro `send()`.
+ */
 export class SmtpEmailDelivery implements EmailDelivery {
   public readonly available = true;
-  private readonly transport: Transporter;
-  private readonly from: string;
+  private transport: Promise<Transporter> | undefined;
 
-  public constructor(options: SmtpEmailDeliveryOptions) {
-    this.transport = nodemailer.createTransport({
-      host: options.host,
-      port: options.port,
-      secure: options.secure,
-      auth:
-        options.user === undefined || options.pass === undefined
-          ? undefined
-          : { user: options.user, pass: options.pass },
-    });
-    this.from = options.from;
+  public constructor(private readonly options: SmtpEmailDeliveryOptions) {}
+
+  private transporter(): Promise<Transporter> {
+    this.transport ??= import('nodemailer').then((nodemailer) =>
+      nodemailer.default.createTransport({
+        host: this.options.host,
+        port: this.options.port,
+        secure: this.options.secure,
+        auth:
+          this.options.user === undefined || this.options.pass === undefined
+            ? undefined
+            : { user: this.options.user, pass: this.options.pass },
+      }),
+    );
+    return this.transport;
   }
 
   public async send(message: EmailMessage): Promise<void> {
-    await this.transport.sendMail({
-      from: this.from,
+    const transport = await this.transporter();
+    await transport.sendMail({
+      from: this.options.from,
       to: message.to,
       subject: message.subject,
       text: message.text,

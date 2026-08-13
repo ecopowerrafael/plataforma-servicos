@@ -273,6 +273,12 @@ export function createDatabaseConnection(
     productRepository,
   );
   const tenantWhiteLabelRepository = new TenantWhiteLabelRepository(client);
+  // Uma única instância compartilhada entre a conta do cliente e as
+  // notificações; sem SMTP configurado, continua sendo a implementação inerte.
+  const emailDelivery: EmailDelivery =
+    customerAuthOptions?.smtp === undefined
+      ? new UnconfiguredEmailDelivery()
+      : new SmtpEmailDelivery(customerAuthOptions.smtp);
   const customerAuth = new CustomerAuthService(
     customerRepository,
     new CustomerAuthRepository(client),
@@ -289,9 +295,7 @@ export function createDatabaseConnection(
       passwordResetTtlMinutes: 60,
       appWebUrl: process.env.APP_WEB_URL ?? '',
     },
-    customerAuthOptions?.smtp === undefined
-      ? undefined
-      : new SmtpEmailDelivery(customerAuthOptions.smtp),
+    customerAuthOptions?.smtp === undefined ? undefined : emailDelivery,
   );
   const customerPhotos = new CustomerPhotoService(
     client,
@@ -308,10 +312,7 @@ export function createDatabaseConnection(
     commercialPolicy,
     client,
   );
-  const emailDelivery: EmailDelivery =
-    customerAuthOptions?.smtp === undefined
-      ? new UnconfiguredEmailDelivery()
-      : new SmtpEmailDelivery(customerAuthOptions.smtp);
+
   const pushDelivery: PushDelivery =
     customerAuthOptions?.vapid === undefined
       ? new UnconfiguredPushDelivery()

@@ -4,8 +4,8 @@ import {
   type ComboPublicSchema,
   type ServicePublicSchema,
 } from '@plataforma/shared';
-import { useEffect } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useEffect, useMemo, useState } from 'react';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 
 import type { z } from 'zod';
 
@@ -13,14 +13,6 @@ type ComboInput = z.input<typeof CreateComboRequestSchema>;
 export type ComboSubmission = z.output<typeof CreateComboRequestSchema>;
 type Combo = z.infer<typeof ComboPublicSchema>;
 type Service = z.infer<typeof ServicePublicSchema>;
-type ItemField = 'servicePublicId' | 'sortOrder';
-
-function itemFieldPath<Field extends ItemField>(
-  index: number,
-  field: Field,
-): `items.${number}.${Field}` {
-  return `items.${index.toString()}.${field}` as `items.${number}.${Field}`;
-}
 
 function defaults(combo?: Combo): ComboInput {
   if (combo === undefined) {
@@ -31,10 +23,7 @@ function defaults(combo?: Combo): ComboInput {
       priceCents: 0,
       sortOrder: 0,
       active: true,
-      items: [
-        { servicePublicId: '', sortOrder: 0 },
-        { servicePublicId: '', sortOrder: 1 },
-      ],
+      items: [],
     };
   }
   return {
@@ -51,6 +40,9 @@ function defaults(combo?: Combo): ComboInput {
   };
 }
 
+const money = (cents: string) =>
+  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 export function ComboForm({
   busy,
   error,
@@ -64,22 +56,51 @@ export function ComboForm({
   services: Service[];
   onSave: (value: ComboSubmission) => Promise<void>;
 }) {
+  const form = useForm<ComboInput, unknown, ComboSubmission>({
+    defaultValues: defaults(combo),
+    resolver: zodResolver(CreateComboRequestSchema),
+  });
   const {
     register,
     handleSubmit,
     reset,
     control,
-    getValues,
     setValue,
     formState: { errors },
-  } = useForm<ComboInput, unknown, ComboSubmission>({
-    defaultValues: defaults(combo),
-    resolver: zodResolver(CreateComboRequestSchema),
-  });
+  } = form;
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+  const selectedItems = useWatch({ control, name: 'items' }) ?? [];
+  const priceCents = useWatch({ control, name: 'priceCents' });
+  const [search, setSearch] = useState('');
+  const selectedIds = useMemo(
+    () => new Set(selectedItems.map((item) => item.servicePublicId)),
+    [selectedItems],
+  );
+  const available = useMemo(
+    () =>
+      services.filter((service) =>
+        service.name.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')),
+      ),
+    [search, services],
+  );
+  const selectedServices = useMemo(
+    () => services.filter((service) => selectedIds.has(service.publicId)),
+    [selectedIds, services],
+  );
+  const regularPrice = selectedServices.reduce(
+    (total, service) => total + Number(service.priceCents),
+    0,
+  );
+
   useEffect(() => {
     reset(defaults(combo));
-  }, [reset, combo]);
+  }, [combo, reset]);
+
+  const toggle = (service: Service) => {
+    const index = selectedItems.findIndex((item) => item.servicePublicId === service.publicId);
+    if (index >= 0) remove(index);
+    else append({ servicePublicId: service.publicId, sortOrder: fields.length });
+  };
 
   return (
     <form
@@ -95,7 +116,7 @@ export function ComboForm({
         <input {...register('name')} />
       </label>
       <label>
-        {'Descrição'}
+        Descrição
         <textarea {...register('description')} />
       </label>
       <label>
@@ -109,7 +130,7 @@ export function ComboForm({
           step="0.01"
           inputMode="decimal"
           type="number"
-          defaultValue={Number(getValues('priceCents')) / 100}
+          value={Number(priceCents ?? 0) / 100}
           onChange={(event) => {
             setValue('priceCents', Math.round(Number(event.target.value.replace(',', '.')) * 100), {
               shouldDirty: true,
@@ -117,8 +138,14 @@ export function ComboForm({
           }}
         />
       </label>
+      {selectedServices.length > 0 && (
+        <p className="muted">
+          Preço avulso: {money(String(regularPrice))} · Economia:{' '}
+          {money(String(Math.max(0, regularPrice - Number(priceCents ?? 0))))}
+        </p>
+      )}
       <label>
-        Ordem de {'exibição'}
+        Ordem de exibição
         <input
           min="0"
           max="999"
@@ -127,57 +154,43 @@ export function ComboForm({
         />
       </label>
       <label>
-        <input type="checkbox" {...register('active')} />
-        {' Ativo'}
+        <input type="checkbox" {...register('active')} /> Ativo
       </label>
       <fieldset>
-        <legend>{'Serviços do combo (mínimo de dois)'}</legend>
-        {fields.map((field, index) => (
-          <div className="platform-form" key={field.id}>
-            <label>
-              {'Serviço'}
-              <select {...register(itemFieldPath(index, 'servicePublicId'))}>
-                <option value="">Selecionar</option>
-                {services.map((service) => (
-                  <option key={service.publicId} value={service.publicId}>
-                    {service.name} ·{' '}
-                    {(Number(service.priceCents) / 100).toLocaleString('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL',
-                    })}{' '}
-                    · {service.durationMinutes} min
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Ordem
-              <input
-                min="0"
-                max="999"
-                type="number"
-                {...register(itemFieldPath(index, 'sortOrder'), { valueAsNumber: true })}
-              />
-            </label>
-            <button
-              disabled={fields.length <= 2}
-              onClick={() => {
-                remove(index);
-              }}
-              type="button"
-            >
-              Remover item
-            </button>
-          </div>
-        ))}
-        <button
-          onClick={() => {
-            append({ servicePublicId: '', sortOrder: fields.length });
-          }}
-          type="button"
-        >
-          Adicionar item
-        </button>
+        <legend>Serviços do combo (mínimo de dois)</legend>
+        <label>
+          Pesquisar serviços
+          <input
+            type="search"
+            value={search}
+            placeholder="Digite o nome do serviço"
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <div className="service-picker">
+          {available.map((service) => {
+            const selected = selectedIds.has(service.publicId);
+            return (
+              <button
+                className={selected ? 'selected' : ''}
+                key={service.publicId}
+                type="button"
+                onClick={() => toggle(service)}
+              >
+                <strong>
+                  {selected ? '✓ ' : ''}
+                  {service.name}
+                </strong>
+                <span>
+                  {money(service.priceCents)} · {service.durationMinutes} min
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="muted">
+          {selectedItems.length} serviço(s) selecionado(s). A ordem segue a seleção.
+        </p>
       </fieldset>
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">

@@ -73,7 +73,12 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
         title="Categorias"
         description="Organize a apresentação dos serviços."
         actions={
-          <button className="primary-button" onClick={() => { setCreating(true); }}>
+          <button
+            className="primary-button"
+            onClick={() => {
+              setCreating(true);
+            }}
+          >
             + Nova categoria
           </button>
         }
@@ -85,7 +90,12 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
             error={mutation.error instanceof Error ? 'Não foi possível salvar a categoria.' : null}
             onSave={save}
           />
-          <button className="secondary-button" onClick={() => { setCreating(false); }}>
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setCreating(false);
+            }}
+          >
             Cancelar
           </button>
         </div>
@@ -96,7 +106,15 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
         <EmptyState
           title="Nenhuma categoria cadastrada"
           description="Crie categorias para organizar o catálogo público."
-          action={<button onClick={() => { setCreating(true); }}>+ Criar categoria</button>}
+          action={
+            <button
+              onClick={() => {
+                setCreating(true);
+              }}
+            >
+              + Criar categoria
+            </button>
+          }
         />
       ) : (
         <div className="service-catalog-list">
@@ -112,7 +130,10 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
               <i style={{ background: item.color }} />
               <span>
                 <strong>{item.name}</strong>
-                <small>Ordem {item.sortOrder}</small>
+                <small>
+                  Ordem {item.sortOrder} · {item.serviceCount ?? 0}{' '}
+                  {item.serviceCount === 1 ? 'serviço' : 'serviços'}
+                </small>
               </span>
               <StatusBadge active={item.active}>{item.active ? 'Ativa' : 'Inativa'}</StatusBadge>
               <i>›</i>
@@ -124,7 +145,12 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
         <div className="app-drawer">
           <div className="drawer-header">
             <h3>Editar categoria</h3>
-            <button className="secondary-button" onClick={() => { setSelected(null); }}>
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setSelected(null);
+              }}
+            >
               Fechar
             </button>
           </div>

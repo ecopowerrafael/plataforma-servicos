@@ -3,6 +3,7 @@ import {
   ServiceCategoryListResponseSchema,
   ServiceListResponseSchema,
   ServicePublicSchema,
+  TenantSubscriptionResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -38,11 +39,12 @@ export function ServiceModule({
   const [category, setCategory] = useState('');
   const [creating, setCreating] = useState(false);
   const services = useQuery({
-    queryKey: ['tenant', tenantPublicId, 'services', page, search, active],
+    queryKey: ['tenant', tenantPublicId, 'services', page, search, active, category],
     queryFn: () => {
       const q = new URLSearchParams({ page: String(page), limit: '10' });
       if (search.trim()) q.set('search', search.trim());
       if (active) q.set('active', active);
+      if (category) q.set('categoryPublicId', category);
       return httpClient.request(`/tenant/services?${q}`, {
         schema: ServiceListResponseSchema,
         tenantPublicId,
@@ -55,6 +57,15 @@ export function ServiceModule({
     queryFn: () =>
       httpClient.request('/tenant/service-categories?limit=100&active=true', {
         schema: ServiceCategoryListResponseSchema,
+        tenantPublicId,
+      }),
+    retry: false,
+  });
+  const subscription = useQuery({
+    queryKey: ['tenant', tenantPublicId, 'subscription'],
+    queryFn: () =>
+      httpClient.request('/tenant/subscription', {
+        schema: TenantSubscriptionResponseSchema,
         tenantPublicId,
       }),
     retry: false,
@@ -72,10 +83,12 @@ export function ServiceModule({
       void navigate(`/app/servicos/${service.publicId}`);
     },
   });
-  const items =
-    services.data?.items.filter(
-      (service) => category === '' || service.categoryPublicId === category,
-    ) ?? [];
+  const items = services.data?.items ?? [];
+  const serviceLimit = subscription.data?.limits.find((limit) => limit.key === 'services.max');
+  const hasServiceLimit =
+    serviceLimit !== undefined && serviceLimit.integerValue !== null && serviceLimit.usage !== null;
+  const limitReached =
+    hasServiceLimit && Number(serviceLimit.usage) >= Number(serviceLimit.integerValue);
   return (
     <section className="sessions-panel service-catalog">
       <PageHeader
@@ -83,11 +96,29 @@ export function ServiceModule({
         title={`${terminology}s`}
         description="Gerencie o que seus clientes podem agendar."
         actions={
-          <button className="primary-button" type="button" onClick={() => { setCreating(true); }}>
+          <button
+            className="primary-button"
+            disabled={limitReached}
+            type="button"
+            title={
+              limitReached
+                ? `Seu plano permite até ${serviceLimit?.integerValue ?? ''} serviços.`
+                : undefined
+            }
+            onClick={() => {
+              setCreating(true);
+            }}
+          >
             + Novo serviço
           </button>
         }
       />
+      {hasServiceLimit && (
+        <p className="muted">
+          Serviços: {serviceLimit.usage} de {serviceLimit.integerValue} utilizados
+          {limitReached ? '. Seu plano atingiu o limite de serviços.' : '.'}
+        </p>
+      )}
       {creating && (
         <div className="app-drawer">
           <ServiceForm
@@ -97,7 +128,13 @@ export function ServiceModule({
             categories={categories.data?.items ?? []}
             onSave={(value) => create.mutateAsync(value).then(() => undefined)}
           />
-          <button className="secondary-button" type="button" onClick={() => { setCreating(false); }}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              setCreating(false);
+            }}
+          >
             Cancelar
           </button>
         </div>
@@ -116,7 +153,13 @@ export function ServiceModule({
         </label>
         <label>
           Categoria
-          <select value={category} onChange={(event) => { setCategory(event.target.value); }}>
+          <select
+            value={category}
+            onChange={(event) => {
+              setPage(1);
+              setCategory(event.target.value);
+            }}
+          >
             <option value="">Todas</option>
             {categories.data?.items.map((item) => (
               <option key={item.publicId} value={item.publicId}>
@@ -152,7 +195,15 @@ export function ServiceModule({
         <EmptyState
           title="Crie seu primeiro serviço"
           description="Cadastre o que seus clientes poderão agendar."
-          action={<button onClick={() => { setCreating(true); }}>+ Criar serviço</button>}
+          action={
+            <button
+              onClick={() => {
+                setCreating(true);
+              }}
+            >
+              + Criar serviço
+            </button>
+          }
         />
       ) : (
         <>
@@ -172,8 +223,8 @@ export function ServiceModule({
                 <span>
                   <strong>{service.name}</strong>
                   <small>
-                    {service.categoryName ?? 'Sem categoria'} · {service.enabledProfessionalCount ?? 0}{' '}
-                    profissional(is)
+                    {service.categoryName ?? 'Sem categoria'} ·{' '}
+                    {service.enabledProfessionalCount ?? 0} profissional(is)
                   </small>
                 </span>
                 <span>
@@ -190,8 +241,12 @@ export function ServiceModule({
           <Pagination
             page={services.data?.page.page ?? 1}
             totalPages={services.data?.page.totalPages ?? 1}
-            onPrevious={() => { setPage((value) => value - 1); }}
-            onNext={() => { setPage((value) => value + 1); }}
+            onPrevious={() => {
+              setPage((value) => value - 1);
+            }}
+            onNext={() => {
+              setPage((value) => value + 1);
+            }}
           />
         </>
       )}

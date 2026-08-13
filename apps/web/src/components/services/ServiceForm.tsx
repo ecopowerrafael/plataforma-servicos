@@ -70,13 +70,12 @@ export function ServiceForm({
     handleSubmit,
     reset,
     control,
-    getValues,
     setValue,
     formState: { errors },
   } = form;
-  const [duration, hasBreak, breakMinutes] = useWatch({
+  const [duration, hasBreak, breakMinutes, priceCents] = useWatch({
     control,
-    name: ['durationMinutes', 'hasPostServiceBreak', 'postServiceBreakMinutes'],
+    name: ['durationMinutes', 'hasPostServiceBreak', 'postServiceBreakMinutes', 'priceCents'],
   });
   useEffect(() => {
     reset(defaults(service));
@@ -135,17 +134,20 @@ export function ServiceForm({
       </label>
       <label>
         Duração
-        <select {...register('durationMinutes', { valueAsNumber: true })}>
-          {[30, 45, 60, 90, 120].map((minutes) => (
-            <option key={minutes} value={minutes}>
-              {minutes < 60
-                ? `${minutes} min`
-                : minutes % 60 === 0
-                  ? `${minutes / 60} h`
-                  : `${Math.floor(minutes / 60)} h ${minutes % 60}`}
-            </option>
-          ))}
-        </select>
+        <input
+          min="1"
+          max="1440"
+          type="number"
+          list="service-duration-options"
+          {...register('durationMinutes', { valueAsNumber: true })}
+        />
+        <datalist id="service-duration-options">
+          <option value="30">30 min</option>
+          <option value="45">45 min</option>
+          <option value="60">1 h</option>
+          <option value="90">1 h 30</option>
+          <option value="120">2 h</option>
+        </datalist>
       </label>
       <label>
         Preço
@@ -154,14 +156,14 @@ export function ServiceForm({
           inputMode="decimal"
           type="number"
           step="0.01"
-          defaultValue={Number(getValues('priceCents')) / 100}
+          value={Number(priceCents ?? 0) / 100}
           onChange={(event) =>
             setValue('priceCents', Math.round(Number(event.target.value.replace(',', '.')) * 100), {
               shouldDirty: true,
             })
           }
         />
-        <small>{formatMoney(Number(getValues('priceCents')) || 0)}</small>
+        <small>{formatMoney(Number(priceCents) || 0)}</small>
       </label>
       <label>
         Cor para agenda

@@ -17,6 +17,7 @@ interface ServiceListInput {
   limit: number;
   search?: string | undefined;
   active?: boolean | undefined;
+  categoryPublicId?: string | undefined;
 }
 
 interface ServiceAuditActor {
@@ -77,6 +78,9 @@ export class ServiceService {
       tenantId,
       ...(input.search === undefined ? {} : { name: { contains: input.search } }),
       ...(input.active === undefined ? {} : { active: input.active }),
+      ...(input.categoryPublicId === undefined
+        ? {}
+        : { category: { publicId: input.categoryPublicId } }),
     };
     const { total, services } = await this.repository.list(where, input.page, input.limit);
     return ServiceListResponseSchema.parse({

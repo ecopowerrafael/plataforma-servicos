@@ -3,6 +3,7 @@ import {
   ServiceCategoryListResponseSchema,
   ServicePublicSchema,
   ServiceStatusResponseSchema,
+  TenantWhiteLabelResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -50,6 +51,15 @@ export function ServiceProfile({
     enabled: editing,
     retry: false,
   });
+  const publicSite = useQuery({
+    queryKey: ['tenant', tenantPublicId, 'white-label'],
+    queryFn: () =>
+      httpClient.request('/tenant/white-label', {
+        schema: TenantWhiteLabelResponseSchema,
+        tenantPublicId,
+      }),
+    retry: false,
+  });
   const mutate = useMutation({
     mutationFn: ({
       url,
@@ -90,7 +100,10 @@ export function ServiceProfile({
       </section>
     );
   const service = detail.data;
-  const publicUrl = `/public/${tenantPublicId}?service=${service.publicId}`;
+  const publicUrl =
+    publicSite.data === undefined
+      ? null
+      : `/public/${publicSite.data.slug}?service=${service.publicId}`;
   const save = (value: ServiceSubmission) =>
     mutate
       .mutateAsync({
@@ -98,7 +111,9 @@ export function ServiceProfile({
         method: 'PATCH',
         body: CreateServiceRequestSchema.parse(value),
       })
-      .then(() => { setEditing(false); });
+      .then(() => {
+        setEditing(false);
+      });
   const changeStatus = (active: boolean) =>
     mutate.mutateAsync({
       url: `/tenant/services/${publicId}/${active ? 'activate' : 'deactivate'}`,
@@ -140,12 +155,19 @@ export function ServiceProfile({
           </p>
         </div>
         <div className="crm-quick-actions">
-          <button className="primary-button" onClick={() => { setEditing(true); }}>
+          <button
+            className="primary-button"
+            onClick={() => {
+              setEditing(true);
+            }}
+          >
             Editar
           </button>
-          <a className="secondary-button" href={publicUrl} target="_blank" rel="noreferrer">
-            Ver no site
-          </a>
+          {publicUrl !== null && (
+            <a className="secondary-button" href={publicUrl} target="_blank" rel="noreferrer">
+              Ver no site
+            </a>
+          )}
           <button className="secondary-button" onClick={() => void changeStatus(!service.active)}>
             {service.active ? 'Desativar' : 'Ativar'}
           </button>
@@ -162,7 +184,9 @@ export function ServiceProfile({
           <button
             key={id}
             aria-current={tab === id ? 'page' : undefined}
-            onClick={() => { setTab(id); }}
+            onClick={() => {
+              setTab(id);
+            }}
           >
             {label}
           </button>
@@ -233,7 +257,12 @@ export function ServiceProfile({
         <div className="app-drawer">
           <div className="drawer-header">
             <h3>Editar {terminology.toLowerCase()}</h3>
-            <button className="secondary-button" onClick={() => { setEditing(false); }}>
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setEditing(false);
+              }}
+            >
               Fechar
             </button>
           </div>

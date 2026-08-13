@@ -14,6 +14,7 @@ const category = {
   active: true,
   createdAt: new Date('2026-08-11T12:00:00.000Z'),
   updatedAt: new Date('2026-08-11T12:00:00.000Z'),
+  _count: { services: 0 },
 };
 
 describe('ServiceCategoryService', () => {
@@ -29,6 +30,7 @@ describe('ServiceCategoryService', () => {
       name: 'Cabelo',
       description: null,
       color: '#2563EB',
+      serviceCount: 0,
       icon: null,
       sortOrder: 0,
       active: true,

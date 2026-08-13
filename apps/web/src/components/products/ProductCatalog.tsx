@@ -41,7 +41,7 @@ export function ProductCatalog({
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [active, setActive] = useState('');
+  const [active, setActive] = useState('true');
   const [category, setCategory] = useState('');
   const [stock, setStock] = useState('');
   const [unit, setUnit] = useState('');
@@ -244,9 +244,9 @@ export function ProductCatalog({
               setActive(event.target.value);
             }}
           >
-            <option value="">Todos</option>
             <option value="true">Ativos</option>
-            <option value="false">Inativos</option>
+            <option value="false">Arquivados</option>
+            <option value="">Todos</option>
           </select>
         </label>
         {(categories.data?.items.length ?? 0) > 0 && (
@@ -351,7 +351,7 @@ export function ProductCatalog({
                 </span>
                 <StockStatusBadge status={product.stockStatus} />
                 <StatusBadge active={product.active}>
-                  {product.active ? 'Ativo' : 'Inativo'}
+                  {product.active ? 'Ativo' : 'Arquivado'}
                 </StatusBadge>
                 <i aria-hidden="true">›</i>
               </button>

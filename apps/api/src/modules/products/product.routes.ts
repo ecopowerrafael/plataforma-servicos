@@ -7,6 +7,7 @@ import {
   ProductListResponseSchema,
   ProductPublicSchema,
   ProductQuerySchema,
+  ProductRemovalResponseSchema,
   ProductStatusResponseSchema,
   ProductStockListResponseSchema,
   ProductStockPublicSchema,
@@ -176,6 +177,18 @@ export const productRoutes: FastifyPluginAsyncZod<Options> = async (app, options
       },
     );
   }
+  app.delete(
+    '/tenant/products/:publicId',
+    { schema: { params: Id, response: { 200: ProductRemovalResponseSchema } } },
+    (request) => {
+      options.authService.requirePermission(request.tenant, 'product.manage');
+      return options.service.removeProduct(
+        request.tenant.id,
+        request.params.publicId,
+        actor(request),
+      );
+    },
+  );
   app.put(
     '/tenant/products/:publicId/image',
     { schema: { params: Id, response: { 200: ProductPublicSchema } } },

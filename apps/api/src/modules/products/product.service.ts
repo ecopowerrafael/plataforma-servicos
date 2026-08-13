@@ -6,6 +6,7 @@ import {
   ProductCategoryPublicSchema,
   ProductListResponseSchema,
   ProductPublicSchema,
+  ProductRemovalResponseSchema,
   ProductStockListResponseSchema,
   ProductStockPublicSchema,
   type CreateProductCategoryRequest,
@@ -375,6 +376,23 @@ export class ProductCatalogService {
       'product',
       actor,
     );
+  }
+  /**
+   * Exclusão segura: sem histórico o produto é apagado; com venda ou movimentação
+   * ele é arquivado (`active=false`), mantendo publicId, estoque e referências.
+   */
+  public async removeProduct(tenantId: bigint, publicId: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'products.enabled');
+    const product = await this.repository.product(tenantId, publicId);
+    if (!product) throw missing('PRODUCT_NOT_FOUND', 'Produto não encontrado.');
+    const result = await this.repository.deleteProduct(tenantId, product.id);
+    if (result.deleted) {
+      await this.record(tenantId, publicId, 'product.deleted', 'product', actor);
+      return ProductRemovalResponseSchema.parse({ ...result, archived: false });
+    }
+    if (product.active) await this.repository.updateProduct(product.id, { active: false });
+    await this.record(tenantId, publicId, 'product.archived', 'product', actor);
+    return ProductRemovalResponseSchema.parse({ ...result, archived: true });
   }
   private storage() {
     if (this.images === undefined)

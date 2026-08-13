@@ -1,15 +1,12 @@
 import {
-  CreateServiceRequestSchema,
   ServiceCategoryListResponseSchema,
   ServiceListResponseSchema,
-  ServicePublicSchema,
   TenantSubscriptionResponseSchema,
 } from '@plataforma/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { ServiceForm, type ServiceSubmission } from './ServiceForm.js';
 import { TenantServiceImage } from './TenantServiceImage.js';
 import { httpClient } from '../../lib/http.js';
 import {
@@ -32,12 +29,10 @@ export function ServiceModule({
   terminology?: string;
 }) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [active, setActive] = useState('');
   const [category, setCategory] = useState('');
-  const [creating, setCreating] = useState(false);
   const services = useQuery({
     queryKey: ['tenant', tenantPublicId, 'services', page, search, active, category],
     queryFn: () => {
@@ -70,19 +65,6 @@ export function ServiceModule({
       }),
     retry: false,
   });
-  const create = useMutation({
-    mutationFn: (body: ServiceSubmission) =>
-      httpClient.request('/tenant/services', {
-        method: 'POST',
-        body: CreateServiceRequestSchema.parse(body),
-        schema: ServicePublicSchema,
-        tenantPublicId,
-      }),
-    onSuccess: async (service) => {
-      await queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'services'] });
-      void navigate(`/app/servicos/${service.publicId}`);
-    },
-  });
   const items = services.data?.items ?? [];
   const serviceLimit = subscription.data?.limits.find((limit) => limit.key === 'services.max');
   const hasServiceLimit =
@@ -105,9 +87,7 @@ export function ServiceModule({
                 ? `Seu plano permite até ${serviceLimit?.integerValue ?? ''} serviços.`
                 : undefined
             }
-            onClick={() => {
-              setCreating(true);
-            }}
+            onClick={() => void navigate('/app/servicos/novo')}
           >
             + Novo serviço
           </button>
@@ -118,26 +98,6 @@ export function ServiceModule({
           Serviços: {serviceLimit.usage} de {serviceLimit.integerValue} utilizados
           {limitReached ? '. Seu plano atingiu o limite de serviços.' : '.'}
         </p>
-      )}
-      {creating && (
-        <div className="app-drawer">
-          <ServiceForm
-            busy={create.isPending}
-            error={create.error instanceof Error ? 'Não foi possível salvar o serviço.' : null}
-            terminology={terminology}
-            categories={categories.data?.items ?? []}
-            onSave={(value) => create.mutateAsync(value).then(() => undefined)}
-          />
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => {
-              setCreating(false);
-            }}
-          >
-            Cancelar
-          </button>
-        </div>
       )}
       <PageToolbar>
         <label className="ds-field--wide">
@@ -196,13 +156,7 @@ export function ServiceModule({
           title="Crie seu primeiro serviço"
           description="Cadastre o que seus clientes poderão agendar."
           action={
-            <button
-              onClick={() => {
-                setCreating(true);
-              }}
-            >
-              + Criar serviço
-            </button>
+            <button onClick={() => void navigate('/app/servicos/novo')}>+ Criar serviço</button>
           }
         />
       ) : (

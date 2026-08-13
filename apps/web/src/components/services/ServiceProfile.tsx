@@ -48,7 +48,7 @@ export function ServiceProfile({
         schema: ServiceCategoryListResponseSchema,
         tenantPublicId,
       }),
-    enabled: editing,
+    enabled: editing || tab === 'public',
     retry: false,
   });
   const publicSite = useQuery({
@@ -114,6 +114,14 @@ export function ServiceProfile({
       .then(() => {
         setEditing(false);
       });
+  const savePublic = (value: ServiceSubmission) =>
+    mutate
+      .mutateAsync({
+        url: `/tenant/services/${publicId}`,
+        method: 'PATCH',
+        body: CreateServiceRequestSchema.parse(value),
+      })
+      .then(() => undefined);
   const changeStatus = (active: boolean) =>
     mutate.mutateAsync({
       url: `/tenant/services/${publicId}/${active ? 'activate' : 'deactivate'}`,
@@ -136,6 +144,7 @@ export function ServiceProfile({
             alt={service.imageAlt ?? service.name}
             servicePublicId={publicId}
             tenantPublicId={tenantPublicId}
+            version={service.updatedAt}
           />
         ) : (
           <div className="service-profile-icon" style={{ background: service.color }}>
@@ -158,6 +167,7 @@ export function ServiceProfile({
           <button
             className="primary-button"
             onClick={() => {
+              setTab('overview');
               setEditing(true);
             }}
           >
@@ -192,7 +202,24 @@ export function ServiceProfile({
           </button>
         ))}
       </nav>
-      {tab === 'overview' && (
+      {tab === 'overview' && editing && (
+        <article className="app-card service-editor-card">
+          <p className="ds-eyebrow">Editar informações</p>
+          <ServiceForm
+            service={service}
+            busy={mutate.isPending}
+            error={mutate.error instanceof Error ? 'Não foi possível salvar as alterações.' : null}
+            terminology={terminology}
+            categories={categories.data?.items ?? []}
+            fields="operational"
+            onCancel={() => {
+              setEditing(false);
+            }}
+            onSave={save}
+          />
+        </article>
+      )}
+      {tab === 'overview' && !editing && (
         <div className="service-profile-grid">
           <article className="app-card">
             <p className="ds-eyebrow">Informações</p>
@@ -220,8 +247,32 @@ export function ServiceProfile({
             </dl>
           </article>
           <article className="app-card">
-            <p className="ds-eyebrow">Descrição</p>
-            <p>{service.description ?? 'Sem descrição pública cadastrada.'}</p>
+            <p className="ds-eyebrow">Organização</p>
+            <dl className="platform-details">
+              <div>
+                <dt>Categoria</dt>
+                <dd>{service.categoryName ?? 'Sem categoria'}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>{service.active ? 'Ativo' : 'Inativo'}</dd>
+              </div>
+              <div>
+                <dt>Cor na agenda</dt>
+                <dd>
+                  <span
+                    aria-hidden="true"
+                    className="service-color-dot"
+                    style={{ background: service.color }}
+                  />
+                  {service.color}
+                </dd>
+              </div>
+              <div>
+                <dt>Ordem de exibição</dt>
+                <dd>{service.sortOrder}</dd>
+              </div>
+            </dl>
           </article>
         </div>
       )}
@@ -230,15 +281,6 @@ export function ServiceProfile({
       )}{' '}
       {tab === 'public' && (
         <div className="service-profile-grid">
-          <article className="app-card">
-            <h3>Como aparece no booking</h3>
-            <p>Nome, categoria, preço, duração e imagem usam os mesmos dados do catálogo.</p>
-            <p>
-              {service.active
-                ? 'Este serviço está disponível para novos agendamentos quando houver profissional habilitado.'
-                : 'Este serviço está inativo e não fica disponível para novos agendamentos.'}
-            </p>
-          </article>
           <article className="app-card">
             <ServiceImageUpload
               busy={mutate.isPending}
@@ -249,31 +291,63 @@ export function ServiceProfile({
                   .mutateAsync({ url: `/tenant/services/${publicId}/image`, method: 'DELETE' })
                   .then(() => undefined)
               }
+              preview={
+                service.imageUrl === null ? null : (
+                  <TenantServiceImage
+                    alt={service.imageAlt ?? service.name}
+                    servicePublicId={publicId}
+                    tenantPublicId={tenantPublicId}
+                    version={service.updatedAt}
+                  />
+                )
+              }
             />
           </article>
-        </div>
-      )}
-      {editing && (
-        <div className="app-drawer">
-          <div className="drawer-header">
-            <h3>Editar {terminology.toLowerCase()}</h3>
-            <button
-              className="secondary-button"
-              onClick={() => {
-                setEditing(false);
-              }}
-            >
-              Fechar
-            </button>
-          </div>
-          <ServiceForm
-            service={service}
-            busy={mutate.isPending}
-            error={mutate.error instanceof Error ? 'Não foi possível salvar as alterações.' : null}
-            terminology={terminology}
-            categories={categories.data?.items ?? []}
-            onSave={save}
-          />
+          <article className="app-card service-public-preview">
+            <p className="ds-eyebrow">Como o cliente vê</p>
+            <div className="service-preview-card">
+              {service.imageUrl === null ? (
+                <div className="service-preview-image is-empty" aria-hidden="true">
+                  Sem imagem
+                </div>
+              ) : (
+                <TenantServiceImage
+                  alt={service.imageAlt ?? service.name}
+                  servicePublicId={publicId}
+                  tenantPublicId={tenantPublicId}
+                  version={service.updatedAt}
+                />
+              )}
+              <div>
+                <strong>{service.name}</strong>
+                <small>
+                  {service.categoryName ?? 'Sem categoria'} · {service.durationMinutes} min
+                </small>
+                <p>{service.description ?? 'Sem descrição pública cadastrada.'}</p>
+                <strong>{money(service.priceCents)}</strong>
+              </div>
+            </div>
+            <p className="muted">
+              {service.active
+                ? 'Disponível para novos agendamentos quando houver profissional habilitado.'
+                : 'Inativo: não aparece para novos agendamentos.'}
+            </p>
+          </article>
+          <article className="app-card service-editor-card service-field--wide">
+            <p className="ds-eyebrow">Textos públicos</p>
+            <ServiceForm
+              service={service}
+              busy={mutate.isPending}
+              error={
+                mutate.error instanceof Error ? 'Não foi possível salvar as alterações.' : null
+              }
+              terminology={terminology}
+              categories={categories.data?.items ?? []}
+              fields="public"
+              submitLabel="Salvar apresentação"
+              onSave={savePublic}
+            />
+          </article>
         </div>
       )}
     </section>

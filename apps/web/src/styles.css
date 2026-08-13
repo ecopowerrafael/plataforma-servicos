@@ -7539,6 +7539,285 @@ h1 {
     padding-bottom: 76px;
   }
 }
+/* Payment options, loyalty and financial reports */
+.payment-options,
+.loyalty-module,
+.financial-report {
+  display: grid;
+  gap: 16px;
+}
+.payment-option-grid,
+.loyalty-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.payment-option-card,
+.loyalty-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.payment-option-card > header,
+.loyalty-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.payment-option-card > button,
+.loyalty-card > button {
+  justify-self: start;
+}
+.payment-option-card .platform-details,
+.loyalty-summary {
+  font-size: 0.84rem;
+}
+.loyalty-summary {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--ds-text-muted);
+}
+.payment-option-grid-fields,
+.loyalty-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.payment-option-grid-fields > label,
+.loyalty-form-grid > label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.payment-option-grid-fields .payment-field--wide {
+  grid-column: 1/-1;
+}
+.payment-option-grid-fields :where(input, select),
+.loyalty-form-grid :where(input, select) {
+  width: 100%;
+  max-width: 20rem;
+}
+.payment-option-drawer,
+.loyalty-form {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.payment-option-actions,
+.loyalty-form-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.report-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.report-metric {
+  display: grid;
+  gap: 2px;
+}
+.report-metric strong {
+  font-size: 1.25rem;
+}
+.report-metric small {
+  color: var(--ds-text-muted);
+}
+.report-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.report-breakdown {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.report-table-scroll {
+  overflow-x: auto;
+}
+.report-table-scroll .platform-table {
+  min-width: 22rem;
+}
+@media (max-width: 899px) {
+  .payment-option-grid-fields,
+  .loyalty-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .payment-option-grid-fields :where(input, select),
+  .loyalty-form-grid :where(input, select) {
+    max-width: none;
+  }
+  .payment-option-actions > button,
+  .loyalty-form-actions > button {
+    flex: 1;
+  }
+  .payment-options,
+  .loyalty-module,
+  .financial-report {
+    padding-bottom: 76px;
+  }
+}
+/* Service editor */
+.service-editor {
+  display: grid;
+  gap: 16px;
+}
+.service-editor-card {
+  display: grid;
+  gap: 12px;
+}
+.service-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+.service-form-grid > label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.service-form-grid .service-field--wide {
+  grid-column: 1/-1;
+}
+.service-form-grid select,
+.service-form-grid input:not([type='color']):not([type='checkbox']) {
+  max-width: 22rem;
+  width: 100%;
+}
+.service-form-grid textarea {
+  width: 100%;
+  max-width: 46rem;
+}
+.service-field--color {
+  width: 4rem;
+  height: 2.25rem;
+  padding: 2px;
+}
+.service-form-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.service-form-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.service-image-upload {
+  display: grid;
+  gap: 10px;
+}
+.service-image-frame {
+  display: grid;
+  place-items: center;
+  min-height: 10rem;
+  padding: 8px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface-subtle);
+  overflow: hidden;
+}
+.service-image-frame img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--ds-radius-md);
+}
+.service-image-empty {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  color: var(--ds-text-muted);
+  text-align: center;
+}
+.service-image-empty span {
+  font-size: 1.5rem;
+}
+.service-image-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.service-image-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.service-image-button input {
+  max-width: 12rem;
+}
+.service-preview-card {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface);
+}
+.service-preview-card img {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  border-radius: var(--ds-radius-md);
+}
+.service-preview-card > div {
+  display: grid;
+  gap: 4px;
+}
+.service-preview-card small,
+.service-preview-card p {
+  color: var(--ds-text-muted);
+  margin: 0;
+}
+.service-preview-image.is-empty {
+  display: grid;
+  place-items: center;
+  height: 90px;
+  border: 1px dashed var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-text-muted);
+  font-size: 0.78rem;
+}
+.service-color-dot {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+@media (max-width: 899px) {
+  .service-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .service-form-grid select,
+  .service-form-grid input:not([type='color']):not([type='checkbox']),
+  .service-form-grid textarea {
+    max-width: none;
+  }
+  .service-preview-card {
+    grid-template-columns: 1fr;
+  }
+  .service-editor {
+    padding-bottom: 76px;
+  }
+  .service-form-actions > button {
+    flex: 1;
+  }
+}
 /* Products and stock */
 .ds-badge--warning {
   background: var(--app-warning-soft, #fff7e8);
@@ -7655,6 +7934,36 @@ h1 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+.product-actions-menu {
+  position: relative;
+}
+.product-actions-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: grid;
+  min-width: 12rem;
+  padding: 6px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  box-shadow: 0 12px 30px rgb(15 23 42 / 12%);
+}
+.product-actions-dropdown button {
+  border: 0;
+  background: none;
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--ds-text);
+  border-radius: var(--ds-radius-sm);
+}
+.product-actions-dropdown button:hover {
+  background: var(--ds-surface-subtle);
+}
+.product-actions-dropdown button.is-danger {
+  color: var(--app-danger, #b42318);
 }
 .product-form-grid {
   display: grid;

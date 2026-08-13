@@ -92,6 +92,34 @@ export class ProductRepository {
   public updateProduct(id: bigint, data: Prisma.ProductUncheckedUpdateInput) {
     return this.client.product.update({ where: { id }, data, include: { category: true } });
   }
+  /**
+   * Referências que obrigam a preservar histórico. Saldos (`ProductStock`) não
+   * entram: são criados automaticamente e acompanham o produto.
+   */
+  public async references(tenantId: bigint, productId: bigint) {
+    const [saleItemCount, movementCount] = await Promise.all([
+      this.client.productSaleItem.count({ where: { tenantId, productId } }),
+      this.client.stockMovement.count({ where: { tenantId, productId } }),
+    ]);
+    return { saleItemCount, movementCount };
+  }
+  /**
+   * Revalida as referências dentro da transação: o frontend nunca decide isso e
+   * uma venda concorrente não pode escapar entre a checagem e o DELETE.
+   */
+  public deleteProduct(tenantId: bigint, productId: bigint) {
+    return this.client.$transaction(async (tx) => {
+      const [saleItemCount, movementCount] = await Promise.all([
+        tx.productSaleItem.count({ where: { tenantId, productId } }),
+        tx.stockMovement.count({ where: { tenantId, productId } }),
+      ]);
+      if (saleItemCount > 0 || movementCount > 0)
+        return { deleted: false, saleItemCount, movementCount };
+      await tx.productStock.deleteMany({ where: { tenantId, productId } });
+      await tx.product.delete({ where: { id: productId } });
+      return { deleted: true, saleItemCount, movementCount };
+    });
+  }
   public unit(tenantId: bigint, publicId: string) {
     return this.client.businessUnit.findFirst({ where: { tenantId, publicId } });
   }

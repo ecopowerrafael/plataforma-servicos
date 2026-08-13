@@ -30,7 +30,6 @@ describe('ServiceCategoryService', () => {
       name: 'Cabelo',
       description: null,
       color: '#2563EB',
-      serviceCount: 0,
       icon: null,
       sortOrder: 0,
       active: true,

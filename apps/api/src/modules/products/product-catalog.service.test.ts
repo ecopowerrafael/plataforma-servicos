@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { ProductRepository } from './product.repository.js';
 import { ProductCatalogService, stockStatus } from './product.service.js';
 
-import type { ProductRepository } from './product.repository.js';
+import type { PrismaClient } from '../../database-client/client.js';
 
 vi.mock('../tenants/plan-entitlement.service.js', () => ({
   PlanEntitlementService: class {
@@ -53,9 +54,28 @@ function repository(overrides: Record<string, unknown> = {}) {
     ]),
     unit: vi.fn().mockResolvedValue({ id: 9n, publicId: unitPublicId, name: 'Centro' }),
     upsertMinimumQuantity: vi.fn(),
+    updateProduct: vi.fn().mockResolvedValue(product(1n, 'Pomada', { active: false })),
+    deleteProduct: vi
+      .fn()
+      .mockResolvedValue({ deleted: true, saleItemCount: 0, movementCount: 0 }),
     audit: vi.fn(),
     ...overrides,
   } as unknown as ProductRepository;
+}
+
+function transactionalClient(saleItemCount: number, movementCount: number) {
+  const tx = {
+    productSaleItem: { count: vi.fn().mockResolvedValue(saleItemCount) },
+    stockMovement: { count: vi.fn().mockResolvedValue(movementCount) },
+    productStock: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    product: { delete: vi.fn().mockResolvedValue({ id: 1n }) },
+  };
+  return {
+    client: {
+      $transaction: (run: (client: typeof tx) => Promise<unknown>) => run(tx),
+    } as unknown as PrismaClient,
+    tx,
+  };
 }
 
 describe('catálogo de produtos', () => {
@@ -121,6 +141,115 @@ describe('catálogo de produtos', () => {
       ),
     ).rejects.toMatchObject({ code: 'PRODUCT_NOT_FOUND', statusCode: 404 });
     expect(find).toHaveBeenCalledWith(tenantId, '00000000-0000-4000-8000-000000000009');
+  });
+
+  it('exclui definitivamente o produto que nunca foi usado', async () => {
+    const audit = vi.fn();
+    const updateProduct = vi.fn();
+    const repo = repository({ audit, updateProduct });
+    const result = await new ProductCatalogService(repo).removeProduct(
+      tenantId,
+      '00000000-0000-4000-8000-000000000001',
+      { userId: 1n, sessionId: 2n },
+    );
+    expect(result).toMatchObject({ deleted: true, archived: false });
+    expect(updateProduct).not.toHaveBeenCalled();
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'product.deleted' }));
+  });
+
+  it('arquiva em vez de apagar quando há venda ou movimentação, preservando estoque', async () => {
+    const audit = vi.fn();
+    const updateProduct = vi.fn().mockResolvedValue(product(1n, 'Pomada', { active: false }));
+    const deleteProduct = vi
+      .fn()
+      .mockResolvedValue({ deleted: false, saleItemCount: 2, movementCount: 5 });
+    const upsertStock = vi.fn();
+    const repo = repository({ audit, updateProduct, deleteProduct, upsertStock });
+    const result = await new ProductCatalogService(repo).removeProduct(
+      tenantId,
+      '00000000-0000-4000-8000-000000000001',
+      { userId: 1n, sessionId: 2n },
+    );
+    expect(result).toMatchObject({
+      deleted: false,
+      archived: true,
+      saleItemCount: 2,
+      movementCount: 5,
+    });
+    // Arquivar só muda o status: nenhum saldo é zerado nem movimentação criada.
+    expect(updateProduct).toHaveBeenCalledWith(1n, { active: false });
+    expect(upsertStock).not.toHaveBeenCalled();
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'product.archived' }));
+  });
+
+  it('mantém o isolamento por tenant ao excluir', async () => {
+    const deleteProduct = vi.fn();
+    const repo = repository({ product: vi.fn().mockResolvedValue(null), deleteProduct });
+    await expect(
+      new ProductCatalogService(repo).removeProduct(
+        tenantId,
+        '00000000-0000-4000-8000-000000000009',
+        { userId: 1n, sessionId: 2n },
+      ),
+    ).rejects.toMatchObject({ code: 'PRODUCT_NOT_FOUND', statusCode: 404 });
+    expect(deleteProduct).not.toHaveBeenCalled();
+  });
+
+  it('restaura o produto arquivado mantendo o mesmo publicId', async () => {
+    const audit = vi.fn();
+    const updateProduct = vi.fn().mockResolvedValue(product(1n, 'Pomada'));
+    const repo = repository({
+      audit,
+      updateProduct,
+      product: vi.fn().mockResolvedValue(product(1n, 'Pomada', { active: false })),
+    });
+    await new ProductCatalogService(repo).setProductActive(
+      tenantId,
+      '00000000-0000-4000-8000-000000000001',
+      true,
+      { userId: 1n, sessionId: 2n },
+    );
+    expect(updateProduct).toHaveBeenCalledWith(1n, { active: true });
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'product.activated',
+        targetPublicId: '00000000-0000-4000-8000-000000000001',
+      }),
+    );
+  });
+
+  it('mantém arquivados fora da listagem operacional quando o filtro é de ativos', async () => {
+    const countProducts = vi.fn().mockResolvedValue(1);
+    const listProducts = vi.fn().mockResolvedValue([product(1n, 'Pomada')]);
+    const repo = repository({ countProducts, listProducts });
+    await new ProductCatalogService(repo).listProducts(tenantId, {
+      page: 1,
+      limit: 20,
+      active: 'true',
+    });
+    expect(listProducts).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId, active: true }),
+      0,
+      20,
+    );
+  });
+
+  it('revalida as referências dentro da transação antes do DELETE físico', async () => {
+    const livre = transactionalClient(0, 0);
+    await expect(new ProductRepository(livre.client).deleteProduct(1n, 1n)).resolves.toMatchObject({
+      deleted: true,
+    });
+    expect(livre.tx.productStock.deleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 1n, productId: 1n },
+    });
+    expect(livre.tx.product.delete).toHaveBeenCalledOnce();
+
+    const comHistorico = transactionalClient(0, 3);
+    await expect(
+      new ProductRepository(comHistorico.client).deleteProduct(1n, 1n),
+    ).resolves.toMatchObject({ deleted: false, movementCount: 3 });
+    expect(comHistorico.tx.product.delete).not.toHaveBeenCalled();
+    expect(comHistorico.tx.productStock.deleteMany).not.toHaveBeenCalled();
   });
 
   it('grava estoque mínimo sem alterar o saldo', async () => {

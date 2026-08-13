@@ -1,11 +1,14 @@
 import { TenantPaymentOptionsOverviewSchema, type PixKeyTypeSchema } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { type z } from 'zod';
 
 import { httpClient, HttpError } from '../../lib/http.js';
+import { EmptyState, ListSkeleton, PageHeader, StatusBadge } from '../ui/AppUi.js';
 
 type PixKeyType = z.infer<typeof PixKeyTypeSchema>;
+type Overview = z.infer<typeof TenantPaymentOptionsOverviewSchema>;
+type Card = 'payLocal' | 'pixLocal' | 'mercadoPago';
 
 const PIX_KEY_TYPE_LABELS: Record<PixKeyType, string> = {
   CPF: 'CPF',
@@ -21,6 +24,96 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
+/** Cartão de resumo: status, dados principais e a ação de configurar. */
+function OptionCard({
+  title,
+  active,
+  summary,
+  details,
+  canManage,
+  onConfigure,
+}: {
+  title: string;
+  active: boolean;
+  summary: string;
+  details: [string, string][];
+  canManage: boolean;
+  onConfigure: () => void;
+}) {
+  return (
+    <article className="app-card payment-option-card" aria-label={title}>
+      <header>
+        <strong>{title}</strong>
+        <StatusBadge active={active}>{active ? 'Ativo' : 'Inativo'}</StatusBadge>
+      </header>
+      <p className="muted">{summary}</p>
+      <dl className="platform-details">
+        {details.map(([term, value]) => (
+          <div key={term}>
+            <dt>{term}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {canManage && (
+        <button className="secondary-button" type="button" onClick={onConfigure}>
+          Configurar
+        </button>
+      )}
+    </article>
+  );
+}
+
+function ConfigDrawer({
+  title,
+  busy,
+  error,
+  children,
+  onClose,
+  onSubmit,
+  disabled = false,
+}: {
+  title: string;
+  busy: boolean;
+  error: string | null;
+  children: ReactNode;
+  onClose: () => void;
+  onSubmit: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <form
+      className="app-drawer payment-option-drawer"
+      aria-label={title}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <div className="drawer-header">
+        <h3>{title}</h3>
+        <button className="secondary-button" type="button" onClick={onClose}>
+          Fechar
+        </button>
+      </div>
+      {children}
+      {error !== null && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="payment-option-actions">
+        <button className="primary-button" disabled={busy || disabled} type="submit">
+          {busy ? 'Salvando…' : 'Salvar'}
+        </button>
+        <button className="secondary-button" type="button" onClick={onClose}>
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function PaymentOptionsModule({
   tenantPublicId,
   canManage,
@@ -30,6 +123,7 @@ export function PaymentOptionsModule({
 }) {
   const queryClient = useQueryClient();
   const queryKey = ['tenant', tenantPublicId, 'payment-options'];
+  const [open, setOpen] = useState<Card | null>(null);
 
   const overview = useQuery({
     queryKey,
@@ -42,112 +136,187 @@ export function PaymentOptionsModule({
   });
 
   const invalidate = () => {
+    setOpen(null);
     void queryClient.invalidateQueries({ queryKey });
   };
 
   return (
-    <section className="platform-form" aria-label="Meios de pagamento">
-      <h3>Meios de pagamento</h3>
-      {overview.isPending ? <p>Carregando…</p> : null}
-      {overview.error instanceof Error ? (
-        <p className="form-error">Não foi possível carregar os meios de pagamento.</p>
-      ) : null}
-      {overview.data !== undefined && (
+    <section className="sessions-panel payment-options" aria-label="Opções de cobrança">
+      <PageHeader
+        eyebrow="Financeiro"
+        title="Opções de cobrança"
+        description="Escolha como o cliente pode pagar ao agendar."
+      />
+      {overview.isPending ? (
+        <ListSkeleton rows={3} />
+      ) : overview.error instanceof Error || overview.data === undefined ? (
+        <EmptyState
+          title="Não foi possível carregar as opções de cobrança."
+          description="Tente novamente."
+          action={<button onClick={() => void overview.refetch()}>Tentar novamente</button>}
+        />
+      ) : (
         <>
-          <PayLocalSection
-            tenantPublicId={tenantPublicId}
-            canManage={canManage}
-            active={overview.data.payLocal.active}
-            onSaved={invalidate}
-          />
-          <PixLocalSection
-            tenantPublicId={tenantPublicId}
-            canManage={canManage}
-            current={overview.data.pixLocal}
-            onSaved={invalidate}
-          />
-          <MercadoPagoSection
-            tenantPublicId={tenantPublicId}
-            canManage={canManage}
-            current={overview.data.mercadoPago}
-            onSaved={invalidate}
-          />
+          <div className="payment-option-grid">
+            <OptionCard
+              title="Pagamento no local"
+              active={overview.data.payLocal.active}
+              summary="O cliente agenda sem pagar online e paga presencialmente no atendimento."
+              details={[
+                ['Confirmação', 'Registrada depois pela recepção'],
+                ['Sinal obrigatório', 'Não é substituído por esta opção'],
+              ]}
+              canManage={canManage}
+              onConfigure={() => {
+                setOpen('payLocal');
+              }}
+            />
+            <OptionCard
+              title="PIX próprio"
+              active={overview.data.pixLocal.active}
+              summary="Gera copia e cola e QR Code com a chave do estabelecimento; a baixa é manual."
+              details={[
+                [
+                  'Chave PIX',
+                  overview.data.pixLocal.hasCredentials ? 'Configurada' : 'Não configurada',
+                ],
+                [
+                  'Tipo',
+                  overview.data.pixLocal.keyType === null
+                    ? '—'
+                    : PIX_KEY_TYPE_LABELS[overview.data.pixLocal.keyType],
+                ],
+                ['Recebedor', overview.data.pixLocal.receiverName ?? '—'],
+                ['Cidade', overview.data.pixLocal.city ?? '—'],
+              ]}
+              canManage={canManage}
+              onConfigure={() => {
+                setOpen('pixLocal');
+              }}
+            />
+            <OptionCard
+              title="Mercado Pago"
+              active={overview.data.mercadoPago.active}
+              summary="Cobrança por PIX via Mercado Pago com credenciais do estabelecimento."
+              details={[
+                [
+                  'Ambiente',
+                  overview.data.mercadoPago.environment === 'SANDBOX' ? 'Sandbox' : 'Produção',
+                ],
+                [
+                  'Credenciais',
+                  overview.data.mercadoPago.hasCredentials ? 'Configuradas' : 'Não configuradas',
+                ],
+                ...(overview.data.mercadoPago.providerImplemented
+                  ? []
+                  : ([['Integração', 'Ainda não disponível nesta plataforma']] as [
+                      string,
+                      string,
+                    ][])),
+              ]}
+              canManage={canManage}
+              onConfigure={() => {
+                setOpen('mercadoPago');
+              }}
+            />
+          </div>
+          {open === 'payLocal' && (
+            <PayLocalForm
+              tenantPublicId={tenantPublicId}
+              current={overview.data.payLocal}
+              onClose={() => {
+                setOpen(null);
+              }}
+              onSaved={invalidate}
+            />
+          )}
+          {open === 'pixLocal' && (
+            <PixLocalForm
+              tenantPublicId={tenantPublicId}
+              current={overview.data.pixLocal}
+              onClose={() => {
+                setOpen(null);
+              }}
+              onSaved={invalidate}
+            />
+          )}
+          {open === 'mercadoPago' && (
+            <MercadoPagoForm
+              tenantPublicId={tenantPublicId}
+              current={overview.data.mercadoPago}
+              onClose={() => {
+                setOpen(null);
+              }}
+              onSaved={invalidate}
+            />
+          )}
         </>
       )}
     </section>
   );
 }
 
-function PayLocalSection({
+function PayLocalForm({
   tenantPublicId,
-  canManage,
-  active,
+  current,
+  onClose,
   onSaved,
 }: {
   tenantPublicId: string;
-  canManage: boolean;
-  active: boolean;
+  current: Overview['payLocal'];
+  onClose: () => void;
   onSaved: () => void;
 }) {
+  const [active, setActive] = useState(current.active);
   const save = useMutation({
-    mutationFn: (nextActive: boolean) =>
+    mutationFn: () =>
       httpClient.request('/tenant/payment-options/pay-local', {
         method: 'PUT',
-        body: { active: nextActive },
+        body: { active },
         schema: TenantPaymentOptionsOverviewSchema,
         tenantPublicId,
       }),
     onSuccess: onSaved,
   });
-
   return (
-    <article className="info-card" aria-label="Pagamento no local">
-      <h4>Pagamento no local</h4>
-      <p>
-        Quando ativo, o cliente pode concluir o agendamento sem pagar online e pagar presencialmente
-        no atendimento — o pagamento real continua sendo registrado depois pela recepção, nas formas
-        de pagamento já configuradas. Se o agendamento exigir sinal, o pagamento no local não
-        substitui o sinal obrigatório; após o sinal ser pago, o restante pode ser pago no local
-        quando esta opção estiver ativa.
+    <ConfigDrawer
+      title="Pagamento no local"
+      busy={save.isPending}
+      error={errorMessage(save.error)}
+      onClose={onClose}
+      onSubmit={() => {
+        save.mutate();
+      }}
+    >
+      <label className="ds-switch-field">
+        <input
+          className="ds-switch"
+          role="switch"
+          type="checkbox"
+          checked={active}
+          onChange={(event) => {
+            setActive(event.target.checked);
+          }}
+        />
+        Ativar pagamento no local
+      </label>
+      <p className="muted">
+        O agendamento é concluído sem pagamento online. A recepção registra o pagamento depois, nas
+        formas já configuradas. Quando houver sinal obrigatório, ele continua sendo exigido.
       </p>
-      <p>{`Status: ${active ? 'ativo' : 'inativo'}`}</p>
-      {canManage && (
-        <div className="form-actions">
-          <label>
-            <input
-              type="checkbox"
-              checked={active}
-              disabled={save.isPending}
-              onChange={(event) => {
-                save.mutate(event.target.checked);
-              }}
-            />
-            Ativar pagamento no local
-          </label>
-          {save.error instanceof Error ? (
-            <p className="form-error">{errorMessage(save.error)}</p>
-          ) : null}
-        </div>
-      )}
-    </article>
+    </ConfigDrawer>
   );
 }
 
-function PixLocalSection({
+function PixLocalForm({
   tenantPublicId,
-  canManage,
   current,
+  onClose,
   onSaved,
 }: {
   tenantPublicId: string;
-  canManage: boolean;
-  current: {
-    active: boolean;
-    hasCredentials: boolean;
-    keyType: PixKeyType | null;
-    receiverName: string | null;
-    city: string | null;
-  };
+  current: Overview['pixLocal'];
+  onClose: () => void;
   onSaved: () => void;
 }) {
   const [active, setActive] = useState(current.active);
@@ -156,7 +325,6 @@ function PixLocalSection({
   const [receiverName, setReceiverName] = useState(current.receiverName ?? '');
   const [city, setCity] = useState(current.city ?? '');
   const [description, setDescription] = useState('');
-
   const save = useMutation({
     mutationFn: () =>
       httpClient.request('/tenant/payment-options/pix-local', {
@@ -172,147 +340,115 @@ function PixLocalSection({
         schema: TenantPaymentOptionsOverviewSchema,
         tenantPublicId,
       }),
-    onSuccess: () => {
-      setKey('');
-      setDescription('');
-      onSaved();
-    },
+    onSuccess: onSaved,
   });
-
   return (
-    <article className="info-card" aria-label="PIX por chave própria">
-      <h4>PIX por chave própria</h4>
-      <p>
-        Gera um código PIX (copia e cola) e QR Code localmente, a partir da chave PIX do próprio
-        estabelecimento — nenhuma confirmação automática: o pagamento é confirmado manualmente pela
-        recepção depois de recebido.
-      </p>
-      <ul>
-        <li>{`Status: ${current.active ? 'ativo' : 'inativo'}`}</li>
-        <li>{`Chave PIX: ${current.hasCredentials ? 'configurada' : 'não configurada'}`}</li>
-        {current.receiverName !== null && <li>{`Recebedor: ${current.receiverName}`}</li>}
-        {current.city !== null && <li>{`Cidade: ${current.city}`}</li>}
-      </ul>
-      {canManage && (
-        <form
-          className="form-actions"
-          onSubmit={(event) => {
-            event.preventDefault();
-            save.mutate();
+    <ConfigDrawer
+      title="PIX próprio"
+      busy={save.isPending}
+      error={errorMessage(save.error)}
+      disabled={
+        (!current.hasCredentials && key.trim() === '') ||
+        receiverName.trim() === '' ||
+        city.trim() === ''
+      }
+      onClose={onClose}
+      onSubmit={() => {
+        save.mutate();
+      }}
+    >
+      <label className="ds-switch-field">
+        <input
+          className="ds-switch"
+          role="switch"
+          type="checkbox"
+          checked={active}
+          onChange={(event) => {
+            setActive(event.target.checked);
           }}
-        >
-          <label>
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(event) => {
-                setActive(event.target.checked);
-              }}
-            />
-            Ativar PIX próprio
-          </label>
-          <label>
-            Tipo da chave PIX
-            <select
-              value={keyType}
-              onChange={(event) => {
-                setKeyType(event.target.value as PixKeyType);
-              }}
-            >
-              {Object.entries(PIX_KEY_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Chave PIX
-            <input
-              value={key}
-              placeholder={
-                current.hasCredentials
-                  ? 'Deixe em branco para manter a chave já salva'
-                  : 'Chave PIX'
-              }
-              onChange={(event) => {
-                setKey(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            Nome do recebedor
-            <input
-              required
-              maxLength={25}
-              value={receiverName}
-              onChange={(event) => {
-                setReceiverName(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            Cidade
-            <input
-              required
-              maxLength={15}
-              value={city}
-              onChange={(event) => {
-                setCity(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            Descrição (opcional)
-            <input
-              maxLength={72}
-              value={description}
-              onChange={(event) => {
-                setDescription(event.target.value);
-              }}
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={
-              save.isPending ||
-              (!current.hasCredentials && key.trim() === '') ||
-              receiverName.trim() === '' ||
-              city.trim() === ''
-            }
+        />
+        Ativar PIX próprio
+      </label>
+      <div className="payment-option-grid-fields">
+        <label>
+          Tipo da chave
+          <select
+            value={keyType}
+            onChange={(event) => {
+              setKeyType(event.target.value as PixKeyType);
+            }}
           >
-            Salvar PIX próprio
-          </button>
-          {save.error instanceof Error ? (
-            <p className="form-error">{errorMessage(save.error)}</p>
-          ) : null}
-        </form>
-      )}
-    </article>
+            {Object.entries(PIX_KEY_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Chave PIX
+          <input
+            value={key}
+            placeholder={current.hasCredentials ? 'Manter a chave salva' : 'Informe a chave'}
+            onChange={(event) => {
+              setKey(event.target.value);
+            }}
+          />
+          {current.hasCredentials && <small>Deixe em branco para manter a atual.</small>}
+        </label>
+        <label>
+          Recebedor
+          <input
+            required
+            maxLength={25}
+            value={receiverName}
+            onChange={(event) => {
+              setReceiverName(event.target.value);
+            }}
+          />
+        </label>
+        <label>
+          Cidade
+          <input
+            required
+            maxLength={15}
+            value={city}
+            onChange={(event) => {
+              setCity(event.target.value);
+            }}
+          />
+        </label>
+        <label className="payment-field--wide">
+          Descrição (opcional)
+          <input
+            maxLength={72}
+            value={description}
+            onChange={(event) => {
+              setDescription(event.target.value);
+            }}
+          />
+          <small>Aparece para o cliente no pagamento.</small>
+        </label>
+      </div>
+    </ConfigDrawer>
   );
 }
 
-function MercadoPagoSection({
+function MercadoPagoForm({
   tenantPublicId,
-  canManage,
   current,
+  onClose,
   onSaved,
 }: {
   tenantPublicId: string;
-  canManage: boolean;
-  current: {
-    active: boolean;
-    hasCredentials: boolean;
-    environment: 'SANDBOX' | 'PRODUCTION';
-    providerImplemented: boolean;
-  };
+  current: Overview['mercadoPago'];
+  onClose: () => void;
   onSaved: () => void;
 }) {
   const [active, setActive] = useState(current.active);
   const [environment, setEnvironment] = useState<'SANDBOX' | 'PRODUCTION'>(current.environment);
   const [accessToken, setAccessToken] = useState('');
   const [webhookSecret, setWebhookSecret] = useState('');
-
   const save = useMutation({
     mutationFn: () =>
       httpClient.request('/tenant/payment-options/mercado-pago', {
@@ -326,96 +462,69 @@ function MercadoPagoSection({
         schema: TenantPaymentOptionsOverviewSchema,
         tenantPublicId,
       }),
-    onSuccess: () => {
-      setAccessToken('');
-      setWebhookSecret('');
-      onSaved();
-    },
+    onSuccess: onSaved,
   });
-
   return (
-    <article className="info-card" aria-label="Mercado Pago">
-      <h4>Mercado Pago</h4>
-      <p>
-        Cobrança via PIX pelo Mercado Pago, com credenciais próprias do estabelecimento. O token e o
-        segredo de webhook nunca são exibidos novamente depois de salvos.
-      </p>
-      <ul>
-        <li>{`Status: ${current.active ? 'ativo' : 'inativo'}`}</li>
-        <li>{`Ambiente: ${current.environment === 'SANDBOX' ? 'sandbox' : 'produção'}`}</li>
-        <li>{`Credenciais: ${current.hasCredentials ? 'configuradas' : 'não configuradas'}`}</li>
-        {!current.providerImplemented && (
-          <li>Integração deste provedor ainda não implementada nesta plataforma.</li>
-        )}
-      </ul>
-      {canManage && (
-        <form
-          className="form-actions"
-          onSubmit={(event) => {
-            event.preventDefault();
-            save.mutate();
+    <ConfigDrawer
+      title="Mercado Pago"
+      busy={save.isPending}
+      error={errorMessage(save.error)}
+      onClose={onClose}
+      onSubmit={() => {
+        save.mutate();
+      }}
+    >
+      <label className="ds-switch-field">
+        <input
+          className="ds-switch"
+          role="switch"
+          type="checkbox"
+          checked={active}
+          onChange={(event) => {
+            setActive(event.target.checked);
           }}
-        >
-          <label>
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(event) => {
-                setActive(event.target.checked);
-              }}
-            />
-            Ativar Mercado Pago
-          </label>
-          <label>
-            Ambiente
-            <select
-              value={environment}
-              onChange={(event) => {
-                setEnvironment(event.target.value as 'SANDBOX' | 'PRODUCTION');
-              }}
-            >
-              <option value="SANDBOX">Sandbox</option>
-              <option value="PRODUCTION">Produção</option>
-            </select>
-          </label>
-          <label>
-            Access token
-            <input
-              type="password"
-              autoComplete="off"
-              value={accessToken}
-              placeholder={
-                current.hasCredentials ? 'Deixe em branco para manter o já salvo' : 'Access token'
-              }
-              onChange={(event) => {
-                setAccessToken(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            Segredo do webhook
-            <input
-              type="password"
-              autoComplete="off"
-              value={webhookSecret}
-              placeholder={
-                current.hasCredentials
-                  ? 'Deixe em branco para manter o já salvo'
-                  : 'Segredo do webhook'
-              }
-              onChange={(event) => {
-                setWebhookSecret(event.target.value);
-              }}
-            />
-          </label>
-          <button type="submit" disabled={save.isPending}>
-            Salvar Mercado Pago
-          </button>
-          {save.error instanceof Error ? (
-            <p className="form-error">{errorMessage(save.error)}</p>
-          ) : null}
-        </form>
-      )}
-    </article>
+        />
+        Ativar Mercado Pago
+      </label>
+      <div className="payment-option-grid-fields">
+        <label>
+          Ambiente
+          <select
+            value={environment}
+            onChange={(event) => {
+              setEnvironment(event.target.value as 'SANDBOX' | 'PRODUCTION');
+            }}
+          >
+            <option value="SANDBOX">Sandbox</option>
+            <option value="PRODUCTION">Produção</option>
+          </select>
+        </label>
+        <label>
+          Access token
+          <input
+            type="password"
+            autoComplete="off"
+            value={accessToken}
+            placeholder={current.hasCredentials ? 'Manter o token salvo' : 'Informe o token'}
+            onChange={(event) => {
+              setAccessToken(event.target.value);
+            }}
+          />
+        </label>
+        <label>
+          Segredo do webhook
+          <input
+            type="password"
+            autoComplete="off"
+            value={webhookSecret}
+            placeholder={current.hasCredentials ? 'Manter o segredo salvo' : 'Informe o segredo'}
+            onChange={(event) => {
+              setWebhookSecret(event.target.value);
+            }}
+          />
+        </label>
+      </div>
+      <p className="muted">Credenciais salvas nunca são exibidas novamente.</p>
+    </ConfigDrawer>
   );
 }

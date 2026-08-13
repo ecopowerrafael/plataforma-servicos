@@ -2,6 +2,7 @@ import {
   CreateProductRequestSchema,
   ProductCategoryListResponseSchema,
   ProductPublicSchema,
+  ProductRemovalResponseSchema,
   ProductSaleListResponseSchema,
   ProductStatusResponseSchema,
 } from '@plataforma/shared';
@@ -18,6 +19,7 @@ import { StockMovementList } from './StockMovementList.js';
 import { StockOverview } from './StockOverview.js';
 import { StockStatusBadge } from './StockStatusBadge.js';
 import { httpClient } from '../../lib/http.js';
+import { ConfirmationDialog } from '../ConfirmationDialog.js';
 import { TenantServiceImage } from '../services/TenantServiceImage.js';
 import { EmptyState, ListSkeleton, StatusBadge } from '../ui/AppUi.js';
 
@@ -39,6 +41,8 @@ export function ProductProfile({
   const [tab, setTab] = useState<Tab>('overview');
   const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
   const detail = useQuery({
     queryKey: ['tenant', tenantPublicId, 'product', publicId],
     queryFn: () =>
@@ -92,6 +96,23 @@ export function ProductProfile({
           queryKey: ['tenant', tenantPublicId, 'product', publicId],
         }),
         queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'products'] }),
+      ]);
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () =>
+      httpClient.request(`/tenant/products/${publicId}`, {
+        method: 'DELETE',
+        schema: ProductRemovalResponseSchema,
+        tenantPublicId,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['tenant', tenantPublicId, 'product', publicId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'products'] }),
+        queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'product-summary'] }),
       ]);
     },
   });
@@ -162,7 +183,7 @@ export function ProductProfile({
           <div className="product-profile-title">
             <h2>{product.name}</h2>
             <StatusBadge active={product.active}>
-              {product.active ? 'Ativo' : 'Inativo'}
+              {product.active ? 'Ativo' : 'Arquivado'}
             </StatusBadge>
             <StockStatusBadge status={product.stockStatus} />
           </div>
@@ -191,13 +212,57 @@ export function ProductProfile({
             >
               Editar
             </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => void changeStatus(!product.active)}
-            >
-              {product.active ? 'Desativar' : 'Ativar'}
-            </button>
+            <div className="product-actions-menu">
+              <button
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  setMenuOpen((value) => !value);
+                }}
+              >
+                •••
+              </button>
+              {menuOpen && (
+                <div className="product-actions-dropdown" role="menu">
+                  {product.active ? (
+                    <button
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void changeStatus(false);
+                      }}
+                    >
+                      Desativar
+                    </button>
+                  ) : (
+                    <button
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void changeStatus(true);
+                      }}
+                    >
+                      Restaurar
+                    </button>
+                  )}
+                  <button
+                    className="is-danger"
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setConfirmRemoval(true);
+                    }}
+                  >
+                    Arquivar/Excluir
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </header>
@@ -329,6 +394,32 @@ export function ProductProfile({
             onSave={save}
           />
         </div>
+      )}
+      {confirmRemoval && (
+        <ConfirmationDialog
+          request={{
+            title: 'Arquivar ou excluir produto',
+            description: [
+              'Se este produto nunca foi vendido nem movimentado, ele será excluído definitivamente.',
+              'Caso já tenha histórico, será arquivado: sai do catálogo, mas continua nas vendas e movimentações antigas e pode ser restaurado depois.',
+              product.stockQuantity > 0
+                ? `Atenção: ainda existem ${String(product.stockQuantity)} unidades em estoque. O saldo é preservado como está.`
+                : '',
+            ]
+              .filter((line) => line !== '')
+              .join(' '),
+            confirmLabel: 'Arquivar ou excluir',
+            requiresReason: false,
+            variant: 'danger',
+            onConfirm: async () => {
+              const result = await remove.mutateAsync();
+              if (result.deleted) void navigate('/app/produtos');
+            },
+          }}
+          onClose={() => {
+            setConfirmRemoval(false);
+          }}
+        />
       )}
       {moving && (
         <StockMovementDrawer

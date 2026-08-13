@@ -7,11 +7,14 @@ export function TenantServiceImage({
   servicePublicId,
   tenantPublicId,
   kind = 'services',
+  version,
 }: {
   alt: string;
   servicePublicId: string;
   tenantPublicId: string;
   kind?: 'services' | 'combos' | 'products';
+  /** Muda quando a imagem é trocada, forçando o recarregamento do blob. */
+  version?: string;
 }) {
   const [source, setSource] = useState<string | null>(null);
   useEffect(() => {
@@ -33,6 +36,6 @@ export function TenantServiceImage({
       active = false;
       if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
     };
-  }, [servicePublicId, tenantPublicId, kind]);
+  }, [servicePublicId, tenantPublicId, kind, version]);
   return source === null ? null : <img alt={alt} className="service-thumbnail" src={source} />;
 }

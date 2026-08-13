@@ -98,6 +98,18 @@ export const ProductCatalogSummaryResponseSchema = z
   })
   .strict();
 export const ProductStatusResponseSchema = z.object({ success: z.literal(true) }).strict();
+/**
+ * Produto sem histórico é apagado; com venda ou movimentação é arquivado
+ * (`active=false`), preservando estoque e referências.
+ */
+export const ProductRemovalResponseSchema = z
+  .object({
+    deleted: z.boolean(),
+    archived: z.boolean(),
+    saleItemCount: z.number().int(),
+    movementCount: z.number().int(),
+  })
+  .strict();
 
 export const SetProductStockRequestSchema = z
   .object({

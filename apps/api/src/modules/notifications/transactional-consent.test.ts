@@ -25,6 +25,9 @@ function build(acceptsCommunications: boolean, pushSubscriptions = 1) {
         ),
     },
     tenantWhatsAppConfig: { findUnique: vi.fn().mockResolvedValue({ active: true }) },
+    tenantSubscription: {
+      findFirst: vi.fn().mockResolvedValue({ plan: { limits: [{ booleanValue: true }] } }),
+    },
     tenant: {
       findUnique: vi.fn().mockResolvedValue({
         displayName: 'Barbearia Silva',
@@ -36,6 +39,7 @@ function build(acceptsCommunications: boolean, pushSubscriptions = 1) {
   } as unknown as PrismaClient;
   const templates = {
     render: vi.fn().mockResolvedValue({ subject: 'Assunto', body: 'Corpo' }),
+    renderWhatsApp: vi.fn().mockResolvedValue('Mensagem WhatsApp'),
   } as unknown as NotificationTemplateService;
   const dispatcher = new CustomerNotificationDispatcher(
     client,

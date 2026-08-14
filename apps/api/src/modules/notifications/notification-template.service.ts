@@ -24,6 +24,15 @@ export interface TemplateContent {
 
 const EMAIL_TEMPLATE_PREFIX = '__AG_EMAIL_TEMPLATE_V1__';
 
+const DEFAULT_WHATSAPP_TEMPLATES: Partial<Record<NotificationKind, string>> = {
+  'appointment.booking_confirmed':
+    'Ola, {{customerName}}! Seu agendamento de {{serviceName}}{{professionalPhrase}} foi confirmado para {{date}} as {{time}}.',
+  'appointment.reminder':
+    'Ola, {{customerName}}! Lembrete: seu agendamento de {{serviceName}}{{professionalPhrase}} e {{date}} as {{time}}.',
+  'appointment.booking_canceled':
+    'Ola, {{customerName}}. Seu agendamento de {{serviceName}} para {{date}} as {{time}} foi cancelado.',
+};
+
 const DEFAULT_TEMPLATES: Record<NotificationKind, TemplateContent> = {
   'appointment.booking_confirmed': {
     subject: 'Seu agendamento foi confirmado — {{tenantName}}',
@@ -155,6 +164,7 @@ export class NotificationTemplateService {
           intro: resolved.intro ?? '',
           afterText: resolved.afterText ?? '',
           ctaLabel: resolved.ctaLabel ?? '',
+          whatsappBody: custom?.whatsappBody ?? DEFAULT_WHATSAPP_TEMPLATES[kind] ?? resolved.body,
           isCustom: custom !== undefined,
         };
       }),
@@ -189,13 +199,18 @@ export class NotificationTemplateService {
           kind,
           subject: input.subject,
           body: storedBody,
+          whatsappBody: input.whatsappBody ?? DEFAULT_WHATSAPP_TEMPLATES[kind] ?? null,
         },
       });
       return;
     }
     await this.client.notificationTemplate.update({
       where: { id: existing.id },
-      data: { subject: input.subject, body: storedBody },
+      data: {
+        subject: input.subject,
+        body: storedBody,
+        ...(input.whatsappBody === undefined ? {} : { whatsappBody: input.whatsappBody }),
+      },
     });
   }
 
@@ -207,5 +222,19 @@ export class NotificationTemplateService {
     const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
     const fallback = DEFAULT_TEMPLATES[kind];
     return renderTemplate(custom === null ? fallback : decodeStoredTemplate(custom, fallback), variables);
+  }
+
+  public async renderWhatsApp(
+    tenantId: bigint,
+    kind: NotificationKind,
+    variables: Record<string, string>,
+  ): Promise<string> {
+    const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
+    const template = custom?.whatsappBody ?? DEFAULT_WHATSAPP_TEMPLATES[kind] ?? DEFAULT_TEMPLATES[kind].body;
+    const professional = variables.professionalName?.trim() ?? '';
+    return renderTemplate(
+      { subject: '', body: template },
+      { ...variables, professionalPhrase: professional === '' ? '' : ` com ${professional}` },
+    ).body;
   }
 }

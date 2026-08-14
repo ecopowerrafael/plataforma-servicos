@@ -8,7 +8,7 @@ import { Prisma, type NotificationLog, type PrismaClient } from '../../database-
 import { AppError } from '../../errors/AppError.js';
 import {
   IntegrationUnavailableError,
-  type MetaWhatsAppDelivery,
+  type WhatsAppDelivery,
   type WebhookDelivery,
 } from '../integrations/integration-delivery.js';
 
@@ -56,7 +56,7 @@ function decodeEmailBody(body: string): { text: string; html?: string; fromName?
 export interface NotificationDeliveries {
   email: EmailDelivery;
   push: PushDelivery;
-  whatsapp?: MetaWhatsAppDelivery;
+  whatsapp?: WhatsAppDelivery;
   webhook?: WebhookDelivery;
 }
 

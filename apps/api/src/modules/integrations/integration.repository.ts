@@ -11,16 +11,29 @@ export class IntegrationRepository {
     tenantId: bigint,
     data: {
       active: boolean;
-      phoneNumberId: string;
-      businessAccountId: string;
+      instanceId: string;
       encryptedAccessToken: string;
-      apiVersion: string;
     },
   ) {
+    const stored = {
+      active: data.active,
+      phoneNumberId: data.instanceId,
+      businessAccountId: 'internal',
+      encryptedAccessToken: data.encryptedAccessToken,
+      apiVersion: 'v1',
+      lastValidationStatus: null,
+      lastValidatedAt: null,
+    };
     return this.client.tenantWhatsAppConfig.upsert({
       where: { tenantId },
-      create: { publicId: randomUUID(), tenantId, ...data },
-      update: data,
+      create: { publicId: randomUUID(), tenantId, ...stored },
+      update: stored,
+    });
+  }
+  public updateWhatsappValidation(tenantId: bigint, status: string, at: Date) {
+    return this.client.tenantWhatsAppConfig.update({
+      where: { tenantId },
+      data: { lastValidationStatus: status, lastValidatedAt: at },
     });
   }
   public integrations(tenantId: bigint) {

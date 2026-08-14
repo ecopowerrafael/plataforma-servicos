@@ -1494,6 +1494,7 @@ export function HomePage() {
               <NotificationTemplateModule
                 tenantPublicId={selectedTenant}
                 canManage={canManageNotificationTemplates}
+                canManageWhatsapp={canManageIntegrations}
               />
             )}
             {isRoute('/app/marketing', '/app/marketing/automacoes', '/app/clientes/recuperacao') &&

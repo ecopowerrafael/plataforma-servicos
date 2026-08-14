@@ -471,6 +471,8 @@ model TenantWhatsAppConfig {
   businessAccountId    String   @map("business_account_id") @db.VarChar(80)
   encryptedAccessToken String   @map("encrypted_access_token") @db.Text
   apiVersion           String   @default("v23.0") @map("api_version") @db.VarChar(16)
+  lastValidationStatus String?  @map("last_validation_status") @db.VarChar(32)
+  lastValidatedAt      DateTime? @map("last_validated_at") @db.DateTime(3)
   createdAt            DateTime @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -845,6 +847,7 @@ model NotificationTemplate {
   kind      String   @db.VarChar(80)
   subject   String   @db.VarChar(255)
   body      String   @db.Text
+  whatsappBody String? @map("whatsapp_body") @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)

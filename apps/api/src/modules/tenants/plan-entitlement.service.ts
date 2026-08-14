@@ -64,6 +64,18 @@ export class PlanEntitlementService {
     throw new AppError({ code: 'PLAN_FEATURE_UNAVAILABLE', message: 'Este recurso não está disponível no seu plano.', statusCode: 403 });
   }
 
+  public async featureEnabledForTenant(
+    client: PrismaClient,
+    tenantId: bigint,
+    key: PlanFeatureKey,
+  ): Promise<boolean> {
+    const subscription = await client.tenantSubscription.findFirst({
+      where: { tenantId, effectiveKey: 'EFFECTIVE' },
+      include: { plan: { include: { limits: { where: { key } } } } },
+    });
+    return subscription?.plan.limits[0]?.booleanValue === true;
+  }
+
   private async assertLimit(
     transaction: Transaction,
     tenantId: bigint,

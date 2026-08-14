@@ -5,6 +5,7 @@ import {
   UpsertExternalIntegrationSchema,
   UpsertWhatsAppConfigSchema,
   WhatsAppConfigSchema,
+  WhatsAppConnectionTestSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -44,6 +45,14 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
     async (request) => {
       options.authService.requirePermission(request.tenant, 'integration.manage');
       return options.service.updateWhatsapp(request.tenant.id, request.body, actor(request));
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/test',
+    { schema: { response: { 200: WhatsAppConnectionTestSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      return options.service.testWhatsapp(request.tenant.id);
     },
   );
   app.get(

@@ -10,6 +10,7 @@ export const NotificationTemplateEntrySchema = z.object({
   intro: z.string(),
   afterText: z.string(),
   ctaLabel: z.string(),
+  whatsappBody: z.string(),
   isCustom: z.boolean(),
 });
 
@@ -25,6 +26,7 @@ export const UpdateNotificationTemplateRequestSchema = z
     intro: z.string().trim().min(1).max(1000).nullable().optional(),
     afterText: z.string().trim().min(1).max(1000).nullable().optional(),
     ctaLabel: z.string().trim().min(1).max(80).nullable().optional(),
+    whatsappBody: z.string().trim().min(1).max(4000).nullable().optional(),
   })
   .strict();
 

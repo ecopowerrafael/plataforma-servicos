@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { type WhatsAppDelivery } from './integration-delivery.js';
 import { type IntegrationRepository } from './integration.repository.js';
 import { AppError } from '../../errors/AppError.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
@@ -13,16 +14,31 @@ const whatsappPublic = (
   item: {
     active: boolean;
     phoneNumberId: string;
-    businessAccountId: string;
-    apiVersion: string;
+    encryptedAccessToken: string;
+    lastValidationStatus: string | null;
+    lastValidatedAt: Date | null;
   } | null,
-) => ({
+  available: boolean,
+) => {
+  const storedStatus = item?.lastValidationStatus;
+  const connectionStatus: 'NOT_CONFIGURED' | 'INACTIVE' | 'CONNECTED' | 'ERROR' | null =
+    item === null
+      ? 'NOT_CONFIGURED'
+      : storedStatus === 'CONNECTED' || storedStatus === 'ERROR'
+        ? storedStatus
+        : item.active
+          ? null
+          : 'INACTIVE';
+  return ({
+  available,
   configured: item !== null,
   active: item?.active ?? false,
-  phoneNumberId: item?.phoneNumberId ?? null,
-  businessAccountId: item?.businessAccountId ?? null,
-  apiVersion: item?.apiVersion ?? null,
-});
+  instanceId: item?.phoneNumberId ?? null,
+  tokenConfigured: item !== null && item.encryptedAccessToken.length > 0,
+  connectionStatus,
+  lastValidatedAt: item?.lastValidatedAt?.toISOString() ?? null,
+  });
+};
 const externalPublic = (item: {
   publicId: string;
   name: string;
@@ -43,31 +59,34 @@ export class IntegrationService {
   public constructor(
     private readonly repository: IntegrationRepository,
     private readonly cipher: CredentialsCipher | undefined,
+    private readonly whatsappDelivery?: WhatsAppDelivery,
   ) {}
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {
     return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repository.client, tenantId, key);
   }
   public async whatsapp(tenantId: bigint) {
-    await this.assertEnabled(tenantId, 'whatsapp.enabled');
-    return whatsappPublic(await this.repository.whatsapp(tenantId));
+    const available = await new PlanEntitlementService().featureEnabledForTenant(
+      this.repository.client,
+      tenantId,
+      'whatsapp.enabled',
+    );
+    return whatsappPublic(await this.repository.whatsapp(tenantId), available);
   }
   public async updateWhatsapp(
     tenantId: bigint,
     input: {
       active: boolean;
-      phoneNumberId: string;
-      businessAccountId: string;
-      accessToken?: string | undefined;
-      apiVersion: string;
+      instanceId: string;
+      token?: string | undefined;
     },
     actor: Actor,
   ) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');
     const old = await this.repository.whatsapp(tenantId);
     const encryptedAccessToken =
-      input.accessToken === undefined
+      input.token === undefined
         ? old?.encryptedAccessToken
-        : this.encrypt({ accessToken: input.accessToken });
+        : this.encrypt({ token: input.token });
     if (encryptedAccessToken === undefined)
       throw new AppError({
         code: 'WHATSAPP_TOKEN_REQUIRED',
@@ -76,13 +95,30 @@ export class IntegrationService {
       });
     const result = await this.repository.upsertWhatsapp(tenantId, {
       active: input.active,
-      phoneNumberId: input.phoneNumberId,
-      businessAccountId: input.businessAccountId,
+      instanceId: input.instanceId,
       encryptedAccessToken,
-      apiVersion: input.apiVersion,
     });
     await this.audit(tenantId, actor, 'integration.whatsapp.updated', result.publicId);
-    return whatsappPublic(result);
+    return whatsappPublic(result, true);
+  }
+  public async testWhatsapp(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    if (this.whatsappDelivery === undefined)
+      throw new AppError({ code: 'WHATSAPP_UNAVAILABLE', message: 'Teste indisponivel.', statusCode: 503 });
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({ code: 'WHATSAPP_NOT_CONFIGURED', message: 'Configure o WhatsApp primeiro.', statusCode: 400 });
+    let connected = false;
+    try {
+      connected = await this.whatsappDelivery.testConnection(tenantId);
+    } catch {
+      connected = false;
+    }
+    await this.repository.updateWhatsappValidation(tenantId, connected ? 'CONNECTED' : 'ERROR', new Date());
+    return {
+      connected,
+      message: connected ? 'Conexao confirmada.' : 'Nao foi possivel confirmar a conexao.',
+    };
   }
   public async list(tenantId: bigint) {
     await this.assertEnabled(tenantId, 'integrations.enabled');

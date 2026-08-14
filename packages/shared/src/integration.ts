@@ -3,21 +3,22 @@ import { z } from 'zod';
 export const UpsertWhatsAppConfigSchema = z
   .object({
     active: z.boolean(),
-    phoneNumberId: z.string().trim().min(1).max(80),
-    businessAccountId: z.string().trim().min(1).max(80),
-    accessToken: z.string().trim().min(20).max(4096).optional(),
-    apiVersion: z
-      .string()
-      .regex(/^v\d+\.\d+$/u)
-      .default('v23.0'),
+    instanceId: z.string().trim().min(3).max(80),
+    token: z.string().trim().min(20).max(4096).optional(),
   })
   .strict();
 export const WhatsAppConfigSchema = z.object({
+  available: z.boolean(),
   configured: z.boolean(),
   active: z.boolean(),
-  phoneNumberId: z.string().nullable(),
-  businessAccountId: z.string().nullable(),
-  apiVersion: z.string().nullable(),
+  instanceId: z.string().nullable(),
+  tokenConfigured: z.boolean(),
+  connectionStatus: z.enum(['NOT_CONFIGURED', 'INACTIVE', 'CONNECTED', 'ERROR']).nullable(),
+  lastValidatedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export const WhatsAppConnectionTestSchema = z.object({
+  connected: z.boolean(),
+  message: z.string(),
 });
 export const IntegrationEventSchema = z.enum(['notification.queued']);
 export const UpsertExternalIntegrationSchema = z

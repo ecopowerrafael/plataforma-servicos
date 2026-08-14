@@ -6,6 +6,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { WhatsAppSettingsCard } from './WhatsAppSettingsCard.js';
 import { httpClient } from '../../lib/http.js';
 
 const kindLabels: Record<string, string> = {
@@ -30,6 +31,7 @@ function TemplateEditor({
   const [intro, setIntro] = useState(entry.intro);
   const [afterText, setAfterText] = useState(entry.afterText);
   const [ctaLabel, setCtaLabel] = useState(entry.ctaLabel);
+  const [whatsappBody, setWhatsappBody] = useState(entry.whatsappBody);
   const editableEmail = entry.kind === 'appointment.booking_confirmed';
 
   const save = useMutation({
@@ -40,6 +42,7 @@ function TemplateEditor({
           subject,
           body,
           ...(editableEmail ? { title, intro, afterText, ctaLabel } : {}),
+          whatsappBody,
         },
         schema: SuccessResponseSchema,
         tenantPublicId,
@@ -128,6 +131,12 @@ function TemplateEditor({
           </small>
         </>
       ) : null}
+      {entry.kind.startsWith('appointment.') ? (
+        <label>
+          Mensagem no WhatsApp
+          <textarea rows={3} value={whatsappBody} onChange={(event) => { setWhatsappBody(event.target.value); }} />
+        </label>
+      ) : null}
       {canManage && (
         <div className="form-row">
           <button
@@ -159,9 +168,11 @@ function TemplateEditor({
 export function NotificationTemplateModule({
   tenantPublicId,
   canManage,
+  canManageWhatsapp,
 }: {
   tenantPublicId: string;
   canManage: boolean;
+  canManageWhatsapp: boolean;
 }) {
   const templates = useQuery({
     queryKey: ['tenant', tenantPublicId, 'notification-templates'],
@@ -176,6 +187,7 @@ export function NotificationTemplateModule({
   return (
     <section className="platform-form" aria-label="Modelos de mensagens">
       <h3>Modelos de mensagens</h3>
+      <WhatsAppSettingsCard tenantPublicId={tenantPublicId} canManage={canManageWhatsapp} />
       {templates.isPending ? <p>Carregando…</p> : null}
       {templates.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar os modelos de mensagens.</p>

@@ -27,7 +27,7 @@ import { CustomerRecoveryService } from '../modules/customers/customer-recovery.
 import { CustomerRepository } from '../modules/customers/customer.repository.js';
 import { CustomerService } from '../modules/customers/customer.service.js';
 import {
-  MetaWhatsAppDelivery,
+  WApiWhatsAppDelivery,
   WebhookDelivery,
 } from '../modules/integrations/integration-delivery.js';
 import { IntegrationRepository } from '../modules/integrations/integration.repository.js';
@@ -323,10 +323,11 @@ export function createDatabaseConnection(
     customerAuthOptions?.paymentGatewayEncryptionKey === undefined
       ? undefined
       : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
+  const whatsappDelivery = new WApiWhatsAppDelivery(client, credentialsCipher);
   const notifications = new NotificationService(client, {
     email: emailDelivery,
     push: pushDelivery,
-    whatsapp: new MetaWhatsAppDelivery(client, credentialsCipher),
+    whatsapp: whatsappDelivery,
     webhook: new WebhookDelivery(client, credentialsCipher),
   });
   const notificationTemplates = new NotificationTemplateService(client);
@@ -450,7 +451,11 @@ export function createDatabaseConnection(
     financialReports: new FinancialReportService(client, delinquency),
     paymentGateway: paymentGateway,
     tenantPaymentOptions: tenantPaymentOptions,
-    integrations: new IntegrationService(new IntegrationRepository(client), credentialsCipher),
+    integrations: new IntegrationService(
+      new IntegrationRepository(client),
+      credentialsCipher,
+      whatsappDelivery,
+    ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,
       tenantWhiteLabel,

@@ -8,6 +8,8 @@ import {
 import { type NotificationService } from './notification.service.js';
 import { renderTransactionalEmail } from './transactional-email.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 /**
  * Ponto único de decisão para notificar um cliente sobre um evento de
@@ -52,8 +54,13 @@ export class CustomerNotificationDispatcher {
       where: { tenantId, customerId, active: true },
       select: { publicId: true },
     });
+    const whatsappEntitled = await new PlanEntitlementService().featureEnabledForTenant(
+      this.client,
+      tenantId,
+      'whatsapp.enabled',
+    );
     const whatsappConfigured =
-      customer.whatsapp === null
+      customer.whatsapp === null || !whatsappEntitled
         ? false
         : (
             await this.client.tenantWhatsAppConfig.findUnique({
@@ -85,6 +92,7 @@ export class CustomerNotificationDispatcher {
     const push = kind.startsWith('appointment.')
       ? renderPushTemplate(kind, renderedVariables)
       : email;
+    const whatsappBody = await this.templates.renderWhatsApp(tenantId, kind, renderedVariables);
     const logo = tenant?.mediaAssets[0];
     const html = renderTransactionalEmail({
       tenantName,
@@ -133,14 +141,16 @@ export class CustomerNotificationDispatcher {
       });
     }
     if (whatsappConfigured && customer.whatsapp !== null) {
+      const recipient = normalizeWhatsAppPhone(customer.whatsapp);
+      if (recipient === null) return true;
       await this.notifications.enqueue(tenantId, {
         channel: 'WHATSAPP',
         kind,
         targetType,
         targetPublicId,
-        recipient: customer.whatsapp.replace(/\D/gu, ''),
+        recipient,
         subject: email.subject,
-        body: email.body,
+        body: whatsappBody,
       });
     }
 

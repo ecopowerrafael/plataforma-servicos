@@ -66,4 +66,56 @@ describe('NotificationService enqueue idempotency', () => {
     expect(findFirst).toHaveBeenCalledOnce();
     expect(create).toHaveBeenCalledOnce();
   });
+
+  it('sends booking confirmation on WhatsApp with tracked interactive actions', async () => {
+    const log = {
+      id: 12n,
+      tenantId: 1n,
+      channel: 'WHATSAPP',
+      kind: 'appointment.booking_confirmed',
+      targetType: 'appointment',
+      targetPublicId: 'appointment-1',
+      recipient: '5511999999999',
+      subject: 'Agendamento criado',
+      body: 'Seu agendamento foi criado ✅',
+      status: 'PENDING',
+    };
+    const sendInteractiveButtons = vi.fn().mockResolvedValue({
+      externalMessageId: 'message-1', status: 'SENT', errorCode: null,
+    });
+    const outboundCreate = vi.fn().mockResolvedValue({});
+    const client = {
+      notificationLog: {
+        findMany: vi.fn().mockResolvedValue([{ id: log.id, status: log.status }]),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue(log),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      tenantWhatsAppConfig: { findUnique: vi.fn().mockResolvedValue({ phoneNumberId: 'INST' }) },
+      whatsAppOutboundMessage: { create: outboundCreate },
+    } as unknown as PrismaClient;
+    const service = new NotificationService(client, {
+      email: new CapturingEmailDelivery(),
+      push: { available: false, send: vi.fn() },
+      whatsapp: { sendInteractiveButtons } as never,
+    });
+
+    await service.processPending();
+
+    expect(sendInteractiveButtons).toHaveBeenCalledWith(
+      1n,
+      '5511999999999',
+      'Seu agendamento foi criado ✅',
+      [
+        { buttonId: 'BOOKING_CONFIRM', label: 'Confirmar agendamento' },
+        { buttonId: 'BOOKING_RESCHEDULE', label: 'Reagendar' },
+      ],
+    );
+    expect(outboundCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        notificationLogId: 12n,
+        actionIds: ['BOOKING_CONFIRM', 'BOOKING_RESCHEDULE'],
+      }),
+    }));
+  });
 });

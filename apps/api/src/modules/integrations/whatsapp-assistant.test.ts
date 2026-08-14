@@ -199,7 +199,7 @@ const inbound = (overrides: Record<string, unknown> = {}) =>
 const handle = (
   service: WhatsAppAssistantService,
   event = inbound(),
-  extra: { actionId?: string | null; entitled?: boolean; tenantId?: bigint } = {},
+  extra: { actionId?: string | null; appointmentPublicId?: string | null; entitled?: boolean; tenantId?: bigint } = {},
 ) =>
   service.handleInbound({
     tenantId: extra.tenantId ?? 1n,
@@ -207,6 +207,7 @@ const handle = (
     event,
     customerId: null,
     actionId: extra.actionId ?? null,
+    appointmentPublicId: extra.appointmentPublicId ?? null,
     entitled: extra.entitled ?? true,
   });
 
@@ -408,6 +409,23 @@ void test('confirmar presença aplica a transição PENDING para CONFIRMED sem t
   assert.equal(item.paymentStatus, 'PENDING');
   assert.equal(at(conversations, 0).currentFlow, 'BOOKING_QUERY');
   assert.equal(at(sent, 0).actionIds.includes(`BOOKING_SELECT:${item.publicId}`), true);
+});
+
+void test('confirmação vinda da mensagem transacional responde somente com agradecimento', async () => {
+  const now = new Date();
+  const item = { publicId: '00000000-0000-4000-8000-000000000014', startsAt: '2026-08-14T17:30:00.000Z', serviceName: 'Corte', professionalName: 'Rafael', priceCents: '9000', status: 'PENDING' };
+  const { repository, delivery, sent } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'MAIN_MENU', context: {}, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
+  await handle(new WhatsAppAssistantService(repository, delivery, upcoming([item]) as never), inbound(), { actionId: 'BOOKING_CONFIRM', appointmentPublicId: item.publicId });
+  assert.equal(at(sent, 0).message, 'Obrigado! Seu agendamento está confirmado ✅\n\nEsperamos você.');
+  assert.equal(at(sent, 0).buttons, 0);
+});
+
+void test('reagendamento vindo da mensagem transacional usa o agendamento associado', async () => {
+  const now = new Date();
+  const item = { publicId: '00000000-0000-4000-8000-000000000015', startsAt: '2026-08-14T17:30:00.000Z', serviceName: 'Corte', professionalName: 'Rafael', professionalPublicId: 'pro-a', servicePublicId: 'service-a', unitPublicId: null, priceCents: '9000', status: 'PENDING' };
+  const { repository, delivery, sent } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'MAIN_MENU', context: {}, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
+  await handle(new WhatsAppAssistantService(repository, delivery, upcoming([item]) as never, availableDates() as never), inbound(), { actionId: 'BOOKING_RESCHEDULE', appointmentPublicId: item.publicId });
+  assert.equal(at(sent, 0).actionIds.some((id) => id.startsWith('BOOKING_RESCHEDULE_DATE:')), true);
 });
 
 void test('confirmação repetida é idempotente', async () => {

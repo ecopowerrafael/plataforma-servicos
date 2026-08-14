@@ -92,7 +92,10 @@ export class CustomerNotificationDispatcher {
     const push = kind.startsWith('appointment.')
       ? renderPushTemplate(kind, renderedVariables)
       : email;
-    const whatsappBody = await this.templates.renderWhatsApp(tenantId, kind, renderedVariables);
+    const whatsappBody =
+      kind === 'appointment.booking_confirmed'
+        ? `Seu agendamento foi criado ✅\n\n📅 ${variables.date ?? ''}\n🕐 ${variables.time ?? ''}\n✂️ ${variables.serviceName ?? ''}\n👤 ${variables.professionalName ?? ''}\n💰 ${variables.value ?? ''}\n\nO que deseja fazer?`
+        : await this.templates.renderWhatsApp(tenantId, kind, renderedVariables);
     const logo = tenant?.mediaAssets[0];
     const html = renderTransactionalEmail({
       tenantName,

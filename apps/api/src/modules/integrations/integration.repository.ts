@@ -79,6 +79,7 @@ export class IntegrationRepository {
     return this.client.whatsAppOutboundMessage.findFirst({
       where: { tenantId, externalMessageId },
       orderBy: { sentAt: 'desc' },
+      include: { notification: { select: { targetType: true, targetPublicId: true } } },
     });
   }
   public updateOutboundStatus(

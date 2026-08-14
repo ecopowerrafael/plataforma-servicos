@@ -111,6 +111,7 @@ export class WhatsAppAssistantService {
     event: NormalizedWhatsAppEvent;
     customerId: bigint | null;
     actionId: string | null;
+    appointmentPublicId: string | null;
     entitled: boolean;
   }): Promise<AssistantResult> {
     const { event } = input;
@@ -138,7 +139,26 @@ export class WhatsAppAssistantService {
         lastInboundAt: now,
         expiresAt: conversationExpiresAt(now),
       });
-      await this.sendGreetingWithMenu(input, phone, conversation.id);
+      if (input.appointmentPublicId === null) {
+        await this.sendGreetingWithMenu(input, phone, conversation.id);
+        return { replied: true, conversationPublicId: conversation.publicId };
+      }
+      await this.repository.updateConversation(conversation.id, {
+        context: { appointmentPublicId: input.appointmentPublicId },
+      });
+      if (input.actionId === 'BOOKING_CONFIRM')
+        await this.confirmAppointment(
+          input,
+          { ...conversation, context: { appointmentPublicId: input.appointmentPublicId } },
+          phone,
+          true,
+        );
+      else if (input.actionId === 'BOOKING_RESCHEDULE')
+        await this.startReschedule(
+          input,
+          { ...conversation, context: { appointmentPublicId: input.appointmentPublicId } },
+          phone,
+        );
       return { replied: true, conversationPublicId: conversation.publicId };
     }
 
@@ -149,7 +169,26 @@ export class WhatsAppAssistantService {
       ...(conversation.customerId === null && input.customerId !== null
         ? { customerId: input.customerId }
         : {}),
+      ...(input.appointmentPublicId === null ? {} : { context: { appointmentPublicId: input.appointmentPublicId } }),
     });
+
+    if (input.appointmentPublicId !== null && input.actionId === 'BOOKING_CONFIRM') {
+      await this.confirmAppointment(
+        input,
+        { ...conversation, context: { appointmentPublicId: input.appointmentPublicId } },
+        phone,
+        true,
+      );
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.appointmentPublicId !== null && input.actionId === 'BOOKING_RESCHEDULE') {
+      await this.startReschedule(
+        input,
+        { ...conversation, context: { appointmentPublicId: input.appointmentPublicId } },
+        phone,
+      );
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
 
     // Em atendimento humano o inbound é apenas persistido: nada automático sai.
     if (conversation.status === 'HUMAN_SUPPORT')
@@ -1108,6 +1147,7 @@ export class WhatsAppAssistantService {
     input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
     conversation: { id: bigint; customerId: bigint | null; context: unknown },
     phone: string,
+    conciseReply = false,
   ): Promise<void> {
     const customerId = conversation.customerId ?? input.customerId;
     const appointmentPublicId = appointmentPublicIdFrom(conversation.context);
@@ -1123,7 +1163,12 @@ export class WhatsAppAssistantService {
       return;
     }
     if (appointment.status === 'CONFIRMED') {
-      await this.dispatchText(input, phone, 'Seu agendamento já está confirmado.', conversation.id);
+      await this.dispatchText(
+        input,
+        phone,
+        conciseReply ? 'Seu agendamento já está confirmado ✅' : 'Seu agendamento já está confirmado.',
+        conversation.id,
+      );
       return;
     }
     if (appointment.status === 'CANCELED') {
@@ -1149,7 +1194,12 @@ export class WhatsAppAssistantService {
           appointmentPublicId,
         );
         if (current.status === 'CONFIRMED') {
-          await this.dispatchText(input, phone, 'Seu agendamento já está confirmado.', conversation.id);
+          await this.dispatchText(
+            input,
+            phone,
+            conciseReply ? 'Seu agendamento já está confirmado ✅' : 'Seu agendamento já está confirmado.',
+            conversation.id,
+          );
           return;
         }
       } catch {
@@ -1163,6 +1213,15 @@ export class WhatsAppAssistantService {
       customerId,
       appointmentPublicId,
     );
+    if (conciseReply) {
+      await this.dispatchText(
+        input,
+        phone,
+        'Obrigado! Seu agendamento está confirmado ✅\n\nEsperamos você.',
+        conversation.id,
+      );
+      return;
+    }
     await this.sendConfirmation(input, conversation.id, phone, confirmed);
   }
 

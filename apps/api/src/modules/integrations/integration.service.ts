@@ -333,7 +333,8 @@ export class IntegrationService {
     const existing = await this.repository.inboundEventByFingerprint(tenantId, event.fingerprint);
     if (existing !== null) return { accepted: true, duplicated: true } as const;
 
-    const actionId = await this.resolveActionId(tenantId, event);
+    const resolvedAction = await this.resolveActionId(tenantId, event);
+    const actionId = resolvedAction?.actionId ?? null;
     await this.applyStatusEvent(tenantId, event);
     const customerId = await this.customerIdForPhone(tenantId, event.phone);
 
@@ -370,6 +371,7 @@ export class IntegrationService {
       event,
       customerId,
       actionId,
+      appointmentPublicId: resolvedAction?.appointmentPublicId ?? null,
       entitled,
     });
     return {
@@ -394,7 +396,13 @@ export class IntegrationService {
     );
     const actionIds = Array.isArray(outbound?.actionIds) ? outbound.actionIds : [];
     const matched = actionIds[event.selectedIndex];
-    return typeof matched === 'string' ? matched : null;
+    if (typeof matched !== 'string') return null;
+    const appointmentPublicId =
+      outbound?.notification?.targetType === 'appointment' &&
+      typeof outbound.notification.targetPublicId === 'string'
+        ? outbound.notification.targetPublicId
+        : null;
+    return { actionId: matched, appointmentPublicId };
   }
 
   /**

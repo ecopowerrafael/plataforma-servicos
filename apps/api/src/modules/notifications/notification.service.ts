@@ -266,7 +266,36 @@ export class NotificationService {
       } else if (log.channel === 'WHATSAPP') {
         if (this.deliveries.whatsapp === undefined)
           throw new IntegrationUnavailableError('WhatsApp não configurado.');
-        await this.deliveries.whatsapp.send(log.tenantId, log.recipient, log.body);
+        if (log.kind === 'appointment.booking_confirmed') {
+          const result = await this.deliveries.whatsapp.sendInteractiveButtons(
+            log.tenantId,
+            log.recipient,
+            log.body,
+            [
+              { buttonId: 'BOOKING_CONFIRM', label: 'Confirmar agendamento' },
+              { buttonId: 'BOOKING_RESCHEDULE', label: 'Reagendar' },
+            ],
+          );
+          const config = await this.client.tenantWhatsAppConfig.findUnique({
+            where: { tenantId: log.tenantId },
+            select: { phoneNumberId: true },
+          });
+          await this.client.whatsAppOutboundMessage.create({
+            data: {
+              publicId: randomUUID(),
+              tenantId: log.tenantId,
+              instanceId: config?.phoneNumberId ?? '',
+              phone: log.recipient,
+              externalMessageId: result.externalMessageId,
+              actionIds: ['BOOKING_CONFIRM', 'BOOKING_RESCHEDULE'],
+              status: result.status,
+              notificationLogId: log.id,
+              errorCode: result.errorCode,
+            },
+          });
+        } else {
+          await this.deliveries.whatsapp.send(log.tenantId, log.recipient, log.body);
+        }
       } else if (log.channel === 'WEBHOOK') {
         if (this.deliveries.webhook === undefined)
           throw new IntegrationUnavailableError('Webhook não configurado.');

@@ -17,6 +17,7 @@ export function BrandAssetCard({
   busy,
   shape = 'wide',
   square = false,
+  allowGif = false,
   extraAction,
   onUpload,
   onRemove,
@@ -27,6 +28,7 @@ export function BrandAssetCard({
   busy: boolean;
   shape?: 'wide' | 'portrait' | 'square';
   square?: boolean;
+  allowGif?: boolean;
   extraAction?: { label: string; onClick: () => void } | undefined;
   onUpload: (file: File) => void;
   onRemove?: (() => void) | undefined;
@@ -36,8 +38,8 @@ export function BrandAssetCard({
 
   const accept = async (file: File | undefined) => {
     if (file === undefined) return;
-    if (!ACCEPTED_TYPES.has(file.type)) {
-      setError('Use uma imagem PNG, JPG ou WebP.');
+    if (!ACCEPTED_TYPES.has(file.type) && !(allowGif && file.type === 'image/gif')) {
+      setError(`Use uma imagem PNG, JPG, WebP${allowGif ? ' ou GIF' : ''}.`);
       return;
     }
     if (file.size > MAX_BYTES) {
@@ -74,7 +76,7 @@ export function BrandAssetCard({
       id={inputId}
       hidden
       type="file"
-      accept="image/png,image/jpeg,image/webp"
+      accept={`image/png,image/jpeg,image/webp${allowGif ? ',image/gif' : ''}`}
       disabled={busy}
       onChange={(event) => {
         void accept(event.target.files?.[0]);
@@ -98,7 +100,9 @@ export function BrandAssetCard({
         <label className="brand-asset-dropzone" htmlFor={inputId}>
           <span aria-hidden="true">+</span>
           <strong>{busy ? 'Enviando…' : 'Arraste ou escolha'}</strong>
-          <small>PNG, JPG ou WebP · até 5 MB{square ? ' · quadrada' : ''}</small>
+          <small>
+            PNG, JPG, WebP{allowGif ? ' ou GIF' : ''} · até 5 MB{square ? ' · quadrada' : ''}
+          </small>
           {input}
         </label>
       ) : (

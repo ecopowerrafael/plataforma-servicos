@@ -168,6 +168,9 @@ export class PrismaIdentityRepository implements IdentityRepository {
               city: input.request.initialUnit.city ?? null,
               state: input.request.initialUnit.state ?? null,
               countryCode: input.request.initialUnit.countryCode ?? null,
+              latitude: input.request.initialUnit.latitude ?? null,
+              longitude: input.request.initialUnit.longitude ?? null,
+              googleMapsUrl: input.request.initialUnit.googleMapsUrl ?? null,
             },
           });
           const now = new Date();
@@ -685,7 +688,10 @@ export class PrismaIdentityRepository implements IdentityRepository {
               throw new IdentityConflictError('MEMBERSHIP');
             }
             if (existingMembership === null) {
-              await new PlanEntitlementService().assertCanAddMember(transaction, invitation.tenantId);
+              await new PlanEntitlementService().assertCanAddMember(
+                transaction,
+                invitation.tenantId,
+              );
               await transaction.tenantMembership.create({
                 data: {
                   publicId: input.membershipPublicId,

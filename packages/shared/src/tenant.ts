@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { BusinessProfileCodeSchema } from './business-profile.js';
+import { GoogleMapsUrlSchema, LatitudeSchema, LongitudeSchema } from './location.js';
 
 export const RESERVED_TENANT_SLUGS = [
   'admin',
@@ -118,6 +119,9 @@ export const InitialBusinessUnitInputSchema = z
     district: OptionalAddressFieldSchema(80),
     city: OptionalAddressFieldSchema(100),
     state: OptionalAddressFieldSchema(64),
+    latitude: LatitudeSchema.optional(),
+    longitude: LongitudeSchema.optional(),
+    googleMapsUrl: GoogleMapsUrlSchema.optional(),
     countryCode: z
       .string()
       .trim()
@@ -126,7 +130,11 @@ export const InitialBusinessUnitInputSchema = z
       .pipe(z.string().regex(/^[A-Z]{2}$/u))
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => (value.latitude === undefined) === (value.longitude === undefined), {
+    message: 'Informe latitude e longitude juntas.',
+    path: ['latitude'],
+  });
 
 export const BusinessUnitInputSchema = z
   .object({
@@ -140,6 +148,9 @@ export const BusinessUnitInputSchema = z
     district: OptionalAddressFieldSchema(80),
     city: OptionalAddressFieldSchema(100),
     state: OptionalAddressFieldSchema(64),
+    latitude: LatitudeSchema.optional(),
+    longitude: LongitudeSchema.optional(),
+    googleMapsUrl: GoogleMapsUrlSchema.optional(),
     countryCode: z
       .string()
       .trim()
@@ -148,7 +159,11 @@ export const BusinessUnitInputSchema = z
       .pipe(z.string().regex(/^[A-Z]{2}$/u))
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => (value.latitude === undefined) === (value.longitude === undefined), {
+    message: 'Informe latitude e longitude juntas.',
+    path: ['latitude'],
+  });
 
 export const CreateBusinessUnitRequestSchema = BusinessUnitInputSchema;
 export const UpdateBusinessUnitRequestSchema = BusinessUnitInputSchema;
@@ -200,6 +215,9 @@ export const BusinessUnitSchema = z.object({
   city: z.string().nullable(),
   state: z.string().nullable(),
   countryCode: z.string().nullable(),
+  latitude: LatitudeSchema.nullable(),
+  longitude: LongitudeSchema.nullable(),
+  googleMapsUrl: z.string().nullable(),
 });
 
 export const TenantSettingsSchema = z.object({

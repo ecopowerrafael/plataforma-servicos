@@ -4,11 +4,11 @@ import { basename, extname, join, resolve, sep } from 'node:path';
 
 import { AppError } from '../../errors/AppError.js';
 
-export type ServiceImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
+export type ServiceImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 interface DetectedImage {
   mimeType: ServiceImageMimeType;
-  extension: 'jpg' | 'png' | 'webp';
+  extension: 'jpg' | 'png' | 'webp' | 'gif';
   width: number;
   height: number;
 }
@@ -124,6 +124,16 @@ export function inspectServiceImage(buffer: Buffer): DetectedImage {
     const dimensions = webpDimensions(buffer);
     if (dimensions !== null)
       detected = { mimeType: 'image/webp', extension: 'webp', ...dimensions };
+  } else if (
+    buffer.length >= 10 &&
+    ['GIF87a', 'GIF89a'].includes(buffer.subarray(0, 6).toString('ascii'))
+  ) {
+    detected = {
+      mimeType: 'image/gif',
+      extension: 'gif',
+      width: buffer.readUInt16LE(6),
+      height: buffer.readUInt16LE(8),
+    };
   }
   if (detected === null)
     throw imageError(
@@ -174,7 +184,10 @@ function validateUpload(
   declaredMimeType: string,
 ): DetectedImage {
   if (buffer.length === 0) {
-    throw imageError('SERVICE_IMAGE_TYPE_INVALID', 'O arquivo enviado n\u00e3o \u00e9 uma imagem v\u00e1lida.');
+    throw imageError(
+      'SERVICE_IMAGE_TYPE_INVALID',
+      'O arquivo enviado n\u00e3o \u00e9 uma imagem v\u00e1lida.',
+    );
   }
   if (buffer.length > serviceImageMaxBytes()) {
     const maximumMegabytes = Math.floor(serviceImageMaxBytes() / (1024 * 1024));
@@ -192,10 +205,9 @@ function validateUpload(
     'image/jpeg': ['.jpg', '.jpeg'],
     'image/png': ['.png'],
     'image/webp': ['.webp'],
+    'image/gif': ['.gif'],
   };
-  if (
-    !allowedExtensions[detected.mimeType].includes(extension)
-  ) {
+  if (!allowedExtensions[detected.mimeType].includes(extension)) {
     throw imageError(
       'SERVICE_IMAGE_MIME_MISMATCH',
       'A extens\u00e3o do arquivo n\u00e3o corresponde ao formato real da imagem.',

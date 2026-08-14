@@ -6,6 +6,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { contrastTextColor } from '../components/branding/brand-studio.js';
 import { PremiumApp } from '../components/public/premium/PremiumApp.js';
 import { PublicHeader } from '../components/public/PublicHeader.js';
+import { PublicLocationSection } from '../components/public/PublicLocationSection.js';
 import { PwaInstall } from '../components/public/PwaInstall.js';
 import { usePreviewOverride } from '../components/public/use-preview-override.js';
 import { PublicBookingFlow } from '../components/PublicBookingFlow.js';
@@ -157,12 +158,6 @@ export function PublicTenantPage() {
   const banner = asset('BANNER_DESKTOP');
   const mobileBanner = asset('BANNER_MOBILE');
   const splash = asset('SPLASH') ?? logo;
-  const address =
-    site.data.unit === null
-      ? null
-      : [site.data.unit.street, site.data.unit.number, site.data.unit.city, site.data.unit.state]
-          .filter(Boolean)
-          .join(', ');
   return (
     <Theme>
       <div
@@ -312,15 +307,7 @@ export function PublicTenantPage() {
               <h2>Sobre</h2>
               <p>{site.data.site.aboutText ?? site.data.displayName}</p>
             </section>
-            <section>
-              <h2>Contato e localiza\u00e7\u00e3o</h2>
-              {address === null ? (
-                <p>Entre em contato para mais informa\u00e7\u00f5es.</p>
-              ) : (
-                <p>{address}</p>
-              )}
-              <p>{site.data.unit?.timezone}</p>
-            </section>
+            <PublicLocationSection unit={site.data.unit} displayName={site.data.displayName} />
             <footer>{site.data.site.footerText ?? site.data.displayName}</footer>
           </>
         )}

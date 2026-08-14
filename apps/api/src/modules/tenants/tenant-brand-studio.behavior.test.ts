@@ -10,7 +10,10 @@ import {
   type TenantMediaKind,
 } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
-import { type ServiceImageStorage } from '../services/service-image.storage.js';
+import {
+  inspectServiceImage,
+  type ServiceImageStorage,
+} from '../services/service-image.storage.js';
 
 const tenantId = 41n;
 const currentIdentity = {
@@ -32,13 +35,35 @@ function png(width: number, height: number): Buffer {
 
 function jpeg(width: number, height: number): Buffer {
   return Buffer.from([
-    0xff, 0xd8,
-    0xff, 0xe1, 0x00, 0x04, 0x45, 0x78,
-    0xff, 0xc0, 0x00, 0x11, 0x08,
-    (height >> 8) & 0xff, height & 0xff,
-    (width >> 8) & 0xff, width & 0xff,
-    0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
-    0xff, 0xd9,
+    0xff,
+    0xd8,
+    0xff,
+    0xe1,
+    0x00,
+    0x04,
+    0x45,
+    0x78,
+    0xff,
+    0xc0,
+    0x00,
+    0x11,
+    0x08,
+    (height >> 8) & 0xff,
+    height & 0xff,
+    (width >> 8) & 0xff,
+    width & 0xff,
+    0x03,
+    0x01,
+    0x11,
+    0x00,
+    0x02,
+    0x11,
+    0x00,
+    0x03,
+    0x11,
+    0x00,
+    0xff,
+    0xd9,
   ]);
 }
 
@@ -91,7 +116,11 @@ describe('tenant Brand Studio behavior', () => {
     const findUniqueOrThrow = vi
       .fn()
       .mockResolvedValueOnce({ slug: 'empresa-teste', slugChangedAt: null })
-      .mockResolvedValueOnce({ ...currentIdentity, slug: 'novo-endereco', slugChangedAt: new Date() });
+      .mockResolvedValueOnce({
+        ...currentIdentity,
+        slug: 'novo-endereco',
+        slugChangedAt: new Date(),
+      });
     const client = {
       tenant: { findUniqueOrThrow },
       $transaction: vi.fn((operation: (tx: typeof transaction) => unknown) =>
@@ -167,6 +196,22 @@ describe('tenant Brand Studio behavior', () => {
     expect(() => {
       validateTenantMediaUpload(jpeg(640, 480), 'foto.jpeg', 'application/octet-stream', 'SPLASH');
     }).not.toThrow();
+  });
+
+  it('accepts GIF only for SPLASH and preserves its detected MIME', () => {
+    const gif = Buffer.alloc(32);
+    gif.write('GIF89a', 0, 'ascii');
+    gif.writeUInt16LE(32, 6);
+    gif.writeUInt16LE(48, 8);
+    expect(() => {
+      validateTenantMediaUpload(gif, 'splash.gif', 'image/gif', 'SPLASH');
+    }).not.toThrow();
+    expect(inspectServiceImage(gif).mimeType).toBe('image/gif');
+    expect(
+      errorCode(() => {
+        validateTenantMediaUpload(gif, 'icone.gif', 'image/gif', 'APP_ICON');
+      }),
+    ).toBe('SERVICE_IMAGE_EXTENSION_INVALID');
   });
 
   it('rejects a renamed file when its extension conflicts with its real signature', () => {
@@ -251,7 +296,9 @@ describe('tenant Brand Studio behavior', () => {
       recordAudit: vi.fn().mockResolvedValue(undefined),
     };
     const storage = {
-      save: vi.fn().mockResolvedValue({ key: 'tenant-public-id/asset/image.png', mimeType: 'image/png' }),
+      save: vi
+        .fn()
+        .mockResolvedValue({ key: 'tenant-public-id/asset/image.png', mimeType: 'image/png' }),
       remove: vi.fn(),
     };
     const unusedImages = {} as ServiceImageStorage;
@@ -262,15 +309,16 @@ describe('tenant Brand Studio behavior', () => {
       unusedImages,
     );
 
-    const asset = await service.upload(
-      tenantId,
-      'LOGO',
-      'logo.png',
-      png(512, 512),
-      { userId: 7n, sessionId: 8n },
-    );
+    const asset = await service.upload(tenantId, 'LOGO', 'logo.png', png(512, 512), {
+      userId: 7n,
+      sessionId: 8n,
+    });
 
-    expect(storage.save).toHaveBeenCalledWith('tenant-public-id', expect.any(String), expect.any(Buffer));
+    expect(storage.save).toHaveBeenCalledWith(
+      'tenant-public-id',
+      expect.any(String),
+      expect.any(Buffer),
+    );
     expect(repository.replaceKind).toHaveBeenCalledWith(
       tenantId,
       'LOGO',
@@ -322,7 +370,9 @@ describe('tenant Brand Studio behavior', () => {
       unusedStorage,
       unusedStorage,
       undefined,
-      { tenantSubscription: { findFirst: vi.fn(() => Promise.reject(new Error('gate called'))) } } as never,
+      {
+        tenantSubscription: { findFirst: vi.fn(() => Promise.reject(new Error('gate called'))) },
+      } as never,
     );
 
     await service.updateBranding(

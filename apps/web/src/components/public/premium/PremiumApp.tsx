@@ -11,6 +11,7 @@ import { PremiumBottomNav, type PremiumTab } from './PremiumBottomNav.js';
 import { environment } from '../../../config/environment.js';
 import { httpClient } from '../../../lib/http.js';
 import { DEMO_AVATAR, demoBannerFor } from '../demo-assets.js';
+import { PublicLocationSection } from '../PublicLocationSection.js';
 import { ServiceVisual } from '../ServiceVisual.js';
 
 type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
@@ -129,24 +130,11 @@ export function PremiumApp({
 
       {tab === 'home' ? (
         <main className="premium-main">
-          <section className="premium-hero" style={heroStyle as React.CSSProperties | undefined}>
-            <div>
-              <p className="premium-eyebrow">
-                {site.site.heroSubtitle ?? 'Agende em poucos toques'}
-              </p>
-              <h1>{site.site.heroTitle ?? site.displayName}</h1>
-              <button
-                className="premium-cta"
-                type="button"
-                onClick={() => {
-                  setTab('booking');
-                }}
-              >
-                {site.site.primaryCallToAction ?? 'Agendar agora'}
-                <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          </section>
+          <section
+            className="premium-hero"
+            aria-label={`Banner de ${site.displayName}`}
+            style={heroStyle as React.CSSProperties | undefined}
+          />
 
           {site.services.length > 0 ? (
             <section className="premium-section">
@@ -251,6 +239,7 @@ export function PremiumApp({
               </article>
             </section>
           )}
+          <PublicLocationSection unit={site.unit} displayName={site.displayName} premium />
         </main>
       ) : null}
 

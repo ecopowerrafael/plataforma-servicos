@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
+import { BusinessLocationCard } from './BusinessLocationCard.js';
 
 const SlugAvailabilitySchema = z.object({ available: z.boolean() });
 interface IdentityDraft {
@@ -214,8 +215,7 @@ export function CompanyDataModule({ tenantPublicId }: { tenantPublicId: string }
           <section className="brand-settings-card">
             <h3>Endereço do seu aplicativo</h3>
             <p>
-              Seu endereço público será exibido como{' '}
-              <strong>{publicAddress}</strong>.
+              Seu endereço público será exibido como <strong>{publicAddress}</strong>.
             </p>
             <label>
               Endereço
@@ -274,6 +274,7 @@ export function CompanyDataModule({ tenantPublicId }: { tenantPublicId: string }
           <code>{publicAddress}</code>
         </aside>
       </div>
+      <BusinessLocationCard tenantPublicId={tenantPublicId} />
       {confirmation === null ? null : (
         <ConfirmationDialog
           request={confirmation}

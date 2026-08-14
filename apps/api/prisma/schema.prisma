@@ -1288,6 +1288,9 @@ model BusinessUnit {
   city                         String?                          @db.VarChar(100)
   state                        String?                          @db.VarChar(64)
   countryCode                  String?                          @map("country_code") @db.Char(2)
+  latitude                     Float?                           @db.Double
+  longitude                    Float?                           @db.Double
+  googleMapsUrl                String?                          @map("google_maps_url") @db.VarChar(2048)
   createdAt                    DateTime                         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                    DateTime                         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant                       Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)

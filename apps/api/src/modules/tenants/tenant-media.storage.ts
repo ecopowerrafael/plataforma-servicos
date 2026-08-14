@@ -6,6 +6,7 @@ import { AppError } from '../../errors/AppError.js';
 import {
   inspectServiceImage,
   LocalServiceImageStorage,
+  serviceImageMaxBytes,
   validateServiceImageUpload,
   type ServiceImageMimeType,
   type StoredServiceImage,
@@ -17,6 +18,21 @@ export function validateTenantMediaUpload(
   declaredMimeType: string,
   kind: string,
 ): void {
+  if (kind === 'SPLASH' && originalName.toLowerCase().endsWith('.gif')) {
+    if (image.length > serviceImageMaxBytes())
+      throw new AppError({
+        code: 'SERVICE_IMAGE_SIZE_INVALID',
+        message: `A imagem excede o limite permitido de ${String(Math.floor(serviceImageMaxBytes() / (1024 * 1024)))} MB.`,
+        statusCode: 400,
+      });
+    if (declaredMimeType !== 'image/gif' || inspectServiceImage(image).mimeType !== 'image/gif')
+      throw new AppError({
+        code: 'SERVICE_IMAGE_MIME_MISMATCH',
+        message: 'A extensão do arquivo não corresponde ao formato real da imagem.',
+        statusCode: 400,
+      });
+    return;
+  }
   validateServiceImageUpload(image, originalName, declaredMimeType);
   if (kind !== 'APP_ICON' && kind !== 'FAVICON') return;
   const dimensions = inspectServiceImage(image);
@@ -92,11 +108,7 @@ export class LocalTenantMediaStorage
     return `${this.resolveKey(key)}.${String(size)}.png`;
   }
 
-  public async appIconDerivative(
-    key: string,
-    size: AppIconSize,
-    image: Buffer,
-  ): Promise<Buffer> {
+  public async appIconDerivative(key: string, size: AppIconSize, image: Buffer): Promise<Buffer> {
     const target = this.derivativePath(key, size);
     try {
       return await readFile(target);

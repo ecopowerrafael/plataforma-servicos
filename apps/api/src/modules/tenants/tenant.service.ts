@@ -84,6 +84,9 @@ export class TenantService {
       city: input.initialUnit.city ?? null,
       state: input.initialUnit.state ?? null,
       countryCode: input.initialUnit.countryCode ?? null,
+      latitude: input.initialUnit.latitude ?? null,
+      longitude: input.initialUnit.longitude ?? null,
+      googleMapsUrl: input.initialUnit.googleMapsUrl ?? null,
     };
 
     try {

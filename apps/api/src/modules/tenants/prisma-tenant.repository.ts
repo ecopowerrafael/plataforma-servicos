@@ -35,6 +35,9 @@ const businessUnitSelect = {
   city: true,
   state: true,
   countryCode: true,
+  latitude: true,
+  longitude: true,
+  googleMapsUrl: true,
 } as const;
 
 function toPrismaTimeFormat(value: TimeFormat): 'H24' | 'H12' {
@@ -133,6 +136,9 @@ export class PrismaTenantRepository implements TenantRepository {
               city: input.initialUnit.city,
               state: input.initialUnit.state,
               countryCode: input.initialUnit.countryCode,
+              latitude: input.initialUnit.latitude,
+              longitude: input.initialUnit.longitude,
+              googleMapsUrl: input.initialUnit.googleMapsUrl,
             },
             select: {
               publicId: true,
@@ -149,6 +155,9 @@ export class PrismaTenantRepository implements TenantRepository {
               city: true,
               state: true,
               countryCode: true,
+              latitude: true,
+              longitude: true,
+              googleMapsUrl: true,
             },
           });
 
@@ -234,24 +243,27 @@ export class PrismaTenantRepository implements TenantRepository {
       const unit = await this.client.$transaction(async (transaction) => {
         await new PlanEntitlementService().assertCanCreateUnit(transaction, tenantId);
         return transaction.businessUnit.create({
-        data: {
-          publicId: randomUUID(),
-          tenantId,
-          name: input.name,
-          slug: input.slug,
-          status: 'ACTIVE',
-          isHeadquarters: false,
-          timezone: input.timezone ?? tenantTimezone,
-          postalCode: input.postalCode ?? null,
-          street: input.street ?? null,
-          number: input.number ?? null,
-          complement: input.complement ?? null,
-          district: input.district ?? null,
-          city: input.city ?? null,
-          state: input.state ?? null,
-          countryCode: input.countryCode ?? null,
-        },
-        select: businessUnitSelect,
+          data: {
+            publicId: randomUUID(),
+            tenantId,
+            name: input.name,
+            slug: input.slug,
+            status: 'ACTIVE',
+            isHeadquarters: false,
+            timezone: input.timezone ?? tenantTimezone,
+            postalCode: input.postalCode ?? null,
+            street: input.street ?? null,
+            number: input.number ?? null,
+            complement: input.complement ?? null,
+            district: input.district ?? null,
+            city: input.city ?? null,
+            state: input.state ?? null,
+            countryCode: input.countryCode ?? null,
+            latitude: input.latitude ?? null,
+            longitude: input.longitude ?? null,
+            googleMapsUrl: input.googleMapsUrl ?? null,
+          },
+          select: businessUnitSelect,
         });
       });
 
@@ -291,6 +303,9 @@ export class PrismaTenantRepository implements TenantRepository {
           city: input.city ?? null,
           state: input.state ?? null,
           countryCode: input.countryCode ?? null,
+          latitude: input.latitude ?? null,
+          longitude: input.longitude ?? null,
+          googleMapsUrl: input.googleMapsUrl ?? null,
         },
         select: businessUnitSelect,
       });

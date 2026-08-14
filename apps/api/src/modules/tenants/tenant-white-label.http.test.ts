@@ -41,6 +41,7 @@ async function createApp(
     publicSite?: Record<string, unknown> | null;
     branding?: Record<string, unknown> | null;
   } = {},
+  businessUnits: Record<string, unknown>[] = [],
 ) {
   const tenant = { ...legacyTenant(), ...tenantOverrides };
   const repository = {
@@ -50,7 +51,7 @@ async function createApp(
       mediaAssets: [],
       services: [],
       professionals: [],
-      businessUnits: [],
+      businessUnits,
     }),
     listAssets: vi.fn().mockResolvedValue([]),
     findPwaState: vi.fn().mockResolvedValue({ status: 'DRAFT', publishedAt: null }),
@@ -64,8 +65,17 @@ async function createApp(
   );
   const authService = {
     authenticate: vi.fn().mockResolvedValue({
-      user: { id: 7n, publicId: '22222222-2222-4222-8222-222222222222', email: 'owner@test', status: 'ACTIVE' },
-      session: { id: 8n, publicId: '33333333-3333-4333-8333-333333333333', expiresAt: new Date(Date.now() + 60_000) },
+      user: {
+        id: 7n,
+        publicId: '22222222-2222-4222-8222-222222222222',
+        email: 'owner@test',
+        status: 'ACTIVE',
+      },
+      session: {
+        id: 8n,
+        publicId: '33333333-3333-4333-8333-333333333333',
+        expiresAt: new Date(Date.now() + 60_000),
+      },
     }),
     resolveTenant: vi.fn().mockResolvedValue({
       id: 41n,
@@ -103,64 +113,82 @@ async function createApp(
 }
 
 describe('Brand Studio HTTP', () => {
-  it(
-    'serializes GET /tenant/white-label as 200 for a legacy tenant',
-    async () => {
-      const app = await createApp();
+  it('serializes GET /tenant/white-label as 200 for a legacy tenant', async () => {
+    const app = await createApp();
 
-      const response = await app.inject({
-        method: 'GET',
-        url: '/tenant/white-label',
-        headers: { cookie: 'ps_session=diagnostic-session', 'x-tenant-id': tenantPublicId },
-      });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/tenant/white-label',
+      headers: { cookie: 'ps_session=diagnostic-session', 'x-tenant-id': tenantPublicId },
+    });
 
-      expect(response.statusCode).toBe(200);
-      const body = TenantWhiteLabelResponseSchema.parse(JSON.parse(response.body) as unknown);
-      expect(body.slug).toBe('barbearia-silva');
-      expect(body.displayName).toBe('Barbearia Silva');
-      expect(body.site.theme).toBe('CLASSIC');
-      expect(body.assets).toEqual([]);
-    },
-    15_000,
-  );
+    expect(response.statusCode).toBe(200);
+    const body = TenantWhiteLabelResponseSchema.parse(JSON.parse(response.body) as unknown);
+    expect(body.slug).toBe('barbearia-silva');
+    expect(body.displayName).toBe('Barbearia Silva');
+    expect(body.site.theme).toBe('CLASSIC');
+    expect(body.assets).toEqual([]);
+  }, 15_000);
 
   it('serializes the public site response without the same Zod encode failure', async () => {
-    const app = await createApp({
-      publicSite: {
-        theme: 'MODERN',
-        // Sem `layout` a fixture não representava a linha real (que tem
-        // default no banco) e o endpoint respondia 500 no teste.
-        layout: 'CLASSIC',
-        heroTitle: 'Barbearia Silva',
-        heroSubtitle: 'Seu estilo, no seu tempo.',
-        aboutText: 'Agende seu horário de forma rápida e prática.',
-        primaryCallToAction: 'Agendar horário',
-        footerText: null,
-        seoTitle: null,
-        seoDescription: null,
-        pwaName: 'Barbearia Silva',
-        pwaShortName: 'Barbearia Silva',
-        pwaDescription: null,
+    const app = await createApp(
+      {
+        publicSite: {
+          theme: 'MODERN',
+          // Sem `layout` a fixture não representava a linha real (que tem
+          // default no banco) e o endpoint respondia 500 no teste.
+          layout: 'CLASSIC',
+          heroTitle: 'Barbearia Silva',
+          heroSubtitle: 'Seu estilo, no seu tempo.',
+          aboutText: 'Agende seu horário de forma rápida e prática.',
+          primaryCallToAction: 'Agendar horário',
+          footerText: null,
+          seoTitle: null,
+          seoDescription: null,
+          pwaName: 'Barbearia Silva',
+          pwaShortName: 'Barbearia Silva',
+          pwaDescription: null,
+        },
+        branding: {
+          useProfileDefaults: false,
+          primaryColor: '#2457D6',
+          secondaryColor: '#1B419F',
+          accentColor: '#4F78DE',
+          backgroundColor: '#F6F8FD',
+          surfaceColor: '#FFFFFF',
+          textColor: '#0F172A',
+          mutedTextColor: '#64748B',
+          borderColor: '#D5DDF4',
+          borderRadius: '0.75rem',
+          fontFamily: 'Inter',
+          logoUrl: null,
+          faviconUrl: null,
+          bannerUrl: null,
+          pwaIconUrl: null,
+          splashUrl: null,
+        },
       },
-      branding: {
-        useProfileDefaults: false,
-        primaryColor: '#2457D6',
-        secondaryColor: '#1B419F',
-        accentColor: '#4F78DE',
-        backgroundColor: '#F6F8FD',
-        surfaceColor: '#FFFFFF',
-        textColor: '#0F172A',
-        mutedTextColor: '#64748B',
-        borderColor: '#D5DDF4',
-        borderRadius: '0.75rem',
-        fontFamily: 'Inter',
-        logoUrl: null,
-        faviconUrl: null,
-        bannerUrl: null,
-        pwaIconUrl: null,
-        splashUrl: null,
-      },
-    });
+      [
+        {
+          publicId: '55555555-5555-4555-8555-555555555555',
+          name: 'Matriz',
+          isHeadquarters: true,
+          street: 'Rua das Acácias',
+          number: '123',
+          complement: null,
+          district: 'Centro',
+          city: 'Ibiúna',
+          state: 'SP',
+          postalCode: '18150-000',
+          countryCode: 'BR',
+          latitude: -23.65,
+          longitude: -47.22,
+          googleMapsUrl: 'https://maps.app.goo.gl/local',
+          timezone: 'America/Sao_Paulo',
+          status: 'ACTIVE',
+        },
+      ],
+    );
 
     const response = await app.inject({ method: 'GET', url: '/public/sites/barbearia-silva' });
 
@@ -176,5 +204,12 @@ describe('Brand Studio HTTP', () => {
     });
     expect(body.branding.primaryColor).toBe('#2457D6');
     expect(body.assets).toEqual([]);
+    expect(body.unit).toMatchObject({
+      street: 'Rua das Acácias',
+      district: 'Centro',
+      latitude: -23.65,
+      googleMapsUrl: 'https://maps.app.goo.gl/local',
+    });
+    expect(body.units).toHaveLength(1);
   });
 });

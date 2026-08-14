@@ -50,6 +50,7 @@ export * from './customer-recovery.js';
 export * from './coupon.js';
 export * from './loyalty.js';
 export * from './multi-unit.js';
+export * from './location.js';
 export * from './integration.js';
 
 export const HealthResponseSchema = z.object({

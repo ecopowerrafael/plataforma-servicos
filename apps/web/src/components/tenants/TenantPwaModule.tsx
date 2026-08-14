@@ -12,13 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { environment } from '../../config/environment.js';
 import { httpClient, HttpError } from '../../lib/http.js';
 import { BrandAssetCard } from '../branding/BrandAssetCard.js';
-import {
-  InlineAlert,
-  ListSkeleton,
-  PageHeader,
-  SectionCard,
-  StatusBadge,
-} from '../ui/AppUi.js';
+import { InlineAlert, ListSkeleton, PageHeader, SectionCard, StatusBadge } from '../ui/AppUi.js';
 
 const CHECKLIST_LABELS: Record<string, string> = {
   appName: 'Nome do aplicativo',
@@ -176,7 +170,8 @@ export function TenantPwaModule({
             />
             <BrandAssetCard
               title="Tela de abertura"
-              description="Imagem vertical, com área central livre. Opcional."
+              description="PNG, JPG, WebP ou GIF · máximo de 5 MB. GIF animado mantém a animação."
+              allowGif
               previewUrl={assetUrl('SPLASH')}
               busy={upload.isPending || removeAsset.isPending}
               shape="portrait"
@@ -231,7 +226,12 @@ export function TenantPwaModule({
                 aparecer.
               </InlineAlert>
               <div className="ds-form-actions">
-                <a className="primary-button" href={data.publicUrl} target="_blank" rel="noreferrer">
+                <a
+                  className="primary-button"
+                  href={data.publicUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Instalar aplicativo
                 </a>
                 <a

@@ -54,7 +54,8 @@ export function SubscriptionModule({
   const [tenantPublicId, setTenantPublicId] = useState('');
   const [orderBy, setOrderBy] = useState('createdAt');
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
-  const [selected, setSelected] = useState<string | null>(subscriptionPublicId ?? null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const selectedId = subscriptionPublicId ?? selected;
   const [creating, setCreating] = useState(false);
   const [createValues, setCreateValues] = useState({
     tenantPublicId: '',
@@ -127,12 +128,12 @@ export function SubscriptionModule({
     retry: false,
   });
   const detail = useQuery({
-    queryKey: ['platform', 'subscription', selected],
+    queryKey: ['platform', 'subscription', selectedId],
     queryFn: () =>
-      httpClient.request(`/platform/subscriptions/${selected ?? ''}?page=1&limit=100`, {
+      httpClient.request(`/platform/subscriptions/${selectedId ?? ''}?page=1&limit=100`, {
         schema: SubscriptionDetailResponseSchema,
       }),
-    enabled: selected !== null,
+    enabled: selectedId !== null,
     retry: false,
   });
   const mutation = useMutation({
@@ -149,7 +150,7 @@ export function SubscriptionModule({
       setNotice('Opera\u00e7\u00e3o conclu\u00edda com sucesso.');
       await Promise.all([
         client.invalidateQueries({ queryKey: ['platform', 'subscriptions'] }),
-        client.invalidateQueries({ queryKey: ['platform', 'subscription', selected] }),
+        client.invalidateQueries({ queryKey: ['platform', 'subscription', selectedId] }),
       ]);
     },
   });
@@ -176,7 +177,7 @@ export function SubscriptionModule({
   };
   const confirmChangePlan = () => {
     const parsed = ChangePlanRequestSchema.safeParse(changeValues);
-    if (!parsed.success || selected === null) {
+    if (!parsed.success || selectedId === null) {
       setFormError(
         parsed.success
           ? 'Selecione uma assinatura.'
@@ -191,7 +192,7 @@ export function SubscriptionModule({
       requiresReason: false,
       onConfirm: async () => {
         await mutation.mutateAsync({
-          url: `/platform/subscriptions/${selected}/change-plan`,
+          url: `/platform/subscriptions/${selectedId}/change-plan`,
           body: parsed.data,
           schema: SubscriptionResponseSchema,
         });
@@ -200,7 +201,7 @@ export function SubscriptionModule({
   };
   const confirmTrialExtension = () => {
     const parsed = ExtendTrialRequestSchema.safeParse(trialValues);
-    if (!parsed.success || selected === null) {
+    if (!parsed.success || selectedId === null) {
       setFormError(
         parsed.success
           ? 'Selecione uma assinatura.'
@@ -219,7 +220,7 @@ export function SubscriptionModule({
       requiresReason: false,
       onConfirm: async () => {
         await mutation.mutateAsync({
-          url: `/platform/subscriptions/${selected}/extend-trial`,
+          url: `/platform/subscriptions/${selectedId}/extend-trial`,
           body: parsed.data,
           schema: SubscriptionResponseSchema,
         });
@@ -228,7 +229,7 @@ export function SubscriptionModule({
   };
   const confirmPeriodUpdate = () => {
     const parsed = UpdateSubscriptionRequestSchema.safeParse(periodValues);
-    if (!parsed.success || selected === null) {
+    if (!parsed.success || selectedId === null) {
       setFormError(
         parsed.success
           ? 'Selecione uma assinatura.'
@@ -243,7 +244,7 @@ export function SubscriptionModule({
       requiresReason: false,
       onConfirm: async () => {
         await mutation.mutateAsync({
-          url: `/platform/subscriptions/${selected}/period`,
+          url: `/platform/subscriptions/${selectedId}/period`,
           body: parsed.data,
           schema: SubscriptionResponseSchema,
         });
@@ -255,7 +256,7 @@ export function SubscriptionModule({
     suffix: 'activate' | 'suspend' | 'reactivate' | 'cancel',
     description: string,
   ) => {
-    if (selected === null) return;
+    if (selectedId === null) return;
     setConfirmation({
       title: `${label}?`,
       description,
@@ -264,7 +265,7 @@ export function SubscriptionModule({
       variant: suffix === 'cancel' ? 'danger' : 'default',
       onConfirm: async (reason) => {
         await mutation.mutateAsync({
-          url: `/platform/subscriptions/${selected}/${suffix}`,
+          url: `/platform/subscriptions/${selectedId}/${suffix}`,
           body: { reason },
           schema: SubscriptionResponseSchema,
         });
@@ -293,6 +294,20 @@ export function SubscriptionModule({
       {notice !== null && <p className="success-message">{notice}</p>}
       {mutation.error instanceof Error ? (
         <p className="form-error">{mutation.error.message}</p>
+      ) : null}
+      {subscriptionPublicId !== undefined && detail.isPending ? (
+        <div className="platform-detail-loading">
+          <i className="platform-skeleton" />
+          <p>Carregando assinatura…</p>
+        </div>
+      ) : null}
+      {subscriptionPublicId !== undefined && detail.error instanceof Error ? (
+        <ErrorState
+          message={detail.error.message}
+          retry={() => {
+            void detail.refetch();
+          }}
+        />
       ) : null}
       {creating && (
         <>

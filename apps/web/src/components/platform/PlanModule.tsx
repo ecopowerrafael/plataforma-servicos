@@ -35,8 +35,9 @@ export function PlanModule({
   const [visibility, setVisibility] = useState('');
   const [orderBy, setOrderBy] = useState('createdAt');
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
-  const [selected, setSelected] = useState<string | null>(planPublicId ?? null);
-  const [editor, setEditor] = useState<'create' | 'edit' | null>(planPublicId ? 'edit' : null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const selectedId = planPublicId ?? selected;
+  const [editor, setEditor] = useState<'create' | 'edit' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const client = useQueryClient();
@@ -54,10 +55,10 @@ export function PlanModule({
     retry: false,
   });
   const detail = useQuery({
-    queryKey: ['platform', 'plan', selected],
+    queryKey: ['platform', 'plan', selectedId],
     queryFn: () =>
-      httpClient.request(`/platform/plans/${selected ?? ''}`, { schema: PlanResponse }),
-    enabled: selected !== null,
+      httpClient.request(`/platform/plans/${selectedId ?? ''}`, { schema: PlanResponse }),
+    enabled: selectedId !== null,
     retry: false,
   });
   const mutation = useMutation({
@@ -77,7 +78,7 @@ export function PlanModule({
       setEditor(null);
       await Promise.all([
         client.invalidateQueries({ queryKey: ['platform', 'plans'] }),
-        client.invalidateQueries({ queryKey: ['platform', 'plan', selected] }),
+        client.invalidateQueries({ queryKey: ['platform', 'plan', selectedId] }),
       ]);
     },
   });
@@ -87,9 +88,9 @@ export function PlanModule({
         await mutation.mutateAsync({ url: '/platform/plans', body: value, schema: PlanResponse }),
       );
       onOpen(result.plan.publicId);
-    } else if (selected) {
+    } else if (selectedId) {
       await mutation.mutateAsync({
-        url: `/platform/plans/${selected}`,
+        url: `/platform/plans/${selectedId}`,
         method: 'PATCH',
         body: value,
         schema: PlanResponse,
@@ -97,7 +98,7 @@ export function PlanModule({
     }
   };
   const action = (label: string, suffix: 'activate' | 'deactivate' | 'archive' | 'delete') => {
-    if (!selected) return;
+    if (!selectedId) return;
     setConfirmation({
       title: `${label} plano?`,
       description:
@@ -111,8 +112,8 @@ export function PlanModule({
         await mutation.mutateAsync({
           url:
             suffix === 'delete'
-              ? `/platform/plans/${selected}`
-              : `/platform/plans/${selected}/${suffix}`,
+              ? `/platform/plans/${selectedId}`
+              : `/platform/plans/${selectedId}/${suffix}`,
           ...(suffix === 'delete' ? { method: 'DELETE' as const } : {}),
         });
       },

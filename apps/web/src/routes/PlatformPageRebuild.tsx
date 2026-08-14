@@ -4,8 +4,8 @@ import {
   PlatformTenantListResponseSchema,
 } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { AuditModule } from '../components/platform/AuditModule.js';
 import { CommercialPolicyModule } from '../components/platform/CommercialPolicyModule.js';
@@ -26,23 +26,21 @@ import { HttpError, httpClient } from '../lib/http.js';
 
 export function PlatformPageRebuild() {
   const navigate = useNavigate();
+  const location = useLocation();
   const params = useParams();
-  const routeSection = params.section === 'financeiro' ? 'finance' : params.section;
-  const [section, setSection] = useState<PlatformSection>(
-    (
-      [
-        'dashboard',
-        'tenants',
-        'plans',
-        'subscriptions',
-        'finance',
-        'commercial-policy',
-        'audit',
-      ] as string[]
-    ).includes(routeSection ?? '')
-      ? (routeSection as PlatformSection)
-      : 'dashboard',
-  );
+  const pathSection = location.pathname.split('/')[2];
+  const routeSection = pathSection === 'financeiro' ? 'finance' : pathSection;
+  const section: PlatformSection = [
+    'dashboard',
+    'tenants',
+    'plans',
+    'subscriptions',
+    'finance',
+    'commercial-policy',
+    'audit',
+  ].includes(routeSection ?? '')
+    ? (routeSection as PlatformSection)
+    : 'dashboard';
   const me = useQuery({
     queryKey: ['platform', 'me'],
     queryFn: () => httpClient.request('/platform/me', { schema: PlatformMeResponseSchema }),
@@ -74,14 +72,13 @@ export function PlatformPageRebuild() {
       email={me.data.administrator.user.email}
       section={section}
       onSection={(next) => {
-        setSection(next);
         void navigate(next === 'finance' ? '/platform/financeiro' : `/platform/${next}`);
       }}
     >
       {section === 'dashboard' ? (
         <Overview
           onTenants={() => {
-            setSection('tenants');
+            void navigate('/platform/tenants');
           }}
         />
       ) : section === 'tenants' ? (

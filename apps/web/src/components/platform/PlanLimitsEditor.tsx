@@ -36,6 +36,22 @@ const usageLimits: [PlanLimitKey, string][] = [
   ['monthly_appointments.max', 'Agendamentos/mês'],
 ];
 
+export const planLimitLabels: Partial<Record<PlanLimitKey, string>> = Object.fromEntries([
+  ...usageLimits,
+  ['custom_domain.enabled', 'Domínio próprio'],
+  ['branding.customization.enabled', 'Personalização da marca'],
+  ['advanced_reports.enabled', 'Relatórios avançados'],
+  ['products.enabled', 'Produtos'],
+  ['stock.enabled', 'Estoque'],
+  ['commissions.enabled', 'Comissões'],
+  ['waitlist.enabled', 'Lista de espera'],
+  ['automations.enabled', 'Automações'],
+  ['whatsapp.enabled', 'WhatsApp'],
+  ['integrations.enabled', 'Integrações externas'],
+  ['loyalty.enabled', 'Fidelidade'],
+  ['coupons.enabled', 'Cupons'],
+]);
+
 const featureGroups: { title: string; items: [PlanLimitKey, string][] }[] = [
   {
     title: 'Operação',
@@ -80,12 +96,19 @@ export function PlanUsageLimitsEditor() {
             <span className="plan-field-label">{label}</span>
             <input type="hidden" {...register(`limits.${index}.key`)} />
             <input type="hidden" {...register(`limits.${index}.valueType`)} />
-            <input
-              disabled={unlimited}
-              min="0"
-              type="number"
-              {...register(`limits.${index}.integerValue`, { valueAsNumber: true })}
-            />
+            {/*
+              O input some quando o limite é ilimitado. Mantê-lo montado e apenas `disabled` fazia o
+              react-hook-form ler o campo como `undefined`, o que reprovava a validação do plano.
+            */}
+            {unlimited ? (
+              <p className="plan-usage-unlimited">Ilimitado</p>
+            ) : (
+              <input
+                min="0"
+                type="number"
+                {...register(`limits.${index}.integerValue`, { valueAsNumber: true })}
+              />
+            )}
             <label className="plan-unlimited-check">
               <input
                 checked={unlimited}

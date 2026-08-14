@@ -1567,6 +1567,47 @@
   gap: 0.4rem;
   min-width: 0;
 }
+.app-shell .plan-usage-unlimited {
+  align-items: center;
+  background: var(--app-surface-subtle);
+  border: 1px dashed var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  display: flex;
+  font-size: 0.85rem;
+  margin: 0;
+  min-height: var(--app-field-height);
+  padding-inline: 0.75rem;
+}
+.app-shell .plan-error-summary {
+  background: var(--app-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--app-danger) 35%, transparent);
+  border-radius: var(--app-radius-md);
+  color: var(--app-danger);
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.15rem;
+}
+.app-shell .plan-error-summary ul {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.app-shell .plan-error-summary li {
+  font-size: 0.88rem;
+}
+.app-shell .plan-error-summary button {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: inherit;
+  font-weight: 700;
+  height: auto;
+  padding: 0;
+  text-decoration: underline;
+}
 .app-shell .plan-unlimited-check {
   align-items: center;
   color: var(--app-muted);

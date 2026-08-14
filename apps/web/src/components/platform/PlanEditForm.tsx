@@ -5,7 +5,7 @@ import {
   TenantCommercialPolicySchema,
 } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
-import { type ChangeEvent, type ReactNode, useEffect, useState } from 'react';
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Controller, FormProvider, useForm, useWatch } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 
@@ -19,7 +19,12 @@ import {
   type PlanBillingOptions,
 } from './plan-billing-options.js';
 import { PlanBenefitsEditor } from './PlanBenefitsEditor.js';
-import { PlanFeaturesEditor, PlanUsageLimitsEditor } from './PlanLimitsEditor.js';
+import {
+  PlanFeaturesEditor,
+  planLimitLabels,
+  planLimitOrder,
+  PlanUsageLimitsEditor,
+} from './PlanLimitsEditor.js';
 import { PlanPreviewCard, type PlanPreviewValue } from './PlanPreviewCard.js';
 import { httpClient } from '../../lib/http.js';
 import { brazilianMoneyToCents, centsToBrazilianMoney } from '../../marketing/pricing.js';
@@ -68,6 +73,67 @@ const sections = [
   { id: 'comercial', label: 'Comercial' },
 ] as const;
 type SectionId = (typeof sections)[number]['id'];
+
+interface FormIssue {
+  path: string;
+  label: string;
+  message: string;
+  section: SectionId;
+}
+
+const fieldDescriptions: Record<string, { label: string; section: SectionId }> = {
+  code: { label: 'Código', section: 'geral' },
+  name: { label: 'Nome do plano', section: 'geral' },
+  subtitle: { label: 'Subtítulo', section: 'geral' },
+  shortDescription: { label: 'Descrição', section: 'geral' },
+  description: { label: 'Descrição completa', section: 'geral' },
+  currency: { label: 'Moeda', section: 'geral' },
+  sortOrder: { label: 'Ordem', section: 'geral' },
+  badge: { label: 'Selo (badge)', section: 'geral' },
+  ctaText: { label: 'Texto do botão', section: 'geral' },
+  isPublic: { label: 'Plano público', section: 'geral' },
+  highlighted: { label: 'Destaque', section: 'geral' },
+  billingCycle: { label: 'Ciclo de cobrança', section: 'precos' },
+  priceCents: { label: 'Preço', section: 'precos' },
+  monthlyPriceCents: { label: 'Preço mensal', section: 'precos' },
+  annualPriceCents: { label: 'Preço anual', section: 'precos' },
+  billingOptions: { label: 'Periodicidades', section: 'precos' },
+  trialDays: { label: 'Dias de teste', section: 'comercial' },
+};
+
+/** Achata a árvore de erros do react-hook-form em uma lista de folhas com mensagem. */
+function flattenErrors(node: unknown, path: string[], out: { path: string[]; message: string }[]) {
+  if (node === null || typeof node !== 'object') return;
+  const record = node as Record<string, unknown>;
+  if (typeof record.message === 'string' && record.message !== '') {
+    out.push({ path, message: record.message });
+    return;
+  }
+  for (const [key, child] of Object.entries(record)) {
+    if (key === 'ref' || key === 'type' || key === 'types') continue;
+    flattenErrors(child, [...path, key], out);
+  }
+}
+
+function describeIssue(path: string[]): { label: string; section: SectionId } {
+  const [head, indexText, field] = path;
+  if (head === 'billingOptions' && indexText !== undefined) {
+    const cycle = billingCycles[Number(indexText)];
+    const cycleLabel = cycle === undefined ? 'Periodicidade' : billingCycleLabels[cycle];
+    return {
+      label: field === 'priceCents' ? `Preço ${cycleLabel.toLowerCase()}` : cycleLabel,
+      section: 'precos',
+    };
+  }
+  if (head === 'limits' && indexText !== undefined) {
+    const key = planLimitOrder[Number(indexText)];
+    return {
+      label: key === undefined ? 'Limite' : (planLimitLabels[key] ?? key),
+      section: key?.endsWith('.enabled') === true ? 'recursos' : 'limites',
+    };
+  }
+  return fieldDescriptions[head ?? ''] ?? { label: head ?? 'Campo', section: 'geral' };
+}
 
 function MoneyInput({
   value,
@@ -306,6 +372,16 @@ export function PlanEditForm({
   });
   const defaultTrialDays = policy.data?.defaultTrialDays;
 
+  const issues = useMemo<FormIssue[]>(() => {
+    const flat: { path: string[]; message: string }[] = [];
+    flattenErrors(errors, [], flat);
+    return flat.map((item) => ({
+      path: item.path.join('.'),
+      message: item.message,
+      ...describeIssue(item.path),
+    }));
+  }, [errors]);
+
   const formValues = useWatch({ control });
   const trialDays = formValues.trialDays;
   const trialInheritsDefault = typeof trialDays !== 'number';
@@ -351,6 +427,7 @@ export function PlanEditForm({
                 {'Visualizar como cliente ↗'}
               </a>
             )}
+            {statusActions}
             <Link className="button button--secondary" to="/platform/plans">
               Cancelar
             </Link>
@@ -376,12 +453,11 @@ export function PlanEditForm({
           ))}
         </nav>
 
-        {plan === undefined ? <input type="hidden" {...register('code')} /> : null}
-        <input type="hidden" {...register('billingCycle')} />
-        <input type="hidden" {...register('priceCents', { valueAsNumber: true })} />
-        <input type="hidden" {...register('monthlyPriceCents', { valueAsNumber: true })} />
-        <input type="hidden" {...register('annualPriceCents', { valueAsNumber: true })} />
-
+        {/*
+          `billingCycle`, `priceCents`, `monthlyPriceCents` e `annualPriceCents` vivem apenas no
+          estado do formulário e são recalculados a partir das periodicidades no submit. Registrá-los
+          como inputs escondidos fazia `valueAsNumber` ler o DOM vazio como NaN e reprovar o salvamento.
+        */}
         <div className="plan-editor-layout">
           <div className="plan-editor-main">
             {section === 'geral' && (
@@ -665,21 +741,28 @@ export function PlanEditForm({
                     <PlanBenefitsEditor benefits={plan.benefits} planPublicId={plan.publicId} />
                   </Block>
                 )}
-                {statusActions === undefined ? null : (
-                  <Block
-                    title="Disponibilidade do plano"
-                    description="Alterações de status afetam imediatamente novas assinaturas."
-                  >
-                    <div className="plan-status-actions">{statusActions}</div>
-                  </Block>
-                )}
               </>
             )}
 
-            {Object.keys(errors).length > 0 && (
-              <p className="form-error" role="alert">
-                {'Revise os campos e limites informados.'}
-              </p>
+            {issues.length > 0 && (
+              <div className="plan-error-summary" role="alert">
+                <strong>Não foi possível salvar. Revise os itens abaixo:</strong>
+                <ul>
+                  {issues.map((issue) => (
+                    <li key={issue.path}>
+                      <button
+                        onClick={() => {
+                          setSection(issue.section);
+                        }}
+                        type="button"
+                      >
+                        {issue.label}
+                      </button>
+                      {`: ${issue.message}`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {error !== null && (
               <p className="form-error" role="alert">

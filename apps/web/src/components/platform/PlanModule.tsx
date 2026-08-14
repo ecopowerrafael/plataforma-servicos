@@ -181,11 +181,6 @@ export function PlanModule({
                 plan={selectedPlan}
                 onSave={save}
               />
-              <div className="form-actions platform-final-actions">
-                <Link className="secondary-button" to="/platform/plans">
-                  Cancelar
-                </Link>
-              </div>
             </div>
           </>
         ) : null}

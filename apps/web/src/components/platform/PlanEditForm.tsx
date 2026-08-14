@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-confusing-void-expression */
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   CreateCommercialPlanRequestSchema,
@@ -7,13 +7,23 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { type ChangeEvent, useEffect, useState } from 'react';
 import { Controller, FormProvider, useForm, useWatch } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 
+import {
+  billingCycleLabels,
+  billingCycles,
+  deriveLegacyBillingFields,
+  normalizeBillingOptions,
+  setBillingOptionEnabled,
+  setRecommendedBillingOption,
+  type PlanBillingOptions,
+} from './plan-billing-options.js';
 import { PlanBenefitsEditor } from './PlanBenefitsEditor.js';
 import { PlanLimitsEditor } from './PlanLimitsEditor.js';
 import { PlanPreviewCard, type PlanPreviewValue } from './PlanPreviewCard.js';
 import { httpClient } from '../../lib/http.js';
 import { brazilianMoneyToCents, centsToBrazilianMoney } from '../../marketing/pricing.js';
-import { Switch } from '../ui/AppUi.js';
+import { SectionCard, Switch } from '../ui/AppUi.js';
 
 import type { CommercialPlanPublicSchema } from '@plataforma/shared';
 import type { z } from 'zod';
@@ -32,7 +42,7 @@ const PlanFormSchema = CreateCommercialPlanRequestSchema.superRefine((value, con
     if (limit.valueType === 'INTEGER' && limit.integerValue === undefined) {
       context.addIssue({
         code: 'custom',
-        message: 'Informe um valor inteiro n\u00e3o negativo.',
+        message: 'Informe um valor inteiro não negativo.',
         path: ['limits', index, 'integerValue'],
       });
     }
@@ -144,7 +154,7 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
     priceCents: Number(plan.priceCents),
     monthlyPriceCents: plan.monthlyPriceCents === null ? undefined : Number(plan.monthlyPriceCents),
     annualPriceCents: plan.annualPriceCents === null ? undefined : Number(plan.annualPriceCents),
-    billingOptions:
+    billingOptions: normalizeBillingOptions(
       plan.billingOptions.length > 0
         ? plan.billingOptions.map((option) => ({
             ...option,
@@ -180,6 +190,7 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
               recommended: plan.billingCycle === 'ANNUAL',
             },
           ],
+    ),
     currency: plan.currency,
     trialDays: plan.trialDays ?? undefined,
     isPublic: plan.isPublic,
@@ -241,7 +252,7 @@ export function PlanEditForm({
     reset,
     setValue,
     control,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = form;
   useEffect(() => {
     reset(valuesFromPlan(plan));
@@ -260,16 +271,12 @@ export function PlanEditForm({
   const trialDays = formValues.trialDays;
   const trialInheritsDefault = typeof trialDays !== 'number';
   const submit = (value: PlanFormSubmission) => {
-    const active = value.billingOptions.filter((option) => option.active);
-    const primary = active.find((option) => option.recommended) ?? active[0];
-    const monthly = value.billingOptions.find((option) => option.billingCycle === 'MONTHLY');
-    const annual = value.billingOptions.find((option) => option.billingCycle === 'ANNUAL');
     return onSave({
       ...value,
-      billingCycle: primary?.billingCycle ?? value.billingCycle,
-      priceCents: primary?.priceCents ?? value.priceCents,
-      monthlyPriceCents: monthly?.priceCents,
-      annualPriceCents: annual?.priceCents,
+      ...deriveLegacyBillingFields(value.billingOptions, {
+        billingCycle: value.billingCycle,
+        priceCents: value.priceCents,
+      }),
     });
   };
 
@@ -282,116 +289,123 @@ export function PlanEditForm({
           void handleSubmit(submit)();
         }}
       >
-        <h3>{plan === undefined ? 'Criar plano' : 'Editar plano'}</h3>
-        {plan === undefined ? (
-          <label>
-            {'C\u00f3digo'}
-            <input {...register('code')} />
-            <small>Identificador interno do plano. Gerado automaticamente.</small>
-          </label>
-        ) : (
-          <p className="muted">{`C\u00f3digo: ${plan.code}`}</p>
-        )}
-        <h4>Identificação</h4>
-        <label>
-          Nome
-          <input
-            {...register('name', {
-              onChange: (event: ChangeEvent<HTMLInputElement>) => {
-                if (plan === undefined) {
-                  setValue('code', planCode(event.target.value), { shouldValidate: true });
-                }
-              },
-            })}
-          />
-        </label>
-        <label>
-          {'Subt\u00edtulo'}
-          <input
-            maxLength={160}
-            placeholder="Ex.: Ideal para quem est\u00e1 come\u00e7ando"
-            {...register('subtitle', {
-              setValueAs: (value: string) => (value.trim() === '' ? undefined : value),
-            })}
-          />
-        </label>
-        <label>
-          {'Descri\u00e7\u00e3o curta (card p\u00fablico)'}
-          <input
-            maxLength={240}
-            placeholder="Resumo exibido no card de pre\u00e7os"
-            {...register('shortDescription', {
-              setValueAs: (value: string) => (value.trim() === '' ? undefined : value),
-            })}
-          />
-        </label>
-        <label>
-          {'Descri\u00e7\u00e3o'}
-          <textarea
-            {...register('description', {
-              setValueAs: (value: string) => (value.trim() === '' ? null : value),
-            })}
-          />
-        </label>
-        <fieldset className="plan-billing-options">
-          <legend>Preços e periodicidades</legend>
-          {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const).map((cycle, index) => (
-            <div className="billing-option" key={cycle}>
-              <strong>
-                {
-                  {
-                    MONTHLY: 'Mensal',
-                    QUARTERLY: 'Trimestral',
-                    SEMIANNUAL: 'Semestral',
-                    ANNUAL: 'Anual',
-                  }[cycle]
-                }
-              </strong>
-              <input type="hidden" {...register(`billingOptions.${index}.billingCycle`)} />
+        <header className="plan-editor-heading">
+          <div>
+            <h3>{plan === undefined ? 'Criar plano' : 'Editar plano'}</h3>
+            <strong>{formValues.name?.trim() ? formValues.name : 'Novo plano'}</strong>
+            <small>{`Código: ${formValues.code?.trim() ? formValues.code : 'gerado ao informar o nome'}`}</small>
+          </div>
+        </header>
+        {plan === undefined ? <input type="hidden" {...register('code')} /> : null}
+        <SectionCard className="plan-editor-section" title="Identificação">
+          <div className="plan-editor-grid">
+            <label>
+              Nome
               <input
-                type="hidden"
-                {...register(`billingOptions.${index}.sortOrder`, { valueAsNumber: true })}
+                {...register('name', {
+                  onChange: (event: ChangeEvent<HTMLInputElement>) => {
+                    if (plan === undefined) {
+                      setValue('code', planCode(event.target.value), { shouldValidate: true });
+                    }
+                  },
+                })}
               />
-              <Controller
-                control={control}
-                name={`billingOptions.${index}.priceCents`}
-                render={({ field }) => (
-                  <MoneyInput
-                    value={field.value as number | undefined}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    placeholder="59,90"
-                  />
-                )}
+            </label>
+            <label>
+              Subtítulo
+              <input
+                maxLength={160}
+                placeholder="Ex.: Ideal para quem está começando"
+                {...register('subtitle', {
+                  setValueAs: (value: string) => (value.trim() === '' ? undefined : value),
+                })}
               />
-              <Controller
-                control={control}
-                name={`billingOptions.${index}.active`}
-                render={({ field }) => (
-                  <Switch
-                    checked={field.value ?? false}
-                    label="Ativo"
-                    description="Disponível neste ciclo"
-                    onChange={field.onChange}
-                  />
-                )}
+            </label>
+            <label>
+              Descrição curta
+              <input
+                maxLength={240}
+                placeholder="Resumo exibido no card de preços"
+                {...register('shortDescription', {
+                  setValueAs: (value: string) => (value.trim() === '' ? undefined : value),
+                })}
               />
-              <Switch
-                checked={formValues.billingOptions?.[index]?.recommended === true}
-                label="Recomendado"
-                description="Destacar este ciclo"
-                onChange={(checked) => {
-                  formValues.billingOptions?.forEach((_, optionIndex) =>
+            </label>
+            <label>
+              Descrição
+              <textarea
+                {...register('description', {
+                  setValueAs: (value: string) => (value.trim() === '' ? null : value),
+                })}
+              />
+            </label>
+          </div>
+        </SectionCard>
+        <SectionCard className="plan-editor-section" title="Preços e periodicidades">
+          <div className="plan-billing-options">
+            {billingCycles.map((cycle, index) => (
+              <div className="billing-option" key={cycle}>
+                <strong>{billingCycleLabels[cycle]}</strong>
+                <input type="hidden" {...register(`billingOptions.${index}.billingCycle`)} />
+                <input
+                  type="hidden"
+                  {...register(`billingOptions.${index}.sortOrder`, { valueAsNumber: true })}
+                />
+                <Controller
+                  control={control}
+                  name={`billingOptions.${index}.priceCents`}
+                  render={({ field }) => (
+                    <label className="billing-price-field">
+                      Valor
+                      <MoneyInput
+                        value={field.value as number | undefined}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        placeholder="59,90"
+                      />
+                    </label>
+                  )}
+                />
+                <Switch
+                  checked={formValues.billingOptions?.[index]?.active === true}
+                  label="Ativo"
+                  description="Disponível neste ciclo"
+                  onChange={(checked) => {
                     setValue(
-                      `billingOptions.${optionIndex}.recommended`,
-                      checked && optionIndex === index,
-                    ),
-                  );
-                }}
-              />
-            </div>
-          ))}
-        </fieldset>
+                      'billingOptions',
+                      setBillingOptionEnabled(
+                        normalizeBillingOptions(
+                          (formValues.billingOptions ?? []) as PlanBillingOptions,
+                        ),
+                        cycle,
+                        checked,
+                      ),
+                      { shouldDirty: true, shouldValidate: true },
+                    );
+                  }}
+                />
+                <Switch
+                  checked={formValues.billingOptions?.[index]?.recommended === true}
+                  label="Recomendado"
+                  description="Destacar este ciclo"
+                  onChange={(checked) => {
+                    setValue(
+                      'billingOptions',
+                      setRecommendedBillingOption(
+                        normalizeBillingOptions(
+                          (formValues.billingOptions ?? []) as PlanBillingOptions,
+                        ),
+                        cycle,
+                        checked,
+                      ),
+                      { shouldDirty: true, shouldValidate: true },
+                    );
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </SectionCard>
         <fieldset className="legacy-billing-fields" hidden>
           <legend>Preços</legend>
           <label>
@@ -438,81 +452,85 @@ export function PlanEditForm({
             <option value="CUSTOM">Personalizado</option>
           </select>
         </label>
-        <h4>Configurações comerciais</h4>
-        <Switch
-          checked={trialInheritsDefault}
-          label="Usar o padrão global de trial"
-          description={
-            defaultTrialDays === undefined
-              ? 'Aplicar a configuração comercial global'
-              : `Aplicar o período global de ${String(defaultTrialDays)} dias`
-          }
-          onChange={(checked) => {
-            setValue('trialDays', checked ? undefined : (defaultTrialDays ?? 0), {
-              shouldDirty: true,
-            });
-          }}
-        />
-        {!trialInheritsDefault && (
-          <label>
-            {'Dias de trial (override deste plano)'}
-            <input min="0" {...register('trialDays', { valueAsNumber: true })} type="number" />
-          </label>
-        )}
-        <label>
-          {'Moeda'}
-          <input {...register('currency')} />
-        </label>
-        <label>
-          Ordem
-          <input min="0" {...register('sortOrder', { valueAsNumber: true })} type="number" />
-        </label>
-        <Controller
-          control={control}
-          name="isPublic"
-          render={({ field }) => (
+        <SectionCard className="plan-editor-section" title="Configurações comerciais">
+          <div className="plan-editor-commercial-grid">
             <Switch
-              checked={field.value ?? false}
-              label="Plano público"
-              description="Exibir para novos estabelecimentos"
-              onChange={field.onChange}
+              checked={trialInheritsDefault}
+              label="Usar o padrão global de trial"
+              description={
+                defaultTrialDays === undefined
+                  ? 'Aplicar a configuração comercial global'
+                  : `Aplicar o período global de ${String(defaultTrialDays)} dias`
+              }
+              onChange={(checked) => {
+                setValue('trialDays', checked ? undefined : (defaultTrialDays ?? 0), {
+                  shouldDirty: true,
+                });
+              }}
             />
-          )}
-        />
-        <Controller
-          control={control}
-          name="highlighted"
-          render={({ field }) => (
-            <Switch
-              checked={field.value ?? false}
-              label="Destaque"
-              description="Exibir como plano recomendado"
-              onChange={field.onChange}
+            {!trialInheritsDefault && (
+              <label>
+                {'Dias de trial (override deste plano)'}
+                <input min="0" {...register('trialDays', { valueAsNumber: true })} type="number" />
+              </label>
+            )}
+            <label>
+              Moeda
+              <input {...register('currency')} />
+            </label>
+            <label>
+              Ordem
+              <input min="0" {...register('sortOrder', { valueAsNumber: true })} type="number" />
+            </label>
+            <Controller
+              control={control}
+              name="isPublic"
+              render={({ field }) => (
+                <Switch
+                  checked={field.value ?? false}
+                  label="Plano público"
+                  description="Exibir para novos estabelecimentos"
+                  onChange={field.onChange}
+                />
+              )}
             />
-          )}
-        />
-        <label>
-          {'Selo (badge)'}
-          <input
-            maxLength={40}
-            placeholder="Ex.: Mais popular"
-            {...register('badge', {
-              setValueAs: (value: string) => (value.trim() === '' ? undefined : value),
-            })}
-          />
-        </label>
-        <label>
-          {'Texto do bot\u00e3o (CTA)'}
-          <input
-            maxLength={60}
-            placeholder="Padr\u00e3o: Come\u00e7ar gr\u00e1tis"
-            {...register('ctaText', {
-              setValueAs: (value: string) => (value.trim() === '' ? undefined : value),
-            })}
-          />
-        </label>
-        <h4>Limites e recursos</h4>
-        <PlanLimitsEditor />
+            <Controller
+              control={control}
+              name="highlighted"
+              render={({ field }) => (
+                <Switch
+                  checked={field.value ?? false}
+                  label="Destaque"
+                  description="Exibir como plano recomendado"
+                  onChange={field.onChange}
+                />
+              )}
+            />
+            <label>
+              {'Selo (badge)'}
+              <input
+                maxLength={40}
+                placeholder="Ex.: Mais popular"
+                {...register('badge', {
+                  setValueAs: (value: string) => (value.trim() === '' ? undefined : value),
+                })}
+              />
+            </label>
+            <label>
+              Texto do botão
+              <input
+                maxLength={60}
+                placeholder="Padrão: Começar grátis"
+                {...register('ctaText', {
+                  setValueAs: (value: string) => (value.trim() === '' ? undefined : value),
+                })}
+              />
+            </label>
+          </div>
+        </SectionCard>
+        <SectionCard className="plan-editor-section" title="Limites e recursos">
+          <PlanLimitsEditor />
+        </SectionCard>
         {Object.keys(errors).length > 0 && (
           <p className="form-error" role="alert">
             {'Revise os campos e limites informados.'}
@@ -523,13 +541,14 @@ export function PlanEditForm({
             {error}
           </p>
         )}
-        <button disabled={busy} type="submit">
-          {busy
-            ? 'Salvando\u2026'
-            : plan === undefined
-              ? 'Criar plano'
-              : 'Salvar altera\u00e7\u00f5es'}
-        </button>
+        <div className="plan-editor-actions">
+          <Link className="button button--secondary" to="/platform/plans">
+            Cancelar
+          </Link>
+          <button disabled={busy || !isDirty} type="submit">
+            {busy ? 'Salvando…' : plan === undefined ? 'Criar plano' : 'Salvar alterações'}
+          </button>
+        </div>
       </form>
       {plan !== undefined && (
         <PlanBenefitsEditor benefits={plan.benefits} planPublicId={plan.publicId} />

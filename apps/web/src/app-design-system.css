@@ -1323,9 +1323,12 @@
 }
 .app-shell .platform-full-form > .platform-form {
   align-items: stretch;
-  border-radius: var(--app-radius-lg);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  grid-template-columns: minmax(0, 1fr);
   max-width: none;
+  padding: 0;
 }
 .app-shell .platform-full-form > .platform-form > h4 {
   border-bottom: 1px solid var(--app-border);
@@ -1338,11 +1341,41 @@
   max-width: none;
   width: 100%;
 }
+.app-shell .plan-editor-heading > div {
+  display: grid;
+  gap: 0.25rem;
+}
+.app-shell .plan-editor-heading h3 {
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+  margin: 0;
+}
+.app-shell .plan-editor-heading strong {
+  font-size: 1rem;
+}
+.app-shell .plan-editor-heading small {
+  color: var(--app-muted);
+}
+.app-shell .plan-editor-section {
+  min-width: 0;
+}
+.app-shell .plan-editor-grid,
+.app-shell .plan-editor-commercial-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.app-shell .plan-editor-grid label:last-child {
+  grid-column: 1 / -1;
+}
+.app-shell .plan-editor-grid textarea {
+  min-height: 7.5rem;
+  resize: vertical;
+}
 .app-shell .plan-billing-options {
   border: 0;
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0;
   min-width: 0;
   padding: 0;
@@ -1355,19 +1388,42 @@
   margin-bottom: 0.25rem;
 }
 .app-shell .billing-option {
-  background: var(--app-surface-subtle);
+  background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-md);
   display: grid;
   gap: 0.7rem;
   min-width: 0;
   padding: 1rem;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.app-shell .billing-option:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 28%, var(--app-border));
+  box-shadow: var(--app-shadow-sm);
 }
 .app-shell .billing-option > strong {
   font-size: 0.95rem;
 }
 .app-shell .billing-option .ds-switch-row {
   padding: 0.55rem 0;
+}
+.app-shell .billing-option .ds-switch-row:last-child {
+  border-bottom: 0;
+}
+.app-shell .plan-editor-actions {
+  align-items: center;
+  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--app-bg) 88%, transparent);
+  border-top: 1px solid var(--app-border);
+  bottom: 0;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding: 0.85rem 0;
+  position: sticky;
+  z-index: 5;
 }
 .app-shell .plan-usage-limits,
 .app-shell .plan-features {
@@ -1427,8 +1483,13 @@
   .app-shell .platform-full-form > .platform-form,
   .app-shell .plan-billing-options,
   .app-shell .plan-features,
+  .app-shell .plan-editor-grid,
+  .app-shell .plan-editor-commercial-grid,
   .app-shell .platform-subscription-summary {
     grid-template-columns: 1fr;
+  }
+  .app-shell .plan-editor-grid label:last-child {
+    grid-column: auto;
   }
   .app-shell .platform-page {
     overflow-x: clip;

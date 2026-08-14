@@ -36,11 +36,11 @@ import { AppointmentNotificationService } from '../modules/notifications/appoint
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
 import { AutomationService } from '../modules/notifications/automation.service.js';
 import { CustomerNotificationDispatcher } from '../modules/notifications/customer-notification-dispatcher.js';
+import { type EmailDelivery } from '../modules/notifications/email-delivery.js';
 import {
-  type EmailDelivery,
-  SmtpEmailDelivery,
-  UnconfiguredEmailDelivery,
-} from '../modules/notifications/email-delivery.js';
+  type HostingerMailApiDeliveryOptions,
+  resolveEmailDelivery,
+} from '../modules/notifications/hostinger-mail-delivery.js';
 import { NotificationTemplateService } from '../modules/notifications/notification-template.service.js';
 import { NotificationService } from '../modules/notifications/notification.service.js';
 import {
@@ -196,6 +196,7 @@ export interface CustomerAuthOptions {
     pass?: string | undefined;
     from: string;
   };
+  hostingerMail?: HostingerMailApiDeliveryOptions;
   vapid?: {
     publicKey: string;
     privateKey: string;
@@ -274,11 +275,12 @@ export function createDatabaseConnection(
   );
   const tenantWhiteLabelRepository = new TenantWhiteLabelRepository(client);
   // Uma única instância compartilhada entre a conta do cliente e as
-  // notificações; sem SMTP configurado, continua sendo a implementação inerte.
-  const emailDelivery: EmailDelivery =
-    customerAuthOptions?.smtp === undefined
-      ? new UnconfiguredEmailDelivery()
-      : new SmtpEmailDelivery(customerAuthOptions.smtp);
+  // notificações. A Mail API da Hostinger tem prioridade sobre o SMTP; sem
+  // nenhum dos dois, continua sendo a implementação inerte.
+  const emailDelivery: EmailDelivery = resolveEmailDelivery({
+    hostingerMail: customerAuthOptions?.hostingerMail,
+    smtp: customerAuthOptions?.smtp,
+  });
   const customerAuth = new CustomerAuthService(
     customerRepository,
     new CustomerAuthRepository(client),
@@ -295,7 +297,7 @@ export function createDatabaseConnection(
       passwordResetTtlMinutes: 60,
       appWebUrl: process.env.APP_WEB_URL ?? '',
     },
-    customerAuthOptions?.smtp === undefined ? undefined : emailDelivery,
+    emailDelivery.available ? emailDelivery : undefined,
   );
   const customerPhotos = new CustomerPhotoService(
     client,

@@ -68,6 +68,12 @@ const environmentSchema = z
     SMTP_USER: z.string().trim().min(1).optional(),
     SMTP_PASS: z.string().trim().min(1).optional(),
     SMTP_FROM: z.email().trim().optional(),
+    // Mail API oficial da Hostinger: preferida ao SMTP quando configurada.
+    HOSTINGER_MAIL_API_TOKEN: z.string().trim().min(1).optional(),
+    MAIL_FROM: z.email().trim().optional(),
+    HOSTINGER_MAIL_DISPLAY_NAME: z.string().trim().min(1).optional(),
+    HOSTINGER_MAIL_MAILBOX_ID: z.string().trim().min(1).optional(),
+    HOSTINGER_MAIL_API_BASE_URL: z.url().trim().optional(),
     VAPID_PUBLIC_KEY: z.string().trim().min(1).optional(),
     VAPID_PRIVATE_KEY: z.string().trim().min(1).optional(),
     VAPID_SUBJECT: z.string().trim().min(1).optional(),

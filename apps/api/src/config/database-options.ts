@@ -30,6 +30,17 @@ export function databaseOptionsFromEnvironment(environment: Environment): Custom
             from: environment.SMTP_FROM,
           },
         }),
+    ...(environment.HOSTINGER_MAIL_API_TOKEN === undefined || environment.MAIL_FROM === undefined
+      ? {}
+      : {
+          hostingerMail: {
+            token: environment.HOSTINGER_MAIL_API_TOKEN,
+            from: environment.MAIL_FROM,
+            displayName: environment.HOSTINGER_MAIL_DISPLAY_NAME,
+            mailboxResourceId: environment.HOSTINGER_MAIL_MAILBOX_ID,
+            baseUrl: environment.HOSTINGER_MAIL_API_BASE_URL,
+          },
+        }),
     ...(environment.VAPID_PUBLIC_KEY === undefined ||
     environment.VAPID_PRIVATE_KEY === undefined ||
     environment.VAPID_SUBJECT === undefined

@@ -122,10 +122,12 @@ export function PlanModule({
   const selectedPlan = detail.data?.plan;
   if (planPublicId) {
     return (
-      <section className="platform-detail-page">
-        <Link className="platform-back-link" to="/platform/plans">
-          ← Planos
-        </Link>
+      <section className="platform-detail-page plan-detail-page">
+        <nav aria-label="Trilha" className="platform-breadcrumb">
+          <Link to="/platform/plans">Planos</Link>
+          <span aria-hidden="true">›</span>
+          <span>Editar plano</span>
+        </nav>
         {detail.isPending ? (
           <i className="platform-skeleton" />
         ) : detail.error instanceof Error ? (
@@ -137,12 +139,14 @@ export function PlanModule({
           />
         ) : selectedPlan ? (
           <>
-            <PageHeader
-              title="Editar plano"
-              description={`${selectedPlan.name} · ${selectedPlan.code}`}
-              action={
-                <div className="form-actions">
-                  <StatusBadge value={selectedPlan.status} />
+            {notice ? <p className="success-message">{notice}</p> : null}
+            <PlanEditForm
+              busy={mutation.isPending}
+              error={mutation.error instanceof Error ? mutation.error.message : null}
+              plan={selectedPlan}
+              statusBadge={<StatusBadge value={selectedPlan.status} />}
+              statusActions={
+                <>
                   {selectedPlan.status === 'ACTIVE' ? (
                     <button
                       onClick={() => {
@@ -150,7 +154,7 @@ export function PlanModule({
                       }}
                       type="button"
                     >
-                      Desativar
+                      Desativar plano
                     </button>
                   ) : (
                     <button
@@ -159,29 +163,22 @@ export function PlanModule({
                       }}
                       type="button"
                     >
-                      Ativar
+                      Ativar plano
                     </button>
                   )}
                   <button
+                    className="button--danger"
                     onClick={() => {
                       action('Excluir', 'delete');
                     }}
                     type="button"
                   >
-                    Excluir
+                    Excluir plano
                   </button>
-                </div>
+                </>
               }
+              onSave={save}
             />
-            {notice ? <p className="success-message">{notice}</p> : null}
-            <div className="platform-full-form">
-              <PlanEditForm
-                busy={mutation.isPending}
-                error={mutation.error instanceof Error ? mutation.error.message : null}
-                plan={selectedPlan}
-                onSave={save}
-              />
-            </div>
           </>
         ) : null}
         {confirmation ? (

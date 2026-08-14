@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   eventFingerprint,
+  extractButtonReply,
   findKnownActionId,
   maskPhone,
   normalizeWhatsAppEvent,
@@ -98,6 +99,44 @@ void test('sem id do provedor, deduplica pelo hash do payload sanitizado', () =>
   assert.equal(same, repeated);
   assert.notEqual(same, different);
   assert.equal(same.startsWith('sha256:'), true);
+});
+
+void test('extrai a resposta do botão no formato real do provedor', () => {
+  const reply = extractButtonReply({
+    msgContent: {
+      templateButtonReplyMessage: {
+        contextInfo: { stanzaID: '3EB0D3F17566037B3F44C8B4D4896D6C' },
+        selectedDisplayText: 'Confirmar teste',
+        selectedID: '38529',
+        selectedIndex: 0,
+      },
+    },
+  });
+  assert.ok(reply !== null);
+  assert.equal(reply.sourceMessageId, '3EB0D3F17566037B3F44C8B4D4896D6C');
+  assert.equal(reply.selectedIndex, 0);
+  assert.equal(reply.selectedDisplayText, 'Confirmar teste');
+  assert.equal(reply.selectedId, '38529');
+});
+
+void test('índice zero é preservado, não confundido com ausência', () => {
+  const reply = extractButtonReply({
+    msgContent: { templateButtonReplyMessage: { selectedIndex: 0 } },
+  });
+  assert.equal(reply?.selectedIndex, 0);
+});
+
+void test('mensagem comum não é lida como resposta de botão', () => {
+  assert.equal(extractButtonReply({ msgContent: { conversation: 'oi' } }), null);
+});
+
+void test('preserva o buttonParamsJSON, que não é credencial', () => {
+  const result = sanitizePayload({
+    buttonParamsJSON: '{"display_text":"Confirmar teste","id":"38529"}',
+    messageSecret: 'abc',
+  }) as { buttonParamsJSON: string; messageSecret: string };
+  assert.equal(result.buttonParamsJSON.includes('Confirmar teste'), true);
+  assert.equal(result.messageSecret, '[protegido]');
 });
 
 void test('mascara o telefone preservando início e fim', () => {

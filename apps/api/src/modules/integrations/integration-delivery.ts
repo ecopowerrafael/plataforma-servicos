@@ -28,11 +28,11 @@ export interface WhatsAppInteractiveButton {
 }
 
 /**
- * Tipo do botão de resposta rápida. A documentação se contradiz: a tabela de
- * atributos diz `REPLY`, o corpo de exemplo usa `REPLAY`. Mantemos os dois para
- * conseguir provar qual a API aceita, em vez de escolher no chute.
+ * Tipo do botão de resposta rápida. A tabela de atributos da documentação diz
+ * `REPLY`, mas a API recusa esse valor com "Tipos válidos: CALL, URL, REPLAY".
+ * Vale o que o corpo de exemplo mostra.
  */
-export type WhatsAppReplyButtonType = 'REPLY' | 'REPLAY';
+export type WhatsAppReplyButtonType = 'REPLAY';
 
 /** Resultado sanitizado de uma chamada de escrita na API do WhatsApp. */
 export interface WhatsAppOperationResult {
@@ -267,7 +267,7 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
     to: string,
     message: string,
     buttons: WhatsAppInteractiveButton[],
-    replyType: WhatsAppReplyButtonType = 'REPLY',
+    replyType: WhatsAppReplyButtonType = 'REPLAY',
   ): Promise<WhatsAppOperationResult> {
     const { instanceId, token } = await this.config(tenantId, true);
     try {

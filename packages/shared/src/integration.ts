@@ -28,8 +28,6 @@ export const WhatsAppConnectionTestRequestSchema = z.object({ instanceId: z.stri
 export const WhatsAppButtonTestRequestSchema = z
   .object({
     phone: z.string().trim().min(10).max(20),
-    /** `docs` reproduz o corpo de exemplo da documentação, para comparação. */
-    variant: z.enum(['agendei', 'docs']).optional(),
   })
   .strict();
 export const WhatsAppOperationResultSchema = z.object({

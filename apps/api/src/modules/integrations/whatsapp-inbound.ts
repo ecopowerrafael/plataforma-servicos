@@ -13,7 +13,11 @@ import { createHash } from 'node:crypto';
  */
 
 const SECRET_KEY = /token|authorization|secret|password|senha|apikey|api_key|credential|bearer/iu;
-const SECRET_VALUE = /(?:Bearer\s+\S+)|(?:[A-Za-z0-9_-]{40,})/gu;
+const SECRET_VALUE = /(?:Bearer\s+\S+)|(?:\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/gu;
+// Um valor que é *inteiro* uma sequência longa e opaca continua sendo tratado
+// como credencial. Ancorar a regra é o que preserva campos legítimos que apenas
+// contêm trechos longos, como URLs e o `buttonParamsJSON` do botão clicado.
+const OPAQUE_VALUE = /^[A-Za-z0-9_-]{40,}$/u;
 const REDACTED = '[protegido]';
 const MAX_DEPTH = 8;
 const MAX_ARRAY = 40;
@@ -21,6 +25,7 @@ const MAX_STRING = 2_000;
 const MAX_SERIALIZED = 20_000;
 
 function sanitizeString(value: string) {
+  if (OPAQUE_VALUE.test(value.trim())) return REDACTED;
   return value.replace(SECRET_VALUE, REDACTED).slice(0, MAX_STRING);
 }
 
@@ -96,6 +101,36 @@ export function findKnownActionId(
   return null;
 }
 
+export interface WhatsAppButtonReply {
+  /** Id da mensagem com botões que originou a resposta (`contextInfo.stanzaID`). */
+  sourceMessageId: string | null;
+  /** Posição do botão no array que enviamos — é por aqui que resolvemos a ação. */
+  selectedIndex: number | null;
+  /** Texto visível do botão. Guardado para exibição, nunca para decidir a ação. */
+  selectedDisplayText: string | null;
+  /** Id gerado pelo provedor, não escolhido por nós. */
+  selectedId: string | null;
+}
+
+/**
+ * Extrai a resposta de um botão. O formato real, observado em produção:
+ * `msgContent.templateButtonReplyMessage` com `selectedIndex`,
+ * `selectedDisplayText`, `selectedID` e `contextInfo.stanzaID`.
+ */
+export function extractButtonReply(payload: unknown): WhatsAppButtonReply | null {
+  const content = record(record(payload).msgContent);
+  const reply = record(content.templateButtonReplyMessage);
+  if (Object.keys(reply).length === 0) return null;
+  const contextInfo = record(reply.contextInfo);
+  const index = reply.selectedIndex;
+  return {
+    sourceMessageId: text(contextInfo.stanzaID ?? contextInfo.stanzaId, 191),
+    selectedIndex: typeof index === 'number' && Number.isInteger(index) ? index : null,
+    selectedDisplayText: text(reply.selectedDisplayText, 191),
+    selectedId: text(reply.selectedID ?? reply.selectedId, 191),
+  };
+}
+
 export interface NormalizedWhatsAppEvent {
   instanceId: string | null;
   eventType: string | null;
@@ -103,6 +138,7 @@ export interface NormalizedWhatsAppEvent {
   phone: string | null;
   messageType: string | null;
   action: WhatsAppActionMatch | null;
+  buttonReply: WhatsAppButtonReply | null;
   fingerprint: string;
   payload: unknown;
 }
@@ -131,7 +167,9 @@ export function normalizeWhatsAppEvent(
   const instanceId = text(root.instanceId ?? data.instanceId, 80);
   const eventType = text(root.event ?? root.eventType, 80);
   const externalMessageId = text(data.messageId ?? root.messageId, 191);
-  const phone = text(data.phone ?? root.phone, 32);
+  // O provedor envia o telefone tanto em `data.phone` quanto em `sender.id`.
+  const sender = record(root.sender);
+  const phone = text(data.phone ?? root.phone ?? sender.id, 32);
   const messageType = text(data.type ?? root.type, 80);
   return {
     instanceId,
@@ -140,6 +178,7 @@ export function normalizeWhatsAppEvent(
     phone,
     messageType,
     action: findKnownActionId(payload, knownActionIds),
+    buttonReply: extractButtonReply(payload),
     fingerprint: eventFingerprint({ eventType, externalMessageId, payload }),
     payload,
   };

@@ -56,6 +56,24 @@ export class IntegrationRepository {
   public inboundEventByFingerprint(tenantId: bigint, fingerprint: string) {
     return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, fingerprint } });
   }
+  public createOutboundMessage(data: {
+    tenantId: bigint;
+    instanceId: string;
+    phone: string;
+    externalMessageId: string | null;
+    actionIds: Prisma.InputJsonValue;
+    status: string;
+  }) {
+    return this.client.whatsAppOutboundMessage.create({
+      data: { publicId: randomUUID(), ...data },
+    });
+  }
+  public outboundByExternalMessageId(tenantId: bigint, externalMessageId: string) {
+    return this.client.whatsAppOutboundMessage.findFirst({
+      where: { tenantId, externalMessageId },
+      orderBy: { sentAt: 'desc' },
+    });
+  }
   public lastInboundEvent(tenantId: bigint) {
     return this.client.whatsAppInboundEvent.findFirst({
       where: { tenantId },

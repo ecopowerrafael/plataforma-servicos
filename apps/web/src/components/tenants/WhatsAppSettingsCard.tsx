@@ -124,10 +124,10 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
       }),
   });
   const sendButtons = useMutation({
-    mutationFn: (variant: 'agendei' | 'docs') =>
+    mutationFn: () =>
       httpClient.request('/tenant/integrations/whatsapp/button-test', {
         method: 'POST',
-        body: WhatsAppButtonTestRequestSchema.parse({ phone: phone.trim(), variant }),
+        body: WhatsAppButtonTestRequestSchema.parse({ phone: phone.trim() }),
         schema: WhatsAppButtonTestResponseSchema,
         tenantPublicId,
       }),
@@ -161,20 +161,11 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
         <button
           disabled={sendButtons.isPending || phone.trim().length < 10}
           onClick={() => {
-            sendButtons.mutate('agendei');
+            sendButtons.mutate();
           }}
           type="button"
         >
-          Enviar com tipo REPLY
-        </button>
-        <button
-          disabled={sendButtons.isPending || phone.trim().length < 10}
-          onClick={() => {
-            sendButtons.mutate('docs');
-          }}
-          type="button"
-        >
-          Enviar com tipo REPLAY
+          Enviar teste com botões
         </button>
         <button
           disabled={controlTest.isPending || phone.trim().length < 10}
@@ -222,7 +213,7 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
         <div className={sendButtons.data.ok ? 'success-message' : 'form-error'}>
           <strong>{sendButtons.data.ok ? 'Enviado — aguardando resposta' : 'Falha no envio'}</strong>
           <p>{sendButtons.data.message}</p>
-          <small>{`Tipo de botão enviado: ${sendButtons.data.actionIds.join(' · ')}`}</small>
+          <small>{`IDs enviados: ${sendButtons.data.actionIds.join(' · ')}`}</small>
           {sendButtons.data.externalMessageId === null ? null : (
             <small>{`Message ID: ${sendButtons.data.externalMessageId}`}</small>
           )}

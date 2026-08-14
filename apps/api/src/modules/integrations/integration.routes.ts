@@ -106,7 +106,6 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
         request.tenant.id,
         request.body.phone,
         actor(request),
-        request.body.variant ?? 'agendei',
       );
       request.log.info(
         {

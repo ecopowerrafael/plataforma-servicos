@@ -114,15 +114,7 @@ export class IntegrationService {
     return result;
   }
   /** IDs usados só na prova de integração — nenhuma decisão vem do texto do botão. */
-  public static readonly testActionIds = [
-    'TEST_CONFIRM',
-    'TEST_CANCEL',
-    // Ids do exemplo da documentação, para capturar também o clique da variante
-    // de comparação — a decisão nunca vem do texto visível do botão.
-    'id1',
-    'id2',
-    'id3',
-  ] as const;
+  public static readonly testActionIds = ['TEST_CONFIRM', 'TEST_CANCEL'] as const;
   // Mensagem em uma única linha: o exemplo da documentação não usa quebra de
   // linha em mensagem com botões, e isso já foi descartado como variável.
   private static readonly testMessage =
@@ -146,12 +138,7 @@ export class IntegrationService {
    * nosso, comparar os dois envios isola se o problema está nos valores de
    * `buttonId` que usamos.
    */
-  public async sendWhatsappButtonTest(
-    tenantId: bigint,
-    phone: string,
-    actor: Actor,
-    variant: 'agendei' | 'docs' = 'agendei',
-  ) {
+  public async sendWhatsappButtonTest(tenantId: bigint, phone: string, actor: Actor) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');
     const delivery = this.whatsappDeliveryOrFail();
     const configured = await this.repository.whatsapp(tenantId);
@@ -161,9 +148,6 @@ export class IntegrationService {
         message: 'Configure o WhatsApp primeiro.',
         statusCode: 400,
       });
-    // As duas variantes só diferem na grafia do tipo do botão, que a própria
-    // documentação escreve de dois jeitos. Uma delas será aceita.
-    const replyType = variant === 'docs' ? 'REPLAY' : 'REPLY';
     const buttons = [
       { buttonId: 'TEST_CONFIRM', label: 'Confirmar teste' },
       { buttonId: 'TEST_CANCEL', label: 'Cancelar teste' },
@@ -173,10 +157,21 @@ export class IntegrationService {
       phone,
       IntegrationService.testMessage,
       buttons,
-      replyType,
     );
+    const actionIds = buttons.map((button) => button.buttonId);
+    // A ordem enviada é o que permite traduzir o `selectedIndex` do clique de
+    // volta para a nossa ação, então ela precisa ser persistida com o envio.
+    if (result.ok)
+      await this.repository.createOutboundMessage({
+        tenantId,
+        instanceId: configured.phoneNumberId,
+        phone,
+        externalMessageId: result.externalMessageId,
+        actionIds,
+        status: 'SENT',
+      });
     await this.audit(tenantId, actor, 'integration.whatsapp.button_test_sent', configured.publicId);
-    return { ...result, actionIds: [replyType] };
+    return { ...result, actionIds };
   }
 
   /** Registra a URL pública deste ambiente como webhook de recebimento da instância. */
@@ -264,6 +259,20 @@ export class IntegrationService {
       normalized.fingerprint,
     );
     if (existing !== null) return { accepted: true, duplicated: true } as const;
+    // Resolução da ação: o clique traz a posição do botão e o id da mensagem
+    // original. Cruzando com o que foi enviado, chegamos ao nosso actionId sem
+    // depender do texto visível nem do id gerado pelo provedor.
+    const reply = normalized.buttonReply;
+    let resolvedActionId = normalized.action?.actionId ?? null;
+    if (reply?.sourceMessageId != null && reply.selectedIndex !== null) {
+      const outbound = await this.repository.outboundByExternalMessageId(
+        config.tenantId,
+        reply.sourceMessageId,
+      );
+      const actionIds = Array.isArray(outbound?.actionIds) ? outbound.actionIds : [];
+      const matched = actionIds[reply.selectedIndex];
+      if (typeof matched === 'string') resolvedActionId = matched;
+    }
     try {
       await this.repository.createInboundEvent({
         tenantId: config.tenantId,
@@ -272,11 +281,12 @@ export class IntegrationService {
         phone: normalized.phone,
         eventType: normalized.eventType,
         messageType: normalized.messageType,
-        actionId: normalized.action?.actionId ?? null,
+        actionId: resolvedActionId,
         fingerprint: normalized.fingerprint,
         payload: {
           ...(normalized.payload as Record<string, unknown>),
           ...(normalized.action === null ? {} : { _actionIdPath: normalized.action.path }),
+          ...(reply === null ? {} : { _buttonReply: { ...reply } }),
         },
       });
     } catch {

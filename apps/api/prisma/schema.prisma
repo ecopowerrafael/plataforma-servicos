@@ -457,6 +457,7 @@ model Tenant {
   domains                      TenantDomain[]
   whatsappConfig               TenantWhatsAppConfig?
   whatsappInboundEvents        WhatsAppInboundEvent[]
+  whatsappOutboundMessages     WhatsAppOutboundMessage[]
   externalIntegrations         ExternalIntegration[]
 
   @@index([status])
@@ -503,6 +504,27 @@ model WhatsAppInboundEvent {
   @@unique([tenantId, fingerprint], map: "whatsapp_inbound_events_fingerprint_key")
   @@index([tenantId, receivedAt])
   @@map("whatsapp_inbound_events")
+}
+
+/// Mensagens com botões que nós enviamos. Guarda a ordem dos `actionIds` para
+/// que o `selectedIndex` devolvido no clique seja traduzido de volta para a
+/// nossa ação — a decisão nunca vem do texto visível do botão.
+model WhatsAppOutboundMessage {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String   @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt   @map("tenant_id") @db.UnsignedBigInt
+  instanceId        String   @map("instance_id") @db.VarChar(80)
+  phone             String   @db.VarChar(32)
+  externalMessageId String?  @map("external_message_id") @db.VarChar(191)
+  actionIds         Json     @map("action_ids")
+  status            String   @db.VarChar(32)
+  sentAt            DateTime @default(now()) @map("sent_at") @db.DateTime(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, externalMessageId])
+  @@index([tenantId, sentAt])
+  @@map("whatsapp_outbound_messages")
 }
 
 model ExternalIntegration {

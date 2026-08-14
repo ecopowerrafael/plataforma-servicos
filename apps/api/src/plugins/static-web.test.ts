@@ -32,15 +32,18 @@ describe('static web delivery', () => {
   it('does not cache index, keeps hashed assets immutable and serves SPA refreshes', async () => {
     const app = await server();
     try {
-      const [index, asset, spa] = await Promise.all([
+      const [index, asset, spa, platformDashboard] = await Promise.all([
         app.inject({ method: 'GET', url: '/' }),
         app.inject({ method: 'GET', url: '/assets/PricingPage-12345678.js' }),
         app.inject({ method: 'GET', url: '/planos', headers: { accept: 'text/html' } }),
+        app.inject({ method: 'GET', url: '/platform/dashboard', headers: { accept: 'text/html' } }),
       ]);
       expect(index.headers['cache-control']).toContain('no-store');
       expect(asset.headers['cache-control']).toBe('public, max-age=31536000, immutable');
       expect(spa.statusCode).toBe(200);
       expect(spa.body).toContain('Agendei');
+      expect(platformDashboard.statusCode).toBe(200);
+      expect(platformDashboard.body).toContain('Agendei');
     } finally {
       await app.close();
     }

@@ -115,7 +115,9 @@ function Overview({ onTenants }: { onTenants: () => void }) {
   const dashboard = useQuery({
     queryKey: ['platform', 'dashboard'],
     queryFn: () =>
-      httpClient.request('/platform/dashboard', { schema: PlatformDashboardResponseSchema }),
+      httpClient.request('/platform/dashboard/metrics', {
+        schema: PlatformDashboardResponseSchema,
+      }),
     retry: false,
   });
   const recent = useQuery({

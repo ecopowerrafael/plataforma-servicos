@@ -87,7 +87,7 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
     options.service.getMe(request.platformAuth),
   );
   app.get(
-    '/platform/dashboard',
+    '/platform/dashboard/metrics',
     {
       schema: {
         querystring: DashboardQuerySchema,
@@ -500,7 +500,8 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       },
       async (request) => {
         allow(request, 'platform.subscription.status.manage');
-        if(action==='ACTIVATED'&&options.billingService)await options.billingService.requireManualActivationEnabled();
+        if (action === 'ACTIVATED' && options.billingService)
+          await options.billingService.requireManualActivationEnabled();
         return options.service.transitionSubscription(
           request.params.publicId,
           action,
@@ -588,20 +589,95 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       },
       (request) => {
         allow(request, 'platform.commercial_policy.manage');
-        return policyService.update(
-          request.body,
-          request.platformAuth,
-          requestMetadata(request),
-        );
+        return policyService.update(request.body, request.platformAuth, requestMetadata(request));
       },
     );
   }
-  if(options.billingService){const billing=options.billingService;const actor=(request:{platformAuth:PlatformAuthContext})=>({userId:request.platformAuth.user.id,sessionId:null});
-    app.get('/platform/finance',{schema:{response:{200:PlatformFinanceOverviewSchema}}},request=>{allow(request,'platform.subscription.read');return billing.overview();});
-    app.put('/platform/finance/providers/:provider',{schema:{params:z.object({provider:z.enum(['pix-local','mercadopago'])}),body:PlatformPaymentConfigInputSchema,response:{200:PlatformFinanceOverviewSchema}}},request=>{allow(request,'platform.subscription.status.manage');return billing.upsert(request.params.provider,{active:request.body.active,environment:request.body.environment,...(request.body.credentials===undefined?{}:{credentials:request.body.credentials})},actor(request));});
-    app.put('/platform/finance/manual-activation',{schema:{body:PlatformManualActivationInputSchema,response:{200:PlatformFinanceOverviewSchema}}},request=>{allow(request,'platform.subscription.status.manage');return billing.setManual(request.body.active,actor(request));});
-    app.get('/platform/subscriptions/:publicId/billing',{schema:{params:PublicIdParamsSchema,response:{200:PlatformSubscriptionBillingSchema}}},request=>{allow(request,'platform.subscription.read');return billing.subscriptionOverview(request.params.publicId);});
-    app.post('/platform/subscriptions/:publicId/charges',{schema:{params:PublicIdParamsSchema,body:CreatePlatformChargeSchema,response:{200:PlatformChargeResponseSchema}}},request=>{allow(request,'platform.subscription.status.manage');return billing.createCharge(request.params.publicId,request.body.provider);});
-    app.post('/platform/charges/:publicId/confirm',{schema:{params:PublicIdParamsSchema,response:{200:PlatformChargeResponseSchema}}},request=>{allow(request,'platform.subscription.status.manage');return billing.confirm(request.params.publicId,actor(request));});
+  if (options.billingService) {
+    const billing = options.billingService;
+    const actor = (request: { platformAuth: PlatformAuthContext }) => ({
+      userId: request.platformAuth.user.id,
+      sessionId: null,
+    });
+    app.get(
+      '/platform/finance',
+      { schema: { response: { 200: PlatformFinanceOverviewSchema } } },
+      (request) => {
+        allow(request, 'platform.subscription.read');
+        return billing.overview();
+      },
+    );
+    app.put(
+      '/platform/finance/providers/:provider',
+      {
+        schema: {
+          params: z.object({ provider: z.enum(['pix-local', 'mercadopago']) }),
+          body: PlatformPaymentConfigInputSchema,
+          response: { 200: PlatformFinanceOverviewSchema },
+        },
+      },
+      (request) => {
+        allow(request, 'platform.subscription.status.manage');
+        return billing.upsert(
+          request.params.provider,
+          {
+            active: request.body.active,
+            environment: request.body.environment,
+            ...(request.body.credentials === undefined
+              ? {}
+              : { credentials: request.body.credentials }),
+          },
+          actor(request),
+        );
+      },
+    );
+    app.put(
+      '/platform/finance/manual-activation',
+      {
+        schema: {
+          body: PlatformManualActivationInputSchema,
+          response: { 200: PlatformFinanceOverviewSchema },
+        },
+      },
+      (request) => {
+        allow(request, 'platform.subscription.status.manage');
+        return billing.setManual(request.body.active, actor(request));
+      },
+    );
+    app.get(
+      '/platform/subscriptions/:publicId/billing',
+      {
+        schema: {
+          params: PublicIdParamsSchema,
+          response: { 200: PlatformSubscriptionBillingSchema },
+        },
+      },
+      (request) => {
+        allow(request, 'platform.subscription.read');
+        return billing.subscriptionOverview(request.params.publicId);
+      },
+    );
+    app.post(
+      '/platform/subscriptions/:publicId/charges',
+      {
+        schema: {
+          params: PublicIdParamsSchema,
+          body: CreatePlatformChargeSchema,
+          response: { 200: PlatformChargeResponseSchema },
+        },
+      },
+      (request) => {
+        allow(request, 'platform.subscription.status.manage');
+        return billing.createCharge(request.params.publicId, request.body.provider);
+      },
+    );
+    app.post(
+      '/platform/charges/:publicId/confirm',
+      { schema: { params: PublicIdParamsSchema, response: { 200: PlatformChargeResponseSchema } } },
+      (request) => {
+        allow(request, 'platform.subscription.status.manage');
+        return billing.confirm(request.params.publicId, actor(request));
+      },
+    );
   }
 };

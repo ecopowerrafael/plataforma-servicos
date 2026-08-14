@@ -1268,6 +1268,198 @@
   margin: 0;
   padding: 0;
 }
+
+/* Platform usa a mesma base visual do painel do tenant. */
+.app-shell.platform-app {
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-family: inherit;
+  grid-template-columns: 15rem minmax(0, 1fr);
+}
+.app-shell .platform-sidebar {
+  border-color: var(--app-border);
+  padding: 1rem 0.75rem;
+  width: 15rem;
+}
+.app-shell .platform-brand strong {
+  color: var(--app-accent);
+}
+.app-shell .platform-sidebar nav button {
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  min-height: 2.65rem;
+}
+.app-shell .platform-sidebar nav button:hover,
+.app-shell .platform-sidebar nav button.nav-active {
+  background: color-mix(in srgb, var(--app-accent) 9%, white);
+  color: var(--app-accent);
+}
+.app-shell .platform-topbar {
+  border-color: var(--app-border);
+  height: 4rem;
+}
+.app-shell .platform-page {
+  max-width: var(--app-content-max);
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+.app-shell .platform-metrics-grid {
+  gap: 0.75rem;
+}
+.app-shell .platform-panel,
+.app-shell .platform-table-wrap {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+}
+.app-shell .platform-filter-bar {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+}
+.app-shell .platform-full-form {
+  max-width: 80rem;
+}
+.app-shell .platform-full-form > .platform-form {
+  align-items: stretch;
+  border-radius: var(--app-radius-lg);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: none;
+}
+.app-shell .platform-full-form > .platform-form > h4 {
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
+  font-size: 1rem;
+  margin: 0.5rem 0 0;
+  padding-bottom: 0.65rem;
+}
+.app-shell .platform-full-form :where(input:not([type='hidden']), select, textarea) {
+  max-width: none;
+  width: 100%;
+}
+.app-shell .plan-billing-options {
+  border: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+.app-shell .plan-billing-options > legend {
+  color: var(--app-text);
+  font-size: 1rem;
+  font-weight: 800;
+  grid-column: 1 / -1;
+  margin-bottom: 0.25rem;
+}
+.app-shell .billing-option {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 1rem;
+}
+.app-shell .billing-option > strong {
+  font-size: 0.95rem;
+}
+.app-shell .billing-option .ds-switch-row {
+  padding: 0.55rem 0;
+}
+.app-shell .plan-usage-limits,
+.app-shell .plan-features {
+  border: 0;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+.app-shell .plan-usage-limits {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.app-shell .plan-features {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.app-shell .plan-usage-limits legend,
+.app-shell .plan-features legend {
+  color: var(--app-text);
+  font-weight: 800;
+  grid-column: 1 / -1;
+}
+.app-shell .plan-limit-row,
+.app-shell .feature-switch {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  min-width: 0;
+  padding: 0.75rem;
+}
+.app-shell .plan-limit-row {
+  display: grid;
+  gap: 0.65rem;
+}
+.app-shell .platform-subscription-summary {
+  gap: 0.75rem;
+}
+.app-shell .platform-subscription-summary article {
+  border-color: var(--app-border);
+  border-radius: var(--app-radius-md);
+}
+.app-shell .platform-commercial-timeline li {
+  border-color: var(--app-border);
+}
+.app-shell .platform-commercial-timeline li::before {
+  background: var(--app-accent);
+}
+@media (max-width: 1000px) {
+  .app-shell .plan-billing-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 699px) {
+  .app-shell.platform-app {
+    display: block;
+  }
+  .app-shell .platform-full-form > .platform-form,
+  .app-shell .plan-billing-options,
+  .app-shell .plan-features,
+  .app-shell .platform-subscription-summary {
+    grid-template-columns: 1fr;
+  }
+  .app-shell .platform-page {
+    overflow-x: clip;
+    padding: 1rem;
+  }
+  .app-shell .platform-topbar {
+    padding-inline: 0.75rem;
+  }
+  .app-shell .ds-page-actions > * {
+    flex: 1;
+  }
+}
+.ds-switch-row {
+  align-items: center;
+  border-bottom: 1px solid var(--app-border);
+  display: flex;
+  flex-direction: row !important;
+  gap: 1rem;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.75rem 0;
+}
+.ds-switch-row > span {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.ds-switch-row > span small {
+  color: var(--app-muted);
+  font-weight: 450;
+}
 .pwa-checklist li {
   align-items: center;
   display: flex;

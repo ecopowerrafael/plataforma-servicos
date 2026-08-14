@@ -16,7 +16,9 @@ export function SectionCard({
   className?: string;
 }>) {
   return (
-    <section className={`app-card ds-section-card${className === undefined ? '' : ` ${className}`}`}>
+    <section
+      className={`app-card ds-section-card${className === undefined ? '' : ` ${className}`}`}
+    >
       <header className="ds-section-card-header">
         <div>
           <h3>{title}</h3>
@@ -71,6 +73,42 @@ export function FormSection({
 }
 
 /** Tabela que vira lista de cartões no mobile (ver `ds-data-table` no CSS). */
+/** Controle booleano compartilhado entre o painel do tenant e a plataforma. */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  description,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  description?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="ds-switch-row">
+      <span>
+        <strong>{label}</strong>
+        {description === undefined ? null : <small>{description}</small>}
+      </span>
+      <input
+        aria-checked={checked}
+        aria-label={label}
+        checked={checked}
+        className="ds-switch"
+        disabled={disabled}
+        onChange={(event) => {
+          onChange(event.target.checked);
+        }}
+        role="switch"
+        type="checkbox"
+      />
+    </label>
+  );
+}
+
 export function DataTable({
   headers,
   children,
@@ -123,9 +161,16 @@ export function InlineAlert({
   title,
   children,
   action,
-}: PropsWithChildren<{ tone?: 'info' | 'warning' | 'danger'; title?: string; action?: ReactNode }>) {
+}: PropsWithChildren<{
+  tone?: 'info' | 'warning' | 'danger';
+  title?: string;
+  action?: ReactNode;
+}>) {
   return (
-    <div className={`ds-inline-alert ds-inline-alert--${tone}`} role={tone === 'info' ? 'status' : 'alert'}>
+    <div
+      className={`ds-inline-alert ds-inline-alert--${tone}`}
+      role={tone === 'info' ? 'status' : 'alert'}
+    >
       <div>
         {title === undefined ? null : <strong>{title}</strong>}
         <p>{children}</p>

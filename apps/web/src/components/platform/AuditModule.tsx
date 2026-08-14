@@ -8,24 +8,323 @@ import { httpClient } from '../../lib/http.js';
 
 type AuditItem = NonNullable<ReturnType<typeof PlatformAuditResponseSchema.parse>['items'][number]>;
 const eventOptions = [
-  ['platform.subscription.plan_changed','Plano alterado'],['platform.subscription.activated','Assinatura ativada'],['platform.subscription.trial_extended','Trial estendido'],['platform.subscription.period_updated','Período corrigido'],['platform.plan.deleted','Plano excluído'],['platform.plan.deactivated','Plano desativado'],['platform.tenant.created','Estabelecimento criado'],
+  ['platform.subscription.plan_changed', 'Plano alterado'],
+  ['platform.subscription.activated', 'Assinatura ativada'],
+  ['platform.subscription.trial_extended', 'Trial estendido'],
+  ['platform.subscription.period_updated', 'Período corrigido'],
+  ['platform.plan.deleted', 'Plano excluído'],
+  ['platform.plan.deactivated', 'Plano desativado'],
+  ['platform.tenant.created', 'Estabelecimento criado'],
 ] as const;
-const targetLabels:Record<string,string>={tenant:'Estabelecimento',tenant_subscription:'Assinatura',commercial_plan:'Plano',tenant_commercial_policy:'Política comercial'};
+const targetLabels: Record<string, string> = {
+  tenant: 'Estabelecimento',
+  tenant_subscription: 'Assinatura',
+  commercial_plan: 'Plano',
+  tenant_commercial_policy: 'Política comercial',
+};
 
 function AuditValues({ title, values }: { title: string; values: Record<string, unknown> | null }) {
   if (!values || Object.keys(values).length === 0) return null;
-  return <article><h5>{title}</h5><dl>{Object.entries(values).map(([key,value])=><div key={key}><dt>{key.replaceAll(/([A-Z])/gu,' $1').toLowerCase()}</dt><dd>{typeof value==='string'||typeof value==='number'||typeof value==='boolean'?String(value):'Informação estruturada'}</dd></div>)}</dl></article>;
+  return (
+    <article>
+      <h5>{title}</h5>
+      <dl>
+        {Object.entries(values).map(([key, value]) => (
+          <div key={key}>
+            <dt>{key.replaceAll(/([A-Z])/gu, ' $1').toLowerCase()}</dt>
+            <dd>
+              {typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+                ? String(value)
+                : 'Informação estruturada'}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </article>
+  );
 }
 
 export function AuditModule() {
-  const [page,setPage]=useState(1);const [action,setAction]=useState('');const [tenantPublicId,setTenantPublicId]=useState('');const [targetType,setTargetType]=useState('');const [from,setFrom]=useState('');const [to,setTo]=useState('');const [direction,setDirection]=useState<'asc'|'desc'>('desc');const [selected,setSelected]=useState<AuditItem|null>(null);
-  const tenants=useQuery({queryKey:['platform','tenants','audit-options'],queryFn:()=>httpClient.request('/platform/tenants?limit=100',{schema:PlatformTenantListResponseSchema}),retry:false});
-  const tenantNames=new Map((tenants.data?.items??[]).map(t=>[t.publicId,t.displayName]));
-  const audit=useQuery({queryKey:['platform','audit',page,action,tenantPublicId,targetType,from,to,direction],queryFn:()=>{const q=new URLSearchParams({page:String(page),limit:'20',direction});if(action)q.set('action',action);if(tenantPublicId)q.set('tenantPublicId',tenantPublicId);if(targetType)q.set('targetType',targetType);if(from)q.set('from',new Date(`${from}T00:00:00`).toISOString());if(to)q.set('to',new Date(`${to}T23:59:59.999`).toISOString());return httpClient.request(`/platform/audit?${q.toString()}`,{schema:PlatformAuditResponseSchema});},retry:false});
-  const clear=()=>{setPage(1);setAction('');setTenantPublicId('');setTargetType('');setFrom('');setTo('');setDirection('desc');};
-  return <section><PageHeader title="Auditoria" description="Consulte eventos administrativos e identifique quem realizou cada alteração."/>
-    <div className="platform-filter-bar platform-audit-filters"><label>Tipo de evento<select value={action} onChange={e=>{setPage(1);setAction(e.target.value);}}><option value="">Todos</option>{eventOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Estabelecimento<select value={tenantPublicId} onChange={e=>{setPage(1);setTenantPublicId(e.target.value);}}><option value="">Todos</option>{(tenants.data?.items??[]).map(t=><option key={t.publicId} value={t.publicId}>{t.displayName}</option>)}</select></label><label>Tipo de alvo<select value={targetType} onChange={e=>{setPage(1);setTargetType(e.target.value);}}><option value="">Todos</option><option value="tenant">Estabelecimento</option><option value="tenant_subscription">Assinatura</option><option value="commercial_plan">Plano</option><option value="tenant_commercial_policy">Política comercial</option></select></label><label>De<input type="date" value={from} onChange={e=>{setPage(1);setFrom(e.target.value);}}/></label><label>Até<input type="date" value={to} onChange={e=>{setPage(1);setTo(e.target.value);}}/></label><label>Ordem<select value={direction} onChange={e=>{setPage(1);setDirection(e.target.value as 'asc'|'desc');}}><option value="desc">Mais recentes</option><option value="asc">Mais antigos</option></select></label><button onClick={clear} type="button">Limpar</button></div>
-    {audit.isPending?<div className="platform-table-skeleton"><i className="platform-skeleton"/><i className="platform-skeleton"/><i className="platform-skeleton"/></div>:audit.error instanceof Error?<ErrorState message="Não foi possível carregar a auditoria." retry={()=>{void audit.refetch();}}/>:!audit.data?.items.length?<div className="platform-empty"><h3>Nenhum evento encontrado</h3><p>Nenhum evento corresponde aos filtros atuais.</p></div>:<><div className="platform-table-wrap"><table className="platform-table platform-audit-table"><thead><tr><th>Data</th><th>Ação</th><th>Alvo</th><th>Responsável</th><th>Detalhes</th></tr></thead><tbody>{audit.data.items.map(item=><tr key={item.publicId} onClick={()=>{setSelected(item);}}><td>{formatDate(item.createdAt,true)}</td><td><strong>{formatAuditEvent(item.action)}</strong></td><td>{tenantNames.get(item.tenantPublicId??'')??targetLabels[item.targetType]??'Alvo administrativo'}</td><td>{item.user?.email??'Sistema'}</td><td>{item.targetPublicId??'—'}</td></tr>)}</tbody></table></div><Pagination page={page} totalPages={audit.data.page.totalPages} total={audit.data.page.total} limit={audit.data.page.limit} onPage={setPage}/></>}
-    {selected?<><button className="platform-backdrop" aria-label="Fechar" onClick={()=>{setSelected(null);}} type="button"/><aside className="platform-drawer platform-drawer--detail" role="dialog" aria-modal="true"><button className="platform-drawer-close" aria-label="Fechar" onClick={()=>{setSelected(null);}} type="button">×</button><header className="platform-detail-heading"><div><h3>{formatAuditEvent(selected.action)}</h3><span>{formatDate(selected.createdAt,true)}</span></div></header><dl className="platform-details"><div><dt>Responsável</dt><dd>{selected.user?.email??'Sistema'}</dd></div><div><dt>Estabelecimento/alvo</dt><dd>{tenantNames.get(selected.tenantPublicId??'')??targetLabels[selected.targetType]??'Alvo administrativo'}</dd></div><div><dt>Tipo de alvo</dt><dd>{targetLabels[selected.targetType]??selected.targetType.replaceAll('_',' ')}</dd></div><div><dt>Identificador público</dt><dd>{selected.targetPublicId??'Não informado'}</dd></div><div><dt>Motivo</dt><dd>{selected.reason??'Não informado'}</dd></div></dl><section className="platform-audit-note"><h4>Alterações</h4>{selected.before||selected.after?<div className="platform-audit-changes"><AuditValues title="Antes" values={selected.before}/><AuditValues title="Depois" values={selected.after}/></div>:<p>Este evento não possui dados de antes e depois.</p>}</section>{selected.metadata?<details className="platform-audit-technical"><summary>Dados complementares</summary><p>Informações adicionais deste evento foram sanitizadas pelo servidor.</p></details>:null}</aside></>:null}
-  </section>;
+  const [page, setPage] = useState(1);
+  const [action, setAction] = useState('');
+  const [tenantPublicId, setTenantPublicId] = useState('');
+  const [targetType, setTargetType] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
+  const [selected, setSelected] = useState<AuditItem | null>(null);
+  const tenants = useQuery({
+    queryKey: ['platform', 'tenants', 'audit-options'],
+    queryFn: () =>
+      httpClient.request('/platform/tenants?limit=100', {
+        schema: PlatformTenantListResponseSchema,
+      }),
+    retry: false,
+  });
+  const tenantNames = new Map((tenants.data?.items ?? []).map((t) => [t.publicId, t.displayName]));
+  const audit = useQuery({
+    queryKey: ['platform', 'audit', page, action, tenantPublicId, targetType, from, to, direction],
+    queryFn: () => {
+      const q = new URLSearchParams({ page: String(page), limit: '20', direction });
+      if (action) q.set('action', action);
+      if (tenantPublicId) q.set('tenantPublicId', tenantPublicId);
+      if (targetType) q.set('targetType', targetType);
+      if (from) q.set('from', new Date(`${from}T00:00:00`).toISOString());
+      if (to) q.set('to', new Date(`${to}T23:59:59.999`).toISOString());
+      return httpClient.request(`/platform/audit?${q.toString()}`, {
+        schema: PlatformAuditResponseSchema,
+      });
+    },
+    retry: false,
+  });
+  const clear = () => {
+    setPage(1);
+    setAction('');
+    setTenantPublicId('');
+    setTargetType('');
+    setFrom('');
+    setTo('');
+    setDirection('desc');
+  };
+  return (
+    <section>
+      <PageHeader
+        title="Auditoria"
+        description="Consulte eventos administrativos e identifique quem realizou cada alteração."
+      />
+      <div className="platform-filter-bar platform-audit-filters">
+        <label>
+          Tipo de evento
+          <select
+            value={action}
+            onChange={(e) => {
+              setPage(1);
+              setAction(e.target.value);
+            }}
+          >
+            <option value="">Todos</option>
+            {eventOptions.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Estabelecimento
+          <select
+            value={tenantPublicId}
+            onChange={(e) => {
+              setPage(1);
+              setTenantPublicId(e.target.value);
+            }}
+          >
+            <option value="">Todos</option>
+            {(tenants.data?.items ?? []).map((t) => (
+              <option key={t.publicId} value={t.publicId}>
+                {t.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Tipo de alvo
+          <select
+            value={targetType}
+            onChange={(e) => {
+              setPage(1);
+              setTargetType(e.target.value);
+            }}
+          >
+            <option value="">Todos</option>
+            <option value="tenant">Estabelecimento</option>
+            <option value="tenant_subscription">Assinatura</option>
+            <option value="commercial_plan">Plano</option>
+            <option value="tenant_commercial_policy">Política comercial</option>
+          </select>
+        </label>
+        <label>
+          De
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setPage(1);
+              setFrom(e.target.value);
+            }}
+          />
+        </label>
+        <label>
+          Até
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => {
+              setPage(1);
+              setTo(e.target.value);
+            }}
+          />
+        </label>
+        <label>
+          Ordem
+          <select
+            value={direction}
+            onChange={(e) => {
+              setPage(1);
+              setDirection(e.target.value as 'asc' | 'desc');
+            }}
+          >
+            <option value="desc">Mais recentes</option>
+            <option value="asc">Mais antigos</option>
+          </select>
+        </label>
+        <button onClick={clear} type="button">
+          Limpar
+        </button>
+      </div>
+      {audit.isPending ? (
+        <div className="platform-table-skeleton">
+          <i className="platform-skeleton" />
+          <i className="platform-skeleton" />
+          <i className="platform-skeleton" />
+        </div>
+      ) : audit.error instanceof Error ? (
+        <ErrorState
+          message="Não foi possível carregar a auditoria."
+          retry={() => {
+            void audit.refetch();
+          }}
+        />
+      ) : !audit.data?.items.length ? (
+        <div className="platform-empty">
+          <h3>Nenhum evento encontrado</h3>
+          <p>Nenhum evento corresponde aos filtros atuais.</p>
+        </div>
+      ) : (
+        <>
+          <div className="platform-table-wrap">
+            <table className="platform-table platform-audit-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Ação</th>
+                  <th>Alvo</th>
+                  <th>Responsável</th>
+                  <th>Detalhes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.data.items.map((item) => (
+                  <tr
+                    key={item.publicId}
+                    onClick={() => {
+                      setSelected(item);
+                    }}
+                  >
+                    <td>{formatDate(item.createdAt, true)}</td>
+                    <td>
+                      <strong>{formatAuditEvent(item.action)}</strong>
+                    </td>
+                    <td>
+                      {tenantNames.get(item.tenantPublicId ?? '') ??
+                        targetLabels[item.targetType] ??
+                        'Alvo administrativo'}
+                    </td>
+                    <td>{item.user?.email ?? 'Sistema'}</td>
+                    <td>{item.targetPublicId ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            page={page}
+            totalPages={audit.data.page.totalPages}
+            total={audit.data.page.total}
+            limit={audit.data.page.limit}
+            onPage={setPage}
+          />
+        </>
+      )}
+      {selected ? (
+        <>
+          <button
+            className="platform-backdrop"
+            aria-label="Fechar"
+            onClick={() => {
+              setSelected(null);
+            }}
+            type="button"
+          />
+          <aside
+            className="platform-drawer platform-drawer--detail"
+            role="dialog"
+            aria-modal="true"
+          >
+            <button
+              className="platform-drawer-close"
+              aria-label="Fechar"
+              onClick={() => {
+                setSelected(null);
+              }}
+              type="button"
+            >
+              ×
+            </button>
+            <header className="platform-detail-heading">
+              <div>
+                <h3>{formatAuditEvent(selected.action)}</h3>
+                <span>{formatDate(selected.createdAt, true)}</span>
+              </div>
+            </header>
+            <dl className="platform-details">
+              <div>
+                <dt>Responsável</dt>
+                <dd>{selected.user?.email ?? 'Sistema'}</dd>
+              </div>
+              <div>
+                <dt>Estabelecimento/alvo</dt>
+                <dd>
+                  {tenantNames.get(selected.tenantPublicId ?? '') ??
+                    targetLabels[selected.targetType] ??
+                    'Alvo administrativo'}
+                </dd>
+              </div>
+              <div>
+                <dt>Tipo de alvo</dt>
+                <dd>
+                  {targetLabels[selected.targetType] ?? selected.targetType.replaceAll('_', ' ')}
+                </dd>
+              </div>
+              <div>
+                <dt>Identificador público</dt>
+                <dd>{selected.targetPublicId ?? 'Não informado'}</dd>
+              </div>
+              <div>
+                <dt>Motivo</dt>
+                <dd>{selected.reason ?? 'Não informado'}</dd>
+              </div>
+            </dl>
+            <section className="platform-audit-note">
+              <h4>Alterações</h4>
+              {selected.before || selected.after ? (
+                <div className="platform-audit-changes">
+                  <AuditValues title="Antes" values={selected.before} />
+                  <AuditValues title="Depois" values={selected.after} />
+                </div>
+              ) : (
+                <p>Este evento não possui dados de antes e depois.</p>
+              )}
+            </section>
+            {selected.metadata ? (
+              <details className="platform-audit-technical">
+                <summary>Dados complementares</summary>
+                <p>Informações adicionais deste evento foram sanitizadas pelo servidor.</p>
+              </details>
+            ) : null}
+          </aside>
+        </>
+      ) : null}
+    </section>
+  );
 }

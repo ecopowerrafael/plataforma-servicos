@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions */
 import { useFormContext, useWatch } from 'react-hook-form';
 
+import { Switch } from '../ui/AppUi.js';
+
 import type { PlanFormInput } from './PlanEditForm.js';
 
 const usageLimits = [
@@ -14,10 +16,14 @@ const featureLimits = [
   ['custom_domain.enabled', 'Domínio próprio'],
   ['branding.customization.enabled', 'Personalização da marca'],
   ['advanced_reports.enabled', 'Relatórios avançados'],
-  ['products.enabled', 'Produtos'], ['stock.enabled', 'Estoque'],
-  ['commissions.enabled', 'Comissões'], ['waitlist.enabled', 'Lista de espera'],
-  ['automations.enabled', 'Automações'], ['whatsapp.enabled', 'WhatsApp'],
-  ['integrations.enabled', 'Integrações externas'], ['loyalty.enabled', 'Fidelidade'],
+  ['products.enabled', 'Produtos'],
+  ['stock.enabled', 'Estoque'],
+  ['commissions.enabled', 'Comissões'],
+  ['waitlist.enabled', 'Lista de espera'],
+  ['automations.enabled', 'Automações'],
+  ['whatsapp.enabled', 'WhatsApp'],
+  ['integrations.enabled', 'Integrações externas'],
+  ['loyalty.enabled', 'Fidelidade'],
   ['coupons.enabled', 'Cupons'],
 ] as const;
 
@@ -39,7 +45,13 @@ export function PlanLimitsEditor() {
               {...register(`limits.${index}.integerValue`, { valueAsNumber: true })}
               type="number"
             />
-            <label><input checked={limits?.[index]?.integerValue === null} onChange={(event) => { setValue(`limits.${index}.integerValue`, event.target.checked ? null : 1); }} type="checkbox" /> Ilimitado</label>
+            <Switch
+              checked={limits?.[index]?.integerValue === null}
+              label="Ilimitado"
+              onChange={(checked) => {
+                setValue(`limits.${index}.integerValue`, checked ? null : 1);
+              }}
+            />
           </div>
         ))}
       </fieldset>
@@ -47,12 +59,19 @@ export function PlanLimitsEditor() {
         <legend>Recursos incluídos</legend>
         {featureLimits.map(([key, label], position) => {
           const index = usageLimits.length + position;
-          return <label className="feature-switch" key={key}>
-            <input type="hidden" {...register(`limits.${index}.key`)} />
-            <input type="hidden" {...register(`limits.${index}.valueType`)} />
-            <input {...register(`limits.${index}.booleanValue`)} type="checkbox" />
-            {label}
-          </label>;
+          return (
+            <div className="feature-switch" key={key}>
+              <input type="hidden" {...register(`limits.${index}.key`)} />
+              <input type="hidden" {...register(`limits.${index}.valueType`)} />
+              <Switch
+                checked={limits?.[index]?.booleanValue === true}
+                label={label}
+                onChange={(checked) => {
+                  setValue(`limits.${index}.booleanValue`, checked);
+                }}
+              />
+            </div>
+          );
         })}
       </fieldset>
     </>

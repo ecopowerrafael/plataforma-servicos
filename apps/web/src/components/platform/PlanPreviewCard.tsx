@@ -48,7 +48,8 @@ function formatMoneyFromCents(priceCents: number | undefined, currency: string |
 }
 
 function formatLimitPreview(limit: PlanPreviewLimit) {
-  if (limit.valueType === 'BOOLEAN') return limit.booleanValue === true ? 'Incluído' : 'Não incluído';
+  if (limit.valueType === 'BOOLEAN')
+    return limit.booleanValue === true ? 'Incluído' : 'Não incluído';
   if (limit.valueType === 'INTEGER') {
     if (limit.integerValue === undefined) return 'Ilimitado';
     if (limit.key === 'storage.megabytes') {
@@ -95,7 +96,9 @@ export function PlanPreviewCard({
             {billingCycle === 'CUSTOM' ? 'Plano comercial' : 'Assinatura'}
           </p>
           <h3>{value.name !== '' ? value.name : 'Nome do plano'}</h3>
-          {value.subtitle !== null && value.subtitle !== undefined && value.subtitle.trim() !== '' ? (
+          {value.subtitle !== null &&
+          value.subtitle !== undefined &&
+          value.subtitle.trim() !== '' ? (
             <p className="pricing-subtitle">{value.subtitle}</p>
           ) : null}
           {value.shortDescription !== null &&

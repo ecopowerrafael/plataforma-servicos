@@ -13,6 +13,7 @@ import { PlanLimitsEditor } from './PlanLimitsEditor.js';
 import { PlanPreviewCard, type PlanPreviewValue } from './PlanPreviewCard.js';
 import { httpClient } from '../../lib/http.js';
 import { brazilianMoneyToCents, centsToBrazilianMoney } from '../../marketing/pricing.js';
+import { Switch } from '../ui/AppUi.js';
 
 import type { CommercialPlanPublicSchema } from '@plataforma/shared';
 import type { z } from 'zod';
@@ -291,7 +292,7 @@ export function PlanEditForm({
         ) : (
           <p className="muted">{`C\u00f3digo: ${plan.code}`}</p>
         )}
-        <h4>IdentificaÃ§Ã£o</h4>
+        <h4>Identificação</h4>
         <label>
           Nome
           <input
@@ -363,24 +364,31 @@ export function PlanEditForm({
                   />
                 )}
               />
-              <label>
-                <input type="checkbox" {...register(`billingOptions.${index}.active`)} /> Ativo
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={formValues.billingOptions?.[index]?.recommended === true}
-                  onChange={(event) => {
-                    formValues.billingOptions?.forEach((_, optionIndex) =>
-                      setValue(
-                        `billingOptions.${optionIndex}.recommended`,
-                        event.target.checked && optionIndex === index,
-                      ),
-                    );
-                  }}
-                />{' '}
-                Recomendado
-              </label>
+              <Controller
+                control={control}
+                name={`billingOptions.${index}.active`}
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value ?? false}
+                    label="Ativo"
+                    description="Disponível neste ciclo"
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+              <Switch
+                checked={formValues.billingOptions?.[index]?.recommended === true}
+                label="Recomendado"
+                description="Destacar este ciclo"
+                onChange={(checked) => {
+                  formValues.billingOptions?.forEach((_, optionIndex) =>
+                    setValue(
+                      `billingOptions.${optionIndex}.recommended`,
+                      checked && optionIndex === index,
+                    ),
+                  );
+                }}
+              />
             </div>
           ))}
         </fieldset>
@@ -430,21 +438,21 @@ export function PlanEditForm({
             <option value="CUSTOM">Personalizado</option>
           </select>
         </label>
-        <h4>ConfiguraÃ§Ãµes comerciais</h4>
-        <label>
-          <input
-            checked={trialInheritsDefault}
-            onChange={(event) => {
-              setValue('trialDays', event.target.checked ? undefined : (defaultTrialDays ?? 0), {
-                shouldDirty: true,
-              });
-            }}
-            type="checkbox"
-          />
-          {defaultTrialDays === undefined
-            ? ' Usar o padr\u00e3o global de trial'
-            : ` Usar o padr\u00e3o global de trial (${String(defaultTrialDays)} dias)`}
-        </label>
+        <h4>Configurações comerciais</h4>
+        <Switch
+          checked={trialInheritsDefault}
+          label="Usar o padrão global de trial"
+          description={
+            defaultTrialDays === undefined
+              ? 'Aplicar a configuração comercial global'
+              : `Aplicar o período global de ${String(defaultTrialDays)} dias`
+          }
+          onChange={(checked) => {
+            setValue('trialDays', checked ? undefined : (defaultTrialDays ?? 0), {
+              shouldDirty: true,
+            });
+          }}
+        />
         {!trialInheritsDefault && (
           <label>
             {'Dias de trial (override deste plano)'}
@@ -459,14 +467,30 @@ export function PlanEditForm({
           Ordem
           <input min="0" {...register('sortOrder', { valueAsNumber: true })} type="number" />
         </label>
-        <label>
-          <input {...register('isPublic')} type="checkbox" />
-          {' Exibir para novos estabelecimentos'}
-        </label>
-        <label>
-          <input {...register('highlighted')} type="checkbox" />
-          {' Destacar como plano recomendado'}
-        </label>
+        <Controller
+          control={control}
+          name="isPublic"
+          render={({ field }) => (
+            <Switch
+              checked={field.value ?? false}
+              label="Plano público"
+              description="Exibir para novos estabelecimentos"
+              onChange={field.onChange}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="highlighted"
+          render={({ field }) => (
+            <Switch
+              checked={field.value ?? false}
+              label="Destaque"
+              description="Exibir como plano recomendado"
+              onChange={field.onChange}
+            />
+          )}
+        />
         <label>
           {'Selo (badge)'}
           <input

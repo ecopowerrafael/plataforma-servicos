@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { ErrorState, formatCycle, formatDate, formatMoney, formatStatus, PageHeader, Pagination, StatusBadge } from './PlatformUi.js';
+import { SubscriptionBillingPanel } from './SubscriptionBillingPanel.js';
 
 const SubscriptionResponseSchema = z.object({ subscription: SubscriptionPublicSchema });
 const CreateFormSchema = CreateSubscriptionRequestSchema.extend({ tenantPublicId: z.uuid() });
@@ -476,6 +477,7 @@ export function SubscriptionModule() {
               ))}
             </ul>
           )}
+          <SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId}/>
           <h4>Alterar plano</h4>
           <div className="platform-form">
             <label>

@@ -35,6 +35,8 @@
 
 @media(max-width:760px){.platform-policy-public,.platform-number-grid,.platform-audit-filters,.platform-audit-changes{grid-template-columns:1fr}.platform-switch-row{align-items:flex-start}.platform-drawer--detail{width:100vw}.platform-commercial-table td:nth-child(3),.platform-audit-table td:nth-child(3){display:block}}
 
+.platform-finance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.platform-finance-grid .platform-panel{margin:0}.platform-payment-methods{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.platform-pix-qr{display:block;width:min(240px,100%);margin:18px auto}@media(max-width:900px){.platform-finance-grid{grid-template-columns:1fr}}
+
 * {
   box-sizing: border-box;
 }

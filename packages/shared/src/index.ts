@@ -11,6 +11,7 @@ export * from './appointment-history.js';
 export * from './appointment-review.js';
 export * from './customer-favorite.js';
 export * from './platform.js';
+export * from './platform-billing.js';
 export * from './tenant-commercial.js';
 export * from './business-profile.js';
 export * from './service.js';

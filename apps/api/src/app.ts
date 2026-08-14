@@ -60,6 +60,7 @@ import { customerLoyaltyRoutes, loyaltyRoutes } from './modules/payments/loyalty
 import { paymentMethodRoutes } from './modules/payments/payment-method.routes.js';
 import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { receiptRoutes } from './modules/payments/receipt.routes.js';
+import { platformBillingWebhookRoutes } from './modules/platform/platform-billing-webhook.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
 import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
 import { productSaleRoutes } from './modules/products/product-sale.routes.js';
@@ -343,6 +344,7 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
+      ...(options.database.platformBilling?{billingService:options.database.platformBilling}:{}),
     });
   }
   if (options.database.publicBooking !== undefined) {
@@ -692,8 +694,10 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.commercialPolicy === undefined
         ? {}
         : { commercialPolicyService: options.database.commercialPolicy }),
+      ...(options.database.platformBilling?{billingService:options.database.platformBilling}:{}),
     });
   }
+  if(options.database.platformBilling)await app.register(platformBillingWebhookRoutes,{service:options.database.platformBilling});
 
   return app;
 }

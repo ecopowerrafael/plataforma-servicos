@@ -2276,11 +2276,48 @@ model TenantSubscription {
   tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   plan                  CommercialPlan        @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   history               SubscriptionHistory[]
+  platformCharges       PlatformSubscriptionCharge[]
 
   @@unique([tenantId, effectiveKey])
   @@index([status, currentPeriodEndsAt])
   @@index([planId, status])
   @@map("tenant_subscriptions")
+}
+
+model PlatformPaymentConfig {
+  id                    BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                    @unique @map("public_id") @db.Char(36)
+  provider              String                    @unique @db.VarChar(64)
+  active                Boolean                   @default(false)
+  environment           PaymentGatewayEnvironment @default(SANDBOX)
+  credentialsCiphertext String?                   @map("credentials_ciphertext") @db.Text
+  createdAt             DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("platform_payment_configs")
+}
+
+model PlatformSubscriptionCharge {
+  id             BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                     @unique @map("public_id") @db.Char(36)
+  subscriptionId BigInt                     @map("subscription_id") @db.UnsignedBigInt
+  provider       String                     @db.VarChar(64)
+  environment    PaymentGatewayEnvironment
+  externalId     String?                    @map("external_id") @db.VarChar(191)
+  status         PaymentGatewayChargeStatus @default(PENDING)
+  amountCents    BigInt                     @map("amount_cents") @db.UnsignedBigInt
+  currency       String                     @db.Char(3)
+  idempotencyKey String                     @unique @map("idempotency_key") @db.VarChar(191)
+  pixCopyPaste   String?                    @map("pix_copy_paste") @db.Text
+  paidAt         DateTime?                  @map("paid_at") @db.DateTime(3)
+  createdAt      DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                   @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  subscription   TenantSubscription         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([provider, externalId])
+  @@index([subscriptionId, createdAt])
+  @@index([status, createdAt])
+  @@map("platform_subscription_charges")
 }
 
 model SubscriptionHistory {

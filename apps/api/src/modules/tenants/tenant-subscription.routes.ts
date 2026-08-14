@@ -1,4 +1,4 @@
-import { TenantSubscriptionResponseSchema } from '@plataforma/shared';
+import { CreatePlatformChargeSchema, PlatformChargeResponseSchema, PlatformSubscriptionBillingSchema, TenantSubscriptionResponseSchema } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
@@ -6,12 +6,14 @@ import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type TenantSubscriptionService } from './tenant-subscription.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PlatformBillingService } from '../platform/platform-billing.service.js';
 
 interface Options {
   service: TenantSubscriptionService;
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
+  billingService?: PlatformBillingService;
 }
 
 export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (app, options) => {
@@ -39,4 +41,8 @@ export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (a
       return options.service.selectPlan(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
     },
   );
+  if(options.billingService){const billing=options.billingService;
+    app.get('/tenant/subscription/billing',{schema:{response:{200:PlatformSubscriptionBillingSchema}}},r=>{options.authService.requirePermission(r.tenant,'tenant.subscription.read');return billing.tenantOverview(r.tenant.id);});
+    app.post('/tenant/subscription/charges',{schema:{body:CreatePlatformChargeSchema,response:{200:PlatformChargeResponseSchema}}},r=>{options.authService.requirePermission(r.tenant,'tenant.subscription.read');if(!r.tenant.membership.isOwner)throw new Error('Apenas o proprietário pode pagar a assinatura.');return billing.createTenantCharge(r.tenant.id,r.body.provider);});
+  }
 };

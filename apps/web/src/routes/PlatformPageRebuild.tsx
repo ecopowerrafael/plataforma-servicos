@@ -1,10 +1,11 @@
 import { PlatformDashboardResponseSchema, PlatformMeResponseSchema, PlatformTenantListResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { AuditModule } from '../components/platform/AuditModule.js';
 import { CommercialPolicyModule } from '../components/platform/CommercialPolicyModule.js';
+import { FinanceModule } from '../components/platform/FinanceModule.js';
 import { PlanModule } from '../components/platform/PlanModule.js';
 import { PlatformShell, type PlatformSection } from '../components/platform/PlatformShell.js';
 import { ErrorState, formatDate, formatMoney, MetricCard, PageHeader, StatusBadge } from '../components/platform/PlatformUi.js';
@@ -13,14 +14,14 @@ import { TenantModule } from '../components/platform/TenantModule.js';
 import { HttpError, httpClient } from '../lib/http.js';
 
 export function PlatformPageRebuild() {
-  const navigate = useNavigate(); const [section, setSection] = useState<PlatformSection>('dashboard');
+  const navigate = useNavigate(); const params=useParams();const routeSection=params.section==='financeiro'?'finance':params.section;const [section, setSection] = useState<PlatformSection>((['dashboard','tenants','plans','subscriptions','finance','commercial-policy','audit'] as string[]).includes(routeSection??'')?routeSection as PlatformSection:'dashboard');
   const me = useQuery({ queryKey: ['platform', 'me'], queryFn: () => httpClient.request('/platform/me', { schema: PlatformMeResponseSchema }), retry: false });
   const deniedStatus = me.error instanceof HttpError ? me.error.status : undefined;
   useEffect(() => { if (deniedStatus === 401 || deniedStatus === 403) void navigate(deniedStatus === 401 ? '/login' : '/access-denied'); }, [deniedStatus, navigate]);
   if (me.isPending) return <main className="platform-session-loading"><i className="platform-skeleton" /><i className="platform-skeleton" /></main>;
   if (me.error instanceof Error || me.data === undefined) return <main className="app-shell"><h1>Nao foi possivel carregar o painel</h1><Link className="action-button" to="/login">Ir para o acesso</Link></main>;
-  return <PlatformShell email={me.data.administrator.user.email} section={section} onSection={setSection}>
-    {section === 'dashboard' ? <Overview onTenants={() => { setSection('tenants'); }} /> : section === 'tenants' ? <TenantModule /> : section === 'plans' ? <PlanModule /> : section === 'subscriptions' ? <SubscriptionModule /> : section === 'commercial-policy' ? <CommercialPolicyModule /> : <AuditModule />}
+  return <PlatformShell email={me.data.administrator.user.email} section={section} onSection={(next)=>{setSection(next);void navigate(next==='finance'?'/platform/financeiro':`/platform/${next}`);}}>
+    {section === 'dashboard' ? <Overview onTenants={() => { setSection('tenants'); }} /> : section === 'tenants' ? <TenantModule /> : section === 'plans' ? <PlanModule /> : section === 'subscriptions' ? <SubscriptionModule /> : section === 'finance' ? <FinanceModule /> : section === 'commercial-policy' ? <CommercialPolicyModule /> : <AuditModule />}
   </PlatformShell>;
 }
 

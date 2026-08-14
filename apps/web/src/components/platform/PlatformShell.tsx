@@ -1,11 +1,11 @@
 import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-export type PlatformSection = 'dashboard' | 'tenants' | 'plans' | 'subscriptions' | 'commercial-policy' | 'audit';
+export type PlatformSection = 'dashboard' | 'tenants' | 'plans' | 'subscriptions' | 'finance' | 'commercial-policy' | 'audit';
 const items: { id: PlatformSection; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Visao geral', icon: '⌂' }, { id: 'tenants', label: 'Estabelecimentos', icon: '▦' },
   { id: 'plans', label: 'Planos', icon: '◇' }, { id: 'subscriptions', label: 'Assinaturas', icon: '≡' },
-  { id: 'commercial-policy', label: 'Politica comercial', icon: '⚙' }, { id: 'audit', label: 'Auditoria', icon: '◷' },
+  { id: 'finance', label: 'Financeiro', icon: '$' }, { id: 'commercial-policy', label: 'Politica comercial', icon: '⚙' }, { id: 'audit', label: 'Auditoria', icon: '◷' },
 ];
 export function PlatformShell({ email, section, onSection, children }: { email: string; section: PlatformSection; onSection: (section: PlatformSection) => void; children: ReactNode }) {
   const [open, setOpen] = useState(false);

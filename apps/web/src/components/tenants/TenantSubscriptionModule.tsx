@@ -2,6 +2,7 @@ import { TenantSubscriptionResponseSchema } from '@plataforma/shared';
 import { IconCheck, IconMinus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 
+import { TenantSubscriptionPayment } from './TenantSubscriptionPayment.js';
 import { httpClient } from '../../lib/http.js';
 import {
   InlineAlert,
@@ -165,6 +166,7 @@ export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: s
               )}
             </dl>
           </section>
+          <TenantSubscriptionPayment tenantPublicId={tenantPublicId}/>
 
           {data.commercial.state === 'TRIALING' && data.commercial.trialEndsAt !== null && (
             <InlineAlert

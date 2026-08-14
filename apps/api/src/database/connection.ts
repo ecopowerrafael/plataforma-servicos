@@ -66,6 +66,7 @@ import { PaymentMethodService } from '../modules/payments/payment-method.service
 import { PaymentService } from '../modules/payments/payment.service.js';
 import { ProfessionalCommissionService } from '../modules/payments/professional-commission.service.js';
 import { ReceiptService } from '../modules/payments/receipt.service.js';
+import { PlatformBillingService } from '../modules/platform/platform-billing.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
 import { TenantCommercialPolicyService } from '../modules/platform/tenant-commercial-policy.service.js';
 import { TenantCommercialSweepService } from '../modules/platform/tenant-commercial-sweep.service.js';
@@ -123,6 +124,7 @@ export interface DatabaseConnection {
   readonly appointments?: AppointmentService;
   readonly appointmentWaitlists?: AppointmentWaitlistService;
   readonly platform?: PlatformService;
+  readonly platformBilling?: PlatformBillingService;
   readonly commercialPolicy?: TenantCommercialPolicyService;
   readonly commercialSweep?: TenantCommercialSweepService;
   readonly customers?: CustomerService;
@@ -370,6 +372,7 @@ export function createDatabaseConnection(
     payments,
     tenantWhiteLabelRepository,
   );
+  const platformBilling = new PlatformBillingService(client,paymentGatewayRegistry,credentialsCipher);
 
   return {
     client,
@@ -379,6 +382,7 @@ export function createDatabaseConnection(
     appointmentWaitlists: appointmentWaitlists,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
+    platformBilling,
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client),
     customers: customers,

@@ -222,3 +222,239 @@
   .client-date-tile { width: 4rem; }
   .customer-appointment-head { display: grid; }
 }
+
+/* Home da conta: composição de aplicativo, sem alterar as demais seções. */
+.customer-account {
+  max-width: 73rem;
+  padding-right: 1rem;
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0));
+  padding-left: 1rem;
+}
+
+.customer-app-header {
+  min-height: 4.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--tenant-border, transparent) 45%, transparent);
+  background: var(--tenant-header, transparent);
+}
+
+.customer-app-logo img { height: clamp(2.5rem, 6vw, 3rem); }
+.client-avatar--small { width: 2.75rem; height: 2.75rem; }
+
+.customer-account-home {
+  display: grid;
+  gap: 1rem;
+  padding-top: 1rem;
+}
+
+.customer-home-hero {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 12.5rem;
+  max-width: none;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  overflow: hidden;
+  border-radius: 1.4rem;
+  background:
+    radial-gradient(circle at 85% 18%, color-mix(in srgb, var(--tenant-accent, var(--tenant-active)) 55%, transparent) 0 8%, transparent 38%),
+    linear-gradient(135deg, var(--tenant-primary) 0%, color-mix(in srgb, var(--tenant-primary) 64%, var(--tenant-secondary)) 100%);
+  color: var(--tenant-on-primary);
+  margin: 0;
+  padding: 1.4rem;
+  isolation: isolate;
+  box-shadow: 0 1.25rem 3rem color-mix(in srgb, var(--tenant-primary) 18%, transparent);
+}
+
+.customer-home-hero::before {
+  position: absolute;
+  z-index: -1;
+  right: -5rem;
+  bottom: -7rem;
+  width: 18rem;
+  height: 18rem;
+  border: 1px solid color-mix(in srgb, var(--tenant-on-primary) 18%, transparent);
+  border-radius: 50%;
+  content: '';
+}
+
+.customer-home-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: color-mix(in srgb, var(--tenant-on-primary) 78%, transparent);
+  font-size: .72rem;
+  font-weight: 650;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.customer-home-hero h1 { margin: 0; font-size: clamp(1.8rem, 7vw, 2.35rem); font-weight: 650; letter-spacing: -.035em; line-height: 1; }
+.customer-home-hero p { margin: .55rem 0 0; color: color-mix(in srgb, var(--tenant-on-primary) 78%, transparent); font-size: .95rem; }
+
+.customer-home-primary-cta {
+  display: inline-flex;
+  min-height: 2.9rem;
+  align-items: center;
+  gap: .7rem;
+  border-radius: 999px;
+  background: var(--tenant-on-primary);
+  color: var(--tenant-primary);
+  font-size: .78rem;
+  font-weight: 750;
+  letter-spacing: .04em;
+  padding: 0 1.1rem;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.customer-home-hero__orb {
+  position: absolute;
+  z-index: -1;
+  top: 2.2rem;
+  right: 2.3rem;
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tenant-accent) 32%, transparent);
+  filter: blur(2px);
+}
+
+.customer-home-appointment,
+.customer-home-loyalty {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  border-radius: 1.4rem;
+  background: linear-gradient(145deg, var(--tenant-surface) 35%, color-mix(in srgb, var(--tenant-active) 5%, var(--tenant-surface)) 100%);
+  box-shadow: 0 .9rem 2.4rem color-mix(in srgb, var(--tenant-text) 7%, transparent);
+}
+
+.customer-home-appointment { min-height: 12.5rem; gap: 1rem; padding: 1.2rem; }
+.customer-home-appointment > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.customer-home-appointment > header span { font-size: .78rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.customer-home-appointment > header a,
+.customer-home-loyalty header > a { color: var(--tenant-active); font-size: .75rem; font-weight: 700; text-decoration: none; }
+
+.customer-home-appointment__content {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .9rem;
+}
+
+.customer-home-date {
+  display: grid;
+  width: 4.6rem;
+  min-height: 5.7rem;
+  place-content: center;
+  justify-items: center;
+  border-radius: 1.05rem;
+  background: linear-gradient(155deg, var(--tenant-active), color-mix(in srgb, var(--tenant-active) 72%, var(--tenant-primary)));
+  color: var(--tenant-on-primary);
+  line-height: 1;
+  box-shadow: 0 .65rem 1.5rem color-mix(in srgb, var(--tenant-active) 20%, transparent);
+}
+
+.customer-home-date small { font-size: .62rem; font-weight: 750; letter-spacing: .09em; }
+.customer-home-date strong { margin: .3rem 0; font-size: 1.85rem; font-weight: 650; }
+.customer-home-date span { font-size: .68rem; font-weight: 750; }
+.customer-home-appointment__info { display: grid; min-width: 0; gap: .18rem; }
+.customer-home-appointment__info b { font-size: 1.55rem; font-weight: 650; letter-spacing: -.03em; line-height: 1; }
+.customer-home-appointment__info strong { overflow: hidden; font-size: .95rem; text-overflow: ellipsis; white-space: nowrap; }
+.customer-home-appointment__info :where(p, small) { margin: 0; color: var(--tenant-muted); font-size: .76rem; }
+
+.customer-home-secondary-cta {
+  display: inline-flex;
+  grid-column: 1 / -1;
+  min-height: 2.8rem;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  border-radius: .85rem;
+  background: color-mix(in srgb, var(--tenant-active) 10%, var(--tenant-surface));
+  color: var(--tenant-active);
+  font-size: .75rem;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.customer-home-appointment__empty { display: grid; place-items: center; align-content: center; gap: .35rem; color: var(--tenant-muted); text-align: center; }
+.customer-home-appointment__empty strong { color: var(--tenant-text); font-size: .95rem; }
+.customer-home-appointment__empty p { margin: 0; font-size: .78rem; }
+.customer-home-appointment__empty a { margin-top: .35rem; color: var(--tenant-active); font-size: .78rem; font-weight: 700; }
+
+.customer-home-shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.customer-home-shortcuts > a {
+  position: relative;
+  display: grid;
+  min-height: 7.25rem;
+  align-content: space-between;
+  gap: .7rem;
+  overflow: hidden;
+  border-radius: 1.15rem;
+  background: linear-gradient(145deg, var(--tenant-surface), color-mix(in srgb, var(--tenant-active) 4%, var(--tenant-surface)));
+  color: inherit;
+  padding: 1rem;
+  text-decoration: none;
+  box-shadow: 0 .65rem 1.7rem color-mix(in srgb, var(--tenant-text) 5%, transparent);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.customer-home-shortcuts > a:hover { transform: translateY(-3px); box-shadow: 0 1rem 2.3rem color-mix(in srgb, var(--tenant-text) 9%, transparent); }
+.customer-home-shortcut__icon { display: inline-flex; width: 2.8rem; height: 2.8rem; align-items: center; justify-content: center; border-radius: .9rem; background: color-mix(in srgb, var(--tenant-active) 13%, var(--tenant-surface)); color: var(--tenant-active); }
+.customer-home-shortcut__copy { display: grid; gap: .2rem; }
+.customer-home-shortcut__copy strong { font-size: .9rem; font-weight: 700; }
+.customer-home-shortcut__copy small { display: none; color: var(--tenant-muted); font-size: .72rem; line-height: 1.35; }
+.customer-home-shortcut__arrow { position: absolute; top: 1.15rem; right: 1rem; color: var(--tenant-muted); }
+
+.customer-home-loyalty { gap: 1.15rem; overflow: hidden; padding: 1.2rem; }
+.customer-home-loyalty > header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .75rem; }
+.customer-home-loyalty__icon { display: inline-flex; width: 3rem; height: 3rem; align-items: center; justify-content: center; border-radius: 1rem; background: color-mix(in srgb, var(--tenant-accent) 14%, var(--tenant-surface)); color: var(--tenant-active); }
+.customer-home-loyalty header div { display: grid; gap: .1rem; }
+.customer-home-loyalty header small { color: var(--tenant-muted); font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.customer-home-loyalty header strong { font-size: 1rem; font-weight: 650; }
+.customer-home-loyalty__metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.customer-home-loyalty__metrics article { display: grid; gap: .25rem; padding: .9rem; border-radius: 1rem; background: color-mix(in srgb, var(--tenant-active) 7%, var(--tenant-background)); }
+.customer-home-loyalty__metrics small { color: var(--tenant-muted); font-size: .7rem; }
+.customer-home-loyalty__metrics strong { font-size: clamp(1.15rem, 5vw, 1.55rem); font-weight: 650; letter-spacing: -.025em; }
+
+.customer-bottom-navigation { min-height: calc(4.25rem + env(safe-area-inset-bottom, 0)); padding-top: .35rem; padding-bottom: calc(.35rem + env(safe-area-inset-bottom, 0)); }
+.customer-bottom-navigation a { min-height: 3.55rem; gap: .15rem; font-size: .68rem; font-weight: 550; }
+.customer-bottom-navigation a[aria-current='page'] { font-weight: 700; }
+.customer-bottom-navigation__icon { display: inline-flex; min-width: 2.55rem; min-height: 1.75rem; align-items: center; justify-content: center; border-radius: 999px; }
+.customer-bottom-navigation a[aria-current='page'] .customer-bottom-navigation__icon { background: color-mix(in srgb, var(--tenant-active) 13%, transparent); }
+
+@media (min-width: 760px) {
+  .customer-account { padding-right: 1.5rem; padding-left: 1.5rem; }
+  .customer-app-header { min-height: 5.25rem; }
+  .customer-app-logo img { height: 3rem; }
+  .client-avatar--small { width: 3rem; height: 3rem; }
+  .customer-bottom-navigation { right: auto; bottom: 1rem; left: 50%; width: min(38rem, calc(100vw - 3rem)); border: 1px solid color-mix(in srgb, var(--tenant-border) 65%, transparent); border-radius: 999px; transform: translateX(-50%); }
+  .customer-home-shortcut__copy small { display: block; }
+}
+
+@media (min-width: 1024px) {
+  .customer-account { padding-right: 2rem; padding-left: 2rem; }
+  .customer-account-home { grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 1fr); gap: 1.25rem; padding-top: 1.25rem; }
+  .customer-home-hero { min-height: 17rem; padding: 1.8rem 2rem; }
+  .customer-home-hero h1 { font-size: 2.15rem; }
+  .customer-home-hero p { font-size: 1rem; }
+  .customer-home-appointment { min-height: 17rem; padding: 1.45rem; }
+  .customer-home-shortcuts { grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+  .customer-home-shortcuts > a { min-height: 8rem; padding: 1.1rem; }
+  .customer-home-loyalty { grid-column: 1 / -1; grid-template-columns: minmax(16rem, .8fr) minmax(0, 1.2fr); align-items: center; min-height: 8.5rem; padding: 1.4rem; }
+  .customer-home-loyalty__metrics { align-self: stretch; }
+  .customer-home-loyalty__metrics article { justify-content: start; align-content: center; padding: 1rem 1.25rem; }
+  .customer-home-loyalty__metrics strong { font-size: 1.55rem; }
+}
+
+@media (max-width: 430px) {
+  .customer-home-appointment__content { grid-template-columns: 4.4rem minmax(0, 1fr); }
+  .customer-home-appointment__content > .appointment-status { grid-column: 2; justify-self: start; }
+  .customer-home-date { width: 4.4rem; }
+}

@@ -51,9 +51,10 @@ export function CustomerAccountLayout({
         <nav className="customer-bottom-navigation" aria-label="Navegação principal da conta">
           {navigation.map((item) => {
             const Icon = item.icon;
+            const destination = item.id === 'home' ? `/public/${slug}` : accountPath(slug, item.id);
             return (
-              <Link key={item.id} to={accountPath(slug, item.id)} aria-current={item.id === section ? 'page' : undefined}>
-                <Icon aria-hidden="true" size={22} stroke={1.8} /><span>{item.label}</span>
+              <Link key={item.id} to={destination} aria-current={item.id === section ? 'page' : undefined}>
+                <span className="customer-bottom-navigation__icon"><Icon aria-hidden="true" size={23} stroke={1.8} /></span><span>{item.label}</span>
               </Link>
             );
           })}

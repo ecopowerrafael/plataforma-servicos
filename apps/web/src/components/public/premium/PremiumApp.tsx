@@ -50,6 +50,7 @@ export function PremiumApp({
   customerName,
   customerPhotoVersion = null,
   onOpenAccount,
+  onOpenAppointments,
 }: {
   slug: string;
   site: Site;
@@ -57,15 +58,20 @@ export function PremiumApp({
   customerName: string | null;
   customerPhotoVersion?: string | null;
   onOpenAccount: () => void;
+  onOpenAppointments: () => void;
 }) {
   const [tab, setTab] = useState<PremiumTab>('home');
   // Perfil não é uma página intermediária: abre direto a conta (ou o login).
-  const openProfile = (next: PremiumTab) => {
-    if (next !== 'profile') {
-      setTab(next);
+  const openNavigationItem = (next: PremiumTab) => {
+    if (next === 'profile') {
+      onOpenAccount();
       return;
     }
-    onOpenAccount();
+    if (next === 'appointments') {
+      onOpenAppointments();
+      return;
+    }
+    setTab(next);
   };
   const appointments = useQuery({
     queryKey: ['public', slug, 'customer', 'appointments', 'upcoming'],
@@ -353,7 +359,7 @@ export function PremiumApp({
       ) : null}
 
       {/* Durante o agendamento a navegação é o próprio botão voltar do fluxo. */}
-      {tab === 'booking' ? null : <PremiumBottomNav active={tab} onChange={openProfile} />}
+      {tab === 'booking' ? null : <PremiumBottomNav active={tab} onChange={openNavigationItem} />}
     </div>
   );
 }

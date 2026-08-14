@@ -1,7 +1,15 @@
 import { AppointmentListResponseSchema, LoyaltyAccountSummarySchema } from '@plataforma/shared';
+import {
+  IconArrowRight,
+  IconCalendarEvent,
+  IconCalendarPlus,
+  IconGift,
+  IconHeart,
+  IconSparkles,
+  IconUser,
+} from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconCalendarEvent, IconCalendarPlus, IconHeart, IconUser } from '@tabler/icons-react';
 
 import { accountPath } from './customer-account.js';
 import { httpClient } from '../../../lib/http.js';
@@ -20,10 +28,18 @@ const dateParts = (iso: string) => {
     month: value.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase(),
   };
 };
+
 const timeLabel = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-/** Visão inicial da conta: só dados que já existem nos endpoints atuais. */
+const shortcuts = [
+  { label: 'Agendar', description: 'Escolha seu próximo horário', icon: IconCalendarPlus, section: null },
+  { label: 'Agendamentos', description: 'Veja seus próximos horários', icon: IconCalendarEvent, section: 'appointments' },
+  { label: 'Favoritos', description: 'Acesse suas escolhas salvas', icon: IconHeart, section: 'favorites' },
+  { label: 'Perfil', description: 'Gerencie sua conta', icon: IconUser, section: 'profile' },
+] as const;
+
+/** Visão inicial da conta: somente dados que já existem nos endpoints atuais. */
 export function CustomerAccountHome({ slug, name }: { slug: string; name: string }) {
   const upcoming = useQuery({
     queryKey: ['public', slug, 'customer', 'appointments', 'upcoming'],
@@ -46,70 +62,92 @@ export function CustomerAccountHome({ slug, name }: { slug: string; name: string
   const next = upcoming.data?.items[0];
   const balances = loyalty.data?.balances ?? [];
   const nextDate = next === undefined ? null : dateParts(next.startsAt);
+  const firstName = name.trim().split(' ')[0] ?? name;
 
   return (
     <div className="customer-account-home">
-      <header className="customer-home-welcome">
-        <h1>{`Olá, ${name.split(' ')[0] ?? name}`}</h1>
-        <p>Que bom ter você por aqui.</p>
-      </header>
+      <section className="customer-home-hero">
+        <span className="customer-home-hero__eyebrow"><IconSparkles aria-hidden="true" size={16} /> Sua experiência</span>
+        <div>
+          <h1>{`Olá, ${firstName}`}</h1>
+          <p>Pronto para o seu próximo horário?</p>
+        </div>
+        <Link className="customer-home-primary-cta" to={`/public/${slug}`}>
+          Agendar agora <IconArrowRight aria-hidden="true" size={18} />
+        </Link>
+        <span className="customer-home-hero__orb" aria-hidden="true" />
+      </section>
 
-      <section className="customer-card" aria-label="Próximo agendamento">
-        <header className="client-card-header">
-          <strong>Próximo agendamento</strong>
-          <Link className="public-link-button" to={accountPath(slug, 'appointments')}>
-            Ver todos
-          </Link>
+      <section className="customer-home-appointment" aria-label="Próximo agendamento">
+        <header>
+          <span>Próximo agendamento</span>
+          <Link to={accountPath(slug, 'appointments')}>Ver todos</Link>
         </header>
         {upcoming.isPending ? <p className="customer-skeleton" aria-busy="true" /> : null}
         {upcoming.error instanceof Error ? (
           <p className="public-form-error">Não foi possível carregar seus agendamentos.</p>
         ) : null}
-        {upcoming.data !== undefined &&
-          (next === undefined ? (
-            <p className="customer-empty">Você não tem horários marcados.</p>
-          ) : (
-            <div className="customer-next-appointment">
-              <time className="client-date-tile" dateTime={next.startsAt}>
-                <small>{nextDate?.weekday}</small><strong>{nextDate?.day}</strong><span>{nextDate?.month}</span>
-              </time>
-              <span className="customer-next-info">
-                <b>{timeLabel(next.startsAt)}</b>
-                <strong>{next.serviceName}</strong>
-                <small>{`com ${next.professionalName}`}</small>
-                {next.unitName === null ? null : <small>{next.unitName}</small>}
-              </span>
-              <AppointmentStatusBadge status={next.status} />
-              <Link className="client-card-cta" to={accountPath(slug, 'appointments')}>Ver detalhes</Link>
+        {upcoming.data !== undefined && next === undefined ? (
+          <div className="customer-home-appointment__empty">
+            <IconCalendarEvent aria-hidden="true" size={28} />
+            <strong>Nenhum horário marcado</strong>
+            <p>Quando você agendar, os detalhes aparecerão aqui.</p>
+            <Link to={`/public/${slug}`}>Agendar horário</Link>
+          </div>
+        ) : null}
+        {next === undefined ? null : (
+          <div className="customer-home-appointment__content">
+            <time className="customer-home-date" dateTime={next.startsAt}>
+              <small>{nextDate?.weekday}</small><strong>{nextDate?.day}</strong><span>{nextDate?.month}</span>
+            </time>
+            <div className="customer-home-appointment__info">
+              <b>{timeLabel(next.startsAt)}</b>
+              <strong>{next.serviceName}</strong>
+              <p>{`com ${next.professionalName}`}</p>
+              {next.unitName === null ? null : <small>{next.unitName}</small>}
             </div>
-          ))}
+            <AppointmentStatusBadge status={next.status} />
+            <Link className="customer-home-secondary-cta" to={accountPath(slug, 'appointments')}>
+              Ver detalhes <IconArrowRight aria-hidden="true" size={16} />
+            </Link>
+          </div>
+        )}
       </section>
 
-      {balances.length === 0 ? null : (
-        <section className="customer-card" aria-label="Seu saldo">
-          <header>
-            <strong>Seu saldo</strong>
-            <Link className="public-link-button" to={accountPath(slug, 'loyalty')}>
-              Ver extrato
+      <nav className="customer-home-shortcuts" aria-label="Atalhos">
+        {shortcuts.map((shortcut) => {
+          const Icon = shortcut.icon;
+          const to = shortcut.section === null ? `/public/${slug}` : accountPath(slug, shortcut.section);
+          return (
+            <Link key={shortcut.label} to={to}>
+              <span className="customer-home-shortcut__icon"><Icon aria-hidden="true" size={26} stroke={1.7} /></span>
+              <span className="customer-home-shortcut__copy">
+                <strong>{shortcut.label}</strong>
+                <small>{shortcut.description}</small>
+              </span>
+              <IconArrowRight className="customer-home-shortcut__arrow" aria-hidden="true" size={17} />
             </Link>
+          );
+        })}
+      </nav>
+
+      {balances.length === 0 ? null : (
+        <section className="customer-home-loyalty" aria-label="Fidelidade">
+          <header>
+            <span className="customer-home-loyalty__icon"><IconGift aria-hidden="true" size={24} /></span>
+            <div><small>Fidelidade</small><strong>Seu saldo</strong></div>
+            <Link to={accountPath(slug, 'loyalty')}>Ver extrato</Link>
           </header>
-          <div className="customer-balance-grid">
+          <div className="customer-home-loyalty__metrics">
             {balances.map((item) => (
-              <article className="customer-balance" key={item.type}>
-                <small>{item.type === 'CASHBACK' ? 'Cashback' : 'Pontos'}</small>
+              <article key={item.type}>
+                <small>{item.type === 'CASHBACK' ? 'Cashback' : 'Seus pontos'}</small>
                 <strong>{formatBalance(item.type, item.balance)}</strong>
               </article>
             ))}
           </div>
         </section>
       )}
-
-      <nav className="customer-shortcuts" aria-label="Atalhos">
-        <Link to={`/public/${slug}`}><IconCalendarPlus aria-hidden="true" /><span>Agendar</span></Link>
-        <Link to={accountPath(slug, 'appointments')}><IconCalendarEvent aria-hidden="true" /><span>Meus agendamentos</span></Link>
-        <Link to={accountPath(slug, 'favorites')}><IconHeart aria-hidden="true" /><span>Favoritos</span></Link>
-        <Link to={accountPath(slug, 'profile')}><IconUser aria-hidden="true" /><span>Perfil</span></Link>
-      </nav>
     </div>
   );
 }

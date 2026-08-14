@@ -223,6 +223,9 @@ export function PublicTenantPage() {
             onOpenAccount={() => {
               void navigate(`/public/${slug}/conta`);
             }}
+            onOpenAppointments={() => {
+              void navigate(`/public/${slug}/conta/agendamentos`);
+            }}
           />
         ) : (
           <>

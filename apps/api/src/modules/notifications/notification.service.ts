@@ -82,6 +82,8 @@ const pub = (item: NotificationLog) => ({
 });
 
 export class NotificationService {
+  private readonly enqueueing = new Set<string>();
+
   public constructor(
     private readonly client: PrismaClient,
     private readonly deliveries: NotificationDeliveries,
@@ -98,12 +100,35 @@ export class NotificationService {
    * cliente sem colidir na constraint.
    */
   public async enqueue(tenantId: bigint, input: NotificationInput): Promise<void> {
+    const channel = input.channel ?? 'EMAIL';
+    const identity = [
+      tenantId.toString(),
+      input.kind,
+      input.targetType,
+      input.targetPublicId ?? '',
+      channel,
+      input.recipient,
+    ].join('\u0000');
+    if (this.enqueueing.has(identity)) return;
+    this.enqueueing.add(identity);
     try {
+      const existing = await this.client.notificationLog.findFirst({
+        where: {
+          tenantId,
+          kind: input.kind,
+          targetType: input.targetType,
+          targetPublicId: input.targetPublicId,
+          channel,
+          recipient: input.recipient,
+        },
+        select: { id: true },
+      });
+      if (existing !== null) return;
       const created = await this.client.notificationLog.create({
         data: {
           publicId: randomUUID(),
           tenantId,
-          channel: input.channel ?? 'EMAIL',
+          channel,
           kind: input.kind,
           targetType: input.targetType,
           targetPublicId: input.targetPublicId,
@@ -118,6 +143,8 @@ export class NotificationService {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
       throw error;
+    } finally {
+      this.enqueueing.delete(identity);
     }
   }
 

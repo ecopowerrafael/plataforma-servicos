@@ -10,20 +10,14 @@ import {
   type PublicTenantSiteResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { type z } from 'zod';
 
 import { httpClient, HttpError } from '../../lib/http.js';
 
 export type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
 export type BookingStep =
-  | 'service'
-  | 'professional'
-  | 'date'
-  | 'time'
-  | 'customer'
-  | 'payment'
-  | 'review';
+  'service' | 'professional' | 'date' | 'time' | 'customer' | 'payment' | 'review';
 export type BookingProfessional = z.infer<
   typeof PublicServiceProfessionalsResponseSchema
 >['professionals'][number];
@@ -79,6 +73,7 @@ export function humanError(error: unknown): string {
  * As apresentações (Clássico e App Premium) só desenham o que este hook expõe.
  */
 export function usePublicBooking(slug: string, site: Site) {
+  const bookingSubmissionInFlight = useRef(false);
   const storageKey = `agendei:booking:${slug}`;
   const restored = useMemo(() => {
     try {
@@ -166,8 +161,7 @@ export function usePublicBooking(slug: string, site: Site) {
   // Só existe etapa de pagamento quando há de fato uma escolha a fazer.
   const needsPaymentChoice = onlineAvailable && localAvailable;
   const flow = BOOKING_STEPS.map((item) => item.id).filter(
-    (id) =>
-      (id !== 'payment' || needsPaymentChoice) && (id !== 'customer' || !profileComplete),
+    (id) => (id !== 'payment' || needsPaymentChoice) && (id !== 'customer' || !profileComplete),
   );
   const payOnline = needsPaymentChoice ? paymentChoice === 'online' : onlineAvailable;
   // Se o perfil já cobre os dados, o passo "Seus dados" nunca é apresentado:
@@ -240,7 +234,8 @@ export function usePublicBooking(slug: string, site: Site) {
   const selectedProfessional = professionals.data?.professionals.find(
     (item) => item.publicId === professionalPublicId,
   );
-  const availableSlots = availability.data?.slots.filter((slot) => slot.state === 'AVAILABLE') ?? [];
+  const availableSlots =
+    availability.data?.slots.filter((slot) => slot.state === 'AVAILABLE') ?? [];
 
   const booking = useMutation({
     mutationFn: () =>
@@ -351,7 +346,14 @@ export function usePublicBooking(slug: string, site: Site) {
         return;
       }
       setStep('review');
-    } else booking.mutate();
+    } else if (!bookingSubmissionInFlight.current) {
+      bookingSubmissionInFlight.current = true;
+      booking.mutate(undefined, {
+        onSettled: () => {
+          bookingSubmissionInFlight.current = false;
+        },
+      });
+    }
   };
 
   const selectService = (id: string) => {

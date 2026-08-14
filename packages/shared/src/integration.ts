@@ -24,6 +24,36 @@ export const WhatsAppConnectionTestSchema = z.object({
   externalCode: z.string().nullable(),
 });
 export const WhatsAppConnectionTestRequestSchema = z.object({ instanceId: z.string().trim().min(3).max(80).optional(), token: z.string().trim().min(20).max(4096).optional() }).strict();
+/** Prova de integração: envio de botões e leitura do evento recebido. */
+export const WhatsAppButtonTestRequestSchema = z
+  .object({ phone: z.string().trim().min(10).max(20) })
+  .strict();
+export const WhatsAppOperationResultSchema = z.object({
+  ok: z.boolean(),
+  httpStatus: z.number().int().nullable(),
+  externalCode: z.string().nullable(),
+  message: z.string(),
+  externalMessageId: z.string().nullable(),
+});
+export const WhatsAppButtonTestResponseSchema = WhatsAppOperationResultSchema.extend({
+  actionIds: z.array(z.string()),
+});
+export const WhatsAppWebhookConfigResponseSchema = WhatsAppOperationResultSchema.extend({
+  webhookUrl: z.string(),
+});
+export const WhatsAppInboundEventSchema = z.object({
+  publicId: z.uuid(),
+  eventType: z.string().nullable(),
+  messageType: z.string().nullable(),
+  maskedPhone: z.string().nullable(),
+  externalMessageId: z.string().nullable(),
+  actionId: z.string().nullable(),
+  receivedAt: z.iso.datetime({ offset: true }),
+  payload: z.unknown(),
+});
+export const WhatsAppLastInboundEventSchema = z.object({
+  event: WhatsAppInboundEventSchema.nullable(),
+});
 export const IntegrationEventSchema = z.enum(['notification.queued']);
 export const UpsertExternalIntegrationSchema = z
   .object({

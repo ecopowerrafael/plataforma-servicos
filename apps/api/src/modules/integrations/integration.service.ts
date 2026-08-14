@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { type WhatsAppDelivery } from './integration-delivery.js';
 import { type IntegrationRepository } from './integration.repository.js';
+import { maskPhone, normalizeWhatsAppEvent } from './whatsapp-inbound.js';
 import { AppError } from '../../errors/AppError.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
@@ -112,6 +113,110 @@ export class IntegrationService {
     if(configured!==null)await this.repository.updateWhatsappValidation(tenantId,result.connected?'CONNECTED':'ERROR',new Date());
     return result;
   }
+  /** IDs usados só na prova de integração — nenhuma decisão vem do texto do botão. */
+  public static readonly testActionIds = ['TEST_CONFIRM', 'TEST_CANCEL'] as const;
+  private static readonly testMessage =
+    'Teste do Assistente Agendei\n\nClique em uma opção para validar a integração.';
+
+  private whatsappDeliveryOrFail() {
+    if (this.whatsappDelivery === undefined)
+      throw new AppError({
+        code: 'WHATSAPP_UNAVAILABLE',
+        message: 'Envio indisponível.',
+        statusCode: 503,
+      });
+    return this.whatsappDelivery;
+  }
+
+  /** Envia a mensagem de teste com os dois botões de prova. */
+  public async sendWhatsappButtonTest(tenantId: bigint, phone: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const delivery = this.whatsappDeliveryOrFail();
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'Configure o WhatsApp primeiro.',
+        statusCode: 400,
+      });
+    const result = await delivery.sendInteractiveButtons(tenantId, phone, IntegrationService.testMessage, [
+      { buttonId: 'TEST_CONFIRM', label: 'Confirmar teste' },
+      { buttonId: 'TEST_CANCEL', label: 'Cancelar teste' },
+    ]);
+    await this.audit(tenantId, actor, 'integration.whatsapp.button_test_sent', configured.publicId);
+    return { ...result, actionIds: [...IntegrationService.testActionIds] };
+  }
+
+  /** Registra a URL pública deste ambiente como webhook de recebimento da instância. */
+  public async configureWhatsappWebhook(tenantId: bigint, url: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const delivery = this.whatsappDeliveryOrFail();
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'Configure o WhatsApp primeiro.',
+        statusCode: 400,
+      });
+    const result = await delivery.configureReceivedWebhook(tenantId, url);
+    await this.audit(tenantId, actor, 'integration.whatsapp.webhook_configured', configured.publicId);
+    return { ...result, webhookUrl: url };
+  }
+
+  public async lastWhatsappInboundEvent(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const event = await this.repository.lastInboundEvent(tenantId);
+    if (event === null) return { event: null };
+    return {
+      event: {
+        publicId: event.publicId,
+        eventType: event.eventType,
+        messageType: event.messageType,
+        maskedPhone: maskPhone(event.phone),
+        externalMessageId: event.externalMessageId,
+        actionId: event.actionId,
+        receivedAt: event.receivedAt.toISOString(),
+        payload: event.payload ?? null,
+      },
+    };
+  }
+
+  /**
+   * Ingestão do webhook: o tenant vem sempre da configuração local a partir do
+   * instanceId — nunca de um tenantId recebido de fora.
+   */
+  public async ingestWhatsappInbound(raw: unknown) {
+    const normalized = normalizeWhatsAppEvent(raw, IntegrationService.testActionIds);
+    if (normalized.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
+    const config = await this.repository.whatsappByInstanceId(normalized.instanceId);
+    if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN' } as const;
+    const existing = await this.repository.inboundEventByFingerprint(
+      config.tenantId,
+      normalized.fingerprint,
+    );
+    if (existing !== null) return { accepted: true, duplicated: true } as const;
+    try {
+      await this.repository.createInboundEvent({
+        tenantId: config.tenantId,
+        instanceId: normalized.instanceId,
+        externalMessageId: normalized.externalMessageId,
+        phone: normalized.phone,
+        eventType: normalized.eventType,
+        messageType: normalized.messageType,
+        actionId: normalized.action?.actionId ?? null,
+        fingerprint: normalized.fingerprint,
+        payload: {
+          ...(normalized.payload as Record<string, unknown>),
+          ...(normalized.action === null ? {} : { _actionIdPath: normalized.action.path }),
+        },
+      });
+    } catch {
+      // Corrida entre entregas simultâneas do mesmo evento: a unique key resolve.
+      return { accepted: true, duplicated: true } as const;
+    }
+    return { accepted: true, duplicated: false } as const;
+  }
+
   public async list(tenantId: bigint) {
     await this.assertEnabled(tenantId, 'integrations.enabled');
     return { items: (await this.repository.integrations(tenantId)).map(externalPublic) };

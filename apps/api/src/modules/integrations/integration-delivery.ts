@@ -21,9 +21,101 @@ export function privateAddress(address: string): boolean {
   );
 }
 
+export interface WhatsAppInteractiveButton {
+  buttonId: string;
+  label: string;
+}
+
+/** Resultado sanitizado de uma chamada de escrita na API do WhatsApp. */
+export interface WhatsAppOperationResult {
+  ok: boolean;
+  httpStatus: number | null;
+  externalCode: string | null;
+  message: string;
+  externalMessageId: string | null;
+}
+
 export interface WhatsAppDelivery {
   send(tenantId: bigint, to: string, text: string): Promise<void>;
   testConnection(tenantId: bigint, input?: {instanceId?:string|undefined;token?:string|undefined}): Promise<WhatsAppConnectionResult>;
+  sendInteractiveButtons(
+    tenantId: bigint,
+    to: string,
+    message: string,
+    buttons: WhatsAppInteractiveButton[],
+  ): Promise<WhatsAppOperationResult>;
+  configureReceivedWebhook(tenantId: bigint, url: string): Promise<WhatsAppOperationResult>;
+}
+
+const sanitizeExternalText = (value: unknown) =>
+  typeof value === 'string'
+    ? value
+        .replace(/Bearer\s+\S+/giu, '[protegido]')
+        .replace(/[A-Za-z0-9_-]{40,}/gu, '[protegido]')
+        .slice(0, 240)
+    : null;
+
+async function readJsonObject(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const value: unknown = await response.json();
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Traduz a resposta bruta do provedor para um resultado sanitizado. O erro real
+ * é preservado (status HTTP, código e mensagem), nunca substituído por um texto
+ * genérico — sem fallback silencioso.
+ */
+async function mapOperationResponse(
+  response: Response,
+  successMessage: string,
+): Promise<WhatsAppOperationResult> {
+  const payload = await readJsonObject(response);
+  const nested =
+    payload.data !== null && typeof payload.data === 'object' && !Array.isArray(payload.data)
+      ? (payload.data as Record<string, unknown>)
+      : {};
+  const externalCode = sanitizeExternalText(payload.code ?? payload.errorCode ?? payload.error);
+  const externalMessage = sanitizeExternalText(payload.message ?? payload.error);
+  const externalMessageId = sanitizeExternalText(
+    payload.messageId ?? payload.id ?? nested.messageId ?? nested.id,
+  );
+  if (!response.ok || payload.error === true)
+    return {
+      ok: false,
+      httpStatus: response.status,
+      externalCode,
+      message:
+        externalMessage ??
+        `O WhatsApp respondeu HTTP ${String(response.status)} sem detalhamento.`,
+      externalMessageId: null,
+    };
+  return {
+    ok: true,
+    httpStatus: response.status,
+    externalCode,
+    message: externalMessage ?? successMessage,
+    externalMessageId,
+  };
+}
+
+function mapOperationTransportError(error: unknown): WhatsAppOperationResult {
+  const timeout =
+    error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+  return {
+    ok: false,
+    httpStatus: null,
+    externalCode: null,
+    message: timeout
+      ? 'A chamada demorou mais que o esperado. Tente novamente.'
+      : 'Não foi possível acessar o serviço do WhatsApp. Verifique a rede e tente novamente.',
+    externalMessageId: null,
+  };
 }
 
 export class WApiWhatsAppDelivery implements WhatsAppDelivery {
@@ -67,6 +159,60 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
       throw new IntegrationUnavailableError('Configuracao do WhatsApp invalida.');
     if (!response.ok)
       throw new Error(`Falha temporaria no envio (HTTP ${String(response.status)}).`);
+  }
+
+  /**
+   * Envia mensagem com botões de resposta.
+   * Endpoint e corpo conforme a coleção oficial (`Mensagens › Enviar texto com botões`).
+   */
+  public async sendInteractiveButtons(
+    tenantId: bigint,
+    to: string,
+    message: string,
+    buttons: WhatsAppInteractiveButton[],
+  ): Promise<WhatsAppOperationResult> {
+    const { instanceId, token } = await this.config(tenantId, true);
+    try {
+      const response = await this.fetcher(
+        `https://api.w-api.app/v1/message/send-button-list?instanceId=${encodeURIComponent(instanceId)}`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: to,
+            message,
+            buttons: buttons.map(({ buttonId, label }) => ({ buttonId, label })),
+            delayMessage: 0,
+          }),
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      return await mapOperationResponse(response, 'Mensagem com botões enviada.');
+    } catch (error) {
+      return mapOperationTransportError(error);
+    }
+  }
+
+  /** Registra a URL que receberá as mensagens recebidas pela instância. */
+  public async configureReceivedWebhook(
+    tenantId: bigint,
+    url: string,
+  ): Promise<WhatsAppOperationResult> {
+    const { instanceId, token } = await this.config(tenantId, false);
+    try {
+      const response = await this.fetcher(
+        `https://api.w-api.app/v1/webhook/update-webhook-received?instanceId=${encodeURIComponent(instanceId)}`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: url }),
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      return await mapOperationResponse(response, 'Webhook configurado na instância.');
+    } catch (error) {
+      return mapOperationTransportError(error);
+    }
   }
 
   public async testConnection(tenantId: bigint,input: {instanceId?:string|undefined;token?:string|undefined} = {}): Promise<WhatsAppConnectionResult> {

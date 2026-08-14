@@ -4,14 +4,19 @@ import {
   SuccessResponseSchema,
   UpsertExternalIntegrationSchema,
   UpsertWhatsAppConfigSchema,
+  WhatsAppButtonTestRequestSchema,
+  WhatsAppButtonTestResponseSchema,
   WhatsAppConfigSchema,
   WhatsAppConnectionTestSchema,
   WhatsAppConnectionTestRequestSchema,
+  WhatsAppLastInboundEventSchema,
+  WhatsAppWebhookConfigResponseSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { type IntegrationService } from './integration.service.js';
+import { whatsappWebhookPath } from './whatsapp-webhook.routes.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
@@ -54,6 +59,71 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
     async (request) => {
       options.authService.requirePermission(request.tenant, 'integration.manage');
       const started=Date.now();const result=await options.service.testWhatsapp(request.tenant.id,request.body);request.log.info({operation:'whatsapp_connection_test',tenantPublicId:request.tenant.publicId,httpStatus:result.httpStatus,externalCode:result.externalCode,message:result.message,durationMs:Date.now()-started},'Diagnóstico sanitizado do teste de WhatsApp');return result;
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/webhook-config',
+    { schema: { response: { 200: WhatsAppWebhookConfigResponseSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      const forwardedProto = request.headers['x-forwarded-proto'];
+      const protocol =
+        (typeof forwardedProto === 'string' ? forwardedProto.split(',')[0]?.trim() : undefined) ??
+        request.protocol;
+      const host = request.headers.host ?? '';
+      const url = `${protocol}://${host}${whatsappWebhookPath}`;
+      const result = await options.service.configureWhatsappWebhook(
+        request.tenant.id,
+        url,
+        actor(request),
+      );
+      request.log.info(
+        {
+          operation: 'whatsapp_webhook_config',
+          tenantPublicId: request.tenant.publicId,
+          httpStatus: result.httpStatus,
+          externalCode: result.externalCode,
+          webhookUrl: result.webhookUrl,
+        },
+        'Configuração sanitizada do webhook de WhatsApp',
+      );
+      return result;
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/button-test',
+    {
+      schema: {
+        body: WhatsAppButtonTestRequestSchema,
+        response: { 200: WhatsAppButtonTestResponseSchema },
+      },
+    },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      const result = await options.service.sendWhatsappButtonTest(
+        request.tenant.id,
+        request.body.phone,
+        actor(request),
+      );
+      request.log.info(
+        {
+          operation: 'whatsapp_button_test',
+          tenantPublicId: request.tenant.publicId,
+          httpStatus: result.httpStatus,
+          externalCode: result.externalCode,
+          externalMessageId: result.externalMessageId,
+        },
+        'Diagnóstico sanitizado do envio com botões',
+      );
+      return result;
+    },
+  );
+  app.get(
+    '/tenant/integrations/whatsapp/last-event',
+    { schema: { response: { 200: WhatsAppLastInboundEventSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.read');
+      return options.service.lastWhatsappInboundEvent(request.tenant.id);
     },
   );
   app.get(

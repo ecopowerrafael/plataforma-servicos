@@ -36,6 +36,32 @@ export class IntegrationRepository {
       data: { lastValidationStatus: status, lastValidatedAt: at },
     });
   }
+  /** Resolve o tenant a partir do instanceId recebido no webhook. */
+  public whatsappByInstanceId(instanceId: string) {
+    return this.client.tenantWhatsAppConfig.findFirst({ where: { phoneNumberId: instanceId } });
+  }
+  public createInboundEvent(data: {
+    tenantId: bigint;
+    instanceId: string;
+    externalMessageId: string | null;
+    phone: string | null;
+    eventType: string | null;
+    messageType: string | null;
+    actionId: string | null;
+    fingerprint: string;
+    payload: Prisma.InputJsonValue;
+  }) {
+    return this.client.whatsAppInboundEvent.create({ data: { publicId: randomUUID(), ...data } });
+  }
+  public inboundEventByFingerprint(tenantId: bigint, fingerprint: string) {
+    return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, fingerprint } });
+  }
+  public lastInboundEvent(tenantId: bigint) {
+    return this.client.whatsAppInboundEvent.findFirst({
+      where: { tenantId },
+      orderBy: { receivedAt: 'desc' },
+    });
+  }
   public integrations(tenantId: bigint) {
     return this.client.externalIntegration.findMany({
       where: { tenantId },

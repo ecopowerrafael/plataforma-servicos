@@ -456,6 +456,7 @@ model Tenant {
   loyaltyLedgerEntries         LoyaltyLedgerEntry[]
   domains                      TenantDomain[]
   whatsappConfig               TenantWhatsAppConfig?
+  whatsappInboundEvents        WhatsAppInboundEvent[]
   externalIntegrations         ExternalIntegration[]
 
   @@index([status])
@@ -478,6 +479,30 @@ model TenantWhatsAppConfig {
   tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@map("tenant_whatsapp_configs")
+}
+
+/// Eventos recebidos do provedor de WhatsApp. Guarda apenas o payload já
+/// sanitizado (sem token, Authorization ou qualquer credencial) e serve de
+/// base para a prova de que o clique no botão retorna pelo webhook.
+model WhatsAppInboundEvent {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String   @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt   @map("tenant_id") @db.UnsignedBigInt
+  instanceId        String   @map("instance_id") @db.VarChar(80)
+  externalMessageId String?  @map("external_message_id") @db.VarChar(191)
+  phone             String?  @db.VarChar(32)
+  eventType         String?  @map("event_type") @db.VarChar(80)
+  messageType       String?  @map("message_type") @db.VarChar(80)
+  actionId          String?  @map("action_id") @db.VarChar(191)
+  fingerprint       String?  @db.VarChar(191)
+  payload           Json
+  receivedAt        DateTime @default(now()) @map("received_at") @db.DateTime(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, fingerprint], map: "whatsapp_inbound_events_fingerprint_key")
+  @@index([tenantId, receivedAt])
+  @@map("whatsapp_inbound_events")
 }
 
 model ExternalIntegration {

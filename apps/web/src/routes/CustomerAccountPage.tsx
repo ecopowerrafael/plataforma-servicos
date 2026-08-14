@@ -1,7 +1,7 @@
 import { PublicTenantSiteResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { contrastTextColor } from '../components/branding/brand-studio.js';
 import { CustomerAppointments } from '../components/CustomerAppointments.js';
@@ -23,11 +23,12 @@ import { httpClient } from '../lib/http.js';
 
 /**
  * Área do cliente em página inteira (`/public/:slug/conta[...]`), com o mesmo
- * branding da página pública. Substitui o antigo modal `CustomerAccountSheet`.
+ * branding da página pública.
  */
 export function CustomerAccountPage() {
   const { slug = '', section: segment } = useParams();
   const section = sectionFromPath(segment);
+  const navigate = useNavigate();
   const account = useCustomerAccount(slug);
 
   const site = useQuery({
@@ -55,7 +56,6 @@ export function CustomerAccountPage() {
     );
 
   const branding = site.data.branding;
-  const logo = site.data.assets.find((asset) => asset.kind === 'LOGO');
   const customer = account.customer;
 
   return (
@@ -85,9 +85,15 @@ export function CustomerAccountPage() {
       <CustomerAccountLayout
         slug={slug}
         displayName={site.data.displayName}
-        logoUrl={logo?.url ?? null}
         section={section}
         customer={customer}
+        {...(customer === null
+          ? {}
+          : {
+              onLogout: () => {
+                account.logout.mutate(undefined, { onSuccess: () => void navigate(`/public/${slug}`) });
+              },
+            })}
       >
         {customer === null ? <CustomerAccountAuth account={account} /> : null}
         {customer !== null && section === 'home' ? (

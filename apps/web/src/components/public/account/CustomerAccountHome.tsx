@@ -93,9 +93,10 @@ export function CustomerAccountHome({ slug, name }: { slug: string; name: string
       )}
 
       <nav className="customer-shortcuts" aria-label="Atalhos">
+        <Link to={`/public/${slug}`}>Agendar</Link>
         <Link to={accountPath(slug, 'appointments')}>Meus agendamentos</Link>
-        <Link to={accountPath(slug, 'profile')}>Dados pessoais</Link>
-        <Link to={accountPath(slug, 'notifications')}>Notificações</Link>
+        <Link to={accountPath(slug, 'favorites')}>Favoritos</Link>
+        <Link to={accountPath(slug, 'profile')}>Perfil</Link>
       </nav>
     </div>
   );

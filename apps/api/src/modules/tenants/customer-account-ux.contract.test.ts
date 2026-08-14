@@ -15,6 +15,8 @@ const appointments = readWeb('components/CustomerAppointments.tsx');
 const loyalty = readWeb('components/CustomerLoyalty.tsx');
 const reviews = readWeb('components/CustomerReviews.tsx');
 const favorites = readWeb('components/CustomerFavorites.tsx');
+const pushNotifications = readWeb('components/CustomerPushNotifications.tsx');
+const accountStyles = readWeb('customer-account.css');
 const agenda = readWeb('components/professionals/MyAgendaModule.tsx');
 const status = readWeb('components/appointments/appointment-status.tsx');
 const header = readWeb('components/public/PublicHeader.tsx');
@@ -70,13 +72,25 @@ describe('rotas da conta do cliente', () => {
     expect(accountHome).toContain('customer/appointments/upcoming');
     expect(accountHome).toContain('customer/loyalty');
     expect(accountHome).toContain('Meus agendamentos');
-    expect(accountHome).toContain('Dados pessoais');
-    expect(accountHome).toContain('Notificações');
+    expect(accountHome).toContain('Agendar');
+    expect(accountHome).toContain('Favoritos');
+    expect(accountHome).toContain('Perfil');
   });
 
-  it('volta ao estabelecimento pelo cabeçalho', () => {
-    expect(accountLayout).toContain('Voltar ao estabelecimento');
-    expect(accountLayout).toContain('to={`/public/${slug}`}');
+  it('usa shell de aplicativo com navegação inferior, sem a navegação horizontal anterior', () => {
+    expect(accountLayout).toContain('customer-bottom-navigation');
+    expect(accountLayout).not.toContain('customer-account-nav');
+    for (const item of ['Início', 'Agendamentos', 'Favoritos', 'Perfil'])
+      expect(accountLayout).toContain(item);
+    expect(accountStyles).toContain('position: fixed');
+    expect(accountStyles).not.toContain('.customer-account-nav');
+  });
+
+  it('mantém o perfil e a aparência white-label baseados nos tokens existentes', () => {
+    for (const item of ['Meus dados', 'Pontos de fidelidade', 'Segurança', 'Sair'])
+      expect(accountLayout).toContain(item);
+    for (const token of ['--tenant-primary', '--tenant-navigation', '--tenant-active'])
+      expect(accountStyles).toContain(token);
   });
 });
 
@@ -90,6 +104,7 @@ describe('agendamentos do cliente', () => {
 
   it('usa cartões e abas, sem lista crua', () => {
     expect(appointments).toContain('customer-appointment-list');
+    expect(appointments).toContain('Ver detalhes');
     expect(appointments).toMatch(/role="tab"[\s\S]*Próximos/u);
     expect(appointments).toMatch(/role="tab"[\s\S]*Histórico/u);
     expect(appointments).not.toContain('<li>');
@@ -110,6 +125,13 @@ describe('demais seções da conta', () => {
       expect(source).not.toContain('<li>');
       expect(source).toContain('customer-');
     }
+  });
+  it('mantém favoritos por tipo e o fluxo real de push', () => {
+    expect(favorites).toContain("useState<'professional' | 'service'>");
+    expect(favorites).toContain('Profissionais');
+    expect(favorites).toContain('Serviços');
+    expect(pushNotifications).toContain('usePushSubscription');
+    expect(pushNotifications).not.toContain('requestPermission');
   });
 });
 

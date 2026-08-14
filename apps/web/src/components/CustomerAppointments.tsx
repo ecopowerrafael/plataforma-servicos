@@ -63,6 +63,7 @@ function AppointmentCard({
   const [startsAt, setStartsAt] = useState(() => toDatetimeLocalValue(appointment.startsAt));
   const [rating, setRating] = useState(review?.rating ?? 5);
   const [comment, setComment] = useState(review?.comment ?? '');
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const canCancel = cancelableStatuses.has(appointment.status);
   const canReschedule = rescheduleableStatuses.has(appointment.status);
@@ -84,28 +85,31 @@ function AppointmentCard({
           {appointment.unitName === null ? null : <span>{appointment.unitName}</span>}
           {appointment.isFitIn ? <span className="customer-tag">Encaixe</span> : null}
         </p>
-        <small className="customer-appointment-protocol">{appointment.protocol}</small>
-        {appointment.canceledReason === null ? null : (
+        {detailsOpen ? <small className="customer-appointment-protocol">{appointment.protocol}</small> : null}
+        {detailsOpen && appointment.canceledReason !== null ? (
           <p className="customer-appointment-note">
             <span>Motivo do cancelamento</span>
             {appointment.canceledReason}
           </p>
-        )}
-        {appointment.rescheduleReason === null ? null : (
+        ) : null}
+        {detailsOpen && appointment.rescheduleReason !== null ? (
           <p className="customer-appointment-note">
             <span>Motivo do reagendamento</span>
             {appointment.rescheduleReason}
           </p>
-        )}
-        {review === undefined ? null : (
+        ) : null}
+        {detailsOpen && review !== undefined ? (
           <p className="customer-appointment-note">
             <span>{`Sua avaliação: ${String(review.rating)}/5`}</span>
             {review.comment}
           </p>
-        )}
+        ) : null}
 
-        {(canCancel || canReschedule || canReview) && action === null ? (
+        {action === null ? (
           <div className="customer-appointment-actions">
+            <button className="public-link-button" type="button" onClick={() => { setDetailsOpen((open) => !open); }}>
+              {detailsOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
+            </button>
             {canReschedule ? (
               <button
                 className="public-secondary-button"

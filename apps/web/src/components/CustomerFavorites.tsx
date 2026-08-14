@@ -1,5 +1,6 @@
 import { CustomerFavoriteListResponseSchema, SuccessResponseSchema } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { httpClient, HttpError } from '../lib/http.js';
 
@@ -15,6 +16,7 @@ interface CustomerFavoritesProps {
 }
 
 export function CustomerFavorites({ slug, services, professionals }: CustomerFavoritesProps) {
+  const [tab, setTab] = useState<'professional' | 'service'>('professional');
   const queryClient = useQueryClient();
   const queryKey = ['public', slug, 'customer', 'favorites'];
 
@@ -127,6 +129,10 @@ export function CustomerFavorites({ slug, services, professionals }: CustomerFav
 
   return (
     <section className="customer-section" aria-label="Meus favoritos">
+      <div className="customer-tabs" role="tablist">
+        <button aria-selected={tab === 'professional'} onClick={() => { setTab('professional'); }} role="tab" type="button">Profissionais</button>
+        <button aria-selected={tab === 'service'} onClick={() => { setTab('service'); }} role="tab" type="button">Serviços</button>
+      </div>
       {favorites.isPending ? (
         <div className="customer-skeleton-list" aria-busy="true">
           <span />
@@ -143,8 +149,9 @@ export function CustomerFavorites({ slug, services, professionals }: CustomerFav
           {errorMessage}
         </p>
       )}
-      {renderGroup('Profissionais', professionals, 'professional', favoriteProfessionalIds)}
-      {renderGroup('Serviços', services, 'service', favoriteServiceIds)}
+      {tab === 'professional'
+        ? renderGroup('Profissionais', professionals, 'professional', favoriteProfessionalIds)
+        : renderGroup('Serviços', services, 'service', favoriteServiceIds)}
     </section>
   );
 }

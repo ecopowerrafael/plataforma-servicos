@@ -200,10 +200,13 @@ export function PublicTenantPage() {
             )}
           </div>
         ) : null}
-        <PwaInstall
-          published={site.data.pwaPublished}
-          appName={site.data.site.pwaName ?? site.data.displayName}
-        />
+        {/* O App Premium tem o próprio convite de instalação no rodapé, com modal. */}
+        {layout === 'PREMIUM_APP' ? null : (
+          <PwaInstall
+            published={site.data.pwaPublished}
+            appName={site.data.site.pwaName ?? site.data.displayName}
+          />
+        )}
         {layout === 'PREMIUM_APP' ? (
           <PremiumApp
             slug={slug}

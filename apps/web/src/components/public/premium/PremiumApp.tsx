@@ -12,7 +12,9 @@ import { environment } from '../../../config/environment.js';
 import { httpClient } from '../../../lib/http.js';
 import { DEMO_AVATAR, demoBannerFor } from '../demo-assets.js';
 import { PublicLocationSection } from '../PublicLocationSection.js';
+import { PwaInstallModal } from '../PwaInstallModal.js';
 import { ServiceVisual } from '../ServiceVisual.js';
+import { usePwaInstall } from '../use-pwa-install.js';
 
 type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
 
@@ -62,6 +64,11 @@ export function PremiumApp({
   onOpenAppointments: () => void;
 }) {
   const [tab, setTab] = useState<PremiumTab>('home');
+  const [installOpen, setInstallOpen] = useState(false);
+  const pwa = usePwaInstall();
+  const appName = site.site.pwaName ?? site.displayName;
+  // Some assim que o aplicativo é instalado (ou quando já está rodando standalone).
+  const showInstallButton = site.pwaPublished && !pwa.installed && (pwa.available || pwa.manual);
   // Perfil não é uma página intermediária: abre direto a conta (ou o login).
   const openNavigationItem = (next: PremiumTab) => {
     if (next === 'profile') {
@@ -240,6 +247,25 @@ export function PremiumApp({
             </section>
           )}
           <PublicLocationSection unit={site.unit} displayName={site.displayName} premium />
+          {showInstallButton ? (
+            <footer className="premium-install-footer">
+              <button
+                className="premium-install-button"
+                onClick={() => {
+                  setInstallOpen(true);
+                }}
+                type="button"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M12 3v11" />
+                  <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+                  <path d="M4.5 20h15" />
+                </svg>
+                {`Instalar ${appName}`}
+              </button>
+              <small>Adicione o aplicativo à tela inicial do seu celular</small>
+            </footer>
+          ) : null}
         </main>
       ) : null}
 
@@ -349,6 +375,21 @@ export function PremiumApp({
 
       {/* Durante o agendamento a navegação é o próprio botão voltar do fluxo. */}
       {tab === 'booking' ? null : <PremiumBottomNav active={tab} onChange={openNavigationItem} />}
+      {installOpen && showInstallButton ? (
+        <PwaInstallModal
+          appName={appName}
+          categoryLabel="Agendamento online"
+          logoUrl={logoUrl === null ? null : `${environment.apiUrl}${logoUrl}`}
+          manual={pwa.manual}
+          onClose={() => {
+            setInstallOpen(false);
+          }}
+          onInstall={() => {
+            setInstallOpen(false);
+            pwa.install();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

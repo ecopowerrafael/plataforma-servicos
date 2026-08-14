@@ -514,3 +514,202 @@
 .push-reminder-cta button {
   min-height: 2.75rem;
 }
+
+/* Botão de instalação no rodapé do App Premium */
+.premium-install-footer {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+  margin: 0.5rem 0 1.25rem;
+  padding: 0 1rem;
+  text-align: center;
+}
+.premium-install-button {
+  align-items: center;
+  background: var(--tenant-primary);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--tenant-primary) 28%, transparent);
+  color: var(--tenant-on-primary);
+  display: inline-flex;
+  font-size: 0.95rem;
+  font-weight: 700;
+  gap: 0.55rem;
+  justify-content: center;
+  min-height: 3rem;
+  padding: 0 1.6rem;
+  width: 100%;
+}
+.premium-install-button svg {
+  fill: none;
+  height: 1.15rem;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 1.15rem;
+}
+.premium-install-footer small {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.78rem;
+}
+
+/* Modal de instalação no formato de ficha de loja de aplicativos */
+.pwa-modal-backdrop {
+  align-items: flex-end;
+  background: rgb(15 23 42 / 55%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 60;
+}
+.pwa-modal-dismiss {
+  background: none;
+  border: 0;
+  cursor: default;
+  inset: 0;
+  padding: 0;
+  position: absolute;
+}
+.pwa-modal {
+  animation: pwa-modal-in 0.18s ease-out;
+  background: var(--tenant-surface, #fff);
+  border-radius: 1.5rem;
+  box-shadow: 0 24px 60px rgb(15 23 42 / 28%);
+  color: var(--tenant-text, #172033);
+  display: grid;
+  gap: 1rem;
+  max-width: 26rem;
+  padding: 1.5rem 1.35rem 1.25rem;
+  position: relative;
+  width: 100%;
+}
+@keyframes pwa-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.pwa-modal-close {
+  background: none;
+  border: 0;
+  color: var(--tenant-muted, #64748b);
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.25rem;
+  position: absolute;
+  right: 0.9rem;
+  top: 0.75rem;
+}
+.pwa-modal-listing {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+}
+.pwa-modal-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--tenant-primary) 12%, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: 1.15rem;
+  color: var(--tenant-primary);
+  display: flex;
+  flex: none;
+  font-size: 1.9rem;
+  font-weight: 800;
+  height: 4.5rem;
+  justify-content: center;
+  overflow: hidden;
+  width: 4.5rem;
+}
+.pwa-modal-icon img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.pwa-modal-identity {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.pwa-modal-identity h2 {
+  font-size: 1.2rem;
+  line-height: 1.2;
+  margin: 0;
+}
+.pwa-modal-category {
+  color: var(--tenant-primary);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.pwa-modal-rating {
+  align-items: baseline;
+  color: var(--tenant-muted, #64748b);
+  display: flex;
+  font-size: 0.82rem;
+  gap: 0.25rem;
+  margin: 0.1rem 0 0;
+}
+.pwa-modal-rating strong {
+  color: var(--tenant-text, #172033);
+  font-size: 0.95rem;
+}
+.pwa-modal-star {
+  color: #f5a524;
+}
+.pwa-modal-highlights {
+  display: grid;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pwa-modal-highlights li {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.86rem;
+  padding-left: 1.4rem;
+  position: relative;
+}
+.pwa-modal-highlights li::before {
+  color: var(--tenant-primary);
+  content: '✓';
+  font-weight: 700;
+  left: 0;
+  position: absolute;
+}
+.pwa-modal-manual {
+  display: grid;
+  gap: 0.75rem;
+}
+.pwa-modal-manual p {
+  background: color-mix(in srgb, var(--tenant-primary) 8%, transparent);
+  border-radius: 0.9rem;
+  font-size: 0.86rem;
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+}
+.pwa-modal-install {
+  background: var(--tenant-primary);
+  border: 0;
+  border-radius: 999px;
+  color: var(--tenant-on-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  min-height: 3rem;
+  width: 100%;
+}
+.pwa-modal-note {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.76rem;
+  margin: 0;
+  text-align: center;
+}
+@media (min-width: 640px) {
+  .pwa-modal-backdrop {
+    align-items: center;
+  }
+  .premium-install-button {
+    width: auto;
+  }
+}

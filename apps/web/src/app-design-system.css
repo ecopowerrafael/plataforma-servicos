@@ -814,3 +814,448 @@
     transition: none !important;
   }
 }
+
+/* ==========================================================================
+   Componentes compartilhados: cartões de seção, métricas, formulários,
+   tabelas responsivas, consumo de plano e avisos em linha.
+   ========================================================================== */
+.app-shell .ds-section-card {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+}
+.ds-section-card-header {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+.ds-section-card-header h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+.ds-section-card-header p {
+  color: var(--app-muted);
+  font-size: 0.84rem;
+  margin: 0.2rem 0 0;
+  max-width: 46rem;
+}
+.ds-section-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ds-section-card-body {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.ds-stack {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.ds-stat-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+.ds-stat-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+}
+.ds-stat-card strong {
+  color: var(--app-text);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+.ds-stat-card small {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+}
+.ds-stat-card--success strong {
+  color: var(--app-success);
+}
+.ds-stat-card--warning strong {
+  color: var(--app-warning);
+}
+.ds-stat-card--danger strong {
+  color: var(--app-danger);
+}
+.app-shell .ds-form-section {
+  border: 0;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+.app-shell .ds-form-section > legend {
+  color: var(--app-text);
+  font-size: 0.86rem;
+  font-weight: 750;
+  padding: 0;
+}
+.app-shell .ds-form-hint {
+  color: var(--app-muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+.app-shell .ds-form-section--2,
+.app-shell .ds-form-section--3 {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.app-shell .ds-form-section > legend,
+.app-shell .ds-form-section > .ds-form-hint,
+.app-shell .ds-form-section > .ds-field-full {
+  grid-column: 1/-1;
+}
+.app-shell .ds-form-section label {
+  min-width: 0;
+}
+.app-shell .ds-form-section :where(input, select, textarea) {
+  width: 100%;
+}
+.ds-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ds-table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+.app-shell .ds-data-table {
+  min-width: 34rem;
+}
+.app-shell .ds-data-table td {
+  vertical-align: middle;
+}
+.ds-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+.ds-usage {
+  background: #eef2f6;
+  border-radius: 999px;
+  height: 0.5rem;
+  overflow: hidden;
+  width: 100%;
+}
+.ds-usage > span {
+  background: var(--app-accent);
+  display: block;
+  height: 100%;
+}
+.ds-usage--warning > span {
+  background: var(--app-warning);
+}
+.ds-usage--danger > span {
+  background: var(--app-danger);
+}
+.ds-inline-alert {
+  align-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.8rem 0.95rem;
+}
+.ds-inline-alert strong {
+  display: block;
+  font-size: 0.88rem;
+}
+.ds-inline-alert p {
+  color: inherit;
+  font-size: 0.82rem;
+  margin: 0.15rem 0 0;
+  opacity: 0.9;
+}
+.ds-inline-alert--info {
+  background: var(--app-surface-subtle);
+  color: var(--app-text);
+}
+.ds-inline-alert--warning {
+  background: var(--app-warning-soft);
+  border-color: #f5d9a8;
+  color: var(--app-warning);
+}
+.ds-inline-alert--danger {
+  background: var(--app-danger-soft);
+  border-color: #fecaca;
+  color: var(--app-danger);
+}
+.ds-badge--warning {
+  background: var(--app-warning-soft);
+  color: var(--app-warning);
+}
+.ds-badge--danger {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+.ds-badge--info {
+  background: #eef2ff;
+  color: var(--app-accent);
+}
+@media (max-width: 699px) {
+  .ds-stat-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-shell .ds-form-section--2,
+  .app-shell .ds-form-section--3 {
+    grid-template-columns: 1fr;
+  }
+  .ds-row-actions {
+    justify-content: flex-start;
+  }
+  .ds-section-card-actions > button {
+    flex: 1;
+    min-height: 2.75rem;
+  }
+  /* Tabelas viram cartões: cada linha empilha rótulo (data-label) + valor. */
+  .app-shell .ds-data-table {
+    min-width: 0;
+  }
+  .app-shell .ds-data-table thead {
+    display: none;
+  }
+  .app-shell .ds-data-table tbody tr {
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-md);
+    display: grid;
+    gap: 0.3rem;
+    margin-bottom: 0.6rem;
+    padding: 0.75rem 0.85rem;
+  }
+  .app-shell .ds-data-table td {
+    border: 0;
+    display: grid;
+    gap: 0.15rem;
+    grid-template-columns: minmax(7rem, auto) 1fr;
+    padding: 0.15rem 0;
+  }
+  .app-shell .ds-data-table td::before {
+    color: var(--app-muted);
+    content: attr(data-label);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+}
+
+/* Sidebar: identidade fixa no topo, apenas o menu rola. */
+@media (min-width: 900px) {
+  .app-navigation {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .app-navigation-brand {
+    flex: none;
+    position: static;
+  }
+  .app-navigation-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-color: #52627d transparent;
+    scrollbar-width: thin;
+  }
+}
+.app-navigation-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Disponibilidade */
+.availability-day {
+  grid-template-columns: minmax(9rem, 1fr) auto minmax(10rem, 2fr);
+}
+.availability-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.availability-period {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding: 0.2rem 0.6rem;
+}
+.app-shell .availability-form,
+.app-shell .payment-method-form {
+  background: var(--app-surface-subtle);
+  display: grid;
+  gap: 0.85rem;
+}
+
+/* Formas de pagamento */
+.payment-method-row {
+  grid-template-columns: 2.5rem minmax(10rem, 1fr) auto auto;
+}
+.payment-method-icon {
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 50%;
+  color: var(--app-accent);
+  display: flex;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+.payment-method-info {
+  display: grid;
+  min-width: 0;
+}
+
+/* Pagamento online: campos de credencial com mostrar/ocultar. */
+.gateway-secret-field {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+}
+.gateway-secret-field input {
+  flex: 1;
+  min-width: 0;
+}
+.app-shell .gateway-secret-field > button {
+  flex: none;
+  min-height: 2.5rem;
+  min-width: 2.5rem;
+  padding: 0 0.5rem;
+}
+
+/* Minha assinatura */
+.app-shell .subscription-card {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+.subscription-card-header {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+.subscription-card-header h3 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+.subscription-price {
+  align-items: baseline;
+  display: flex;
+  gap: 0.35rem;
+  margin: 0;
+}
+.subscription-price strong {
+  font-size: 1.6rem;
+}
+.subscription-price span {
+  color: var(--app-muted);
+  font-size: 0.9rem;
+}
+.subscription-details {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+.subscription-usage-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+.subscription-usage {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.85rem;
+}
+.subscription-usage strong {
+  font-size: 1.2rem;
+}
+.subscription-usage small {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+}
+.subscription-features {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.subscription-features li {
+  align-items: center;
+  display: flex;
+  font-size: 0.88rem;
+  gap: 0.45rem;
+}
+.subscription-features .is-included {
+  color: var(--app-text);
+}
+.subscription-features .is-included svg {
+  color: var(--app-success);
+}
+.subscription-features .is-excluded {
+  color: var(--app-muted);
+}
+@media (max-width: 699px) {
+  .availability-day,
+  .payment-method-row {
+    grid-template-columns: 1fr;
+  }
+  .payment-method-row .ds-row-actions > button,
+  .availability-form button,
+  .payment-method-form button {
+    min-height: 2.75rem;
+  }
+  .subscription-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Lista de definições usada nos resumos (dl > div > dt + dd). */
+.app-shell .platform-details {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+.app-shell .platform-details > div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.app-shell .platform-details dt {
+  color: var(--app-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.app-shell .platform-details dd {
+  color: var(--app-text);
+  font-size: 0.9rem;
+  font-weight: 650;
+  margin: 0;
+}

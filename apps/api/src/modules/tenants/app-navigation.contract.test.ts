@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest';
 const routerSource = readFileSync(new URL('../../../../web/src/router.tsx', import.meta.url), 'utf8');
 const homeSource = readFileSync(new URL('../../../../web/src/routes/HomePage.tsx', import.meta.url), 'utf8');
 const stylesSource = readFileSync(new URL('../../../../web/src/styles.css', import.meta.url), 'utf8');
+const designSystemSource = readFileSync(
+  new URL('../../../../web/src/app-design-system.css', import.meta.url),
+  'utf8',
+);
 
 describe('app navigation architecture', () => {
   it('registers independent submenu routes', () => {
@@ -21,9 +25,13 @@ describe('app navigation architecture', () => {
   });
 
   it('keeps the desktop sidebar fixed with its own scroll', () => {
-    expect(stylesSource).toMatch(/\.app-navigation\s*\{[^}]*position:fixed/);
-    expect(stylesSource).toMatch(/\.app-navigation\s*\{[^}]*height:calc\(100vh - 2rem\)/);
-    expect(stylesSource).toMatch(/\.app-navigation\s*\{[^}]*overflow-y:auto/);
+    expect(stylesSource).toMatch(/\.app-navigation\s*\{[^}]*position:\s*fixed/u);
+    expect(stylesSource).toMatch(/\.app-navigation\s*\{[^}]*height:\s*calc\(100vh - 2rem\)/u);
+    // Só o menu rola: a identidade do tenant fica fora da área rolável.
+    expect(designSystemSource).toMatch(/\.app-navigation\s*\{[^}]*overflow:\s*hidden/u);
+    expect(designSystemSource).toMatch(/\.app-navigation-scroll\s*\{[^}]*overflow-y:\s*auto/u);
+    expect(designSystemSource).toMatch(/\.app-navigation-scroll\s*\{[^}]*min-height:\s*0/u);
+    expect(homeSource).toContain('className="app-navigation-scroll"');
   });
 
   it('keeps the mobile app bar and grouped drawer', () => {

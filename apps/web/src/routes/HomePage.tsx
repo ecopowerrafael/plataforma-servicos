@@ -124,10 +124,6 @@ const OperationsDashboardModule = load(
   import('../components/tenants/OperationsDashboardModule.js'),
   'OperationsDashboardModule',
 );
-const PaymentGatewayModule = load(
-  import('../components/tenants/PaymentGatewayModule.js'),
-  'PaymentGatewayModule',
-);
 const PaymentMethodsModule = load(
   import('../components/tenants/PaymentMethodsModule.js'),
   'PaymentMethodsModule',
@@ -641,7 +637,6 @@ export function HomePage() {
           to: '/app/financeiro/opcoes',
           visible: canReadPaymentGateway,
         },
-        { label: 'Gateway', to: '/app/financeiro/gateway', visible: canReadPaymentGateway },
       ],
     },
     {
@@ -1174,28 +1169,31 @@ export function HomePage() {
         <strong className="app-navigation-brand">
           {me.data.currentTenant?.tenant.displayName ?? 'Agendei'}
         </strong>
-        <NavLink to="/app" end>
-          ⌂ Início
-        </NavLink>
-        {menuGroups.map((group) => (
-          <details
-            key={group.path}
-            open={expandedGroups[group.path] ?? location.pathname.startsWith(group.path)}
-            onToggle={(event) => {
-              const open = event.currentTarget.open;
-              setExpandedGroups((current) => ({ ...current, [group.path]: open }));
-            }}
-          >
-            <summary>{group.label}</summary>
-            <div className="app-navigation-submenu">
-              {group.items.map((item) => (
-                <NavLink key={item.to} to={item.to} end>
-                  {item.label}
-                </NavLink>
-              ))}
-            </div>
-          </details>
-        ))}
+        {/* Só esta área rola: a identidade acima fica fixa e nunca recebe itens por baixo. */}
+        <div className="app-navigation-scroll">
+          <NavLink to="/app" end>
+            ⌂ Início
+          </NavLink>
+          {menuGroups.map((group) => (
+            <details
+              key={group.path}
+              open={expandedGroups[group.path] ?? location.pathname.startsWith(group.path)}
+              onToggle={(event) => {
+                const open = event.currentTarget.open;
+                setExpandedGroups((current) => ({ ...current, [group.path]: open }));
+              }}
+            >
+              <summary>{group.label}</summary>
+              <div className="app-navigation-submenu">
+                {group.items.map((item) => (
+                  <NavLink key={item.to} to={item.to} end>
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
       </nav>
       <nav className="app-mobile-nav" aria-label="Navegação móvel">
         <NavLink to="/app" end>
@@ -1476,12 +1474,6 @@ export function HomePage() {
               )}
             {isRoute('/app/financeiro/opcoes') && canReadPaymentGateway && (
               <PaymentOptionsModule
-                tenantPublicId={selectedTenant}
-                canManage={canManagePaymentGateway}
-              />
-            )}
-            {isRoute('/app/financeiro/gateway') && canReadPaymentGateway && (
-              <PaymentGatewayModule
                 tenantPublicId={selectedTenant}
                 canManage={canManagePaymentGateway}
               />

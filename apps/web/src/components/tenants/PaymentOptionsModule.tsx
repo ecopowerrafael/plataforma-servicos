@@ -1,10 +1,11 @@
 import { TenantPaymentOptionsOverviewSchema, type PixKeyTypeSchema } from '@plataforma/shared';
+import { IconEye, IconEyeOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { type z } from 'zod';
 
 import { httpClient, HttpError } from '../../lib/http.js';
-import { EmptyState, ListSkeleton, PageHeader, StatusBadge } from '../ui/AppUi.js';
+import { InlineAlert, ListSkeleton, PageHeader, SectionCard, StatusBadge } from '../ui/AppUi.js';
 
 type PixKeyType = z.infer<typeof PixKeyTypeSchema>;
 type Overview = z.infer<typeof TenantPaymentOptionsOverviewSchema>;
@@ -61,6 +62,51 @@ function OptionCard({
         </button>
       )}
     </article>
+  );
+}
+
+/** Campo de segredo: nunca mostra o valor salvo, só o que está sendo digitado. */
+function SecretField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <label>
+      {label}
+      <span className="gateway-secret-field">
+        <input
+          type={revealed ? 'text' : 'password'}
+          autoComplete="off"
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+        />
+        <button
+          className="text-button"
+          type="button"
+          aria-label={revealed ? `Ocultar ${label}` : `Mostrar ${label}`}
+          onClick={() => {
+            setRevealed((current) => !current);
+          }}
+        >
+          {revealed ? (
+            <IconEyeOff size={16} aria-hidden="true" />
+          ) : (
+            <IconEye size={16} aria-hidden="true" />
+          )}
+        </button>
+      </span>
+    </label>
   );
 }
 
@@ -141,85 +187,106 @@ export function PaymentOptionsModule({
   };
 
   return (
-    <section className="sessions-panel payment-options" aria-label="Opções de cobrança">
+    <div className="ds-stack payment-options" aria-label="Central de cobrança">
       <PageHeader
         eyebrow="Financeiro"
-        title="Opções de cobrança"
-        description="Escolha como o cliente pode pagar ao agendar."
+        title="Central de cobrança"
+        description="Configure como o cliente paga ao agendar. As formas usadas no balcão ficam em Formas de pagamento."
       />
       {overview.isPending ? (
         <ListSkeleton rows={3} />
       ) : overview.error instanceof Error || overview.data === undefined ? (
-        <EmptyState
-          title="Não foi possível carregar as opções de cobrança."
-          description="Tente novamente."
-          action={<button onClick={() => void overview.refetch()}>Tentar novamente</button>}
-        />
+        <InlineAlert
+          tone="danger"
+          title="Não foi possível carregar as opções de cobrança"
+          action={
+            <button className="secondary-button" type="button" onClick={() => void overview.refetch()}>
+              Tentar novamente
+            </button>
+          }
+        >
+          Nenhuma configuração foi alterada. Tente novamente em instantes.
+        </InlineAlert>
       ) : (
         <>
-          <div className="payment-option-grid">
-            <OptionCard
-              title="Pagamento no local"
-              active={overview.data.payLocal.active}
-              summary="O cliente agenda sem pagar online e paga presencialmente no atendimento."
-              details={[
-                ['Confirmação', 'Registrada depois pela recepção'],
-                ['Sinal obrigatório', 'Não é substituído por esta opção'],
-              ]}
-              canManage={canManage}
-              onConfigure={() => {
-                setOpen('payLocal');
-              }}
-            />
-            <OptionCard
-              title="PIX próprio"
-              active={overview.data.pixLocal.active}
-              summary="Gera copia e cola e QR Code com a chave do estabelecimento; a baixa é manual."
-              details={[
-                [
-                  'Chave PIX',
-                  overview.data.pixLocal.hasCredentials ? 'Configurada' : 'Não configurada',
-                ],
-                [
-                  'Tipo',
-                  overview.data.pixLocal.keyType === null
-                    ? '—'
-                    : PIX_KEY_TYPE_LABELS[overview.data.pixLocal.keyType],
-                ],
-                ['Recebedor', overview.data.pixLocal.receiverName ?? '—'],
-                ['Cidade', overview.data.pixLocal.city ?? '—'],
-              ]}
-              canManage={canManage}
-              onConfigure={() => {
-                setOpen('pixLocal');
-              }}
-            />
-            <OptionCard
-              title="Mercado Pago"
-              active={overview.data.mercadoPago.active}
-              summary="Cobrança por PIX via Mercado Pago com credenciais do estabelecimento."
-              details={[
-                [
-                  'Ambiente',
-                  overview.data.mercadoPago.environment === 'SANDBOX' ? 'Sandbox' : 'Produção',
-                ],
-                [
-                  'Credenciais',
-                  overview.data.mercadoPago.hasCredentials ? 'Configuradas' : 'Não configuradas',
-                ],
-                ...(overview.data.mercadoPago.providerImplemented
-                  ? []
-                  : ([['Integração', 'Ainda não disponível nesta plataforma']] as [
-                      string,
-                      string,
-                    ][])),
-              ]}
-              canManage={canManage}
-              onConfigure={() => {
-                setOpen('mercadoPago');
-              }}
-            />
-          </div>
+          <SectionCard
+            title="Pagamento no local"
+            description="Quando o cliente agenda sem pagar online e acerta no atendimento."
+          >
+            <div className="payment-option-grid">
+              <OptionCard
+                title="Pagamento no local"
+                active={overview.data.payLocal.active}
+                summary="O cliente agenda sem pagar online e paga presencialmente no atendimento."
+                details={[
+                  ['Confirmação', 'Registrada depois pela recepção'],
+                  ['Sinal obrigatório', 'Não é substituído por esta opção'],
+                ]}
+                canManage={canManage}
+                onConfigure={() => {
+                  setOpen('payLocal');
+                }}
+              />
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Pagamento online"
+            description="Configure como seus clientes poderão pagar online pelos agendamentos."
+          >
+            <div className="payment-option-grid">
+              <OptionCard
+                title="PIX próprio"
+                active={overview.data.pixLocal.active}
+                summary="Gera copia e cola e QR Code com a chave do estabelecimento; a baixa é manual."
+                details={[
+                  [
+                    'Chave PIX',
+                    overview.data.pixLocal.hasCredentials ? 'Configurada' : 'Não configurada',
+                  ],
+                  [
+                    'Tipo da chave',
+                    overview.data.pixLocal.keyType === null
+                      ? '—'
+                      : PIX_KEY_TYPE_LABELS[overview.data.pixLocal.keyType],
+                  ],
+                  ['Recebedor', overview.data.pixLocal.receiverName ?? '—'],
+                  ['Cidade', overview.data.pixLocal.city ?? '—'],
+                ]}
+                canManage={canManage}
+                onConfigure={() => {
+                  setOpen('pixLocal');
+                }}
+              />
+              <OptionCard
+                title="Mercado Pago"
+                active={overview.data.mercadoPago.active}
+                summary="Cobrança por PIX via Mercado Pago com credenciais do estabelecimento."
+                details={[
+                  [
+                    'Ambiente',
+                    overview.data.mercadoPago.environment === 'SANDBOX' ? 'Teste' : 'Produção',
+                  ],
+                  [
+                    'Credenciais',
+                    overview.data.mercadoPago.hasCredentials
+                      ? 'Credencial configurada'
+                      : 'Não configuradas',
+                  ],
+                  ...(overview.data.mercadoPago.providerImplemented
+                    ? []
+                    : ([['Integração', 'Ainda não disponível nesta plataforma']] as [
+                        string,
+                        string,
+                      ][])),
+                ]}
+                canManage={canManage}
+                onConfigure={() => {
+                  setOpen('mercadoPago');
+                }}
+              />
+            </div>
+          </SectionCard>
           {open === 'payLocal' && (
             <PayLocalForm
               tenantPublicId={tenantPublicId}
@@ -252,7 +319,7 @@ export function PaymentOptionsModule({
           )}
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -499,30 +566,18 @@ function MercadoPagoForm({
             <option value="PRODUCTION">Produção</option>
           </select>
         </label>
-        <label>
-          Access token
-          <input
-            type="password"
-            autoComplete="off"
-            value={accessToken}
-            placeholder={current.hasCredentials ? 'Manter o token salvo' : 'Informe o token'}
-            onChange={(event) => {
-              setAccessToken(event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          Segredo do webhook
-          <input
-            type="password"
-            autoComplete="off"
-            value={webhookSecret}
-            placeholder={current.hasCredentials ? 'Manter o segredo salvo' : 'Informe o segredo'}
-            onChange={(event) => {
-              setWebhookSecret(event.target.value);
-            }}
-          />
-        </label>
+        <SecretField
+          label="Access token"
+          value={accessToken}
+          placeholder={current.hasCredentials ? 'Manter o token salvo' : 'Informe o token'}
+          onChange={setAccessToken}
+        />
+        <SecretField
+          label="Segredo do webhook"
+          value={webhookSecret}
+          placeholder={current.hasCredentials ? 'Manter o segredo salvo' : 'Informe o segredo'}
+          onChange={setWebhookSecret}
+        />
       </div>
       <p className="muted">Credenciais salvas nunca são exibidas novamente.</p>
     </ConfigDrawer>

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 import { AcceptInvitationPage } from './routes/AcceptInvitationPage.js';
 import { AccessDeniedPage } from './routes/AccessDeniedPage.js';
@@ -79,7 +79,8 @@ export const router = createBrowserRouter([
   { path: '/app/financeiro/pagamentos', element: <HomePage /> },
   { path: '/app/financeiro/fechamentos', element: <HomePage /> },
   { path: '/app/financeiro/relatorios', element: <HomePage /> },
-  { path: '/app/financeiro/gateway', element: <HomePage /> },
+  // A configuração de gateway foi unificada em /app/financeiro/opcoes.
+  { path: '/app/financeiro/gateway', element: <Navigate replace to="/app/financeiro/opcoes" /> },
   { path: '/app/financeiro/opcoes', element: <HomePage /> },
   { path: '/app/produtos', element: <HomePage /> },
   { path: '/app/produtos/estoque', element: <HomePage /> },

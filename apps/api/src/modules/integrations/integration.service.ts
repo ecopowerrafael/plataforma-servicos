@@ -17,8 +17,15 @@ import {
 import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
 import { type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { type AppointmentService } from '../appointments/appointment.service.js';
+import { type AvailabilityService } from '../calendar/availability.service.js';
+import { type CustomerService } from '../customers/customer.service.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
+import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-payment-options.service.js';
+import { type PaymentService } from '../payments/payment.service.js';
+import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
+import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
 
 interface Actor {
   userId: bigint;
@@ -75,8 +82,25 @@ export class IntegrationService {
     private readonly repository: IntegrationRepository,
     private readonly cipher: CredentialsCipher | undefined,
     private readonly whatsappDelivery?: WhatsAppDelivery,
+    appointmentService?: AppointmentService,
+    availabilityService?: AvailabilityService,
+    tenantWhiteLabel?: TenantWhiteLabelService,
+    professionalServices?: ProfessionalServiceLinkService,
+    customerService?: CustomerService,
+    paymentOptions?: TenantPaymentOptionsService,
+    payments?: PaymentService,
   ) {
-    this.assistant = new WhatsAppAssistantService(repository, whatsappDelivery);
+    this.assistant = new WhatsAppAssistantService(
+      repository,
+      whatsappDelivery,
+      appointmentService,
+      availabilityService,
+      tenantWhiteLabel,
+      professionalServices,
+      customerService,
+      paymentOptions,
+      payments,
+    );
   }
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {
     return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repository.client, tenantId, key);

@@ -14,6 +14,14 @@ export const MAIN_MENU_ACTIONS = [
 
 export type MainMenuActionId = (typeof MAIN_MENU_ACTIONS)[number]['actionId'];
 
+export const BOOKING_ACTIONS = [
+  { actionId: 'BOOKING_CONFIRM', label: 'Confirmar presença' },
+  { actionId: 'BOOKING_RESCHEDULE', label: 'Reagendar' },
+  { actionId: 'BOOKING_CANCEL', label: 'Cancelar' },
+  { actionId: 'BOOKING_DIRECTIONS', label: 'Como chegar' },
+  { actionId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' },
+] as const;
+
 /** Inatividade que encerra a sessão. Calculado na próxima mensagem, sem cron. */
 export const CONVERSATION_TIMEOUT_MINUTES = 30;
 

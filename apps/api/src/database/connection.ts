@@ -459,6 +459,13 @@ export function createDatabaseConnection(
       new IntegrationRepository(client),
       credentialsCipher,
       whatsappDelivery,
+      appointments,
+      availability,
+      tenantWhiteLabel,
+      professionalServices,
+      customers,
+      tenantPaymentOptions,
+      payments,
     ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,

@@ -124,6 +124,7 @@ export class IntegrationRepository {
       status?: string;
       currentFlow?: string;
       currentStep?: string | null;
+      context?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
       customerId?: bigint | null;
       lastInboundAt?: Date;
       lastOutboundAt?: Date;
@@ -145,8 +146,11 @@ export class IntegrationRepository {
   public tenantName(tenantId: bigint) {
     return this.client.tenant.findUnique({
       where: { id: tenantId },
-      select: { displayName: true },
+      select: { displayName: true, timezone: true, currency: true },
     });
+  }
+  public tenantSlug(tenantId: bigint) {
+    return this.client.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
   }
   public customerName(customerId: bigint) {
     return this.client.customer.findUnique({ where: { id: customerId }, select: { name: true } });

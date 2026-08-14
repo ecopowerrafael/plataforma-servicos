@@ -197,6 +197,11 @@ export class AppointmentService {
     if (x?.professionalId !== professionalId) throw this.notFound();
     return pub(x);
   }
+  async getForCustomer(t: bigint, customerId: bigint, id: string) {
+    const x = await this.repo.find(t, id);
+    if (x?.customerId !== customerId) throw this.notFound();
+    return pub(x);
+  }
   async history(t: bigint, id: string) {
     const x = await this.repo.find(t, id);
     if (x === null) throw this.notFound();

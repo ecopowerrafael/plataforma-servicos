@@ -181,6 +181,9 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
           {sendButtons.data.externalMessageId === null ? null : (
             <small>{`Message ID: ${sendButtons.data.externalMessageId}`}</small>
           )}
+          {sendButtons.data.queuedId === null ? null : (
+            <small>{`ID na fila: ${sendButtons.data.queuedId}`}</small>
+          )}
           {operationError(sendButtons.data) === '' ? null : (
             <small>{operationError(sendButtons.data)}</small>
           )}

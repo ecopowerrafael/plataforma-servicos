@@ -34,6 +34,8 @@ export interface WhatsAppOperationResult {
   externalCode: string | null;
   message: string;
   externalMessageId: string | null;
+  /** `insertedId`: id da mensagem dentro da fila da API, útil no diagnóstico. */
+  queuedId: string | null;
 }
 
 export interface WhatsAppDelivery {
@@ -100,6 +102,7 @@ async function mapOperationResponse(
   const externalMessageId = sanitizeExternalText(
     payload.messageId ?? payload.id ?? nested.messageId ?? nested.id,
   );
+  const queuedId = sanitizeExternalText(payload.insertedId ?? nested.insertedId);
   if (!response.ok || payload.error === true)
     return {
       ok: false,
@@ -109,6 +112,7 @@ async function mapOperationResponse(
         externalMessage ??
         `O WhatsApp respondeu HTTP ${String(response.status)} sem detalhamento.`,
       externalMessageId: null,
+      queuedId: null,
     };
   return {
     ok: true,
@@ -116,6 +120,7 @@ async function mapOperationResponse(
     externalCode,
     message: externalMessage ?? successMessage,
     externalMessageId,
+    queuedId,
   };
 }
 
@@ -130,6 +135,7 @@ function mapOperationTransportError(error: unknown): WhatsAppOperationResult {
       ? 'A chamada demorou mais que o esperado. Tente novamente.'
       : 'Não foi possível acessar o serviço do WhatsApp. Verifique a rede e tente novamente.',
     externalMessageId: null,
+    queuedId: null,
   };
 }
 
@@ -193,11 +199,13 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          // `delayMessage` é documentado como 1–15 segundos; omitido, a própria
+          // API aplica o atraso padrão dela. O `0` que a coleção Postman traz
+          // está fora da faixa, então não é enviado.
           body: JSON.stringify({
             phone: to,
             message,
             buttons: buttons.map(({ buttonId, label }) => ({ buttonId, label })),
-            delayMessage: 0,
           }),
           signal: AbortSignal.timeout(15_000),
         },
@@ -242,7 +250,9 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
     };
     return {
       instance: await probe('/v1/instance/fetch-instance'),
-      queue: await probe('/v1/instance/quere/quere'),
+      // A coleção Postman traz `/v1/instance/quere/quere`, que responde 404.
+      // O caminho que a API aceita é `/v1/quere/quere`.
+      queue: await probe('/v1/quere/quere'),
     };
   }
 

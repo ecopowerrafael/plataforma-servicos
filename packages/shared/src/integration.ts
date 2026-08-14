@@ -34,6 +34,7 @@ export const WhatsAppOperationResultSchema = z.object({
   externalCode: z.string().nullable(),
   message: z.string(),
   externalMessageId: z.string().nullable(),
+  queuedId: z.string().nullable(),
 });
 export const WhatsAppButtonTestResponseSchema = WhatsAppOperationResultSchema.extend({
   actionIds: z.array(z.string()),

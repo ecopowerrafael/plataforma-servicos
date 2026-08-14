@@ -5934,6 +5934,8 @@ h1 {
   gap: 1rem;
   justify-content: space-between;
   padding-block: 1.1rem;
+  background: var(--tenant-header, transparent);
+  color: var(--tenant-header-text, inherit);
 }
 .public-brand {
   align-items: center;

@@ -18,6 +18,11 @@ export const PALETTE_FIELDS = [
   { key: 'textColor', label: 'Cor do texto principal', hint: 'Títulos e conteúdo.' },
   { key: 'mutedTextColor', label: 'Cor do texto secundário', hint: 'Legendas e descrições.' },
   { key: 'borderColor', label: 'Cor das bordas', hint: 'Divisórias e contornos.' },
+  { key: 'onPrimaryColor', label: 'Texto dos botões', hint: 'Sobre a cor principal.' },
+  { key: 'headerColor', label: 'Fundo do cabeçalho', hint: 'Topo da página pública.' },
+  { key: 'headerTextColor', label: 'Texto do cabeçalho', hint: 'Nome e ações do topo.' },
+  { key: 'navigationColor', label: 'Navegação inferior', hint: 'Barra inferior do app.' },
+  { key: 'activeColor', label: 'Ícones e itens ativos', hint: 'Item selecionado na navegação.' },
 ] as const satisfies readonly { key: keyof BrandPalette; label: string; hint: string }[];
 
 const HEX = /^#[0-9A-Fa-f]{6}$/u;

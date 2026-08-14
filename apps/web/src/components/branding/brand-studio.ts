@@ -92,7 +92,14 @@ export type BrandPalette = Pick<
   | 'textColor'
   | 'mutedTextColor'
   | 'borderColor'
->;
+> & {
+  /** Tokens semânticos: podem ficar nulos e seguir o valor derivado. */
+  onPrimaryColor: string;
+  headerColor: string;
+  headerTextColor: string;
+  navigationColor: string;
+  activeColor: string;
+};
 
 /** O tema Luxury trabalha sobre superfícies escuras; os demais seguem claros. */
 export function deriveBrandPalette(
@@ -110,16 +117,27 @@ export function deriveBrandPalette(
       textColor: '#F5F1E8',
       mutedTextColor: '#A7A29A',
       borderColor: '#2A2A2E',
+      onPrimaryColor: contrastTextColor(primary),
+      headerColor: '#0B0B0C',
+      headerTextColor: '#F5F1E8',
+      navigationColor: '#141416',
+      activeColor: primary,
     };
+  const background = mixHex(primary, '#FFFFFF', 0.96);
   return {
     primaryColor: primary,
     secondaryColor: mixHex(primary, '#000000', 0.24),
     accentColor: mixHex(primary, '#FFFFFF', 0.18),
-    backgroundColor: mixHex(primary, '#FFFFFF', 0.96),
+    backgroundColor: background,
     surfaceColor: '#FFFFFF',
     textColor: '#0F172A',
     mutedTextColor: '#64748B',
     borderColor: mixHex(primary, '#FFFFFF', 0.82),
+    onPrimaryColor: contrastTextColor(primary),
+    headerColor: background,
+    headerTextColor: '#0F172A',
+    navigationColor: '#FFFFFF',
+    activeColor: primary,
   };
 }
 

@@ -24,7 +24,8 @@
 }
 .premium-app .premium-header {
   align-items: center;
-  background: var(--tenant-background);
+  background: var(--tenant-header, var(--tenant-background));
+  color: var(--tenant-header-text, var(--tenant-text));
   border-bottom: 1px solid var(--tenant-border);
   display: flex;
   gap: 1rem;
@@ -309,7 +310,7 @@
 }
 .premium-app .premium-bottom-nav {
   align-items: center;
-  background: color-mix(in srgb, var(--tenant-surface) 92%, #000);
+  background: var(--tenant-navigation, color-mix(in srgb, var(--tenant-surface) 92%, #000));
   border-top: 1px solid var(--tenant-border);
   bottom: 0;
   display: grid;
@@ -329,7 +330,7 @@
   min-height: 52px;
 }
 .premium-bottom-nav button[aria-current='page'] {
-  color: var(--tenant-primary);
+  color: var(--tenant-active, var(--tenant-primary));
 }
 .premium-bottom-nav small {
   font-size: 0.68rem;

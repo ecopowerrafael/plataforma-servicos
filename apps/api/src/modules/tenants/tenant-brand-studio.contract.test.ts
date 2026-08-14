@@ -77,11 +77,21 @@ describe('tenant Brand Studio contracts', () => {
     expect(contrastTextColor('#111827')).toBe('#FFFFFF');
   });
 
-  it('persists theme, color, splash and PWA icon through existing tenant endpoints', () => {
+  it('persists theme and colors through existing tenant endpoints', () => {
     expect(brandStudioSource).toContain("'/tenant/branding'");
     expect(brandStudioSource).toContain("'/tenant/public-site'");
-    expect(brandStudioSource).toContain("kind: 'SPLASH'");
-    expect(brandStudioSource).toContain("kind: 'APP_ICON'");
+    expect(brandStudioSource).toContain("kind: 'LOGO'");
+  });
+
+  it('keeps splash and PWA icon on the app screen, with the same endpoints', () => {
+    const pwaSource = readFileSync(
+      new URL('../../../../web/src/components/tenants/TenantPwaModule.tsx', import.meta.url),
+      'utf8',
+    );
+    expect(pwaSource).toContain("kind: 'SPLASH'");
+    expect(pwaSource).toContain("kind: 'APP_ICON'");
+    expect(pwaSource).toContain('/tenant/media/${kind}');
+    expect(brandStudioSource).not.toContain("kind: 'SPLASH'");
   });
 
   it('keeps uploads isolated by tenant and validates real image content', () => {

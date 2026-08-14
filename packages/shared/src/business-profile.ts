@@ -323,6 +323,15 @@ export const TenantBrandingSchema = BusinessThemeSchema.pick({
   fontFamily: true,
 }).extend({
   useProfileDefaults: z.boolean(),
+  /**
+   * Tokens semânticos opcionais. `null` mantém o comportamento atual: a
+   * página pública deriva o valor a partir das cores base.
+   */
+  onPrimaryColor: TenantHexColorSchema.nullable().default(null),
+  headerColor: TenantHexColorSchema.nullable().default(null),
+  headerTextColor: TenantHexColorSchema.nullable().default(null),
+  navigationColor: TenantHexColorSchema.nullable().default(null),
+  activeColor: TenantHexColorSchema.nullable().default(null),
   logoUrl: SafeAssetUrlSchema.nullable(),
   faviconUrl: SafeAssetUrlSchema.nullable(),
   bannerUrl: SafeAssetUrlSchema.nullable(),

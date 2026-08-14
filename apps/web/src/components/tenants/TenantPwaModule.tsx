@@ -1,9 +1,17 @@
-import { TenantPwaResponseSchema } from '@plataforma/shared';
+import {
+  SuccessResponseSchema,
+  TenantMediaAssetSchema,
+  TenantPwaResponseSchema,
+  TenantWhiteLabelResponseSchema,
+} from '@plataforma/shared';
 import { IconCheck, IconDeviceMobile, IconX } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { environment } from '../../config/environment.js';
 import { httpClient, HttpError } from '../../lib/http.js';
+import { BrandAssetCard } from '../branding/BrandAssetCard.js';
 import {
   InlineAlert,
   ListSkeleton,
@@ -32,6 +40,63 @@ export function TenantPwaModule({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const queryKey = ['tenant', tenantPublicId, 'pwa'];
+
+  const whiteLabelKey = ['tenant', tenantPublicId, 'white-label'];
+  const whiteLabel = useQuery({
+    queryKey: whiteLabelKey,
+    queryFn: () =>
+      httpClient.request('/tenant/white-label', {
+        schema: TenantWhiteLabelResponseSchema,
+        tenantPublicId,
+      }),
+    retry: false,
+  });
+
+  const assets = useMemo(
+    () => new Map(whiteLabel.data?.assets.map((asset) => [asset.kind, asset])),
+    [whiteLabel.data?.assets],
+  );
+  const assetUrl = (kind: 'APP_ICON' | 'SPLASH') => {
+    const asset = assets.get(kind);
+    return asset === undefined ? undefined : `${environment.apiUrl}${asset.url}`;
+  };
+
+  const refreshAssets = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: whiteLabelKey }),
+      queryClient.invalidateQueries({ queryKey }),
+    ]);
+  };
+
+  // Mesmos endpoints e storage do Brand Studio: só o lugar da UI mudou.
+  const upload = useMutation({
+    mutationFn: ({ kind, file }: { kind: 'APP_ICON' | 'SPLASH'; file: File }) => {
+      const body = new FormData();
+      body.set('file', file, file.name);
+      return httpClient.request(`/tenant/media/${kind}`, {
+        method: 'POST',
+        body,
+        schema: TenantMediaAssetSchema,
+        tenantPublicId,
+      });
+    },
+    onSuccess: refreshAssets,
+  });
+
+  const removeAsset = useMutation({
+    mutationFn: (publicId: string) =>
+      httpClient.request(`/tenant/media/${publicId}`, {
+        method: 'DELETE',
+        schema: SuccessResponseSchema,
+        tenantPublicId,
+      }),
+    onSuccess: refreshAssets,
+  });
+
+  const removeKind = (kind: 'APP_ICON' | 'SPLASH') => {
+    const asset = assets.get(kind);
+    if (asset !== undefined) removeAsset.mutate(asset.publicId);
+  };
 
   const pwa = useQuery({
     queryKey,
@@ -84,6 +149,61 @@ export function TenantPwaModule({
           Verifique sua conexão e tente novamente.
         </InlineAlert>
       ) : null}
+
+      {data !== undefined && (
+        <SectionCard
+          title="Imagens do aplicativo"
+          description="Ícone e tela de abertura usados na instalação. Ficam só aqui — Marca e aparência cuida da logo e das cores."
+        >
+          <div className="brand-app-assets">
+            <BrandAssetCard
+              title="Ícone do aplicativo"
+              description="Quadrado, mínimo 512×512. Usado na tela inicial do celular."
+              previewUrl={assetUrl('APP_ICON')}
+              busy={upload.isPending || removeAsset.isPending}
+              shape="square"
+              square
+              onUpload={(file) => {
+                upload.mutate({ kind: 'APP_ICON', file });
+              }}
+              onRemove={
+                assets.has('APP_ICON')
+                  ? () => {
+                      removeKind('APP_ICON');
+                    }
+                  : undefined
+              }
+            />
+            <BrandAssetCard
+              title="Tela de abertura"
+              description="Imagem vertical, com área central livre. Opcional."
+              previewUrl={assetUrl('SPLASH')}
+              busy={upload.isPending || removeAsset.isPending}
+              shape="portrait"
+              extraAction={
+                assets.has('SPLASH')
+                  ? {
+                      label: 'Usar meu logo automaticamente',
+                      onClick: () => {
+                        removeKind('SPLASH');
+                      },
+                    }
+                  : undefined
+              }
+              onUpload={(file) => {
+                upload.mutate({ kind: 'SPLASH', file });
+              }}
+              onRemove={
+                assets.has('SPLASH')
+                  ? () => {
+                      removeKind('SPLASH');
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        </SectionCard>
+      )}
 
       {data !== undefined && (
         <SectionCard

@@ -200,6 +200,27 @@ export class TenantWhiteLabelService {
       borderColor: input.borderColor ?? tenant.branding?.borderColor ?? defaults.borderColor,
       borderRadius: input.borderRadius ?? tenant.branding?.borderRadius ?? defaults.borderRadius,
       fontFamily: input.fontFamily ?? tenant.branding?.fontFamily ?? defaults.fontFamily,
+      // Tokens semânticos opcionais: `null` explícito volta ao derivado.
+      onPrimaryColor:
+        input.onPrimaryColor === undefined
+          ? (tenant.branding?.onPrimaryColor ?? null)
+          : input.onPrimaryColor,
+      headerColor:
+        input.headerColor === undefined
+          ? (tenant.branding?.headerColor ?? null)
+          : input.headerColor,
+      headerTextColor:
+        input.headerTextColor === undefined
+          ? (tenant.branding?.headerTextColor ?? null)
+          : input.headerTextColor,
+      navigationColor:
+        input.navigationColor === undefined
+          ? (tenant.branding?.navigationColor ?? null)
+          : input.navigationColor,
+      activeColor:
+        input.activeColor === undefined
+          ? (tenant.branding?.activeColor ?? null)
+          : input.activeColor,
       logoUrl: input.logoUrl === undefined ? (tenant.branding?.logoUrl ?? null) : input.logoUrl,
       faviconUrl:
         input.faviconUrl === undefined ? (tenant.branding?.faviconUrl ?? null) : input.faviconUrl,

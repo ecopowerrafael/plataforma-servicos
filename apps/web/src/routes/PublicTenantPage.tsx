@@ -8,6 +8,7 @@ import { CustomerAccountSheet } from '../components/public/CustomerAccountSheet.
 import { PremiumApp } from '../components/public/premium/PremiumApp.js';
 import { PublicHeader } from '../components/public/PublicHeader.js';
 import { PwaInstall } from '../components/public/PwaInstall.js';
+import { usePreviewOverride } from '../components/public/use-preview-override.js';
 import { PublicBookingFlow } from '../components/PublicBookingFlow.js';
 import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
@@ -36,6 +37,7 @@ export function PublicTenantPage() {
       window.matchMedia('(display-mode: standalone)').matches,
   );
   const [accountOpen, setAccountOpen] = useState(false);
+  const previewOverride = usePreviewOverride();
   const mediaUrl = (path: string) => `${environment.apiUrl}${path}`;
   const customer = useQuery({
     queryKey: ['public', slug, 'customer', 'me'],
@@ -131,7 +133,15 @@ export function PublicTenantPage() {
       </main>
     );
   }
-  const activeTheme = searchParams.get('previewTheme') ?? site.data.site.theme;
+  // Ajustes vindos do Brand Studio valem só em memória (ver `usePreviewOverride`).
+  const branding = {
+    ...site.data.branding,
+    ...Object.fromEntries(
+      Object.entries(previewOverride?.branding ?? {}).filter(([, value]) => value !== undefined),
+    ),
+  };
+  const activeTheme =
+    previewOverride?.theme ?? searchParams.get('previewTheme') ?? site.data.site.theme;
   const Theme =
     activeTheme === 'MODERN'
       ? ModernTheme
@@ -141,7 +151,8 @@ export function PublicTenantPage() {
           ? LuxuryTheme
           : ClassicTheme;
   // Modelo e tema são independentes: o modelo define a estrutura, o tema as cores.
-  const layout = searchParams.get('previewLayout') ?? site.data.site.layout;
+  const layout =
+    previewOverride?.layout ?? searchParams.get('previewLayout') ?? site.data.site.layout;
   const asset = (kind: string) => site.data.assets.find((item) => item.kind === kind);
   const logo = asset('LOGO');
   const banner = asset('BANNER_DESKTOP');
@@ -158,17 +169,23 @@ export function PublicTenantPage() {
       <div
         style={
           {
-            '--tenant-primary': site.data.branding.primaryColor,
-            '--tenant-on-primary': contrastTextColor(site.data.branding.primaryColor),
-            '--tenant-secondary': site.data.branding.secondaryColor,
-            '--tenant-accent': site.data.branding.accentColor,
-            '--tenant-background': site.data.branding.backgroundColor,
-            '--tenant-surface': site.data.branding.surfaceColor,
-            '--tenant-text': site.data.branding.textColor,
-            '--tenant-muted': site.data.branding.mutedTextColor,
-            '--tenant-border': site.data.branding.borderColor,
-            '--tenant-radius': site.data.branding.borderRadius,
-            '--tenant-font': site.data.branding.fontFamily,
+            '--tenant-primary': branding.primaryColor,
+            // Tokens semânticos: o valor salvo vence; `null` mantém o derivado.
+            '--tenant-on-primary':
+              branding.onPrimaryColor ?? contrastTextColor(branding.primaryColor),
+            '--tenant-header': branding.headerColor ?? branding.backgroundColor,
+            '--tenant-header-text': branding.headerTextColor ?? branding.textColor,
+            '--tenant-navigation': branding.navigationColor ?? branding.surfaceColor,
+            '--tenant-active': branding.activeColor ?? branding.primaryColor,
+            '--tenant-secondary': branding.secondaryColor,
+            '--tenant-accent': branding.accentColor,
+            '--tenant-background': branding.backgroundColor,
+            '--tenant-surface': branding.surfaceColor,
+            '--tenant-text': branding.textColor,
+            '--tenant-muted': branding.mutedTextColor,
+            '--tenant-border': branding.borderColor,
+            '--tenant-radius': branding.borderRadius,
+            '--tenant-font': branding.fontFamily,
             '--tenant-banner-desktop':
               banner === undefined ? 'none' : `url(${mediaUrl(banner.url)})`,
             '--tenant-banner-mobile':

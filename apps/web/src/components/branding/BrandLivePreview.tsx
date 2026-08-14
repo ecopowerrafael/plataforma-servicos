@@ -1,4 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import {
+  PREVIEW_MESSAGE_TYPE,
+  type PreviewOverride,
+} from '../public/use-preview-override.js';
 
 /**
  * Preview real: renderiza a própria página pública do tenant dentro de um
@@ -11,12 +16,15 @@ export function BrandLivePreview({
   version,
   mode,
   onModeChange,
+  override,
 }: {
   slug: string;
   /** Muda a cada alteração salva para forçar o recarregamento do iframe. */
   version: number;
   mode: 'mobile' | 'desktop';
   onModeChange: (mode: 'mobile' | 'desktop') => void;
+  /** Valores em edição, aplicados só na memória da prévia. */
+  override?: PreviewOverride;
 }) {
   const frame = useRef<HTMLIFrameElement | null>(null);
   // O estado de carregamento é derivado da fonte atual: trocar versão ou
@@ -26,6 +34,16 @@ export function BrandLivePreview({
   // impedindo qualquer aninhamento recursivo.
   const source = `/public/${slug}?preview=1&v=${String(version)}`;
   const loading = loaded !== `${source}|${mode}`;
+
+  // Repassa a edição atual para a prévia. Mesma origem e estrutura fixa; o
+  // iframe valida de novo antes de aplicar e nada é persistido.
+  useEffect(() => {
+    if (loading || override === undefined) return;
+    frame.current?.contentWindow?.postMessage(
+      { type: PREVIEW_MESSAGE_TYPE, ...override },
+      window.location.origin,
+    );
+  }, [loading, override]);
 
   return (
     <div className="brand-preview">

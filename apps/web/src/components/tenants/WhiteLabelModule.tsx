@@ -22,7 +22,7 @@ import { BrandThemePicker } from '../branding/BrandThemePicker.js';
 import { PublicLayoutPicker } from '../branding/PublicLayoutPicker.js';
 import { PageHeader } from '../ui/AppUi.js';
 
-type AssetKind = 'LOGO' | 'APP_ICON' | 'SPLASH';
+type AssetKind = 'LOGO';
 
 const PALETTE_KEYS = [
   'primaryColor',
@@ -33,6 +33,11 @@ const PALETTE_KEYS = [
   'textColor',
   'mutedTextColor',
   'borderColor',
+  'onPrimaryColor',
+  'headerColor',
+  'headerTextColor',
+  'navigationColor',
+  'activeColor',
 ] as const satisfies readonly (keyof BrandPalette)[];
 
 const HEX = /^#[0-9A-Fa-f]{6}$/u;
@@ -74,12 +79,13 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
 
   const savedPalette = useMemo<BrandPalette>(() => {
     const branding = settings.data?.branding;
-    const fallback = deriveBrandPalette('#2457D6', theme);
-    if (branding === undefined) return fallback;
+    // Tokens semânticos ainda não escolhidos seguem o derivado do tema, que é
+    // exatamente o que a página pública mostra hoje para tenants legados.
+    const derived = deriveBrandPalette(branding?.primaryColor ?? '#2457D6', theme);
+    if (branding === undefined) return derived;
     return Object.fromEntries(
-      PALETTE_KEYS.map((key) => [key, branding[key]]),
+      PALETTE_KEYS.map((key) => [key, branding[key] ?? derived[key]]),
     ) as BrandPalette;
-    // O tema entra no fallback apenas quando não há branding salvo.
   }, [settings.data?.branding, theme]);
 
   const palette = { ...savedPalette, ...paletteOverride };
@@ -187,6 +193,8 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
       version={previewVersion}
       mode={previewMode}
       onModeChange={setPreviewMode}
+      // Enviado ao iframe a cada edição: aplica em memória, sem persistir.
+      override={{ theme, layout, branding: palette }}
     />
   );
 
@@ -294,58 +302,6 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
             />
           </section>
 
-          <section className="brand-settings-card">
-            <span className="brand-section-number">05</span>
-            <h3>Aplicativo</h3>
-            <p>Imagens usadas quando seus clientes instalam o aplicativo.</p>
-            <div className="brand-app-assets">
-              <BrandAssetCard
-                title="Tela de abertura"
-                description="Imagem vertical, com área central livre."
-                previewUrl={assetUrl('SPLASH')}
-                busy={busy}
-                shape="portrait"
-                extraAction={
-                  assets.has('SPLASH')
-                    ? {
-                        label: 'Usar meu logo automaticamente',
-                        onClick: () => {
-                          removeKind('SPLASH');
-                        },
-                      }
-                    : undefined
-                }
-                onUpload={(file) => {
-                  upload.mutate({ kind: 'SPLASH', file });
-                }}
-                onRemove={
-                  assets.has('SPLASH')
-                    ? () => {
-                        removeKind('SPLASH');
-                      }
-                    : undefined
-                }
-              />
-              <BrandAssetCard
-                title="Ícone do aplicativo"
-                description="Usado quando o aplicativo é adicionado à tela inicial. Quadrado, mínimo 512×512."
-                previewUrl={assetUrl('APP_ICON')}
-                busy={busy}
-                shape="square"
-                square
-                onUpload={(file) => {
-                  upload.mutate({ kind: 'APP_ICON', file });
-                }}
-                onRemove={
-                  assets.has('APP_ICON')
-                    ? () => {
-                        removeKind('APP_ICON');
-                      }
-                    : undefined
-                }
-              />
-            </div>
-          </section>
         </div>
 
         <aside className="brand-preview-panel">{preview}</aside>

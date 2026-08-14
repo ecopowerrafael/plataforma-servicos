@@ -9,9 +9,9 @@ import { useState } from 'react';
 import { httpClient } from '../../lib/http.js';
 
 const kindLabels: Record<string, string> = {
-  'appointment.booking_confirmed': 'Confirmação de agendamento',
+  'appointment.booking_confirmed': 'Novo agendamento confirmado',
   'appointment.booking_canceled': 'Cancelamento de agendamento',
-  'appointment.reminder': 'Lembrete de atendimento',
+  'appointment.reminder': 'Lembrete de agendamento',
 };
 
 function TemplateEditor({
@@ -26,12 +26,21 @@ function TemplateEditor({
   const queryClient = useQueryClient();
   const [subject, setSubject] = useState(entry.subject);
   const [body, setBody] = useState(entry.body);
+  const [title, setTitle] = useState(entry.title);
+  const [intro, setIntro] = useState(entry.intro);
+  const [afterText, setAfterText] = useState(entry.afterText);
+  const [ctaLabel, setCtaLabel] = useState(entry.ctaLabel);
+  const editableEmail = entry.kind === 'appointment.booking_confirmed';
 
   const save = useMutation({
     mutationFn: () =>
       httpClient.request(`/tenant/notification-templates/${entry.kind}`, {
         method: 'PUT',
-        body: { subject, body },
+        body: {
+          subject,
+          body,
+          ...(editableEmail ? { title, intro, afterText, ctaLabel } : {}),
+        },
         schema: SuccessResponseSchema,
         tenantPublicId,
       }),
@@ -73,7 +82,7 @@ function TemplateEditor({
         />
       </label>
       <label>
-        Corpo
+        {editableEmail ? 'Fallback em texto simples' : 'Corpo'}
         <textarea
           rows={4}
           value={body}
@@ -82,6 +91,43 @@ function TemplateEditor({
           }}
         />
       </label>
+      {editableEmail ? (
+        <>
+          <p><strong>Canal:</strong> E-mail</p>
+          <label>
+            Título principal
+            <input value={title} onChange={(event) => { setTitle(event.target.value); }} />
+          </label>
+          <label>
+            Texto introdutório
+            <textarea rows={3} value={intro} onChange={(event) => { setIntro(event.target.value); }} />
+          </label>
+          <label>
+            Texto após os dados
+            <textarea rows={3} value={afterText} onChange={(event) => { setAfterText(event.target.value); }} />
+          </label>
+          <label>
+            Texto do botão
+            <input value={ctaLabel} onChange={(event) => { setCtaLabel(event.target.value); }} />
+          </label>
+          <aside className="notification-template-preview" aria-label="Prévia do e-mail">
+            <small>Prévia do e-mail</small>
+            <strong>{title || 'Seu agendamento está confirmado'}</strong>
+            <p>{intro || 'Olá, Cliente! Seu horário foi reservado com sucesso.'}</p>
+            <dl>
+              <div><dt>Serviço</dt><dd>Serviço</dd></div>
+              <div><dt>Profissional</dt><dd>Profissional</dd></div>
+              <div><dt>Data</dt><dd>14 de agosto</dd></div>
+              <div><dt>Horário</dt><dd>14:15</dd></div>
+            </dl>
+            <span>{ctaLabel || 'Ver meu agendamento'}</span>
+            <p>{afterText}</p>
+          </aside>
+          <small>
+            Variáveis: {'{{customerName}}'}, {'{{tenantName}}'}, {'{{serviceName}}'}, {'{{professionalName}}'}, {'{{date}}'}, {'{{time}}'}, {'{{unitName}}'}, {'{{value}}'}, {'{{protocol}}'} e {'{{appointmentUrl}}'}.
+          </small>
+        </>
+      ) : null}
       {canManage && (
         <div className="form-row">
           <button

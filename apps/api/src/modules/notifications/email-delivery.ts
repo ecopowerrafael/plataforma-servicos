@@ -4,6 +4,8 @@ export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
+  html?: string | undefined;
+  fromName?: string | undefined;
 }
 
 export interface EmailDelivery {
@@ -68,10 +70,14 @@ export class SmtpEmailDelivery implements EmailDelivery {
   public async send(message: EmailMessage): Promise<void> {
     const transport = await this.transporter();
     await transport.sendMail({
-      from: this.options.from,
+      from:
+        message.fromName === undefined
+          ? this.options.from
+          : { name: message.fromName, address: this.options.from },
       to: message.to,
       subject: message.subject,
       text: message.text,
+      ...(message.html === undefined ? {} : { html: message.html }),
     });
   }
 }

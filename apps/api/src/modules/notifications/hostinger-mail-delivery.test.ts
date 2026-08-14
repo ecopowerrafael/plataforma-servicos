@@ -151,6 +151,21 @@ describe('HostingerMailApiDelivery', () => {
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(2);
   });
 
+  it('envia HTML e fromName pela Mail API', async () => {
+    await build({ mailboxResourceId: 'mbx_1' }).send({
+      ...message,
+      html: '<strong>Seu horário</strong>',
+      fromName: 'Barbearia Silva via Agendei',
+    });
+    expect(JSON.parse(requests[0]?.body ?? '{}')).toEqual({
+      to: ['cliente@exemplo.com'],
+      subject: 'Recuperação',
+      text: 'Seu link',
+      html: '<strong>Seu horário</strong>',
+      displayName: 'Barbearia Silva via Agendei',
+    });
+  });
+
   it('dispensa a descoberta quando o mailbox vem configurado', async () => {
     await build({ mailboxResourceId: 'mbx_1' }).send(message);
     expect(requests.map((request) => request.url)).toEqual(['/api/v1/mailboxes/mbx_1/send']);

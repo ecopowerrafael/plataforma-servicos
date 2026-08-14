@@ -20,6 +20,37 @@ export interface NotificationInput {
   recipient: string;
   subject: string;
   body: string;
+  email?: { html: string; fromName: string } | undefined;
+}
+
+const EMAIL_ENVELOPE_PREFIX = '__AG_EMAIL_V1__';
+
+function encodeEmailBody(input: NotificationInput): string {
+  if (input.channel !== 'EMAIL' || input.email === undefined) return input.body;
+  return `${EMAIL_ENVELOPE_PREFIX}${JSON.stringify({
+    text: input.body,
+    html: input.email.html,
+    fromName: input.email.fromName,
+  })}`;
+}
+
+function decodeEmailBody(body: string): { text: string; html?: string; fromName?: string } {
+  if (!body.startsWith(EMAIL_ENVELOPE_PREFIX)) return { text: body };
+  try {
+    const value = JSON.parse(body.slice(EMAIL_ENVELOPE_PREFIX.length)) as {
+      text?: unknown;
+      html?: unknown;
+      fromName?: unknown;
+    };
+    if (typeof value.text !== 'string') return { text: body };
+    return {
+      text: value.text,
+      ...(typeof value.html === 'string' ? { html: value.html } : {}),
+      ...(typeof value.fromName === 'string' ? { fromName: value.fromName } : {}),
+    };
+  } catch {
+    return { text: body };
+  }
 }
 
 export interface NotificationDeliveries {
@@ -78,7 +109,7 @@ export class NotificationService {
           targetPublicId: input.targetPublicId,
           recipient: input.recipient,
           subject: input.subject,
-          body: input.body,
+          body: encodeEmailBody(input),
           status: 'PENDING',
         },
       });
@@ -214,10 +245,13 @@ export class NotificationService {
           throw new IntegrationUnavailableError('Webhook não configurado.');
         await this.deliveries.webhook.send(log.tenantId, log.recipient, log.body, log.publicId);
       } else {
+        const message = decodeEmailBody(log.body);
         await this.deliveries.email.send({
           to: log.recipient,
           subject: log.subject,
-          text: log.body,
+          text: message.text,
+          ...(message.html === undefined ? {} : { html: message.html }),
+          ...(message.fromName === undefined ? {} : { fromName: message.fromName }),
         });
       }
       await this.client.notificationLog.update({

@@ -1,4 +1,8 @@
-import { formatWhen } from './appointment-notification.service.js';
+import {
+  formatAppointmentDate,
+  formatAppointmentTime,
+  formatWhen,
+} from './appointment-notification.service.js';
 import { type CustomerNotificationDispatcher } from './customer-notification-dispatcher.js';
 import { type PrismaClient } from '../../database-client/client.js';
 
@@ -30,7 +34,8 @@ export class AppointmentReminderService {
         customer: { select: { id: true, publicId: true, name: true } },
         professional: { select: { publicName: true } },
         service: { select: { name: true } },
-        tenant: { select: { timezone: true } },
+        tenant: { select: { timezone: true, currency: true } },
+        unit: { select: { name: true } },
       },
     });
     if (appointments.length === 0) return { scheduled: 0 };
@@ -49,6 +54,11 @@ export class AppointmentReminderService {
     for (const appointment of appointments) {
       if (alreadyScheduled.has(appointment.publicId)) continue;
 
+      const startsAtIso = appointment.startsAt.toISOString();
+      const localDate = new Intl.DateTimeFormat('pt-BR', {
+        dateStyle: 'short',
+        timeZone: appointment.tenant.timezone,
+      });
       const dispatched = await this.dispatcher.dispatch(
         appointment.tenantId,
         appointment.customer.id,
@@ -59,7 +69,15 @@ export class AppointmentReminderService {
           protocol: appointment.protocol,
           serviceName: appointment.service.name,
           professionalName: appointment.professional.publicName,
-          when: formatWhen(appointment.startsAt.toISOString(), appointment.tenant.timezone),
+          when: formatWhen(startsAtIso, appointment.tenant.timezone),
+          date: formatAppointmentDate(startsAtIso, appointment.tenant.timezone),
+          time: formatAppointmentTime(startsAtIso, appointment.tenant.timezone),
+          isToday: String(localDate.format(appointment.startsAt) === localDate.format(now)),
+          unitName: appointment.unit?.name ?? '',
+          value: (Number(appointment.priceCents) / 100).toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: appointment.tenant.currency,
+          }),
           canceledReasonLine: '',
         },
       );

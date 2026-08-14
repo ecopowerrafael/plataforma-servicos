@@ -111,9 +111,10 @@ export class HostingerMailApiDelivery implements EmailDelivery {
           to: [message.to],
           subject: message.subject,
           text: message.text,
-          ...(this.options.displayName === undefined
+          ...(message.html === undefined ? {} : { html: message.html }),
+          ...(message.fromName === undefined && this.options.displayName === undefined
             ? {}
-            : { displayName: this.options.displayName }),
+            : { displayName: message.fromName ?? this.options.displayName }),
         }),
       },
     );

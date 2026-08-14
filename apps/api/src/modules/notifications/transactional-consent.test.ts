@@ -25,6 +25,14 @@ function build(acceptsCommunications: boolean, pushSubscriptions = 1) {
         ),
     },
     tenantWhatsAppConfig: { findUnique: vi.fn().mockResolvedValue({ active: true }) },
+    tenant: {
+      findUnique: vi.fn().mockResolvedValue({
+        displayName: 'Barbearia Silva',
+        slug: 'barbearia-silva',
+        branding: { primaryColor: '#2457d6' },
+        mediaAssets: [],
+      }),
+    },
   } as unknown as PrismaClient;
   const templates = {
     render: vi.fn().mockResolvedValue({ subject: 'Assunto', body: 'Corpo' }),

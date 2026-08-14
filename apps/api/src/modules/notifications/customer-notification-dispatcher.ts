@@ -1,10 +1,12 @@
 import { isTransactionalNotification } from '@plataforma/shared';
 
 import {
+  renderPushTemplate,
   type NotificationKind,
   type NotificationTemplateService,
 } from './notification-template.service.js';
 import { type NotificationService } from './notification.service.js';
+import { renderTransactionalEmail } from './transactional-email.js';
 import { type PrismaClient } from '../../database-client/client.js';
 
 /**
@@ -23,6 +25,7 @@ export class CustomerNotificationDispatcher {
     private readonly client: PrismaClient,
     private readonly notifications: NotificationService,
     private readonly templates: NotificationTemplateService,
+    private readonly appWebUrl = process.env.APP_WEB_URL ?? 'http://localhost:5173',
   ) {}
 
   /** Retorna true se ao menos um canal foi enfileirado (útil para contadores de agendamento em lote). */
@@ -60,7 +63,48 @@ export class CustomerNotificationDispatcher {
           )?.active === true;
     if (customer.email === null && subscriptions.length === 0 && !whatsappConfigured) return false;
 
-    const { subject, body } = await this.templates.render(tenantId, kind, variables);
+    const tenant = await this.client.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        displayName: true,
+        slug: true,
+        branding: { select: { primaryColor: true } },
+        mediaAssets: {
+          where: { kind: 'LOGO', deletedAt: null },
+          select: { publicId: true },
+          take: 1,
+        },
+      },
+    });
+    const tenantName = tenant?.displayName ?? 'Agendei';
+    const publicBase = this.appWebUrl.replace(/\/+$/u, '');
+    const appointmentUrl =
+      tenant === null ? publicBase : `${publicBase}/public/${tenant.slug}/conta/agendamentos`;
+    const renderedVariables = { ...variables, tenantName, appointmentUrl };
+    const email = await this.templates.render(tenantId, kind, renderedVariables);
+    const push = kind.startsWith('appointment.')
+      ? renderPushTemplate(kind, renderedVariables)
+      : email;
+    const logo = tenant?.mediaAssets[0];
+    const html = renderTransactionalEmail({
+      tenantName,
+      logoUrl: logo === undefined ? null : `${publicBase}/public/media/${logo.publicId}`,
+      primaryColor: tenant?.branding?.primaryColor ?? '#2457d6',
+      title: email.title ?? email.subject,
+      intro: email.intro ?? `Olá, ${variables.customerName ?? 'cliente'}.`,
+      details: [
+        { label: 'Serviço', value: variables.serviceName ?? '' },
+        { label: 'Profissional', value: variables.professionalName ?? '' },
+        { label: 'Data', value: variables.date ?? '' },
+        { label: 'Horário', value: variables.time ?? '' },
+        { label: 'Unidade', value: variables.unitName ?? '' },
+        { label: 'Valor', value: variables.value ?? '' },
+      ],
+      afterText: email.afterText ?? '',
+      ctaLabel: email.ctaLabel ?? 'Ver agendamento',
+      ctaUrl: appointmentUrl,
+      protocol: variables.protocol,
+    });
 
     if (customer.email !== null) {
       await this.notifications.enqueue(tenantId, {
@@ -69,8 +113,11 @@ export class CustomerNotificationDispatcher {
         targetType,
         targetPublicId,
         recipient: customer.email,
-        subject,
-        body,
+        subject: email.subject,
+        body: email.body,
+        ...(kind.startsWith('appointment.')
+          ? { email: { html, fromName: tenant === null ? 'Agendei' : `${tenantName} via Agendei` } }
+          : {}),
       });
     }
 
@@ -81,8 +128,8 @@ export class CustomerNotificationDispatcher {
         targetType,
         targetPublicId,
         recipient: subscription.publicId,
-        subject,
-        body,
+        subject: push.subject,
+        body: push.body,
       });
     }
     if (whatsappConfigured && customer.whatsapp !== null) {
@@ -92,8 +139,8 @@ export class CustomerNotificationDispatcher {
         targetType,
         targetPublicId,
         recipient: customer.whatsapp.replace(/\D/gu, ''),
-        subject,
-        body,
+        subject: email.subject,
+        body: email.body,
       });
     }
 

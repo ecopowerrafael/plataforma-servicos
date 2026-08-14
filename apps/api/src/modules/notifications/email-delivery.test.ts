@@ -77,6 +77,24 @@ describe('SmtpEmailDelivery', () => {
     expect(source).not.toContain('.verify(');
   });
 
+  it('envia HTML e nome do tenant sem alterar o endereço global', async () => {
+    const delivery = new SmtpEmailDelivery(options);
+    await delivery.send({
+      to: 'cliente@exemplo.com',
+      subject: 'Agendamento',
+      text: 'Fallback',
+      html: '<strong>Confirmado</strong>',
+      fromName: 'Barbearia Silva via Agendei',
+    });
+    expect(sendMail).toHaveBeenCalledWith({
+      from: { name: 'Barbearia Silva via Agendei', address: options.from },
+      to: 'cliente@exemplo.com',
+      subject: 'Agendamento',
+      text: 'Fallback',
+      html: '<strong>Confirmado</strong>',
+    });
+  });
+
   it('omite a autenticação quando não há usuário e senha', async () => {
     const delivery = new SmtpEmailDelivery({ ...options, user: undefined, pass: undefined });
     await delivery.send({ to: 'cliente@exemplo.com', subject: 'Olá', text: 'Mensagem' });

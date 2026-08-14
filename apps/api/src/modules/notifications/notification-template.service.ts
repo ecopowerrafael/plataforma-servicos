@@ -13,23 +13,41 @@ import { type PrismaClient } from '../../database-client/client.js';
 export type NotificationKind = z.infer<typeof NotificationKindSchema>;
 type UpdateInput = z.infer<typeof UpdateNotificationTemplateRequestSchema>;
 
-interface TemplateContent {
+export interface TemplateContent {
   subject: string;
   body: string;
+  title?: string | undefined;
+  intro?: string | undefined;
+  afterText?: string | undefined;
+  ctaLabel?: string | undefined;
 }
+
+const EMAIL_TEMPLATE_PREFIX = '__AG_EMAIL_TEMPLATE_V1__';
 
 const DEFAULT_TEMPLATES: Record<NotificationKind, TemplateContent> = {
   'appointment.booking_confirmed': {
-    subject: 'Agendamento confirmado — protocolo {{protocol}}',
+    subject: 'Seu agendamento foi confirmado — {{tenantName}}',
     body: 'Olá, {{customerName}}!\n\nSeu agendamento foi confirmado.\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nData/hora: {{when}}\nProtocolo: {{protocol}}',
+    title: 'Seu agendamento está confirmado',
+    intro: 'Olá, {{customerName}}! Seu horário foi reservado com sucesso.',
+    afterText: 'Você pode acompanhar, reagendar ou cancelar pelo aplicativo, conforme as regras do estabelecimento.',
+    ctaLabel: 'Ver meu agendamento',
   },
   'appointment.booking_canceled': {
-    subject: 'Agendamento cancelado — protocolo {{protocol}}',
+    subject: 'Agendamento cancelado — {{tenantName}}',
     body: 'Olá, {{customerName}}!\n\nSeu agendamento foi cancelado.\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nData/hora: {{when}}\nProtocolo: {{protocol}}{{canceledReasonLine}}',
+    title: 'Agendamento cancelado',
+    intro: 'Olá, {{customerName}}. Seu agendamento foi cancelado.',
+    afterText: 'Se precisar, você pode escolher um novo horário pelo aplicativo.',
+    ctaLabel: 'Ver agendamentos',
   },
   'appointment.reminder': {
-    subject: 'Lembrete de atendimento — protocolo {{protocol}}',
-    body: 'Olá, {{customerName}}!\n\nEste é um lembrete do seu atendimento agendado.\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nData/hora: {{when}}\nProtocolo: {{protocol}}',
+    subject: 'Lembrete do seu agendamento — {{tenantName}}',
+    body: 'Olá, {{customerName}}. Seu agendamento está chegando.\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nData/hora: {{when}}\nProtocolo: {{protocol}}',
+    title: 'Lembrete de agendamento',
+    intro: 'Olá, {{customerName}}. Seu agendamento está chegando.',
+    afterText: 'Consulte os detalhes do horário pelo aplicativo.',
+    ctaLabel: 'Ver agendamento',
   },
   'customer.recovery.inactive': {
     subject: 'Sentimos sua falta, {{customerName}}',
@@ -59,7 +77,63 @@ export function renderTemplate(
 ): TemplateContent {
   const substitute = (input: string) =>
     input.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) => variables[key] ?? '');
-  return { subject: substitute(template.subject), body: substitute(template.body) };
+  const substituteSubject = (input: string) =>
+    input.replaceAll(/\{\{(\w+)\}\}/g, (_match, key: string) =>
+      key === 'protocol' ? '' : (variables[key] ?? ''),
+    );
+  return {
+    subject: substituteSubject(template.subject),
+    body: substitute(template.body),
+    ...(template.title === undefined ? {} : { title: substitute(template.title) }),
+    ...(template.intro === undefined ? {} : { intro: substitute(template.intro) }),
+    ...(template.afterText === undefined ? {} : { afterText: substitute(template.afterText) }),
+    ...(template.ctaLabel === undefined ? {} : { ctaLabel: substitute(template.ctaLabel) }),
+  };
+}
+
+function decodeStoredTemplate(
+  value: { subject: string; body: string },
+  fallback: TemplateContent,
+): TemplateContent {
+  if (!value.body.startsWith(EMAIL_TEMPLATE_PREFIX)) return { ...fallback, ...value };
+  try {
+    const parsed = JSON.parse(value.body.slice(EMAIL_TEMPLATE_PREFIX.length)) as Partial<TemplateContent>;
+    return {
+      ...fallback,
+      subject: value.subject,
+      body: typeof parsed.body === 'string' ? parsed.body : fallback.body,
+      title: typeof parsed.title === 'string' ? parsed.title : fallback.title,
+      intro: typeof parsed.intro === 'string' ? parsed.intro : fallback.intro,
+      afterText: typeof parsed.afterText === 'string' ? parsed.afterText : fallback.afterText,
+      ctaLabel: typeof parsed.ctaLabel === 'string' ? parsed.ctaLabel : fallback.ctaLabel,
+    };
+  } catch {
+    return { ...fallback, ...value };
+  }
+}
+
+export function renderPushTemplate(
+  kind: NotificationKind,
+  variables: Record<string, string>,
+): TemplateContent {
+  const professional = variables.professionalName?.trim();
+  const withProfessional = professional === undefined || professional === '' ? '' : ` com ${professional}`;
+  if (kind === 'appointment.booking_confirmed')
+    return {
+      subject: 'Agendamento confirmado',
+      body: `Seu horário para ${variables.serviceName ?? 'o serviço'}${withProfessional} está confirmado para ${variables.date ?? ''} às ${variables.time ?? ''}.`,
+    };
+  if (kind === 'appointment.reminder')
+    return {
+      subject: 'Lembrete de agendamento',
+      body: `Seu horário para ${variables.serviceName ?? 'o serviço'}${withProfessional} é ${variables.isToday === 'true' ? 'hoje' : (variables.date ?? '')} às ${variables.time ?? ''}.`,
+    };
+  if (kind === 'appointment.booking_canceled')
+    return {
+      subject: 'Agendamento cancelado',
+      body: `Seu agendamento de ${variables.serviceName ?? 'serviço'} para ${variables.date ?? ''} às ${variables.time ?? ''} foi cancelado.`,
+    };
+  return renderTemplate(DEFAULT_TEMPLATES[kind], variables);
 }
 
 export class NotificationTemplateService {
@@ -72,10 +146,15 @@ export class NotificationTemplateService {
       items: NotificationKinds.map((kind) => {
         const custom = byKind.get(kind);
         const fallback = DEFAULT_TEMPLATES[kind];
+        const resolved = custom === undefined ? fallback : decodeStoredTemplate(custom, fallback);
         return {
           kind,
-          subject: custom?.subject ?? fallback.subject,
-          body: custom?.body ?? fallback.body,
+          subject: resolved.subject,
+          body: resolved.body,
+          title: resolved.title ?? '',
+          intro: resolved.intro ?? '',
+          afterText: resolved.afterText ?? '',
+          ctaLabel: resolved.ctaLabel ?? '',
           isCustom: custom !== undefined,
         };
       }),
@@ -91,6 +170,17 @@ export class NotificationTemplateService {
       where: { tenantId, kind },
       select: { id: true },
     });
+    const fallback = DEFAULT_TEMPLATES[kind];
+    const storedBody =
+      kind === 'appointment.booking_confirmed'
+        ? `${EMAIL_TEMPLATE_PREFIX}${JSON.stringify({
+            body: input.body,
+            title: input.title ?? fallback.title,
+            intro: input.intro ?? fallback.intro,
+            afterText: input.afterText ?? fallback.afterText,
+            ctaLabel: input.ctaLabel ?? fallback.ctaLabel,
+          })}`
+        : input.body;
     if (existing === null) {
       await this.client.notificationTemplate.create({
         data: {
@@ -98,14 +188,14 @@ export class NotificationTemplateService {
           tenantId,
           kind,
           subject: input.subject,
-          body: input.body,
+          body: storedBody,
         },
       });
       return;
     }
     await this.client.notificationTemplate.update({
       where: { id: existing.id },
-      data: { subject: input.subject, body: input.body },
+      data: { subject: input.subject, body: storedBody },
     });
   }
 
@@ -115,6 +205,7 @@ export class NotificationTemplateService {
     variables: Record<string, string>,
   ): Promise<TemplateContent> {
     const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
-    return renderTemplate(custom ?? DEFAULT_TEMPLATES[kind], variables);
+    const fallback = DEFAULT_TEMPLATES[kind];
+    return renderTemplate(custom === null ? fallback : decodeStoredTemplate(custom, fallback), variables);
   }
 }

@@ -82,12 +82,31 @@ export async function registerStaticWeb(
     setHeaders(reply, path) {
       if (path.endsWith('index.html')) {
         reply.setHeader('cache-control', 'no-store, max-age=0, must-revalidate');
-      } else if (/[/\\]assets[/\\].+[-.][a-zA-Z0-9_-]{8,}\.(?:js|css|svg|png|webp|woff2?)$/u.test(path)) {
+      } else if (
+        /[/\\]assets[/\\].+[-.][a-zA-Z0-9_-]{8,}\.(?:js|css|svg|png|webp|woff2?)$/u.test(path)
+      ) {
         reply.setHeader('cache-control', 'public, max-age=31536000, immutable');
       } else {
         reply.setHeader('cache-control', 'public, max-age=300');
       }
     },
+  });
+
+  // As telas administrativas e a API compartilham o prefixo `/platform`.
+  // NavegaÃ§Ãµes do browser pedem HTML; chamadas do cliente HTTP pedem JSON.
+  // Interceptar o HTML antes do roteamento evita que refresh/deep-link de
+  // `/platform/plans`, `/platform/tenants`, etc. seja tratado pelo endpoint
+  // JSON homÃ´nimo.
+  app.addHook('onRequest', async (request, reply) => {
+    const path = request.url.split('?', 1)[0] ?? request.url;
+    const accept = request.headers.accept ?? '';
+    if (
+      request.method === 'GET' &&
+      (path === '/platform' || path.startsWith('/platform/')) &&
+      accept.includes('text/html')
+    ) {
+      return reply.status(200).type('text/html').sendFile('index.html');
+    }
   });
 
   return (request, reply) => {

@@ -161,31 +161,22 @@ export class IntegrationService {
         message: 'Configure o WhatsApp primeiro.',
         statusCode: 400,
       });
-    const payload =
-      variant === 'docs'
-        ? {
-            message: 'Deseja algo mais?',
-            buttons: [
-              { buttonId: 'id1', label: 'SIM' },
-              { buttonId: 'id2', label: 'NÃO' },
-              { buttonId: 'id3', label: 'Voltar para o menu' },
-            ],
-          }
-        : {
-            message: IntegrationService.testMessage,
-            buttons: [
-              { buttonId: 'TEST_CONFIRM', label: 'Confirmar teste' },
-              { buttonId: 'TEST_CANCEL', label: 'Cancelar teste' },
-            ],
-          };
+    // As duas variantes só diferem na grafia do tipo do botão, que a própria
+    // documentação escreve de dois jeitos. Uma delas será aceita.
+    const replyType = variant === 'docs' ? 'REPLAY' : 'REPLY';
+    const buttons = [
+      { buttonId: 'TEST_CONFIRM', label: 'Confirmar teste' },
+      { buttonId: 'TEST_CANCEL', label: 'Cancelar teste' },
+    ];
     const result = await delivery.sendInteractiveButtons(
       tenantId,
       phone,
-      payload.message,
-      payload.buttons,
+      IntegrationService.testMessage,
+      buttons,
+      replyType,
     );
     await this.audit(tenantId, actor, 'integration.whatsapp.button_test_sent', configured.publicId);
-    return { ...result, actionIds: payload.buttons.map((button) => button.buttonId) };
+    return { ...result, actionIds: [replyType] };
   }
 
   /** Registra a URL pública deste ambiente como webhook de recebimento da instância. */

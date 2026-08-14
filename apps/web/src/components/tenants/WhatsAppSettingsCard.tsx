@@ -165,7 +165,7 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
           }}
           type="button"
         >
-          Enviar teste com botões
+          Enviar com tipo REPLY
         </button>
         <button
           disabled={sendButtons.isPending || phone.trim().length < 10}
@@ -174,7 +174,7 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
           }}
           type="button"
         >
-          Enviar exemplo da documentação
+          Enviar com tipo REPLAY
         </button>
         <button
           disabled={controlTest.isPending || phone.trim().length < 10}
@@ -222,7 +222,7 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
         <div className={sendButtons.data.ok ? 'success-message' : 'form-error'}>
           <strong>{sendButtons.data.ok ? 'Enviado — aguardando resposta' : 'Falha no envio'}</strong>
           <p>{sendButtons.data.message}</p>
-          <small>{`IDs enviados: ${sendButtons.data.actionIds.join(' · ')}`}</small>
+          <small>{`Tipo de botão enviado: ${sendButtons.data.actionIds.join(' · ')}`}</small>
           {sendButtons.data.externalMessageId === null ? null : (
             <small>{`Message ID: ${sendButtons.data.externalMessageId}`}</small>
           )}

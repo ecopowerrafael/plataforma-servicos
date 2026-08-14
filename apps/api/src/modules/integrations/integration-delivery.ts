@@ -27,6 +27,13 @@ export interface WhatsAppInteractiveButton {
   label: string;
 }
 
+/**
+ * Tipo do botão de resposta rápida. A documentação se contradiz: a tabela de
+ * atributos diz `REPLY`, o corpo de exemplo usa `REPLAY`. Mantemos os dois para
+ * conseguir provar qual a API aceita, em vez de escolher no chute.
+ */
+export type WhatsAppReplyButtonType = 'REPLY' | 'REPLAY';
+
 /** Resultado sanitizado de uma chamada de escrita na API do WhatsApp. */
 export interface WhatsAppOperationResult {
   ok: boolean;
@@ -46,6 +53,7 @@ export interface WhatsAppDelivery {
     to: string,
     message: string,
     buttons: WhatsAppInteractiveButton[],
+    replyType?: WhatsAppReplyButtonType,
   ): Promise<WhatsAppOperationResult>;
   configureReceivedWebhook(tenantId: bigint, url: string): Promise<WhatsAppOperationResult>;
   inspectInstance(tenantId: bigint): Promise<WhatsAppInstanceDiagnostics>;
@@ -188,7 +196,8 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
     let phoneCheck: WhatsAppProbe;
     try {
       const response = await this.fetcher(
-        `https://api.w-api.app/v1/contacts/phone-exists?instanceId=${encodeURIComponent(instanceId)}&phone=${encodeURIComponent(to)}`,
+        // A API exige `phoneNumber` aqui, e não `phone` como nas rotas de envio.
+        `https://api.w-api.app/v1/contacts/phone-exists?instanceId=${encodeURIComponent(instanceId)}&phoneNumber=${encodeURIComponent(to)}`,
         { headers: { Authorization: authorization }, signal: AbortSignal.timeout(10_000) },
       );
       let payload: unknown = null;
@@ -244,29 +253,38 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
   }
 
   /**
-   * Envia mensagem com botões de resposta.
-   * Endpoint e corpo conforme a coleção oficial (`Mensagens › Enviar texto com botões`).
+   * Envia mensagem com botões de resposta rápida.
+   *
+   * Usa `send-buttons-action`, que é o endpoint que o próprio painel da W-API
+   * dispara. O `send-button-list` aceita a requisição e devolve messageId, mas
+   * a mensagem nunca é entregue.
+   *
+   * O identificador do botão não é escolhido por nós aqui: para `quick_reply` a
+   * API gera o id e o devolve no webhook de entrega da própria mensagem.
    */
   public async sendInteractiveButtons(
     tenantId: bigint,
     to: string,
     message: string,
     buttons: WhatsAppInteractiveButton[],
+    replyType: WhatsAppReplyButtonType = 'REPLY',
   ): Promise<WhatsAppOperationResult> {
     const { instanceId, token } = await this.config(tenantId, true);
     try {
       const response = await this.fetcher(
-        `https://api.w-api.app/v1/message/send-button-list?instanceId=${encodeURIComponent(instanceId)}`,
+        `https://api.w-api.app/v1/message/send-buttons-action?instanceId=${encodeURIComponent(instanceId)}`,
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           // `delayMessage` é documentado como 1–15 segundos; omitido, a própria
-          // API aplica o atraso padrão dela. O `0` que a coleção Postman traz
-          // está fora da faixa, então não é enviado.
+          // API aplica o atraso padrão dela.
           body: JSON.stringify({
             phone: to,
             message,
-            buttons: buttons.map(({ buttonId, label }) => ({ buttonId, label })),
+            buttonActions: buttons.map(({ label }) => ({
+              type: replyType,
+              buttonText: label,
+            })),
           }),
           signal: AbortSignal.timeout(15_000),
         },

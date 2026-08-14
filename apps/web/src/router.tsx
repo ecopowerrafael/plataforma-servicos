@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 import { AcceptInvitationPage } from './routes/AcceptInvitationPage.js';
 import { AccessDeniedPage } from './routes/AccessDeniedPage.js';
+import { CustomerAccountPage } from './routes/CustomerAccountPage.js';
 import { ForgotPasswordPage } from './routes/ForgotPasswordPage.js';
 import { HomePage } from './routes/HomePage.js';
 import { LoginPage } from './routes/LoginPage.js';
@@ -109,6 +110,9 @@ export const router = createBrowserRouter([
   { path: '/access-denied', element: <AccessDeniedPage /> },
   { path: '/platform', element: <PlatformPageRebuild /> },
   { path: '/public/:slug', element: <PublicTenantPage /> },
+  // Área do cliente em página inteira: uma URL por seção.
+  { path: '/public/:slug/conta', element: <CustomerAccountPage /> },
+  { path: '/public/:slug/conta/:section', element: <CustomerAccountPage /> },
   {
     path: '*',
     element: <NotFoundPage />,

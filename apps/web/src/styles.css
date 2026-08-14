@@ -6123,53 +6123,6 @@ h1 {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-.public-sheet-backdrop {
-  align-items: center;
-  background: rgb(9 12 20 / 55%);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 1rem;
-  position: fixed;
-  z-index: 60;
-}
-.public-sheet {
-  background: var(--tenant-surface);
-  border-radius: clamp(1rem, var(--tenant-radius), 1.5rem);
-  color: var(--tenant-text);
-  display: grid;
-  font-family: var(--tenant-font, inherit);
-  grid-template-rows: auto 1fr;
-  max-height: min(88dvh, 40rem);
-  overflow: hidden;
-  width: min(420px, 100%);
-}
-.public-sheet-header {
-  align-items: center;
-  border-bottom: 1px solid var(--tenant-border);
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  padding: 1rem 1.15rem;
-}
-.public-sheet-header strong {
-  font-size: 1rem;
-}
-.public-sheet-header button {
-  background: transparent;
-  border: 0;
-  color: var(--tenant-muted);
-  cursor: pointer;
-  font-size: 1rem;
-  min-height: 40px;
-  min-width: 40px;
-}
-.public-sheet-body {
-  display: grid;
-  gap: 0.9rem;
-  overflow: auto;
-  padding: 1.15rem;
-}
 .public-auth-form {
   display: grid;
   gap: 0.85rem;
@@ -6255,12 +6208,6 @@ h1 {
   margin: 0;
   padding: 0.6rem 0.7rem;
 }
-.public-sheet-hint,
-.public-sheet-loading {
-  color: var(--tenant-muted);
-  font-size: 0.82rem;
-  margin: 0;
-}
 .public-account-identity {
   align-items: center;
   display: grid;
@@ -6311,47 +6258,12 @@ h1 {
 .public-account-menu button.is-danger {
   color: #b42318;
 }
-.public-sheet-back {
-  background: transparent;
-  border: 0;
-  color: var(--tenant-muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  justify-self: start;
-  min-height: 40px;
-  padding: 0;
-}
 .public-account-panel {
   display: grid;
   gap: 1rem;
 }
 /* Dentro do site público, nada usa a paleta do painel administrativo. */
-.public-sheet .platform-form,
-.public-sheet .sessions-panel {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  padding: 0;
-}
-.public-sheet button:not(.is-danger):not(.public-sheet-back):not(.public-auth-tabs button) {
-  background: var(--tenant-primary);
-  color: var(--tenant-on-primary);
-}
-.public-sheet .public-account-menu button,
-.public-sheet .public-sheet-header button {
-  background: transparent;
-  color: inherit;
-}
 @media (max-width: 640px) {
-  .public-sheet-backdrop {
-    align-items: flex-end;
-    padding: 0;
-  }
-  .public-sheet {
-    border-radius: 1.25rem 1.25rem 0 0;
-    max-height: 92dvh;
-    width: 100%;
-  }
   .public-service-grid,
   .public-professional-grid {
     grid-template-columns: 1fr;
@@ -8934,8 +8846,5 @@ h1 {
   .public-account-layout {
     grid-template-columns: 13rem minmax(0, 1fr);
     align-items: start;
-  }
-  .public-sheet {
-    width: min(720px, 100%);
   }
 }

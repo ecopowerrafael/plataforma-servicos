@@ -1,10 +1,9 @@
 import { CustomerAuthResponseSchema, PublicTenantSiteResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { contrastTextColor } from '../components/branding/brand-studio.js';
-import { CustomerAccountSheet } from '../components/public/CustomerAccountSheet.js';
 import { PremiumApp } from '../components/public/premium/PremiumApp.js';
 import { PublicHeader } from '../components/public/PublicHeader.js';
 import { PwaInstall } from '../components/public/PwaInstall.js';
@@ -29,6 +28,7 @@ const initials = (name: string) =>
 
 export function PublicTenantPage() {
   const { slug = '' } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // Embutida no Brand Studio (`?preview=1`) a página nunca mostra a splash.
   const [showSplash, setShowSplash] = useState(
@@ -36,7 +36,6 @@ export function PublicTenantPage() {
       new URLSearchParams(window.location.search).get('preview') !== '1' &&
       window.matchMedia('(display-mode: standalone)').matches,
   );
-  const [accountOpen, setAccountOpen] = useState(false);
   const previewOverride = usePreviewOverride();
   const mediaUrl = (path: string) => `${environment.apiUrl}${path}`;
   const customer = useQuery({
@@ -210,16 +209,6 @@ export function PublicTenantPage() {
           published={site.data.pwaPublished}
           appName={site.data.site.pwaName ?? site.data.displayName}
         />
-        {accountOpen ? (
-          <CustomerAccountSheet
-            slug={slug}
-            services={site.data.services}
-            professionals={site.data.professionals}
-            onClose={() => {
-              setAccountOpen(false);
-            }}
-          />
-        ) : null}
         {layout === 'PREMIUM_APP' ? (
           <PremiumApp
             slug={slug}
@@ -232,7 +221,7 @@ export function PublicTenantPage() {
                 : (customer.data?.customer.photoUpdatedAt ?? null)
             }
             onOpenAccount={() => {
-              setAccountOpen(true);
+              void navigate(`/public/${slug}/conta`);
             }}
           />
         ) : (
@@ -243,7 +232,7 @@ export function PublicTenantPage() {
               logoAlt={logo?.altText ?? null}
               customerName={customer.data?.customer.name ?? null}
               onOpenAccount={() => {
-                setAccountOpen(true);
+                void navigate(`/public/${slug}/conta`);
               }}
             />
             <section className="public-hero">

@@ -75,72 +75,76 @@ export function CustomerFavorites({ slug, services, professionals }: CustomerFav
         : item.servicePublicId === publicId,
     )?.publicId;
 
+  const renderGroup = (
+    title: string,
+    items: FavoriteTarget[],
+    kind: 'professional' | 'service',
+    favoriteIds: Set<string>,
+  ) => (
+    <section className="customer-card" aria-label={title}>
+      <header>
+        <strong>{title}</strong>
+      </header>
+      {items.length === 0 ? (
+        <p className="customer-empty">Nada disponível por aqui ainda.</p>
+      ) : (
+        <div className="customer-favorite-list">
+          {items.map((item) => {
+            const isFavorite = favoriteIds.has(item.publicId);
+            return (
+              <article
+                className={`customer-favorite${isFavorite ? ' is-favorite' : ''}`}
+                key={item.publicId}
+              >
+                <span>{item.name}</span>
+                <button
+                  className={isFavorite ? 'public-link-button' : 'public-secondary-button'}
+                  disabled={busy}
+                  type="button"
+                  aria-pressed={isFavorite}
+                  onClick={() => {
+                    if (isFavorite) {
+                      const favoriteId = findFavoriteId(kind, item.publicId);
+                      if (favoriteId !== undefined) remove.mutate(favoriteId);
+                    } else {
+                      add.mutate(
+                        kind === 'professional'
+                          ? { professionalPublicId: item.publicId }
+                          : { servicePublicId: item.publicId },
+                      );
+                    }
+                  }}
+                >
+                  {isFavorite ? 'Remover' : 'Favoritar'}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+
   return (
-    <section className="platform-form" aria-label="Meus favoritos">
-      <h4>Meus favoritos</h4>
-      {favorites.isPending ? <p>Carregando favoritos…</p> : null}
-      {favorites.error instanceof Error ? (
-        <p className="form-error">Não foi possível carregar os favoritos.</p>
+    <section className="customer-section" aria-label="Meus favoritos">
+      {favorites.isPending ? (
+        <div className="customer-skeleton-list" aria-busy="true">
+          <span />
+          <span />
+        </div>
       ) : null}
-      {errorMessage !== null && (
-        <p className="form-error" role="alert">
+      {favorites.error instanceof Error ? (
+        <p className="public-form-error" role="alert">
+          Não foi possível carregar os favoritos.
+        </p>
+      ) : null}
+      {errorMessage === null ? null : (
+        <p className="public-form-error" role="alert">
           {errorMessage}
         </p>
       )}
-      <div>
-        <strong>{'Profissionais'}</strong>
-        <ul>
-          {professionals.map((professional) => {
-            const isFavorite = favoriteProfessionalIds.has(professional.publicId);
-            return (
-              <li key={professional.publicId}>
-                <span>{professional.name}</span>
-                <button
-                  disabled={busy}
-                  type="button"
-                  onClick={() => {
-                    if (isFavorite) {
-                      const favoriteId = findFavoriteId('professional', professional.publicId);
-                      if (favoriteId !== undefined) remove.mutate(favoriteId);
-                    } else {
-                      add.mutate({ professionalPublicId: professional.publicId });
-                    }
-                  }}
-                >
-                  {isFavorite ? 'Remover dos favoritos' : 'Favoritar'}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-      <div>
-        <strong>{'Serviços'}</strong>
-        <ul>
-          {services.map((service) => {
-            const isFavorite = favoriteServiceIds.has(service.publicId);
-            return (
-              <li key={service.publicId}>
-                <span>{service.name}</span>
-                <button
-                  disabled={busy}
-                  type="button"
-                  onClick={() => {
-                    if (isFavorite) {
-                      const favoriteId = findFavoriteId('service', service.publicId);
-                      if (favoriteId !== undefined) remove.mutate(favoriteId);
-                    } else {
-                      add.mutate({ servicePublicId: service.publicId });
-                    }
-                  }}
-                >
-                  {isFavorite ? 'Remover dos favoritos' : 'Favoritar'}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      {renderGroup('Profissionais', professionals, 'professional', favoriteProfessionalIds)}
+      {renderGroup('Serviços', services, 'service', favoriteServiceIds)}
     </section>
   );
 }

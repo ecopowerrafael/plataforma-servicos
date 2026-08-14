@@ -9,6 +9,8 @@ import './public-premium.css';
 import './public-premium-booking.css';
 import './onboarding.css';
 import './brand-studio.css';
+import './customer-account.css';
+import './my-agenda.css';
 
 const rootElement = document.getElementById('root');
 

@@ -1,0 +1,541 @@
+/* Área do cliente em página inteira (/public/:slug/conta) e status de
+   agendamento compartilhado. Usa os tokens do tenant aplicados na raiz. */
+.customer-account-root {
+  background: var(--tenant-background, #f6f8fd);
+  color: var(--tenant-text, #0f172a);
+  font-family: var(--tenant-font, inherit);
+  min-height: 100vh;
+}
+.customer-account {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto;
+  max-width: 72rem;
+  padding: 1rem;
+  width: 100%;
+}
+.customer-account--loading {
+  align-content: center;
+  justify-items: center;
+  min-height: 60vh;
+  text-align: center;
+}
+.customer-account-header {
+  align-items: center;
+  background: var(--tenant-header, var(--tenant-surface, #fff));
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  color: var(--tenant-header-text, var(--tenant-text, #0f172a));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+}
+.customer-account-back {
+  align-items: center;
+  color: inherit;
+  display: inline-flex;
+  font-size: 0.85rem;
+  font-weight: 650;
+  gap: 0.35rem;
+  text-decoration: none;
+}
+.customer-account-brand img {
+  max-height: 2.5rem;
+  max-width: 10rem;
+  object-fit: contain;
+}
+.customer-account-identity {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.customer-account-identity span:last-child {
+  display: grid;
+  min-width: 0;
+}
+.customer-account-identity small {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.customer-account-avatar {
+  align-items: center;
+  background: var(--tenant-primary, #2457d6);
+  border-radius: 50%;
+  color: var(--tenant-on-primary, #fff);
+  display: flex;
+  flex: none;
+  font-weight: 800;
+  height: 2.5rem;
+  justify-content: center;
+  overflow: hidden;
+  width: 2.5rem;
+}
+.customer-account-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.customer-account-body {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+.customer-account-body--auth {
+  justify-items: center;
+}
+.customer-account-nav {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
+}
+.customer-account-nav a {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: 999px;
+  color: var(--tenant-text, #0f172a);
+  flex: none;
+  font-size: 0.84rem;
+  font-weight: 650;
+  padding: 0.5rem 0.85rem;
+  text-decoration: none;
+}
+.customer-account-nav a[aria-current='page'] {
+  background: var(--tenant-active, var(--tenant-primary, #2457d6));
+  border-color: transparent;
+  color: var(--tenant-on-primary, #fff);
+}
+.customer-account-panel {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 1rem;
+}
+.customer-account-panel > h1 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+.customer-section {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.customer-card {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.85rem;
+}
+.customer-card > header {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.customer-empty {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.86rem;
+  margin: 0;
+}
+.customer-skeleton,
+.customer-skeleton-list span {
+  animation: customer-pulse 1.2s ease-in-out infinite;
+  background: color-mix(in srgb, var(--tenant-border, #e2e8f0) 60%, transparent);
+  border-radius: 0.6rem;
+  display: block;
+  height: 3.5rem;
+}
+.customer-skeleton-list {
+  display: grid;
+  gap: 0.5rem;
+}
+@keyframes customer-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Home da conta */
+.customer-account-home {
+  display: grid;
+  gap: 0.85rem;
+}
+.customer-account-greeting {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+.customer-next-appointment {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.customer-next-time,
+.customer-next-info {
+  display: grid;
+  min-width: 0;
+}
+.customer-next-time strong {
+  font-size: 1.35rem;
+}
+.customer-next-time small,
+.customer-next-info small {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.78rem;
+}
+.customer-next-info {
+  flex: 1;
+}
+.customer-balance-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+.customer-balance {
+  background: color-mix(in srgb, var(--tenant-primary, #2457d6) 8%, transparent);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 0.85rem;
+}
+.customer-balance strong {
+  font-size: 1.25rem;
+}
+.customer-balance small {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.76rem;
+}
+.customer-shortcuts {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+.customer-shortcuts a {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  color: inherit;
+  font-size: 0.88rem;
+  font-weight: 650;
+  padding: 0.75rem 0.85rem;
+  text-decoration: none;
+}
+
+/* Agendamentos do cliente */
+.customer-tabs {
+  display: flex;
+  gap: 0.4rem;
+}
+.customer-tabs button {
+  background: transparent;
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 650;
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+}
+.customer-tabs button[aria-selected='true'] {
+  background: var(--tenant-active, var(--tenant-primary, #2457d6));
+  border-color: transparent;
+  color: var(--tenant-on-primary, #fff);
+}
+.customer-appointment-list,
+.customer-review-list,
+.customer-entry-list {
+  display: grid;
+  gap: 0.6rem;
+}
+.customer-appointment {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: flex;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.85rem;
+}
+.customer-appointment-when {
+  display: grid;
+  flex: none;
+  text-align: center;
+  width: 4.5rem;
+}
+.customer-appointment-when strong {
+  font-size: 1.15rem;
+}
+.customer-appointment-when small,
+.customer-appointment-meta,
+.customer-appointment-protocol {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.76rem;
+}
+.customer-appointment-main {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  width: 100%;
+}
+.customer-appointment-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.customer-appointment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+}
+.customer-tag {
+  background: color-mix(in srgb, var(--tenant-accent, #4f78de) 18%, transparent);
+  border-radius: 999px;
+  color: inherit;
+  font-weight: 700;
+  padding: 0.05rem 0.45rem;
+}
+.customer-appointment-note {
+  background: color-mix(in srgb, var(--tenant-border, #e2e8f0) 35%, transparent);
+  border-radius: 0.6rem;
+  display: grid;
+  font-size: 0.8rem;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+}
+.customer-appointment-note span {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.customer-appointment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.customer-appointment-form {
+  display: grid;
+  gap: 0.5rem;
+}
+.customer-appointment-form label {
+  display: grid;
+  font-size: 0.8rem;
+  gap: 0.2rem;
+}
+.customer-appointment-form :where(input, select) {
+  min-height: 2.6rem;
+  width: 100%;
+}
+
+/* Fidelidade, avaliações e favoritos */
+.customer-entry {
+  align-items: center;
+  border-bottom: 1px solid var(--tenant-border, #e2e8f0);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+}
+.customer-entry:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.customer-entry span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.customer-entry small {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.76rem;
+}
+.customer-entry .is-credit {
+  color: #15803d;
+}
+.customer-entry .is-debit {
+  color: #b42318;
+}
+.customer-review {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem;
+}
+.customer-review > header {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.customer-review p {
+  margin: 0;
+}
+.customer-rating {
+  align-items: center;
+  color: #d97706;
+  display: inline-flex;
+  gap: 0.3rem;
+}
+.customer-rating small {
+  color: var(--tenant-muted, #64748b);
+}
+.customer-favorite-list {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+.customer-favorite {
+  align-items: center;
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+}
+.customer-favorite.is-favorite {
+  border-color: var(--tenant-primary, #2457d6);
+}
+.customer-favorite span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Segurança e autenticação */
+.customer-account-security {
+  display: grid;
+  gap: 0.85rem;
+}
+.customer-photo-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.customer-auth-card {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.75rem;
+  max-width: 26rem;
+  padding: 1rem;
+  width: 100%;
+}
+.public-link-button.is-danger {
+  color: #b42318;
+}
+
+/* Status compartilhado de agendamento */
+.appointment-status {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+  width: max-content;
+}
+.appointment-status--pending {
+  background: #fff7e8;
+  color: #a15c00;
+}
+.appointment-status--confirmed {
+  background: #eef2ff;
+  color: #3730a3;
+}
+.appointment-status--in_progress {
+  background: #e0f2fe;
+  color: #075985;
+}
+.appointment-status--completed {
+  background: #ecfdf3;
+  color: #15803d;
+}
+.appointment-status--canceled,
+.appointment-status--no_show {
+  background: #fff1f0;
+  color: #b42318;
+}
+
+@media (min-width: 900px) {
+  .customer-account {
+    padding: 1.5rem;
+  }
+  .customer-account-body {
+    grid-template-columns: minmax(13rem, 0.28fr) minmax(0, 1fr);
+  }
+  .customer-account-nav {
+    background: var(--tenant-surface, #fff);
+    border: 1px solid var(--tenant-border, #e2e8f0);
+    border-radius: var(--tenant-radius, 0.9rem);
+    display: grid;
+    overflow: visible;
+    padding: 0.5rem;
+    position: sticky;
+    top: 1rem;
+  }
+  .customer-account-nav a {
+    border: 0;
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.75rem;
+  }
+  .customer-account-panel {
+    padding: 1.25rem;
+  }
+}
+@media (max-width: 699px) {
+  .customer-appointment {
+    flex-direction: column;
+  }
+  .customer-appointment-when {
+    align-items: baseline;
+    display: flex;
+    gap: 0.4rem;
+    text-align: left;
+    width: auto;
+  }
+  .customer-appointment-actions > button {
+    flex: 1;
+    min-height: 2.75rem;
+  }
+  .customer-shortcuts {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Textos auxiliares herdados da área do cliente. */
+.public-sheet-hint {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.public-password-rules {
+  color: var(--tenant-muted, #64748b);
+  display: grid;
+  font-size: 0.78rem;
+  gap: 0.15rem;
+  margin: 0;
+  padding-left: 1rem;
+}

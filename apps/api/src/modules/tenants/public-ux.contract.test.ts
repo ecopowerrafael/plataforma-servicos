@@ -8,7 +8,11 @@ const bookingHook = read('components/public/use-public-booking.ts');
 const premiumApp = read('components/public/premium/PremiumApp.tsx');
 const publicPage = read('routes/PublicTenantPage.tsx');
 const classicFlow = read('components/PublicBookingFlow.tsx');
-const accountSheet = read('components/public/CustomerAccountSheet.tsx');
+const accountPage = read('routes/CustomerAccountPage.tsx');
+const accountCore = read('components/public/account/customer-account.ts');
+const accountLayout = read('components/public/account/CustomerAccountLayout.tsx');
+const accountAuth = read('components/public/account/CustomerAccountAuth.tsx');
+const accountSecurity = read('components/public/account/CustomerAccountSecurity.tsx');
 
 describe('booking do cliente autenticado', () => {
   it('resolve os dados do perfil na camada compartilhada, não nas apresentações', () => {
@@ -84,36 +88,40 @@ describe('pagamento online', () => {
 });
 
 describe('Minha Conta', () => {
-  it('abre por seções, sem empilhar todos os módulos', () => {
-    expect(accountSheet).toContain('const SECTIONS');
-    expect(accountSheet).toContain("{ id: 'security', label: 'Segurança' }");
-    // Cada módulo aparece sob a sua seção.
-    expect(accountSheet).toContain("{panel === 'loyalty' ? <CustomerLoyalty");
-    expect(accountSheet).toContain("{panel === 'reviews' ? <CustomerReviews");
+  it('vive em página inteira, não mais em modal', () => {
+    expect(accountPage).toContain('CustomerAccountLayout');
+    expect(accountCore).toContain('accountPath');
+    expect(publicPage).not.toContain('CustomerAccountSheet');
+    expect(publicPage).not.toContain('accountOpen');
   });
 
-  it('mostra identidade com avatar, contato e ações de foto/perfil', () => {
-    expect(accountSheet).toContain('public-account-identity');
-    expect(accountSheet).toContain('Alterar foto');
-    expect(accountSheet).toContain('Editar perfil');
+  it('tem uma seção por URL, incluindo segurança', () => {
+    expect(accountCore).toContain("{ id: 'security', label: 'Segurança', path: 'seguranca' }");
+    expect(accountPage).toContain("section === 'loyalty' ? <CustomerLoyalty");
+    expect(accountPage).toContain("section === 'reviews' ? <CustomerReviews");
+  });
+
+  it('mostra identidade com avatar e ações de foto', () => {
+    expect(accountLayout).toContain('customer-account-identity');
+    expect(accountSecurity).toContain('Alterar foto');
   });
 
   it('atualiza o avatar sem refresh, com cache bust por photoUpdatedAt', () => {
-    expect(accountSheet).toContain("queryClient.setQueryData(['public', slug, 'customer', 'me'], data)");
-    expect(accountSheet).toContain('customer/photo?v=');
+    expect(accountCore).toContain('queryClient.setQueryData(meKey, data)');
+    expect(accountLayout).toContain('customer/photo?v=');
   });
 
   it('oferece "Esqueci minha senha?" no login público', () => {
-    expect(accountSheet).toContain('Esqueci minha senha?');
-    expect(accountSheet).toContain('customer/forgot-password');
-    expect(accountSheet).toContain(
+    expect(accountAuth).toContain('Esqueci minha senha?');
+    expect(accountCore).toContain('customer/forgot-password');
+    expect(accountAuth).toContain(
       'Se existir uma conta associada a este e-mail, enviaremos as instruções',
     );
   });
 
-  it('só mostra a conta para cliente autenticado', () => {
-    expect(accountSheet).toContain('{customer !== null ? (');
-    expect(accountSheet).toContain('{!me.isPending && customer === null ? (');
-    expect(accountSheet).toContain('logout.mutateAsync()');
+  it('só mostra a conta para cliente autenticado e volta ao tenant no logout', () => {
+    expect(accountPage).toContain('{customer === null ? <CustomerAccountAuth');
+    expect(accountSecurity).toContain('account.logout.mutate(');
+    expect(accountSecurity).toContain('navigate(`/public/${slug}`)');
   });
 });

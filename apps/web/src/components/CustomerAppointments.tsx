@@ -9,18 +9,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { type z } from 'zod';
 
+import { AppointmentStatusBadge } from './appointments/appointment-status.js';
 import { httpClient, HttpError } from '../lib/http.js';
 
 type Appointment = z.infer<typeof AppointmentPublicSchema>;
-
-const statusLabel: Record<Appointment['status'], string> = {
-  PENDING: 'Pendente',
-  CONFIRMED: 'Confirmado',
-  IN_PROGRESS: 'Em atendimento',
-  COMPLETED: 'Concluído',
-  CANCELED: 'Cancelado',
-  NO_SHOW: 'Falta',
-};
 
 const cancelableStatuses: ReadonlySet<Appointment['status']> = new Set([
   'PENDING',
@@ -39,9 +31,14 @@ function toDatetimeLocalValue(iso: string): string {
   return `${year}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+const dayLabel = (iso: string) =>
+  new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+const timeLabel = (iso: string) =>
+  new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
 type Review = z.infer<typeof AppointmentReviewPublicSchema>;
 
-interface AppointmentRowProps {
+interface AppointmentCardProps {
   appointment: Appointment;
   review: Review | undefined;
   onCancel: (reason: string) => void;
@@ -51,7 +48,8 @@ interface AppointmentRowProps {
   error: string | null;
 }
 
-function AppointmentRow({
+/** Cartão do agendamento: as ações abrem um formulário dentro do próprio card. */
+function AppointmentCard({
   appointment,
   review,
   onCancel,
@@ -59,7 +57,7 @@ function AppointmentRow({
   onReview,
   busy,
   error,
-}: AppointmentRowProps) {
+}: AppointmentCardProps) {
   const [action, setAction] = useState<'cancel' | 'reschedule' | 'review' | null>(null);
   const [reason, setReason] = useState('');
   const [startsAt, setStartsAt] = useState(() => toDatetimeLocalValue(appointment.startsAt));
@@ -71,186 +69,224 @@ function AppointmentRow({
   const canReview = appointment.status === 'COMPLETED';
 
   return (
-    <li>
-      <strong>{appointment.protocol}</strong>
-      <span>{new Date(appointment.startsAt).toLocaleString('pt-BR')}</span>
-      <span>{appointment.serviceName}</span>
-      <span>{appointment.professionalName}</span>
-      {appointment.unitName !== null && <span>{appointment.unitName}</span>}
-      <span>{statusLabel[appointment.status]}</span>
-      {appointment.isFitIn && <span>Encaixe</span>}
-      {appointment.canceledReason !== null && (
-        <span>{`Motivo do cancelamento: ${appointment.canceledReason}`}</span>
-      )}
-      {appointment.rescheduleReason !== null && (
-        <span>{`Motivo do reagendamento: ${appointment.rescheduleReason}`}</span>
-      )}
-      {review !== undefined && (
-        <span>{`Sua avaliação: ${String(review.rating)}/5${review.comment === null ? '' : ` — ${review.comment}`}`}</span>
-      )}
-      {(canCancel || canReschedule || canReview) && action === null && (
-        <div className="form-actions">
-          {canReschedule && (
-            <button
-              type="button"
-              onClick={() => {
-                setAction('reschedule');
-                setReason('');
-                setStartsAt(toDatetimeLocalValue(appointment.startsAt));
-              }}
-            >
-              Reagendar
-            </button>
-          )}
-          {canCancel && (
-            <button
-              type="button"
-              onClick={() => {
-                setAction('cancel');
-                setReason('');
-              }}
-            >
-              Cancelar
-            </button>
-          )}
-          {canReview && (
-            <button
-              type="button"
-              onClick={() => {
-                setAction('review');
-                setRating(review?.rating ?? 5);
-                setComment(review?.comment ?? '');
-              }}
-            >
-              {review === undefined ? 'Avaliar' : 'Editar avaliação'}
-            </button>
-          )}
+    <article className="customer-appointment">
+      <div className="customer-appointment-when">
+        <strong>{timeLabel(appointment.startsAt)}</strong>
+        <small>{dayLabel(appointment.startsAt)}</small>
+      </div>
+      <div className="customer-appointment-main">
+        <div className="customer-appointment-head">
+          <strong>{appointment.serviceName}</strong>
+          <AppointmentStatusBadge status={appointment.status} />
         </div>
-      )}
-      {action === 'cancel' && (
-        <div className="form-actions">
-          <label>
-            Motivo do cancelamento
-            <input
-              value={reason}
-              onChange={(event) => {
-                setReason(event.target.value);
-              }}
-            />
-          </label>
-          <button
-            disabled={busy || reason.trim().length < 2}
-            type="button"
-            onClick={() => {
-              onCancel(reason.trim());
-            }}
-          >
-            {busy ? 'Enviando…' : 'Confirmar cancelamento'}
-          </button>
-          <button
-            disabled={busy}
-            type="button"
-            onClick={() => {
-              setAction(null);
-            }}
-          >
-            Voltar
-          </button>
-        </div>
-      )}
-      {action === 'reschedule' && (
-        <div className="form-actions">
-          <label>
-            Nova data e hora
-            <input
-              type="datetime-local"
-              value={startsAt}
-              onChange={(event) => {
-                setStartsAt(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            Motivo do reagendamento
-            <input
-              value={reason}
-              onChange={(event) => {
-                setReason(event.target.value);
-              }}
-            />
-          </label>
-          <button
-            disabled={busy || reason.trim().length < 2 || startsAt === ''}
-            type="button"
-            onClick={() => {
-              onReschedule(new Date(startsAt).toISOString(), reason.trim());
-            }}
-          >
-            {busy ? 'Enviando…' : 'Confirmar reagendamento'}
-          </button>
-          <button
-            disabled={busy}
-            type="button"
-            onClick={() => {
-              setAction(null);
-            }}
-          >
-            Voltar
-          </button>
-        </div>
-      )}
-      {action === 'review' && (
-        <div className="form-actions">
-          <label>
-            Nota
-            <select
-              value={rating}
-              onChange={(event) => {
-                setRating(Number(event.target.value));
-              }}
-            >
-              {[1, 2, 3, 4, 5].map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Comentário (opcional)
-            <input
-              value={comment}
-              onChange={(event) => {
-                setComment(event.target.value);
-              }}
-            />
-          </label>
-          <button
-            disabled={busy}
-            type="button"
-            onClick={() => {
-              onReview(rating, comment.trim());
-            }}
-          >
-            {busy ? 'Enviando…' : 'Enviar avaliação'}
-          </button>
-          <button
-            disabled={busy}
-            type="button"
-            onClick={() => {
-              setAction(null);
-            }}
-          >
-            Voltar
-          </button>
-        </div>
-      )}
-      {error !== null && (
-        <p className="form-error" role="alert">
-          {error}
+        <p className="customer-appointment-meta">
+          <span>{appointment.professionalName}</span>
+          {appointment.unitName === null ? null : <span>{appointment.unitName}</span>}
+          {appointment.isFitIn ? <span className="customer-tag">Encaixe</span> : null}
         </p>
-      )}
-    </li>
+        <small className="customer-appointment-protocol">{appointment.protocol}</small>
+        {appointment.canceledReason === null ? null : (
+          <p className="customer-appointment-note">
+            <span>Motivo do cancelamento</span>
+            {appointment.canceledReason}
+          </p>
+        )}
+        {appointment.rescheduleReason === null ? null : (
+          <p className="customer-appointment-note">
+            <span>Motivo do reagendamento</span>
+            {appointment.rescheduleReason}
+          </p>
+        )}
+        {review === undefined ? null : (
+          <p className="customer-appointment-note">
+            <span>{`Sua avaliação: ${String(review.rating)}/5`}</span>
+            {review.comment}
+          </p>
+        )}
+
+        {(canCancel || canReschedule || canReview) && action === null ? (
+          <div className="customer-appointment-actions">
+            {canReschedule ? (
+              <button
+                className="public-secondary-button"
+                type="button"
+                onClick={() => {
+                  setAction('reschedule');
+                  setReason('');
+                  setStartsAt(toDatetimeLocalValue(appointment.startsAt));
+                }}
+              >
+                Reagendar
+              </button>
+            ) : null}
+            {canCancel ? (
+              <button
+                className="public-link-button is-danger"
+                type="button"
+                onClick={() => {
+                  setAction('cancel');
+                  setReason('');
+                }}
+              >
+                Cancelar
+              </button>
+            ) : null}
+            {canReview ? (
+              <button
+                className="public-secondary-button"
+                type="button"
+                onClick={() => {
+                  setAction('review');
+                  setRating(review?.rating ?? 5);
+                  setComment(review?.comment ?? '');
+                }}
+              >
+                {review === undefined ? 'Avaliar' : 'Editar avaliação'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {action === 'cancel' ? (
+          <div className="customer-appointment-form">
+            <label>
+              <span>Motivo do cancelamento</span>
+              <input
+                value={reason}
+                onChange={(event) => {
+                  setReason(event.target.value);
+                }}
+              />
+            </label>
+            <div className="customer-appointment-actions">
+              <button
+                className="public-primary-button"
+                disabled={busy || reason.trim().length < 2}
+                type="button"
+                onClick={() => {
+                  onCancel(reason.trim());
+                }}
+              >
+                {busy ? 'Enviando…' : 'Confirmar cancelamento'}
+              </button>
+              <button
+                className="public-link-button"
+                disabled={busy}
+                type="button"
+                onClick={() => {
+                  setAction(null);
+                }}
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {action === 'reschedule' ? (
+          <div className="customer-appointment-form">
+            <label>
+              <span>Nova data e hora</span>
+              <input
+                type="datetime-local"
+                value={startsAt}
+                onChange={(event) => {
+                  setStartsAt(event.target.value);
+                }}
+              />
+            </label>
+            <label>
+              <span>Motivo do reagendamento</span>
+              <input
+                value={reason}
+                onChange={(event) => {
+                  setReason(event.target.value);
+                }}
+              />
+            </label>
+            <div className="customer-appointment-actions">
+              <button
+                className="public-primary-button"
+                disabled={busy || reason.trim().length < 2 || startsAt === ''}
+                type="button"
+                onClick={() => {
+                  onReschedule(new Date(startsAt).toISOString(), reason.trim());
+                }}
+              >
+                {busy ? 'Enviando…' : 'Confirmar reagendamento'}
+              </button>
+              <button
+                className="public-link-button"
+                disabled={busy}
+                type="button"
+                onClick={() => {
+                  setAction(null);
+                }}
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {action === 'review' ? (
+          <div className="customer-appointment-form">
+            <label>
+              <span>Nota</span>
+              <select
+                value={rating}
+                onChange={(event) => {
+                  setRating(Number(event.target.value));
+                }}
+              >
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Comentário (opcional)</span>
+              <input
+                value={comment}
+                onChange={(event) => {
+                  setComment(event.target.value);
+                }}
+              />
+            </label>
+            <div className="customer-appointment-actions">
+              <button
+                className="public-primary-button"
+                disabled={busy}
+                type="button"
+                onClick={() => {
+                  onReview(rating, comment.trim());
+                }}
+              >
+                {busy ? 'Enviando…' : 'Enviar avaliação'}
+              </button>
+              <button
+                className="public-link-button"
+                disabled={busy}
+                type="button"
+                onClick={() => {
+                  setAction(null);
+                }}
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {error === null ? null : (
+          <p className="public-form-error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -366,21 +402,22 @@ export function CustomerAppointments({ slug }: { slug: string }) {
         : null;
 
   return (
-    <section className="platform-form" aria-label="Meus agendamentos">
-      <h4>Meus agendamentos</h4>
-      <div className="form-actions">
+    <section className="customer-section" aria-label="Meus agendamentos">
+      <div className="customer-tabs" role="tablist">
         <button
-          disabled={tab === 'upcoming'}
           type="button"
+          role="tab"
+          aria-selected={tab === 'upcoming'}
           onClick={() => {
             setTab('upcoming');
           }}
         >
-          Próximos horários
+          Próximos
         </button>
         <button
-          disabled={tab === 'history'}
           type="button"
+          role="tab"
+          aria-selected={tab === 'history'}
           onClick={() => {
             setTab('history');
           }}
@@ -388,18 +425,28 @@ export function CustomerAppointments({ slug }: { slug: string }) {
           Histórico
         </button>
       </div>
-      {active.isPending ? <p>Carregando agendamentos…</p> : null}
+
+      {active.isPending ? (
+        <div className="customer-skeleton-list" aria-busy="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      ) : null}
       {active.error instanceof Error ? (
-        <p className="form-error">Não foi possível carregar os agendamentos.</p>
+        <p className="public-form-error" role="alert">
+          Não foi possível carregar os agendamentos.
+        </p>
       ) : null}
       {active.data?.items.length === 0 ? (
-        <p>
+        <p className="customer-empty">
           {tab === 'upcoming' ? 'Nenhum agendamento futuro.' : 'Nenhum agendamento no histórico.'}
         </p>
       ) : null}
-      <ul>
+
+      <div className="customer-appointment-list">
         {active.data?.items.map((appointment) => (
-          <AppointmentRow
+          <AppointmentCard
             appointment={appointment}
             busy={busy && activeAppointmentId === appointment.publicId}
             error={activeAppointmentId === appointment.publicId ? errorMessage : null}
@@ -424,7 +471,7 @@ export function CustomerAppointments({ slug }: { slug: string }) {
             }}
           />
         ))}
-      </ul>
+      </div>
     </section>
   );
 }

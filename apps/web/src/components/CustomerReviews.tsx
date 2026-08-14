@@ -14,23 +14,37 @@ export function CustomerReviews({ slug }: { slug: string }) {
   });
 
   return (
-    <section className="platform-form" aria-label="Minhas avaliações">
-      <h4>Minhas avaliações</h4>
-      {reviews.isPending ? <p>Carregando avaliações…</p> : null}
-      {reviews.error instanceof Error ? (
-        <p className="form-error">Não foi possível carregar as avaliações.</p>
+    <section className="customer-section" aria-label="Minhas avaliações">
+      {reviews.isPending ? (
+        <div className="customer-skeleton-list" aria-busy="true">
+          <span />
+          <span />
+        </div>
       ) : null}
-      {reviews.data?.items.length === 0 ? <p>Nenhuma avaliação registrada.</p> : null}
-      <ul>
+      {reviews.error instanceof Error ? (
+        <p className="public-form-error" role="alert">
+          Não foi possível carregar as avaliações.
+        </p>
+      ) : null}
+      {reviews.data?.items.length === 0 ? (
+        <p className="customer-empty">Nenhuma avaliação registrada.</p>
+      ) : null}
+      <div className="customer-review-list">
         {reviews.data?.items.map((review) => (
-          <li key={review.publicId}>
-            <strong>{review.appointmentProtocol}</strong>
-            <span>{`${review.serviceName} com ${review.professionalName}`}</span>
-            <span>{`Nota: ${String(review.rating)}/5`}</span>
-            {review.comment !== null && <span>{review.comment}</span>}
-          </li>
+          <article className="customer-review" key={review.publicId}>
+            <header>
+              <strong>{review.serviceName}</strong>
+              <span className="customer-rating" aria-label={`Nota ${String(review.rating)} de 5`}>
+                {'★'.repeat(review.rating)}
+                <small>{`${String(review.rating)}/5`}</small>
+              </span>
+            </header>
+            <small>{review.professionalName}</small>
+            {review.comment === null ? null : <p>{review.comment}</p>}
+            <small className="customer-appointment-protocol">{review.appointmentProtocol}</small>
+          </article>
         ))}
-      </ul>
+      </div>
     </section>
   );
 }

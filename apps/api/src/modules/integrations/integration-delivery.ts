@@ -49,6 +49,17 @@ export interface WhatsAppDelivery {
   ): Promise<WhatsAppOperationResult>;
   configureReceivedWebhook(tenantId: bigint, url: string): Promise<WhatsAppOperationResult>;
   inspectInstance(tenantId: bigint): Promise<WhatsAppInstanceDiagnostics>;
+  runControlTest(tenantId: bigint, to: string, message: string): Promise<WhatsAppControlTest>;
+}
+
+/**
+ * Grupo de controle da prova: confirma que o número tem WhatsApp e envia um
+ * texto simples pelo endpoint LITE/PRO. Se o texto chega e o botão não, o
+ * problema é do recurso de botões, não da instância nem do destinatário.
+ */
+export interface WhatsAppControlTest {
+  phoneCheck: WhatsAppProbe;
+  text: WhatsAppOperationResult;
 }
 
 /** Leitura crua (sanitizada) de um recurso da instância, para diagnóstico. */
@@ -164,6 +175,56 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
     if (typeof token !== 'string' || token.trim() === '')
       throw new IntegrationUnavailableError('Credencial do WhatsApp invalida.');
     return { instanceId: config.phoneNumberId, token };
+  }
+
+  /** Grupo de controle: existência do número + envio de texto simples. */
+  public async runControlTest(
+    tenantId: bigint,
+    to: string,
+    message: string,
+  ): Promise<WhatsAppControlTest> {
+    const { instanceId, token } = await this.config(tenantId, true);
+    const authorization = `Bearer ${token}`;
+    let phoneCheck: WhatsAppProbe;
+    try {
+      const response = await this.fetcher(
+        `https://api.w-api.app/v1/contacts/phone-exists?instanceId=${encodeURIComponent(instanceId)}&phone=${encodeURIComponent(to)}`,
+        { headers: { Authorization: authorization }, signal: AbortSignal.timeout(10_000) },
+      );
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+      phoneCheck = {
+        ok: response.ok,
+        httpStatus: response.status,
+        message: response.ok
+          ? 'Consulta concluída.'
+          : `O WhatsApp respondeu HTTP ${String(response.status)}.`,
+        payload: sanitizePayload(payload),
+      };
+    } catch (error) {
+      const mapped = mapOperationTransportError(error);
+      phoneCheck = { ok: false, httpStatus: null, message: mapped.message, payload: null };
+    }
+    let text: WhatsAppOperationResult;
+    try {
+      const response = await this.fetcher(
+        `https://api.w-api.app/v1/message/send-text?instanceId=${encodeURIComponent(instanceId)}`,
+        {
+          method: 'POST',
+          headers: { Authorization: authorization, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: to, message }),
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      text = await mapOperationResponse(response, 'Texto simples enviado.');
+    } catch (error) {
+      text = mapOperationTransportError(error);
+    }
+    return { phoneCheck, text };
   }
 
   public async send(tenantId: bigint, to: string, text: string): Promise<void> {

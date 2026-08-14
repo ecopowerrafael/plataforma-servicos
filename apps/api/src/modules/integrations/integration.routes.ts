@@ -8,6 +8,7 @@ import {
   WhatsAppButtonTestResponseSchema,
   WhatsAppConfigSchema,
   WhatsAppConnectionTestSchema,
+  WhatsAppControlTestResponseSchema,
   WhatsAppConnectionTestRequestSchema,
   WhatsAppInstanceDiagnosticsSchema,
   WhatsAppLastInboundEventSchema,
@@ -105,6 +106,7 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
         request.tenant.id,
         request.body.phone,
         actor(request),
+        request.body.variant ?? 'agendei',
       );
       request.log.info(
         {
@@ -115,6 +117,34 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
           externalMessageId: result.externalMessageId,
         },
         'Diagnóstico sanitizado do envio com botões',
+      );
+      return result;
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/control-test',
+    {
+      schema: {
+        body: WhatsAppButtonTestRequestSchema,
+        response: { 200: WhatsAppControlTestResponseSchema },
+      },
+    },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      const result = await options.service.sendWhatsappControlTest(
+        request.tenant.id,
+        request.body.phone,
+        actor(request),
+      );
+      request.log.info(
+        {
+          operation: 'whatsapp_control_test',
+          tenantPublicId: request.tenant.publicId,
+          phoneCheckStatus: result.phoneCheck.httpStatus,
+          textStatus: result.text.httpStatus,
+          textCode: result.text.externalCode,
+        },
+        'Diagnóstico sanitizado do envio de controle',
       );
       return result;
     },

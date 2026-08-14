@@ -114,9 +114,19 @@ export class IntegrationService {
     return result;
   }
   /** IDs usados só na prova de integração — nenhuma decisão vem do texto do botão. */
-  public static readonly testActionIds = ['TEST_CONFIRM', 'TEST_CANCEL'] as const;
+  public static readonly testActionIds = [
+    'TEST_CONFIRM',
+    'TEST_CANCEL',
+    // Ids do exemplo da documentação, para capturar também o clique da variante
+    // de comparação — a decisão nunca vem do texto visível do botão.
+    'id1',
+    'id2',
+    'id3',
+  ] as const;
+  // Mensagem em uma única linha: o exemplo da documentação não usa quebra de
+  // linha em mensagem com botões, e isso já foi descartado como variável.
   private static readonly testMessage =
-    'Teste do Assistente Agendei\n\nClique em uma opção para validar a integração.';
+    'Teste do Assistente Agendei. Clique em uma opção para validar a integração.';
 
   private whatsappDeliveryOrFail() {
     if (this.whatsappDelivery === undefined)
@@ -128,8 +138,20 @@ export class IntegrationService {
     return this.whatsappDelivery;
   }
 
-  /** Envia a mensagem de teste com os dois botões de prova. */
-  public async sendWhatsappButtonTest(tenantId: bigint, phone: string, actor: Actor) {
+  /**
+   * Envia a mensagem de teste com botões.
+   *
+   * `variant: 'docs'` reproduz literalmente o corpo de exemplo da documentação
+   * (ids curtos `id1`/`id2`/`id3`). Como todo o resto do corpo é idêntico ao
+   * nosso, comparar os dois envios isola se o problema está nos valores de
+   * `buttonId` que usamos.
+   */
+  public async sendWhatsappButtonTest(
+    tenantId: bigint,
+    phone: string,
+    actor: Actor,
+    variant: 'agendei' | 'docs' = 'agendei',
+  ) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');
     const delivery = this.whatsappDeliveryOrFail();
     const configured = await this.repository.whatsapp(tenantId);
@@ -139,12 +161,31 @@ export class IntegrationService {
         message: 'Configure o WhatsApp primeiro.',
         statusCode: 400,
       });
-    const result = await delivery.sendInteractiveButtons(tenantId, phone, IntegrationService.testMessage, [
-      { buttonId: 'TEST_CONFIRM', label: 'Confirmar teste' },
-      { buttonId: 'TEST_CANCEL', label: 'Cancelar teste' },
-    ]);
+    const payload =
+      variant === 'docs'
+        ? {
+            message: 'Deseja algo mais?',
+            buttons: [
+              { buttonId: 'id1', label: 'SIM' },
+              { buttonId: 'id2', label: 'NÃO' },
+              { buttonId: 'id3', label: 'Voltar para o menu' },
+            ],
+          }
+        : {
+            message: IntegrationService.testMessage,
+            buttons: [
+              { buttonId: 'TEST_CONFIRM', label: 'Confirmar teste' },
+              { buttonId: 'TEST_CANCEL', label: 'Cancelar teste' },
+            ],
+          };
+    const result = await delivery.sendInteractiveButtons(
+      tenantId,
+      phone,
+      payload.message,
+      payload.buttons,
+    );
     await this.audit(tenantId, actor, 'integration.whatsapp.button_test_sent', configured.publicId);
-    return { ...result, actionIds: [...IntegrationService.testActionIds] };
+    return { ...result, actionIds: payload.buttons.map((button) => button.buttonId) };
   }
 
   /** Registra a URL pública deste ambiente como webhook de recebimento da instância. */
@@ -161,6 +202,29 @@ export class IntegrationService {
     const result = await delivery.configureReceivedWebhook(tenantId, url);
     await this.audit(tenantId, actor, 'integration.whatsapp.webhook_configured', configured.publicId);
     return { ...result, webhookUrl: url };
+  }
+
+  /**
+   * Grupo de controle: confirma o número e envia um texto simples. Isola se a
+   * falha é do recurso de botões ou de qualquer envio para aquele destinatário.
+   */
+  public async sendWhatsappControlTest(tenantId: bigint, phone: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const delivery = this.whatsappDeliveryOrFail();
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'Configure o WhatsApp primeiro.',
+        statusCode: 400,
+      });
+    const result = await delivery.runControlTest(
+      tenantId,
+      phone,
+      'Teste do Assistente Agendei — mensagem de controle, sem botões.',
+    );
+    await this.audit(tenantId, actor, 'integration.whatsapp.control_test_sent', configured.publicId);
+    return result;
   }
 
   /** Dados da instância + fila pendente, para saber se a mensagem realmente saiu. */

@@ -5,6 +5,7 @@ import {
   WhatsAppConfigSchema,
   WhatsAppConnectionTestSchema,
   WhatsAppConnectionTestRequestSchema,
+  WhatsAppControlTestResponseSchema,
   WhatsAppInstanceDiagnosticsSchema,
   WhatsAppLastInboundEventSchema,
   WhatsAppWebhookConfigResponseSchema,
@@ -113,11 +114,20 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
         tenantPublicId,
       }),
   });
-  const sendButtons = useMutation({
+  const controlTest = useMutation({
     mutationFn: () =>
-      httpClient.request('/tenant/integrations/whatsapp/button-test', {
+      httpClient.request('/tenant/integrations/whatsapp/control-test', {
         method: 'POST',
         body: WhatsAppButtonTestRequestSchema.parse({ phone: phone.trim() }),
+        schema: WhatsAppControlTestResponseSchema,
+        tenantPublicId,
+      }),
+  });
+  const sendButtons = useMutation({
+    mutationFn: (variant: 'agendei' | 'docs') =>
+      httpClient.request('/tenant/integrations/whatsapp/button-test', {
+        method: 'POST',
+        body: WhatsAppButtonTestRequestSchema.parse({ phone: phone.trim(), variant }),
         schema: WhatsAppButtonTestResponseSchema,
         tenantPublicId,
       }),
@@ -151,13 +161,48 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
         <button
           disabled={sendButtons.isPending || phone.trim().length < 10}
           onClick={() => {
-            sendButtons.mutate();
+            sendButtons.mutate('agendei');
           }}
           type="button"
         >
           Enviar teste com botões
         </button>
+        <button
+          disabled={sendButtons.isPending || phone.trim().length < 10}
+          onClick={() => {
+            sendButtons.mutate('docs');
+          }}
+          type="button"
+        >
+          Enviar exemplo da documentação
+        </button>
+        <button
+          disabled={controlTest.isPending || phone.trim().length < 10}
+          onClick={() => {
+            controlTest.mutate();
+          }}
+          type="button"
+        >
+          Testar número + texto simples
+        </button>
       </div>
+
+      {controlTest.data ? (
+        <div className={controlTest.data.text.ok ? 'success-message' : 'form-error'}>
+          <strong>Controle (sem botões)</strong>
+          <p>{controlTest.data.text.message}</p>
+          <small>{`Número tem WhatsApp — HTTP ${String(controlTest.data.phoneCheck.httpStatus ?? '—')}`}</small>
+          <pre className="whatsapp-event-payload">
+            {JSON.stringify(controlTest.data.phoneCheck.payload, null, 2)}
+          </pre>
+          {controlTest.data.text.externalMessageId === null ? null : (
+            <small>{`Message ID do texto: ${controlTest.data.text.externalMessageId}`}</small>
+          )}
+        </div>
+      ) : null}
+      {controlTest.error instanceof Error ? (
+        <p className="form-error">{controlTest.error.message}</p>
+      ) : null}
 
       {configureWebhook.data ? (
         <div className={configureWebhook.data.ok ? 'success-message' : 'form-error'}>

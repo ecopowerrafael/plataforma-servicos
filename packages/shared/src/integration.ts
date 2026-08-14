@@ -26,7 +26,11 @@ export const WhatsAppConnectionTestSchema = z.object({
 export const WhatsAppConnectionTestRequestSchema = z.object({ instanceId: z.string().trim().min(3).max(80).optional(), token: z.string().trim().min(20).max(4096).optional() }).strict();
 /** Prova de integração: envio de botões e leitura do evento recebido. */
 export const WhatsAppButtonTestRequestSchema = z
-  .object({ phone: z.string().trim().min(10).max(20) })
+  .object({
+    phone: z.string().trim().min(10).max(20),
+    /** `docs` reproduz o corpo de exemplo da documentação, para comparação. */
+    variant: z.enum(['agendei', 'docs']).optional(),
+  })
   .strict();
 export const WhatsAppOperationResultSchema = z.object({
   ok: z.boolean(),
@@ -64,6 +68,10 @@ const WhatsAppProbeSchema = z.object({
 export const WhatsAppInstanceDiagnosticsSchema = z.object({
   instance: WhatsAppProbeSchema,
   queue: WhatsAppProbeSchema,
+});
+export const WhatsAppControlTestResponseSchema = z.object({
+  phoneCheck: WhatsAppProbeSchema,
+  text: WhatsAppOperationResultSchema,
 });
 export const IntegrationEventSchema = z.enum(['notification.queued']);
 export const UpsertExternalIntegrationSchema = z

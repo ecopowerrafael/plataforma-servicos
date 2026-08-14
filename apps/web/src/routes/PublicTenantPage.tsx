@@ -7,6 +7,7 @@ import { contrastTextColor } from '../components/branding/brand-studio.js';
 import { CustomerAccountSheet } from '../components/public/CustomerAccountSheet.js';
 import { PremiumApp } from '../components/public/premium/PremiumApp.js';
 import { PublicHeader } from '../components/public/PublicHeader.js';
+import { PwaInstall } from '../components/public/PwaInstall.js';
 import { PublicBookingFlow } from '../components/PublicBookingFlow.js';
 import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
@@ -78,7 +79,10 @@ export function PublicTenantPage() {
       manifest.rel = 'manifest';
       document.head.append(manifest);
     }
-    manifest.href = `${environment.apiUrl}/public/sites/${site.data.slug}/manifest.webmanifest`;
+    // Mesma origem da página: o navegador exige isso para resolver
+    // id/scope/start_url do manifest (o deploy é single-origin; em
+    // desenvolvimento o Vite faz proxy de /public/sites para a API).
+    manifest.href = `/public/sites/${site.data.slug}/manifest.webmanifest`;
     const faviconAsset = site.data.assets.find(
       (asset) => asset.kind === 'FAVICON' || asset.kind === 'APP_ICON',
     );
@@ -181,6 +185,10 @@ export function PublicTenantPage() {
             )}
           </div>
         ) : null}
+        <PwaInstall
+          published={site.data.pwaPublished}
+          appName={site.data.site.pwaName ?? site.data.displayName}
+        />
         {accountOpen ? (
           <CustomerAccountSheet
             slug={slug}

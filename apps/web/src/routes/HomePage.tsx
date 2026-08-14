@@ -150,6 +150,10 @@ const TenantDomainModule = load(
   import('../components/tenants/TenantDomainModule.js'),
   'TenantDomainModule',
 );
+const TenantPwaModule = load(
+  import('../components/tenants/TenantPwaModule.js'),
+  'TenantPwaModule',
+);
 const TenantSettingsModule = load(
   import('../components/tenants/TenantSettingsModule.js'),
   'TenantSettingsModule',
@@ -696,6 +700,11 @@ export function HomePage() {
           label: 'Página pública',
           to: '/app/empresa/pagina-publica',
           visible: canManageBranding && planFeatureEnabled('branding.customization.enabled'),
+        },
+        {
+          label: 'Aplicativo',
+          to: '/app/empresa/aplicativo',
+          visible: canManageBranding,
         },
         { label: 'Unidades', to: '/app/empresa/unidades', visible: canReadUnits },
         {
@@ -1592,6 +1601,9 @@ export function HomePage() {
               planFeatureEnabled('branding.customization.enabled') && (
                 <PublicPageSettingsModule tenantPublicId={selectedTenant} />
               )}
+            {isRoute('/app/empresa/aplicativo') && canManageBranding && (
+              <TenantPwaModule tenantPublicId={selectedTenant} canManage={canManageBranding} />
+            )}
             {isRoute('/app/empresa/dominio') &&
               canManageBranding &&
               planFeatureEnabled('custom_domain.enabled') && (

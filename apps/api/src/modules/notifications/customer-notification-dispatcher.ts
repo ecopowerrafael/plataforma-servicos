@@ -1,3 +1,5 @@
+import { isTransactionalNotification } from '@plataforma/shared';
+
 import {
   type NotificationKind,
   type NotificationTemplateService,
@@ -9,7 +11,7 @@ import { type PrismaClient } from '../../database-client/client.js';
  * Ponto único de decisão para notificar um cliente sobre um evento de
  * agendamento, reaproveitado por AppointmentNotificationService (confirmação
  * e cancelamento) e AppointmentReminderService (lembrete). Concentra em um
- * só lugar a checagem de acceptsCommunications e o fan-out para os canais
+ * só lugar a checagem de consentimento e o fan-out para os canais
  * disponíveis (e-mail sempre que houver endereço cadastrado; push para cada
  * dispositivo ativo do cliente) — evita duplicar essa lógica entre os dois
  * chamadores e mantém a mesma preferência de comunicação valendo para
@@ -36,7 +38,12 @@ export class CustomerNotificationDispatcher {
       where: { id: customerId },
       select: { email: true, whatsapp: true, acceptsCommunications: true },
     });
-    if (!customer?.acceptsCommunications) return false;
+    if (customer === null) return false;
+    // Transacionais (confirmação, cancelamento, lembrete) fazem parte do
+    // serviço e são enviadas mesmo sem opt-in; marketing e automações
+    // continuam exigindo `acceptsCommunications`. A regra vale igualmente
+    // para e-mail, push e WhatsApp — nenhum canal a reavalia.
+    if (!customer.acceptsCommunications && !isTransactionalNotification(kind)) return false;
 
     const subscriptions = await this.client.pushSubscription.findMany({
       where: { tenantId, customerId, active: true },

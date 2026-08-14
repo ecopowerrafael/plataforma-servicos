@@ -2,8 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, extname, join, resolve, sep } from 'node:path';
 
-import sharp from 'sharp';
-
 import { AppError } from '../../errors/AppError.js';
 
 export type ServiceImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
@@ -208,7 +206,7 @@ function validateUpload(
 }
 
 export class LocalServiceImageStorage implements ServiceImageStorage {
-  private readonly root: string;
+  protected readonly root: string;
 
   public constructor(
     root = process.env.SERVICE_IMAGE_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'services'),
@@ -289,7 +287,7 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
     validateUpload(buffer, originalName, declaredMimeType);
   }
 
-  private resolveKey(key: string): string {
+  protected resolveKey(key: string): string {
     const path = resolve(this.root, key);
     if (!path.startsWith(`${this.root}${sep}`))
       throw imageError('SERVICE_IMAGE_PATH_INVALID', 'Caminho da imagem inv\u00e1lido.', 400);
@@ -303,6 +301,9 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
 
   private async normalize(image: Buffer, variant: 'original' | 'thumbnail'): Promise<Buffer> {
     if (this.preset === 'passthrough') return image;
+    // Import sob demanda: `sharp` é pesado e não pode entrar no caminho até o
+    // `listen` (o ambiente da Hostinger derruba o processo se demorar).
+    const sharp = (await import('sharp')).default;
     const square = this.preset === 'professional';
     const width = variant === 'thumbnail' ? (square ? 320 : 400) : square ? 800 : 1200;
     const height = variant === 'thumbnail' ? (square ? 320 : 300) : square ? 800 : 900;

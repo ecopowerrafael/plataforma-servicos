@@ -6,6 +6,7 @@ import { type LoyaltyService } from '../payments/loyalty.service.js';
 import { type TenantCommercialSweepService } from '../platform/tenant-commercial-sweep.service.js';
 
 interface WorkerLogger {
+  info: (payload: unknown, message?: string) => void;
   error: (payload: unknown, message?: string) => void;
 }
 
@@ -45,7 +46,9 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
       await deps.customerRecovery?.run();
       await deps.loyalty?.expireDue();
       await deps.commercialSweep?.run();
-      await deps.notifications.processPending();
+      const { processed } = await deps.notifications.processPending();
+      // Só registra lotes com trabalho real: ticks ociosos não geram log.
+      if (processed > 0) options.logger.info({ processed }, 'Lote de notificações processado');
     } catch (error) {
       options.logger.error({ err: error }, 'Falha ao processar a fila de notificações.');
     } finally {
@@ -56,6 +59,10 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
   const timer = setInterval(() => {
     void tick();
   }, options.intervalMs);
+  options.logger.info({ intervalMs: options.intervalMs }, 'Worker de notificações iniciado');
+  // Primeiro ciclo imediato: sem ele, nada sai da fila no primeiro minuto de
+  // vida do processo — e neste ambiente o processo é reciclado com frequência.
+  void tick();
 
   return () => {
     clearInterval(timer);

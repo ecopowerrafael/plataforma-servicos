@@ -95,6 +95,7 @@ export const router = createBrowserRouter([
   { path: '/app/empresa/marca', element: <HomePage /> },
   { path: '/app/empresa/banners', element: <HomePage /> },
   { path: '/app/empresa/pagina-publica', element: <HomePage /> },
+  { path: '/app/empresa/aplicativo', element: <HomePage /> },
   { path: '/app/empresa/unidades', element: <HomePage /> },
   { path: '/app/empresa/dominio', element: <HomePage /> },
   { path: '/app/empresa/integracoes', element: <HomePage /> },

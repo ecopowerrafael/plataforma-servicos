@@ -4,6 +4,7 @@ import {
   SuccessResponseSchema,
   TenantMediaAssetSchema,
   TenantMediaListResponseSchema,
+  TenantPwaResponseSchema,
   TenantWhiteLabelResponseSchema,
   UpdateTenantBrandingRequestSchema,
   UpdateTenantMediaMetadataRequestSchema,
@@ -13,7 +14,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { tenantContextPlugin } from './tenant-context.plugin.js';
-import { validateTenantMediaUpload } from './tenant-media.storage.js';
+import { APP_ICON_SIZES, validateTenantMediaUpload } from './tenant-media.storage.js';
 import { type TenantWhiteLabelService } from './tenant-white-label.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -142,6 +143,22 @@ export const tenantWhiteLabelRoutes: FastifyPluginAsyncZod<Options> = async (app
       return { success: true } as const;
     },
   );
+  app.get(
+    '/tenant/pwa',
+    { schema: { response: { 200: TenantPwaResponseSchema } } },
+    (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.branding.read');
+      return options.service.pwa(request.tenant.id);
+    },
+  );
+  app.post(
+    '/tenant/pwa/publish',
+    { schema: { response: { 200: TenantPwaResponseSchema } } },
+    (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.branding.manage');
+      return options.service.publishPwa(request.tenant.id, actor(request));
+    },
+  );
   app.patch(
     '/tenant/public-site',
     { schema: { body: UpdateTenantPublicSiteRequestSchema } },
@@ -174,6 +191,22 @@ export const publicTenantWhiteLabelRoutes: FastifyPluginAsyncZod<{
         .type('application/manifest+json')
         .send(await options.service.manifest(request.params.slug)),
   );
+  // Um arquivo real por tamanho declarado no manifest, derivado do APP_ICON.
+  for (const size of APP_ICON_SIZES)
+    app.get(
+      `/public/sites/:slug/app-icon-${String(size)}.png`,
+      {
+        config: { rateLimit: { max: 240, timeWindow: '1 minute' } },
+        schema: { params: PublicSlugSchema },
+      },
+      async (request, reply) => {
+        const icon = await options.service.appIcon(request.params.slug, size);
+        return reply
+          .header('Cache-Control', 'public, max-age=300')
+          .type(icon.mimeType)
+          .send(icon.buffer);
+      },
+    );
   app.get(
     '/public/media/:assetPublicId',
     {

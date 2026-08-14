@@ -5,13 +5,14 @@ import {
   PublicServiceProfessionalsResponseSchema,
 } from '@plataforma/shared';
 
+import { AppError } from '../../errors/AppError.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type CustomerService } from '../customers/customer.service.js';
+import { type AppointmentNotificationService } from '../notifications/appointment-notification.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { type TenantWhiteLabelRepository } from '../tenants/tenant-white-label.repository.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
-import { AppError } from '../../errors/AppError.js';
 
 function tenantNotFound(): AppError {
   return new AppError({
@@ -29,6 +30,7 @@ export class PublicBookingService {
     private readonly customers: CustomerService,
     private readonly appointments: AppointmentService,
     private readonly slots: AvailabilityService,
+    private readonly notifications?: AppointmentNotificationService,
   ) {}
 
   private async resolveTenant(slug: string) {
@@ -83,6 +85,14 @@ export class PublicBookingService {
       },
       { userId: null, sessionId: null },
     );
+    // O agendamento pelo site público notifica o cliente pelo mesmo caminho da
+    // criação interna; falhar aqui não pode desfazer um agendamento já criado.
+    try {
+      await this.notifications?.notifyBookingConfirmed(tenant.id, appointment);
+    } catch {
+      /* a fila de notificações registra o próprio erro */
+    }
+
     return PublicBookingConfirmationSchema.parse({
       protocol: appointment.protocol,
       appointmentPublicId: appointment.publicId,

@@ -29,6 +29,9 @@ export interface NotificationDeliveries {
   webhook?: WebhookDelivery;
 }
 
+/** Ícone real versionado no frontend, usado quando o tenant não tem APP_ICON. */
+const FALLBACK_PUSH_ICON = '/icons/agendei-192.png';
+
 const MAX_AUTOMATIC_ATTEMPTS = 5;
 const BACKOFF_MINUTES_PER_ATTEMPT = 2;
 
@@ -263,13 +266,47 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Ícone e destino da notificação vêm do backend, que sabe qual tenant a
+   * originou — o service worker nunca precisa descobrir isso. Sem APP_ICON
+   * publicável, cai no ícone global real do Agendei.
+   */
+  private async pushBranding(tenantId: bigint): Promise<{ icon: string; url: string }> {
+    const tenant = await this.client.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        slug: true,
+        mediaAssets: {
+          where: { kind: 'APP_ICON', deletedAt: null },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (tenant === null) return { icon: FALLBACK_PUSH_ICON, url: '/' };
+    return {
+      icon:
+        tenant.mediaAssets.length > 0
+          ? `/public/sites/${tenant.slug}/app-icon-192.png`
+          : FALLBACK_PUSH_ICON,
+      url: `/public/${tenant.slug}`,
+    };
+  }
+
   private async attemptPush(log: NotificationLog): Promise<void> {
     const subscription = await this.client.pushSubscription.findFirst({
       where: { publicId: log.recipient, active: true },
     });
     if (subscription === null) throw new Error('Inscrição push não encontrada ou inativa.');
 
-    const payload = JSON.stringify({ title: log.subject, body: log.body });
+    const branding = await this.pushBranding(log.tenantId);
+    const payload = JSON.stringify({
+      title: log.subject,
+      body: log.body,
+      icon: branding.icon,
+      badge: branding.icon,
+      url: branding.url,
+    });
     try {
       await this.deliveries.push.send({
         subscription: {

@@ -458,6 +458,7 @@ export function createDatabaseConnection(
       customers,
       appointments,
       new AvailabilityService(new AvailabilityRepository(client)),
+      appointmentNotifications,
     ),
     async ping() {
       try {

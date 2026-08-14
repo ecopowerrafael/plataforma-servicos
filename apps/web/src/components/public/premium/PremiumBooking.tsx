@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { environment } from '../../../config/environment.js';
 import { AppointmentPaymentPanel } from '../../PublicBookingFlow.js';
 import { DEMO_AVATAR } from '../demo-assets.js';
+import { PushReminderCta } from '../PushReminderCta.js';
 import { ServiceVisual } from '../ServiceVisual.js';
 import {
   BOOKING_STEPS,
@@ -186,6 +187,7 @@ export function PremiumBooking({
             mode={payOnline ? 'required' : 'reminder'}
           />
         ) : null}
+        <PushReminderCta slug={slug} />
         <button className="premium-primary" type="button" onClick={onFinish}>
           Voltar ao início
         </button>

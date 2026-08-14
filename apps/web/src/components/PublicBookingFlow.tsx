@@ -5,6 +5,8 @@ import {
   PixChargeResponseSchema,
 } from '@plataforma/shared';
 import { IconCreditCard, IconQrcode } from '@tabler/icons-react';
+
+import { PushReminderCta } from './public/PushReminderCta.js';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { type z } from 'zod';
@@ -841,6 +843,7 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
             mode={payOnline ? 'required' : 'reminder'}
           />
         ) : null}
+        <PushReminderCta slug={slug} />
       </section>
     );
   }

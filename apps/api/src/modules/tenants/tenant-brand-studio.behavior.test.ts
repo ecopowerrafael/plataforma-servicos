@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { updateTenantIdentity, updateTenantOnboarding } from './tenant-identity.service.js';
 import { validateTenantMediaUpload } from './tenant-media.storage.js';
+import { type TenantMediaStorage } from './tenant-media.storage.js';
 import { TenantWhiteLabelService } from './tenant-white-label.service.js';
 import {
   type Prisma,
@@ -66,7 +67,7 @@ describe('tenant Brand Studio behavior', () => {
       }),
       listAssets: vi.fn().mockResolvedValue([]),
     };
-    const unusedStorage = {} as ServiceImageStorage;
+    const unusedStorage = {} as ServiceImageStorage & TenantMediaStorage;
     const service = new TenantWhiteLabelService(
       repository as never,
       unusedStorage,
@@ -310,7 +311,7 @@ describe('tenant Brand Studio behavior', () => {
       listAssets: vi.fn().mockResolvedValue([]),
       recordAudit: vi.fn().mockResolvedValue(undefined),
     };
-    const unusedStorage = {} as ServiceImageStorage;
+    const unusedStorage = {} as ServiceImageStorage & TenantMediaStorage;
     const service = new TenantWhiteLabelService(
       repository as never,
       unusedStorage,

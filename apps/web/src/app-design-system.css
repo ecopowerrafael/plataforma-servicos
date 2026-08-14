@@ -1259,3 +1259,27 @@
   font-weight: 650;
   margin: 0;
 }
+
+/* Publicação do aplicativo (Minha empresa → Aplicativo) */
+.pwa-checklist {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pwa-checklist li {
+  align-items: center;
+  display: flex;
+  font-size: 0.88rem;
+  gap: 0.45rem;
+}
+.pwa-checklist .is-done svg {
+  color: var(--app-success);
+}
+.pwa-checklist .is-pending {
+  color: var(--app-muted);
+}
+.pwa-checklist .is-pending svg {
+  color: var(--app-warning);
+}

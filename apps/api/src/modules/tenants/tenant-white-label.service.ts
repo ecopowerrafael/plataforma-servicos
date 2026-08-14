@@ -7,6 +7,7 @@ import {
   TenantMediaAssetSchema,
   TenantMediaListResponseSchema,
   TenantPublicSiteSchema,
+  TenantPwaResponseSchema,
   TenantWhiteLabelResponseSchema,
   type TenantBranding,
   type UpdateTenantPublicSiteRequest,
@@ -14,7 +15,12 @@ import {
 
 import { PlanEntitlementService } from './plan-entitlement.service.js';
 import { resolveTenantExperience } from './tenant-experience.resolver.js';
-import { type TenantMediaStorage } from './tenant-media.storage.js';
+import {
+  APP_ICON_MIN_SIZE,
+  inspectAppIcon,
+  type AppIconSize,
+  type TenantMediaStorage,
+} from './tenant-media.storage.js';
 import { type TenantWhiteLabelRepository } from './tenant-white-label.repository.js';
 import { type PrismaClient, type TenantMediaKind } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -274,6 +280,8 @@ export class TenantWhiteLabelService {
     const asset = await this.repository.findAsset(tenantId, publicId);
     if (asset === null) throw notFound();
     await this.repository.deleteAsset(asset.id);
+    // O original é preservado; só os derivados do ícone são descartados.
+    if (asset.kind === 'APP_ICON') await this.storage.removeAppIconDerivatives(asset.storageKey);
     await this.audit(tenantId, publicId, 'tenant.media.removed', actor);
   }
 
@@ -381,24 +389,132 @@ export class TenantWhiteLabelService {
       })),
       bookingAvailable,
       unavailableMessage,
+      pwaPublished: tenant.publicSite?.pwaStatus === 'PUBLISHED',
     });
   }
 
+  /**
+   * Manifest do aplicativo do tenant. Servido na MESMA origem da página
+   * pública (deploy single-origin), então `id`, `scope` e `start_url` podem ser
+   * caminhos absolutos. O `id` vem do publicId imutável: trocar slug, nome,
+   * tema ou ícone não cria outro aplicativo para o navegador.
+   */
   public async manifest(slug: string) {
+    const tenant = await this.repository.findPublicTenant(slug);
+    if (tenant === null) throw notFound();
     const site = await this.publicSite(slug);
-    const icon =
-      site.assets.find((asset) => asset.kind === 'APP_ICON') ??
-      site.assets.find((asset) => asset.kind === 'FAVICON');
+    const appIconValid = (await this.appIconState(tenant.id)).valid;
     return PublicTenantManifestSchema.parse({
+      id: `/pwa/tenant/${tenant.publicId}`,
       name: site.site.pwaName ?? site.displayName,
       short_name: site.site.pwaShortName ?? site.displayName.slice(0, 30),
       description: site.site.pwaDescription ?? site.site.seoDescription,
       theme_color: site.branding.primaryColor,
       background_color: site.branding.backgroundColor,
-      icons: icon === undefined ? [] : [{ src: icon.url, type: icon.mimeType }],
+      // Cada tamanho aponta para um arquivo PNG realmente daquele tamanho,
+      // derivado do APP_ICON. Sem APP_ICON válido, o array fica vazio (e o
+      // tenant não consegue publicar).
+      icons: appIconValid
+        ? [
+            {
+              src: `/public/sites/${site.slug}/app-icon-192.png`,
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: `/public/sites/${site.slug}/app-icon-512.png`,
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any',
+            },
+          ]
+        : [],
       display: 'standalone',
+      scope: `/public/${site.slug}`,
       start_url: `/public/${site.slug}`,
     });
+  }
+
+  /**
+   * Estado do APP_ICON: o asset é a fonte única dos ícones quadrados do
+   * aplicativo (o logo pode ser horizontal e nunca é usado aqui). O arquivo
+   * original é preservado como enviado.
+   */
+  private async appIconState(
+    tenantId: bigint,
+  ): Promise<{ exists: boolean; square: boolean; largeEnough: boolean; valid: boolean }> {
+    const assets = await this.repository.listAssets(tenantId);
+    const icon = assets.find((asset) => asset.kind === 'APP_ICON');
+    if (icon === undefined)
+      return { exists: false, square: false, largeEnough: false, valid: false };
+    try {
+      const { buffer } = await this.storage.read(icon.storageKey);
+      const inspection = inspectAppIcon(buffer);
+      return { exists: true, ...inspection };
+    } catch {
+      return { exists: true, square: false, largeEnough: false, valid: false };
+    }
+  }
+
+  /** PNG do tamanho pedido, derivado sob demanda do APP_ICON do tenant. */
+  public async appIcon(slug: string, size: AppIconSize) {
+    const tenant = await this.repository.findPublicTenant(slug);
+    if (tenant === null) throw notFound();
+    const icon = tenant.mediaAssets.find((asset) => asset.kind === 'APP_ICON');
+    if (icon === undefined) throw publicImageNotFound();
+    const { buffer } = await this.storage.read(icon.storageKey);
+    if (!inspectAppIcon(buffer).valid) throw publicImageNotFound();
+    return {
+      buffer: await this.storage.appIconDerivative(icon.storageKey, size, buffer),
+      mimeType: 'image/png' as const,
+    };
+  }
+
+  /** Situação do aplicativo do tenant e o que ainda falta para publicar. */
+  public async pwa(tenantId: bigint) {
+    const tenant = await this.repository.findTenant(tenantId);
+    if (tenant === null) throw notFound();
+    const appName = tenant.publicSite?.pwaName ?? tenant.displayName;
+    const appIcon = await this.appIconState(tenantId);
+    const checklist = {
+      appName: appName.trim().length >= 2,
+      publicPage: tenant.slug.trim().length > 0 && tenant.status === 'ACTIVE',
+      icon: appIcon.exists,
+      iconSquare: appIcon.exists && appIcon.square,
+      iconMinimumSize: appIcon.exists && appIcon.largeEnough,
+      // Os derivados são gerados a partir do original válido, sob demanda.
+      iconDerivatives: appIcon.valid,
+      branding: tenant.branding !== null,
+    };
+    return TenantPwaResponseSchema.parse({
+      status: tenant.publicSite?.pwaStatus ?? 'DRAFT',
+      publishedAt: tenant.publicSite?.pwaPublishedAt?.toISOString() ?? null,
+      checklist,
+      ready: Object.values(checklist).every(Boolean),
+      appName,
+      slug: tenant.slug,
+      publicUrl: `/public/${tenant.slug}`,
+      iconMessage: appIcon.valid
+        ? null
+        : `Para publicar o aplicativo, envie um ícone quadrado de pelo menos ${String(APP_ICON_MIN_SIZE)}×${String(APP_ICON_MIN_SIZE)} px.`,
+    });
+  }
+
+  /** Publica o aplicativo depois de revalidar o checklist no servidor. */
+  public async publishPwa(tenantId: bigint, actor: Actor) {
+    const current = await this.pwa(tenantId);
+    if (!current.ready)
+      throw new AppError({
+        code: 'TENANT_PWA_NOT_READY',
+        message: 'Conclua os itens pendentes antes de publicar o aplicativo.',
+        statusCode: 422,
+      });
+    if (current.status !== 'PUBLISHED') {
+      await this.repository.upsertPwaStatus(tenantId, 'PUBLISHED', new Date());
+      await this.audit(tenantId, current.slug, 'tenant_pwa.published', actor);
+    }
+    return this.pwa(tenantId);
   }
 
   private async audit(tenantId: bigint, targetPublicId: string, action: string, actor: Actor) {

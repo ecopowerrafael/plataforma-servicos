@@ -8,6 +8,7 @@ import {
 } from 'fastify-type-provider-zod';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { type TenantMediaStorage } from './tenant-media.storage.js';
 import {
   publicTenantWhiteLabelRoutes,
   tenantWhiteLabelRoutes,
@@ -53,7 +54,7 @@ async function createApp(
     }),
     listAssets: vi.fn().mockResolvedValue([]),
   };
-  const unusedStorage = {} as ServiceImageStorage;
+  const unusedStorage = {} as ServiceImageStorage & TenantMediaStorage;
   const service = new TenantWhiteLabelService(
     repository as never,
     unusedStorage,

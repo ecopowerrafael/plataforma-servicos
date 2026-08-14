@@ -84,6 +84,11 @@ enum TenantPublicLayout {
   PREMIUM_APP
 }
 
+enum TenantPwaStatus {
+  DRAFT
+  PUBLISHED
+}
+
 enum ProfessionalUnavailabilityType {
   BLOCK
   DAY_OFF
@@ -926,6 +931,8 @@ model TenantPublicSite {
   pwaName             String?           @map("pwa_name") @db.VarChar(80)
   pwaShortName        String?           @map("pwa_short_name") @db.VarChar(30)
   pwaDescription      String?           @map("pwa_description") @db.VarChar(160)
+  pwaStatus           TenantPwaStatus   @default(DRAFT) @map("pwa_status")
+  pwaPublishedAt      DateTime?         @map("pwa_published_at") @db.DateTime(3)
   createdAt           DateTime          @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)

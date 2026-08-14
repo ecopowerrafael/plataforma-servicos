@@ -132,17 +132,62 @@ export const PublicTenantSiteResponseSchema = z.object({
   ),
   bookingAvailable: z.boolean().optional(),
   unavailableMessage: z.string().nullable().optional(),
+  /** Instalação só é oferecida quando o tenant publicou o aplicativo. */
+  pwaPublished: z.boolean().default(false),
 });
+/**
+ * Manifest do aplicativo do tenant. O `id` é derivado do `publicId` imutável
+ * do tenant: mudar slug, nome, tema ou ícone NÃO cria outro aplicativo para o
+ * navegador.
+ */
 export const PublicTenantManifestSchema = z.object({
+  id: z.string(),
   name: z.string(),
   short_name: z.string(),
   description: z.string().nullable(),
   theme_color: z.string(),
   background_color: z.string(),
-  icons: z.array(z.object({ src: z.string(), type: z.string() })),
+  icons: z.array(
+    z.object({
+      src: z.string(),
+      sizes: z.string(),
+      type: z.string(),
+      purpose: z.string().optional(),
+    }),
+  ),
   display: z.literal('standalone'),
+  scope: z.string(),
   start_url: z.string(),
 });
+
+export const TenantPwaStatusSchema = z.enum(['DRAFT', 'PUBLISHED']);
+
+/** Requisitos verificados no backend antes de publicar o aplicativo. */
+export const TenantPwaChecklistSchema = z.object({
+  appName: z.boolean(),
+  publicPage: z.boolean(),
+  icon: z.boolean(),
+  iconSquare: z.boolean(),
+  iconMinimumSize: z.boolean(),
+  iconDerivatives: z.boolean(),
+  branding: z.boolean(),
+});
+
+export const TenantPwaResponseSchema = z.object({
+  status: TenantPwaStatusSchema,
+  publishedAt: z.iso.datetime({ offset: true }).nullable(),
+  checklist: TenantPwaChecklistSchema,
+  ready: z.boolean(),
+  appName: z.string(),
+  slug: z.string(),
+  publicUrl: z.string(),
+  /** Instrução exibida quando o ícone impede a publicação. */
+  iconMessage: z.string().nullable(),
+});
+
+export type PublicTenantManifest = z.infer<typeof PublicTenantManifestSchema>;
+export type TenantPwaStatus = z.infer<typeof TenantPwaStatusSchema>;
+export type TenantPwaResponse = z.infer<typeof TenantPwaResponseSchema>;
 export const PublicTenantSlugParamsSchema = z.object({ slug: TenantSlugSchema }).strict();
 export const TenantPublicIdParamsSchema = z
   .object({ tenantPublicId: TenantPublicIdSchema })

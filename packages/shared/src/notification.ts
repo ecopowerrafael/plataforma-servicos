@@ -21,6 +21,23 @@ export const NotificationKinds = [
 ] as const;
 export const NotificationKindSchema = z.enum(NotificationKinds);
 
+/**
+ * Notificações transacionais: fazem parte do próprio serviço contratado
+ * (o agendamento) e por isso não dependem de opt-in de comunicação. Toda a
+ * classificação vive aqui — nenhum canal decide isso por conta própria.
+ * O que não estiver nesta lista é marketing/automação e continua exigindo
+ * `acceptsCommunications`.
+ */
+export const TransactionalNotificationKinds = [
+  'appointment.booking_confirmed',
+  'appointment.booking_canceled',
+  'appointment.reminder',
+] as const satisfies readonly (typeof NotificationKinds)[number][];
+
+export function isTransactionalNotification(kind: string): boolean {
+  return (TransactionalNotificationKinds as readonly string[]).includes(kind);
+}
+
 export const NotificationLogPublicSchema = z.object({
   publicId: z.uuid(),
   channel: NotificationChannelSchema,

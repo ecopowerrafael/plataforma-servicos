@@ -16,6 +16,7 @@ export class TenantWhiteLabelRepository {
         slug: true,
         displayName: true,
         businessProfile: true,
+        status: true,
         onboardingCompletedAt: true,
         branding: {
           select: {
@@ -65,9 +66,24 @@ export class TenantWhiteLabelRepository {
             pwaName: true,
             pwaShortName: true,
             pwaDescription: true,
+            pwaStatus: true,
+            pwaPublishedAt: true,
           },
         },
       },
+    });
+  }
+
+  /** Publicação do aplicativo; cria a linha do site público se ainda não existir. */
+  public async upsertPwaStatus(
+    tenantId: bigint,
+    status: 'DRAFT' | 'PUBLISHED',
+    publishedAt: Date | null,
+  ): Promise<void> {
+    await this.client.tenantPublicSite.upsert({
+      where: { tenantId },
+      create: { tenantId, pwaStatus: status, pwaPublishedAt: publishedAt },
+      update: { pwaStatus: status, pwaPublishedAt: publishedAt },
     });
   }
 
@@ -167,6 +183,8 @@ export class TenantWhiteLabelRepository {
             pwaName: true,
             pwaShortName: true,
             pwaDescription: true,
+            pwaStatus: true,
+            pwaPublishedAt: true,
           },
         },
         mediaAssets: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },

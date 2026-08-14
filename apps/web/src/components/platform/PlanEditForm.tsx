@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-confusing-void-expression */
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CreateCommercialPlanRequestSchema, TenantCommercialPolicySchema } from '@plataforma/shared';
+import {
+  CreateCommercialPlanRequestSchema,
+  TenantCommercialPolicySchema,
+} from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { type ChangeEvent, useEffect, useState } from 'react';
 import { Controller, FormProvider, useForm, useWatch } from 'react-hook-form';
@@ -38,7 +41,13 @@ const PlanFormSchema = CreateCommercialPlanRequestSchema.superRefine((value, con
 export type PlanFormInput = z.input<typeof PlanFormSchema>;
 export type PlanFormSubmission = z.output<typeof PlanFormSchema>;
 type Plan = z.infer<typeof CommercialPlanPublicSchema>;
-const planCode = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const planCode = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 function MoneyInput({
   value,
   onChange,
@@ -80,8 +89,20 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
       annualPriceCents: undefined,
       billingOptions: [
         { billingCycle: 'MONTHLY', priceCents: 0, active: true, sortOrder: 0, recommended: true },
-        { billingCycle: 'QUARTERLY', priceCents: 0, active: false, sortOrder: 1, recommended: false },
-        { billingCycle: 'SEMIANNUAL', priceCents: 0, active: false, sortOrder: 2, recommended: false },
+        {
+          billingCycle: 'QUARTERLY',
+          priceCents: 0,
+          active: false,
+          sortOrder: 1,
+          recommended: false,
+        },
+        {
+          billingCycle: 'SEMIANNUAL',
+          priceCents: 0,
+          active: false,
+          sortOrder: 2,
+          recommended: false,
+        },
         { billingCycle: 'ANNUAL', priceCents: 0, active: false, sortOrder: 3, recommended: false },
       ],
       currency: 'BRL',
@@ -122,14 +143,42 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
     priceCents: Number(plan.priceCents),
     monthlyPriceCents: plan.monthlyPriceCents === null ? undefined : Number(plan.monthlyPriceCents),
     annualPriceCents: plan.annualPriceCents === null ? undefined : Number(plan.annualPriceCents),
-    billingOptions: plan.billingOptions.length > 0
-      ? plan.billingOptions.map((option) => ({ ...option, priceCents: Number(option.priceCents) }))
-      : [
-          { billingCycle: 'MONTHLY', priceCents: Number(plan.monthlyPriceCents ?? plan.priceCents), active: plan.billingCycle === 'MONTHLY', sortOrder: 0, recommended: plan.billingCycle === 'MONTHLY' },
-          { billingCycle: 'QUARTERLY', priceCents: 0, active: false, sortOrder: 1, recommended: false },
-          { billingCycle: 'SEMIANNUAL', priceCents: 0, active: false, sortOrder: 2, recommended: false },
-          { billingCycle: 'ANNUAL', priceCents: Number(plan.annualPriceCents ?? plan.priceCents), active: plan.billingCycle === 'ANNUAL', sortOrder: 3, recommended: plan.billingCycle === 'ANNUAL' },
-        ],
+    billingOptions:
+      plan.billingOptions.length > 0
+        ? plan.billingOptions.map((option) => ({
+            ...option,
+            priceCents: Number(option.priceCents),
+          }))
+        : [
+            {
+              billingCycle: 'MONTHLY',
+              priceCents: Number(plan.monthlyPriceCents ?? plan.priceCents),
+              active: plan.billingCycle === 'MONTHLY',
+              sortOrder: 0,
+              recommended: plan.billingCycle === 'MONTHLY',
+            },
+            {
+              billingCycle: 'QUARTERLY',
+              priceCents: 0,
+              active: false,
+              sortOrder: 1,
+              recommended: false,
+            },
+            {
+              billingCycle: 'SEMIANNUAL',
+              priceCents: 0,
+              active: false,
+              sortOrder: 2,
+              recommended: false,
+            },
+            {
+              billingCycle: 'ANNUAL',
+              priceCents: Number(plan.annualPriceCents ?? plan.priceCents),
+              active: plan.billingCycle === 'ANNUAL',
+              sortOrder: 3,
+              recommended: plan.billingCycle === 'ANNUAL',
+            },
+          ],
     currency: plan.currency,
     trialDays: plan.trialDays ?? undefined,
     isPublic: plan.isPublic,
@@ -137,11 +186,35 @@ function valuesFromPlan(plan?: Plan): PlanFormInput {
     badge: plan.badge ?? undefined,
     ctaText: plan.ctaText ?? undefined,
     sortOrder: plan.sortOrder,
-    limits: (['units.max', 'professionals.max', 'members.max', 'services.max', 'monthly_appointments.max', 'custom_domain.enabled', 'branding.customization.enabled', 'advanced_reports.enabled', 'products.enabled', 'stock.enabled', 'commissions.enabled', 'waitlist.enabled', 'automations.enabled', 'whatsapp.enabled', 'integrations.enabled', 'loyalty.enabled', 'coupons.enabled'] as const).map((key) => {
+    limits: (
+      [
+        'units.max',
+        'professionals.max',
+        'members.max',
+        'services.max',
+        'monthly_appointments.max',
+        'custom_domain.enabled',
+        'branding.customization.enabled',
+        'advanced_reports.enabled',
+        'products.enabled',
+        'stock.enabled',
+        'commissions.enabled',
+        'waitlist.enabled',
+        'automations.enabled',
+        'whatsapp.enabled',
+        'integrations.enabled',
+        'loyalty.enabled',
+        'coupons.enabled',
+      ] as const
+    ).map((key) => {
       const limit = plan.limits.find((item) => item.key === key);
       return key.endsWith('.enabled')
         ? { key, valueType: 'BOOLEAN' as const, booleanValue: limit?.booleanValue ?? false }
-        : { key, valueType: 'INTEGER' as const, integerValue: limit?.integerValue === null ? null : Number(limit?.integerValue ?? 1) };
+        : {
+            key,
+            valueType: 'INTEGER' as const,
+            integerValue: limit?.integerValue === null ? null : Number(limit?.integerValue ?? 1),
+          };
     }),
   };
 }
@@ -185,6 +258,19 @@ export function PlanEditForm({
   const formValues = useWatch({ control });
   const trialDays = formValues.trialDays;
   const trialInheritsDefault = typeof trialDays !== 'number';
+  const submit = (value: PlanFormSubmission) => {
+    const active = value.billingOptions.filter((option) => option.active);
+    const primary = active.find((option) => option.recommended) ?? active[0];
+    const monthly = value.billingOptions.find((option) => option.billingCycle === 'MONTHLY');
+    const annual = value.billingOptions.find((option) => option.billingCycle === 'ANNUAL');
+    return onSave({
+      ...value,
+      billingCycle: primary?.billingCycle ?? value.billingCycle,
+      priceCents: primary?.priceCents ?? value.priceCents,
+      monthlyPriceCents: monthly?.priceCents,
+      annualPriceCents: annual?.priceCents,
+    });
+  };
 
   return (
     <FormProvider {...form}>
@@ -192,7 +278,7 @@ export function PlanEditForm({
         className="platform-form"
         onSubmit={(event) => {
           event.preventDefault();
-          void handleSubmit(onSave)();
+          void handleSubmit(submit)();
         }}
       >
         <h3>{plan === undefined ? 'Criar plano' : 'Editar plano'}</h3>
@@ -205,9 +291,18 @@ export function PlanEditForm({
         ) : (
           <p className="muted">{`C\u00f3digo: ${plan.code}`}</p>
         )}
+        <h4>IdentificaÃ§Ã£o</h4>
         <label>
           Nome
-          <input {...register('name', { onChange: (event: ChangeEvent<HTMLInputElement>) => { if (plan === undefined) { setValue('code', planCode(event.target.value), { shouldValidate: true }); } } })} />
+          <input
+            {...register('name', {
+              onChange: (event: ChangeEvent<HTMLInputElement>) => {
+                if (plan === undefined) {
+                  setValue('code', planCode(event.target.value), { shouldValidate: true });
+                }
+              },
+            })}
+          />
         </label>
         <label>
           {'Subt\u00edtulo'}
@@ -241,16 +336,55 @@ export function PlanEditForm({
           <legend>Preços e periodicidades</legend>
           {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const).map((cycle, index) => (
             <div className="billing-option" key={cycle}>
-              <strong>{({ MONTHLY: 'Mensal', QUARTERLY: 'Trimestral', SEMIANNUAL: 'Semestral', ANNUAL: 'Anual' })[cycle]}</strong>
+              <strong>
+                {
+                  {
+                    MONTHLY: 'Mensal',
+                    QUARTERLY: 'Trimestral',
+                    SEMIANNUAL: 'Semestral',
+                    ANNUAL: 'Anual',
+                  }[cycle]
+                }
+              </strong>
               <input type="hidden" {...register(`billingOptions.${index}.billingCycle`)} />
-              <input type="hidden" {...register(`billingOptions.${index}.sortOrder`, { valueAsNumber: true })} />
-              <Controller control={control} name={`billingOptions.${index}.priceCents`} render={({ field }) => <MoneyInput value={field.value as number | undefined} onChange={field.onChange} onBlur={field.onBlur} placeholder="59,90" />} />
-              <label><input type="checkbox" {...register(`billingOptions.${index}.active`)} /> Ativo</label>
-              <label><input type="checkbox" checked={formValues.billingOptions?.[index]?.recommended === true} onChange={(event) => { formValues.billingOptions?.forEach((_, optionIndex) => setValue(`billingOptions.${optionIndex}.recommended`, event.target.checked && optionIndex === index)); }} /> Recomendado</label>
+              <input
+                type="hidden"
+                {...register(`billingOptions.${index}.sortOrder`, { valueAsNumber: true })}
+              />
+              <Controller
+                control={control}
+                name={`billingOptions.${index}.priceCents`}
+                render={({ field }) => (
+                  <MoneyInput
+                    value={field.value as number | undefined}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    placeholder="59,90"
+                  />
+                )}
+              />
+              <label>
+                <input type="checkbox" {...register(`billingOptions.${index}.active`)} /> Ativo
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={formValues.billingOptions?.[index]?.recommended === true}
+                  onChange={(event) => {
+                    formValues.billingOptions?.forEach((_, optionIndex) =>
+                      setValue(
+                        `billingOptions.${optionIndex}.recommended`,
+                        event.target.checked && optionIndex === index,
+                      ),
+                    );
+                  }}
+                />{' '}
+                Recomendado
+              </label>
             </div>
           ))}
         </fieldset>
-        <fieldset className="legacy-billing-fields">
+        <fieldset className="legacy-billing-fields" hidden>
           <legend>Preços</legend>
           <label>
             Preço mensal (R$)
@@ -286,7 +420,7 @@ export function PlanEditForm({
           </label>
           <small>Digite valores em reais; a Agendei armazena centavos com precisão.</small>
         </fieldset>
-        <label className="legacy-cycle">
+        <label className="legacy-cycle" hidden>
           Ciclo
           <select {...register('billingCycle')}>
             <option value="MONTHLY">Mensal</option>
@@ -296,6 +430,7 @@ export function PlanEditForm({
             <option value="CUSTOM">Personalizado</option>
           </select>
         </label>
+        <h4>ConfiguraÃ§Ãµes comerciais</h4>
         <label>
           <input
             checked={trialInheritsDefault}
@@ -352,6 +487,7 @@ export function PlanEditForm({
             })}
           />
         </label>
+        <h4>Limites e recursos</h4>
         <PlanLimitsEditor />
         {Object.keys(errors).length > 0 && (
           <p className="form-error" role="alert">
@@ -371,7 +507,9 @@ export function PlanEditForm({
               : 'Salvar altera\u00e7\u00f5es'}
         </button>
       </form>
-      {plan !== undefined && <PlanBenefitsEditor benefits={plan.benefits} planPublicId={plan.publicId} />}
+      {plan !== undefined && (
+        <PlanBenefitsEditor benefits={plan.benefits} planPublicId={plan.publicId} />
+      )}
       <PlanPreviewCard
         benefitTexts={
           plan === undefined

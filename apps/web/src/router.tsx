@@ -109,6 +109,8 @@ export const router = createBrowserRouter([
   { path: '/accept-invitation', element: <AcceptInvitationPage /> },
   { path: '/access-denied', element: <AccessDeniedPage /> },
   { path: '/platform', element: <PlatformPageRebuild /> },
+  { path: '/platform/plans/:resourceId', element: <PlatformPageRebuild /> },
+  { path: '/platform/subscriptions/:resourceId', element: <PlatformPageRebuild /> },
   { path: '/platform/:section', element: <PlatformPageRebuild /> },
   { path: '/public/:slug', element: <PublicTenantPage /> },
   // Área do cliente em página inteira: uma URL por seção.

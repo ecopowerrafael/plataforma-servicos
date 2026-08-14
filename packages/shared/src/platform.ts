@@ -363,7 +363,11 @@ export const ExtendTrialRequestSchema = z
   .object({ trialEndsAt: IsoDateSchema, reason: z.string().trim().min(3).max(500) })
   .strict();
 export const ChangePlanRequestSchema = z
-  .object({ planPublicId: z.uuid(), billingCycle: BillingCycleSchema.optional(), reason: z.string().trim().min(3).max(500) })
+  .object({
+    planPublicId: z.uuid(),
+    billingCycle: BillingCycleSchema.optional(),
+    reason: z.string().trim().min(3).max(500),
+  })
   .strict();
 export const SubscriptionListQuerySchema = PaginationQuerySchema.extend({
   status: SubscriptionStatusSchema.optional(),
@@ -494,12 +498,14 @@ export const PlatformDashboardResponseSchema = z.object({
     canceledSubscriptions: z.number().int().nonnegative(),
     expiredSubscriptions: z.number().int().nonnegative(),
   }),
-  estimatedRevenue: z.object({
-    mrrCents: MoneyPublicSchema,
-    arrCents: MoneyPublicSchema,
-    currency: CurrencySchema,
-    disclaimer: z.literal('Valores contratuais estimados; não representam recebimentos.'),
-  }),
+  estimatedRevenue: z
+    .object({
+      mrrCents: MoneyPublicSchema,
+      arrCents: MoneyPublicSchema,
+      currency: CurrencySchema,
+      disclaimer: z.literal('Valores contratuais estimados; não representam recebimentos.'),
+    })
+    .nullable(),
   byPlan: z.array(
     z.object({
       planPublicId: z.uuid(),

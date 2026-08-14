@@ -736,7 +736,8 @@ export class PlatformService {
     metadata: RequestMetadata,
   ): Promise<void> {
     const plan = await this.client.commercialPlan.findUnique({ where: { publicId } });
-    if (plan === null) throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano nao foi encontrado.', 404);
+    if (plan === null)
+      throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano nao foi encontrado.', 404);
     const [subscriptions, history] = await Promise.all([
       this.client.tenantSubscription.count({ where: { planId: plan.id } }),
       this.client.subscriptionHistory.count({
@@ -2316,7 +2317,7 @@ export class PlatformService {
       expiredSubscriptions,
       recentTenants,
       recentAudit,
-      grouped,
+      revenueSubscriptions,
     ] = await Promise.all([
       this.client.tenant.count(),
       this.client.tenant.count({ where: { status: 'ACTIVE' } }),
@@ -2338,18 +2339,17 @@ export class PlatformService {
         take: 10,
         orderBy: { createdAt: 'desc' },
       }),
-      this.client.tenantSubscription.groupBy({
-        by: ['planId'],
-        where: { effectiveKey: 'EFFECTIVE' },
-        _count: { _all: true },
-        _sum: { priceCents: true },
-      }),
+      this.client.tenantSubscription
+        .findMany({
+          where: { effectiveKey: 'EFFECTIVE' },
+          select: {
+            priceCents: true,
+            billingCycle: true,
+            plan: { select: { publicId: true, name: true } },
+          },
+        })
+        .catch(() => null),
     ]);
-    const planIds = grouped.map(({ planId }) => planId);
-    const plans = await this.client.commercialPlan.findMany({
-      where: { id: { in: planIds } },
-      select: { id: true, publicId: true, name: true, billingCycle: true },
-    });
     const monthlyValue = (amount: bigint, cycle: string) =>
       cycle === 'QUARTERLY'
         ? amount / 3n
@@ -2358,21 +2358,25 @@ export class PlatformService {
           : cycle === 'ANNUAL'
             ? amount / 12n
             : amount;
-    const byPlan = grouped
-      .map((entry) => {
-        const plan = plans.find((item) => item.id === entry.planId);
-        return plan === undefined
-          ? null
-          : {
-              planPublicId: plan.publicId,
-              planName: plan.name,
-              subscriptions: entry._count._all,
-              estimatedMonthlyCents: publicMoney(
-                monthlyValue(entry._sum.priceCents ?? 0n, plan.billingCycle),
-              ),
-            };
-      })
-      .filter((value): value is NonNullable<typeof value> => value !== null);
+    const revenueByPlan = new Map<
+      string,
+      { planPublicId: string; planName: string; subscriptions: number; monthlyCents: bigint }
+    >();
+    for (const subscription of revenueSubscriptions ?? []) {
+      const current = revenueByPlan.get(subscription.plan.publicId) ?? {
+        planPublicId: subscription.plan.publicId,
+        planName: subscription.plan.name,
+        subscriptions: 0,
+        monthlyCents: 0n,
+      };
+      current.subscriptions += 1;
+      current.monthlyCents += monthlyValue(subscription.priceCents, subscription.billingCycle);
+      revenueByPlan.set(subscription.plan.publicId, current);
+    }
+    const byPlan = [...revenueByPlan.values()].map(({ monthlyCents, ...entry }) => ({
+      ...entry,
+      estimatedMonthlyCents: publicMoney(monthlyCents),
+    }));
     const mrr = byPlan.reduce((total, value) => total + BigInt(value.estimatedMonthlyCents), 0n);
     return {
       period,
@@ -2392,12 +2396,15 @@ export class PlatformService {
         canceledSubscriptions,
         expiredSubscriptions,
       },
-      estimatedRevenue: {
-        mrrCents: publicMoney(mrr),
-        arrCents: publicMoney(mrr * 12n),
-        currency: 'BRL',
-        disclaimer: 'Valores contratuais estimados; não representam recebimentos.' as const,
-      },
+      estimatedRevenue:
+        revenueSubscriptions === null
+          ? null
+          : {
+              mrrCents: publicMoney(mrr),
+              arrCents: publicMoney(mrr * 12n),
+              currency: 'BRL',
+              disclaimer: 'Valores contratuais estimados; não representam recebimentos.' as const,
+            },
       byPlan,
       recentTenants: recentTenants.items,
       recentAudit: recentAudit.map((item) => ({

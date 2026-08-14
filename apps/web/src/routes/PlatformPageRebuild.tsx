@@ -129,24 +129,30 @@ function Overview({ onTenants }: { onTenants: () => void }) {
     retry: false,
   });
   const data = dashboard.data;
+  const metric = (value: number | null | undefined) =>
+    value === null ? 'Indisponível' : value === undefined ? undefined : String(value);
   return (
     <section>
       <PageHeader title="Visao geral" description="Acompanhe a operacao comercial da plataforma." />
       <div className="platform-metrics-grid">
         <MetricCard
           label="Estabelecimentos"
-          value={data ? String(data.counts.tenants) : undefined}
-          hint={data ? `+${String(data.counts.tenantsCreated)} no periodo` : undefined}
+          value={metric(data?.counts.tenants)}
+          hint={
+            data?.counts.tenantsCreated == null
+              ? undefined
+              : `+${String(data.counts.tenantsCreated)} no período`
+          }
           loading={dashboard.isPending}
         />
         <MetricCard
           label="Assinaturas ativas"
-          value={data ? String(data.counts.activeSubscriptions) : undefined}
+          value={metric(data?.counts.activeSubscriptions)}
           loading={dashboard.isPending}
         />
         <MetricCard
           label="Em periodo de teste"
-          value={data ? String(data.counts.trialingSubscriptions) : undefined}
+          value={metric(data?.counts.trialingSubscriptions)}
           loading={dashboard.isPending}
         />
         <MetricCard
@@ -183,19 +189,19 @@ function Overview({ onTenants }: { onTenants: () => void }) {
             <div className="platform-status-list">
               <span>
                 <StatusBadge value="ACTIVE" />
-                <strong>{data.counts.activeSubscriptions}</strong>
+                <strong>{data.counts.activeSubscriptions ?? 'Indisponível'}</strong>
               </span>
               <span>
                 <StatusBadge value="TRIALING" />
-                <strong>{data.counts.trialingSubscriptions}</strong>
+                <strong>{data.counts.trialingSubscriptions ?? 'Indisponível'}</strong>
               </span>
               <span>
                 <StatusBadge value="PAST_DUE" />
-                <strong>{data.counts.pastDueSubscriptions}</strong>
+                <strong>{data.counts.pastDueSubscriptions ?? 'Indisponível'}</strong>
               </span>
               <span>
                 <StatusBadge value="SUSPENDED" />
-                <strong>{data.counts.suspendedSubscriptions}</strong>
+                <strong>{data.counts.suspendedSubscriptions ?? 'Indisponível'}</strong>
               </span>
             </div>
           ) : dashboard.isPending ? (

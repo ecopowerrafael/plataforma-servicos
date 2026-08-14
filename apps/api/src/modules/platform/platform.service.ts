@@ -2300,6 +2300,13 @@ export class PlatformService {
   public async dashboard(period: '7d' | '30d' | '90d' | '12m') {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365;
     const from = new Date(Date.now() - days * 86_400_000);
+    const optional = async <T>(query: PromiseLike<T>): Promise<T | null> => {
+      try {
+        return await query;
+      } catch {
+        return null;
+      }
+    };
     const [
       tenants,
       activeTenants,
@@ -2319,36 +2326,38 @@ export class PlatformService {
       recentAudit,
       revenueSubscriptions,
     ] = await Promise.all([
-      this.client.tenant.count(),
-      this.client.tenant.count({ where: { status: 'ACTIVE' } }),
-      this.client.tenant.count({ where: { status: 'SUSPENDED' } }),
-      this.client.tenant.count({ where: { status: 'PENDING' } }),
-      this.client.tenant.count({ where: { createdAt: { gte: from } } }),
-      this.client.user.count(),
-      this.client.tenantMembership.count({ where: { status: 'ACTIVE' } }),
-      this.client.businessUnit.count(),
-      this.client.tenantSubscription.count({ where: { status: 'TRIALING' } }),
-      this.client.tenantSubscription.count({ where: { status: 'ACTIVE' } }),
-      this.client.tenantSubscription.count({ where: { status: 'PAST_DUE' } }),
-      this.client.tenantSubscription.count({ where: { status: 'SUSPENDED' } }),
-      this.client.tenantSubscription.count({ where: { status: 'CANCELED' } }),
-      this.client.tenantSubscription.count({ where: { status: 'EXPIRED' } }),
-      this.listTenants({ page: 1, limit: 5, orderBy: 'createdAt', direction: 'desc' }),
-      this.client.auditLog.findMany({
-        where: { action: { startsWith: 'platform.' } },
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.client.tenantSubscription
-        .findMany({
+      optional(this.client.tenant.count()),
+      optional(this.client.tenant.count({ where: { status: 'ACTIVE' } })),
+      optional(this.client.tenant.count({ where: { status: 'SUSPENDED' } })),
+      optional(this.client.tenant.count({ where: { status: 'PENDING' } })),
+      optional(this.client.tenant.count({ where: { createdAt: { gte: from } } })),
+      optional(this.client.user.count()),
+      optional(this.client.tenantMembership.count({ where: { status: 'ACTIVE' } })),
+      optional(this.client.businessUnit.count()),
+      optional(this.client.tenantSubscription.count({ where: { status: 'TRIALING' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'ACTIVE' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'PAST_DUE' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'SUSPENDED' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'CANCELED' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'EXPIRED' } })),
+      optional(this.listTenants({ page: 1, limit: 5, orderBy: 'createdAt', direction: 'desc' })),
+      optional(
+        this.client.auditLog.findMany({
+          where: { action: { startsWith: 'platform.' } },
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        }),
+      ),
+      optional(
+        this.client.tenantSubscription.findMany({
           where: { effectiveKey: 'EFFECTIVE' },
           select: {
             priceCents: true,
             billingCycle: true,
             plan: { select: { publicId: true, name: true } },
           },
-        })
-        .catch(() => null),
+        }),
+      ),
     ]);
     const monthlyValue = (amount: bigint, cycle: string) =>
       cycle === 'QUARTERLY'
@@ -2406,8 +2415,8 @@ export class PlatformService {
               disclaimer: 'Valores contratuais estimados; não representam recebimentos.' as const,
             },
       byPlan,
-      recentTenants: recentTenants.items,
-      recentAudit: recentAudit.map((item) => ({
+      recentTenants: recentTenants?.items ?? [],
+      recentAudit: (recentAudit ?? []).map((item) => ({
         publicId: item.publicId,
         action: item.action,
         targetType: item.targetType,

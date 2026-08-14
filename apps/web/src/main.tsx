@@ -8,6 +8,7 @@ import './app-design-system.css';
 import './public-premium.css';
 import './public-premium-booking.css';
 import './onboarding.css';
+import './brand-studio.css';
 
 const rootElement = document.getElementById('root');
 

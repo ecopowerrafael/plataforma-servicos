@@ -97,7 +97,7 @@ describe('publicação do aplicativo', () => {
   });
 
   it('a página pública só oferece instalação quando publicado', () => {
-    expect(service).toContain("pwaPublished: tenant.publicSite?.pwaStatus === 'PUBLISHED'");
+    expect(service).toContain("findPwaState(tenant.id)).status === 'PUBLISHED'");
     expect(publicPage).toContain('published={site.data.pwaPublished}');
     expect(install).toContain('if (!published || standalone || installed) return null;');
   });

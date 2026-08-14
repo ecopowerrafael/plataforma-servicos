@@ -29,8 +29,11 @@ const initials = (name: string) =>
 export function PublicTenantPage() {
   const { slug = '' } = useParams();
   const [searchParams] = useSearchParams();
+  // Embutida no Brand Studio (`?preview=1`) a página nunca mostra a splash.
   const [showSplash, setShowSplash] = useState(
-    () => window.matchMedia('(display-mode: standalone)').matches,
+    () =>
+      new URLSearchParams(window.location.search).get('preview') !== '1' &&
+      window.matchMedia('(display-mode: standalone)').matches,
   );
   const [accountOpen, setAccountOpen] = useState(false);
   const mediaUrl = (path: string) => `${environment.apiUrl}${path}`;
@@ -95,7 +98,8 @@ export function PublicTenantPage() {
       }
       favicon.href = mediaUrl(faviconAsset.url);
     }
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    const embedded = new URLSearchParams(window.location.search).get('preview') === '1';
+    if (!embedded && window.matchMedia('(display-mode: standalone)').matches) {
       const timer = window.setTimeout(() => {
         setShowSplash(false);
       }, 1100);

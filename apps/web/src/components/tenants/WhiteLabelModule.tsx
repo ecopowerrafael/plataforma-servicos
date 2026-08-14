@@ -11,16 +11,31 @@ import { environment } from '../../config/environment.js';
 import { HttpError, httpClient } from '../../lib/http.js';
 import {
   deriveBrandPalette,
+  type BrandPalette,
   type BrandThemeCode,
   type PublicLayoutCode,
 } from '../branding/brand-studio.js';
-import { BrandAssetDropzone } from '../branding/BrandAssetDropzone.js';
-import { BrandColorPicker } from '../branding/BrandColorPicker.js';
-import { BrandPreview } from '../branding/BrandPreview.js';
+import { BrandAssetCard } from '../branding/BrandAssetCard.js';
+import { BrandColorPalette } from '../branding/BrandColorPalette.js';
+import { BrandLivePreview } from '../branding/BrandLivePreview.js';
 import { BrandThemePicker } from '../branding/BrandThemePicker.js';
 import { PublicLayoutPicker } from '../branding/PublicLayoutPicker.js';
+import { PageHeader } from '../ui/AppUi.js';
 
 type AssetKind = 'LOGO' | 'APP_ICON' | 'SPLASH';
+
+const PALETTE_KEYS = [
+  'primaryColor',
+  'secondaryColor',
+  'accentColor',
+  'backgroundColor',
+  'surfaceColor',
+  'textColor',
+  'mutedTextColor',
+  'borderColor',
+] as const satisfies readonly (keyof BrandPalette)[];
+
+const HEX = /^#[0-9A-Fa-f]{6}$/u;
 
 export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string }) {
   const client = useQueryClient();
@@ -47,20 +62,38 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
   });
   const [themeOverride, setThemeOverride] = useState<BrandThemeCode | null>(null);
   const [layoutOverride, setLayoutOverride] = useState<PublicLayoutCode | null>(null);
-  const [colorOverride, setColorOverride] = useState<string | null>(null);
+  const [paletteOverride, setPaletteOverride] = useState<Partial<BrandPalette>>({});
   const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+
   const theme = themeOverride ?? settings.data?.site.theme ?? 'CLASSIC';
   // Tenants sem escolha explícita permanecem no modelo clássico.
   const layout = layoutOverride ?? settings.data?.site.layout ?? 'CLASSIC';
-  const color = colorOverride ?? settings.data?.branding.primaryColor ?? '#2457D6';
-  const dirty = themeOverride !== null || colorOverride !== null || layoutOverride !== null;
+
+  const savedPalette = useMemo<BrandPalette>(() => {
+    const branding = settings.data?.branding;
+    const fallback = deriveBrandPalette('#2457D6', theme);
+    if (branding === undefined) return fallback;
+    return Object.fromEntries(
+      PALETTE_KEYS.map((key) => [key, branding[key]]),
+    ) as BrandPalette;
+    // O tema entra no fallback apenas quando não há branding salvo.
+  }, [settings.data?.branding, theme]);
+
+  const palette = { ...savedPalette, ...paletteOverride };
+  const dirty =
+    themeOverride !== null || layoutOverride !== null || Object.keys(paletteOverride).length > 0;
+  const paletteValid = PALETTE_KEYS.every((key) => HEX.test(palette[key]));
+
   const refresh = async () => {
     await client.invalidateQueries({ queryKey });
+    setPreviewVersion((version) => version + 1);
   };
+
   const save = useMutation({
     mutationFn: async () => {
-      const palette = deriveBrandPalette(color, theme);
       await httpClient.request('/tenant/branding', {
         method: 'PATCH',
         tenantPublicId,
@@ -76,12 +109,13 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
     },
     onSuccess: async () => {
       setThemeOverride(null);
-      setColorOverride(null);
       setLayoutOverride(null);
+      setPaletteOverride({});
       setNotice('Identidade visual atualizada.');
       await refresh();
     },
   });
+
   const upload = useMutation({
     mutationFn: ({ kind, file }: { kind: AssetKind; file: File }) => {
       const body = new FormData();
@@ -98,6 +132,7 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
       await refresh();
     },
   });
+
   const remove = useMutation({
     mutationFn: (publicId: string) =>
       httpClient.request(`/tenant/media/${publicId}`, {
@@ -110,6 +145,7 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
       await refresh();
     },
   });
+
   const assets = useMemo(
     () => new Map(settings.data?.assets.map((asset) => [asset.kind, asset])),
     [settings.data?.assets],
@@ -122,6 +158,7 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
     const asset = assets.get(kind);
     if (asset !== undefined) remove.mutate(asset.publicId);
   };
+
   if (settings.isPending)
     return (
       <section className="module-loading" aria-busy="true">
@@ -142,26 +179,35 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
         </button>
       </section>
     );
+
+  const busy = upload.isPending || remove.isPending;
+  const preview = (
+    <BrandLivePreview
+      slug={settings.data.slug}
+      version={previewVersion}
+      mode={previewMode}
+      onModeChange={setPreviewMode}
+    />
+  );
+
   return (
     <section className="brand-studio" aria-labelledby="brand-studio-title">
-      <div className="module-header brand-studio-header">
-        <div>
-          <p className="eyebrow">Minha empresa</p>
-          <h2 id="brand-studio-title">Brand Studio</h2>
-          <p>
-            Crie uma experiência com a personalidade do seu negócio e acompanhe o resultado em tempo
-            real.
-          </p>
-        </div>
-        <a
-          className="secondary-button"
-          href={`/public/${settings.data.slug}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Abrir página pública
-        </a>
-      </div>
+      <PageHeader
+        eyebrow="Minha empresa"
+        title="Marca e aparência"
+        description="Edite a identidade do seu negócio e veja o resultado na sua página pública real."
+        actions={
+          <button
+            className="secondary-button brand-preview-trigger"
+            type="button"
+            onClick={() => {
+              setPreviewOpen(true);
+            }}
+          >
+            Visualizar página
+          </button>
+        }
+      />
       {notice === null ? null : <p className="success-message">{notice}</p>}
       {save.error instanceof Error ||
       upload.error instanceof Error ||
@@ -176,17 +222,18 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
                 : 'Não foi possível concluir a alteração.'}
         </p>
       ) : null}
+
       <div className="brand-studio-layout">
         <div className="brand-editor">
           <section className="brand-settings-card">
             <span className="brand-section-number">01</span>
-            <h3>Logo</h3>
-            <p>Use uma imagem nítida, preferencialmente com fundo transparente.</p>
-            <BrandAssetDropzone
+            <h3>Identidade</h3>
+            <p>Sua logo aparece na página pública e no aplicativo.</p>
+            <BrandAssetCard
               title="Logo do estabelecimento"
-              description="Será exibido na página pública e no aplicativo."
+              description="PNG, JPG ou WebP — de preferência com fundo transparente."
               previewUrl={assetUrl('LOGO')}
-              busy={upload.isPending || remove.isPending}
+              busy={busy}
               onUpload={(file) => {
                 upload.mutate({ kind: 'LOGO', file });
               }}
@@ -199,9 +246,10 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
               }
             />
           </section>
+
           <section className="brand-settings-card">
             <span className="brand-section-number">02</span>
-            <h3>Modelo do aplicativo</h3>
+            <h3>Experiência</h3>
             <p>Define a estrutura e a navegação da página pública — não altera as cores.</p>
             <PublicLayoutPicker
               value={layout}
@@ -210,146 +258,119 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
               }}
             />
           </section>
+
           <section className="brand-settings-card">
             <span className="brand-section-number">03</span>
             <h3>Escolha um tema</h3>
-            <p>Três direções visuais com composições realmente diferentes.</p>
+            <p>
+              Quatro estilos visuais para adaptar a experiência à identidade do seu negócio.
+            </p>
             <BrandThemePicker
               value={theme}
               onChange={(value) => {
                 setThemeOverride(value);
+                // Trocar o tema carrega os defaults dele; ajustes posteriores
+                // sobrescrevem apenas os tokens escolhidos.
+                setPaletteOverride(deriveBrandPalette(palette.primaryColor, value));
               }}
             />
           </section>
+
           <section className="brand-settings-card">
             <span className="brand-section-number">04</span>
-            <BrandColorPicker
-              value={color}
-              onChange={(value) => {
-                setColorOverride(value);
+            <h3>Personalize as cores</h3>
+            <p>Cada cor abaixo é aplicada diretamente na sua página pública.</p>
+            <BrandColorPalette
+              palette={palette}
+              onChange={(key, value) => {
+                setPaletteOverride((current) => ({ ...current, [key]: value }));
+              }}
+              onApplyPreset={(color) => {
+                setPaletteOverride(deriveBrandPalette(color, theme));
+              }}
+              onRestoreTheme={() => {
+                setPaletteOverride(deriveBrandPalette(palette.primaryColor, theme));
               }}
             />
           </section>
+
           <section className="brand-settings-card">
             <span className="brand-section-number">05</span>
-            <h3>Tela de abertura</h3>
-            <p>
-              A tela de abertura é a imagem exibida por alguns instantes quando seu aplicativo é
-              aberto.
-            </p>
-            <div className="brand-choice-row">
-              <button
-                className={assets.has('SPLASH') ? 'secondary-button' : 'primary-button'}
-                type="button"
-                onClick={() => {
-                  removeKind('SPLASH');
+            <h3>Aplicativo</h3>
+            <p>Imagens usadas quando seus clientes instalam o aplicativo.</p>
+            <div className="brand-app-assets">
+              <BrandAssetCard
+                title="Tela de abertura"
+                description="Imagem vertical, com área central livre."
+                previewUrl={assetUrl('SPLASH')}
+                busy={busy}
+                shape="portrait"
+                extraAction={
+                  assets.has('SPLASH')
+                    ? {
+                        label: 'Usar meu logo automaticamente',
+                        onClick: () => {
+                          removeKind('SPLASH');
+                        },
+                      }
+                    : undefined
+                }
+                onUpload={(file) => {
+                  upload.mutate({ kind: 'SPLASH', file });
                 }}
-              >
-                Usar meu logo automaticamente
-              </button>
-              <span>ou envie uma imagem personalizada</span>
-            </div>
-            <BrandAssetDropzone
-              title="Splash personalizada"
-              description="Recomendamos uma imagem vertical com área central livre."
-              previewUrl={assetUrl('SPLASH')}
-              busy={upload.isPending || remove.isPending}
-              onUpload={(file) => {
-                upload.mutate({ kind: 'SPLASH', file });
-              }}
-              onRemove={
-                assets.has('SPLASH')
-                  ? () => {
-                      removeKind('SPLASH');
-                    }
-                  : undefined
-              }
-            />
-            <div className="brand-device-preview brand-device-preview--splash">
-              {(assetUrl('SPLASH') ?? assetUrl('LOGO')) ? (
-                <img
-                  src={assetUrl('SPLASH') ?? assetUrl('LOGO')}
-                  alt="Simulação da tela de abertura"
-                />
-              ) : (
-                <strong>{settings.data.displayName}</strong>
-              )}
-            </div>
-          </section>
-          <section className="brand-settings-card">
-            <span className="brand-section-number">06</span>
-            <h3>Ícone do aplicativo</h3>
-            <p>
-              Este será o ícone exibido quando seus clientes ou sua equipe adicionarem o aplicativo
-              à tela inicial.
-            </p>
-            <BrandAssetDropzone
-              title="Ícone PWA"
-              description="Use uma imagem quadrada, simples e legível em tamanho pequeno."
-              previewUrl={assetUrl('APP_ICON')}
-              busy={upload.isPending || remove.isPending}
-              square
-              onUpload={(file) => {
-                upload.mutate({ kind: 'APP_ICON', file });
-              }}
-              onRemove={
-                assets.has('APP_ICON')
-                  ? () => {
-                      removeKind('APP_ICON');
-                    }
-                  : undefined
-              }
-            />
-            <div className="brand-home-screen-preview">
-              <div>
-                {assetUrl('APP_ICON') === undefined ? (
-                  <span>{settings.data.displayName.slice(0, 1)}</span>
-                ) : (
-                  <img src={assetUrl('APP_ICON')} alt="Ícone instalado" />
-                )}
-                <small>{settings.data.site.pwaShortName ?? settings.data.displayName}</small>
-              </div>
+                onRemove={
+                  assets.has('SPLASH')
+                    ? () => {
+                        removeKind('SPLASH');
+                      }
+                    : undefined
+                }
+              />
+              <BrandAssetCard
+                title="Ícone do aplicativo"
+                description="Usado quando o aplicativo é adicionado à tela inicial. Quadrado, mínimo 512×512."
+                previewUrl={assetUrl('APP_ICON')}
+                busy={busy}
+                shape="square"
+                square
+                onUpload={(file) => {
+                  upload.mutate({ kind: 'APP_ICON', file });
+                }}
+                onRemove={
+                  assets.has('APP_ICON')
+                    ? () => {
+                        removeKind('APP_ICON');
+                      }
+                    : undefined
+                }
+              />
             </div>
           </section>
         </div>
-        <aside className="brand-preview-panel">
-          <div className="brand-preview-toolbar">
-            <strong>Preview em tempo real</strong>
-            <div role="tablist" aria-label="Formato do preview">
-              <button
-                className={previewMode === 'mobile' ? 'primary-button' : 'secondary-button'}
-                type="button"
-                onClick={() => {
-                  setPreviewMode('mobile');
-                }}
-              >
-                Celular
-              </button>
-              <button
-                className={previewMode === 'desktop' ? 'primary-button' : 'secondary-button'}
-                type="button"
-                onClick={() => {
-                  setPreviewMode('desktop');
-                }}
-              >
-                Desktop
-              </button>
-            </div>
-          </div>
-          <BrandPreview
-            displayName={settings.data.displayName}
-            theme={theme}
-            color={color}
-            logoUrl={assetUrl('LOGO')}
-            mode={previewMode}
-          />
-        </aside>
+
+        <aside className="brand-preview-panel">{preview}</aside>
       </div>
+
+      {previewOpen ? (
+        <div className="brand-preview-sheet" role="dialog" aria-label="Prévia da página pública">
+          <button
+            className="secondary-button button--sm"
+            type="button"
+            onClick={() => {
+              setPreviewOpen(false);
+            }}
+          >
+            Fechar
+          </button>
+          {preview}
+        </div>
+      ) : null}
+
       {dirty ? (
         <div className="brand-action-bar" role="status">
           <span>
             <strong>Alterações não salvas</strong>
-            <small>O preview já mostra o novo resultado.</small>
+            <small>A prévia é atualizada assim que você salvar.</small>
           </span>
           <div>
             <button
@@ -357,14 +378,15 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
               type="button"
               onClick={() => {
                 setThemeOverride(null);
-                setColorOverride(null);
+                setLayoutOverride(null);
+                setPaletteOverride({});
               }}
             >
               Descartar
             </button>
             <button
               className="primary-button"
-              disabled={save.isPending || !/^#[0-9A-Fa-f]{6}$/u.test(color)}
+              disabled={save.isPending || !paletteValid}
               type="button"
               onClick={() => {
                 save.mutate();

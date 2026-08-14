@@ -45,6 +45,7 @@ function buildService(icon: Buffer | null, assets = icon === null ? [] : [APP_IC
     findPublicTenant: () => Promise.resolve(tenant),
     listAssets: () => Promise.resolve(assets),
     upsertPwaStatus: () => Promise.resolve(undefined),
+    findPwaState: () => Promise.resolve({ status: 'DRAFT', publishedAt: null }),
     findAsset: () => Promise.resolve(assets[0] ?? null),
     deleteAsset: () => Promise.resolve(undefined),
     recordAudit: () => Promise.resolve(undefined),

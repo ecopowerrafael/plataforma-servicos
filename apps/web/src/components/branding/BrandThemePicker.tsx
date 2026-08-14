@@ -19,15 +19,17 @@ export function BrandThemePicker({
             onChange(theme.code);
           }}
         >
+          {/* Mini prévia abstrata: comunica a direção visual, não a página. */}
           <span className="theme-miniature" aria-hidden="true">
-            <span className="theme-miniature-header"><i /><b /></span>
-            <span className="theme-miniature-hero"><i /><i /><b /></span>
-            <span className="theme-miniature-services"><i /><i /><i /></span>
+            <i className="theme-miniature-bar" />
+            <i className="theme-miniature-block" />
+            <i className="theme-miniature-line" />
+            <i className="theme-miniature-line theme-miniature-line--short" />
           </span>
           <strong>{theme.name}</strong>
           <span>{theme.description}</span>
           <small>{theme.audience}</small>
-          <b>{value === theme.code ? 'Selecionado' : 'Selecionar tema'}</b>
+          <b>{value === theme.code ? 'Selecionado' : 'Selecionar'}</b>
         </button>
       ))}
     </div>

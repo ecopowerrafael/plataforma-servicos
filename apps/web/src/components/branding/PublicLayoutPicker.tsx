@@ -20,13 +20,15 @@ export function PublicLayoutPicker({
             onChange(layout.code);
           }}
         >
+          {/* Mock estrutural: cabeçalho, conteúdo e (no Premium) navegação. */}
           <span
             className={`public-layout-preview public-layout-preview--${layout.code.toLowerCase()}`}
             aria-hidden="true"
           >
-            <i />
-            <i />
-            <i />
+            <i className="layout-header" />
+            <i className="layout-body" />
+            <i className="layout-body" />
+            {layout.code === 'PREMIUM_APP' ? <i className="layout-nav" /> : null}
           </span>
           <strong>{layout.name}</strong>
           <span>{layout.description}</span>

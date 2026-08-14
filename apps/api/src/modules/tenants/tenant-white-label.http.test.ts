@@ -53,6 +53,7 @@ async function createApp(
       businessUnits: [],
     }),
     listAssets: vi.fn().mockResolvedValue([]),
+    findPwaState: vi.fn().mockResolvedValue({ status: 'DRAFT', publishedAt: null }),
   };
   const unusedStorage = {} as ServiceImageStorage & TenantMediaStorage;
   const service = new TenantWhiteLabelService(
@@ -127,6 +128,9 @@ describe('Brand Studio HTTP', () => {
     const app = await createApp({
       publicSite: {
         theme: 'MODERN',
+        // Sem `layout` a fixture não representava a linha real (que tem
+        // default no banco) e o endpoint respondia 500 no teste.
+        layout: 'CLASSIC',
         heroTitle: 'Barbearia Silva',
         heroSubtitle: 'Seu estilo, no seu tempo.',
         aboutText: 'Agende seu horário de forma rápida e prática.',

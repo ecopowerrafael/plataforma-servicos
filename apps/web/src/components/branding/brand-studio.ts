@@ -3,7 +3,7 @@ import { type TenantBranding } from '@plataforma/shared';
 export const BRAND_THEMES = [
   {
     code: 'CLASSIC',
-    name: 'Essencial',
+    name: 'Essential',
     description: 'Minimalista e sofisticado.',
     audience: 'Clínicas, consultórios e profissionais liberais.',
   },
@@ -81,11 +81,8 @@ export function contrastTextColor(background: string): '#0F172A' | '#FFFFFF' {
   return darkContrast >= lightContrast ? '#0F172A' : '#FFFFFF';
 }
 
-/** O tema Luxury trabalha sobre superfícies escuras; os demais seguem claros. */
-export function deriveBrandPalette(
-  primaryColor: string,
-  theme: BrandThemeCode = 'CLASSIC',
-): Pick<
+/** Tokens de cor realmente persistidos e consumidos pela página pública. */
+export type BrandPalette = Pick<
   TenantBranding,
   | 'primaryColor'
   | 'secondaryColor'
@@ -95,7 +92,13 @@ export function deriveBrandPalette(
   | 'textColor'
   | 'mutedTextColor'
   | 'borderColor'
-> {
+>;
+
+/** O tema Luxury trabalha sobre superfícies escuras; os demais seguem claros. */
+export function deriveBrandPalette(
+  primaryColor: string,
+  theme: BrandThemeCode = 'CLASSIC',
+): BrandPalette {
   const primary = primaryColor.toUpperCase();
   if (theme === 'LUXURY')
     return {
@@ -121,5 +124,5 @@ export function deriveBrandPalette(
 }
 
 export function brandThemeName(code: BrandThemeCode): string {
-  return BRAND_THEMES.find((theme) => theme.code === code)?.name ?? 'Essencial';
+  return BRAND_THEMES.find((theme) => theme.code === code)?.name ?? 'Essential';
 }

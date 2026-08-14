@@ -66,6 +66,7 @@ describe('tenant Brand Studio behavior', () => {
         publicSite: null,
       }),
       listAssets: vi.fn().mockResolvedValue([]),
+      findPwaState: vi.fn().mockResolvedValue({ status: 'DRAFT', publishedAt: null }),
     };
     const unusedStorage = {} as ServiceImageStorage & TenantMediaStorage;
     const service = new TenantWhiteLabelService(
@@ -293,6 +294,8 @@ describe('tenant Brand Studio behavior', () => {
     const upsertBranding = vi.fn().mockResolvedValue({});
     const upsertSite = vi.fn().mockResolvedValue({
       theme: 'PREMIUM',
+      // A linha real sempre tem layout (default no banco).
+      layout: 'CLASSIC',
       heroTitle: null,
       heroSubtitle: null,
       aboutText: null,
@@ -309,6 +312,7 @@ describe('tenant Brand Studio behavior', () => {
       upsertBranding,
       upsertSite,
       listAssets: vi.fn().mockResolvedValue([]),
+      findPwaState: vi.fn().mockResolvedValue({ status: 'DRAFT', publishedAt: null }),
       recordAudit: vi.fn().mockResolvedValue(undefined),
     };
     const unusedStorage = {} as ServiceImageStorage & TenantMediaStorage;

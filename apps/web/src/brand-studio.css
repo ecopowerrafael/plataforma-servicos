@@ -1,0 +1,471 @@
+/* Brand Studio (/app/empresa/marca): editor compacto + prévia real da página
+   pública. Carregado depois do design system para sobrescrever o legado. */
+.app-shell .brand-studio {
+  display: grid;
+  gap: 1rem;
+}
+.app-shell .brand-studio-layout {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+.app-shell .brand-editor {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.app-shell .brand-settings-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.95rem 1.1rem;
+  position: relative;
+}
+.app-shell .brand-settings-card h3 {
+  font-size: 0.98rem;
+  margin: 0;
+}
+.app-shell .brand-settings-card > p {
+  color: var(--app-muted);
+  font-size: 0.82rem;
+  margin: 0;
+  max-width: 52rem;
+}
+.app-shell .brand-section-number {
+  background: #eef2ff;
+  color: var(--app-accent);
+  font-size: 0.7rem;
+  height: 1.5rem;
+  margin: 0;
+  place-items: center;
+  width: 1.5rem;
+}
+
+/* Cartões de imagem compactos */
+.brand-asset-card {
+  align-items: center;
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: flex;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.75rem;
+}
+.brand-asset-thumb,
+.app-shell .brand-asset-dropzone {
+  align-items: center;
+  background: var(--app-surface);
+  border: 1px dashed var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 0.15rem;
+  justify-content: center;
+  overflow: hidden;
+  text-align: center;
+}
+.brand-asset-thumb {
+  border-style: solid;
+}
+.brand-asset-card--wide :where(.brand-asset-thumb, .brand-asset-dropzone) {
+  height: 4.5rem;
+  width: 7.5rem;
+}
+.brand-asset-card--portrait :where(.brand-asset-thumb, .brand-asset-dropzone) {
+  height: 8.5rem;
+  width: 6.5rem;
+}
+.brand-asset-card--square :where(.brand-asset-thumb, .brand-asset-dropzone) {
+  height: 6.5rem;
+  width: 6.5rem;
+}
+.brand-asset-thumb img {
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+.app-shell .brand-asset-dropzone {
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 0.4rem;
+}
+.app-shell .brand-asset-dropzone > span {
+  color: var(--app-accent);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.app-shell .brand-asset-dropzone small {
+  color: var(--app-muted);
+  font-size: 0.65rem;
+}
+.brand-asset-info {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.brand-asset-info strong {
+  font-size: 0.88rem;
+}
+.brand-asset-info small {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+}
+.brand-asset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+.app-shell .brand-asset-actions > label {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  margin: 0;
+}
+.brand-app-assets {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+}
+
+/* Modelos e temas */
+.app-shell .public-layout-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+.app-shell .brand-theme-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+.app-shell :where(.public-layout-card, .brand-theme-card) {
+  align-content: start;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: grid;
+  gap: 0.3rem;
+  height: 100%;
+  min-height: 0;
+  padding: 0.75rem;
+  text-align: left;
+  white-space: normal;
+}
+.app-shell :where(.public-layout-card, .brand-theme-card).is-selected {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 1px var(--app-accent);
+}
+.app-shell :where(.public-layout-card, .brand-theme-card) strong {
+  font-size: 0.9rem;
+}
+.app-shell
+  :where(.public-layout-card, .brand-theme-card)
+  span:not(.theme-miniature):not(.public-layout-preview) {
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.app-shell :where(.public-layout-card, .brand-theme-card) small {
+  color: var(--app-muted);
+  font-size: 0.72rem;
+}
+.app-shell :where(.public-layout-card, .brand-theme-card) b {
+  color: var(--app-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.app-shell .public-layout-preview {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: 0.55rem;
+  display: grid;
+  gap: 0.2rem;
+  height: 4.25rem;
+  padding: 0.35rem;
+  width: 100%;
+}
+.app-shell .public-layout-preview i {
+  background: #cbd5e1;
+  border-radius: 0.2rem;
+  display: block;
+}
+.app-shell .public-layout-preview .layout-header {
+  background: var(--app-accent);
+  height: 0.5rem;
+}
+.app-shell .public-layout-preview .layout-body {
+  height: 100%;
+}
+.app-shell .public-layout-preview .layout-nav {
+  background: var(--app-accent);
+  height: 0.4rem;
+  opacity: 0.55;
+}
+.app-shell .theme-miniature {
+  border-radius: 0.55rem;
+  display: grid;
+  gap: 0.25rem;
+  height: 4.25rem;
+  padding: 0.4rem;
+  width: 100%;
+}
+.app-shell .theme-miniature i {
+  border-radius: 0.2rem;
+  display: block;
+}
+.app-shell .theme-miniature-bar {
+  height: 0.45rem;
+  width: 55%;
+}
+.app-shell .theme-miniature-block {
+  height: 100%;
+}
+.app-shell .theme-miniature-line {
+  height: 0.3rem;
+}
+.app-shell .theme-miniature-line--short {
+  width: 60%;
+}
+.app-shell .brand-theme-card--classic .theme-miniature {
+  background: #f1f5f9;
+}
+.app-shell .brand-theme-card--classic .theme-miniature i {
+  background: #94a3b8;
+}
+.app-shell .brand-theme-card--premium .theme-miniature {
+  background: #faf5ef;
+}
+.app-shell .brand-theme-card--premium .theme-miniature i {
+  background: #b08968;
+}
+.app-shell .brand-theme-card--modern .theme-miniature {
+  background: #eef2ff;
+}
+.app-shell .brand-theme-card--modern .theme-miniature i {
+  background: #4f46e5;
+}
+.app-shell .brand-theme-card--luxury .theme-miniature {
+  background: #101014;
+}
+.app-shell .brand-theme-card--luxury .theme-miniature i {
+  background: #c9a227;
+}
+
+/* Paleta de cores */
+.brand-palette {
+  display: grid;
+  gap: 0.75rem;
+}
+.brand-palette-presets {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.brand-palette-presets > span {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.app-shell .brand-palette-presets > button:not(.text-button) {
+  border: 1px solid rgb(15 23 42 / 12%);
+  border-radius: 50%;
+  height: 1.6rem;
+  min-height: 0;
+  padding: 0;
+  width: 1.6rem;
+}
+.brand-palette-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+.app-shell .brand-palette-field {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+  min-width: 0;
+}
+.app-shell .brand-palette-field > span:first-child {
+  display: grid;
+  font-size: 0.82rem;
+  font-weight: 650;
+  min-width: 0;
+}
+.app-shell .brand-palette-field small {
+  color: var(--app-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+.app-shell .brand-color-field {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: 0.35rem;
+}
+.app-shell .brand-color-field input[type='color'] {
+  height: 2.25rem;
+  padding: 0.1rem;
+  width: 2.5rem;
+}
+.app-shell .brand-color-field input:not([type='color']) {
+  width: 6rem;
+}
+.brand-palette-warning {
+  background: var(--app-warning-soft);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-warning);
+  font-size: 0.78rem;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+}
+
+/* Prévia real da página pública */
+.app-shell .brand-preview-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  color: var(--app-text);
+  padding: 0.85rem;
+  position: static;
+}
+.brand-preview {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+}
+.app-shell .brand-preview-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  margin: 0;
+  width: 100%;
+}
+.app-shell .brand-preview-toolbar > div {
+  display: flex;
+  gap: 0.35rem;
+}
+.brand-preview-device {
+  background: #fff;
+  border: 8px solid #0f172a;
+  border-radius: 1.75rem;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+.brand-preview-device iframe {
+  border: 0;
+  display: block;
+  height: 720px;
+  width: 390px;
+}
+.brand-preview-device--desktop {
+  border-radius: 0.75rem;
+  border-width: 6px;
+  height: 220px;
+  width: 100%;
+}
+.brand-preview-device--desktop iframe {
+  height: 660px;
+  /* Renderiza em largura de desktop e reduz para caber no painel lateral. */
+  transform: scale(0.33);
+  transform-origin: top left;
+  width: 1280px;
+}
+.brand-preview-loading {
+  color: var(--app-muted);
+  display: grid;
+  font-size: 0.8rem;
+  inset: 0;
+  place-items: center;
+  position: absolute;
+}
+.app-shell .brand-preview-trigger {
+  display: none;
+}
+.brand-preview-sheet {
+  background: var(--app-surface);
+  border-radius: var(--app-radius-lg);
+  bottom: 0;
+  box-shadow: 0 -20px 60px rgb(15 23 42 / 22%);
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+  left: 0;
+  max-height: 92vh;
+  overflow: auto;
+  padding: 1rem;
+  position: fixed;
+  right: 0;
+  z-index: 40;
+}
+.app-shell .brand-action-bar {
+  align-items: center;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  bottom: 1rem;
+  box-shadow: var(--app-shadow-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  position: sticky;
+}
+.app-shell .brand-action-bar span {
+  display: grid;
+}
+.app-shell .brand-action-bar small {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+}
+.app-shell .brand-action-bar > div {
+  display: flex;
+  gap: 0.5rem;
+}
+@media (min-width: 1100px) {
+  .app-shell .brand-studio-layout {
+    grid-template-columns: minmax(0, 1.9fr) minmax(21rem, 0.9fr);
+  }
+  .app-shell .brand-preview-panel {
+    position: sticky;
+    top: 1rem;
+  }
+  .brand-preview-sheet {
+    display: none;
+  }
+}
+@media (max-width: 1099px) {
+  .app-shell .brand-studio-layout > .brand-preview-panel {
+    display: none;
+  }
+  .app-shell .brand-preview-trigger {
+    display: inline-flex;
+  }
+}
+@media (max-width: 699px) {
+  .brand-asset-card {
+    align-items: flex-start;
+  }
+  .brand-palette-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-shell .brand-action-bar > div > button {
+    flex: 1;
+    min-height: 2.75rem;
+  }
+  .brand-preview-device iframe {
+    width: min(390px, 78vw);
+  }
+}

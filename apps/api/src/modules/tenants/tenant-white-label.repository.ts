@@ -66,12 +66,32 @@ export class TenantWhiteLabelRepository {
             pwaName: true,
             pwaShortName: true,
             pwaDescription: true,
-            pwaStatus: true,
-            pwaPublishedAt: true,
           },
         },
       },
     });
+  }
+
+  /**
+   * Estado de publicação do PWA, lido isoladamente e à prova de banco ainda
+   * não migrado: se as colunas não existirem, o tenant é tratado como
+   * rascunho em vez de derrubar a página pública e o Brand Studio.
+   */
+  public async findPwaState(
+    tenantId: bigint,
+  ): Promise<{ status: 'DRAFT' | 'PUBLISHED'; publishedAt: Date | null }> {
+    try {
+      const site = await this.client.tenantPublicSite.findUnique({
+        where: { tenantId },
+        select: { pwaStatus: true, pwaPublishedAt: true },
+      });
+      return {
+        status: site?.pwaStatus ?? 'DRAFT',
+        publishedAt: site?.pwaPublishedAt ?? null,
+      };
+    } catch {
+      return { status: 'DRAFT', publishedAt: null };
+    }
   }
 
   /** Publicação do aplicativo; cria a linha do site público se ainda não existir. */
@@ -183,8 +203,6 @@ export class TenantWhiteLabelRepository {
             pwaName: true,
             pwaShortName: true,
             pwaDescription: true,
-            pwaStatus: true,
-            pwaPublishedAt: true,
           },
         },
         mediaAssets: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },

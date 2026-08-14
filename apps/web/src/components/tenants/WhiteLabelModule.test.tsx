@@ -73,8 +73,12 @@ describe('WhiteLabelModule complete states', () => {
     ['campo opcional null', { ...baseResponse, site: { ...baseResponse.site, pwaShortName: null } }],
   ])('renders without crashing for %s', (_name, response) => {
     const markup = renderBrandStudio(response);
-    expect(markup).toContain('Brand Studio');
-    expect(markup).toContain('Barbearia Silva');
+    expect(markup).toContain('Marca e aparência');
+    // A prévia é sempre a página pública real do tenant.
+    expect(markup).toContain('/public/barbearia-silva?preview=1');
+    // O nome do tenant agora aparece dentro da própria página pública (iframe),
+    // não mais em um preview recriado no editor.
+    expect(markup).toContain('href="/public/barbearia-silva"');
     expect(markup).not.toContain('Não foi possível carregar o Brand Studio.');
   });
 });

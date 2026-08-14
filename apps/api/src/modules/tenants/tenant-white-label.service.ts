@@ -389,7 +389,7 @@ export class TenantWhiteLabelService {
       })),
       bookingAvailable,
       unavailableMessage,
-      pwaPublished: tenant.publicSite?.pwaStatus === 'PUBLISHED',
+      pwaPublished: (await this.repository.findPwaState(tenant.id)).status === 'PUBLISHED',
     });
   }
 
@@ -476,7 +476,10 @@ export class TenantWhiteLabelService {
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
     const appName = tenant.publicSite?.pwaName ?? tenant.displayName;
-    const appIcon = await this.appIconState(tenantId);
+    const [appIcon, pwaState] = await Promise.all([
+      this.appIconState(tenantId),
+      this.repository.findPwaState(tenantId),
+    ]);
     const checklist = {
       appName: appName.trim().length >= 2,
       publicPage: tenant.slug.trim().length > 0 && tenant.status === 'ACTIVE',
@@ -488,8 +491,8 @@ export class TenantWhiteLabelService {
       branding: tenant.branding !== null,
     };
     return TenantPwaResponseSchema.parse({
-      status: tenant.publicSite?.pwaStatus ?? 'DRAFT',
-      publishedAt: tenant.publicSite?.pwaPublishedAt?.toISOString() ?? null,
+      status: pwaState.status,
+      publishedAt: pwaState.publishedAt?.toISOString() ?? null,
       checklist,
       ready: Object.values(checklist).every(Boolean),
       appName,

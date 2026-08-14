@@ -15,6 +15,7 @@ export function CustomerReviews({ slug }: { slug: string }) {
 
   return (
     <section className="customer-section" aria-label="Minhas avaliações">
+      <h1 className="client-page-title">Minhas avaliações</h1>
       {reviews.isPending ? (
         <div className="customer-skeleton-list" aria-busy="true">
           <span />

@@ -1,12 +1,19 @@
 import { CustomerFavoriteListResponseSchema, SuccessResponseSchema } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { IconHeart, IconScissors, IconUser } from '@tabler/icons-react';
 
 import { httpClient, HttpError } from '../lib/http.js';
+import { environment } from '../config/environment.js';
 
 interface FavoriteTarget {
   publicId: string;
   name: string;
+  photoUrl?: string | null;
+  imageUrl?: string | null;
+  description?: string | null;
+  priceCents?: string;
+  durationMinutes?: number;
 }
 
 interface CustomerFavoritesProps {
@@ -83,10 +90,7 @@ export function CustomerFavorites({ slug, services, professionals }: CustomerFav
     kind: 'professional' | 'service',
     favoriteIds: Set<string>,
   ) => (
-    <section className="customer-card" aria-label={title}>
-      <header>
-        <strong>{title}</strong>
-      </header>
+    <section className="customer-favorites-group" aria-label={title}>
       {items.length === 0 ? (
         <p className="customer-empty">Nada disponível por aqui ainda.</p>
       ) : (
@@ -98,12 +102,22 @@ export function CustomerFavorites({ slug, services, professionals }: CustomerFav
                 className={`customer-favorite${isFavorite ? ' is-favorite' : ''}`}
                 key={item.publicId}
               >
-                <span>{item.name}</span>
+                <span className="customer-favorite-media" aria-hidden="true">
+                  {(item.photoUrl ?? item.imageUrl) === null || (item.photoUrl ?? item.imageUrl) === undefined
+                    ? kind === 'professional' ? <IconUser /> : <IconScissors />
+                    : <img alt="" src={`${environment.apiUrl}${item.photoUrl ?? item.imageUrl ?? ''}`} />}
+                </span>
+                <span className="customer-favorite-copy">
+                  <strong>{item.name}</strong>
+                  {item.description === null || item.description === undefined ? null : <small>{item.description}</small>}
+                  {item.priceCents === undefined ? null : <small>{`R$ ${(Number(item.priceCents) / 100).toFixed(2)} · ${String(item.durationMinutes ?? 0)} min`}</small>}
+                </span>
                 <button
-                  className={isFavorite ? 'public-link-button' : 'public-secondary-button'}
+                  className="client-icon-button customer-favorite-button"
                   disabled={busy}
                   type="button"
                   aria-pressed={isFavorite}
+                  aria-label={isFavorite ? `Remover ${item.name} dos favoritos` : `Adicionar ${item.name} aos favoritos`}
                   onClick={() => {
                     if (isFavorite) {
                       const favoriteId = findFavoriteId(kind, item.publicId);
@@ -117,7 +131,7 @@ export function CustomerFavorites({ slug, services, professionals }: CustomerFav
                     }
                   }}
                 >
-                  {isFavorite ? 'Remover' : 'Favoritar'}
+                  <IconHeart aria-hidden="true" fill={isFavorite ? 'currentColor' : 'none'} />
                 </button>
               </article>
             );
@@ -129,6 +143,7 @@ export function CustomerFavorites({ slug, services, professionals }: CustomerFav
 
   return (
     <section className="customer-section" aria-label="Meus favoritos">
+      <h1 className="client-page-title">Favoritos</h1>
       <div className="customer-tabs" role="tablist">
         <button aria-selected={tab === 'professional'} onClick={() => { setTab('professional'); }} role="tab" type="button">Profissionais</button>
         <button aria-selected={tab === 'service'} onClick={() => { setTab('service'); }} role="tab" type="button">Serviços</button>

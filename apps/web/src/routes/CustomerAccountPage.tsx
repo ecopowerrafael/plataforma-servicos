@@ -1,13 +1,12 @@
 import { PublicTenantSiteResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 import { contrastTextColor } from '../components/branding/brand-studio.js';
 import { CustomerAppointments } from '../components/CustomerAppointments.js';
 import { CustomerFavorites } from '../components/CustomerFavorites.js';
 import { CustomerLoyalty } from '../components/CustomerLoyalty.js';
-import { CustomerProfileForm } from '../components/CustomerProfileForm.js';
 import { CustomerPushNotifications } from '../components/CustomerPushNotifications.js';
 import { CustomerReviews } from '../components/CustomerReviews.js';
 import {
@@ -19,6 +18,7 @@ import { CustomerAccountAuth } from '../components/public/account/CustomerAccoun
 import { CustomerAccountHome } from '../components/public/account/CustomerAccountHome.js';
 import { CustomerAccountLayout } from '../components/public/account/CustomerAccountLayout.js';
 import { CustomerAccountSecurity } from '../components/public/account/CustomerAccountSecurity.js';
+import { CustomerProfileScreen } from '../components/public/account/CustomerProfileScreen.js';
 import { httpClient } from '../lib/http.js';
 
 /**
@@ -28,7 +28,6 @@ import { httpClient } from '../lib/http.js';
 export function CustomerAccountPage() {
   const { slug = '', section: segment } = useParams();
   const section = sectionFromPath(segment);
-  const navigate = useNavigate();
   const account = useCustomerAccount(slug);
 
   const site = useQuery({
@@ -57,6 +56,7 @@ export function CustomerAccountPage() {
 
   const branding = site.data.branding;
   const customer = account.customer;
+  const logo = site.data.assets.find((asset) => asset.kind === 'LOGO');
 
   return (
     <div
@@ -85,15 +85,9 @@ export function CustomerAccountPage() {
       <CustomerAccountLayout
         slug={slug}
         displayName={site.data.displayName}
+        logoUrl={logo?.url ?? null}
         section={section}
         customer={customer}
-        {...(customer === null
-          ? {}
-          : {
-              onLogout: () => {
-                account.logout.mutate(undefined, { onSuccess: () => void navigate(`/public/${slug}`) });
-              },
-            })}
       >
         {customer === null ? <CustomerAccountAuth account={account} /> : null}
         {customer !== null && section === 'home' ? (
@@ -103,9 +97,10 @@ export function CustomerAccountPage() {
           account.profile.data === undefined ? (
             <p className="customer-skeleton" aria-busy="true" />
           ) : (
-            <CustomerProfileForm
+            <CustomerProfileScreen
+              slug={slug}
+              account={account}
               profile={account.profile.data}
-              busy={account.updateProfile.isPending}
               error={message(account.updateProfile.error)}
               onSave={async (value) => {
                 await account.updateProfile.mutateAsync(value);
@@ -123,10 +118,15 @@ export function CustomerAccountPage() {
             services={site.data.services.map((item) => ({
               publicId: item.publicId,
               name: item.name,
+              imageUrl: item.imageUrl,
+              priceCents: item.priceCents,
+              durationMinutes: item.durationMinutes,
             }))}
             professionals={site.data.professionals.map((item) => ({
               publicId: item.publicId,
               name: item.name,
+              photoUrl: item.photoUrl,
+              description: item.bio,
             }))}
           />
         ) : null}

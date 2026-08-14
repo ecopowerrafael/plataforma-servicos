@@ -22,6 +22,7 @@ export function CustomerLoyalty({ slug }: { slug: string }) {
 
   return (
     <section className="customer-section" aria-label="Fidelidade">
+      <h1 className="client-page-title">Pontos de fidelidade</h1>
       {summary.isPending ? (
         <div className="customer-skeleton-list" aria-busy="true">
           <span />

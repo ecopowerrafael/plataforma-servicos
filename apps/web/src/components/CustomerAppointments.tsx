@@ -8,6 +8,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { type z } from 'zod';
+import { IconDotsVertical } from '@tabler/icons-react';
 
 import { AppointmentStatusBadge } from './appointments/appointment-status.js';
 import { httpClient, HttpError } from '../lib/http.js';
@@ -31,8 +32,15 @@ function toDatetimeLocalValue(iso: string): string {
   return `${year}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-const dayLabel = (iso: string) =>
-  new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+const dateParts = (iso: string) => {
+  const value = new Date(iso);
+  return {
+    weekday: value.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase(),
+    day: value.toLocaleDateString('pt-BR', { day: '2-digit' }),
+    month: value.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase(),
+    full: value.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
+  };
+};
 const timeLabel = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -64,6 +72,8 @@ function AppointmentCard({
   const [rating, setRating] = useState(review?.rating ?? 5);
   const [comment, setComment] = useState(review?.comment ?? '');
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const date = dateParts(appointment.startsAt);
 
   const canCancel = cancelableStatuses.has(appointment.status);
   const canReschedule = rescheduleableStatuses.has(appointment.status);
@@ -71,17 +81,16 @@ function AppointmentCard({
 
   return (
     <article className="customer-appointment">
-      <div className="customer-appointment-when">
-        <strong>{timeLabel(appointment.startsAt)}</strong>
-        <small>{dayLabel(appointment.startsAt)}</small>
-      </div>
+      <time className="client-date-tile" dateTime={appointment.startsAt}>
+        <small>{date.weekday}</small><strong>{date.day}</strong><span>{date.month}</span>
+      </time>
       <div className="customer-appointment-main">
         <div className="customer-appointment-head">
-          <strong>{appointment.serviceName}</strong>
+          <span><small>{`${date.full} · ${timeLabel(appointment.startsAt)}`}</small><strong>{appointment.serviceName}</strong></span>
           <AppointmentStatusBadge status={appointment.status} />
         </div>
         <p className="customer-appointment-meta">
-          <span>{appointment.professionalName}</span>
+          <span>{`com ${appointment.professionalName}`}</span>
           {appointment.unitName === null ? null : <span>{appointment.unitName}</span>}
           {appointment.isFitIn ? <span className="customer-tag">Encaixe</span> : null}
         </p>
@@ -106,15 +115,21 @@ function AppointmentCard({
         ) : null}
 
         {action === null ? (
-          <div className="customer-appointment-actions">
-            <button className="public-link-button" type="button" onClick={() => { setDetailsOpen((open) => !open); }}>
+          <div className="customer-appointment-footer">
+            <button className="client-card-cta" type="button" onClick={() => { setDetailsOpen((open) => !open); }}>
               {detailsOpen ? 'Ocultar detalhes' : 'Ver detalhes'}
             </button>
+            {canCancel || canReschedule || canReview ? <button className="client-icon-button" aria-label="Ações do agendamento" aria-expanded={actionsOpen} type="button" onClick={() => { setActionsOpen((open) => !open); }}><IconDotsVertical /></button> : null}
+          </div>
+        ) : null}
+
+        {action === null && actionsOpen ? (
+          <div className="customer-appointment-action-menu">
             {canReschedule ? (
               <button
-                className="public-secondary-button"
                 type="button"
                 onClick={() => {
+                  setActionsOpen(false);
                   setAction('reschedule');
                   setReason('');
                   setStartsAt(toDatetimeLocalValue(appointment.startsAt));
@@ -125,9 +140,10 @@ function AppointmentCard({
             ) : null}
             {canCancel ? (
               <button
-                className="public-link-button is-danger"
+                className="is-danger"
                 type="button"
                 onClick={() => {
+                  setActionsOpen(false);
                   setAction('cancel');
                   setReason('');
                 }}
@@ -137,9 +153,9 @@ function AppointmentCard({
             ) : null}
             {canReview ? (
               <button
-                className="public-secondary-button"
                 type="button"
                 onClick={() => {
+                  setActionsOpen(false);
                   setAction('review');
                   setRating(review?.rating ?? 5);
                   setComment(review?.comment ?? '');
@@ -407,6 +423,7 @@ export function CustomerAppointments({ slug }: { slug: string }) {
 
   return (
     <section className="customer-section" aria-label="Meus agendamentos">
+      <h1 className="client-page-title">Meus agendamentos</h1>
       <div className="customer-tabs" role="tablist">
         <button
           type="button"

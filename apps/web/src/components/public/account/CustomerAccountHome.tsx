@@ -1,6 +1,7 @@
 import { AppointmentListResponseSchema, LoyaltyAccountSummarySchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { IconCalendarEvent, IconCalendarPlus, IconHeart, IconUser } from '@tabler/icons-react';
 
 import { accountPath } from './customer-account.js';
 import { httpClient } from '../../../lib/http.js';
@@ -11,8 +12,14 @@ const formatBalance = (type: string, balance: string) =>
     ? `R$ ${(Number(balance) / 100).toFixed(2)}`
     : `${balance} ${Number(balance) === 1 ? 'ponto' : 'pontos'}`;
 
-const dayLabel = (iso: string) =>
-  new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
+const dateParts = (iso: string) => {
+  const value = new Date(iso);
+  return {
+    weekday: value.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase(),
+    day: value.toLocaleDateString('pt-BR', { day: '2-digit' }),
+    month: value.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase(),
+  };
+};
 const timeLabel = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -38,13 +45,17 @@ export function CustomerAccountHome({ slug, name }: { slug: string; name: string
 
   const next = upcoming.data?.items[0];
   const balances = loyalty.data?.balances ?? [];
+  const nextDate = next === undefined ? null : dateParts(next.startsAt);
 
   return (
     <div className="customer-account-home">
-      <p className="customer-account-greeting">{`Olá, ${name.split(' ')[0] ?? name}!`}</p>
+      <header className="customer-home-welcome">
+        <h1>{`Olá, ${name.split(' ')[0] ?? name}`}</h1>
+        <p>Que bom ter você por aqui.</p>
+      </header>
 
       <section className="customer-card" aria-label="Próximo agendamento">
-        <header>
+        <header className="client-card-header">
           <strong>Próximo agendamento</strong>
           <Link className="public-link-button" to={accountPath(slug, 'appointments')}>
             Ver todos
@@ -59,16 +70,17 @@ export function CustomerAccountHome({ slug, name }: { slug: string; name: string
             <p className="customer-empty">Você não tem horários marcados.</p>
           ) : (
             <div className="customer-next-appointment">
-              <span className="customer-next-time">
-                <strong>{timeLabel(next.startsAt)}</strong>
-                <small>{dayLabel(next.startsAt)}</small>
-              </span>
+              <time className="client-date-tile" dateTime={next.startsAt}>
+                <small>{nextDate?.weekday}</small><strong>{nextDate?.day}</strong><span>{nextDate?.month}</span>
+              </time>
               <span className="customer-next-info">
+                <b>{timeLabel(next.startsAt)}</b>
                 <strong>{next.serviceName}</strong>
-                <small>{next.professionalName}</small>
+                <small>{`com ${next.professionalName}`}</small>
                 {next.unitName === null ? null : <small>{next.unitName}</small>}
               </span>
               <AppointmentStatusBadge status={next.status} />
+              <Link className="client-card-cta" to={accountPath(slug, 'appointments')}>Ver detalhes</Link>
             </div>
           ))}
       </section>
@@ -93,10 +105,10 @@ export function CustomerAccountHome({ slug, name }: { slug: string; name: string
       )}
 
       <nav className="customer-shortcuts" aria-label="Atalhos">
-        <Link to={`/public/${slug}`}>Agendar</Link>
-        <Link to={accountPath(slug, 'appointments')}>Meus agendamentos</Link>
-        <Link to={accountPath(slug, 'favorites')}>Favoritos</Link>
-        <Link to={accountPath(slug, 'profile')}>Perfil</Link>
+        <Link to={`/public/${slug}`}><IconCalendarPlus aria-hidden="true" /><span>Agendar</span></Link>
+        <Link to={accountPath(slug, 'appointments')}><IconCalendarEvent aria-hidden="true" /><span>Meus agendamentos</span></Link>
+        <Link to={accountPath(slug, 'favorites')}><IconHeart aria-hidden="true" /><span>Favoritos</span></Link>
+        <Link to={accountPath(slug, 'profile')}><IconUser aria-hidden="true" /><span>Perfil</span></Link>
       </nav>
     </div>
   );

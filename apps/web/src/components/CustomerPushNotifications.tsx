@@ -1,5 +1,6 @@
 import { PushSubscriptionListResponseSchema, SuccessResponseSchema } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { IconBell } from '@tabler/icons-react';
 
 import { usePushSubscription } from './public/use-push-subscription.js';
 import { httpClient, HttpError } from '../lib/http.js';
@@ -52,16 +53,20 @@ export function CustomerPushNotifications({ slug }: { slug: string }) {
 
   if (permission === 'unsupported') {
     return (
-      <section className="platform-form" aria-label="Notificações push">
-        <h4>Receba lembretes dos seus agendamentos</h4>
+      <section className="customer-setting-card" aria-label="Notificações push">
+        <IconBell className="customer-setting-icon" aria-hidden="true" />
+        <h1>Notificações</h1>
+        <h2>Receba lembretes dos seus horários</h2>
         <p>Este navegador não suporta notificações push.</p>
       </section>
     );
   }
 
   return (
-    <section className="platform-form" aria-label="Notificações push">
-      <h4>Receba lembretes dos seus agendamentos</h4>
+    <section className="customer-setting-card" aria-label="Notificações push">
+      <IconBell className="customer-setting-icon" aria-hidden="true" />
+      <h1>Notificações</h1>
+      <h2>Receba lembretes dos seus horários</h2>
       {permission === 'denied' && (
         <p className="form-error">
           As notificações estão bloqueadas para este site. Para ativá-las, altere a permissão de

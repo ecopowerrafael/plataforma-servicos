@@ -23,6 +23,7 @@ export function CustomerAccountSecurity({
 
   return (
     <div className="customer-account-security">
+      <h1 className="client-page-title">Segurança</h1>
       <section className="customer-card" aria-label="Foto do perfil">
         <header>
           <strong>Foto do perfil</strong>
@@ -70,9 +71,9 @@ export function CustomerAccountSecurity({
         )}
       </section>
 
-      <section className="customer-card" aria-label="Dados de acesso">
+      <section className="customer-card" aria-label="Senha">
         <header>
-          <strong>Dados de acesso</strong>
+          <strong>Senha</strong>
         </header>
         <dl className="public-account-facts">
           <div>
@@ -110,7 +111,7 @@ export function CustomerAccountSecurity({
         ) : null}
       </section>
 
-      <section className="customer-card" aria-label="Sessão">
+      <section className="customer-card customer-danger-card" aria-label="Sessão">
         <header>
           <strong>Sessão</strong>
         </header>

@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { z } from 'zod';
 
+import { ErrorState, formatCycle, formatDate, PageHeader, Pagination, StatusBadge } from './PlatformUi.js';
 import { TenantEditForm } from './TenantEditForm.js';
 import { TenantProvisionForm } from './TenantProvisionForm.js';
 import { httpClient } from '../../lib/http.js';
@@ -30,10 +31,11 @@ export function TenantModule() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const [subscriptionPlan, setSubscriptionPlan] = useState('');
-  const [subscriptionCycle, setSubscriptionCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
+  const [subscriptionCycle, setSubscriptionCycle] = useState<'' | 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL'>('');
   const client = useQueryClient();
   const tenants = useQuery({
     queryKey: ['platform', 'tenants', page, search, status],
@@ -108,6 +110,7 @@ export function TenantModule() {
     }) => httpClient.request(url, { method, body, schema: z.looseObject({}) }),
     onSuccess: async () => {
       setNotice('Opera\u00e7\u00e3o conclu\u00edda com sucesso.');
+      setCreating(false);
       await Promise.all([
         client.invalidateQueries({ queryKey: ['platform', 'tenants'] }),
         client.invalidateQueries({ queryKey: ['platform', 'tenant', selected] }),
@@ -159,16 +162,15 @@ export function TenantModule() {
   };
   return (
     <section aria-labelledby="tenant-title">
-      <p className="eyebrow">{'Gest\u00e3o comercial'}</p>
-      <h2 id="tenant-title">Estabelecimentos</h2>
+      <PageHeader title="Estabelecimentos" description="Gerencie estabelecimentos, acessos e assinaturas da plataforma." action={<button type="button" onClick={() => { setCreating(true); }}>+ Novo estabelecimento</button>} />
       {notice !== null && <p className="success-message">{notice}</p>}
-      <TenantProvisionForm
+      {creating ? <><button className="platform-backdrop" aria-label="Fechar formulario" onClick={() => { setCreating(false); }} type="button" /><aside className="platform-drawer" aria-label="Novo estabelecimento" role="dialog" aria-modal="true"><button className="platform-drawer-close" aria-label="Fechar" onClick={() => { setCreating(false); }} type="button">×</button><TenantProvisionForm
         busy={mutation.isPending}
         error={mutation.error instanceof Error ? mutation.error.message : null}
         plans={plans.data?.items ?? []}
         onProvision={provision}
-      />
-      <div className="platform-form">
+      /></aside></> : null}
+      <div className="platform-filter-bar">
         <label>
           Busca
           <input
@@ -198,55 +200,26 @@ export function TenantModule() {
         </label>
       </div>
       {tenants.isPending ? (
-        <p>{'Carregando estabelecimentos\u2026'}</p>
+        <div className="platform-table-skeleton"><i className="platform-skeleton" /><i className="platform-skeleton" /><i className="platform-skeleton" /></div>
       ) : tenants.error instanceof Error ? (
-        <p className="form-error">{'N\u00e3o foi poss\u00edvel carregar os estabelecimentos.'}</p>
+        <ErrorState message={tenants.error.message} retry={() => { void tenants.refetch(); }} />
       ) : tenants.data === undefined || tenants.data.items.length === 0 ? (
-        <p>Nenhum estabelecimento encontrado.</p>
+        <div className="platform-empty"><h3>Nenhum estabelecimento encontrado</h3><p>{search || status ? 'Nenhum estabelecimento corresponde aos filtros atuais.' : 'Cadastre o primeiro estabelecimento da plataforma.'}</p><button onClick={() => { setCreating(true); }} type="button">Novo estabelecimento</button></div>
       ) : (
         <>
-          <div className="data-list">
+          <div className="platform-table-wrap"><table className="platform-table"><thead><tr><th>Estabelecimento</th><th>Plano</th><th>Assinatura</th><th>Status</th><th>Criado em</th><th><span className="sr-only">Acoes</span></th></tr></thead><tbody>
             {tenants.data.items.map((tenant) => (
-              <button
-                className="data-row"
-                key={tenant.publicId}
-                onClick={() => {
-                  setSelected(tenant.publicId);
-                }}
-                type="button"
-              >
-                <span>{tenant.displayName}</span>
-                <span>{tenant.slug}</span>
-                <span>{tenant.status}</span>
-              </button>
+              <tr key={tenant.publicId} onClick={() => { setSelected(tenant.publicId); }}><td><strong>{tenant.displayName}</strong><span>{tenant.slug}</span></td><td><strong>{tenant.subscription?.plan.name ?? 'Sem plano'}</strong><span>{tenant.subscription ? formatCycle(tenant.subscription.billingCycle) : ''}</span></td><td><StatusBadge value={tenant.subscription?.status ?? 'INACTIVE'} /></td><td><StatusBadge value={tenant.status} /></td><td>{formatDate(tenant.createdAt)}</td><td><button aria-label={`Ver detalhes de ${tenant.displayName}`} onClick={(event) => { event.stopPropagation(); setSelected(tenant.publicId); }} type="button">•••</button></td></tr>
             ))}
-          </div>
-          <div className="form-actions">
-            <button
-              disabled={page <= 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-              type="button"
-            >
-              Anterior
-            </button>
-            <span>{`P\u00e1gina ${String(tenants.data.page.page)} de ${String(tenants.data.page.totalPages)}`}</span>
-            <button
-              disabled={page >= tenants.data.page.totalPages}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-              type="button"
-            >
-              {'Pr\u00f3xima'}
-            </button>
-          </div>
+          </tbody></table></div>
+          <Pagination page={page} totalPages={tenants.data.page.totalPages} total={tenants.data.page.total} limit={tenants.data.page.limit} onPage={setPage} />
         </>
       )}
       {detail.data !== undefined ? (
-        <article className="sessions-panel">
+        <><button className="platform-backdrop" aria-label="Fechar detalhes" onClick={() => { setSelected(null); }} type="button" /><article className="platform-drawer platform-drawer--detail">
+          <button className="platform-drawer-close" aria-label="Fechar" onClick={() => { setSelected(null); }} type="button">×</button>
           <h3>{detail.data.tenant.displayName}</h3>
+          <StatusBadge value={detail.data.tenant.status} />
           <div aria-label="Abas do estabelecimento" className="form-actions" role="tablist">
             <button aria-selected="true" role="tab" type="button">
               Perfil do negócio
@@ -325,7 +298,7 @@ export function TenantModule() {
           <section className="platform-subscription-actions">
             <h4>Gestão da assinatura</h4>
             {detail.data.subscription === null ? <p className="muted">Este estabelecimento ainda não possui uma assinatura efetiva.</p> : <>
-              <div className="platform-form"><label>Novo plano<select value={subscriptionPlan} onChange={(event) => setSubscriptionPlan(event.target.value)}><option value="">Manter plano atual</option>{(plans.data?.items ?? []).map((plan) => <option key={plan.publicId} value={plan.publicId}>{plan.name}</option>)}</select></label><label>Periodicidade<select value={subscriptionCycle} onChange={(event) => setSubscriptionCycle(event.target.value as 'MONTHLY' | 'ANNUAL')}><option value="MONTHLY">Mensal</option><option value="ANNUAL">Anual</option></select></label><button disabled={mutation.isPending || subscriptionPlan === ''} onClick={() => { const subscription = detail.data.subscription; if (subscription === null || subscriptionPlan === '') return; void mutation.mutateAsync({ url: `/platform/subscriptions/${subscription.publicId}/change-plan`, body: { planPublicId: subscriptionPlan, billingCycle: subscriptionCycle, reason: 'Alteração pelo detalhe do estabelecimento' } }); }} type="button">Trocar plano</button></div>
+              <div className="platform-form"><label>Novo plano<select value={subscriptionPlan} onChange={(event) => { setSubscriptionPlan(event.target.value); }}><option value="">Manter plano atual</option>{(plans.data?.items ?? []).map((plan) => <option key={plan.publicId} value={plan.publicId}>{plan.name}</option>)}</select></label><label>Periodicidade futura<select value={subscriptionCycle} onChange={(event) => { setSubscriptionCycle(event.target.value as typeof subscriptionCycle); }}><option value="">Recomendada pelo novo plano</option><option value="MONTHLY">Mensal</option><option value="QUARTERLY">Trimestral</option><option value="SEMIANNUAL">Semestral</option><option value="ANNUAL">Anual</option></select></label><button disabled={mutation.isPending || subscriptionPlan === ''} onClick={() => { const subscription = detail.data.subscription; if (subscription === null || subscriptionPlan === '') return; void mutation.mutateAsync({ url: `/platform/subscriptions/${subscription.publicId}/change-plan`, body: { planPublicId: subscriptionPlan, ...(subscriptionCycle === '' ? {} : { billingCycle: subscriptionCycle }), reason: 'Alteração pelo detalhe do estabelecimento' } }); }} type="button">Trocar plano</button></div>
               <div className="form-actions">{(['suspend','reactivate','cancel'] as const).map((action) => <button key={action} disabled={mutation.isPending} onClick={() => { const subscription = detail.data.subscription; if (subscription === null) return; requestAction(action === 'suspend' ? 'Suspender assinatura' : action === 'reactivate' ? 'Reativar assinatura' : 'Cancelar assinatura', `subscriptions/${subscription.publicId}/${action}`, 'A alteração comercial será registrada no histórico.'); }} type="button">{action === 'suspend' ? 'Suspender' : action === 'reactivate' ? 'Reativar' : 'Cancelar'}</button>)}</div>
             </>}
           </section>
@@ -598,7 +571,7 @@ export function TenantModule() {
               Desativar
             </button>
           </div>
-        </article>
+        </article></>
       ) : null}
       {confirmation !== null && (
         <ConfirmationDialog

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/incompatible-library, @typescript-eslint/no-unsafe-member-access -- React Hook Form exposes intentionally dynamic event/watch APIs. */
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   BusinessProfileCatalog,
@@ -6,6 +7,8 @@ import {
 } from '@plataforma/shared';
 import { useForm } from 'react-hook-form';
 import { type z } from 'zod';
+
+import { formatCycle, formatMoney } from './PlatformUi.js';
 
 import type { PlanListResponseSchema } from '@plataforma/shared';
 
@@ -22,6 +25,7 @@ const defaultValues: ProvisionInput = {
   businessProfile: 'GENERIC',
   ownerEmail: '',
   planPublicId: '',
+  billingCycle: 'MONTHLY',
   trial: true,
   settings: {
     allowMultipleUnits: false,
@@ -58,11 +62,21 @@ export function TenantProvisionForm({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, dirtyFields },
+    watch,
+    setValue,
   } = useForm<ProvisionInput, unknown, ProvisionRequest>({
     defaultValues,
     resolver: zodResolver(CreatePlatformTenantRequestSchema),
   });
+  const selectedPlanId = watch('planPublicId');
+  const selectedPlan = plans.find((plan) => plan.publicId === selectedPlanId);
+  const billingOptions = selectedPlan?.billingOptions.length
+    ? selectedPlan.billingOptions.filter((option) => option.active)
+    : selectedPlan === undefined
+      ? []
+      : [{ billingCycle: selectedPlan.billingCycle, priceCents: selectedPlan.priceCents }];
+  const slugify = (value: string) => value.normalize('NFD').replaceAll(/[\u0300-\u036f]/gu, '').toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-').replaceAll(/^-|-$/gu, '');
 
   return (
     <form
@@ -72,14 +86,15 @@ export function TenantProvisionForm({
         void handleSubmit(onProvision)();
       }}
     >
-      <h3>{'Provisionar estabelecimento'}</h3>
+      <h3>{'Novo estabelecimento'}</h3>
+      <fieldset><legend>Empresa</legend>
       <label>
         {'Raz\u00e3o social'}
         <input {...register('legalName')} autoComplete="organization" />
       </label>
       <label>
         {'Nome comercial'}
-        <input {...register('displayName')} />
+        <input {...register('displayName', { onChange: (event) => { if (!dirtyFields.slug) setValue('slug', slugify(String(event.target.value)), { shouldValidate: true }); } })} />
       </label>
       <label>
         Slug
@@ -95,13 +110,15 @@ export function TenantProvisionForm({
           ))}
         </select>
       </label>
+      </fieldset><fieldset><legend>Proprietario</legend>
       <label>
         {'E-mail do propriet\u00e1rio'}
         <input {...register('ownerEmail')} autoComplete="email" type="email" />
       </label>
+      </fieldset><fieldset><legend>Assinatura</legend>
       <label>
         Plano
-        <select {...register('planPublicId')}>
+        <select {...register('planPublicId', { onChange: (event) => { const chosen = plans.find((plan) => plan.publicId === event.target.value); const first = chosen?.billingOptions.find((option) => option.active)?.billingCycle ?? chosen?.billingCycle; if (first) setValue('billingCycle', first); } })}>
           <option value="">{'Selecione um plano'}</option>
           {plans.map((plan) => (
             <option key={plan.publicId} value={plan.publicId}>
@@ -110,10 +127,16 @@ export function TenantProvisionForm({
           ))}
         </select>
       </label>
+      <label>Ciclo disponivel<select {...register('billingCycle')}>{billingOptions.map((option) => <option key={option.billingCycle} value={option.billingCycle}>{`${formatCycle(option.billingCycle)} - ${formatMoney(option.priceCents, selectedPlan?.currency)}`}</option>)}</select></label>
       <label>
         {'In\u00edcio da assinatura (opcional)'}
         <input {...register('startsAt')} placeholder="2026-08-04T12:00:00.000Z" />
       </label>
+      <label>
+        <input {...register('trial')} type="checkbox" />
+        {' Iniciar com per\u00edodo de trial'}
+      </label>
+      </fieldset><fieldset><legend>Unidade inicial</legend>
       <label>
         {'Unidade matriz'}
         <input {...register('initialUnit.name')} />
@@ -134,10 +157,7 @@ export function TenantProvisionForm({
         {'Moeda'}
         <input {...register('currency')} />
       </label>
-      <label>
-        <input {...register('trial')} type="checkbox" />
-        {' Iniciar com per\u00edodo de trial'}
-      </label>
+      </fieldset>
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">
           {'Revise os campos obrigat\u00f3rios e os formatos informados.'}

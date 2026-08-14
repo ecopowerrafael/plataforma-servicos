@@ -65,7 +65,7 @@ export function PlanModule() {
     }: {
       url: string;
       body?: unknown;
-      method?: 'POST' | 'PATCH';
+      method?: 'POST' | 'PATCH' | 'DELETE';
       schema?: z.ZodType;
     }) => httpClient.request(url, { method, ...(body === undefined ? {} : { body }), schema }),
     onSuccess: async () => {
@@ -113,7 +113,7 @@ export function PlanModule() {
   };
   const requestAction = (
     label: string,
-    suffix: 'activate' | 'deactivate' | 'archive',
+    suffix: 'activate' | 'deactivate' | 'archive' | 'delete',
     description: string,
   ) => {
     if (selected === null) return;
@@ -122,10 +122,11 @@ export function PlanModule() {
       description,
       confirmLabel: label,
       requiresReason: false,
-      variant: suffix === 'archive' ? 'danger' : 'default',
+      variant: suffix === 'archive' || suffix === 'delete' ? 'danger' : 'default',
       onConfirm: async () => {
         await mutation.mutateAsync({
-          url: `/platform/plans/${selected}/${suffix}`,
+          url: suffix === 'delete' ? `/platform/plans/${selected}` : `/platform/plans/${selected}/${suffix}`,
+          ...(suffix === 'delete' ? { method: 'DELETE' as const } : {}),
           schema: SuccessResponseSchema,
         });
       },
@@ -137,6 +138,7 @@ export function PlanModule() {
       <p className="eyebrow">{'Gest\u00e3o comercial'}</p>
       <h2 id="plan-title">Planos</h2>
       {notice !== null && <p className="success-message">{notice}</p>}
+      {mutation.error instanceof Error ? <p className="form-error">{mutation.error.message}</p> : null}
       <div className="form-actions">
         <button
           onClick={() => {
@@ -378,6 +380,19 @@ export function PlanModule() {
               type="button"
             >
               Arquivar
+            </button>
+            <button
+              disabled={mutation.isPending}
+              onClick={() => {
+                requestAction(
+                  'Excluir',
+                  'delete',
+                  'O plano sera excluido somente se nunca tiver sido usado.',
+                );
+              }}
+              type="button"
+            >
+              Excluir
             </button>
           </div>
         </article>

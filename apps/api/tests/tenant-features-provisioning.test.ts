@@ -88,6 +88,7 @@ describe('funcionalidades no provisionamento', () => {
         initialUnit: { name: 'Matriz', slug: 'matriz' },
         ownerEmail,
         planPublicId: plan.publicId,
+        billingCycle: 'MONTHLY',
         trial: false,
       },
       auth,

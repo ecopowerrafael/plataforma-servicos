@@ -351,7 +351,8 @@ export const CreateSubscriptionRequestSchema = z
   .strict();
 export const UpdateSubscriptionRequestSchema = z
   .object({
-    currentPeriodEndsAt: IsoDateSchema.optional(),
+    currentPeriodStartsAt: IsoDateSchema,
+    currentPeriodEndsAt: IsoDateSchema,
     reason: z.string().trim().min(3).max(500),
   })
   .strict();
@@ -391,6 +392,7 @@ export const PlatformTenantSummarySchema = z.object({
     status: true,
     trialEndsAt: true,
     currentPeriodEndsAt: true,
+    billingCycle: true,
     plan: true,
   }).nullable(),
   unitCount: z.number().int().nonnegative(),
@@ -466,6 +468,7 @@ export const CreatePlatformTenantRequestSchema = CreateTenantRequestSchema.exten
   businessProfile: BusinessProfileCodeSchema,
   ownerEmail: EmailSchema,
   planPublicId: z.uuid(),
+  billingCycle: BillingCycleSchema,
   trial: z.boolean().default(false),
   startsAt: IsoDateSchema.optional(),
 }).strict();

@@ -7,6 +7,7 @@ import {
   SubscriptionDetailResponseSchema,
   SubscriptionListResponseSchema,
   SubscriptionPublicSchema,
+  UpdateSubscriptionRequestSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -36,8 +37,9 @@ export function SubscriptionModule() {
     trial: false,
     reason: '',
   });
-  const [changeValues, setChangeValues] = useState({ planPublicId: '', reason: '' });
+  const [changeValues, setChangeValues] = useState({ planPublicId: '', billingCycle: undefined as 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM' | undefined, reason: '' });
   const [trialValues, setTrialValues] = useState({ trialEndsAt: '', reason: '' });
+  const [periodValues, setPeriodValues] = useState({ currentPeriodStartsAt: '', currentPeriodEndsAt: '', reason: '' });
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
@@ -183,6 +185,22 @@ export function SubscriptionModule() {
       },
     });
   };
+  const confirmPeriodUpdate = () => {
+    const parsed = UpdateSubscriptionRequestSchema.safeParse(periodValues);
+    if (!parsed.success || selected === null) {
+      setFormError(parsed.success ? 'Selecione uma assinatura.' : (parsed.error.issues[0]?.message ?? 'Revise as datas.'));
+      return;
+    }
+    setConfirmation({
+      title: 'Confirmar correcao do periodo?',
+      description: 'Somente as datas do periodo comercial atual serao corrigidas.',
+      confirmLabel: 'Salvar periodo',
+      requiresReason: false,
+      onConfirm: async () => {
+        await mutation.mutateAsync({ url: `/platform/subscriptions/${selected}/period`, body: parsed.data, schema: SubscriptionResponseSchema });
+      },
+    });
+  };
   const requestStatus = (
     label: string,
     suffix: 'activate' | 'suspend' | 'reactivate' | 'cancel',
@@ -209,6 +227,7 @@ export function SubscriptionModule() {
       <p className="eyebrow">{'Gest\u00e3o comercial'}</p>
       <h2 id="subscription-title">Assinaturas</h2>
       {notice !== null && <p className="success-message">{notice}</p>}
+      {mutation.error instanceof Error ? <p className="form-error">{mutation.error.message}</p> : null}
       <button
         onClick={() => {
           setCreating((current) => !current);
@@ -258,7 +277,7 @@ export function SubscriptionModule() {
               ))}
             </select>
           </label>
-          <label>Periodicidade<select value={createValues.billingCycle} onChange={(event) => setCreateValues({ ...createValues, billingCycle: event.target.value })}><option value="MONTHLY">Mensal</option><option value="ANNUAL">Anual</option></select></label>
+          <label>Periodicidade<select value={createValues.billingCycle} onChange={(event) => { setCreateValues({ ...createValues, billingCycle: event.target.value }); }}><option value="MONTHLY">Mensal</option><option value="ANNUAL">Anual</option></select></label>
           <label>
             {'In\u00edcio (ISO, opcional)'}
             <input
@@ -523,6 +542,14 @@ export function SubscriptionModule() {
                 }}
               />
             </label>
+            <label>
+              Periodicidade futura
+              <select value={changeValues.billingCycle ?? ''} onChange={(event) => { setChangeValues({ ...changeValues, billingCycle: event.target.value === '' ? undefined : event.target.value as NonNullable<typeof changeValues.billingCycle> }); }}>
+                <option value="">Recomendada pelo novo plano</option>
+                <option value="MONTHLY">Mensal</option><option value="QUARTERLY">Trimestral</option><option value="SEMIANNUAL">Semestral</option><option value="ANNUAL">Anual</option>
+              </select>
+            </label>
+            {changeValues.planPublicId !== '' ? <p>{`Plano atual: ${detail.data.subscription.plan.name}. Novo plano: ${plans.data?.items.find((plan) => plan.publicId === changeValues.planPublicId)?.name ?? 'selecione'}. O preco e ciclo escolhidos valerao para periodos futuros; nao sera gerada cobranca.`}</p> : null}
             <button disabled={mutation.isPending} onClick={confirmChangePlan} type="button">
               Alterar plano
             </button>
@@ -556,6 +583,13 @@ export function SubscriptionModule() {
               Estender trial
             </button>
           </div>
+          <h4>Editar periodo</h4>
+          <div className="platform-form">
+            <label>Inicio do periodo<input value={periodValues.currentPeriodStartsAt} placeholder={detail.data.subscription.currentPeriodStartsAt} onChange={(event) => { setPeriodValues({ ...periodValues, currentPeriodStartsAt: event.target.value }); }} /></label>
+            <label>Fim do periodo<input value={periodValues.currentPeriodEndsAt} placeholder={detail.data.subscription.currentPeriodEndsAt} onChange={(event) => { setPeriodValues({ ...periodValues, currentPeriodEndsAt: event.target.value }); }} /></label>
+            <label>Motivo<textarea value={periodValues.reason} onChange={(event) => { setPeriodValues({ ...periodValues, reason: event.target.value }); }} /></label>
+            <button disabled={mutation.isPending} onClick={confirmPeriodUpdate} type="button">Salvar periodo</button>
+          </div>
           {formError !== null && (
             <p className="form-error" role="alert">
               {formError}
@@ -563,7 +597,10 @@ export function SubscriptionModule() {
           )}
           <div className="form-actions">
             <button
-              disabled={mutation.isPending || detail.data.subscription.status !== 'SUSPENDED'}
+              disabled={
+                mutation.isPending ||
+                !['TRIALING', 'PAST_DUE'].includes(detail.data.subscription.status)
+              }
               onClick={() => {
                 requestStatus('Ativar', 'activate', 'A assinatura ser\u00e1 ativada.');
               }}

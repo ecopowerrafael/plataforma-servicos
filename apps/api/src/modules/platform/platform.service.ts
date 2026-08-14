@@ -729,6 +729,44 @@ export class PlatformService {
     return { plan: mapPlan(updated) };
   }
 
+  public async deletePlan(
+    publicId: string,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ): Promise<void> {
+    const plan = await this.client.commercialPlan.findUnique({ where: { publicId } });
+    if (plan === null) throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano nao foi encontrado.', 404);
+    const [subscriptions, history] = await Promise.all([
+      this.client.tenantSubscription.count({ where: { planId: plan.id } }),
+      this.client.subscriptionHistory.count({
+        where: { OR: [{ previousPlanId: plan.id }, { newPlanId: plan.id }] },
+      }),
+    ]);
+    const references = subscriptions + history;
+    if (references > 0)
+      throw appError(
+        'PLAN_IN_USE',
+        `Este plano ja possui assinaturas vinculadas e nao pode ser excluido. Voce pode desativa-lo para impedir novas assinaturas. Referencias encontradas: ${String(references)}.`,
+        409,
+      );
+    await this.client.$transaction(async (transaction) => {
+      await transaction.planBenefit.deleteMany({ where: { planId: plan.id } });
+      await transaction.planBillingOption.deleteMany({ where: { planId: plan.id } });
+      await transaction.planLimit.deleteMany({ where: { planId: plan.id } });
+      await transaction.commercialPlan.delete({ where: { id: plan.id } });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.plan.deleted',
+          targetType: 'commercial_plan',
+          targetPublicId: plan.publicId,
+          userId: actor.user.id,
+          metadata: { code: plan.code },
+          request: metadata,
+        }),
+      });
+    });
+  }
+
   public async listPlanBenefits(planPublicId: string) {
     const plan = await this.client.commercialPlan.findUnique({
       where: { publicId: planPublicId },
@@ -1043,9 +1081,25 @@ export class PlatformService {
         'A assinatura expirada não pode receber esta alteração.',
         409,
       );
+    const allowed =
+      action === 'ACTIVATED'
+        ? ['TRIALING', 'PAST_DUE'].includes(subscription.status)
+        : action === 'REACTIVATED'
+          ? subscription.status === 'SUSPENDED'
+          : action === 'SUSPENDED'
+            ? ['TRIALING', 'ACTIVE', 'PAST_DUE'].includes(subscription.status)
+            : !['CANCELED', 'EXPIRED'].includes(subscription.status);
+    if (!allowed)
+      throw appError(
+        'PLATFORM_SUBSCRIPTION_INVALID_STATE',
+        'O estado atual da assinatura nao permite esta acao.',
+        409,
+      );
     const value = await this.client.$transaction(
       async (transaction) => {
         const now = new Date();
+        const activating = action === 'ACTIVATED' || action === 'REACTIVATED';
+        const resetPeriod = activating && subscription.currentPeriodEndsAt <= now;
         const updated = await transaction.tenantSubscription.update({
           where: { id: subscription.id },
           data: {
@@ -1054,6 +1108,15 @@ export class PlatformService {
             ...(nextStatus === 'SUSPENDED' ? { suspendedAt: now } : {}),
             ...(nextStatus === 'CANCELED' ? { canceledAt: now, endsAt: now } : {}),
             ...(action === 'ACTIVATED' || action === 'REACTIVATED' ? { graceEndsAt: null } : {}),
+            ...(resetPeriod
+              ? {
+                  currentPeriodStartsAt: now,
+                  currentPeriodEndsAt: periodEnd(now, subscription.billingCycle),
+                }
+              : {}),
+            ...(action === 'ACTIVATED' && subscription.status === 'TRIALING'
+              ? { trialEndsAt: now }
+              : {}),
           },
           include: { tenant: true, plan: true },
         });
@@ -1084,6 +1147,7 @@ export class PlatformService {
             targetPublicId: updated.publicId,
             tenantId: updated.tenantId,
             userId: actor.user.id,
+            metadata: { previousStatus: subscription.status, newStatus: nextStatus, reason },
             request: metadata,
           }),
         });
@@ -1108,8 +1172,22 @@ export class PlatformService {
     if (subscription === null)
       throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura não foi encontrada.', 404);
     const end = new Date(trialEndsAt);
-    if (subscription.status !== 'TRIALING' || end <= new Date() || end <= subscription.startsAt)
-      throw appError('PLATFORM_TRIAL_INVALID', 'A extensão de teste é inválida.', 409);
+    if (subscription.status !== 'TRIALING')
+      throw appError(
+        'PLATFORM_TRIAL_INVALID_STATE',
+        'Este trial nao pode mais ser estendido neste estado.',
+        409,
+      );
+    if (
+      end <= new Date() ||
+      end <= subscription.startsAt ||
+      (subscription.trialEndsAt !== null && end <= subscription.trialEndsAt)
+    )
+      throw appError(
+        'PLATFORM_TRIAL_INVALID',
+        'A nova data deve ampliar o periodo de teste atual.',
+        409,
+      );
     const value = await this.client.$transaction(
       async (transaction) => {
         const updated = await transaction.tenantSubscription.update({
@@ -1138,6 +1216,11 @@ export class PlatformService {
             targetPublicId: updated.publicId,
             tenantId: updated.tenantId,
             userId: actor.user.id,
+            metadata: {
+              previousTrialEndsAt: subscription.trialEndsAt?.toISOString() ?? null,
+              newTrialEndsAt: end.toISOString(),
+              reason,
+            },
             request: metadata,
           }),
         });
@@ -1166,8 +1249,12 @@ export class PlatformService {
     });
     if (subscription === null)
       throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura não foi encontrada.', 404);
-    if (plan?.status !== 'ACTIVE')
-      throw appError('PLATFORM_PLAN_UNAVAILABLE', 'O plano não está disponível.', 409);
+    if (plan === null)
+      throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano nao foi encontrado.', 404);
+    if (plan.status !== 'ACTIVE')
+      throw appError('PLATFORM_PLAN_INACTIVE', 'Este plano esta inativo.', 409);
+    if (plan.id === subscription.planId)
+      throw appError('PLATFORM_PLAN_UNCHANGED', 'A assinatura ja utiliza este plano.', 409);
     if (plan.currency !== subscription.currency)
       throw appError('PLATFORM_CURRENCY_CONFLICT', 'A moeda do plano é incompatível.', 409);
     const billingCycle =
@@ -1219,6 +1306,14 @@ export class PlatformService {
             targetPublicId: updated.publicId,
             tenantId: updated.tenantId,
             userId: actor.user.id,
+            metadata: {
+              previousPlanPublicId: subscription.plan.publicId,
+              newPlanPublicId: plan.publicId,
+              billingCycle,
+              previousPriceCents: subscription.priceCents.toString(),
+              newPriceCents: priceCents.toString(),
+              reason,
+            },
             request: metadata,
           }),
         });
@@ -1226,6 +1321,71 @@ export class PlatformService {
       },
       { isolationLevel: 'Serializable' },
     );
+    return { subscription: mapSubscription(value) };
+  }
+
+  public async updateSubscriptionPeriod(
+    publicId: string,
+    startsAt: string,
+    endsAt: string,
+    reason: string,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ) {
+    const subscription = await this.client.tenantSubscription.findUnique({
+      where: { publicId },
+      include: { tenant: true, plan: true },
+    });
+    if (subscription === null)
+      throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura nao foi encontrada.', 404);
+    const start = new Date(startsAt);
+    const end = new Date(endsAt);
+    if (start >= end)
+      throw appError(
+        'PLATFORM_SUBSCRIPTION_DATES_INVALID',
+        'O fim do periodo deve ser posterior ao inicio.',
+        400,
+      );
+    const value = await this.client.$transaction(async (transaction) => {
+      const updated = await transaction.tenantSubscription.update({
+        where: { id: subscription.id },
+        data: { currentPeriodStartsAt: start, currentPeriodEndsAt: end },
+        include: { tenant: true, plan: true },
+      });
+      const periodMetadata = {
+        previousStartsAt: subscription.currentPeriodStartsAt.toISOString(),
+        previousEndsAt: subscription.currentPeriodEndsAt.toISOString(),
+        newStartsAt: start.toISOString(),
+        newEndsAt: end.toISOString(),
+      };
+      await transaction.subscriptionHistory.create({
+        data: {
+          publicId: randomUUID(),
+          subscriptionId: updated.id,
+          tenantId: updated.tenantId,
+          action: 'PERIOD_ADJUSTED',
+          previousStatus: subscription.status,
+          newStatus: updated.status,
+          previousPlanId: subscription.planId,
+          newPlanId: updated.planId,
+          reason,
+          performedByUserId: actor.user.id,
+          metadata: periodMetadata,
+        },
+      });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.subscription.period_adjusted',
+          targetType: 'tenant_subscription',
+          targetPublicId: updated.publicId,
+          tenantId: updated.tenantId,
+          userId: actor.user.id,
+          metadata: { ...periodMetadata, reason },
+          request: metadata,
+        }),
+      });
+      return updated;
+    });
     return { subscription: mapSubscription(value) };
   }
 
@@ -1884,6 +2044,7 @@ export class PlatformService {
       };
       ownerEmail: string;
       planPublicId: string;
+      billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
       trial: boolean;
       startsAt?: string | undefined;
     },
@@ -1895,13 +2056,25 @@ export class PlatformService {
       return await this.client.$transaction(
         async (transaction) => {
           const [plan, ownerRole] = await Promise.all([
-            transaction.commercialPlan.findUnique({ where: { publicId: input.planPublicId } }),
+            transaction.commercialPlan.findUnique({
+              where: { publicId: input.planPublicId },
+              include: { billingOptions: true },
+            }),
             transaction.role.findFirst({
               where: { code: 'OWNER', isSystem: true, tenantId: null },
             }),
           ]);
           if (plan?.status !== 'ACTIVE')
             throw appError('PLATFORM_PLAN_UNAVAILABLE', 'O plano não está disponível.', 409);
+          const billingOption = plan.billingOptions.find(
+            (option) => option.active && option.billingCycle === input.billingCycle,
+          );
+          if (plan.billingOptions.length > 0 && billingOption === undefined)
+            throw appError(
+              'PLATFORM_BILLING_OPTION_UNAVAILABLE',
+              'Esta periodicidade não está disponível para o plano.',
+              409,
+            );
           if (ownerRole === null) throw new Error('O papel OWNER não foi inicializado.');
           const tenant = await transaction.tenant.create({
             data: {
@@ -2064,10 +2237,10 @@ export class PlatformService {
               trialStartedAt: trialEndsAt === null ? null : startsAt,
               trialEndsAt,
               currentPeriodStartsAt: startsAt,
-              currentPeriodEndsAt: periodEnd(startsAt, plan.billingCycle),
-              priceCents: plan.priceCents,
+              currentPeriodEndsAt: periodEnd(startsAt, input.billingCycle),
+              priceCents: billingOption?.priceCents ?? plan.priceCents,
               currency: plan.currency,
-              billingCycle: plan.billingCycle,
+              billingCycle: input.billingCycle,
               effectiveKey: 'EFFECTIVE',
             },
             include: { tenant: true, plan: true },

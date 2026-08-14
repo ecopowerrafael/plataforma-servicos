@@ -36,6 +36,7 @@ import {
   UpdateCommercialPlanRequestSchema,
   UpdatePlanBenefitRequestSchema,
   UpdatePlatformTenantRequestSchema,
+  UpdateSubscriptionRequestSchema,
   TenantCommercialPolicySchema,
   UpdateTenantCommercialPolicyRequestSchema,
 } from '@plataforma/shared';
@@ -145,6 +146,19 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         request.platformAuth,
         requestMetadata(request),
       );
+    },
+  );
+  app.delete(
+    '/platform/plans/:publicId',
+    { schema: { params: PublicIdParamsSchema, response: { 200: SuccessResponseSchema } } },
+    async (request) => {
+      allow(request, 'platform.plan.update');
+      await options.service.deletePlan(
+        request.params.publicId,
+        request.platformAuth,
+        requestMetadata(request),
+      );
+      return { success: true } as const;
     },
   );
   app.get(
@@ -510,6 +524,21 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         request.params.publicId,
         request.body.planPublicId,
         request.body.billingCycle,
+        request.body.reason,
+        request.platformAuth,
+        requestMetadata(request),
+      );
+    },
+  );
+  app.post(
+    '/platform/subscriptions/:publicId/period',
+    { schema: { params: PublicIdParamsSchema, body: UpdateSubscriptionRequestSchema } },
+    (request) => {
+      allow(request, 'platform.subscription.update');
+      return options.service.updateSubscriptionPeriod(
+        request.params.publicId,
+        request.body.currentPeriodStartsAt,
+        request.body.currentPeriodEndsAt,
         request.body.reason,
         request.platformAuth,
         requestMetadata(request),

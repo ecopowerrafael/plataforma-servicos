@@ -54,6 +54,16 @@ export const WhatsAppInboundEventSchema = z.object({
 export const WhatsAppLastInboundEventSchema = z.object({
   event: WhatsAppInboundEventSchema.nullable(),
 });
+const WhatsAppProbeSchema = z.object({
+  ok: z.boolean(),
+  httpStatus: z.number().int().nullable(),
+  message: z.string(),
+  payload: z.unknown(),
+});
+export const WhatsAppInstanceDiagnosticsSchema = z.object({
+  instance: WhatsAppProbeSchema,
+  queue: WhatsAppProbeSchema,
+});
 export const IntegrationEventSchema = z.enum(['notification.queued']);
 export const UpsertExternalIntegrationSchema = z
   .object({

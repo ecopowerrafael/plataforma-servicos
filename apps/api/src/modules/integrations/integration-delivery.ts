@@ -3,6 +3,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
 import { mapWapiConnectionResponse, mapWapiTransportError, type WhatsAppConnectionResult } from './whatsapp-connection.js';
+import { sanitizePayload } from './whatsapp-inbound.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
@@ -45,6 +46,20 @@ export interface WhatsAppDelivery {
     buttons: WhatsAppInteractiveButton[],
   ): Promise<WhatsAppOperationResult>;
   configureReceivedWebhook(tenantId: bigint, url: string): Promise<WhatsAppOperationResult>;
+  inspectInstance(tenantId: bigint): Promise<WhatsAppInstanceDiagnostics>;
+}
+
+/** Leitura crua (sanitizada) de um recurso da instância, para diagnóstico. */
+export interface WhatsAppProbe {
+  ok: boolean;
+  httpStatus: number | null;
+  message: string;
+  payload: unknown;
+}
+
+export interface WhatsAppInstanceDiagnostics {
+  instance: WhatsAppProbe;
+  queue: WhatsAppProbe;
 }
 
 const sanitizeExternalText = (value: unknown) =>
@@ -191,6 +206,44 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
     } catch (error) {
       return mapOperationTransportError(error);
     }
+  }
+
+  /**
+   * Lê os dados da instância e a fila de mensagens pendentes. Serve para
+   * distinguir "a API aceitou e enfileirou" de "o WhatsApp entregou" — em
+   * especial quando o recurso não está disponível para o tipo de instância.
+   */
+  public async inspectInstance(tenantId: bigint): Promise<WhatsAppInstanceDiagnostics> {
+    const { instanceId, token } = await this.config(tenantId, false);
+    const probe = async (path: string): Promise<WhatsAppProbe> => {
+      try {
+        const response = await this.fetcher(
+          `https://api.w-api.app${path}?instanceId=${encodeURIComponent(instanceId)}`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) },
+        );
+        let payload: unknown = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+        return {
+          ok: response.ok,
+          httpStatus: response.status,
+          message: response.ok
+            ? 'Consulta concluída.'
+            : `O WhatsApp respondeu HTTP ${String(response.status)}.`,
+          payload: sanitizePayload(payload),
+        };
+      } catch (error) {
+        const mapped = mapOperationTransportError(error);
+        return { ok: false, httpStatus: null, message: mapped.message, payload: null };
+      }
+    };
+    return {
+      instance: await probe('/v1/instance/fetch-instance'),
+      queue: await probe('/v1/instance/quere/quere'),
+    };
   }
 
   /** Registra a URL que receberá as mensagens recebidas pela instância. */

@@ -163,6 +163,20 @@ export class IntegrationService {
     return { ...result, webhookUrl: url };
   }
 
+  /** Dados da instância + fila pendente, para saber se a mensagem realmente saiu. */
+  public async whatsappInstanceDiagnostics(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const delivery = this.whatsappDeliveryOrFail();
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'Configure o WhatsApp primeiro.',
+        statusCode: 400,
+      });
+    return delivery.inspectInstance(tenantId);
+  }
+
   public async lastWhatsappInboundEvent(tenantId: bigint) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');
     const event = await this.repository.lastInboundEvent(tenantId);

@@ -9,6 +9,7 @@ import {
   WhatsAppConfigSchema,
   WhatsAppConnectionTestSchema,
   WhatsAppConnectionTestRequestSchema,
+  WhatsAppInstanceDiagnosticsSchema,
   WhatsAppLastInboundEventSchema,
   WhatsAppWebhookConfigResponseSchema,
 } from '@plataforma/shared';
@@ -116,6 +117,14 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
         'Diagnóstico sanitizado do envio com botões',
       );
       return result;
+    },
+  );
+  app.get(
+    '/tenant/integrations/whatsapp/diagnostics',
+    { schema: { response: { 200: WhatsAppInstanceDiagnosticsSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      return options.service.whatsappInstanceDiagnostics(request.tenant.id);
     },
   );
   app.get(

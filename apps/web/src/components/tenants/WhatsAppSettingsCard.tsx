@@ -5,6 +5,7 @@ import {
   WhatsAppConfigSchema,
   WhatsAppConnectionTestSchema,
   WhatsAppConnectionTestRequestSchema,
+  WhatsAppInstanceDiagnosticsSchema,
   WhatsAppLastInboundEventSchema,
   WhatsAppWebhookConfigResponseSchema,
 } from '@plataforma/shared';
@@ -94,6 +95,16 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
       }),
     retry: false,
   });
+  const diagnostics = useQuery({
+    queryKey: ['tenant', tenantPublicId, 'whatsapp', 'diagnostics'],
+    queryFn: () =>
+      httpClient.request('/tenant/integrations/whatsapp/diagnostics', {
+        schema: WhatsAppInstanceDiagnosticsSchema,
+        tenantPublicId,
+      }),
+    enabled: false,
+    retry: false,
+  });
   const configureWebhook = useMutation({
     mutationFn: () =>
       httpClient.request('/tenant/integrations/whatsapp/webhook-config', {
@@ -177,6 +188,38 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
       ) : null}
       {sendButtons.error instanceof Error ? (
         <p className="form-error">{sendButtons.error.message}</p>
+      ) : null}
+
+      <h4>Diagnóstico da instância</h4>
+      <p>
+        {'Recurso de botões exige instância PRO. Se a mensagem some após o HTTP 200, confira aqui o '}
+        {'tipo da instância e a fila pendente.'}
+      </p>
+      <div className="form-row">
+        <button
+          disabled={diagnostics.isFetching}
+          onClick={() => {
+            void diagnostics.refetch();
+          }}
+          type="button"
+        >
+          {diagnostics.isFetching ? 'Consultando…' : 'Consultar instância e fila'}
+        </button>
+      </div>
+      {diagnostics.data ? (
+        <>
+          <strong>{`Instância — HTTP ${String(diagnostics.data.instance.httpStatus ?? '—')}`}</strong>
+          <pre className="whatsapp-event-payload">
+            {JSON.stringify(diagnostics.data.instance.payload, null, 2)}
+          </pre>
+          <strong>{`Fila pendente — HTTP ${String(diagnostics.data.queue.httpStatus ?? '—')}`}</strong>
+          <pre className="whatsapp-event-payload">
+            {JSON.stringify(diagnostics.data.queue.payload, null, 2)}
+          </pre>
+        </>
+      ) : null}
+      {diagnostics.error instanceof Error ? (
+        <p className="form-error">{diagnostics.error.message}</p>
       ) : null}
 
       <h4>Último evento recebido</h4>

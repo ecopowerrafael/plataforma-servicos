@@ -272,7 +272,10 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
     const { instanceId, token } = await this.config(tenantId, true);
     try {
       const response = await this.fetcher(
-        `https://api.w-api.app/v1/message/send-buttons-action?instanceId=${encodeURIComponent(instanceId)}`,
+        // `send-button-actions`, e não o `send-buttons-action` que o snippet da
+        // documentação mostra: esse último responde 404. O caminho correto é o
+        // que o próprio painel do provedor dispara.
+        `https://api.w-api.app/v1/message/send-button-actions?instanceId=${encodeURIComponent(instanceId)}`,
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

@@ -22,6 +22,7 @@ import {
   type UpdateTenantCustomFieldRequest,
 } from '@plataforma/shared';
 
+import { auditReadDetails } from './audit-sanitizer.js';
 import { TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -2455,6 +2456,7 @@ export class PlatformService {
             ? null
             : { publicId: item.user.publicId, email: item.user.email, status: item.user.status },
         createdAt: item.createdAt.toISOString(),
+        ...auditReadDetails(item.metadata),
       })),
       page: pageMeta(total, query),
     };

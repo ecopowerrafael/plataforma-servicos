@@ -2,7 +2,20 @@ import { randomUUID } from 'node:crypto';
 
 import { type WhatsAppDelivery } from './integration-delivery.js';
 import { type IntegrationRepository } from './integration.repository.js';
-import { maskPhone, normalizeWhatsAppEvent } from './whatsapp-inbound.js';
+import { WhatsAppAssistantService } from './whatsapp-assistant.service.js';
+import {
+  maskPhone,
+  normalizeWApiWebhook,
+  type NormalizedWhatsAppEvent,
+} from './whatsapp-inbound.js';
+import {
+  advanceStatus,
+  statusFromEvent,
+  timestampColumn,
+  type WhatsAppMessageStatus,
+} from './whatsapp-message-status.js';
+import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
+import { type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
@@ -57,11 +70,14 @@ const externalPublic = (item: {
 });
 
 export class IntegrationService {
+  private readonly assistant: WhatsAppAssistantService;
   public constructor(
     private readonly repository: IntegrationRepository,
     private readonly cipher: CredentialsCipher | undefined,
     private readonly whatsappDelivery?: WhatsAppDelivery,
-  ) {}
+  ) {
+    this.assistant = new WhatsAppAssistantService(repository, whatsappDelivery);
+  }
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {
     return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repository.client, tenantId, key);
   }
@@ -130,14 +146,7 @@ export class IntegrationService {
     return this.whatsappDelivery;
   }
 
-  /**
-   * Envia a mensagem de teste com botões.
-   *
-   * `variant: 'docs'` reproduz literalmente o corpo de exemplo da documentação
-   * (ids curtos `id1`/`id2`/`id3`). Como todo o resto do corpo é idêntico ao
-   * nosso, comparar os dois envios isola se o problema está nos valores de
-   * `buttonId` que usamos.
-   */
+  /** Envia a mensagem de teste com os dois botões de prova. */
   public async sendWhatsappButtonTest(tenantId: bigint, phone: string, actor: Actor) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');
     const delivery = this.whatsappDeliveryOrFail();
@@ -161,20 +170,21 @@ export class IntegrationService {
     const actionIds = buttons.map((button) => button.buttonId);
     // A ordem enviada é o que permite traduzir o `selectedIndex` do clique de
     // volta para a nossa ação, então ela precisa ser persistida com o envio.
-    if (result.ok)
-      await this.repository.createOutboundMessage({
-        tenantId,
-        instanceId: configured.phoneNumberId,
-        phone,
-        externalMessageId: result.externalMessageId,
-        actionIds,
-        status: 'SENT',
-      });
+    await this.repository.createOutboundMessage({
+      tenantId,
+      instanceId: configured.phoneNumberId,
+      phone,
+      externalMessageId: result.externalMessageId,
+      actionIds,
+      status: result.status,
+      customerId: await this.customerIdForPhone(tenantId, phone),
+      errorCode: result.errorCode,
+    });
     await this.audit(tenantId, actor, 'integration.whatsapp.button_test_sent', configured.publicId);
     return { ...result, actionIds };
   }
 
-  /** Registra a URL pública deste ambiente como webhook de recebimento da instância. */
+  /** Registra as duas URLs de webhook na instância: mensagens recebidas e status. */
   public async configureWhatsappWebhook(tenantId: bigint, url: string, actor: Actor) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');
     const delivery = this.whatsappDeliveryOrFail();
@@ -185,9 +195,21 @@ export class IntegrationService {
         message: 'Configure o WhatsApp primeiro.',
         statusCode: 400,
       });
-    const result = await delivery.configureReceivedWebhook(tenantId, url);
+    const received = await delivery.configureReceivedWebhook(tenantId, url);
+    const status = await delivery.configureStatusWebhook(tenantId, url);
     await this.audit(tenantId, actor, 'integration.whatsapp.webhook_configured', configured.publicId);
-    return { ...result, webhookUrl: url };
+    return { received, status, webhookUrl: url };
+  }
+
+  /** Cliente do tenant correspondente ao telefone, ou `null`. Não cria cadastro. */
+  private async customerIdForPhone(tenantId: bigint, phone: string | null) {
+    if (phone === null) return null;
+    const normalized = normalizeWhatsAppPhone(phone);
+    if (normalized === null) return null;
+    const withoutCountry = normalized.startsWith('55') ? normalized.slice(2) : normalized;
+    const candidates = [...new Set([normalized, withoutCountry, phone])];
+    const customer = await this.repository.customerByPhone(tenantId, candidates);
+    return customer?.id ?? null;
   }
 
   /**
@@ -229,9 +251,37 @@ export class IntegrationService {
 
   public async lastWhatsappInboundEvent(tenantId: bigint) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');
-    const event = await this.repository.lastInboundEvent(tenantId);
-    if (event === null) return { event: null };
+    const [event, outbound, conversation] = await Promise.all([
+      this.repository.lastInboundEvent(tenantId),
+      this.repository.lastOutboundMessage(tenantId),
+      this.repository.lastConversation(tenantId),
+    ]);
+    const lastConversation =
+      conversation === null
+        ? null
+        : {
+            maskedPhone: maskPhone(conversation.phone),
+            status: conversation.status,
+            currentFlow: conversation.currentFlow,
+            lastInboundAt: conversation.lastInboundAt.toISOString(),
+          };
+    const lastMessage =
+      outbound === null
+        ? null
+        : {
+            externalMessageId: outbound.externalMessageId,
+            status: outbound.status as WhatsAppMessageStatus,
+            maskedPhone: maskPhone(outbound.phone),
+            sentAt: outbound.sentAt.toISOString(),
+            deliveredAt: outbound.deliveredAt?.toISOString() ?? null,
+            readAt: outbound.readAt?.toISOString() ?? null,
+            failedAt: outbound.failedAt?.toISOString() ?? null,
+            errorCode: outbound.errorCode,
+          };
+    if (event === null) return { event: null, lastMessage, lastConversation };
     return {
+      lastMessage,
+      lastConversation,
       event: {
         publicId: event.publicId,
         eventType: event.eventType,
@@ -239,6 +289,7 @@ export class IntegrationService {
         maskedPhone: maskPhone(event.phone),
         externalMessageId: event.externalMessageId,
         actionId: event.actionId,
+        text: event.text,
         receivedAt: event.receivedAt.toISOString(),
         payload: event.payload ?? null,
       },
@@ -250,50 +301,100 @@ export class IntegrationService {
    * instanceId — nunca de um tenantId recebido de fora.
    */
   public async ingestWhatsappInbound(raw: unknown) {
-    const normalized = normalizeWhatsAppEvent(raw, IntegrationService.testActionIds);
-    if (normalized.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
-    const config = await this.repository.whatsappByInstanceId(normalized.instanceId);
+    const event = normalizeWApiWebhook(raw);
+    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
+    const config = await this.repository.whatsappByInstanceId(event.instanceId);
     if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN' } as const;
-    const existing = await this.repository.inboundEventByFingerprint(
-      config.tenantId,
-      normalized.fingerprint,
-    );
+    const tenantId = config.tenantId;
+    const existing = await this.repository.inboundEventByFingerprint(tenantId, event.fingerprint);
     if (existing !== null) return { accepted: true, duplicated: true } as const;
-    // Resolução da ação: o clique traz a posição do botão e o id da mensagem
-    // original. Cruzando com o que foi enviado, chegamos ao nosso actionId sem
-    // depender do texto visível nem do id gerado pelo provedor.
-    const reply = normalized.buttonReply;
-    let resolvedActionId = normalized.action?.actionId ?? null;
-    if (reply?.sourceMessageId != null && reply.selectedIndex !== null) {
-      const outbound = await this.repository.outboundByExternalMessageId(
-        config.tenantId,
-        reply.sourceMessageId,
-      );
-      const actionIds = Array.isArray(outbound?.actionIds) ? outbound.actionIds : [];
-      const matched = actionIds[reply.selectedIndex];
-      if (typeof matched === 'string') resolvedActionId = matched;
-    }
+
+    const actionId = await this.resolveActionId(tenantId, event);
+    await this.applyStatusEvent(tenantId, event);
+    const customerId = await this.customerIdForPhone(tenantId, event.phone);
+
     try {
       await this.repository.createInboundEvent({
-        tenantId: config.tenantId,
-        instanceId: normalized.instanceId,
-        externalMessageId: normalized.externalMessageId,
-        phone: normalized.phone,
-        eventType: normalized.eventType,
-        messageType: normalized.messageType,
-        actionId: resolvedActionId,
-        fingerprint: normalized.fingerprint,
-        payload: {
-          ...(normalized.payload as Record<string, unknown>),
-          ...(normalized.action === null ? {} : { _actionIdPath: normalized.action.path }),
-          ...(reply === null ? {} : { _buttonReply: { ...reply } }),
-        },
+        tenantId,
+        instanceId: event.instanceId,
+        externalMessageId: event.externalMessageId,
+        phone: event.phone,
+        eventType: event.eventType,
+        messageType: event.messageType,
+        actionId,
+        fingerprint: event.fingerprint,
+        text: event.text,
+        referencedMessageId: event.referencedMessageId,
+        customerId,
+        payload: event.payload as Prisma.InputJsonValue,
       });
     } catch {
       // Corrida entre entregas simultâneas do mesmo evento: a unique key resolve.
       return { accepted: true, duplicated: true } as const;
     }
-    return { accepted: true, duplicated: false } as const;
+
+    // O evento já está persistido; a automação roda depois e só para mensagens
+    // do cliente, de modo que uma falha aqui não perde o registro do webhook.
+    const entitled = await new PlanEntitlementService().featureEnabledForTenant(
+      this.repository.client,
+      tenantId,
+      'whatsapp.enabled',
+    );
+    const assistant = await this.assistant.handleInbound({
+      tenantId,
+      instanceId: event.instanceId,
+      event,
+      customerId,
+      actionId,
+      entitled,
+    });
+    return {
+      accepted: true,
+      duplicated: false,
+      eventType: event.eventType,
+      assistantReplied: assistant.replied,
+      ...(assistant.reason === undefined ? {} : { assistantSkipped: assistant.reason }),
+    } as const;
+  }
+
+  /**
+   * O clique traz a posição do botão e o id da mensagem original. Cruzando com
+   * o que foi enviado, chegamos ao nosso actionId — sem olhar o texto visível
+   * nem o id gerado pelo provedor.
+   */
+  private async resolveActionId(tenantId: bigint, event: NormalizedWhatsAppEvent) {
+    if (event.referencedMessageId === null || event.selectedIndex === null) return null;
+    const outbound = await this.repository.outboundByExternalMessageId(
+      tenantId,
+      event.referencedMessageId,
+    );
+    const actionIds = Array.isArray(outbound?.actionIds) ? outbound.actionIds : [];
+    const matched = actionIds[event.selectedIndex];
+    return typeof matched === 'string' ? matched : null;
+  }
+
+  /**
+   * Avança o ciclo de vida da mensagem enviada. A busca é sempre por tenant, de
+   * modo que um evento de um tenant nunca alcança a mensagem de outro, e a
+   * transição é monotônica: webhook repetido ou fora de ordem não regride.
+   */
+  private async applyStatusEvent(tenantId: bigint, event: NormalizedWhatsAppEvent) {
+    if (event.eventType === null || event.externalMessageId === null) return;
+    const next = statusFromEvent(event.eventType);
+    if (next === null) return;
+    const outbound = await this.repository.outboundByExternalMessageId(
+      tenantId,
+      event.externalMessageId,
+    );
+    if (outbound === null) return;
+    const current = outbound.status as WhatsAppMessageStatus;
+    const advanced = advanceStatus(current, next);
+    if (advanced === current) return;
+    const column = timestampColumn(advanced);
+    await this.repository.updateOutboundStatus(outbound.id, {
+      status: advanced,
+      ...(column === null ? {} : { [column]: event.timestamp ?? new Date() }),
+    });
   }
 
   public async list(tenantId: bigint) {

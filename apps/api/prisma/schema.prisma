@@ -458,6 +458,7 @@ model Tenant {
   whatsappConfig               TenantWhatsAppConfig?
   whatsappInboundEvents        WhatsAppInboundEvent[]
   whatsappOutboundMessages     WhatsAppOutboundMessage[]
+  whatsappConversations        WhatsAppConversation[]
   externalIntegrations         ExternalIntegration[]
 
   @@index([status])
@@ -492,14 +493,21 @@ model WhatsAppInboundEvent {
   instanceId        String   @map("instance_id") @db.VarChar(80)
   externalMessageId String?  @map("external_message_id") @db.VarChar(191)
   phone             String?  @db.VarChar(32)
-  eventType         String?  @map("event_type") @db.VarChar(80)
-  messageType       String?  @map("message_type") @db.VarChar(80)
-  actionId          String?  @map("action_id") @db.VarChar(191)
-  fingerprint       String?  @db.VarChar(191)
-  payload           Json
-  receivedAt        DateTime @default(now()) @map("received_at") @db.DateTime(3)
+  /// Tipo interno: MESSAGE_RECEIVED | MESSAGE_ACTION | MESSAGE_SENT | ...
+  eventType           String?  @map("event_type") @db.VarChar(80)
+  messageType         String?  @map("message_type") @db.VarChar(80)
+  actionId            String?  @map("action_id") @db.VarChar(191)
+  fingerprint         String?  @db.VarChar(191)
+  /// Texto da mensagem, quando houver. Já sanitizado.
+  text                String?  @db.Text
+  /// Mensagem à qual o evento responde, para a Etapa 3 não reinterpretar o provedor.
+  referencedMessageId String?  @map("referenced_message_id") @db.VarChar(191)
+  customerId          BigInt?  @map("customer_id") @db.UnsignedBigInt
+  payload             Json
+  receivedAt          DateTime @default(now()) @map("received_at") @db.DateTime(3)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([tenantId, fingerprint], map: "whatsapp_inbound_events_fingerprint_key")
   @@index([tenantId, receivedAt])
@@ -515,16 +523,53 @@ model WhatsAppOutboundMessage {
   tenantId          BigInt   @map("tenant_id") @db.UnsignedBigInt
   instanceId        String   @map("instance_id") @db.VarChar(80)
   phone             String   @db.VarChar(32)
-  externalMessageId String?  @map("external_message_id") @db.VarChar(191)
-  actionIds         Json     @map("action_ids")
-  status            String   @db.VarChar(32)
-  sentAt            DateTime @default(now()) @map("sent_at") @db.DateTime(3)
+  externalMessageId String?   @map("external_message_id") @db.VarChar(191)
+  actionIds         Json      @map("action_ids")
+  /// QUEUED | SENT | DELIVERED | READ | FAILED, resolvido em whatsapp-message-status.
+  status            String    @db.VarChar(32)
+  customerId        BigInt?   @map("customer_id") @db.UnsignedBigInt
+  /// Notificação que originou o envio, quando houver.
+  notificationLogId BigInt?   @map("notification_log_id") @db.UnsignedBigInt
+  errorCode         String?   @map("error_code") @db.VarChar(80)
+  sentAt            DateTime  @default(now()) @map("sent_at") @db.DateTime(3)
+  deliveredAt       DateTime? @map("delivered_at") @db.DateTime(3)
+  readAt            DateTime? @map("read_at") @db.DateTime(3)
+  failedAt          DateTime? @map("failed_at") @db.DateTime(3)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  notification NotificationLog? @relation(fields: [notificationLogId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([tenantId, externalMessageId])
   @@index([tenantId, sentAt])
   @@map("whatsapp_outbound_messages")
+}
+
+/// Sessão de conversa do assistente. Sempre por tenant + telefone: o mesmo
+/// número falando com estabelecimentos diferentes nunca compartilha contexto.
+model WhatsAppConversation {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId      String    @unique @map("public_id") @db.Char(36)
+  tenantId      BigInt    @map("tenant_id") @db.UnsignedBigInt
+  customerId    BigInt?   @map("customer_id") @db.UnsignedBigInt
+  phone         String    @db.VarChar(32)
+  /// ACTIVE | HUMAN_SUPPORT | CLOSED
+  status        String    @default("ACTIVE") @db.VarChar(32)
+  currentFlow   String    @default("MAIN_MENU") @map("current_flow") @db.VarChar(48)
+  currentStep   String?   @map("current_step") @db.VarChar(48)
+  context       Json?
+  lastInboundAt DateTime  @map("last_inbound_at") @db.DateTime(3)
+  lastOutboundAt DateTime? @map("last_outbound_at") @db.DateTime(3)
+  expiresAt     DateTime  @map("expires_at") @db.DateTime(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([tenantId, phone, status])
+  @@index([tenantId, lastInboundAt])
+  @@map("whatsapp_conversations")
 }
 
 model ExternalIntegration {
@@ -787,6 +832,8 @@ model NotificationLog {
   createdAt      DateTime            @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  whatsappMessages WhatsAppOutboundMessage[]
 
   @@unique([tenantId, kind, targetType, targetPublicId, channel, recipient], map: "notification_logs_target_key")
   @@index([tenantId, createdAt])
@@ -1476,6 +1523,9 @@ model Customer {
   appointments          Appointment[]
   sessions              CustomerSession[]
   passwordResets        CustomerPasswordResetToken[]
+  whatsappInboundEvents WhatsAppInboundEvent[]
+  whatsappOutboundMessages WhatsAppOutboundMessage[]
+  whatsappConversations WhatsAppConversation[]
   favorites             CustomerFavorite[]
   reviews               AppointmentReview[]
   recoveryExecutions    CustomerRecoveryExecution[]

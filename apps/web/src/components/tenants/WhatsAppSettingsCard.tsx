@@ -72,6 +72,9 @@ export function WhatsAppSettingsCard({ tenantPublicId, canManage }: { tenantPubl
   );
 }
 
+const timeOf = (iso: string) =>
+  new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
 const operationError = (result: { httpStatus: number | null; externalCode: string | null }) =>
   [
     result.httpStatus === null ? null : `HTTP ${String(result.httpStatus)}`,
@@ -133,6 +136,8 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
       }),
   });
   const event = lastEvent.data?.event ?? null;
+  const lastMessage = lastEvent.data?.lastMessage ?? null;
+  const lastConversation = lastEvent.data?.lastConversation ?? null;
 
   return (
     <section className="whatsapp-interaction-test">
@@ -156,7 +161,7 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
           }}
           type="button"
         >
-          Configurar webhook
+          Configurar webhooks
         </button>
         <button
           disabled={sendButtons.isPending || phone.trim().length < 10}
@@ -196,13 +201,29 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
       ) : null}
 
       {configureWebhook.data ? (
-        <div className={configureWebhook.data.ok ? 'success-message' : 'form-error'}>
-          <strong>{configureWebhook.data.ok ? 'Webhook configurado' : 'Falha ao configurar'}</strong>
-          <p>{configureWebhook.data.message}</p>
+        <div
+          className={
+            configureWebhook.data.received.ok && configureWebhook.data.status.ok
+              ? 'success-message'
+              : 'form-error'
+          }
+        >
+          <dl className="whatsapp-event-details">
+            <div>
+              <dt>Mensagens recebidas</dt>
+              <dd>{configureWebhook.data.received.ok ? 'Configurado' : 'Falhou'}</dd>
+            </div>
+            <div>
+              <dt>Status das mensagens</dt>
+              <dd>{configureWebhook.data.status.ok ? 'Configurado' : 'Falhou'}</dd>
+            </div>
+          </dl>
+          {[configureWebhook.data.received, configureWebhook.data.status]
+            .filter((item) => !item.ok)
+            .map((item) => (
+              <p key={item.message}>{`${item.message} ${operationError(item)}`}</p>
+            ))}
           <small>{`URL: ${configureWebhook.data.webhookUrl}`}</small>
-          {operationError(configureWebhook.data) === '' ? null : (
-            <small>{operationError(configureWebhook.data)}</small>
-          )}
         </div>
       ) : null}
       {configureWebhook.error instanceof Error ? (
@@ -210,18 +231,19 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
       ) : null}
 
       {sendButtons.data ? (
-        <div className={sendButtons.data.ok ? 'success-message' : 'form-error'}>
-          <strong>{sendButtons.data.ok ? 'Enviado — aguardando resposta' : 'Falha no envio'}</strong>
+        <div className={sendButtons.data.status === 'FAILED' ? 'form-error' : 'success-message'}>
+          <strong>
+            {sendButtons.data.status === 'FAILED'
+              ? 'Falha no envio'
+              : 'Enviado — aguardando resposta'}
+          </strong>
           <p>{sendButtons.data.message}</p>
           <small>{`IDs enviados: ${sendButtons.data.actionIds.join(' · ')}`}</small>
           {sendButtons.data.externalMessageId === null ? null : (
             <small>{`Message ID: ${sendButtons.data.externalMessageId}`}</small>
           )}
-          {sendButtons.data.queuedId === null ? null : (
-            <small>{`ID na fila: ${sendButtons.data.queuedId}`}</small>
-          )}
-          {operationError(sendButtons.data) === '' ? null : (
-            <small>{operationError(sendButtons.data)}</small>
+          {sendButtons.data.errorCode === null ? null : (
+            <small>{`Código: ${sendButtons.data.errorCode}${sendButtons.data.httpStatus === null ? '' : ` · HTTP ${String(sendButtons.data.httpStatus)}`}`}</small>
           )}
         </div>
       ) : null}
@@ -260,6 +282,65 @@ function WhatsAppInteractionTest({ tenantPublicId }: { tenantPublicId: string })
       {diagnostics.error instanceof Error ? (
         <p className="form-error">{diagnostics.error.message}</p>
       ) : null}
+
+      <h4>Assistente</h4>
+      <p>{`Status: ${lastConversation === null ? 'Em preparação' : 'Ativo'}`}</p>
+      {lastConversation === null ? null : (
+        <dl className="whatsapp-event-details">
+          <div>
+            <dt>Telefone</dt>
+            <dd>{lastConversation.maskedPhone ?? '—'}</dd>
+          </div>
+          <div>
+            <dt>Status da conversa</dt>
+            <dd>{lastConversation.status}</dd>
+          </div>
+          <div>
+            <dt>Fluxo</dt>
+            <dd>{lastConversation.currentFlow}</dd>
+          </div>
+          <div>
+            <dt>Última interação</dt>
+            <dd>{new Date(lastConversation.lastInboundAt).toLocaleString('pt-BR')}</dd>
+          </div>
+        </dl>
+      )}
+
+      <h4>Última mensagem de teste</h4>
+      {lastMessage === null ? (
+        <p>Nenhuma mensagem enviada ainda.</p>
+      ) : (
+        <dl className="whatsapp-event-details">
+          <div>
+            <dt>Enviada</dt>
+            <dd>{`✓ ${timeOf(lastMessage.sentAt)}`}</dd>
+          </div>
+          {lastMessage.deliveredAt === null ? null : (
+            <div>
+              <dt>Entregue</dt>
+              <dd>{`✓ ${timeOf(lastMessage.deliveredAt)}`}</dd>
+            </div>
+          )}
+          {lastMessage.readAt === null ? null : (
+            <div>
+              <dt>Lida</dt>
+              <dd>{`✓ ${timeOf(lastMessage.readAt)}`}</dd>
+            </div>
+          )}
+          {lastMessage.failedAt === null ? null : (
+            <div>
+              <dt>Falhou</dt>
+              <dd>{`${timeOf(lastMessage.failedAt)}${lastMessage.errorCode === null ? '' : ` · ${lastMessage.errorCode}`}`}</dd>
+            </div>
+          )}
+          {event?.actionId === null || event === null ? null : (
+            <div>
+              <dt>Resposta</dt>
+              <dd>{`${event.actionId} · ${timeOf(event.receivedAt)}`}</dd>
+            </div>
+          )}
+        </dl>
+      )}
 
       <h4>Último evento recebido</h4>
       <div className="form-row">

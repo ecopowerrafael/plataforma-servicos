@@ -1,22 +1,17 @@
 import { createHash } from 'node:crypto';
 
 /**
- * Normalização e sanitização do webhook de WhatsApp.
+ * Normalização e sanitização dos webhooks de WhatsApp.
  *
- * Só extraímos campos que a coleção/documentação oficial descreve (`event`,
- * `instanceId`, `data.messageId`, `data.phone`, `data.type`). O campo que
- * carrega a resposta de um botão ainda não é conhecido, por isso ele não é
- * adivinhado: o payload sanitizado é guardado por inteiro e o `actionId` só é
- * preenchido quando algum valor do payload for exatamente um dos IDs que nós
- * mesmos enviamos — o caminho onde ele apareceu é registrado junto, e é assim
- * que vamos descobrir o nome real do campo.
+ * O restante do Agendei nunca vê o JSON do provedor: tudo o que sai daqui já
+ * está no vocabulário interno. Os caminhos usados são os comprovados em
+ * produção na Etapa 1 — não há busca recursiva por valor.
  */
 
-const SECRET_KEY = /token|authorization|secret|password|senha|apikey|api_key|credential|bearer/iu;
+const SECRET_KEY =
+  /token|authorization|secret|password|senha|apikey|api_key|accesstoken|credential|bearer/iu;
 const SECRET_VALUE = /(?:Bearer\s+\S+)|(?:\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/gu;
-// Um valor que é *inteiro* uma sequência longa e opaca continua sendo tratado
-// como credencial. Ancorar a regra é o que preserva campos legítimos que apenas
-// contêm trechos longos, como URLs e o `buttonParamsJSON` do botão clicado.
+/** Um valor que é *inteiro* uma sequência longa e opaca é tratado como credencial. */
 const OPAQUE_VALUE = /^[A-Za-z0-9_-]{40,}$/u;
 const REDACTED = '[protegido]';
 const MAX_DEPTH = 8;
@@ -61,127 +56,137 @@ const record = (value: unknown): Record<string, unknown> =>
 const text = (value: unknown, max: number) =>
   typeof value === 'string' && value.trim() !== '' ? value.trim().slice(0, max) : null;
 
-export interface WhatsAppActionMatch {
-  actionId: string;
-  /** Caminho em que o ID apareceu, ex.: `data.message.buttonsResponseMessage.selectedButtonId`. */
-  path: string;
-}
+/** Vocabulário interno de eventos. Os nomes do provedor não passam daqui. */
+export type WhatsAppEventType =
+  | 'MESSAGE_RECEIVED'
+  | 'MESSAGE_ACTION'
+  | 'MESSAGE_SENT'
+  | 'MESSAGE_DELIVERED'
+  | 'MESSAGE_READ'
+  | 'MESSAGE_FAILED';
 
 /**
- * Procura, no payload, um valor idêntico a um dos IDs enviados por nós.
- * Não infere nome de campo: compara valores conhecidos.
+ * Vocabulário de status descrito na documentação: a entrega notifica o envio
+ * (ou a falha), `RECEIVED` confirma o recebimento e `READ` a leitura.
  */
-export function findKnownActionId(
-  value: unknown,
-  knownIds: readonly string[],
-  path = '',
-  depth = 0,
-): WhatsAppActionMatch | null {
-  if (depth > MAX_DEPTH) return null;
-  if (typeof value === 'string')
-    return knownIds.includes(value.trim()) ? { actionId: value.trim(), path } : null;
-  if (Array.isArray(value)) {
-    for (const [index, item] of value.slice(0, MAX_ARRAY).entries()) {
-      const found = findKnownActionId(item, knownIds, `${path}[${String(index)}]`, depth + 1);
-      if (found !== null) return found;
-    }
-    return null;
+export function mapStatusValue(value: string | null): WhatsAppEventType | null {
+  switch (value?.toUpperCase()) {
+    case 'SENT':
+      return 'MESSAGE_SENT';
+    case 'RECEIVED':
+    case 'DELIVERED':
+      return 'MESSAGE_DELIVERED';
+    case 'READ':
+      return 'MESSAGE_READ';
+    case 'FAILED':
+    case 'ERROR':
+      return 'MESSAGE_FAILED';
+    default:
+      return null;
   }
-  if (value !== null && typeof value === 'object') {
-    for (const [key, item] of Object.entries(value)) {
-      const found = findKnownActionId(
-        item,
-        knownIds,
-        path === '' ? key : `${path}.${key}`,
-        depth + 1,
-      );
-      if (found !== null) return found;
-    }
-  }
-  return null;
-}
-
-export interface WhatsAppButtonReply {
-  /** Id da mensagem com botões que originou a resposta (`contextInfo.stanzaID`). */
-  sourceMessageId: string | null;
-  /** Posição do botão no array que enviamos — é por aqui que resolvemos a ação. */
-  selectedIndex: number | null;
-  /** Texto visível do botão. Guardado para exibição, nunca para decidir a ação. */
-  selectedDisplayText: string | null;
-  /** Id gerado pelo provedor, não escolhido por nós. */
-  selectedId: string | null;
-}
-
-/**
- * Extrai a resposta de um botão. O formato real, observado em produção:
- * `msgContent.templateButtonReplyMessage` com `selectedIndex`,
- * `selectedDisplayText`, `selectedID` e `contextInfo.stanzaID`.
- */
-export function extractButtonReply(payload: unknown): WhatsAppButtonReply | null {
-  const content = record(record(payload).msgContent);
-  const reply = record(content.templateButtonReplyMessage);
-  if (Object.keys(reply).length === 0) return null;
-  const contextInfo = record(reply.contextInfo);
-  const index = reply.selectedIndex;
-  return {
-    sourceMessageId: text(contextInfo.stanzaID ?? contextInfo.stanzaId, 191),
-    selectedIndex: typeof index === 'number' && Number.isInteger(index) ? index : null,
-    selectedDisplayText: text(reply.selectedDisplayText, 191),
-    selectedId: text(reply.selectedID ?? reply.selectedId, 191),
-  };
 }
 
 export interface NormalizedWhatsAppEvent {
+  /** Tipo interno. `null` quando o evento não é de nosso interesse. */
+  eventType: WhatsAppEventType | null;
+  /** Nome cru do evento, guardado só para diagnóstico. */
+  providerEvent: string | null;
   instanceId: string | null;
-  eventType: string | null;
   externalMessageId: string | null;
   phone: string | null;
   messageType: string | null;
-  action: WhatsAppActionMatch | null;
-  buttonReply: WhatsAppButtonReply | null;
+  /** Texto da mensagem, quando é uma mensagem de texto. */
+  text: string | null;
+  /** Nosso identificador de ação, resolvido fora daqui pelo índice do botão. */
+  actionId: string | null;
+  /** Mensagem à qual este evento responde (`contextInfo.stanzaID`). */
+  referencedMessageId: string | null;
+  /** Posição do botão clicado no array que enviamos. */
+  selectedIndex: number | null;
+  /** Texto visível do botão. Exibição apenas — nunca decide a ação. */
+  selectedDisplayText: string | null;
+  timestamp: Date | null;
+  fromMe: boolean;
+  isGroup: boolean;
   fingerprint: string;
   payload: unknown;
 }
 
 /**
- * Identidade do evento para deduplicação. Usa o id real do provedor quando ele
- * existe; caso contrário, o hash do payload sanitizado.
+ * Normalizador explícito do webhook do provedor.
+ *
+ * Caminhos comprovados em produção:
+ * - envelope: `event`, `instanceId`, `messageId`, `sender.id`, `moment`, `fromMe`
+ * - texto: `msgContent.conversation`
+ * - clique: `msgContent.templateButtonReplyMessage.selectedIndex` e
+ *   `.contextInfo.stanzaID`
+ *
+ * O status de entrega/leitura chega pelo webhook de status, cujo corpo o
+ * provedor não documenta; lemos o campo `status` do topo do envelope, sem
+ * varrer o JSON.
+ */
+export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
+  const payload = boundedPayload(sanitizePayload(raw));
+  const root = record(payload);
+  const content = record(root.msgContent);
+  const sender = record(root.sender);
+  const reply = record(content.templateButtonReplyMessage);
+  const replyContext = record(reply.contextInfo);
+  const providerEvent = text(root.event, 80);
+  const statusValue = text(root.status, 40);
+  const isAction = Object.keys(reply).length > 0;
+
+  const eventType: WhatsAppEventType | null =
+    mapStatusValue(statusValue) ??
+    (providerEvent === 'webhookReceived'
+      ? isAction
+        ? 'MESSAGE_ACTION'
+        : 'MESSAGE_RECEIVED'
+      : providerEvent === 'webhookDelivery'
+        ? 'MESSAGE_SENT'
+        : null);
+
+  const moment = root.moment;
+  const externalMessageId = text(root.messageId, 191);
+  const index = reply.selectedIndex;
+
+  return {
+    eventType,
+    providerEvent,
+    instanceId: text(root.instanceId, 80),
+    externalMessageId,
+    phone: text(sender.id ?? root.phone, 32),
+    messageType: isAction ? 'BUTTON_REPLY' : text(root.type, 80),
+    text: text(content.conversation, 2_000),
+    actionId: null,
+    referencedMessageId: text(replyContext.stanzaID ?? replyContext.stanzaId, 191),
+    selectedIndex: typeof index === 'number' && Number.isInteger(index) ? index : null,
+    selectedDisplayText: text(reply.selectedDisplayText, 191),
+    timestamp: typeof moment === 'number' && moment > 0 ? new Date(moment * 1_000) : null,
+    fromMe: root.fromMe === true,
+    isGroup: root.isGroup === true,
+    fingerprint: eventFingerprint({
+      eventType,
+      externalMessageId,
+      payload,
+    }),
+    payload,
+  };
+}
+
+/**
+ * Identidade do evento para deduplicação. Usa o id real do provedor combinado
+ * com o tipo interno, já que a mesma mensagem gera eventos diferentes ao longo
+ * do ciclo; sem id, cai no hash do payload sanitizado.
  */
 export function eventFingerprint(input: {
-  eventType: string | null;
+  eventType: WhatsAppEventType | null;
   externalMessageId: string | null;
   payload: unknown;
 }) {
   if (input.externalMessageId !== null)
-    return `${input.eventType ?? 'event'}:${input.externalMessageId}`.slice(0, 191);
+    return `${input.eventType ?? 'EVENT'}:${input.externalMessageId}`.slice(0, 191);
   return `sha256:${createHash('sha256').update(JSON.stringify(input.payload ?? null)).digest('hex')}`;
-}
-
-export function normalizeWhatsAppEvent(
-  raw: unknown,
-  knownActionIds: readonly string[] = [],
-): NormalizedWhatsAppEvent {
-  const payload = boundedPayload(sanitizePayload(raw));
-  const root = record(payload);
-  const data = record(root.data);
-  const instanceId = text(root.instanceId ?? data.instanceId, 80);
-  const eventType = text(root.event ?? root.eventType, 80);
-  const externalMessageId = text(data.messageId ?? root.messageId, 191);
-  // O provedor envia o telefone tanto em `data.phone` quanto em `sender.id`.
-  const sender = record(root.sender);
-  const phone = text(data.phone ?? root.phone ?? sender.id, 32);
-  const messageType = text(data.type ?? root.type, 80);
-  return {
-    instanceId,
-    eventType,
-    externalMessageId,
-    phone,
-    messageType,
-    action: findKnownActionId(payload, knownActionIds),
-    buttonReply: extractButtonReply(payload),
-    fingerprint: eventFingerprint({ eventType, externalMessageId, payload }),
-    payload,
-  };
 }
 
 /** Mascara o telefone para exibição: mantém DDI/DDD e os quatro últimos dígitos. */

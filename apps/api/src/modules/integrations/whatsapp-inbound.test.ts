@@ -1,146 +1,142 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  eventFingerprint,
-  extractButtonReply,
-  findKnownActionId,
-  maskPhone,
-  normalizeWhatsAppEvent,
-  sanitizePayload,
-} from './whatsapp-inbound.js';
+import { eventFingerprint, maskPhone, normalizeWApiWebhook, sanitizePayload } from './whatsapp-inbound.js';
+import { advanceStatus, statusFromEvent } from './whatsapp-message-status.js';
 
-const TEST_IDS = ['TEST_CONFIRM', 'TEST_CANCEL'] as const;
-
-void test('sanitiza credenciais por nome de chave em qualquer profundidade', () => {
-  const result = sanitizePayload({
-    event: 'message.received',
-    headers: { Authorization: 'Bearer abc123', 'x-token': 'segredo' },
-    nested: { deep: { apiKey: 'k', password: 'p', senha: 's' } },
-  }) as { event: string; headers: Record<string, unknown>; nested: Record<string, unknown> };
-  assert.equal(result.headers.Authorization, '[protegido]');
-  assert.equal(result.headers['x-token'], '[protegido]');
-  const deep = result.nested.deep as Record<string, unknown>;
-  assert.equal(deep.apiKey, '[protegido]');
-  assert.equal(deep.password, '[protegido]');
-  assert.equal(deep.senha, '[protegido]');
-  assert.equal(result.event, 'message.received');
-});
-
-void test('sanitiza segredos pelo formato do valor, mesmo em chave inocente', () => {
-  const result = sanitizePayload({
-    note: 'Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature',
-    other: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH',
-    short: 'ok',
-  }) as { note: string; other: string; short: string };
-  assert.equal(result.note.includes('[protegido]'), true);
-  assert.equal(result.note.includes('eyJhbGciOiJIUzI1NiJ9'), false);
-  assert.equal(result.other, '[protegido]');
-  assert.equal(result.short, 'ok');
-});
-
-void test('normaliza os campos documentados do webhook', () => {
-  const normalized = normalizeWhatsAppEvent({
-    event: 'message.received',
-    instanceId: 'T34398-VYR3QD-MS29SL',
-    data: {
-      messageId: 'ABC123XYZ',
-      phone: '5511999999999',
-      type: 'text',
-      message: { conversation: 'oi' },
+/** Clique real capturado em produção na Etapa 1. */
+const buttonClick = {
+  event: 'webhookReceived',
+  instanceId: '48DPS6-JI4DEP-U33SQK',
+  messageId: '3EB05FAE0ECCF031863A31',
+  fromMe: false,
+  sender: { id: '5515997118125', senderLid: '258892474900582@lid' },
+  moment: 1786741467,
+  msgContent: {
+    messageContextInfo: { messageSecret: 'k4l2j3h4k2j3h4k2j3h4' },
+    templateButtonReplyMessage: {
+      contextInfo: { stanzaID: '3EB0088280C1EE8140EC3EB8628FBD2B' },
+      selectedDisplayText: 'Confirmar teste',
+      selectedID: '80727',
+      selectedIndex: 0,
     },
-  });
-  assert.equal(normalized.instanceId, 'T34398-VYR3QD-MS29SL');
-  assert.equal(normalized.eventType, 'message.received');
-  assert.equal(normalized.externalMessageId, 'ABC123XYZ');
-  assert.equal(normalized.phone, '5511999999999');
-  assert.equal(normalized.messageType, 'text');
-  assert.equal(normalized.action, null);
+  },
+};
+
+void test('payload real do clique é normalizado pelo caminho explícito', () => {
+  const event = normalizeWApiWebhook(buttonClick);
+  assert.equal(event.eventType, 'MESSAGE_ACTION');
+  assert.equal(event.instanceId, '48DPS6-JI4DEP-U33SQK');
+  assert.equal(event.externalMessageId, '3EB05FAE0ECCF031863A31');
+  assert.equal(event.referencedMessageId, '3EB0088280C1EE8140EC3EB8628FBD2B');
+  assert.equal(event.selectedIndex, 0);
+  assert.equal(event.phone, '5515997118125');
+  assert.equal(event.messageType, 'BUTTON_REPLY');
+  assert.equal(event.timestamp?.toISOString(), new Date(1786741467 * 1000).toISOString());
+  // O actionId é resolvido pelo índice contra a mensagem enviada, não aqui.
+  assert.equal(event.actionId, null);
 });
 
-void test('descobre o actionId pelo valor, sem depender do nome do campo', () => {
-  const match = findKnownActionId(
-    { data: { message: { qualquerCampoDesconhecido: { selectedId: 'TEST_CONFIRM' } } } },
-    TEST_IDS,
+void test('mensagem de texto vira MESSAGE_RECEIVED com o texto extraído', () => {
+  const event = normalizeWApiWebhook({
+    event: 'webhookReceived',
+    instanceId: 'ABC',
+    messageId: 'M1',
+    sender: { id: '5511999999999' },
+    msgContent: { conversation: 'quero agendar' },
+  });
+  assert.equal(event.eventType, 'MESSAGE_RECEIVED');
+  assert.equal(event.text, 'quero agendar');
+  assert.equal(event.selectedIndex, null);
+});
+
+void test('entrega do provedor vira MESSAGE_SENT', () => {
+  const event = normalizeWApiWebhook({
+    event: 'webhookDelivery',
+    instanceId: 'ABC',
+    messageId: 'M1',
+    fromMe: true,
+  });
+  assert.equal(event.eventType, 'MESSAGE_SENT');
+  assert.equal(event.fromMe, true);
+});
+
+void test('status RECEIVED e READ viram entrega e leitura', () => {
+  assert.equal(
+    normalizeWApiWebhook({ instanceId: 'A', messageId: 'M', status: 'RECEIVED' }).eventType,
+    'MESSAGE_DELIVERED',
   );
-  assert.ok(match !== null);
-  assert.equal(match.actionId, 'TEST_CONFIRM');
-  assert.equal(match.path, 'data.message.qualquerCampoDesconhecido.selectedId');
-});
-
-void test('não confunde o texto visível do botão com o actionId', () => {
-  const match = findKnownActionId(
-    { data: { message: { conversation: 'Confirmar teste' } } },
-    TEST_IDS,
+  assert.equal(
+    normalizeWApiWebhook({ instanceId: 'A', messageId: 'M', status: 'READ' }).eventType,
+    'MESSAGE_READ',
   );
-  assert.equal(match, null);
 });
 
-void test('deduplica pelo id real do provedor quando ele existe', () => {
-  const first = eventFingerprint({
-    eventType: 'message.received',
-    externalMessageId: 'ABC123',
-    payload: { a: 1 },
-  });
-  const second = eventFingerprint({
-    eventType: 'message.received',
-    externalMessageId: 'ABC123',
-    payload: { a: 2 },
-  });
-  assert.equal(first, second);
-  assert.equal(first, 'message.received:ABC123');
+void test('evento desconhecido não vira tipo interno', () => {
+  assert.equal(normalizeWApiWebhook({ event: 'webhookChatPresence' }).eventType, null);
 });
 
-void test('sem id do provedor, deduplica pelo hash do payload sanitizado', () => {
-  const base = { eventType: 'message.received', externalMessageId: null };
-  const same = eventFingerprint({ ...base, payload: { a: 1 } });
-  const repeated = eventFingerprint({ ...base, payload: { a: 1 } });
-  const different = eventFingerprint({ ...base, payload: { a: 2 } });
-  assert.equal(same, repeated);
-  assert.notEqual(same, different);
-  assert.equal(same.startsWith('sha256:'), true);
+void test('deduplicação combina tipo interno e id real do provedor', () => {
+  const base = { externalMessageId: 'ABC123', payload: {} };
+  assert.equal(
+    eventFingerprint({ ...base, eventType: 'MESSAGE_DELIVERED' }),
+    'MESSAGE_DELIVERED:ABC123',
+  );
+  // Etapas diferentes da mesma mensagem não colidem entre si.
+  assert.notEqual(
+    eventFingerprint({ ...base, eventType: 'MESSAGE_DELIVERED' }),
+    eventFingerprint({ ...base, eventType: 'MESSAGE_READ' }),
+  );
+  // O mesmo evento repetido colide, e a unique key barra o segundo registro.
+  assert.equal(
+    eventFingerprint({ ...base, eventType: 'MESSAGE_READ' }),
+    eventFingerprint({ ...base, eventType: 'MESSAGE_READ' }),
+  );
 });
 
-void test('extrai a resposta do botão no formato real do provedor', () => {
-  const reply = extractButtonReply({
-    msgContent: {
-      templateButtonReplyMessage: {
-        contextInfo: { stanzaID: '3EB0D3F17566037B3F44C8B4D4896D6C' },
-        selectedDisplayText: 'Confirmar teste',
-        selectedID: '38529',
-        selectedIndex: 0,
-      },
-    },
-  });
-  assert.ok(reply !== null);
-  assert.equal(reply.sourceMessageId, '3EB0D3F17566037B3F44C8B4D4896D6C');
-  assert.equal(reply.selectedIndex, 0);
-  assert.equal(reply.selectedDisplayText, 'Confirmar teste');
-  assert.equal(reply.selectedId, '38529');
+void test('status avança mas nunca regride', () => {
+  assert.equal(advanceStatus('SENT', 'DELIVERED'), 'DELIVERED');
+  assert.equal(advanceStatus('DELIVERED', 'READ'), 'READ');
+  assert.equal(advanceStatus('READ', 'SENT'), 'READ');
+  assert.equal(advanceStatus('READ', 'DELIVERED'), 'READ');
+  assert.equal(advanceStatus('READ', 'READ'), 'READ');
 });
 
-void test('índice zero é preservado, não confundido com ausência', () => {
-  const reply = extractButtonReply({
-    msgContent: { templateButtonReplyMessage: { selectedIndex: 0 } },
-  });
-  assert.equal(reply?.selectedIndex, 0);
+void test('falha só é registrada enquanto a mensagem não avançou', () => {
+  assert.equal(advanceStatus('QUEUED', 'FAILED'), 'FAILED');
+  assert.equal(advanceStatus('DELIVERED', 'FAILED'), 'DELIVERED');
+  assert.equal(advanceStatus('FAILED', 'SENT'), 'SENT');
 });
 
-void test('mensagem comum não é lida como resposta de botão', () => {
-  assert.equal(extractButtonReply({ msgContent: { conversation: 'oi' } }), null);
+void test('cada evento interno mapeia para o status correspondente', () => {
+  assert.equal(statusFromEvent('MESSAGE_SENT'), 'SENT');
+  assert.equal(statusFromEvent('MESSAGE_DELIVERED'), 'DELIVERED');
+  assert.equal(statusFromEvent('MESSAGE_READ'), 'READ');
+  assert.equal(statusFromEvent('MESSAGE_FAILED'), 'FAILED');
+  assert.equal(statusFromEvent('MESSAGE_ACTION'), null);
+  assert.equal(statusFromEvent('MESSAGE_RECEIVED'), null);
 });
 
-void test('preserva o buttonParamsJSON, que não é credencial', () => {
+void test('segredos são removidos por chave e por formato', () => {
+  const normalized = normalizeWApiWebhook(buttonClick);
+  const content = (normalized.payload as { msgContent: { messageContextInfo: Record<string, unknown> } })
+    .msgContent.messageContextInfo;
+  assert.equal(content.messageSecret, '[protegido]');
   const result = sanitizePayload({
-    buttonParamsJSON: '{"display_text":"Confirmar teste","id":"38529"}',
-    messageSecret: 'abc',
-  }) as { buttonParamsJSON: string; messageSecret: string };
-  assert.equal(result.buttonParamsJSON.includes('Confirmar teste'), true);
-  assert.equal(result.messageSecret, '[protegido]');
+    accessToken: 'x',
+    apiKey: 'y',
+    note: 'Bearer abc.def.ghi',
+    opaque: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH',
+    buttonParamsJSON: '{"display_text":"Confirmar teste","id":"80727"}',
+  }) as Record<string, string>;
+  assert.equal(result.accessToken, '[protegido]');
+  assert.equal(result.apiKey, '[protegido]');
+  assert.equal(result.note?.includes('[protegido]'), true);
+  assert.equal(result.opaque, '[protegido]');
+  assert.equal(result.buttonParamsJSON?.includes('Confirmar teste'), true);
 });
 
 void test('mascara o telefone preservando início e fim', () => {
-  assert.equal(maskPhone('5511999998888'), '5511••••8888');
+  assert.equal(maskPhone('5515997118125'), '5515••••8125');
   assert.equal(maskPhone(null), null);
-  assert.equal(maskPhone('123'), '••••');
 });

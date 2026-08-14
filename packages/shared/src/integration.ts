@@ -38,11 +38,35 @@ export const WhatsAppOperationResultSchema = z.object({
   externalMessageId: z.string().nullable(),
   queuedId: z.string().nullable(),
 });
-export const WhatsAppButtonTestResponseSchema = WhatsAppOperationResultSchema.extend({
+export const WhatsAppButtonTestResponseSchema = z.object({
+  externalMessageId: z.string().nullable(),
+  status: z.enum(['QUEUED', 'SENT', 'DELIVERED', 'READ', 'FAILED']),
+  httpStatus: z.number().int().nullable(),
+  errorCode: z.string().nullable(),
+  message: z.string(),
   actionIds: z.array(z.string()),
 });
-export const WhatsAppWebhookConfigResponseSchema = WhatsAppOperationResultSchema.extend({
+export const WhatsAppWebhookConfigResponseSchema = z.object({
+  received: WhatsAppOperationResultSchema,
+  status: WhatsAppOperationResultSchema,
   webhookUrl: z.string(),
+});
+export const WhatsAppMessageStatusSchema = z.enum([
+  'QUEUED',
+  'SENT',
+  'DELIVERED',
+  'READ',
+  'FAILED',
+]);
+export const WhatsAppLastMessageSchema = z.object({
+  externalMessageId: z.string().nullable(),
+  status: WhatsAppMessageStatusSchema,
+  maskedPhone: z.string().nullable(),
+  sentAt: z.iso.datetime({ offset: true }),
+  deliveredAt: z.iso.datetime({ offset: true }).nullable(),
+  readAt: z.iso.datetime({ offset: true }).nullable(),
+  failedAt: z.iso.datetime({ offset: true }).nullable(),
+  errorCode: z.string().nullable(),
 });
 export const WhatsAppInboundEventSchema = z.object({
   publicId: z.uuid(),
@@ -51,11 +75,20 @@ export const WhatsAppInboundEventSchema = z.object({
   maskedPhone: z.string().nullable(),
   externalMessageId: z.string().nullable(),
   actionId: z.string().nullable(),
+  text: z.string().nullable(),
   receivedAt: z.iso.datetime({ offset: true }),
   payload: z.unknown(),
 });
+export const WhatsAppConversationSummarySchema = z.object({
+  maskedPhone: z.string().nullable(),
+  status: z.string(),
+  currentFlow: z.string(),
+  lastInboundAt: z.iso.datetime({ offset: true }),
+});
 export const WhatsAppLastInboundEventSchema = z.object({
   event: WhatsAppInboundEventSchema.nullable(),
+  lastMessage: WhatsAppLastMessageSchema.nullable(),
+  lastConversation: WhatsAppConversationSummarySchema.nullable(),
 });
 const WhatsAppProbeSchema = z.object({
   ok: z.boolean(),

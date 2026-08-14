@@ -2,6 +2,7 @@ import {
   UpsertWhatsAppConfigSchema,
   WhatsAppConfigSchema,
   WhatsAppConnectionTestSchema,
+  WhatsAppConnectionTestRequestSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -32,7 +33,7 @@ export function WhatsAppSettingsCard({ tenantPublicId, canManage }: { tenantPubl
   });
   const test = useMutation({
     mutationFn: () => httpClient.request('/tenant/integrations/whatsapp/test', {
-      method: 'POST', schema: WhatsAppConnectionTestSchema, tenantPublicId,
+      method: 'POST',body:WhatsAppConnectionTestRequestSchema.parse({instanceId:effectiveInstanceId,...(token.trim()===''?{}:{token})}), schema: WhatsAppConnectionTestSchema, tenantPublicId,
     }),
     onSuccess: () => void client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'whatsapp'] }),
   });
@@ -51,11 +52,11 @@ export function WhatsAppSettingsCard({ tenantPublicId, canManage }: { tenantPubl
           {item?.connectionStatus ? <p>Conexao: {item.connectionStatus === 'CONNECTED' ? 'confirmada' : item.connectionStatus === 'ERROR' ? 'com erro' : item.connectionStatus === 'INACTIVE' ? 'inativa' : 'nao testada'}</p> : null}
           {canManage ? <div className="form-row">
             <button type="button" disabled={save.isPending || effectiveInstanceId.trim() === ''} onClick={() => { save.mutate(true); }}>Salvar e ativar</button>
-            {item?.configured ? <button type="button" disabled={test.isPending} onClick={() => { test.mutate(); }}>Testar conexao</button> : null}
+            {item?.configured||token.trim()!=='' ? <button type="button" disabled={test.isPending||effectiveInstanceId.trim()===''} onClick={() => { test.mutate(); }}>Testar conexão</button> : null}
             {item?.active ? <button type="button" disabled={save.isPending} onClick={() => { save.mutate(false); }}>Desativar</button> : null}
           </div> : null}
-          {test.data ? <p>{test.data.message}</p> : null}
-          {save.error instanceof Error || test.error instanceof Error ? <p className="form-error">Nao foi possivel concluir a operacao.</p> : null}
+          {test.data ? <div className={test.data.connected?'success-message':'form-error'}><strong>{test.data.connected?'WhatsApp conectado':test.data.code==='WHATSAPP_INVALID_TOKEN'?'Token inválido':test.data.code==='WHATSAPP_INSTANCE_NOT_FOUND'?'Instância não encontrada':test.data.code==='WHATSAPP_DISCONNECTED'?'WhatsApp desconectado':test.data.code==='WHATSAPP_TIMEOUT'?'Timeout':'Serviço indisponível'}</strong><p>{test.data.message}</p>{test.data.httpStatus!==null||test.data.externalCode!==null?<small>{`${test.data.httpStatus===null?'':`HTTP ${String(test.data.httpStatus)}`}${test.data.externalCode===null?'':` · Código: ${test.data.externalCode}`}`}</small>:null}</div> : null}
+          {save.error instanceof Error ? <p className="form-error">{save.error.message}</p> : null}{test.error instanceof Error?<p className="form-error">{test.error.message}</p>:null}
         </>
       )}
     </fieldset>

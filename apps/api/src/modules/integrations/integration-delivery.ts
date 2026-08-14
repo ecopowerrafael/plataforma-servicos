@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
+import { mapWapiConnectionResponse, mapWapiTransportError, type WhatsAppConnectionResult } from './whatsapp-connection.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
@@ -22,13 +23,14 @@ export function privateAddress(address: string): boolean {
 
 export interface WhatsAppDelivery {
   send(tenantId: bigint, to: string, text: string): Promise<void>;
-  testConnection(tenantId: bigint): Promise<boolean>;
+  testConnection(tenantId: bigint, input?: {instanceId?:string|undefined;token?:string|undefined}): Promise<WhatsAppConnectionResult>;
 }
 
 export class WApiWhatsAppDelivery implements WhatsAppDelivery {
   public constructor(
     private readonly client: PrismaClient,
     private readonly cipher: CredentialsCipher | undefined,
+    private readonly fetcher: typeof fetch = fetch,
   ) {}
 
   private async config(tenantId: bigint, requireActive: boolean) {
@@ -67,15 +69,13 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
       throw new Error(`Falha temporaria no envio (HTTP ${String(response.status)}).`);
   }
 
-  public async testConnection(tenantId: bigint): Promise<boolean> {
-    const { instanceId, token } = await this.config(tenantId, false);
-    const response = await fetch(
-      `https://api.w-api.app/v1/instance/status-instance?instanceId=${encodeURIComponent(instanceId)}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (!response.ok) return false;
-    const payload = (await response.json()) as { connected?: unknown };
-    return payload.connected === true;
+  public async testConnection(tenantId: bigint,input: {instanceId?:string|undefined;token?:string|undefined} = {}): Promise<WhatsAppConnectionResult> {
+    await new PlanEntitlementService().assertFeatureEnabledForTenant(this.client,tenantId,'whatsapp.enabled');
+    let stored:{instanceId:string;token:string};
+    try{stored=await this.config(tenantId,false);}catch{if(input.instanceId&&input.token)stored={instanceId:input.instanceId,token:input.token};else return{connected:false,code:'WHATSAPP_CREDENTIALS_MISSING',message:'Informe o ID da instância e o Token do WPP.',httpStatus:null,externalCode:null};}
+    const instanceId=input.instanceId?.trim()??stored.instanceId;const token=input.token?.trim()??stored.token;
+    if(!instanceId||!token)return{connected:false,code:'WHATSAPP_CREDENTIALS_MISSING',message:'Informe o ID da instância e o Token do WPP.',httpStatus:null,externalCode:null};
+    try{const response=await this.fetcher(`https://api.w-api.app/v1/instance/status-instance?instanceId=${encodeURIComponent(instanceId)}`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(8_000)});return await mapWapiConnectionResponse(response);}catch(error){return mapWapiTransportError(error);}
   }
 }
 

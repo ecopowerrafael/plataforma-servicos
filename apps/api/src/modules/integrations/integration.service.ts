@@ -101,24 +101,16 @@ export class IntegrationService {
     await this.audit(tenantId, actor, 'integration.whatsapp.updated', result.publicId);
     return whatsappPublic(result, true);
   }
-  public async testWhatsapp(tenantId: bigint) {
+  public async testWhatsapp(tenantId: bigint,input: {instanceId?:string|undefined;token?:string|undefined}) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');
     if (this.whatsappDelivery === undefined)
       throw new AppError({ code: 'WHATSAPP_UNAVAILABLE', message: 'Teste indisponivel.', statusCode: 503 });
     const configured = await this.repository.whatsapp(tenantId);
-    if (configured === null)
+    if (configured === null && (input.instanceId===undefined||input.token===undefined))
       throw new AppError({ code: 'WHATSAPP_NOT_CONFIGURED', message: 'Configure o WhatsApp primeiro.', statusCode: 400 });
-    let connected = false;
-    try {
-      connected = await this.whatsappDelivery.testConnection(tenantId);
-    } catch {
-      connected = false;
-    }
-    await this.repository.updateWhatsappValidation(tenantId, connected ? 'CONNECTED' : 'ERROR', new Date());
-    return {
-      connected,
-      message: connected ? 'Conexao confirmada.' : 'Nao foi possivel confirmar a conexao.',
-    };
+    const result=await this.whatsappDelivery.testConnection(tenantId,input);
+    if(configured!==null)await this.repository.updateWhatsappValidation(tenantId,result.connected?'CONNECTED':'ERROR',new Date());
+    return result;
   }
   public async list(tenantId: bigint) {
     await this.assertEnabled(tenantId, 'integrations.enabled');

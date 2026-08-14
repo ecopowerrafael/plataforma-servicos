@@ -6,6 +6,7 @@ import {
   UpsertWhatsAppConfigSchema,
   WhatsAppConfigSchema,
   WhatsAppConnectionTestSchema,
+  WhatsAppConnectionTestRequestSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -49,10 +50,10 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
   );
   app.post(
     '/tenant/integrations/whatsapp/test',
-    { schema: { response: { 200: WhatsAppConnectionTestSchema } } },
+    { schema: { body: WhatsAppConnectionTestRequestSchema, response: { 200: WhatsAppConnectionTestSchema } } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'integration.manage');
-      return options.service.testWhatsapp(request.tenant.id);
+      const started=Date.now();const result=await options.service.testWhatsapp(request.tenant.id,request.body);request.log.info({operation:'whatsapp_connection_test',tenantPublicId:request.tenant.publicId,httpStatus:result.httpStatus,externalCode:result.externalCode,message:result.message,durationMs:Date.now()-started},'Diagnóstico sanitizado do teste de WhatsApp');return result;
     },
   );
   app.get(

@@ -18,8 +18,12 @@ export const WhatsAppConfigSchema = z.object({
 });
 export const WhatsAppConnectionTestSchema = z.object({
   connected: z.boolean(),
+  code: z.enum(['WHATSAPP_CONNECTED','WHATSAPP_CREDENTIALS_MISSING','WHATSAPP_INVALID_TOKEN','WHATSAPP_INSTANCE_NOT_FOUND','WHATSAPP_DISCONNECTED','WHATSAPP_ROUTE_UNAVAILABLE','WHATSAPP_RATE_LIMITED','WHATSAPP_TIMEOUT','WHATSAPP_NETWORK_ERROR','WHATSAPP_EXTERNAL_UNAVAILABLE','WHATSAPP_UNEXPECTED_RESPONSE']),
   message: z.string(),
+  httpStatus: z.number().int().nullable(),
+  externalCode: z.string().nullable(),
 });
+export const WhatsAppConnectionTestRequestSchema = z.object({ instanceId: z.string().trim().min(3).max(80).optional(), token: z.string().trim().min(20).max(4096).optional() }).strict();
 export const IntegrationEventSchema = z.enum(['notification.queued']);
 export const UpsertExternalIntegrationSchema = z
   .object({

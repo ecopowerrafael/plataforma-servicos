@@ -43,7 +43,7 @@ interface Options {
     amountCents: bigint;
     type: string;
     createdAt: Date;
-    description: string | null;
+    reason: string | null;
   }[];
   timezone?: string;
   unitTimezone?: string;
@@ -262,21 +262,21 @@ describe('painel financeiro', () => {
           amountCents: 9000n,
           type: 'PAYMENT',
           createdAt: new Date('2026-08-10T13:00:00.000Z'),
-          description: null,
+          reason: null,
         },
         {
           direction: 'IN',
           amountCents: 5000n,
           type: 'MANUAL',
           createdAt: new Date('2026-08-11T13:00:00.000Z'),
-          description: 'Suprimento',
+          reason: 'Suprimento',
         },
         {
           direction: 'OUT',
           amountCents: 2000n,
           type: 'MANUAL',
           createdAt: new Date('2026-08-12T13:00:00.000Z'),
-          description: 'Sangria',
+          reason: 'Sangria',
         },
       ],
     }).service.overview(1n, period, scope);

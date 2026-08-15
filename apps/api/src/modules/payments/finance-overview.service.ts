@@ -341,7 +341,8 @@ export class FinanceOverviewService {
           where: { tenantId, type: 'MANUAL', createdAt: { gte: from, lt: to } },
           orderBy: { createdAt: 'desc' },
           take: 10,
-          select: { direction: true, amountCents: true, createdAt: true, description: true },
+          // O campo textual do movimento de caixa e `reason`, nao `description`.
+          select: { direction: true, amountCents: true, createdAt: true, reason: true },
         }),
       ),
     ]);
@@ -389,7 +390,7 @@ export class FinanceOverviewService {
         kind: movement.direction === 'IN' ? ('CASH_IN' as const) : ('CASH_OUT' as const),
         at: movement.createdAt.toISOString(),
         title: movement.direction === 'IN' ? 'Entrada de caixa' : 'Saída de caixa',
-        description: movement.description,
+        description: movement.reason,
         amountCents: movement.amountCents.toString(),
         direction: movement.direction === 'IN' ? ('IN' as const) : ('OUT' as const),
         appointmentPublicId: null,

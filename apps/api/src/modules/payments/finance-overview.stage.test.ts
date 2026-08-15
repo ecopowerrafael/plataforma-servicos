@@ -65,6 +65,11 @@ describe('diagnóstico por etapa do painel financeiro', () => {
         overrides: { appointment: { findMany: vi.fn().mockRejectedValue(new Error(SEGREDO)) } },
       },
       {
+        // Regressao: o campo textual do movimento e `reason`; `description` nao existe.
+        stage: 'cashMovementsActivity',
+        overrides: { cashMovement: { findMany: vi.fn().mockRejectedValue(new Error(SEGREDO)) } },
+      },
+      {
         stage: 'cash',
         overrides: { cashRegister: { findFirst: vi.fn().mockRejectedValue(new Error(SEGREDO)) } },
       },

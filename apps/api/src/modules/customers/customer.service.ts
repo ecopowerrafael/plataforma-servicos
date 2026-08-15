@@ -17,7 +17,7 @@ import {
   relationshipWindowsFromRules,
   type CustomerSegment,
 } from './customer-crm.js';
-import { type CustomerRepository } from './customer.repository.js';
+import { type CustomerRepository, type RawSum } from './customer.repository.js';
 import { type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 interface Actor {
@@ -183,6 +183,13 @@ function buildTimeline(
   return entries.sort((left, right) => right.at.localeCompare(left.at)).slice(0, 60);
 }
 
+/** Normaliza agregações do MySQL (Decimal/string/BigInt) em centavos inteiros. */
+const toCents = (value: RawSum): bigint => {
+  if (value === null) return 0n;
+  const [integer = '0'] = String(value).split('.');
+  return /^-?\d+$/u.test(integer) ? BigInt(integer) : 0n;
+};
+
 export class CustomerService {
   public constructor(private readonly repo: CustomerRepository) {}
   async list(
@@ -232,7 +239,7 @@ export class CustomerService {
       this.repo.highlightsByCustomer(t, ids, now),
       options.includeFinancial
         ? this.repo.paidTotalsByCustomer(t, ids)
-        : Promise.resolve([] as { customerId: bigint; paidTotalCents: bigint | null }[]),
+        : Promise.resolve([] as { customerId: bigint; paidTotalCents: RawSum }[]),
       this.repo.crmMetrics(
         t,
         now,
@@ -242,7 +249,7 @@ export class CustomerService {
     ]);
     const byCustomer = new Map(summaries.map((summary) => [summary.customerId, summary]));
     const paidByCustomer = new Map(
-      paidTotals.map((entry) => [entry.customerId, entry.paidTotalCents ?? 0n]),
+      paidTotals.map((entry) => [entry.customerId, toCents(entry.paidTotalCents)]),
     );
     const lastByCustomer = new Map<bigint, (typeof highlights)[number]>();
     const nextByCustomer = new Map<bigint, (typeof highlights)[number]>();

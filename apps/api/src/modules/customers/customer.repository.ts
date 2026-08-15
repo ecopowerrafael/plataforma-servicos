@@ -2,6 +2,9 @@ import { Prisma, type PrismaClient } from '../../database-client/client.js';
 
 const include = { primaryUnit: { select: { publicId: true } } } as const;
 
+/** Agregações vindas de `$queryRaw`: MySQL devolve Decimal, string ou BigInt. */
+export type RawSum = bigint | number | string | { toString: () => string } | null;
+
 export class CustomerRepository {
   public constructor(private readonly client: PrismaClient) {}
 
@@ -165,11 +168,14 @@ export class CustomerRepository {
       orderBy: [{ sortOrder: 'asc' }, { key: 'asc' }],
     });
   }
-  /** Total pago por cliente em uma única consulta — evita N+1 na listagem. */
+  /**
+   * Total pago por cliente em uma única consulta — evita N+1 na listagem.
+   * `SUM()` do MySQL chega como Decimal/string no queryRaw, por isso o tipo aberto.
+   */
   public paidTotalsByCustomer(tenantId: bigint, customerIds: bigint[]) {
     if (customerIds.length === 0)
-      return Promise.resolve([] as { customerId: bigint; paidTotalCents: bigint | null }[]);
-    return this.client.$queryRaw<{ customerId: bigint; paidTotalCents: bigint | null }[]>(
+      return Promise.resolve([] as { customerId: bigint; paidTotalCents: RawSum }[]);
+    return this.client.$queryRaw<{ customerId: bigint; paidTotalCents: RawSum }[]>(
       Prisma.sql`
       SELECT a.customer_id AS customerId, SUM(p.amount_cents) AS paidTotalCents
       FROM payments p

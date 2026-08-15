@@ -202,6 +202,29 @@ describe('listagem CRM de clientes', () => {
     });
   });
 
+  it('aceita o SUM do MySQL vindo como Decimal ou string, sem misturar com BigInt', async () => {
+    // `$queryRaw` devolve Decimal/string para SUM(); a divisão do ticket médio é em BigInt.
+    for (const paidTotalCents of ['40000', 40_000, { toString: () => '40000' }]) {
+      const result = await new CustomerService(
+        repository({
+          appointmentSummaries: vi.fn().mockResolvedValue([
+            {
+              customerId: 10n,
+              appointmentCount: 4n,
+              lastCompletedAt: new Date('2026-08-01T12:00:00Z'),
+              nextAppointmentAt: null,
+            },
+          ]),
+          paidTotalsByCustomer: vi.fn().mockResolvedValue([{ customerId: 10n, paidTotalCents }]),
+        }),
+      ).list(1n, listInput, { includeFinancial: true });
+      expect(result.items[0]).toMatchObject({
+        paidTotalCents: '40000',
+        averageTicketCents: '10000',
+      });
+    }
+  });
+
   it('devolve os indicadores da base junto da página', async () => {
     const result = await new CustomerService(repository()).list(1n, listInput);
     expect(result.metrics).toMatchObject({ active: 4, scheduled: 2, noReturn: 1 });

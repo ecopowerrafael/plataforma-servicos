@@ -558,6 +558,10 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('integration.manage') ?? false;
   const canReadAppointments =
     me.data?.currentTenant?.membership.permissions.includes('appointment.read') ?? false;
+  const canCreateCustomers =
+    me.data?.currentTenant?.membership.permissions.includes('customer.create') ?? false;
+  const canUpdateCustomers =
+    me.data?.currentTenant?.membership.permissions.includes('customer.update') ?? false;
   const canReadCustomers =
     me.data?.currentTenant?.membership.permissions.includes('customer.read') ?? false;
   const canReadServices =
@@ -1576,6 +1580,9 @@ export function HomePage() {
               <CustomerModule
                 tenantPublicId={selectedTenant}
                 terminology={experience.data?.terminology.customer.singular ?? 'Cliente'}
+                canCreate={canCreateCustomers}
+                canReadPayments={canReadPayments}
+                canCreateAppointments={canCreateAppointments}
               />
             )}
             {location.pathname.startsWith('/app/clientes/') &&
@@ -1589,6 +1596,9 @@ export function HomePage() {
                   tenantPublicId={selectedTenant}
                   publicId={location.pathname.slice('/app/clientes/'.length)}
                   terminology={experience.data?.terminology.customer.singular ?? 'Cliente'}
+                  canUpdate={canUpdateCustomers}
+                  canReadPayments={canReadPayments}
+                  canCreateAppointments={canCreateAppointments}
                 />
               )}
             {isRoute('/app/servicos') && canReadServices && (

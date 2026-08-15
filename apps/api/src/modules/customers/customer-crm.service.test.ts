@@ -34,6 +34,16 @@ function repository(overrides: Record<string, unknown> = {}) {
     couponsForCustomer: vi.fn().mockResolvedValue([]),
     waitlistForCustomer: vi.fn().mockResolvedValue([]),
     paymentsForCustomer: vi.fn().mockResolvedValue([]),
+    reviewsForCustomer: vi.fn().mockResolvedValue([]),
+    historyForCustomer: vi.fn().mockResolvedValue([]),
+    recoveryRules: vi.fn().mockResolvedValue([]),
+    whatsappConversation: vi.fn().mockResolvedValue(null),
+    highlightsByCustomer: vi.fn().mockResolvedValue([]),
+    paidTotalsByCustomer: vi.fn().mockResolvedValue([]),
+    recurringCustomerIds: vi.fn().mockResolvedValue([]),
+    crmMetrics: vi
+      .fn()
+      .mockResolvedValue({ active: 1, scheduled: 0, new: 0, noReturn: 0, recurring: 0 }),
     ...overrides,
   } as unknown as CustomerRepository;
 }
@@ -102,7 +112,7 @@ describe('CustomerService CRM', () => {
           },
         ]),
       }),
-    ).crmProfile(1n, customer.publicId);
+    ).crmProfile(1n, customer.publicId, { includeFinancial: true });
     expect(result.summary.nextAppointment?.serviceName).toBe('Corte');
     expect(result.summary.recurringProfessionals[0]).toMatchObject({ name: 'Ana', count: 1 });
     expect(result.financial).toMatchObject({ paidTotalCents: '5000', paidCount: 1 });

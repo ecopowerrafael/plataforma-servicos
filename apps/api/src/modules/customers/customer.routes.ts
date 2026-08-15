@@ -3,6 +3,7 @@ import {
   CustomerCrmProfileSchema,
   CustomerListResponseSchema,
   CustomerPublicSchema,
+  CustomerSegmentSchema,
   CustomerStatusResponseSchema,
   TenantCustomFieldsResponseSchema,
   UpdateCustomerRequestSchema,
@@ -23,6 +24,9 @@ const query = z.object({
   unitPublicId: z.uuid().optional(),
   orderBy: z.enum(['name', 'createdAt']).default('name'),
   direction: z.enum(['asc', 'desc']).default('asc'),
+  segment: CustomerSegmentSchema.optional(),
+  professionalPublicId: z.uuid().optional(),
+  servicePublicId: z.uuid().optional(),
 });
 export const customerRoutes: FastifyPluginAsyncZod<{
   service: CustomerService;
@@ -52,10 +56,15 @@ export const customerRoutes: FastifyPluginAsyncZod<{
     { schema: { querystring: query, response: { 200: CustomerListResponseSchema } } },
     (r) => {
       o.authService.requirePermission(r.tenant, 'customer.read');
-      return o.service.list(r.tenant.id, {
-        ...r.query,
-        status: r.query.active === undefined ? undefined : r.query.active === 'true',
-      });
+      // Valores financeiros por cliente dependem de permissão própria.
+      return o.service.list(
+        r.tenant.id,
+        {
+          ...r.query,
+          status: r.query.active === undefined ? undefined : r.query.active === 'true',
+        },
+        { includeFinancial: r.tenant.membership.permissions.includes('payment.read') },
+      );
     },
   );
   app.get(
@@ -71,7 +80,9 @@ export const customerRoutes: FastifyPluginAsyncZod<{
     { schema: { params, response: { 200: CustomerCrmProfileSchema } } },
     (r) => {
       o.authService.requirePermission(r.tenant, 'customer.read');
-      return o.service.crmProfile(r.tenant.id, r.params.publicId);
+      return o.service.crmProfile(r.tenant.id, r.params.publicId, {
+        includeFinancial: r.tenant.membership.permissions.includes('payment.read'),
+      });
     },
   );
   app.post(

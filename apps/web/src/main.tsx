@@ -13,6 +13,7 @@ import './customer-account.css';
 import './my-agenda.css';
 import './agenda-overview.css';
 import './appointments-console.css';
+import './customers-crm.css';
 
 const rootElement = document.getElementById('root');
 

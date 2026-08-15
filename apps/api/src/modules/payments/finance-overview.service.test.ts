@@ -53,7 +53,10 @@ function build(options: Options = {}) {
   const appointmentFindMany = vi.fn().mockResolvedValue(options.completed ?? [appointment()]);
   const commissionAggregate = vi
     .fn()
-    .mockResolvedValue({ _sum: { commissionAmountCents: 1500n }, _count: 2 });
+    .mockResolvedValue({ _sum: { commissionAmountCents: 0n }, _count: 0 });
+  const commissionFindMany = vi
+    .fn()
+    .mockResolvedValue([{ professionalId: 5n, commissionAmountCents: 1500n }]);
   const cashRegisterFindFirst = vi.fn().mockResolvedValue(null);
   const paymentFindMany = vi.fn(
     (args: { where: { status: string } }) =>
@@ -71,9 +74,7 @@ function build(options: Options = {}) {
     paymentGatewayCharge: { findMany: vi.fn().mockResolvedValue(options.gatewayCharges ?? []) },
     professionalCommission: {
       aggregate: commissionAggregate,
-      groupBy: vi
-        .fn()
-        .mockResolvedValue([{ professionalId: 5n, _sum: { commissionAmountCents: 1500n } }]),
+      findMany: commissionFindMany,
     },
     professional: {
       findMany: vi
@@ -98,6 +99,7 @@ function build(options: Options = {}) {
     appointmentFindMany,
     paymentFindMany,
     commissionAggregate,
+    commissionFindMany,
     cashRegisterFindFirst,
     delinquency,
   };
@@ -326,7 +328,7 @@ describe('painel financeiro', () => {
     expect(result.commissions).toBeNull();
     expect(result.cash).toBeNull();
     // Sem permissão o servidor sequer consulta as tabelas.
-    expect(built.commissionAggregate).not.toHaveBeenCalled();
+    expect(built.commissionFindMany).not.toHaveBeenCalled();
     expect(built.cashRegisterFindFirst).not.toHaveBeenCalled();
     expect(result.professionals[0]?.commissionsCents).toBeNull();
   });

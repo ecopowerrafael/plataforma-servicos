@@ -2,6 +2,20 @@
  * Conversões de dia civil no fuso do estabelecimento. Relatórios financeiros precisam
  * responder "o dia 15" como o dono entende — não como o UTC do servidor entende.
  */
+/**
+ * `Intl` lanca RangeError para fuso invalido (string vazia, "GMT-3", lixo de cadastro).
+ * Um relatorio inteiro nao pode cair por causa disso: cai para UTC e segue.
+ */
+export const resolveTimezone = (value: string | null | undefined): string => {
+  if (value === null || value === undefined || value.trim() === '') return 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: value }).format(new Date());
+    return value;
+  } catch {
+    return 'UTC';
+  }
+};
+
 const formatter = (timezone: string) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,

@@ -9,6 +9,7 @@ import { type Prisma, type PrismaClient } from '../../database-client/client.js'
 import {
   addDaysToDay,
   daysBetweenDays,
+  resolveTimezone,
   zonedDayKey,
   zonedDayStart,
   zonedMonthKey,
@@ -57,7 +58,7 @@ export class FinanceOverviewService {
     ]);
     const unitId = unit?.id ?? null;
     // Fuso da unidade filtrada, senao o do estabelecimento: o dia civil e o do negocio.
-    const timezone = unit?.timezone ?? (await this.tenantTimezone(tenantId));
+    const timezone = resolveTimezone(unit?.timezone ?? (await this.tenantTimezone(tenantId)));
 
     // `toDate` e inclusivo para o usuario; internamente o fim e exclusivo.
     const exclusiveEnd = addDaysToDay(input.toDate, 1);
@@ -399,16 +400,16 @@ export class FinanceOverviewService {
     to: Date,
     scope: Prisma.AppointmentWhereInput,
   ) {
-    const [active, canceled, grouped] = await Promise.all([
-      this.client.professionalCommission.aggregate({
+    // Uma leitura simples cobre total, contagem e rateio por profissional.
+    const [activeEntries, canceled] = await Promise.all([
+      this.client.professionalCommission.findMany({
         where: {
           tenantId,
           status: 'ACTIVE',
           createdAt: { gte: from, lt: to },
           appointment: scope,
         },
-        _sum: { commissionAmountCents: true },
-        _count: true,
+        select: { professionalId: true, commissionAmountCents: true },
       }),
       this.client.professionalCommission.aggregate({
         where: {
@@ -419,24 +420,21 @@ export class FinanceOverviewService {
         },
         _sum: { commissionAmountCents: true },
       }),
-      this.client.professionalCommission.groupBy({
-        by: ['professionalId'],
-        where: {
-          tenantId,
-          status: 'ACTIVE',
-          createdAt: { gte: from, lt: to },
-          appointment: scope,
-        },
-        _sum: { commissionAmountCents: true },
-      }),
     ]);
+    const byProfessional = new Map<bigint, bigint>();
+    let generatedCents = 0n;
+    for (const entry of activeEntries) {
+      generatedCents += entry.commissionAmountCents;
+      byProfessional.set(
+        entry.professionalId,
+        (byProfessional.get(entry.professionalId) ?? 0n) + entry.commissionAmountCents,
+      );
+    }
     return {
-      generatedCents: active._sum.commissionAmountCents ?? 0n,
-      generatedCount: active._count,
+      generatedCents,
+      generatedCount: activeEntries.length,
       canceledCents: canceled._sum.commissionAmountCents ?? 0n,
-      byProfessional: new Map(
-        grouped.map((entry) => [entry.professionalId, entry._sum.commissionAmountCents ?? 0n]),
-      ),
+      byProfessional,
     };
   }
 

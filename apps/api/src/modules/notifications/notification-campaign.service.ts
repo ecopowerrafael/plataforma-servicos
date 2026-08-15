@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { NotificationCampaignListResponseSchema, NotificationCampaignSummarySchema, type CreateNotificationCampaignRequestSchema } from '@plataforma/shared';
 import { type z } from 'zod';
 import { type NotificationService } from './notification.service.js';
-import { type PrismaClient } from '../../database-client/client.js';
+import {
+  type NotificationCampaign,
+  type NotificationCampaignRecipient,
+  type PrismaClient,
+} from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
@@ -65,21 +69,45 @@ export class NotificationCampaignService {
     return NotificationCampaignListResponseSchema.parse({ items: await Promise.all(campaigns.map((campaign) => this.summary(campaign))) });
   }
 
-  private async materializeRecipient(campaign: any, recipient: any): Promise<void> {
-    const person = campaign.audience === 'CUSTOMERS'
-      ? await this.client.customer.findFirst({ where: { tenantId: campaign.tenantId, publicId: recipient.targetPublicId }, select: { phone: true, whatsapp: true, acceptsCommunications: true, pushSubscriptions: { where: { active: true }, select: { publicId: true } } } })
-      : await this.client.professional.findFirst({ where: { tenantId: campaign.tenantId, publicId: recipient.targetPublicId }, select: { phone: true } });
+  private async materializeRecipient(
+    campaign: NotificationCampaign,
+    recipient: NotificationCampaignRecipient,
+  ): Promise<void> {
     let deliveries: string[] = [];
-    if (person !== null && (campaign.audience !== 'CUSTOMERS' || person.acceptsCommunications !== false)) {
-      if (campaign.channel === 'PUSH' && 'pushSubscriptions' in person) deliveries = person.pushSubscriptions.map((subscription) => subscription.publicId);
-      if (campaign.channel === 'WHATSAPP') { const raw = 'whatsapp' in person ? (person.whatsapp ?? person.phone) : person.phone; const phone = raw === null ? null : normalizeWhatsAppPhone(raw); if (phone !== null) deliveries = [phone]; }
+    if (campaign.audience === 'CUSTOMERS') {
+      const customer = await this.client.customer.findFirst({
+        where: { tenantId: campaign.tenantId, publicId: recipient.targetPublicId },
+        select: {
+          phone: true,
+          whatsapp: true,
+          acceptsCommunications: true,
+          pushSubscriptions: { where: { active: true }, select: { publicId: true } },
+        },
+      });
+      if (customer !== null && customer.acceptsCommunications !== false) {
+        if (campaign.channel === 'PUSH')
+          deliveries = customer.pushSubscriptions.map((subscription) => subscription.publicId);
+        if (campaign.channel === 'WHATSAPP') {
+          const raw = customer.whatsapp ?? customer.phone;
+          const phone = raw === null ? null : normalizeWhatsAppPhone(raw);
+          if (phone !== null) deliveries = [phone];
+        }
+      }
+    } else if (campaign.channel === 'WHATSAPP') {
+      const professional = await this.client.professional.findFirst({
+        where: { tenantId: campaign.tenantId, publicId: recipient.targetPublicId },
+        select: { phone: true },
+      });
+      const raw = professional?.phone ?? null;
+      const phone = raw === null ? null : normalizeWhatsAppPhone(raw);
+      if (phone !== null) deliveries = [phone];
     }
     for (const delivery of deliveries) await this.notifications.enqueue(campaign.tenantId, { channel: campaign.channel, kind: 'marketing.campaign', targetType: 'campaign-recipient', targetPublicId: recipient.publicId, recipient: delivery, subject: campaign.title, body: campaign.message });
     await this.client.notificationCampaignRecipient.update({ where: { id: recipient.id }, data: { status: deliveries.length === 0 ? 'SKIPPED' : 'MATERIALIZED' } });
     await this.client.notificationCampaign.update({ where: { id: campaign.id }, data: deliveries.length === 0 ? { skippedCount: { increment: 1 }, materializedCount: { increment: 1 } } : { eligibleCount: { increment: 1 }, deliveryCount: { increment: deliveries.length }, materializedCount: { increment: 1 } } });
   }
 
-  private async completeIfDrained(campaign: any): Promise<void> {
+  private async completeIfDrained(campaign: NotificationCampaign): Promise<void> {
     const pending = await this.client.notificationCampaignRecipient.count({ where: { campaignId: campaign.id, status: { in: ['PENDING', 'PROCESSING'] } } });
     if (pending !== 0) return;
     const ids = (await this.client.notificationCampaignRecipient.findMany({ where: { campaignId: campaign.id }, select: { publicId: true } })).map((item) => item.publicId);
@@ -98,10 +126,10 @@ export class NotificationCampaignService {
     if (config?.active !== true) throw new AppError({ code: 'WHATSAPP_NOT_CONFIGURED', message: 'Configure o WhatsApp em Integrações antes de enviar.', statusCode: 409 });
   }
 
-  private async summary(campaign: any) {
+  private async summary(campaign: NotificationCampaign) {
     const ids = (await this.client.notificationCampaignRecipient.findMany({ where: { campaignId: campaign.id }, select: { publicId: true } })).map((item) => item.publicId);
     const grouped = await this.client.notificationLog.groupBy({ by: ['status'], where: { tenantId: campaign.tenantId, targetType: 'campaign-recipient', targetPublicId: { in: ids } }, _count: { _all: true } });
-    const count = (status: string) => grouped.find((item: any) => item.status === status)?._count._all ?? 0;
+    const count = (status: string) => grouped.find((item) => item.status === status)?._count._all ?? 0;
     return NotificationCampaignSummarySchema.parse({ publicId: campaign.publicId, audience: campaign.audience, channel: campaign.channel, title: campaign.title, message: campaign.message, status: campaign.status, recipientCount: campaign.recipientCount, eligibleCount: campaign.eligibleCount, skippedCount: campaign.skippedCount, deliveryCount: campaign.deliveryCount, queued: count('PENDING') + count('PROCESSING'), sent: count('SENT'), failed: count('FAILED'), skipped: campaign.skippedCount, createdAt: campaign.createdAt.toISOString() });
   }
 }

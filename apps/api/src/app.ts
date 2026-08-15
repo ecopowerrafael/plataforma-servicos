@@ -553,7 +553,9 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.notifications !== undefined)
     await app.register(notificationRoutes, {
       service: options.database.notifications,
-      campaigns: options.database.notificationCampaigns,
+      ...(options.database.notificationCampaigns === undefined
+        ? {}
+        : { campaigns: options.database.notificationCampaigns }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

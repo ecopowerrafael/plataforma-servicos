@@ -50,10 +50,12 @@ function assertSupportedVariables(
   for (const value of values) {
     if (value === null || value === undefined) continue;
     for (const token of value.matchAll(/\{\{(\w+)\}\}/g)) {
-      if (!supported.has(token[1]))
+      const variable = token[1];
+      if (variable === undefined) continue;
+      if (!supported.has(variable))
         throw new AppError({
           code: 'NOTIFICATION_TEMPLATE_VARIABLE_UNKNOWN',
-          message: `A variável {{${token[1]}}} não é suportada por este modelo.`,
+          message: `A variável {{${variable}}} não é suportada por este modelo.`,
           statusCode: 400,
         });
     }

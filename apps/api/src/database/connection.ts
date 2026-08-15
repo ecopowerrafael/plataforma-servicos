@@ -466,6 +466,7 @@ export function createDatabaseConnection(
       customers,
       tenantPaymentOptions,
       payments,
+      customerAuth,
     ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,

@@ -40,6 +40,24 @@ function authService({
 }
 
 describe('recuperação de senha do cliente', () => {
+  it('provisiona acesso vindo do WhatsApp sem expor senha e emite reset', async () => {
+    const create = vi.fn().mockResolvedValue({ ...customer, phone: '5511999999999', passwordHash: 'provisorio' });
+    const createPasswordReset = vi.fn().mockResolvedValue(undefined);
+    const send = vi.fn().mockResolvedValue(undefined);
+    const service = new CustomerAuthService(
+      { findByContact: vi.fn().mockResolvedValue(null), findByEmail: vi.fn().mockResolvedValue(null), create } as never,
+      { createPasswordReset } as never,
+      { findActiveTenantBySlug: vi.fn().mockResolvedValue(tenant) } as never,
+      { hash: vi.fn().mockResolvedValue('provisorio') } as never,
+      { sessionTtlHours: 168, appWebUrl: 'https://app' }, { available: true, send },
+    );
+    await service.provisionFromWhatsApp('barbearia', { name: 'Ana', phone: '5511999999999', email: 'ana@exemplo.com' });
+    expect(create).toHaveBeenCalledOnce();
+    expect(createPasswordReset).toHaveBeenCalledOnce();
+    const message = send.mock.calls[0]?.[0] as { text: string };
+    expect(message.text).toContain('/public/barbearia/redefinir-senha?token=');
+    expect(message.text).not.toContain('provisorio');
+  });
   it('responde de forma neutra e não envia nada quando a conta não existe', async () => {
     const { service, createPasswordReset, send } = authService({ found: null });
     await expect(

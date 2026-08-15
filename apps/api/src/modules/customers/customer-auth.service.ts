@@ -74,34 +74,26 @@ export class CustomerAuthService {
     if (tenant === null) return;
     const customer = await this.customers.findByEmail(tenant.id, normalizeEmail(email));
     if (customer?.passwordHash == null) return;
-    const token = generateOpaqueToken();
-    const expiresAt = new Date(
-      Date.now() + (this.options.passwordResetTtlMinutes ?? 60) * 60_000,
-    );
-    await this.sessions.createPasswordReset({
-      tenantId: tenant.id,
-      customerId: customer.id,
-      tokenHash: hashOpaqueToken(token),
-      expiresAt,
-      now: new Date(),
-      ipAddress: metadata.ipAddress,
-    });
-    if (this.email?.available !== true || customer.email === null) return;
-    const link = `${this.options.appWebUrl ?? ''}/public/${slug}/redefinir-senha?token=${encodeURIComponent(token)}`;
-    try {
-      await this.email.send({
-        to: customer.email,
-        subject: 'Redefinição de senha',
-        text: `Recebemos um pedido para redefinir sua senha.
+    await this.issuePasswordReset(tenant.id, slug, customer, metadata, 'Redefinição de senha');
+  }
 
-Abra o link abaixo para escolher uma nova senha:
-${link}
-
-Se não foi você, ignore esta mensagem.`,
-      });
-    } catch {
-      // A resposta pública continua neutra mesmo se o envio falhar.
-    }
+  public async provisionFromWhatsApp(
+    slug: string,
+    input: { name: string; phone: string; email: string },
+  ): Promise<{ customer: { id: bigint; publicId: string }; emailSent: boolean }> {
+    const tenant = await this.tenants.findActiveTenantBySlug(slug);
+    if (tenant === null) throw tenantNotFound();
+    const email = normalizeEmail(input.email);
+    const byPhone = await this.customers.findByContact(tenant.id, input.phone, null);
+    const byEmail = await this.customers.findByEmail(tenant.id, email);
+    if (byPhone !== null && byEmail !== null && byPhone.id !== byEmail.id)
+      throw new AppError({ code: 'CUSTOMER_EMAIL_CONFLICT', message: 'E-mail já vinculado.', statusCode: 409 });
+    const existing = byPhone ?? byEmail;
+    const customer = existing === null
+      ? await this.customers.create({ publicId: generatePublicId(), tenantId: tenant.id, name: input.name, socialName: null, phone: input.phone, whatsapp: input.phone, email, birthDate: null, document: null, notes: null, status: 'ACTIVE', source: 'PUBLIC_BOOKING', acceptsCommunications: false, primaryUnitId: null, customFields: {}, passwordHash: await this.passwords.hash(generateOpaqueToken()) })
+      : await this.customers.update(existing.id, { name: input.name, phone: input.phone, whatsapp: input.phone, email, ...(existing.passwordHash === null ? { passwordHash: await this.passwords.hash(generateOpaqueToken()) } : {}) });
+    const emailSent = await this.issuePasswordReset(tenant.id, slug, customer, { ipAddress: null, userAgent: null }, 'Crie sua senha');
+    return { customer: { id: customer.id, publicId: customer.publicId }, emailSent };
   }
 
   public async resetPassword(
@@ -285,5 +277,22 @@ Se não foi você, ignore esta mensagem.`,
       rawSessionToken,
       sessionExpiresAt: expiresAt,
     };
+  }
+
+  private async issuePasswordReset(
+    tenantId: bigint,
+    slug: string,
+    customer: { id: bigint; name: string; email: string | null },
+    metadata: RequestMetadata,
+    subject: string,
+  ): Promise<boolean> {
+    const token = generateOpaqueToken();
+    await this.sessions.createPasswordReset({ tenantId, customerId: customer.id, tokenHash: hashOpaqueToken(token), expiresAt: new Date(Date.now() + (this.options.passwordResetTtlMinutes ?? 60) * 60_000), now: new Date(), ipAddress: metadata.ipAddress });
+    if (this.email?.available !== true || customer.email === null) return false;
+    const link = `${this.options.appWebUrl ?? ''}/public/${slug}/redefinir-senha?token=${encodeURIComponent(token)}`;
+    try {
+      await this.email.send({ to: customer.email, subject, text: `Olá, ${customer.name}.\n\nSeu cadastro foi criado durante seu agendamento. Para acessar seus agendamentos, crie sua senha no link abaixo:\n${link}\n\nSe você não realizou este agendamento, ignore esta mensagem.` });
+      return true;
+    } catch { return false; }
   }
 }

@@ -19,6 +19,7 @@ import { type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
+import { type CustomerAuthService } from '../customers/customer-auth.service.js';
 import { type CustomerService } from '../customers/customer.service.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-payment-options.service.js';
@@ -89,6 +90,7 @@ export class IntegrationService {
     customerService?: CustomerService,
     paymentOptions?: TenantPaymentOptionsService,
     payments?: PaymentService,
+    customerAuth?: CustomerAuthService,
   ) {
     this.assistant = new WhatsAppAssistantService(
       repository,
@@ -100,6 +102,7 @@ export class IntegrationService {
       customerService,
       paymentOptions,
       payments,
+      customerAuth,
     );
   }
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {

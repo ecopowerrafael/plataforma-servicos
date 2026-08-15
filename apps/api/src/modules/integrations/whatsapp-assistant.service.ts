@@ -11,6 +11,7 @@ import {
 import { type NormalizedWhatsAppEvent } from './whatsapp-inbound.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
+import { type CustomerAuthService } from '../customers/customer-auth.service.js';
 import { type CustomerService } from '../customers/customer.service.js';
 import { formatAppointmentDate, formatAppointmentTime } from '../notifications/appointment-notification.service.js';
 import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-payment-options.service.js';
@@ -98,6 +99,7 @@ export class WhatsAppAssistantService {
     private readonly customers?: CustomerService,
     private readonly paymentOptions?: TenantPaymentOptionsService,
     private readonly payments?: PaymentService,
+    private readonly customerAuth?: CustomerAuthService,
   ) {}
 
   /**
@@ -202,6 +204,10 @@ export class WhatsAppAssistantService {
       await this.captureBookingCustomerName(input, conversation, phone, event.text);
       return { replied: true, conversationPublicId: conversation.publicId };
     }
+    if (conversation.currentFlow === 'BOOKING_CREATE' && conversation.currentStep === 'CUSTOMER_EMAIL' && event.text !== null) {
+      await this.captureBookingCustomerEmail(input, conversation, phone, event.text);
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
 
     if (input.actionId === 'MAIN_MENU_BOOK') {
       await this.startBookingCreate(input, conversation, phone);
@@ -293,14 +299,15 @@ export class WhatsAppAssistantService {
     }
     if (input.actionId?.startsWith('BOOKING_QUERY_PAGE:') === true) {
       const offset = Number(input.actionId.slice('BOOKING_QUERY_PAGE:'.length));
+      const pendingAction = pendingAppointmentActionFrom(conversation.context);
       if (Number.isSafeInteger(offset) && offset >= 0)
-        await (pendingAppointmentActionFrom(conversation.context) === null
+        await (pendingAction === null
           ? this.queryAppointments(input, conversation, phone, offset)
           : this.showUpcomingAppointmentActionSelection(
               input,
               conversation,
               phone,
-              pendingAppointmentActionFrom(conversation.context) as 'CANCEL' | 'RESCHEDULE',
+              pendingAction,
               offset,
             ));
       return { replied: true, conversationPublicId: conversation.publicId };
@@ -702,7 +709,11 @@ export class WhatsAppAssistantService {
       currentStep: 'PROFESSIONAL_SELECTED',
       context: { servicePublicId, professionalPublicId },
     });
-    await this.showBookingCreateDates(input, conversation, phone);
+    await this.showBookingCreateDates(
+      input,
+      { ...conversation, context: { servicePublicId, professionalPublicId } },
+      phone,
+    );
   }
 
   private async bookingSite(tenantId: bigint) {
@@ -767,7 +778,25 @@ export class WhatsAppAssistantService {
 
   private async captureBookingCustomerName(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string, name: string): Promise<void> {
     const context = this.bookingCreateContext(conversation.context); if (context?.date === undefined || context.time === undefined || name.trim().length < 2) { await this.dispatchText(input, phone, 'Informe um nome válido.', conversation.id); return; }
-    await this.showBookingCreateConfirmation(input, conversation.id, phone, { ...context, date: context.date, time: context.time, customerName: name.trim() }, null);
+    const customerName = name.trim();
+    const firstName = customerName.split(/\s+/u)[0] ?? customerName;
+    await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_CREATE', currentStep: 'CUSTOMER_EMAIL', context: { ...context, date: context.date, time: context.time, customerName } });
+    await this.dispatchText(input, phone, `Obrigado, ${firstName}.\n\nAgora informe seu e-mail para criarmos seu acesso ao aplicativo.`, conversation.id);
+  }
+
+  private async captureBookingCustomerEmail(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string, email: string): Promise<void> {
+    const context = this.bookingCreateContext(conversation.context);
+    const customerEmail = email.trim().toLowerCase();
+    if (context?.date === undefined || context.time === undefined || context.customerName === undefined || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(customerEmail)) return this.dispatchText(input, phone, 'Informe um e-mail válido.', conversation.id);
+    const tenant = await this.repository.tenantSlug(input.tenantId);
+    if (tenant === null || this.customerAuth === undefined || this.customers === undefined) return this.dispatchText(input, phone, 'Não foi possível criar seu cadastro agora.', conversation.id);
+    try {
+      const provisioned = await this.customerAuth.provisionFromWhatsApp(tenant.slug, { name: context.customerName, phone, email: customerEmail });
+      const next = { ...context, date: context.date, time: context.time, customerName: context.customerName, customerEmail };
+      await this.repository.updateConversation(conversation.id, { customerId: provisioned.customer.id, currentFlow: 'BOOKING_CREATE', currentStep: 'CONFIRMATION', context: next });
+      if (!provisioned.emailSent) await this.dispatchText(input, phone, 'Seu cadastro foi criado, mas não conseguimos enviar o e-mail de acesso agora. Você poderá solicitar uma nova senha pela página de login.', conversation.id);
+      await this.showBookingCreateConfirmation(input, conversation.id, phone, next, provisioned.customer.id);
+    } catch { await this.dispatchText(input, phone, 'Este e-mail já está vinculado a outro cadastro. Informe outro e-mail ou fale com o estabelecimento.', conversation.id); }
   }
 
   private async showBookingCreateConfirmation(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversationId: bigint, phone: string, context: { servicePublicId: string; professionalPublicId: string; date: string; time: string; customerName?: string | undefined }, customerId: bigint | null): Promise<void> {
@@ -778,7 +807,7 @@ export class WhatsAppAssistantService {
   private async confirmBookingCreate(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; customerId: bigint | null; context: unknown }, phone: string): Promise<void> {
     const context = this.bookingCreateContext(conversation.context); if (context?.date === undefined || context.time === undefined || this.appointments === undefined) return this.dispatchText(input, phone, 'Não foi possível continuar o agendamento.', conversation.id);
     const tenant = await this.repository.tenantName(input.tenantId); const timezone = tenant?.timezone ?? 'UTC'; const target = (await this.availableBookingCreateSlots(input.tenantId, context, context.date)).find((slot) => formatAppointmentTime(slot, timezone) === context.time); if (target === undefined) { await this.dispatchText(input, phone, 'Esse horário acabou de ficar indisponível.', conversation.id); await this.showBookingCreateTimes(input, conversation, phone, 0); return; }
-    let customerId = conversation.customerId ?? input.customerId; if (customerId === null) { if (this.customers === undefined || context.customerName === undefined) return this.dispatchText(input, phone, 'Não foi possível concluir seus dados.', conversation.id); const customer = await this.customers.identifyOrCreatePublic(input.tenantId, { name: context.customerName, phone }); const stored = await this.repository.client.customer.findFirst({ where: { tenantId: input.tenantId, publicId: customer.publicId }, select: { id: true } }); customerId = stored?.id ?? null; }
+    const customerId = conversation.customerId ?? input.customerId;
     if (customerId === null) return this.dispatchText(input, phone, 'Não foi possível concluir seus dados.', conversation.id); const customer = await this.repository.customerName(customerId); if (customer === null) return this.dispatchText(input, phone, 'Não foi possível concluir seus dados.', conversation.id);
     try { const created = await this.appointments.create(input.tenantId, { customerPublicId: (await this.repository.client.customer.findUnique({ where: { id: customerId }, select: { publicId: true } }))?.publicId ?? '', professionalPublicId: context.professionalPublicId, servicePublicId: context.servicePublicId, startsAt: target, source: 'PUBLIC_BOOKING' }, { userId: null, sessionId: null }); await this.openBookingPayment(input, conversation.id, phone, customerId, created.publicId); } catch { await this.dispatchText(input, phone, 'Esse horário acabou de ficar indisponível.', conversation.id); }
   }
@@ -1415,7 +1444,7 @@ export class WhatsAppAssistantService {
     ]);
     const unit = site?.unit;
     const coordinatesUrl =
-      unit?.latitude === null || unit?.latitude === undefined || unit.longitude === null || unit.longitude === undefined
+      typeof unit?.latitude !== 'number' || typeof unit?.longitude !== 'number'
         ? null
         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${String(unit.latitude)},${String(unit.longitude)}`)}`;
     const address = [unit?.street, unit?.number, unit?.district, unit?.city, unit?.state]
@@ -1425,7 +1454,7 @@ export class WhatsAppAssistantService {
       ? null
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
     const url = unit?.googleMapsUrl ?? coordinatesUrl ?? addressUrl;
-    if (url === null || url === undefined) {
+    if (url === null) {
       await this.dispatchText(
         input,
         phone,

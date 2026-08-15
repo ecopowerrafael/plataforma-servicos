@@ -35,7 +35,8 @@ async function start(environment: Environment, startedAt: number): Promise<void>
       ? startNotificationWorker(
           {
             reminders: database.appointmentReminders,
-            notifications: database.notifications,
+          notifications: database.notifications,
+          campaigns: database.notificationCampaigns,
             ...(database.automations === undefined ? {} : { automations: database.automations }),
             ...(database.customerRecovery === undefined
               ? {}

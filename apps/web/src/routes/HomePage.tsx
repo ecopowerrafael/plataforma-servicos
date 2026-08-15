@@ -119,9 +119,9 @@ const MultiUnitOverviewModule = load(
   import('../components/tenants/MultiUnitOverviewModule.js'),
   'MultiUnitOverviewModule',
 );
-const NotificationLogModule = load(
-  import('../components/tenants/NotificationLogModule.js'),
-  'NotificationLogModule',
+const NotificationCampaignModule = load(
+  import('../components/tenants/NotificationCampaignModule.js'),
+  'NotificationCampaignModule',
 );
 const NotificationTemplateModule = load(
   import('../components/tenants/NotificationTemplateModule.js'),
@@ -190,7 +190,6 @@ interface AppMenuItem {
   to: string;
   visible: boolean;
 }
-
 interface AppMenuGroup {
   label: string;
   path: string;
@@ -1515,13 +1514,15 @@ export function HomePage() {
               />
             )}
             {isRoute('/app/marketing/notificacoes') && canViewNotifications && (
-              <NotificationLogModule tenantPublicId={selectedTenant} />
+              <NotificationCampaignModule
+                tenantPublicId={selectedTenant}
+                canReadIntegrations={canReadIntegrations}
+              />
             )}
             {isRoute('/app/marketing/modelos') && canViewNotifications && (
               <NotificationTemplateModule
                 tenantPublicId={selectedTenant}
                 canManage={canManageNotificationTemplates}
-                canManageWhatsapp={canManageIntegrations}
               />
             )}
             {isRoute('/app/marketing', '/app/marketing/automacoes', '/app/clientes/recuperacao') &&

@@ -65,6 +65,8 @@ const FALLBACK_PUSH_ICON = '/icons/agendei-192.png';
 
 const MAX_AUTOMATIC_ATTEMPTS = 5;
 const BACKOFF_MINUTES_PER_ATTEMPT = 2;
+/** Um worker interrompido não pode deixar um envio preso indefinidamente. */
+export const PROCESSING_LEASE_MINUTES = 10;
 
 const pub = (item: NotificationLog) => ({
   publicId: item.publicId,
@@ -201,6 +203,7 @@ export class NotificationService {
    */
   public async processPending(batchSize = 20): Promise<{ processed: number }> {
     const backoffThreshold = new Date(Date.now() - BACKOFF_MINUTES_PER_ATTEMPT * 60_000);
+    const processingLeaseThreshold = new Date(Date.now() - PROCESSING_LEASE_MINUTES * 60_000);
     const candidates = await this.client.notificationLog.findMany({
       where: {
         OR: [
@@ -210,6 +213,7 @@ export class NotificationService {
             attempts: { lt: MAX_AUTOMATIC_ATTEMPTS },
             updatedAt: { lte: backoffThreshold },
           },
+          { status: 'PROCESSING', updatedAt: { lte: processingLeaseThreshold } },
         ],
       },
       orderBy: { createdAt: 'asc' },

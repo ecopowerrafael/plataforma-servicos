@@ -42,6 +42,7 @@ import {
   resolveEmailDelivery,
 } from '../modules/notifications/hostinger-mail-delivery.js';
 import { NotificationTemplateService } from '../modules/notifications/notification-template.service.js';
+import { NotificationCampaignService } from '../modules/notifications/notification-campaign.service.js';
 import { NotificationService } from '../modules/notifications/notification.service.js';
 import {
   type PushDelivery,
@@ -154,6 +155,7 @@ export interface DatabaseConnection {
   readonly appointmentOperations?: AppointmentOperationsService;
   readonly notifications?: NotificationService;
   readonly notificationTemplates?: NotificationTemplateService;
+  readonly notificationCampaigns?: NotificationCampaignService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly appointmentReminders?: AppointmentReminderService;
   readonly automations?: AutomationService;
@@ -335,6 +337,7 @@ export function createDatabaseConnection(
     webhook: new WebhookDelivery(client, credentialsCipher),
   });
   const notificationTemplates = new NotificationTemplateService(client);
+  const notificationCampaigns = new NotificationCampaignService(client, notifications);
   const notificationDispatcher = new CustomerNotificationDispatcher(
     client,
     notifications,
@@ -374,7 +377,11 @@ export function createDatabaseConnection(
     payments,
     tenantWhiteLabelRepository,
   );
-  const platformBilling = new PlatformBillingService(client,paymentGatewayRegistry,credentialsCipher);
+  const platformBilling = new PlatformBillingService(
+    client,
+    paymentGatewayRegistry,
+    credentialsCipher,
+  );
 
   return {
     client,
@@ -440,6 +447,7 @@ export function createDatabaseConnection(
     appointmentOperations: new AppointmentOperationsService(client),
     notifications: notifications,
     notificationTemplates: notificationTemplates,
+    notificationCampaigns: notificationCampaigns,
     appointmentNotifications: appointmentNotifications,
     appointmentReminders: appointmentReminders,
     automations: automations,

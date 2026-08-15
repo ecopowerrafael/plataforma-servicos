@@ -428,6 +428,7 @@ model Tenant {
   customerFavorites            CustomerFavorite[]
   appointmentReviews           AppointmentReview[]
   notificationLogs             NotificationLog[]
+  notificationCampaigns        NotificationCampaign[]
   notificationTemplates        NotificationTemplate[]
   pushSubscriptions            PushSubscription[]
   productCategories            ProductCategory[]
@@ -840,6 +841,57 @@ model NotificationLog {
   @@index([tenantId, status])
   @@index([targetType, targetPublicId])
   @@map("notification_logs")
+}
+
+enum NotificationCampaignStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+/// A campanha apenas agrupa logs já existentes: o worker e as tentativas
+/// continuam pertencendo a NotificationLog, sem uma segunda fila.
+model NotificationCampaign {
+  id         BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId   String              @unique @map("public_id") @db.Char(36)
+  tenantId   BigInt              @map("tenant_id") @db.UnsignedBigInt
+  idempotencyKey String           @map("idempotency_key") @db.Char(36)
+  audience   String              @db.VarChar(24)
+  channel    NotificationChannel
+  title      String              @db.VarChar(160)
+  message    String              @db.Text
+  status     NotificationCampaignStatus @default(QUEUED)
+  recipientCount Int             @default(0) @map("recipient_count") @db.UnsignedInt
+  eligibleCount Int              @default(0) @map("eligible_count") @db.UnsignedInt
+  skippedCount Int               @default(0) @map("skipped_count") @db.UnsignedInt
+  deliveryCount Int              @default(0) @map("delivery_count") @db.UnsignedInt
+  materializedCount Int          @default(0) @map("materialized_count") @db.UnsignedInt
+  startedAt DateTime?            @map("started_at") @db.DateTime(3)
+  completedAt DateTime?          @map("completed_at") @db.DateTime(3)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  recipients NotificationCampaignRecipient[]
+
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+  @@unique([tenantId, idempotencyKey])
+  @@map("notification_campaigns")
+}
+
+model NotificationCampaignRecipient {
+  id         BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId   String @unique @map("public_id") @db.Char(36)
+  campaignId BigInt @map("campaign_id") @db.UnsignedBigInt
+  targetPublicId String @map("target_public_id") @db.Char(36)
+  status     String @default("PENDING") @db.VarChar(16)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign   NotificationCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([campaignId, targetPublicId])
+  @@index([campaignId, status, id])
+  @@map("notification_campaign_recipients")
 }
 
 model PushSubscription {

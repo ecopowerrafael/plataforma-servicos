@@ -7,16 +7,26 @@ function buildService() {
   let stored: { subject: string; body: string } | null = null;
   const client = {
     notificationTemplate: {
-      findMany: vi.fn().mockImplementation(() => Promise.resolve(stored === null ? [] : [{ kind: 'appointment.booking_confirmed', ...stored }])),
+      findMany: vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(
+            stored === null ? [] : [{ kind: 'appointment.booking_confirmed', ...stored }],
+          ),
+        ),
       findFirst: vi.fn().mockImplementation(() => Promise.resolve(stored)),
-      create: vi.fn().mockImplementation(({ data }: { data: { subject: string; body: string } }) => {
-        stored = { subject: data.subject, body: data.body };
-        return Promise.resolve();
-      }),
-      update: vi.fn().mockImplementation(({ data }: { data: { subject: string; body: string } }) => {
-        stored = { subject: data.subject, body: data.body };
-        return Promise.resolve();
-      }),
+      create: vi
+        .fn()
+        .mockImplementation(({ data }: { data: { subject: string; body: string } }) => {
+          stored = { subject: data.subject, body: data.body };
+          return Promise.resolve();
+        }),
+      update: vi
+        .fn()
+        .mockImplementation(({ data }: { data: { subject: string; body: string } }) => {
+          stored = { subject: data.subject, body: data.body };
+          return Promise.resolve();
+        }),
       deleteMany: vi.fn().mockImplementation(() => {
         stored = null;
         return Promise.resolve({ count: 1 });
@@ -79,5 +89,15 @@ describe('template editável de novo agendamento', () => {
     });
     expect(rendered.subject).toBe('Confirmado ');
     expect(rendered.body).toBe('Protocolo: AGD-99');
+  });
+
+  it('rejeita variáveis que não pertencem ao renderer do evento', async () => {
+    const service = buildService();
+    await expect(
+      service.update(1n, 'appointment.booking_confirmed', {
+        subject: 'Olá {{cliente_nome}}',
+        body: 'Mensagem válida',
+      }),
+    ).rejects.toMatchObject({ code: 'NOTIFICATION_TEMPLATE_VARIABLE_UNKNOWN' });
   });
 });

@@ -162,8 +162,7 @@ export async function buildApp(options: BuildAppOptions) {
   // `WEB_DIST_DIR`); fora de produção, só quando `WEB_DIST_DIR` é definido
   // (evita servir um `dist` antigo em desenvolvimento, onde o Vite serve à parte).
   const shouldServeWeb =
-    options.environment.WEB_DIST_DIR !== undefined ||
-    options.environment.NODE_ENV === 'production';
+    options.environment.WEB_DIST_DIR !== undefined || options.environment.NODE_ENV === 'production';
   const spaFallback = shouldServeWeb
     ? await registerStaticWeb(app, options.environment.WEB_DIST_DIR)
     : undefined;
@@ -346,7 +345,9 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
-      ...(options.database.platformBilling?{billingService:options.database.platformBilling}:{}),
+      ...(options.database.platformBilling
+        ? { billingService: options.database.platformBilling }
+        : {}),
     });
   }
   if (options.database.publicBooking !== undefined) {
@@ -552,6 +553,7 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.notifications !== undefined)
     await app.register(notificationRoutes, {
       service: options.database.notifications,
+      campaigns: options.database.notificationCampaigns,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
@@ -699,10 +701,13 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.commercialPolicy === undefined
         ? {}
         : { commercialPolicyService: options.database.commercialPolicy }),
-      ...(options.database.platformBilling?{billingService:options.database.platformBilling}:{}),
+      ...(options.database.platformBilling
+        ? { billingService: options.database.platformBilling }
+        : {}),
     });
   }
-  if(options.database.platformBilling)await app.register(platformBillingWebhookRoutes,{service:options.database.platformBilling});
+  if (options.database.platformBilling)
+    await app.register(platformBillingWebhookRoutes, { service: options.database.platformBilling });
 
   return app;
 }

@@ -4,19 +4,23 @@ import { startNotificationWorker } from './notification-worker.js';
 
 import type { AppointmentReminderService } from './appointment-reminder.service.js';
 import type { NotificationService } from './notification.service.js';
+import type { NotificationCampaignService } from './notification-campaign.service.js';
 
 function build(processed = 0) {
   const processPending = vi.fn().mockResolvedValue({ processed });
+  const materializePending = vi.fn().mockResolvedValue({ processed: 0 });
+  const reconcile = vi.fn().mockResolvedValue(undefined);
   const scheduleUpcomingReminders = vi.fn().mockResolvedValue(undefined);
   const logger = { info: vi.fn(), error: vi.fn() };
   const stop = startNotificationWorker(
     {
       reminders: { scheduleUpcomingReminders } as unknown as AppointmentReminderService,
       notifications: { processPending } as unknown as NotificationService,
+      campaigns: { materializePending, reconcile } as unknown as NotificationCampaignService,
     },
     { intervalMs: 60_000, logger },
   );
-  return { processPending, logger, stop };
+  return { processPending, materializePending, reconcile, logger, stop };
 }
 
 beforeEach(() => {
@@ -42,11 +46,13 @@ describe('worker de notificações', () => {
   });
 
   it('continua processando a cada intervalo e só loga lotes com trabalho', async () => {
-    const { processPending, logger, stop } = build(3);
+    const { processPending, materializePending, reconcile, logger, stop } = build(3);
     await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(processPending).toHaveBeenCalledTimes(2);
+    expect(materializePending).toHaveBeenCalledTimes(2);
+    expect(reconcile).toHaveBeenCalledTimes(2);
     expect(logger.info).toHaveBeenCalledWith({ processed: 3 }, 'Lote de notificações processado');
     stop();
   });

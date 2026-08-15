@@ -74,3 +74,54 @@ export const NotificationListResponseSchema = z.object({
 
 export type NotificationLogPublic = z.infer<typeof NotificationLogPublicSchema>;
 export type NotificationListQuery = z.infer<typeof NotificationListQuerySchema>;
+
+export const CampaignAudienceSchema = z.enum(['CUSTOMERS', 'PROFESSIONALS']);
+export const CampaignRecipientModeSchema = z.enum(['ALL', 'SELECTED']);
+export const CreateNotificationCampaignRequestSchema = z
+  .object({
+    audience: CampaignAudienceSchema,
+    recipientMode: CampaignRecipientModeSchema,
+    recipientPublicIds: z.array(z.uuid()).max(500).default([]),
+    idempotencyKey: z.uuid(),
+    channel: z.enum(['PUSH', 'WHATSAPP']),
+    title: z.string().trim().min(1).max(160).optional(),
+    message: z.string().trim().min(1).max(4000),
+    whatsappRiskAcknowledged: z.boolean().default(false),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.recipientMode === 'SELECTED' && value.recipientPublicIds.length === 0)
+      context.addIssue({
+        code: 'custom',
+        path: ['recipientPublicIds'],
+        message: 'Selecione ao menos uma pessoa.',
+      });
+    if (value.channel === 'PUSH' && (value.title?.trim() ?? '') === '')
+      context.addIssue({
+        code: 'custom',
+        path: ['title'],
+        message: 'Informe um título para a notificação push.',
+      });
+  });
+
+export const NotificationCampaignSummarySchema = z.object({
+  publicId: z.uuid(),
+  audience: CampaignAudienceSchema,
+  channel: z.enum(['PUSH', 'WHATSAPP']),
+  title: z.string(),
+  message: z.string(),
+  status: z.enum(['QUEUED', 'PROCESSING', 'COMPLETED', 'FAILED']),
+  recipientCount: z.number().int().nonnegative(),
+  eligibleCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+  deliveryCount: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  sent: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+export const NotificationCampaignListResponseSchema = z.object({
+  items: z.array(NotificationCampaignSummarySchema),
+});
+export type NotificationCampaignSummary = z.infer<typeof NotificationCampaignSummarySchema>;

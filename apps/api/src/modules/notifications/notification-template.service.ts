@@ -9,6 +9,7 @@ import {
 import { type z } from 'zod';
 
 import { type PrismaClient } from '../../database-client/client.js';
+import { AppError } from '../../errors/AppError.js';
 
 export type NotificationKind = z.infer<typeof NotificationKindSchema>;
 type UpdateInput = z.infer<typeof UpdateNotificationTemplateRequestSchema>;
@@ -23,6 +24,41 @@ export interface TemplateContent {
 }
 
 const EMAIL_TEMPLATE_PREFIX = '__AG_EMAIL_TEMPLATE_V1__';
+
+const APPOINTMENT_VARIABLES = new Set([
+  'customerName',
+  'tenantName',
+  'serviceName',
+  'professionalName',
+  'when',
+  'protocol',
+  'canceledReasonLine',
+  'date',
+  'time',
+  'unitName',
+  'value',
+  'appointmentUrl',
+  'isToday',
+]);
+const RECOVERY_VARIABLES = new Set(['customerName', 'tenantName', 'referenceDate']);
+
+function assertSupportedVariables(
+  kind: NotificationKind,
+  values: Array<string | null | undefined>,
+) {
+  const supported = kind.startsWith('appointment.') ? APPOINTMENT_VARIABLES : RECOVERY_VARIABLES;
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    for (const token of value.matchAll(/\{\{(\w+)\}\}/g)) {
+      if (!supported.has(token[1]))
+        throw new AppError({
+          code: 'NOTIFICATION_TEMPLATE_VARIABLE_UNKNOWN',
+          message: `A variável {{${token[1]}}} não é suportada por este modelo.`,
+          statusCode: 400,
+        });
+    }
+  }
+}
 
 const DEFAULT_WHATSAPP_TEMPLATES: Partial<Record<NotificationKind, string>> = {
   'appointment.booking_confirmed':
@@ -39,7 +75,8 @@ const DEFAULT_TEMPLATES: Record<NotificationKind, TemplateContent> = {
     body: 'Olá, {{customerName}}!\n\nSeu agendamento foi confirmado.\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nData/hora: {{when}}\nProtocolo: {{protocol}}',
     title: 'Seu agendamento está confirmado',
     intro: 'Olá, {{customerName}}! Seu horário foi reservado com sucesso.',
-    afterText: 'Você pode acompanhar, reagendar ou cancelar pelo aplicativo, conforme as regras do estabelecimento.',
+    afterText:
+      'Você pode acompanhar, reagendar ou cancelar pelo aplicativo, conforme as regras do estabelecimento.',
     ctaLabel: 'Ver meu agendamento',
   },
   'appointment.booking_canceled': {
@@ -106,7 +143,9 @@ function decodeStoredTemplate(
 ): TemplateContent {
   if (!value.body.startsWith(EMAIL_TEMPLATE_PREFIX)) return { ...fallback, ...value };
   try {
-    const parsed = JSON.parse(value.body.slice(EMAIL_TEMPLATE_PREFIX.length)) as Partial<TemplateContent>;
+    const parsed = JSON.parse(
+      value.body.slice(EMAIL_TEMPLATE_PREFIX.length),
+    ) as Partial<TemplateContent>;
     return {
       ...fallback,
       subject: value.subject,
@@ -126,7 +165,8 @@ export function renderPushTemplate(
   variables: Record<string, string>,
 ): TemplateContent {
   const professional = variables.professionalName?.trim();
-  const withProfessional = professional === undefined || professional === '' ? '' : ` com ${professional}`;
+  const withProfessional =
+    professional === undefined || professional === '' ? '' : ` com ${professional}`;
   if (kind === 'appointment.booking_confirmed')
     return {
       subject: 'Agendamento confirmado',
@@ -176,6 +216,15 @@ export class NotificationTemplateService {
       await this.client.notificationTemplate.deleteMany({ where: { tenantId, kind } });
       return;
     }
+    assertSupportedVariables(kind, [
+      input.subject,
+      input.body,
+      input.title,
+      input.intro,
+      input.afterText,
+      input.ctaLabel,
+      input.whatsappBody,
+    ]);
     const existing = await this.client.notificationTemplate.findFirst({
       where: { tenantId, kind },
       select: { id: true },
@@ -221,7 +270,10 @@ export class NotificationTemplateService {
   ): Promise<TemplateContent> {
     const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
     const fallback = DEFAULT_TEMPLATES[kind];
-    return renderTemplate(custom === null ? fallback : decodeStoredTemplate(custom, fallback), variables);
+    return renderTemplate(
+      custom === null ? fallback : decodeStoredTemplate(custom, fallback),
+      variables,
+    );
   }
 
   public async renderWhatsApp(
@@ -230,7 +282,8 @@ export class NotificationTemplateService {
     variables: Record<string, string>,
   ): Promise<string> {
     const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
-    const template = custom?.whatsappBody ?? DEFAULT_WHATSAPP_TEMPLATES[kind] ?? DEFAULT_TEMPLATES[kind].body;
+    const template =
+      custom?.whatsappBody ?? DEFAULT_WHATSAPP_TEMPLATES[kind] ?? DEFAULT_TEMPLATES[kind].body;
     const professional = variables.professionalName?.trim() ?? '';
     return renderTemplate(
       { subject: '', body: template },

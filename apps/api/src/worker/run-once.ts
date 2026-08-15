@@ -46,9 +46,11 @@ async function runOnce(): Promise<void> {
     await database.customerRecovery?.run();
     await database.loyalty?.expireDue();
     await database.commercialSweep?.run();
+    await database.notificationCampaigns?.materializePending();
     if (database.notifications !== undefined) {
       await database.notifications.processPending();
     }
+    await database.notificationCampaigns?.reconcile();
     logger.info('Rodada de tarefas periódicas concluída.');
   } finally {
     await database.close();

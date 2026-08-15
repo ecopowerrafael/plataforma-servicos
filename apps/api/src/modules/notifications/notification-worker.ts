@@ -1,6 +1,7 @@
 import { type AppointmentReminderService } from './appointment-reminder.service.js';
 import { type AutomationService } from './automation.service.js';
 import { type NotificationService } from './notification.service.js';
+import { type NotificationCampaignService } from './notification-campaign.service.js';
 import { type CustomerRecoveryService } from '../customers/customer-recovery.service.js';
 import { type LoyaltyService } from '../payments/loyalty.service.js';
 import { type TenantCommercialSweepService } from '../platform/tenant-commercial-sweep.service.js';
@@ -13,6 +14,7 @@ interface WorkerLogger {
 interface WorkerDeps {
   reminders: AppointmentReminderService;
   notifications: NotificationService;
+  campaigns?: NotificationCampaignService;
   automations?: AutomationService;
   customerRecovery?: CustomerRecoveryService;
   loyalty?: LoyaltyService;
@@ -46,7 +48,9 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
       await deps.customerRecovery?.run();
       await deps.loyalty?.expireDue();
       await deps.commercialSweep?.run();
+      await deps.campaigns?.materializePending();
       const { processed } = await deps.notifications.processPending();
+      await deps.campaigns?.reconcile();
       // Só registra lotes com trabalho real: ticks ociosos não geram log.
       if (processed > 0) options.logger.info({ processed }, 'Lote de notificações processado');
     } catch (error) {

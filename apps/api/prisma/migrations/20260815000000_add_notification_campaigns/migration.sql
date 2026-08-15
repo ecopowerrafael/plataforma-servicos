@@ -1,4 +1,4 @@
-CREATE TABLE `notification_campaigns` (
+CREATE TABLE IF NOT EXISTS `notification_campaigns` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `public_id` CHAR(36) NOT NULL,
   `tenant_id` BIGINT UNSIGNED NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE `notification_campaigns` (
   PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE `notification_campaign_recipients` (
+CREATE TABLE IF NOT EXISTS `notification_campaign_recipients` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `public_id` CHAR(36) NOT NULL,
   `campaign_id` BIGINT UNSIGNED NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE `notification_campaign_recipients` (
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE INDEX `notification_campaign_recipients_public_id_key`(`public_id`),
-  UNIQUE INDEX `notification_campaign_recipients_campaign_id_target_public_id_key`(`campaign_id`, `target_public_id`),
+  UNIQUE INDEX `ucr_campaign_target`(`campaign_id`, `target_public_id`),
   INDEX `notification_campaign_recipients_campaign_id_status_id_idx`(`campaign_id`, `status`, `id`),
   CONSTRAINT `notification_campaign_recipients_campaign_id_fkey`
     FOREIGN KEY (`campaign_id`) REFERENCES `notification_campaigns`(`id`)

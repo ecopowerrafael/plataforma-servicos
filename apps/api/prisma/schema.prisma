@@ -889,7 +889,7 @@ model NotificationCampaignRecipient {
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   campaign   NotificationCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  @@unique([campaignId, targetPublicId])
+  @@unique([campaignId, targetPublicId], map: "ucr_campaign_target")
   @@index([campaignId, status, id])
   @@map("notification_campaign_recipients")
 }

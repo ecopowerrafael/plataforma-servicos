@@ -29,7 +29,7 @@ export function SelectTenantPage() {
             onClick={() => {
               selectTenant(tenant.publicId);
               void navigate(
-                membership.roleCode === 'PROFESSIONAL' ? '/profissional' : '/app',
+                membership.roleCode === 'PROFESSIONAL' ? `/public/${tenant.slug}/profissional` : '/app',
               );
             }}
           >

@@ -80,6 +80,7 @@ export const TenantWhiteLabelResponseSchema = z.object({
 });
 
 export const PublicTenantSiteResponseSchema = z.object({
+  publicId: TenantPublicIdSchema,
   slug: TenantSlugOutputSchema,
   displayName: z.string(),
   businessProfile: BusinessProfileCodeSchema,

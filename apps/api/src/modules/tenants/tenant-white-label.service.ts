@@ -357,6 +357,7 @@ export class TenantWhiteLabelService {
       tenant.id,
     );
     return PublicTenantSiteResponseSchema.parse({
+      publicId: tenant.publicId,
       slug: tenant.slug,
       displayName: tenant.displayName,
       businessProfile: tenant.businessProfile,
@@ -503,8 +504,8 @@ export class TenantWhiteLabelService {
       id: `/pwa/professional/${tenant.publicId}/${professional.publicId}`,
       name: `${tenant.displayName} — Profissional`,
       short_name: `${tenant.displayName} Profissional`.slice(0, 30),
-      scope: '/profissional',
-      start_url: '/profissional',
+      scope: `/public/${tenant.slug}/profissional`,
+      start_url: `/public/${tenant.slug}/profissional`,
     });
   }
 

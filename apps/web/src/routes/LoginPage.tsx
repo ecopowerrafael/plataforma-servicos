@@ -31,7 +31,7 @@ export function LoginPage() {
         selectTenant(availableTenant.tenant.publicId);
         await navigate(
           availableTenant.membership.roleCode === 'PROFESSIONAL'
-            ? '/profissional'
+            ? `/public/${availableTenant.tenant.slug}/profissional`
             : `/app${continuation}`,
         );
       } else {

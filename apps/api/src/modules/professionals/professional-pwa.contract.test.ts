@@ -11,8 +11,8 @@ const home = readFileSync(new URL('../../../../web/src/routes/HomePage.tsx', imp
 describe('manifest do Professional App', () => {
   it('tem identidade estável por tenant/profissional e mantém o escopo profissional', () => {
     expect(service).toContain('`/pwa/professional/${tenant.publicId}/${professional.publicId}`');
-    expect(service).toContain("scope: '/profissional'");
-    expect(service).toContain("start_url: '/profissional'");
+    expect(service).toContain('scope: `/public/${tenant.slug}/profissional`');
+    expect(service).toContain('start_url: `/public/${tenant.slug}/profissional`');
     expect(professional).toContain('/public/professionals/${tenantPublicId}/${professionalId}/manifest.webmanifest');
   });
 
@@ -38,7 +38,7 @@ describe('manifest do Professional App', () => {
     const manifest = await serviceUnderTest.professionalManifest(tenantPublicId, professionalPublicId);
     expect(manifest).toMatchObject({
       id: `/pwa/professional/${tenantPublicId}/${professionalPublicId}`,
-      scope: '/profissional', start_url: '/profissional',
+      scope: '/public/barbearia/profissional', start_url: '/public/barbearia/profissional',
       icons: [{ src: '/icons/agendei-192.png', sizes: '192x192' }, { src: '/icons/agendei-512.png', sizes: '512x512' }],
     });
     expect(Object.keys(manifest)).not.toEqual(expect.arrayContaining(['email', 'phone', 'userId', 'token']));
@@ -62,6 +62,6 @@ describe('manifest do Professional App', () => {
     expect(login).toContain(': `/app${continuation}`');
     expect(home).toContain("membership.roleCode === 'PROFESSIONAL'");
     expect(professional).toContain("permissions.includes('professional.self.read') !== true");
-    expect(professional).toContain('<Navigate replace to="/app" />');
+    expect(professional).toContain('`/public/${slug}/profissional/login`');
   });
 });

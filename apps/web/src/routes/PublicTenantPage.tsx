@@ -311,7 +311,7 @@ export function PublicTenantPage() {
               <p>{site.data.site.aboutText ?? site.data.displayName}</p>
             </section>
             <PublicLocationSection unit={site.data.unit} displayName={site.data.displayName} />
-            <footer>{site.data.site.footerText ?? site.data.displayName}</footer>
+            <footer>{site.data.site.footerText ?? site.data.displayName}<a href={`/public/${site.data.slug}/profissional`}>Acesso do profissional</a></footer>
           </>
         )}
       </div>

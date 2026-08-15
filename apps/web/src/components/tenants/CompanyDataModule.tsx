@@ -55,6 +55,7 @@ export function CompanyDataModule({ tenantPublicId }: { tenantPublicId: string }
   };
   const { displayName, legalName, slug, profile, customType } = values;
   const publicAddress = `${window.location.origin}/public/${slug || 'seu-negocio'}`;
+  const professionalAddress = `${publicAddress}/profissional`;
   const parsedSlug = useMemo(() => TenantSlugSchema.safeParse(slug), [slug]);
   const slugChanged = persisted !== undefined && slug !== persisted.slug;
   const slugChangeAvailable = persisted?.slugChangeAvailable ?? false;
@@ -130,6 +131,12 @@ export function CompanyDataModule({ tenantPublicId }: { tenantPublicId: string }
       </div>
       {notice === null ? null : <p className="success-message">{notice}</p>}
       {save.error instanceof Error ? <p className="form-error">{save.error.message}</p> : null}
+      <section className="brand-settings-card">
+        <h3>Link do aplicativo profissional</h3>
+        <p>Envie este endereço à sua equipe. Cada profissional entra com a própria conta.</p>
+        <input aria-label="Link do aplicativo profissional" readOnly value={professionalAddress} />
+        <button type="button" className="secondary-button" onClick={() => { void navigator.clipboard.writeText(professionalAddress).then(() => setNotice('Link do aplicativo profissional copiado.')); }}>Copiar link</button>
+      </section>
       <div className="company-data-grid">
         <form
           className="company-data-form"

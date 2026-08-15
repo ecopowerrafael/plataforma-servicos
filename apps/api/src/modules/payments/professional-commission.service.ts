@@ -182,10 +182,14 @@ export class ProfessionalCommissionService {
   }
 
   /** Comissões geradas do próprio profissional (self-service, isolado por professionalId). */
-  public async listForProfessional(tenantId: bigint, professionalId: bigint) {
+  public async listForProfessional(
+    tenantId: bigint,
+    professionalId: bigint,
+    query: { from?: string; to?: string } = {},
+  ) {
     await this.assertEnabled(tenantId);
     const items = await this.client.professionalCommission.findMany({
-      where: { tenantId, professionalId },
+      where: { tenantId, professionalId, ...(query.from === undefined && query.to === undefined ? {} : { createdAt: { ...(query.from === undefined ? {} : { gte: new Date(query.from) }), ...(query.to === undefined ? {} : { lt: new Date(query.to) }) } }) },
       orderBy: { createdAt: 'desc' },
       include,
     });

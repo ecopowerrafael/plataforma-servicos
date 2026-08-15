@@ -652,6 +652,7 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.commissions === undefined
         ? {}
         : { commissions: options.database.commissions }),
+      ...(options.database.payments === undefined ? {} : { payments: options.database.payments }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

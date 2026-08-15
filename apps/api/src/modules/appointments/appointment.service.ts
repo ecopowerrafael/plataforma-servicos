@@ -262,9 +262,9 @@ export class AppointmentService {
     return pub(updated);
   }
   private static readonly professionalStatusTransitions = {
-    PENDING: [],
-    CONFIRMED: ['IN_PROGRESS', 'NO_SHOW'],
-    IN_PROGRESS: ['COMPLETED'],
+    PENDING: ['CANCELED'],
+    CONFIRMED: ['IN_PROGRESS', 'NO_SHOW', 'CANCELED'],
+    IN_PROGRESS: ['COMPLETED', 'CANCELED'],
     COMPLETED: [],
     CANCELED: [],
     NO_SHOW: [],
@@ -273,7 +273,7 @@ export class AppointmentService {
     t: bigint,
     professionalId: bigint,
     id: string,
-    status: 'IN_PROGRESS' | 'COMPLETED' | 'NO_SHOW',
+    status: 'IN_PROGRESS' | 'COMPLETED' | 'NO_SHOW' | 'CANCELED',
     reason: string | undefined,
     a: Actor,
   ) {

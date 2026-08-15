@@ -76,6 +76,22 @@ export class ProfessionalService {
   public async me(tenantId: bigint, userId: bigint) {
     return publicValue(await this.myRecord(tenantId, userId));
   }
+  public async updateMyProfile(
+    tenantId: bigint,
+    userId: bigint,
+    input: Pick<UpdateProfessionalRequest, 'name' | 'publicName' | 'bio' | 'phone'>,
+    actor: Actor,
+  ) {
+    const current = await this.myRecord(tenantId, userId);
+    const updated = await this.repository.update(current.id, {
+      name: input.name,
+      publicName: input.publicName,
+      bio: input.bio ?? null,
+      phone: input.phone ?? null,
+    });
+    await this.log(tenantId, updated.publicId, 'professional.self_profile_updated', actor);
+    return publicValue(updated);
+  }
   public async myId(tenantId: bigint, userId: bigint) {
     return (await this.myRecord(tenantId, userId)).id;
   }

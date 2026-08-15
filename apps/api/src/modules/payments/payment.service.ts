@@ -79,6 +79,21 @@ export class PaymentService {
         statusCode: 409,
       });
 
+    const pendingGatewayCharge = await this.client.paymentGatewayCharge.findFirst({
+      where: {
+        tenantId,
+        appointmentId: appointment.id,
+        status: { in: ['PENDING', 'PROCESSING'] },
+      },
+      select: { id: true },
+    });
+    if (pendingGatewayCharge !== null)
+      throw new AppError({
+        code: 'PAYMENT_MANUAL_REGISTRATION_BLOCKED_BY_GATEWAY',
+        message: 'Há uma cobrança online pendente para este agendamento.',
+        statusCode: 409,
+      });
+
     const paymentMethod = await this.client.paymentMethod.findFirst({
       where: { tenantId, publicId: input.paymentMethodPublicId },
       select: { id: true, active: true },

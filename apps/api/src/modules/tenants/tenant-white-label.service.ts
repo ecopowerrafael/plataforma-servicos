@@ -469,6 +469,45 @@ export class TenantWhiteLabelService {
     });
   }
 
+  /** Manifest público do app de trabalho; só expõe identidade já pública do tenant/profissional. */
+  public async professionalManifest(tenantPublicId: string, professionalPublicId: string) {
+    const tenant = await this.repository.findTenantByPublicId(tenantPublicId);
+    if (tenant === null || this.commercialClient === undefined) throw notFound();
+    const professional = await this.commercialClient.professional.findFirst({
+      where: { tenantId: tenant.id, publicId: professionalPublicId, active: true },
+      select: { publicId: true },
+    });
+    if (professional === null) throw notFound();
+    const base = await this.manifest(tenant.slug);
+    return PublicTenantManifestSchema.parse({
+      ...base,
+      // O APP_ICON do tenant é preferido; sem ele o Professional App mantém os
+      // ícones globais já publicados, sem exigir novo upload ou outro storage.
+      icons:
+        base.icons.length > 0
+          ? base.icons
+          : [
+              {
+                src: '/icons/agendei-192.png',
+                sizes: '192x192',
+                type: 'image/png',
+                purpose: 'any maskable',
+              },
+              {
+                src: '/icons/agendei-512.png',
+                sizes: '512x512',
+                type: 'image/png',
+                purpose: 'any maskable',
+              },
+            ],
+      id: `/pwa/professional/${tenant.publicId}/${professional.publicId}`,
+      name: `${tenant.displayName} — Profissional`,
+      short_name: `${tenant.displayName} Profissional`.slice(0, 30),
+      scope: '/profissional',
+      start_url: '/profissional',
+    });
+  }
+
   /**
    * Estado do APP_ICON: o asset é a fonte única dos ícones quadrados do
    * aplicativo (o logo pode ser horizontal e nunca é usado aqui). O arquivo

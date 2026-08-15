@@ -50,6 +50,7 @@ export function MyAgendaModule({
   canReadPayments = false,
   canManagePayments = false,
   canReadCustomers = false,
+  selfOnly = false,
 }: {
   tenantPublicId: string;
   /** Calendário da equipe exige leitura de agendamentos do estabelecimento. */
@@ -60,6 +61,8 @@ export function MyAgendaModule({
   canReadPayments?: boolean;
   canManagePayments?: boolean;
   canReadCustomers?: boolean;
+  /** O Professional App nunca usa endpoints administrativos nem seleciona outro profissional. */
+  selfOnly?: boolean;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -193,7 +196,7 @@ export function MyAgendaModule({
       reason,
     }: {
       publicId: string;
-      status: 'in_progress' | 'completed' | 'no_show';
+      status: 'in_progress' | 'completed' | 'no_show' | 'canceled';
       reason?: string;
     }) =>
       httpClient.request(`/tenant/professionals/me/appointments/${publicId}/${status}`, {
@@ -207,7 +210,7 @@ export function MyAgendaModule({
     },
   });
 
-  /** Confirmação e cancelamento continuam sendo operação administrativa da agenda. */
+  /** Mantido para a agenda administrativa; o Professional App usa somente a rota SELF. */
   const tenantStatus = useMutation({
     mutationFn: ({
       publicId,
@@ -322,6 +325,7 @@ export function MyAgendaModule({
   const handlers: MyAgendaHandlers = {
     onPrimary: (appointment, action) => {
       if (action === 'confirm') {
+        if (selfOnly) return;
         tenantStatus.mutate({ publicId: appointment.publicId, status: 'confirmed' });
         return;
       }
@@ -359,11 +363,18 @@ export function MyAgendaModule({
         reasonLabel: 'Motivo do cancelamento',
         variant: 'danger',
         onConfirm: async (reason) => {
-          await tenantStatus.mutateAsync({
-            publicId: appointment.publicId,
-            status: 'canceled',
-            reason,
-          });
+          if (selfOnly)
+            await selfStatus.mutateAsync({
+              publicId: appointment.publicId,
+              status: 'canceled',
+              reason,
+            });
+          else
+            await tenantStatus.mutateAsync({
+              publicId: appointment.publicId,
+              status: 'canceled',
+              reason,
+            });
         },
       });
     },

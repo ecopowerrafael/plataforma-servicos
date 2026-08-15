@@ -270,6 +270,10 @@ export function HomePage() {
       }),
     retry: false,
   });
+  useEffect(() => {
+    if (me.data?.currentTenant?.membership.roleCode === 'PROFESSIONAL')
+      void navigate('/profissional', { replace: true });
+  }, [me.data?.currentTenant?.membership.roleCode, navigate]);
   const experience = useQuery({
     queryKey: ['tenant', selectedTenant, 'experience'],
     queryFn: () =>

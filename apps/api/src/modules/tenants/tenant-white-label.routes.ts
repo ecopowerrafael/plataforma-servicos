@@ -43,6 +43,7 @@ const AssetKindSchema = z
   .strict();
 const AssetParamsSchema = z.object({ assetPublicId: z.uuid() }).strict();
 const PublicSlugSchema = z.object({ slug: z.string().trim().min(2).max(63) }).strict();
+const ProfessionalManifestParamsSchema = z.object({ tenantPublicId: z.uuid(), professionalPublicId: z.uuid() }).strict();
 const PublicEntityParamsSchema = z.object({ publicId: z.uuid() }).strict();
 const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
   userId: request.auth.user.id,
@@ -190,6 +191,11 @@ export const publicTenantWhiteLabelRoutes: FastifyPluginAsyncZod<{
       reply
         .type('application/manifest+json')
         .send(await options.service.manifest(request.params.slug)),
+  );
+  app.get(
+    '/public/professionals/:tenantPublicId/:professionalPublicId/manifest.webmanifest',
+    { schema: { params: ProfessionalManifestParamsSchema, response: { 200: PublicTenantManifestSchema } } },
+    async (request, reply) => reply.type('application/manifest+json').send(await options.service.professionalManifest(request.params.tenantPublicId, request.params.professionalPublicId)),
   );
   // Um arquivo real por tamanho declarado no manifest, derivado do APP_ICON.
   for (const size of APP_ICON_SIZES)

@@ -29,7 +29,11 @@ export function LoginPage() {
         if (availableTenant === undefined)
           throw new Error('O tenant disponível não foi encontrado.');
         selectTenant(availableTenant.tenant.publicId);
-        await navigate(`/app${continuation}`);
+        await navigate(
+          availableTenant.membership.roleCode === 'PROFESSIONAL'
+            ? '/profissional'
+            : `/app${continuation}`,
+        );
       } else {
         await navigate(`/select-tenant${continuation}`);
       }

@@ -1,14 +1,18 @@
 import {
   AppointmentHistoryResponseSchema,
   AppointmentListResponseSchema,
+  AppointmentPaymentsResponseSchema,
   AppointmentPublicSchema,
   AppointmentStatusRequestSchema,
   AppointmentStatusResponseSchema,
   CalendarResponseSchema,
   CommissionListResponseSchema,
+  CreatePaymentRequestSchema,
+  PaymentPublicSchema,
   ProfessionalAppointmentNotesRequestSchema,
   ProfessionalCommissionResponseSchema,
   ProfessionalPublicSchema,
+  UpdateMyProfessionalProfileRequestSchema,
   ProfessionalScheduleResponseSchema,
   ProfessionalServicesResponseSchema,
   ProfessionalUnavailabilityListQuerySchema,
@@ -28,7 +32,9 @@ import { type AppointmentService } from '../appointments/appointment.service.js'
 import { type AuthService } from '../auth/auth.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type ProfessionalCommissionService } from '../payments/professional-commission.service.js';
+import { type PaymentService } from '../payments/payment.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { addDaysToDay, resolveTimezone, zonedDayStart } from '../tenants/timezone.js';
 
 interface Options {
   professionals: ProfessionalService;
@@ -38,6 +44,7 @@ interface Options {
   professionalServices: ProfessionalServiceLinkService;
   availability: AvailabilityService;
   commissions?: ProfessionalCommissionService;
+  payments?: PaymentService;
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
@@ -53,6 +60,18 @@ const agendaQuery = z
   })
   .strict();
 const appointmentParams = z.object({ publicId: z.uuid() }).strict();
+const commissionHistoryQuery = z
+  .object({
+    /** Dias civis inclusivos no fuso do tenant, como no Financeiro. */
+    fromDate: z.iso.date().optional(),
+    toDate: z.iso.date().optional(),
+  })
+  .strict()
+  .refine(
+    (query) =>
+      query.fromDate === undefined || query.toDate === undefined || query.fromDate <= query.toDate,
+    { message: 'O início do período deve ser anterior ao fim.', path: ['toDate'] },
+  );
 const unavailabilityItemParams = z.object({ itemPublicId: z.uuid() }).strict();
 const availabilityQuery = z
   .object({
@@ -80,6 +99,15 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
     (r) => {
       options.authService.requirePermission(r.tenant, 'professional.self.read');
       return options.professionals.me(r.tenant.id, r.auth.user.id);
+    },
+  );
+
+  app.patch(
+    '/tenant/professionals/me/profile',
+    { schema: { body: UpdateMyProfessionalProfileRequestSchema, response: { 200: ProfessionalPublicSchema } } },
+    (r) => {
+      options.authService.requirePermission(r.tenant, 'professional.self.update');
+      return options.professionals.updateMyProfile(r.tenant.id, r.auth.user.id, r.body, actor(r));
     },
   );
 
@@ -148,7 +176,7 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
     },
   );
 
-  for (const status of ['IN_PROGRESS', 'COMPLETED', 'NO_SHOW'] as const)
+  for (const status of ['IN_PROGRESS', 'COMPLETED', 'NO_SHOW', 'CANCELED'] as const)
     app.post(
       `/tenant/professionals/me/appointments/:publicId/${status.toLowerCase()}`,
       {
@@ -171,6 +199,30 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
         );
       },
     );
+
+  if (options.payments !== undefined) {
+    const payments = options.payments;
+    app.get(
+      '/tenant/professionals/me/appointments/:publicId/payments',
+      { schema: { params: appointmentParams, response: { 200: AppointmentPaymentsResponseSchema } } },
+      async (r) => {
+        options.authService.requirePermission(r.tenant, 'professional.self.read');
+        const professionalId = await options.professionals.myId(r.tenant.id, r.auth.user.id);
+        await options.appointments.getForProfessional(r.tenant.id, professionalId, r.params.publicId);
+        return payments.listForAppointment(r.tenant.id, r.params.publicId);
+      },
+    );
+    app.post(
+      '/tenant/professionals/me/appointments/:publicId/payments',
+      { schema: { params: appointmentParams, body: CreatePaymentRequestSchema, response: { 201: PaymentPublicSchema } } },
+      async (r, reply) => {
+        options.authService.requirePermission(r.tenant, 'professional.self.update');
+        const professionalId = await options.professionals.myId(r.tenant.id, r.auth.user.id);
+        await options.appointments.getForProfessional(r.tenant.id, professionalId, r.params.publicId);
+        return reply.status(201).send(await payments.create(r.tenant.id, r.params.publicId, r.body, actor(r)));
+      },
+    );
+  }
 
   app.get(
     '/tenant/professionals/me/schedule',
@@ -209,11 +261,21 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
     const commissions = options.commissions;
     app.get(
       '/tenant/professionals/me/commissions/history',
-      { schema: { response: { 200: CommissionListResponseSchema } } },
+      { schema: { querystring: commissionHistoryQuery, response: { 200: CommissionListResponseSchema } } },
       async (r) => {
         options.authService.requirePermission(r.tenant, 'professional.self.read');
         const professionalId = await options.professionals.myId(r.tenant.id, r.auth.user.id);
-        return commissions.listForProfessional(r.tenant.id, professionalId);
+        const timezone = resolveTimezone(r.tenant.timezone);
+        return commissions.listForProfessional(r.tenant.id, professionalId, {
+          ...(r.query.fromDate === undefined
+            ? {}
+            : { from: zonedDayStart(r.query.fromDate, timezone).toISOString() }),
+          ...(r.query.toDate === undefined
+            ? {}
+            : {
+                to: zonedDayStart(addDaysToDay(r.query.toDate, 1), timezone).toISOString(),
+              }),
+        });
       },
     );
   }

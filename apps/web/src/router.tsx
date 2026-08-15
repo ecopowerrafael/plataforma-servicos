@@ -10,6 +10,7 @@ import { LoginPage } from './routes/LoginPage.js';
 import { NotFoundPage } from './routes/NotFoundPage.js';
 import { PlatformPageRebuild } from './routes/PlatformPageRebuild.js';
 import { PublicTenantPage } from './routes/PublicTenantPage.js';
+import { ProfessionalAppPage } from './routes/ProfessionalAppPage.js';
 import { RegisterPage } from './routes/RegisterPage.js';
 import { ResetPasswordPage } from './routes/ResetPasswordPage.js';
 import { RootPage } from './routes/RootPage.js';
@@ -56,6 +57,10 @@ export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/cadastro', element: <RegisterPage /> },
   { path: '/app', element: <HomePage /> },
+  { path: '/profissional', element: <ProfessionalAppPage /> },
+  { path: '/profissional/agenda', element: <ProfessionalAppPage /> },
+  { path: '/profissional/comissoes', element: <ProfessionalAppPage section="commissions" /> },
+  { path: '/profissional/perfil', element: <ProfessionalAppPage section="profile" /> },
   { path: '/app/agenda', element: <HomePage /> },
   { path: '/app/agenda/minha', element: <HomePage /> },
   { path: '/app/agenda/agendamentos', element: <HomePage /> },

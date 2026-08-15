@@ -37,6 +37,14 @@ export const UpdateProfessionalRequestSchema = z
   .object(input)
   .strict()
   .superRefine(commissionLimit);
+export const UpdateMyProfessionalProfileRequestSchema = z
+  .object({
+    name: input.name,
+    publicName: input.publicName,
+    bio: input.bio,
+    phone: input.phone,
+  })
+  .strict();
 export const ProfessionalPublicSchema = z
   .object({
     publicId: z.uuid(),
@@ -75,3 +83,6 @@ export const ProfessionalListResponseSchema = z.object({
 export const ProfessionalStatusResponseSchema = z.object({ success: z.literal(true) });
 export type CreateProfessionalRequest = z.infer<typeof CreateProfessionalRequestSchema>;
 export type UpdateProfessionalRequest = z.infer<typeof UpdateProfessionalRequestSchema>;
+export type UpdateMyProfessionalProfileRequest = z.infer<
+  typeof UpdateMyProfessionalProfileRequestSchema
+>;

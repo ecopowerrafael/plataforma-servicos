@@ -81,6 +81,7 @@ describe('contratos de agendamentos', () => {
       protocol: 'AGD-000001',
       ...ids,
       customerName: 'Cliente',
+      customerPhone: null,
       professionalName: 'Profissional',
       serviceName: 'Consulta',
       unitPublicId: null,

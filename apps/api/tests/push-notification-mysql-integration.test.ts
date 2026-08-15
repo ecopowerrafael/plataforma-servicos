@@ -407,6 +407,7 @@ describe.skipIf(url === undefined)('push notifications (Etapa 13) com MySQL loca
       protocol: `AGD-${kindSuffix}`,
       customerPublicId,
       customerName: 'Cliente Push',
+      customerPhone: null,
       professionalPublicId: randomUUID(),
       professionalName: 'Profissional',
       servicePublicId: randomUUID(),

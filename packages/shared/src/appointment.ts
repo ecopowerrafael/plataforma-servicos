@@ -91,6 +91,7 @@ export const AppointmentPublicSchema = z.object({
   protocol: z.string(),
   customerPublicId: z.uuid(),
   customerName: z.string(),
+  customerPhone: z.string().nullable(),
   professionalPublicId: z.uuid(),
   professionalName: z.string(),
   servicePublicId: z.uuid(),

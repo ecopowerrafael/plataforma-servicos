@@ -67,6 +67,71 @@ export const TenantReportResponseSchema = z.object({
   returningCustomers: z.number().int().nonnegative(),
 });
 
+/* Visão da agenda: agregações operacionais do período, calculadas no servidor. */
+export const AgendaOverviewQuerySchema = z
+  .object({
+    from: z.iso.datetime({ offset: true }),
+    to: z.iso.datetime({ offset: true }),
+    professionalPublicId: z.uuid().optional(),
+    servicePublicId: z.uuid().optional(),
+    unitPublicId: z.uuid().optional(),
+    /** Deslocamento local do navegador (Date#getTimezoneOffset) para agrupar por hora local. */
+    offsetMinutes: z.coerce.number().int().min(-840).max(840).default(0),
+  })
+  .strict();
+
+export const AppointmentPaymentStateSchema = z.enum([
+  'PAID',
+  'PARTIAL',
+  'ONLINE_PENDING',
+  'ON_SITE',
+]);
+
+const MoneyCentsSchema = z.string().regex(/^\d+$/u);
+
+export const AgendaOverviewResponseSchema = z.object({
+  from: z.iso.datetime({ offset: true }),
+  to: z.iso.datetime({ offset: true }),
+  totals: z.object({
+    appointments: z.number().int().nonnegative(),
+    pending: z.number().int().nonnegative(),
+    confirmed: z.number().int().nonnegative(),
+    inProgress: z.number().int().nonnegative(),
+    completed: z.number().int().nonnegative(),
+    canceled: z.number().int().nonnegative(),
+    noShow: z.number().int().nonnegative(),
+  }),
+  /** Nulo quando o usuário não tem permissão de leitura financeira. */
+  financial: z
+    .object({
+      expectedCents: MoneyCentsSchema,
+      receivedCents: MoneyCentsSchema,
+      openCents: MoneyCentsSchema,
+    })
+    .nullable(),
+  byStatus: z.array(
+    z.object({
+      status: z.enum(['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED', 'NO_SHOW']),
+      total: z.number().int().nonnegative(),
+    }),
+  ),
+  byProfessional: z.array(ProfessionalBreakdownSchema),
+  byHour: z.array(
+    z.object({ hour: z.number().int().min(0).max(23), total: z.number().int().nonnegative() }),
+  ),
+  /** Situação financeira por agendamento do período; vazio sem permissão financeira. */
+  payments: z.array(
+    z.object({
+      appointmentPublicId: z.uuid(),
+      expectedCents: MoneyCentsSchema,
+      receivedCents: MoneyCentsSchema,
+      state: AppointmentPaymentStateSchema,
+    }),
+  ),
+});
+
+export type AgendaOverviewResponse = z.infer<typeof AgendaOverviewResponseSchema>;
+export type AppointmentPaymentState = z.infer<typeof AppointmentPaymentStateSchema>;
 export type TenantDashboardResponse = z.infer<typeof TenantDashboardResponseSchema>;
 export type TenantReportQuery = z.infer<typeof TenantReportQuerySchema>;
 export type TenantReportResponse = z.infer<typeof TenantReportResponseSchema>;

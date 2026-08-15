@@ -300,6 +300,7 @@ describe.skipIf(url === undefined)(
         protocol: 'AGD-000001',
         customerPublicId,
         customerName,
+        customerPhone: null,
         professionalPublicId: randomUUID(),
         professionalName: 'Profissional',
         servicePublicId: randomUUID(),

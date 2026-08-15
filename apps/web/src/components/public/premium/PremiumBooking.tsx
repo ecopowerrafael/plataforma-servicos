@@ -14,8 +14,12 @@ import {
   initialsOf,
   isoFromDate,
   usePublicBooking,
+  type BookingStep,
   type Site,
 } from '../use-public-booking.js';
+
+/** Etapas em que a seleção já avança sozinha e dispensam o botão de continuar. */
+const SELF_ADVANCING_STEPS: BookingStep[] = ['service', 'professional', 'date', 'time'];
 
 const weekday = (value: Date) =>
   value.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
@@ -659,7 +663,7 @@ export function PremiumBooking({
         ) : null}
       </div>
 
-      {(['service', 'professional', 'date', 'time'] as const).includes(step) ? null : <div className="premium-step-cta">
+      {SELF_ADVANCING_STEPS.includes(step) ? null : <div className="premium-step-cta">
         <button
           className="premium-primary"
           type="button"

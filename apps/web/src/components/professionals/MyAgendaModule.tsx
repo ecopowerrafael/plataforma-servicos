@@ -11,6 +11,7 @@ import { type z } from 'zod';
 
 import { httpClient, HttpError } from '../../lib/http.js';
 import { AppointmentStatusBadge } from '../appointments/appointment-status.js';
+import { CalendarModule } from '../calendar/CalendarModule.js';
 import { EmptyState, InlineAlert, ListSkeleton, PageHeader, SectionCard } from '../ui/AppUi.js';
 
 type Appointment = z.infer<typeof AppointmentPublicSchema>;
@@ -183,8 +184,16 @@ function AppointmentDetail({
   );
 }
 
-export function MyAgendaModule({ tenantPublicId }: { tenantPublicId: string }) {
+export function MyAgendaModule({
+  tenantPublicId,
+  canViewCalendar = false,
+}: {
+  tenantPublicId: string;
+  /** Calendário da equipe exige leitura de agendamentos do estabelecimento. */
+  canViewCalendar?: boolean;
+}) {
   const queryClient = useQueryClient();
+  const [view, setView] = useState<'list' | 'calendar'>('list');
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -274,8 +283,38 @@ export function MyAgendaModule({ tenantPublicId }: { tenantPublicId: string }) {
         description={
           me.data === undefined ? 'Seus atendimentos do período.' : me.data.publicName
         }
+        actions={
+          canViewCalendar ? (
+            <div className="segmented-control" role="group" aria-label="Visualização">
+              <button
+                type="button"
+                className={view === 'list' ? 'active' : ''}
+                aria-pressed={view === 'list'}
+                onClick={() => {
+                  setView('list');
+                }}
+              >
+                Agenda
+              </button>
+              <button
+                type="button"
+                className={view === 'calendar' ? 'active' : ''}
+                aria-pressed={view === 'calendar'}
+                onClick={() => {
+                  setView('calendar');
+                }}
+              >
+                Calendário
+              </button>
+            </div>
+          ) : undefined
+        }
       />
 
+      {canViewCalendar && view === 'calendar' ? (
+        <CalendarModule tenantPublicId={tenantPublicId} />
+      ) : (
+        <>
       {me.isPending ? <ListSkeleton rows={3} /> : null}
 
       {me.data !== undefined && (
@@ -398,6 +437,8 @@ export function MyAgendaModule({ tenantPublicId }: { tenantPublicId: string }) {
               </div>
             </SectionCard>
           ))}
+        </>
+      )}
         </>
       )}
     </div>

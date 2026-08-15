@@ -38,6 +38,7 @@ const pub = (x: AppointmentRecord) =>
     protocol: x.protocol,
     customerPublicId: x.customer.publicId,
     customerName: x.customer.name,
+    customerPhone: x.customer.phone,
     professionalPublicId: x.professional.publicId,
     professionalName: x.professional.publicName,
     servicePublicId: x.service.publicId,

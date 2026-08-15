@@ -8,6 +8,7 @@ const appointment = AppointmentPublicSchema.parse({
   publicId: '00000000-0000-4000-8000-000000000001',
   protocol: 'AG-001',
   customerPublicId: '00000000-0000-4000-8000-000000000002',
+  customerPhone: '11999999999',
   customerName: 'Cliente da agenda',
   professionalPublicId: '00000000-0000-4000-8000-000000000003',
   professionalName: 'Profissional real',

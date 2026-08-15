@@ -1,16 +1,267 @@
-import { type TenantDashboardResponse, type TenantReportResponse } from '@plataforma/shared';
+import {
+  type AgendaOverviewResponse,
+  type AppointmentPaymentState,
+  type TenantDashboardResponse,
+  type TenantReportResponse,
+} from '@plataforma/shared';
 
-import { type PrismaClient } from '../../database-client/client.js';
+import { type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { AppError } from '../../errors/AppError.js';
 
 type AppointmentStatus =
   'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW';
+
+/** Status de cobrança online que ainda não viraram recebimento confirmado. */
+const OPEN_GATEWAY_STATUSES = ['PENDING', 'PROCESSING', 'FAILED', 'EXPIRED'] as const;
+/** Agendamentos que não geram expectativa de receita. */
+const NON_BILLABLE_STATUSES = new Set<AppointmentStatus>(['CANCELED', 'NO_SHOW']);
+
+export interface AgendaOverviewInput {
+  from: string;
+  to: string;
+  professionalPublicId?: string | undefined;
+  servicePublicId?: string | undefined;
+  unitPublicId?: string | undefined;
+  offsetMinutes: number;
+}
 
 function emptyStatusCounts(): Record<AppointmentStatus, number> {
   return { PENDING: 0, CONFIRMED: 0, IN_PROGRESS: 0, COMPLETED: 0, CANCELED: 0, NO_SHOW: 0 };
 }
 
+const sumMap = (map: Map<bigint, bigint>, key: bigint) => map.get(key) ?? 0n;
+
 export class AppointmentOperationsService {
   public constructor(private readonly client: PrismaClient) {}
+
+  /**
+   * Agrega, em uma única chamada, os indicadores da Visão da agenda: totais por status,
+   * ranking por profissional, distribuição por hora local e situação financeira do período.
+   * O financeiro só é calculado quando o usuário tem permissão de leitura de pagamentos.
+   */
+  public async agendaOverview(
+    tenantId: bigint,
+    input: AgendaOverviewInput,
+    options: { includeFinancial: boolean },
+  ): Promise<AgendaOverviewResponse> {
+    const from = new Date(input.from);
+    const to = new Date(input.to);
+    const where: Prisma.AppointmentWhereInput = {
+      tenantId,
+      startsAt: { gte: from, lte: to },
+      ...(await this.overviewFilters(tenantId, input)),
+    };
+    const appointments = await this.client.appointment.findMany({
+      where,
+      select: {
+        id: true,
+        publicId: true,
+        status: true,
+        startsAt: true,
+        priceCents: true,
+        professionalId: true,
+      },
+      orderBy: { startsAt: 'asc' },
+    });
+
+    const byStatusCounts = emptyStatusCounts();
+    const byHourCounts = new Map<number, number>();
+    const byProfessionalCounts = new Map<bigint, number>();
+    for (const appointment of appointments) {
+      byStatusCounts[appointment.status] += 1;
+      const localHour = new Date(
+        appointment.startsAt.getTime() - input.offsetMinutes * 60_000,
+      ).getUTCHours();
+      byHourCounts.set(localHour, (byHourCounts.get(localHour) ?? 0) + 1);
+      byProfessionalCounts.set(
+        appointment.professionalId,
+        (byProfessionalCounts.get(appointment.professionalId) ?? 0) + 1,
+      );
+    }
+
+    const professionals =
+      byProfessionalCounts.size === 0
+        ? []
+        : await this.client.professional.findMany({
+            where: { tenantId, id: { in: [...byProfessionalCounts.keys()] } },
+            select: { id: true, publicId: true, name: true },
+          });
+
+    const financialData = options.includeFinancial
+      ? await this.overviewFinancial(tenantId, appointments)
+      : null;
+
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      totals: {
+        appointments: appointments.length,
+        pending: byStatusCounts.PENDING,
+        confirmed: byStatusCounts.CONFIRMED,
+        inProgress: byStatusCounts.IN_PROGRESS,
+        completed: byStatusCounts.COMPLETED,
+        canceled: byStatusCounts.CANCELED,
+        noShow: byStatusCounts.NO_SHOW,
+      },
+      financial: financialData?.financial ?? null,
+      byStatus: (Object.keys(byStatusCounts) as AppointmentStatus[]).map((status) => ({
+        status,
+        total: byStatusCounts[status],
+      })),
+      byProfessional: professionals
+        .map((professional) => ({
+          professionalPublicId: professional.publicId,
+          professionalName: professional.name,
+          total: byProfessionalCounts.get(professional.id) ?? 0,
+        }))
+        .sort((a, b) => b.total - a.total),
+      byHour: [...byHourCounts.entries()]
+        .map(([hour, total]) => ({ hour, total }))
+        .sort((a, b) => a.hour - b.hour),
+      payments: financialData?.payments ?? [],
+    };
+  }
+
+  private async overviewFilters(
+    tenantId: bigint,
+    input: AgendaOverviewInput,
+  ): Promise<Prisma.AppointmentWhereInput> {
+    const [professional, service, unit] = await Promise.all([
+      input.professionalPublicId === undefined
+        ? null
+        : this.client.professional.findFirst({
+            where: { tenantId, publicId: input.professionalPublicId },
+            select: { id: true },
+          }),
+      input.servicePublicId === undefined
+        ? null
+        : this.client.service.findFirst({
+            where: { tenantId, publicId: input.servicePublicId },
+            select: { id: true },
+          }),
+      input.unitPublicId === undefined
+        ? null
+        : this.client.businessUnit.findFirst({
+            where: { tenantId, publicId: input.unitPublicId },
+            select: { id: true },
+          }),
+    ]);
+    if (input.professionalPublicId !== undefined && professional === null)
+      throw this.filterNotFound('Profissional não encontrado para este estabelecimento.');
+    if (input.servicePublicId !== undefined && service === null)
+      throw this.filterNotFound('Serviço não encontrado para este estabelecimento.');
+    if (input.unitPublicId !== undefined && unit === null)
+      throw this.filterNotFound('Unidade não encontrada para este estabelecimento.');
+    return {
+      ...(professional === null ? {} : { professionalId: professional.id }),
+      ...(service === null ? {} : { serviceId: service.id }),
+      ...(unit === null ? {} : { unitId: unit.id }),
+    };
+  }
+
+  /**
+   * Receita prevista usa o preço líquido (descontos de cupom e fidelidade), a mesma base do
+   * PaymentService. Receita recebida vem exclusivamente de pagamentos PAID — previsão nunca
+   * é apresentada como recebimento.
+   */
+  private async overviewFinancial(
+    tenantId: bigint,
+    appointments: {
+      id: bigint;
+      publicId: string;
+      status: AppointmentStatus;
+      priceCents: bigint;
+    }[],
+  ) {
+    const ids = appointments.map((appointment) => appointment.id);
+    const [paidGrouped, couponGrouped, loyaltyEntries, openCharges] =
+      ids.length === 0
+        ? [[], [], [], []]
+        : await Promise.all([
+            this.client.payment.groupBy({
+              by: ['appointmentId'],
+              where: { tenantId, appointmentId: { in: ids }, status: 'PAID' },
+              _sum: { amountCents: true },
+            }),
+            this.client.couponRedemption.groupBy({
+              by: ['appointmentId'],
+              where: { tenantId, appointmentId: { in: ids }, canceledAt: null },
+              _sum: { discountAmountCents: true },
+            }),
+            this.client.loyaltyLedgerEntry.findMany({
+              where: {
+                tenantId,
+                sourceAppointmentId: { in: ids },
+                reason: 'REDEEMED',
+                closesEntry: null,
+              },
+              select: { sourceAppointmentId: true, discountCentsApplied: true },
+            }),
+            this.client.paymentGatewayCharge.findMany({
+              where: {
+                tenantId,
+                appointmentId: { in: ids },
+                status: { in: [...OPEN_GATEWAY_STATUSES] },
+              },
+              select: { appointmentId: true },
+            }),
+          ]);
+
+    const paidByAppointment = new Map<bigint, bigint>();
+    for (const entry of paidGrouped)
+      paidByAppointment.set(entry.appointmentId, entry._sum.amountCents ?? 0n);
+    const discountByAppointment = new Map<bigint, bigint>();
+    for (const entry of couponGrouped)
+      discountByAppointment.set(entry.appointmentId, entry._sum.discountAmountCents ?? 0n);
+    for (const entry of loyaltyEntries) {
+      if (entry.sourceAppointmentId === null) continue;
+      discountByAppointment.set(
+        entry.sourceAppointmentId,
+        sumMap(discountByAppointment, entry.sourceAppointmentId) +
+          (entry.discountCentsApplied ?? 0n),
+      );
+    }
+    const withOpenCharge = new Set(openCharges.map((charge) => charge.appointmentId));
+
+    let expectedCents = 0n;
+    let receivedCents = 0n;
+    const payments = appointments.map((appointment) => {
+      const discount = sumMap(discountByAppointment, appointment.id);
+      const netPrice =
+        appointment.priceCents > discount ? appointment.priceCents - discount : 0n;
+      const received = sumMap(paidByAppointment, appointment.id);
+      const billable = !NON_BILLABLE_STATUSES.has(appointment.status);
+      if (billable) expectedCents += netPrice;
+      receivedCents += received;
+      const state: AppointmentPaymentState =
+        netPrice === 0n || received >= netPrice
+          ? 'PAID'
+          : received > 0n
+            ? 'PARTIAL'
+            : withOpenCharge.has(appointment.id)
+              ? 'ONLINE_PENDING'
+              : 'ON_SITE';
+      return {
+        appointmentPublicId: appointment.publicId,
+        expectedCents: netPrice.toString(),
+        receivedCents: received.toString(),
+        state,
+      };
+    });
+
+    return {
+      financial: {
+        expectedCents: expectedCents.toString(),
+        receivedCents: receivedCents.toString(),
+        openCents: (expectedCents > receivedCents ? expectedCents - receivedCents : 0n).toString(),
+      },
+      payments,
+    };
+  }
+
+  private filterNotFound(message: string) {
+    return new AppError({ code: 'AGENDA_OVERVIEW_FILTER_NOT_FOUND', message, statusCode: 404 });
+  }
 
   public async dashboard(tenantId: bigint, date?: string): Promise<TenantDashboardResponse> {
     const day = date ?? new Date().toISOString().slice(0, 10);

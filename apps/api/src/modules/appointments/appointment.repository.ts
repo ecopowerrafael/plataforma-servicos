@@ -1,7 +1,7 @@
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 const include = {
-  customer: { select: { publicId: true, name: true } },
+  customer: { select: { publicId: true, name: true, phone: true } },
   professional: { select: { publicId: true, publicName: true } },
   service: { select: { publicId: true, name: true } },
   unit: { select: { publicId: true, name: true } },

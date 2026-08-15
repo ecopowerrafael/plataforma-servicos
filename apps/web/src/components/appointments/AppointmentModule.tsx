@@ -45,6 +45,8 @@ export function AppointmentModule({
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const presetCustomer = searchParams.get('customerPublicId') ?? '';
+  // Deep link vindo da Visão da agenda: abre o agendamento já selecionado para edição.
+  const presetAppointment = searchParams.get('appointmentPublicId');
   const returnTo = searchParams.get('returnTo');
   const client = useQueryClient();
   const [from, setFrom] = useState(() => new Date().toISOString());
@@ -59,10 +61,10 @@ export function AppointmentModule({
   const [isFitIn, setIsFitIn] = useState(false);
   const [depositType, setDepositType] = useState('');
   const [depositValue, setDepositValue] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(presetAppointment);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [editorOpen, setEditorOpen] = useState(presetCustomer !== '');
+  const [editorOpen, setEditorOpen] = useState(presetCustomer !== '' || presetAppointment !== null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const customers = useQuery({

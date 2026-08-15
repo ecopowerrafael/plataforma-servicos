@@ -11,6 +11,7 @@ import './onboarding.css';
 import './brand-studio.css';
 import './customer-account.css';
 import './my-agenda.css';
+import './agenda-overview.css';
 
 const rootElement = document.getElementById('root');
 

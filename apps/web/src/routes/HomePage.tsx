@@ -39,7 +39,10 @@ const AppointmentWaitlistModule = load(
   import('../components/appointments/AppointmentWaitlistModule.js'),
   'AppointmentWaitlistModule',
 );
-const CalendarModule = load(import('../components/calendar/CalendarModule.js'), 'CalendarModule');
+const AgendaOverviewModule = load(
+  import('../components/agenda/AgendaOverviewModule.js'),
+  'AgendaOverviewModule',
+);
 const CustomerModule = load(import('../components/customers/CustomerModule.js'), 'CustomerModule');
 const CustomerProfile = load(
   import('../components/customers/CustomerProfile.js'),
@@ -481,6 +484,10 @@ export function HomePage() {
     (me.data?.currentTenant?.membership.permissions.includes('unit.update') ?? false);
   const canReadUnits =
     me.data?.currentTenant?.membership.permissions.includes('unit.read') ?? false;
+  const canCreateAppointments =
+    me.data?.currentTenant?.membership.permissions.includes('appointment.create') ?? false;
+  const canManageAppointmentStatus =
+    me.data?.currentTenant?.membership.permissions.includes('appointment.status.manage') ?? false;
   const canFitIn =
     me.data?.currentTenant?.membership.permissions.includes('appointment.fit_in.manage') ?? false;
   const canCheckIn =
@@ -1509,10 +1516,21 @@ export function HomePage() {
               <MembersModule tenantPublicId={selectedTenant} canManage={canManageMembers} />
             )}
             {isRoute('/app/agenda') && canReadAppointments && (
-              <CalendarModule tenantPublicId={selectedTenant} />
+              <AgendaOverviewModule
+                tenantPublicId={selectedTenant}
+                canCreate={canCreateAppointments}
+                canManageStatus={canManageAppointmentStatus}
+                canCheckIn={canCheckIn}
+                canReadPayments={canReadPayments}
+                canManagePayments={canManagePayments}
+                canReadCustomers={canReadCustomers}
+              />
             )}
             {isRoute('/app/agenda/minha') && canViewOwnAgenda && (
-              <MyAgendaModule tenantPublicId={selectedTenant} />
+              <MyAgendaModule
+                tenantPublicId={selectedTenant}
+                canViewCalendar={canReadAppointments}
+              />
             )}
             {isRoute('/app/agenda/disponibilidade') && canViewOwnAgenda && (
               <MyAvailabilityModule tenantPublicId={selectedTenant} />

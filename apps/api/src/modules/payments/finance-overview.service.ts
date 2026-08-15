@@ -1,11 +1,9 @@
-import {
-  FinanceOverviewResponseSchema,
-  type FinanceOverviewResponse,
-} from '@plataforma/shared';
+import { FinanceOverviewResponseSchema, type FinanceOverviewResponse } from '@plataforma/shared';
 
 import { discountsByAppointment, netPriceCents } from './appointment-balance.js';
 import { type DelinquencyService } from './delinquency.service.js';
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { AppError } from '../../errors/AppError.js';
 import {
   addDaysToDay,
   daysBetweenDays,
@@ -36,6 +34,62 @@ const FAILED_GATEWAY_STATUSES = ['FAILED', 'EXPIRED'] as const;
 
 const ticket = (billed: bigint, count: number) => (count === 0 ? 0n : billed / BigInt(count));
 
+/**
+ * Etapas do painel, usadas apenas para diagnostico. Sao rotulos fixos e seguros:
+ * nenhum dado do tenant, da consulta ou do ambiente entra nesses nomes.
+ */
+export type FinanceOverviewStage =
+  | 'context'
+  | 'period'
+  | 'billedAppointments'
+  | 'billedDiscounts'
+  | 'receivedPayments'
+  | 'previousPeriod'
+  | 'paymentMethods'
+  | 'canceledPayments'
+  | 'cashMovementsActivity'
+  | 'receivables'
+  | 'gatewayCharges'
+  | 'professionals'
+  | 'commissions'
+  | 'cash'
+  | 'series'
+  | 'response';
+
+export const FINANCE_OVERVIEW_STAGE_FAILED = 'FINANCE_OVERVIEW_STAGE_FAILED';
+
+/**
+ * Converte uma falha inesperada de um bloco em um erro conhecido que identifica apenas
+ * a etapa. A causa original fica em `cause` para log/teste e nunca vai para a resposta.
+ */
+const stageError = (stage: FinanceOverviewStage, cause: unknown) =>
+  new AppError({
+    code: FINANCE_OVERVIEW_STAGE_FAILED,
+    message: 'Não foi possível processar uma etapa do financeiro.',
+    statusCode: 500,
+    details: [{ path: 'stage', message: stage }],
+    cause,
+  });
+
+/** Erros conhecidos do domínio continuam subindo intactos. */
+async function runStage<T>(stage: FinanceOverviewStage, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw stageError(stage, error);
+  }
+}
+
+function runStageSync<T>(stage: FinanceOverviewStage, run: () => T): T {
+  try {
+    return run();
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw stageError(stage, error);
+  }
+}
+
 export class FinanceOverviewService {
   public constructor(
     private readonly client: PrismaClient,
@@ -52,21 +106,31 @@ export class FinanceOverviewService {
     input: FinanceOverviewInput,
     scope: FinanceOverviewScope,
   ): Promise<FinanceOverviewResponse> {
-    const [unit, professionalId] = await Promise.all([
-      this.resolveUnit(tenantId, input.unitPublicId),
-      this.resolveProfessional(tenantId, input.professionalPublicId),
-    ]);
-    const unitId = unit?.id ?? null;
-    // Fuso da unidade filtrada, senao o do estabelecimento: o dia civil e o do negocio.
-    const timezone = resolveTimezone(unit?.timezone ?? (await this.tenantTimezone(tenantId)));
+    const context = await runStage('context', async () => {
+      const [unit, professional] = await Promise.all([
+        this.resolveUnit(tenantId, input.unitPublicId),
+        this.resolveProfessional(tenantId, input.professionalPublicId),
+      ]);
+      // Fuso da unidade filtrada, senao o do estabelecimento: o dia civil e o do negocio.
+      const zone = resolveTimezone(unit?.timezone ?? (await this.tenantTimezone(tenantId)));
+      return { unitId: unit?.id ?? null, professionalId: professional, timezone: zone };
+    });
+    const { unitId, professionalId, timezone } = context;
 
     // `toDate` e inclusivo para o usuario; internamente o fim e exclusivo.
-    const exclusiveEnd = addDaysToDay(input.toDate, 1);
-    const days = daysBetweenDays(input.fromDate, exclusiveEnd);
-    const previousFromDate = addDaysToDay(input.fromDate, -days);
-    const from = zonedDayStart(input.fromDate, timezone);
-    const to = zonedDayStart(exclusiveEnd, timezone);
-    const previousFrom = zonedDayStart(previousFromDate, timezone);
+    const period = runStageSync('period', () => {
+      const exclusiveEnd = addDaysToDay(input.toDate, 1);
+      const total = daysBetweenDays(input.fromDate, exclusiveEnd);
+      const previousStart = addDaysToDay(input.fromDate, -total);
+      return {
+        days: total,
+        previousFromDate: previousStart,
+        from: zonedDayStart(input.fromDate, timezone),
+        to: zonedDayStart(exclusiveEnd, timezone),
+        previousFrom: zonedDayStart(previousStart, timezone),
+      };
+    });
+    const { days, previousFromDate, from, to, previousFrom } = period;
     const previousTo = from;
     const appointmentScope: Prisma.AppointmentWhereInput = {
       ...(unitId === null ? {} : { unitId }),
@@ -76,71 +140,79 @@ export class FinanceOverviewService {
     const [current, previous, methodsAndActivity, receivables, commissions, cash] =
       await Promise.all([
         this.periodTotals(tenantId, from, to, appointmentScope),
-        this.periodTotals(tenantId, previousFrom, previousTo, appointmentScope),
+        runStage('previousPeriod', () =>
+          this.periodTotals(tenantId, previousFrom, previousTo, appointmentScope, true),
+        ),
         this.paymentsBreakdown(tenantId, from, to, appointmentScope),
-        this.receivables(tenantId, input),
+        runStage('receivables', () => this.receivables(tenantId, input)),
         scope.includeCommissions
-          ? this.commissions(tenantId, from, to, appointmentScope)
+          ? runStage('commissions', () => this.commissions(tenantId, from, to, appointmentScope))
           : Promise.resolve(null),
-        scope.includeCash ? this.cash(tenantId, from, to, unitId) : Promise.resolve(null),
+        scope.includeCash
+          ? runStage('cash', () => this.cash(tenantId, from, to, unitId))
+          : Promise.resolve(null),
       ]);
 
     const useMonths = days > 62;
-    const series = this.buildSeries(current, useMonths, timezone);
-    const professionals = await this.professionals(
-      tenantId,
-      current,
-      methodsAndActivity.receivedByProfessional,
-      commissions?.byProfessional ?? null,
+    const series = runStageSync('series', () => this.buildSeries(current, useMonths, timezone));
+    const professionals = await runStage('professionals', () =>
+      this.professionals(
+        tenantId,
+        current,
+        methodsAndActivity.receivedByProfessional,
+        commissions?.byProfessional ?? null,
+      ),
     );
 
-    return FinanceOverviewResponseSchema.parse({
-      timezone,
-      period: {
-        fromDate: input.fromDate,
-        toDate: input.toDate,
-        from: from.toISOString(),
-        to: to.toISOString(),
-      },
-      previousPeriod: {
-        fromDate: previousFromDate,
-        toDate: addDaysToDay(input.fromDate, -1),
-        from: previousFrom.toISOString(),
-        to: previousTo.toISOString(),
-      },
-      totals: {
-        billedCents: current.billedCents.toString(),
-        receivedCents: current.receivedCents.toString(),
-        completedAppointments: current.completed.length,
-        ticketAverageCents: ticket(current.billedCents, current.completed.length).toString(),
-      },
-      previousTotals:
-        previous.completed.length === 0 && previous.receivedCents === 0n
-          ? null
-          : {
-              billedCents: previous.billedCents.toString(),
-              receivedCents: previous.receivedCents.toString(),
-              completedAppointments: previous.completed.length,
-              ticketAverageCents: ticket(
-                previous.billedCents,
-                previous.completed.length,
-              ).toString(),
-            },
-      series,
-      paymentMethods: methodsAndActivity.methods,
-      professionals,
-      receivables,
-      commissions:
-        commissions === null
-          ? null
-          : {
-              generatedCents: commissions.generatedCents.toString(),
-              generatedCount: commissions.generatedCount,
-              canceledCents: commissions.canceledCents.toString(),
-            },
-      cash,
-      recentActivity: methodsAndActivity.activity,
-    });
+    return runStageSync('response', () =>
+      FinanceOverviewResponseSchema.parse({
+        timezone,
+        period: {
+          fromDate: input.fromDate,
+          toDate: input.toDate,
+          from: from.toISOString(),
+          to: to.toISOString(),
+        },
+        previousPeriod: {
+          fromDate: previousFromDate,
+          toDate: addDaysToDay(input.fromDate, -1),
+          from: previousFrom.toISOString(),
+          to: previousTo.toISOString(),
+        },
+        totals: {
+          billedCents: current.billedCents.toString(),
+          receivedCents: current.receivedCents.toString(),
+          completedAppointments: current.completed.length,
+          ticketAverageCents: ticket(current.billedCents, current.completed.length).toString(),
+        },
+        previousTotals:
+          previous.completed.length === 0 && previous.receivedCents === 0n
+            ? null
+            : {
+                billedCents: previous.billedCents.toString(),
+                receivedCents: previous.receivedCents.toString(),
+                completedAppointments: previous.completed.length,
+                ticketAverageCents: ticket(
+                  previous.billedCents,
+                  previous.completed.length,
+                ).toString(),
+              },
+        series,
+        paymentMethods: methodsAndActivity.methods,
+        professionals,
+        receivables,
+        commissions:
+          commissions === null
+            ? null
+            : {
+                generatedCents: commissions.generatedCents.toString(),
+                generatedCount: commissions.generatedCount,
+                canceledCents: commissions.canceledCents.toString(),
+              },
+        cash,
+        recentActivity: methodsAndActivity.activity,
+      }),
+    );
   }
 
   private async resolveUnit(tenantId: bigint, publicId: string | undefined) {
@@ -178,23 +250,31 @@ export class FinanceOverviewService {
     from: Date,
     to: Date,
     scope: Prisma.AppointmentWhereInput,
+    /** O periodo anterior ja e envolvido por um estagio proprio. */
+    inner = false,
   ) {
-    const completed = await this.client.appointment.findMany({
-      where: { tenantId, status: 'COMPLETED', startsAt: { gte: from, lt: to }, ...scope },
-      select: { id: true, startsAt: true, priceCents: true, professionalId: true },
-    });
+    const wrap = async <T>(stage: FinanceOverviewStage, run: () => Promise<T>) =>
+      inner ? run() : runStage(stage, run);
+    const completed = await wrap('billedAppointments', () =>
+      this.client.appointment.findMany({
+        where: { tenantId, status: 'COMPLETED', startsAt: { gte: from, lt: to }, ...scope },
+        select: { id: true, startsAt: true, priceCents: true, professionalId: true },
+      }),
+    );
     const ids = completed.map((item) => item.id);
     const [discounts, payments] = await Promise.all([
-      discountsByAppointment(this.client, tenantId, ids),
-      this.client.payment.findMany({
-        where: {
-          tenantId,
-          status: 'PAID',
-          createdAt: { gte: from, lt: to },
-          appointment: scope,
-        },
-        select: { amountCents: true, createdAt: true },
-      }),
+      wrap('billedDiscounts', () => discountsByAppointment(this.client, tenantId, ids)),
+      wrap('receivedPayments', () =>
+        this.client.payment.findMany({
+          where: {
+            tenantId,
+            status: 'PAID',
+            createdAt: { gte: from, lt: to },
+            appointment: scope,
+          },
+          select: { amountCents: true, createdAt: true },
+        }),
+      ),
     ]);
 
     const priced = completed.map((appointment) => ({
@@ -218,49 +298,58 @@ export class FinanceOverviewService {
     scope: Prisma.AppointmentWhereInput,
   ) {
     const [paid, canceled, movements] = await Promise.all([
-      this.client.payment.findMany({
-        where: { tenantId, status: 'PAID', createdAt: { gte: from, lt: to }, appointment: scope },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          amountCents: true,
-          kind: true,
-          createdAt: true,
-          paymentMethod: { select: { publicId: true, name: true } },
-          appointment: {
-            select: {
-              publicId: true,
-              professionalId: true,
-              customer: { select: { name: true } },
-              service: { select: { name: true } },
+      runStage('paymentMethods', () =>
+        this.client.payment.findMany({
+          where: { tenantId, status: 'PAID', createdAt: { gte: from, lt: to }, appointment: scope },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            amountCents: true,
+            kind: true,
+            createdAt: true,
+            paymentMethod: { select: { publicId: true, name: true } },
+            appointment: {
+              select: {
+                publicId: true,
+                professionalId: true,
+                customer: { select: { name: true } },
+                service: { select: { name: true } },
+              },
             },
           },
-        },
-      }),
-      this.client.payment.findMany({
-        where: {
-          tenantId,
-          status: 'CANCELED',
-          canceledAt: { gte: from, lt: to },
-          appointment: scope,
-        },
-        orderBy: { canceledAt: 'desc' },
-        take: 5,
-        select: {
-          amountCents: true,
-          canceledAt: true,
-          canceledReason: true,
-          appointment: { select: { publicId: true, customer: { select: { name: true } } } },
-        },
-      }),
-      this.client.cashMovement.findMany({
-        where: { tenantId, type: 'MANUAL', createdAt: { gte: from, lt: to } },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-        select: { direction: true, amountCents: true, createdAt: true, description: true },
-      }),
+        }),
+      ),
+      runStage('canceledPayments', () =>
+        this.client.payment.findMany({
+          where: {
+            tenantId,
+            status: 'CANCELED',
+            canceledAt: { gte: from, lt: to },
+            appointment: scope,
+          },
+          orderBy: { canceledAt: 'desc' },
+          take: 5,
+          select: {
+            amountCents: true,
+            canceledAt: true,
+            canceledReason: true,
+            appointment: { select: { publicId: true, customer: { select: { name: true } } } },
+          },
+        }),
+      ),
+      runStage('cashMovementsActivity', () =>
+        this.client.cashMovement.findMany({
+          where: { tenantId, type: 'MANUAL', createdAt: { gte: from, lt: to } },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          select: { direction: true, amountCents: true, createdAt: true, description: true },
+        }),
+      ),
     ]);
 
-    const methods = new Map<string, { publicId: string; name: string; total: bigint; count: number }>();
+    const methods = new Map<
+      string,
+      { publicId: string; name: string; total: bigint; count: number }
+    >();
     const receivedByProfessional = new Map<bigint, bigint>();
     for (const payment of paid) {
       const current = methods.get(payment.paymentMethod.publicId);
@@ -335,14 +424,16 @@ export class FinanceOverviewService {
     const openCharges =
       publicIds.length === 0
         ? []
-        : await this.client.paymentGatewayCharge.findMany({
-            where: {
-              tenantId,
-              appointment: { publicId: { in: publicIds } },
-              status: { in: [...AWAITING_GATEWAY_STATUSES, ...FAILED_GATEWAY_STATUSES] },
-            },
-            select: { status: true, appointment: { select: { publicId: true } } },
-          });
+        : await runStage('gatewayCharges', () =>
+            this.client.paymentGatewayCharge.findMany({
+              where: {
+                tenantId,
+                appointment: { publicId: { in: publicIds } },
+                status: { in: [...AWAITING_GATEWAY_STATUSES, ...FAILED_GATEWAY_STATUSES] },
+              },
+              select: { status: true, appointment: { select: { publicId: true } } },
+            }),
+          );
     const awaiting = new Set(
       openCharges
         .filter((charge) =>

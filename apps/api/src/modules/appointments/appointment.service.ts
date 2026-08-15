@@ -120,9 +120,12 @@ export class AppointmentService {
       servicePublicId?: string | undefined;
       unitPublicId?: string | undefined;
       search?: string | undefined;
+      page?: number | undefined;
+      limit?: number | undefined;
+      direction?: 'asc' | 'desc' | undefined;
     },
   ) {
-    const items = await this.repo.list(t, {
+    const where: Prisma.AppointmentWhereInput = {
       startsAt: { gte: new Date(q.from), lte: new Date(q.to) },
       ...(q.status === undefined ? {} : { status: this.appointmentStatus(q.status) }),
       ...(q.professionalPublicId === undefined
@@ -139,8 +142,24 @@ export class AppointmentService {
               { customer: { name: { contains: q.search } } },
             ],
           }),
+    };
+    const orderBy = { startsAt: q.direction ?? 'asc' } as const;
+    // Sem `limit` a resposta continua sendo o período inteiro, como os demais consumidores esperam.
+    if (q.limit === undefined) {
+      const items = await this.repo.list(t, where, orderBy);
+      return AppointmentListResponseSchema.parse({ items: items.map(pub) });
+    }
+    const page = q.page ?? 1;
+    const [items, total] = await Promise.all([
+      this.repo.list(t, where, orderBy, { skip: (page - 1) * q.limit, take: q.limit }),
+      this.repo.count(t, where),
+    ]);
+    return AppointmentListResponseSchema.parse({
+      items: items.map(pub),
+      total,
+      page,
+      limit: q.limit,
     });
-    return AppointmentListResponseSchema.parse({ items: items.map(pub) });
   }
   async listUpcomingForCustomer(t: bigint, customerId: bigint) {
     const items = await this.repo.list(

@@ -84,6 +84,10 @@ export const AppointmentQuerySchema = z
     servicePublicId: z.uuid().optional(),
     unitPublicId: z.uuid().optional(),
     search: z.string().trim().min(1).max(160).optional(),
+    /* Paginação opcional: sem `limit` a listagem devolve o período inteiro, como antes. */
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+    direction: z.enum(['asc', 'desc']).optional(),
   })
   .strict();
 export const AppointmentPublicSchema = z.object({
@@ -117,7 +121,13 @@ export const AppointmentPublicSchema = z.object({
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
-export const AppointmentListResponseSchema = z.object({ items: z.array(AppointmentPublicSchema) });
+export const AppointmentListResponseSchema = z.object({
+  items: z.array(AppointmentPublicSchema),
+  /* Presentes apenas quando a consulta é paginada. */
+  total: z.number().int().nonnegative().optional(),
+  page: z.number().int().min(1).optional(),
+  limit: z.number().int().min(1).optional(),
+});
 export const AppointmentStatusResponseSchema = z.object({ success: z.literal(true) });
 export type CreateAppointmentRequest = z.infer<typeof CreateAppointmentRequestSchema>;
 export type UpdateAppointmentRequest = z.infer<typeof UpdateAppointmentRequestSchema>;

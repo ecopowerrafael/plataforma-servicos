@@ -38,12 +38,17 @@ export class AppointmentRepository {
     t: bigint,
     where: Prisma.AppointmentWhereInput,
     orderBy: Prisma.AppointmentOrderByWithRelationInput = { startsAt: 'asc' },
+    pagination?: { skip: number; take: number },
   ) {
     return this.client.appointment.findMany({
       where: { tenantId: t, ...where },
       orderBy,
       include,
+      ...(pagination ?? {}),
     });
+  }
+  count(t: bigint, where: Prisma.AppointmentWhereInput) {
+    return this.client.appointment.count({ where: { tenantId: t, ...where } });
   }
   conflict(t: bigint, p: bigint, start: Date, end: Date, except?: bigint) {
     return this.client.appointment.findFirst({

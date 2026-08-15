@@ -12,6 +12,7 @@ import './brand-studio.css';
 import './customer-account.css';
 import './my-agenda.css';
 import './agenda-overview.css';
+import './appointments-console.css';
 
 const rootElement = document.getElementById('root');
 

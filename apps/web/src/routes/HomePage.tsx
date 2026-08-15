@@ -1551,6 +1551,9 @@ export function HomePage() {
                 canCheckIn={canCheckIn}
                 canReadPayments={canReadPayments}
                 canManagePayments={canManagePayments}
+                canCreate={canCreateAppointments}
+                canManageStatus={canManageAppointmentStatus}
+                canReadCustomers={canReadCustomers}
               />
             )}
             {isRoute('/app/agenda/lista-espera') &&

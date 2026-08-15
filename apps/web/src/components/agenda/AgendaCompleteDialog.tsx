@@ -22,13 +22,17 @@ export function AgendaCompleteDialog({
   canManagePayments,
   onClose,
   onCompleted,
+  mode = 'complete',
 }: {
   tenantPublicId: string;
   target: AgendaCompleteTarget;
   canManagePayments: boolean;
   onClose: () => void;
   onCompleted: () => void;
+  /** 'payment' registra apenas o recebimento, sem encerrar o atendimento. */
+  mode?: 'complete' | 'payment';
 }) {
+  const completing = mode === 'complete';
   const [receiveNow, setReceiveNow] = useState(canManagePayments);
   const [paymentMethodPublicId, setPaymentMethodPublicId] = useState('');
   const [amount, setAmount] = useState((target.balanceCents / 100).toFixed(2));
@@ -77,7 +81,7 @@ export function AgendaCompleteDialog({
   return (
     <div className="dialog-backdrop" role="presentation">
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="agenda-complete">
-        <h3 id="agenda-complete">Concluir atendimento</h3>
+        <h3 id="agenda-complete">{completing ? 'Concluir atendimento' : 'Registrar pagamento'}</h3>
         <p>
           {target.customerName} · saldo em aberto de {formatMoneyCents(target.balanceCents)}.
         </p>
@@ -95,17 +99,19 @@ export function AgendaCompleteDialog({
               />
               <span>Recebido agora</span>
             </label>
-            <label className="agenda-radio">
-              <input
-                type="radio"
-                name="agenda-complete-payment"
-                checked={!receiveNow}
-                onChange={() => {
-                  setReceiveNow(false);
-                }}
-              />
-              <span>Permanecer pendente</span>
-            </label>
+            {completing && (
+              <label className="agenda-radio">
+                <input
+                  type="radio"
+                  name="agenda-complete-payment"
+                  checked={!receiveNow}
+                  onChange={() => {
+                    setReceiveNow(false);
+                  }}
+                />
+                <span>Permanecer pendente</span>
+              </label>
+            )}
             {receiveNow && (
               <>
                 <label>
@@ -155,7 +161,7 @@ export function AgendaCompleteDialog({
               void confirm();
             }}
           >
-            Concluir atendimento
+            {completing ? 'Concluir atendimento' : 'Registrar pagamento'}
           </button>
         </div>
       </div>

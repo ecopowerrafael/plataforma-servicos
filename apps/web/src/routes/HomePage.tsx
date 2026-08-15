@@ -1530,6 +1530,12 @@ export function HomePage() {
               <MyAgendaModule
                 tenantPublicId={selectedTenant}
                 canViewCalendar={canReadAppointments}
+                canManageStatus={canManageAppointmentStatus}
+                canCheckIn={canCheckIn}
+                canCreate={canCreateAppointments}
+                canReadPayments={canReadPayments}
+                canManagePayments={canManagePayments}
+                canReadCustomers={canReadCustomers}
               />
             )}
             {isRoute('/app/agenda/disponibilidade') && canViewOwnAgenda && (

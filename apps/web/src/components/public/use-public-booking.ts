@@ -361,13 +361,33 @@ export function usePublicBooking(slug: string, site: Site) {
     setProfessionalPublicId('');
     setSelectedSlot(null);
   };
+  const selectServiceAndContinue = (id: string) => {
+    selectService(id);
+    setValidation(null);
+    setStep('professional');
+  };
   const selectProfessional = (id: string) => {
     setProfessionalPublicId(id);
     setSelectedSlot(null);
   };
+  const selectProfessionalAndContinue = (id: string) => {
+    selectProfessional(id);
+    setValidation(null);
+    setStep('date');
+  };
   const selectDate = (value: string) => {
     setDate(value);
     setSelectedSlot(null);
+  };
+  const selectDateAndContinue = (value: string) => {
+    selectDate(value);
+    setValidation(null);
+    setStep('time');
+  };
+  const selectSlotAndContinue = (value: string) => {
+    setSelectedSlot(value);
+    setValidation(null);
+    setStep(profileComplete ? (needsPaymentChoice ? 'payment' : 'review') : 'customer');
   };
   const changeCustomer = (field: 'name' | 'phone' | 'email' | 'notes', value: string) => {
     if (field === 'name') setCustomerName(value);
@@ -387,14 +407,18 @@ export function usePublicBooking(slug: string, site: Site) {
     setUnitPublicId,
     servicePublicId,
     selectService,
+    selectServiceAndContinue,
     professionalPublicId,
     selectProfessional,
+    selectProfessionalAndContinue,
     professionals,
     selectedProfessional,
     date,
     selectDate,
+    selectDateAndContinue,
     selectedSlot,
     setSelectedSlot,
+    selectSlotAndContinue,
     availability,
     availableSlots,
     customerName: effectiveName,

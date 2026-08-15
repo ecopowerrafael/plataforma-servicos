@@ -1,5 +1,5 @@
 import { CUSTOMER_PASSWORD_RULES } from '@plataforma/shared';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { environment } from '../../../config/environment.js';
 import { AppointmentPaymentPanel } from '../../PublicBookingFlow.js';
@@ -41,15 +41,15 @@ export function PremiumBooking({
     continueFlow,
     validation,
     servicePublicId,
-    selectService,
+    selectServiceAndContinue,
     professionalPublicId,
-    selectProfessional,
+    selectProfessionalAndContinue,
     professionals,
     selectedProfessional,
     date,
-    selectDate,
+    selectDateAndContinue,
     selectedSlot,
-    setSelectedSlot,
+    selectSlotAndContinue,
     availability,
     availableSlots,
     customerName,
@@ -72,6 +72,11 @@ export function PremiumBooking({
     unitPublicId,
     setUnitPublicId,
   } = booking;
+  const stepBodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    stepBodyRef.current?.focus({ preventScroll: true });
+    stepBodyRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [step]);
 
   const days = useMemo(
     () =>
@@ -227,7 +232,7 @@ export function PremiumBooking({
         ))}
       </div>
 
-      <div className="premium-step-body">
+      <div ref={stepBodyRef} className="premium-step-body" tabIndex={-1}>
         {step === 'service' ? (
           <>
             {site.units.length > 1 ? (
@@ -255,7 +260,7 @@ export function PremiumBooking({
                   type="button"
                   aria-pressed={servicePublicId === item.publicId}
                   onClick={() => {
-                    selectService(item.publicId);
+                    selectServiceAndContinue(item.publicId);
                   }}
                 >
                   <ServiceVisual
@@ -299,7 +304,7 @@ export function PremiumBooking({
                   type="button"
                   aria-pressed={professionalPublicId === item.publicId}
                   onClick={() => {
-                    selectProfessional(item.publicId);
+                    selectProfessionalAndContinue(item.publicId);
                   }}
                 >
                   <span className="premium-pick-avatar">
@@ -341,7 +346,7 @@ export function PremiumBooking({
                     type="button"
                     aria-pressed={date === value}
                     onClick={() => {
-                      selectDate(value);
+                      selectDateAndContinue(value);
                     }}
                   >
                     <small>{weekday(day)}</small>
@@ -398,7 +403,7 @@ export function PremiumBooking({
                       aria-pressed={date === isoFromDate(day)}
                       disabled={isoFromDate(day) < todayIso}
                       onClick={() => {
-                        selectDate(isoFromDate(day));
+                        selectDateAndContinue(isoFromDate(day));
                       }}
                     >
                       {day.getDate()}
@@ -449,7 +454,7 @@ export function PremiumBooking({
                         type="button"
                         aria-pressed={selectedSlot === slot.startsAt}
                         onClick={() => {
-                          setSelectedSlot(slot.startsAt);
+                          selectSlotAndContinue(slot.startsAt);
                         }}
                       >
                         {new Date(slot.startsAt).toLocaleTimeString('pt-BR', {
@@ -654,7 +659,7 @@ export function PremiumBooking({
         ) : null}
       </div>
 
-      <div className="premium-step-cta">
+      {(['service', 'professional', 'date', 'time'] as const).includes(step) ? null : <div className="premium-step-cta">
         <button
           className="premium-primary"
           type="button"
@@ -667,7 +672,7 @@ export function PremiumBooking({
               ? 'Confirmar agendamento'
               : 'Avançar'}
         </button>
-      </div>
+      </div>}
     </section>
   );
 }

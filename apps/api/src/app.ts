@@ -523,6 +523,9 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.financialReports !== undefined)
     await app.register(financialReportRoutes, {
       service: options.database.financialReports,
+      ...(options.database.financeOverview === undefined
+        ? {}
+        : { overview: options.database.financeOverview }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

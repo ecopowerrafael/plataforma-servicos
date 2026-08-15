@@ -53,6 +53,7 @@ import { CashRegisterService } from '../modules/payments/cash-register.service.j
 import { CouponService } from '../modules/payments/coupon.service.js';
 import { DelinquencyService } from '../modules/payments/delinquency.service.js';
 import { FinancialClosingService } from '../modules/payments/financial-closing.service.js';
+import { FinanceOverviewService } from '../modules/payments/finance-overview.service.js';
 import { FinancialReportService } from '../modules/payments/financial-report.service.js';
 import { CredentialsCipher } from '../modules/payments/gateway/credentials-cipher.js';
 import { FetchHttpClient } from '../modules/payments/gateway/mercadopago/http-client.js';
@@ -168,6 +169,7 @@ export interface DatabaseConnection {
   readonly financialClosings?: FinancialClosingService;
   readonly delinquency?: DelinquencyService;
   readonly financialReports?: FinancialReportService;
+  readonly financeOverview?: FinanceOverviewService;
   readonly paymentGateway?: PaymentGatewayService;
   readonly tenantPaymentOptions?: TenantPaymentOptionsService;
   readonly integrations?: IntegrationService;
@@ -453,6 +455,7 @@ export function createDatabaseConnection(
     financialClosings: new FinancialClosingService(client),
     delinquency: delinquency,
     financialReports: new FinancialReportService(client, delinquency),
+    financeOverview: new FinanceOverviewService(client, delinquency),
     paymentGateway: paymentGateway,
     tenantPaymentOptions: tenantPaymentOptions,
     integrations: new IntegrationService(

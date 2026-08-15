@@ -78,6 +78,7 @@ export const router = createBrowserRouter([
   { path: '/app/financeiro', element: <HomePage /> },
   { path: '/app/financeiro/caixa', element: <HomePage /> },
   { path: '/app/financeiro/pagamentos', element: <HomePage /> },
+  { path: '/app/financeiro/pendencias', element: <HomePage /> },
   { path: '/app/financeiro/fechamentos', element: <HomePage /> },
   { path: '/app/financeiro/relatorios', element: <HomePage /> },
   // A configuração de gateway foi unificada em /app/financeiro/opcoes.

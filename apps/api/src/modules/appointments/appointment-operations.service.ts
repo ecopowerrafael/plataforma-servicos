@@ -7,6 +7,11 @@ import {
 
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import {
+  discountsByAppointment,
+  netPriceCents,
+  paidByAppointment,
+} from '../payments/appointment-balance.js';
 
 type AppointmentStatus =
   'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW';
@@ -174,62 +179,29 @@ export class AppointmentOperationsService {
     }[],
   ) {
     const ids = appointments.map((appointment) => appointment.id);
-    const [paidGrouped, couponGrouped, loyaltyEntries, openCharges] =
+    // Preço líquido e total pago vêm da fonte única de saldo do agendamento.
+    const [paidMap, discountMap, openCharges] = await Promise.all([
+      paidByAppointment(this.client, tenantId, ids),
+      discountsByAppointment(this.client, tenantId, ids),
       ids.length === 0
-        ? [[], [], [], []]
-        : await Promise.all([
-            this.client.payment.groupBy({
-              by: ['appointmentId'],
-              where: { tenantId, appointmentId: { in: ids }, status: 'PAID' },
-              _sum: { amountCents: true },
-            }),
-            this.client.couponRedemption.groupBy({
-              by: ['appointmentId'],
-              where: { tenantId, appointmentId: { in: ids }, canceledAt: null },
-              _sum: { discountAmountCents: true },
-            }),
-            this.client.loyaltyLedgerEntry.findMany({
-              where: {
-                tenantId,
-                sourceAppointmentId: { in: ids },
-                reason: 'REDEEMED',
-                closesEntry: null,
-              },
-              select: { sourceAppointmentId: true, discountCentsApplied: true },
-            }),
-            this.client.paymentGatewayCharge.findMany({
-              where: {
-                tenantId,
-                appointmentId: { in: ids },
-                status: { in: [...OPEN_GATEWAY_STATUSES] },
-              },
-              select: { appointmentId: true },
-            }),
-          ]);
-
-    const paidByAppointment = new Map<bigint, bigint>();
-    for (const entry of paidGrouped)
-      paidByAppointment.set(entry.appointmentId, entry._sum.amountCents ?? 0n);
-    const discountByAppointment = new Map<bigint, bigint>();
-    for (const entry of couponGrouped)
-      discountByAppointment.set(entry.appointmentId, entry._sum.discountAmountCents ?? 0n);
-    for (const entry of loyaltyEntries) {
-      if (entry.sourceAppointmentId === null) continue;
-      discountByAppointment.set(
-        entry.sourceAppointmentId,
-        sumMap(discountByAppointment, entry.sourceAppointmentId) +
-          (entry.discountCentsApplied ?? 0n),
-      );
-    }
+        ? Promise.resolve([] as { appointmentId: bigint }[])
+        : this.client.paymentGatewayCharge.findMany({
+            where: {
+              tenantId,
+              appointmentId: { in: ids },
+              status: { in: [...OPEN_GATEWAY_STATUSES] },
+            },
+            select: { appointmentId: true },
+          }),
+    ]);
     const withOpenCharge = new Set(openCharges.map((charge) => charge.appointmentId));
 
     let expectedCents = 0n;
     let receivedCents = 0n;
     const payments = appointments.map((appointment) => {
-      const discount = sumMap(discountByAppointment, appointment.id);
-      const netPrice =
-        appointment.priceCents > discount ? appointment.priceCents - discount : 0n;
-      const received = sumMap(paidByAppointment, appointment.id);
+      const discount = sumMap(discountMap, appointment.id);
+      const netPrice = netPriceCents(appointment.priceCents, discount);
+      const received = sumMap(paidMap, appointment.id);
       const billable = !NON_BILLABLE_STATUSES.has(appointment.status);
       if (billable) expectedCents += netPrice;
       receivedCents += received;

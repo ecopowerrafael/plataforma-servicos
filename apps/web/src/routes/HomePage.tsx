@@ -93,6 +93,10 @@ const CustomerRecoveryModule = load(
   import('../components/tenants/CustomerRecoveryModule.js'),
   'CustomerRecoveryModule',
 );
+const FinanceOverviewModule = load(
+  import('../components/tenants/FinanceOverviewModule.js'),
+  'FinanceOverviewModule',
+);
 const DelinquencyModule = load(
   import('../components/tenants/DelinquencyModule.js'),
   'DelinquencyModule',
@@ -632,6 +636,7 @@ export function HomePage() {
       items: [
         { label: 'Visão geral', to: '/app/financeiro', visible: canReadPayments },
         { label: 'Caixa', to: '/app/financeiro/caixa', visible: canReadCash },
+        { label: 'Pendências', to: '/app/financeiro/pendencias', visible: canReadPayments },
         {
           label: 'Formas de pagamento',
           to: '/app/financeiro/pagamentos',
@@ -1480,12 +1485,19 @@ export function HomePage() {
               />
             )}
             {isRoute('/app/financeiro') && canReadPayments && (
-              <DelinquencyModule
+              <FinanceOverviewModule
                 tenantPublicId={selectedTenant}
-                showSummary={
+                canReadCash={canReadCash}
+                canReadCommissions={canReadCommissions}
+                canManagePayments={canManagePayments}
+                canReadCustomers={canReadCustomers}
+                canReadFinancialReports={
                   canReadFinancialReports && planFeatureEnabled('advanced_reports.enabled')
                 }
               />
+            )}
+            {isRoute('/app/financeiro/pendencias') && canReadPayments && (
+              <DelinquencyModule tenantPublicId={selectedTenant} showSummary={false} />
             )}
             {isRoute('/app/financeiro/relatorios') &&
               canReadFinancialReports &&

@@ -6,6 +6,7 @@ import {
   type CreatePaymentRequest,
 } from '@plataforma/shared';
 
+import { balanceCents as balanceOf, netPriceCents } from './appointment-balance.js';
 import { type CashRegisterService } from './cash-register.service.js';
 import { type CouponService } from './coupon.service.js';
 import { type LoyaltyService } from './loyalty.service.js';
@@ -109,8 +110,7 @@ export class PaymentService {
     });
     const totalPaid = paid._sum.amountCents ?? 0n;
     const totalDiscount = await this.totalDiscountForAppointment(tenantId, appointment.id);
-    const priceAfterDiscount =
-      appointment.priceCents > totalDiscount ? appointment.priceCents - totalDiscount : 0n;
+    const priceAfterDiscount = netPriceCents(appointment.priceCents, totalDiscount);
     if (totalPaid + amountCents > priceAfterDiscount)
       throw new AppError({
         code: 'PAYMENT_EXCEEDS_APPOINTMENT_PRICE',
@@ -247,12 +247,7 @@ export class PaymentService {
       this.loyalty?.discountForAppointment(tenantId, appointment.id) ?? Promise.resolve(0n),
     ]);
     const totalDiscountCents = couponDiscountCents + loyaltyDiscountCents;
-    const priceAfterDiscount =
-      appointment.priceCents > totalDiscountCents
-        ? appointment.priceCents - totalDiscountCents
-        : 0n;
-    const balanceCents =
-      priceAfterDiscount > totalPaidCents ? priceAfterDiscount - totalPaidCents : 0n;
+    const balanceCents = balanceOf(appointment.priceCents, totalDiscountCents, totalPaidCents);
 
     return AppointmentPaymentsResponseSchema.parse({
       items: items.map((item) => pub(item, appointmentPublicId)),

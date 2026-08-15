@@ -44,6 +44,7 @@ export * from './commission.js';
 export * from './financial-closing.js';
 export * from './delinquency.js';
 export * from './financial-report.js';
+export * from './finance-overview.js';
 export * from './payment-gateway.js';
 export * from './tenant-payment-options.js';
 export * from './automation.js';

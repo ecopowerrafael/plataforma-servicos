@@ -1,5 +1,6 @@
 import { DelinquencyResponseSchema, type DelinquencyQuery } from '@plataforma/shared';
 
+import { balanceCents, discountsByAppointment } from './appointment-balance.js';
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 
 export class DelinquencyService {
@@ -30,6 +31,7 @@ export class DelinquencyService {
       where,
       orderBy: { startsAt: 'desc' },
       select: {
+        id: true,
         publicId: true,
         protocol: true,
         status: true,
@@ -42,11 +44,20 @@ export class DelinquencyService {
       },
     });
 
+    // O saldo devido usa o valor líquido: descontos aplicados reduzem o que o cliente deve.
+    const discounts = await discountsByAppointment(
+      this.client,
+      tenantId,
+      appointments.map((appointment) => appointment.id),
+    );
     const withBalance = appointments.map((appointment) => {
       const paidCents = appointment.payments.reduce((total, item) => total + item.amountCents, 0n);
-      const balanceCents =
-        appointment.priceCents > paidCents ? appointment.priceCents - paidCents : 0n;
-      return { appointment, paidCents, balanceCents };
+      const discountCents = discounts.get(appointment.id) ?? 0n;
+      return {
+        appointment,
+        paidCents,
+        balanceCents: balanceCents(appointment.priceCents, discountCents, paidCents),
+      };
     });
 
     let totalBalanceCents = 0n;

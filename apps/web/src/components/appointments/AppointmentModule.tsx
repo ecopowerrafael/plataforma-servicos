@@ -90,7 +90,16 @@ export function AppointmentModule({
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'' | AppointmentStatus>('');
-  const [paymentFilter, setPaymentFilter] = useState<'' | AppointmentPaymentState>('');
+  // Deep link do financeiro: /app/agenda/agendamentos?pagamento=ON_SITE
+  const presetPayment = searchParams.get('pagamento');
+  const [paymentFilter, setPaymentFilter] = useState<'' | AppointmentPaymentState>(
+    presetPayment === 'PAID' ||
+      presetPayment === 'PARTIAL' ||
+      presetPayment === 'ONLINE_PENDING' ||
+      presetPayment === 'ON_SITE'
+      ? presetPayment
+      : '',
+  );
   const [professional, setProfessional] = useState('');
   const [service, setService] = useState('');
   const [unitPublicId, setUnitPublicId] = useState('');
@@ -99,7 +108,7 @@ export function AppointmentModule({
     const day = localDate(new Date());
     return { from: day, to: day };
   });
-  const [moreFilters, setMoreFilters] = useState(false);
+  const [moreFilters, setMoreFilters] = useState(presetPayment !== null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<string | null>(presetAppointment);

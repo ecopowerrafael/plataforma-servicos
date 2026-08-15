@@ -60,23 +60,52 @@ export class CustomerRecoveryService {
     return item;
   }
 
-  public async eligible(tenantId: bigint, rule: RecoveryRule, now = new Date()) {
-    const configured = (await this.list(tenantId)).find((item) => item.rule === rule);
-    if (configured === undefined) return [];
+  /**
+   * Elegíveis de uma régua ou de todas, resolvidos em uma única leitura de clientes.
+   * A regra de elegibilidade continua sendo exatamente a mesma do envio (`match`).
+   */
+  public async eligible(tenantId: bigint, rule?: RecoveryRule, now = new Date()) {
+    const configured = (await this.list(tenantId)).filter(
+      (item) => rule === undefined || item.rule === rule,
+    );
+    if (configured.length === 0) return { items: [], counts: {} };
     const customers = await this.repository.listCustomers(tenantId);
-    return customers.flatMap((customer) => {
-      const match = this.match(customer, configured, now);
-      return match === null
-        ? []
-        : [
-            {
-              customerPublicId: customer.publicId,
-              name: customer.name,
-              rule,
-              referenceAt: match.referenceAt?.toISOString() ?? null,
-            },
-          ];
-    });
+    const counts: Partial<Record<RecoveryRule, number>> = {};
+    const items = configured.flatMap((current) =>
+      customers.flatMap((customer) => {
+        const match = this.match(customer, current, now);
+        if (match === null) return [];
+        counts[current.rule] = (counts[current.rule] ?? 0) + 1;
+        const last = customer.appointments.find((item) => item.status === 'COMPLETED');
+        const next = [...customer.appointments]
+          .reverse()
+          .find(
+            (item) =>
+              item.startsAt.getTime() >= now.getTime() &&
+              ['PENDING', 'CONFIRMED', 'IN_PROGRESS'].includes(item.status),
+          );
+        return [
+          {
+            customerPublicId: customer.publicId,
+            name: customer.name,
+            rule: current.rule,
+            referenceAt: match.referenceAt?.toISOString() ?? null,
+            phone: customer.phone,
+            daysSinceReference:
+              match.referenceAt === null
+                ? null
+                : Math.max(
+                    Math.floor((now.getTime() - match.referenceAt.getTime()) / 86_400_000),
+                    0,
+                  ),
+            lastServiceName: last?.service.name ?? null,
+            lastProfessionalName: last?.professional.publicName ?? null,
+            nextAppointmentAt: next?.startsAt.toISOString() ?? null,
+          },
+        ];
+      }),
+    );
+    return { items, counts };
   }
 
   public async run(now = new Date(), tenantId?: bigint): Promise<number> {

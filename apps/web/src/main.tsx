@@ -14,6 +14,7 @@ import './my-agenda.css';
 import './agenda-overview.css';
 import './appointments-console.css';
 import './customers-crm.css';
+import './customer-recovery.css';
 
 const rootElement = document.getElementById('root');
 

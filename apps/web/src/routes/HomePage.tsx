@@ -1514,6 +1514,8 @@ export function HomePage() {
                 <CustomerRecoveryModule
                   tenantPublicId={selectedTenant}
                   canManage={canManageAutomations}
+                  canCreateAppointments={canCreateAppointments}
+                  canReadCustomers={canReadCustomers}
                 />
               )}
             {isRoute('/app/equipe/membros') && canReadMembers && (

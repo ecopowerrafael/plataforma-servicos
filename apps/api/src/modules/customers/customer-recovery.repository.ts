@@ -64,12 +64,20 @@ export class CustomerRecoveryRepository {
         id: true,
         publicId: true,
         name: true,
+        phone: true,
         birthDate: true,
         email: true,
         pushSubscriptions: { where: { tenantId, active: true }, select: { id: true }, take: 1 },
         appointments: {
           orderBy: { startsAt: 'desc' },
-          select: { publicId: true, startsAt: true, status: true },
+          // Serviço e profissional vêm no mesmo join: a lista de elegíveis não faz N+1.
+          select: {
+            publicId: true,
+            startsAt: true,
+            status: true,
+            service: { select: { name: true } },
+            professional: { select: { publicName: true } },
+          },
         },
       },
     });
@@ -80,7 +88,10 @@ export class CustomerRecoveryRepository {
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
       take: 100,
-      include: { rule: { select: { rule: true } }, customer: { select: { publicId: true } } },
+      include: {
+        rule: { select: { rule: true } },
+        customer: { select: { publicId: true, name: true } },
+      },
     });
   }
 

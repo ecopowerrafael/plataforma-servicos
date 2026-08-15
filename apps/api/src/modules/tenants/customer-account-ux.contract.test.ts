@@ -18,6 +18,9 @@ const favorites = readWeb('components/CustomerFavorites.tsx');
 const pushNotifications = readWeb('components/CustomerPushNotifications.tsx');
 const accountStyles = readWeb('customer-account.css');
 const agenda = readWeb('components/professionals/MyAgendaModule.tsx');
+const agendaTimeline = readWeb('components/professionals/MyAgendaTimeline.tsx');
+const agendaRules = readWeb('components/professionals/my-agenda.ts');
+const profileScreen = readWeb('components/public/account/CustomerProfileScreen.tsx');
 const status = readWeb('components/appointments/appointment-status.tsx');
 const header = readWeb('components/public/PublicHeader.tsx');
 
@@ -71,7 +74,8 @@ describe('rotas da conta do cliente', () => {
   it('a home usa apenas dados reais já disponíveis', () => {
     expect(accountHome).toContain('customer/appointments/upcoming');
     expect(accountHome).toContain('customer/loyalty');
-    expect(accountHome).toContain('Meus agendamentos');
+    expect(accountHome).toContain("section: 'appointments'");
+    expect(accountHome).toContain("label: 'Agendamentos'");
     expect(accountHome).toContain('Agendar');
     expect(accountHome).toContain('Favoritos');
     expect(accountHome).toContain('Perfil');
@@ -87,7 +91,10 @@ describe('rotas da conta do cliente', () => {
   });
 
   it('mantém o perfil e a aparência white-label baseados nos tokens existentes', () => {
+    // O menu do perfil deixou o shell e passou a viver na própria tela de perfil.
     for (const item of ['Meus dados', 'Pontos de fidelidade', 'Segurança', 'Sair'])
+      expect(profileScreen).toContain(item);
+    for (const item of ['Início', 'Agendamentos', 'Favoritos', 'Perfil'])
       expect(accountLayout).toContain(item);
     for (const token of ['--tenant-primary', '--tenant-navigation', '--tenant-active'])
       expect(accountStyles).toContain(token);
@@ -136,33 +143,52 @@ describe('demais seções da conta', () => {
 });
 
 describe('minha agenda', () => {
-  it('mantém endpoints e transições de status', () => {
+  it('mantém endpoints e transições próprias do profissional', () => {
     expect(agenda).toContain('/tenant/professionals/me');
     expect(agenda).toContain('/tenant/professionals/me/agenda?from=');
-    expect(agenda).toContain('/appointments/${publicId}/notes');
-    expect(agenda).toContain('${status.toLowerCase()}');
-    expect(agenda).toContain("CONFIRMED: ['IN_PROGRESS', 'NO_SHOW']");
-    expect(agenda).toContain("IN_PROGRESS: ['COMPLETED']");
+    expect(agenda).toContain('/tenant/professionals/me/appointments/${publicId}/notes');
+    expect(agenda).toContain('/tenant/professionals/me/appointments/${publicId}/${status}');
+    expect(agenda).toContain("status: 'in_progress' | 'completed' | 'no_show'");
+    // Confirmar e cancelar continuam sendo operação administrativa da agenda.
+    expect(agenda).toContain('/tenant/appointments/${publicId}/${status}');
+    expect(agenda).toContain("status: 'confirmed' | 'canceled'");
+    expect(agenda).toContain('/tenant/professionals/me/availability?from=');
   });
 
-  it('agrupa por dia sem lista crua', () => {
+  it('navega por dia em vez de intervalo, mantendo o atalho Hoje', () => {
+    expect(agenda).toContain('my-agenda-days');
+    expect(agenda).toContain('setDate(addDays(date, -1));');
+    expect(agenda).toContain('setDate(addDays(date, 1));');
+    expect(agenda).toContain('setDate(today());');
+    // O par De/Até saiu da experiência padrão.
+    expect(agenda).not.toContain('setFrom(');
+  });
+
+  it('destaca o próximo atendimento e agrupa os próximos dias sem lista crua', () => {
     expect(agenda).not.toContain('<ul>');
     expect(agenda).not.toContain('<li>');
-    expect(agenda).toContain('reduce<Map<string, Appointment[]>>');
-    expect(agenda).toContain('Hoje — ');
+    expect(agenda).toContain('<MyAgendaNextCard');
+    expect(agenda).toContain('nextAppointment(dayItems)');
+    expect(agendaRules).toContain('export function nextAppointment');
+    expect(agendaRules).toContain('export function freeBlocks');
+    expect(agenda).toContain('longDayLabel(group.key)');
   });
 
-  it('mantém filtros de período e o atalho Hoje', () => {
-    expect(agenda).toContain('agenda-filters');
-    expect(agenda).toMatch(/setFrom\(today\(\)\);[\s\S]*Hoje/u);
-  });
-
-  it('tem detalhes, observações, vazio, carregando e erro', () => {
-    expect(agenda).toContain('Ver detalhes');
-    expect(agenda).toContain('Salvar observações');
-    expect(agenda).toContain('Nenhum atendimento no período.');
+  it('tem timeline, observações, vazio, carregando e erro', () => {
+    expect(agenda).toContain('<MyAgendaTimeline');
+    expect(agenda).toContain('Observações do atendimento');
+    expect(agenda).toContain('Você não possui atendimentos neste dia.');
     expect(agenda).toContain('ListSkeleton');
-    expect(agenda).toContain('Não foi possível carregar a agenda');
+    expect(agenda).toContain('Não foi possível carregar sua agenda.');
+    expect(agenda).toContain('void agenda.refetch();');
+  });
+
+  it('mantém as ações rápidas dependentes de permissão', () => {
+    for (const ability of ['canConfirm', 'canCheckIn', 'canCancel', 'canManagePayments'])
+      expect(agendaTimeline).toContain(`permissions.${ability}`);
+    // WhatsApp segue como link de conversa, exigindo leitura de clientes.
+    expect(agendaTimeline).toContain('permissions.canReadCustomers && appointment.customerPhone');
+    expect(agendaTimeline).toContain('Abrir conversa no WhatsApp');
   });
 });
 
@@ -177,7 +203,7 @@ describe('status compartilhado', () => {
       'NO_SHOW',
     ])
       expect(status).toContain(value);
-    for (const source of [appointments, agenda]) {
+    for (const source of [appointments, agendaTimeline]) {
       expect(source).toContain('AppointmentStatusBadge');
       expect(source).not.toContain('const statusLabel');
     }

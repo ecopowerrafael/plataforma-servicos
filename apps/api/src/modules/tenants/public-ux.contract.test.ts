@@ -13,6 +13,7 @@ const accountCore = read('components/public/account/customer-account.ts');
 const accountLayout = read('components/public/account/CustomerAccountLayout.tsx');
 const accountAuth = read('components/public/account/CustomerAccountAuth.tsx');
 const accountSecurity = read('components/public/account/CustomerAccountSecurity.tsx');
+const accountProfileScreen = read('components/public/account/CustomerProfileScreen.tsx');
 
 describe('booking do cliente autenticado', () => {
   it('resolve os dados do perfil na camada compartilhada, não nas apresentações', () => {
@@ -44,7 +45,9 @@ describe('booking do cliente autenticado', () => {
 
 describe('aba Perfil do App Premium', () => {
   it('abre a autenticação/conta diretamente, sem página intermediária', () => {
-    expect(premiumApp).toContain('const openProfile');
+    // O atalho virou parte da navegação inferior, mas continua abrindo a conta direto.
+    expect(premiumApp).toContain('const openNavigationItem');
+    expect(premiumApp).toContain("if (next === 'profile') {");
     expect(premiumApp).toContain('onOpenAccount();');
     expect(premiumApp).not.toContain("{tab === 'profile' ?");
     // O texto que resta é apenas o aria-label do avatar do topo, não um CTA gigante.
@@ -102,7 +105,10 @@ describe('Minha Conta', () => {
   });
 
   it('mostra identidade com avatar e ações de foto', () => {
-    expect(accountLayout).toContain('customer-account-identity');
+    // A identidade saiu do shell e passou a abrir a tela de perfil pelo avatar do topo.
+    expect(accountLayout).toContain("aria-label=\"Abrir perfil\"");
+    expect(accountLayout).toContain('client-avatar client-avatar--small');
+    expect(accountProfileScreen).toContain('client-avatar client-avatar--large');
     expect(accountSecurity).toContain('Alterar foto');
   });
 

@@ -12,6 +12,8 @@ const serviceWorker = readFileSync(
 );
 const publicPage = readWeb('routes/PublicTenantPage.tsx');
 const install = readWeb('components/public/PwaInstall.tsx');
+/** O ciclo de vida do prompt foi centralizado no hook compartilhado. */
+const installHook = readWeb('components/public/use-pwa-install.ts');
 const pushHook = readWeb('components/public/use-push-subscription.ts');
 const reminderCta = readWeb('components/public/PushReminderCta.tsx');
 const service = readFileSync(new URL('./tenant-white-label.service.ts', import.meta.url), 'utf8');
@@ -99,26 +101,31 @@ describe('publicação do aplicativo', () => {
   it('a página pública só oferece instalação quando publicado', () => {
     expect(service).toContain("findPwaState(tenant.id)).status === 'PUBLISHED'");
     expect(publicPage).toContain('published={site.data.pwaPublished}');
-    expect(install).toContain('if (!published || standalone || installed) return null;');
+    expect(install).toContain('if (!published || pwa.installed) return null;');
+    expect(install).toContain('if (!pwa.available) return null;');
   });
 });
 
 describe('UX de instalação', () => {
   it('captura beforeinstallprompt e só chama prompt no clique', () => {
-    expect(install).toContain("window.addEventListener('beforeinstallprompt', onPrompt)");
-    expect(install).toContain('event.preventDefault();');
-    expect(install).toContain('void event.prompt()');
-    expect(install).toContain("window.addEventListener('appinstalled', onInstalled)");
+    expect(installHook).toContain("window.addEventListener('beforeinstallprompt', onPrompt)");
+    expect(installHook).toContain('event.preventDefault();');
+    expect(installHook).toContain('void event.prompt()');
+    expect(installHook).toContain("window.addEventListener('appinstalled', onInstalled)");
+    // O prompt só é aberto pela ação do visitante.
+    expect(install).toContain('onClick={pwa.install}');
   });
 
   it('mostra instrução do iOS apenas quando não há prompt do Chromium', () => {
     expect(install).toContain('Adicionar à Tela de Início');
-    expect(install).toContain('if (deferred === null)');
-    expect(install).toContain('if (!apple) return null;');
+    expect(install).toContain('if (pwa.manual)');
+    expect(installHook).toContain('const isAppleMobile');
+    expect(installHook).toContain('manual: deferred === null && apple');
   });
 
   it('não mostra nada em modo standalone', () => {
-    expect(install).toContain("window.matchMedia('(display-mode: standalone)').matches");
+    expect(installHook).toContain("window.matchMedia('(display-mode: standalone)').matches");
+    expect(installHook).toContain('installed: installed || standalone');
   });
 });
 

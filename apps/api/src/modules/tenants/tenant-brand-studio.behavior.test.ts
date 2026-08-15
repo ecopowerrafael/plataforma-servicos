@@ -418,13 +418,34 @@ describe('tenant Brand Studio behavior', () => {
       publicSite: null as null | Record<string, unknown>,
       branding: null as null | Record<string, unknown>,
       assets: [] as Record<string, unknown>[],
+      /* Conteúdo inicial semeado pelo onboarding, na mesma transação. */
+      starterContentSeededAt: null as Date | null,
+      starterServices: [] as Record<string, unknown>[],
+      starterCombos: [] as Record<string, unknown>[],
+      starterProfessionals: [] as Record<string, unknown>[],
+      starterSchedules: [] as Record<string, unknown>[],
+    };
+    let nextId = 100n;
+    const takeId = () => {
+      nextId += 1n;
+      return nextId;
     };
     const transaction = {
       tenant: {
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        // `seedStarterContent` lê o tenant antes de semear para ser idempotente.
+        findUnique: vi.fn(() =>
+          Promise.resolve({
+            starterContentSeededAt: state.starterContentSeededAt,
+            starterContentIds: null,
+            onboardingCompletedAt: null,
+          }),
+        ),
         update: vi.fn(({ data }: { data: Record<string, unknown> }) => {
           if (typeof data.displayName === 'string') state.displayName = data.displayName;
           if (data.businessProfile === 'BARBERSHOP') state.businessProfile = data.businessProfile;
+          if (data.starterContentSeededAt instanceof Date)
+            state.starterContentSeededAt = data.starterContentSeededAt;
           return Promise.resolve({
             onboardingStep: data.onboardingStep,
             onboardingCompletedAt: null,
@@ -432,9 +453,44 @@ describe('tenant Brand Studio behavior', () => {
           });
         }),
       },
+      // Sem assinatura efetiva não há limite de plano: o catálogo inicial pode ser criado.
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      tenantSubscription: { findFirst: vi.fn().mockResolvedValue(null) },
+      businessUnit: { findFirst: vi.fn().mockResolvedValue(null) },
+      service: {
+        count: vi.fn(() => Promise.resolve(state.starterServices.length)),
+        create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+          state.starterServices.push(data);
+          return Promise.resolve({ id: takeId(), priceCents: data.priceCents });
+        }),
+      },
+      professional: {
+        count: vi.fn(() => Promise.resolve(state.starterProfessionals.length)),
+        create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+          state.starterProfessionals.push(data);
+          return Promise.resolve({ id: takeId() });
+        }),
+      },
+      combo: {
+        create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+          state.starterCombos.push(data);
+          return Promise.resolve({ id: takeId() });
+        }),
+      },
+      comboItem: { create: vi.fn().mockResolvedValue({ id: 1n }) },
+      professionalService: { create: vi.fn().mockResolvedValue({ id: 1n }) },
+      professionalUnit: { create: vi.fn().mockResolvedValue({ id: 1n }) },
+      professionalWorkSchedule: {
+        create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+          state.starterSchedules.push(data);
+          return Promise.resolve({ id: takeId() });
+        }),
+      },
       tenantPublicSite: {
         upsert: vi.fn(({ create }: { create: Record<string, unknown> }) => {
+          // Colunas com default no banco também voltam do upsert real.
           state.publicSite = {
+            layout: 'CLASSIC',
             footerText: null,
             seoTitle: null,
             seoDescription: null,
@@ -500,6 +556,8 @@ describe('tenant Brand Studio behavior', () => {
         return Promise.resolve(asset);
       }),
       recordAudit: vi.fn().mockResolvedValue(undefined),
+      // O site público informa se o aplicativo já foi publicado.
+      findPwaState: vi.fn().mockResolvedValue({ status: 'DRAFT', publishedAt: null }),
       findPublicTenant: vi.fn(() =>
         Promise.resolve({
           ...tenantRecord(),
@@ -540,6 +598,12 @@ describe('tenant Brand Studio behavior', () => {
       branding: { primaryColor: '#2457D6' },
     });
     expect(publicSite.assets).toHaveLength(1);
+    // O onboarding semeia o catálogo inicial do tipo de negócio na mesma transação.
+    expect(state.starterContentSeededAt).toBeInstanceOf(Date);
+    expect(state.starterServices.length).toBeGreaterThan(0);
+    expect(state.starterCombos).toHaveLength(1);
+    expect(state.starterProfessionals).toHaveLength(1);
+    expect(state.starterSchedules.length).toBeGreaterThan(0);
     expect(() => {
       validateTenantMediaUpload(png(640, 480), 'banner.PNG', 'image/x-png', 'BANNER_DESKTOP');
     }).not.toThrow();

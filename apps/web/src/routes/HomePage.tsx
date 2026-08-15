@@ -1497,7 +1497,11 @@ export function HomePage() {
               />
             )}
             {isRoute('/app/financeiro/pendencias') && canReadPayments && (
-              <DelinquencyModule tenantPublicId={selectedTenant} showSummary={false} />
+              <DelinquencyModule
+                tenantPublicId={selectedTenant}
+                canManagePayments={canManagePayments}
+                canReadCustomers={canReadCustomers}
+              />
             )}
             {isRoute('/app/financeiro/relatorios') &&
               canReadFinancialReports &&

@@ -27,11 +27,6 @@ export interface FinanceOverviewScope {
   includeCash: boolean;
 }
 
-/** Cobranca online criada e ainda sem desfecho: aguarda confirmacao. */
-const AWAITING_GATEWAY_STATUSES = ['PENDING', 'PROCESSING'] as const;
-/** Cobranca online que terminou sem pagamento: exige nova acao, nao e espera. */
-const FAILED_GATEWAY_STATUSES = ['FAILED', 'EXPIRED'] as const;
-
 const ticket = (billed: bigint, count: number) => (count === 0 ? 0n : billed / BigInt(count));
 
 /**
@@ -49,7 +44,6 @@ export type FinanceOverviewStage =
   | 'canceledPayments'
   | 'cashMovementsActivity'
   | 'receivables'
-  | 'gatewayCharges'
   | 'professionals'
   | 'commissions'
   | 'cash'
@@ -421,68 +415,27 @@ export class FinanceOverviewService {
         ? {}
         : { professionalPublicId: input.professionalPublicId }),
     });
-    const publicIds = result.items.map((item) => item.appointmentPublicId);
-    const openCharges =
-      publicIds.length === 0
-        ? []
-        : await runStage('gatewayCharges', () =>
-            this.client.paymentGatewayCharge.findMany({
-              where: {
-                tenantId,
-                appointment: { publicId: { in: publicIds } },
-                status: { in: [...AWAITING_GATEWAY_STATUSES, ...FAILED_GATEWAY_STATUSES] },
-              },
-              select: { status: true, appointment: { select: { publicId: true } } },
-            }),
-          );
-    const awaiting = new Set(
-      openCharges
-        .filter((charge) =>
-          (AWAITING_GATEWAY_STATUSES as readonly string[]).includes(charge.status),
-        )
-        .map((charge) => charge.appointment.publicId),
-    );
-    const failed = new Set(
-      openCharges
-        .filter(
-          (charge) =>
-            !awaiting.has(charge.appointment.publicId) &&
-            (FAILED_GATEWAY_STATUSES as readonly string[]).includes(charge.status),
-        )
-        .map((charge) => charge.appointment.publicId),
-    );
-    let onlinePending = 0n;
-    let onlineFailed = 0n;
-    let onSite = 0n;
-    const items = result.items.map((item) => {
-      const state = awaiting.has(item.appointmentPublicId)
-        ? 'ONLINE_PENDING'
-        : failed.has(item.appointmentPublicId)
-          ? 'ONLINE_FAILED'
-          : 'ON_SITE';
-      if (state === 'ONLINE_PENDING') onlinePending += BigInt(item.balanceCents);
-      else if (state === 'ONLINE_FAILED') onlineFailed += BigInt(item.balanceCents);
-      else onSite += BigInt(item.balanceCents);
-      return {
-        appointmentPublicId: item.appointmentPublicId,
-        protocol: item.protocol,
-        customerPublicId: item.customerPublicId,
-        customerName: item.customerName,
-        startsAt: item.startsAt,
-        priceCents: item.priceCents,
-        balanceCents: item.balanceCents,
-        state,
-      };
-    });
+    // A classificacao da cobranca ja vem resolvida pela fonte canonica de saldo.
+    const summary = result.summary;
     return {
-      totalCents: result.totalBalanceCents,
-      count: items.length,
-      onlinePendingCents: onlinePending.toString(),
-      onlineFailedCents: onlineFailed.toString(),
-      onSiteCents: onSite.toString(),
-      top: [...items]
+      totalCents: summary?.totalBalanceCents ?? result.totalBalanceCents,
+      count: summary?.count ?? result.items.length,
+      onlinePendingCents: summary?.onlinePendingCents ?? '0',
+      onlineFailedCents: summary?.onlineFailedCents ?? '0',
+      onSiteCents: summary?.onSiteCents ?? '0',
+      top: [...result.items]
         .sort((left, right) => Number(BigInt(right.balanceCents) - BigInt(left.balanceCents)))
-        .slice(0, 5),
+        .slice(0, 5)
+        .map((item) => ({
+          appointmentPublicId: item.appointmentPublicId,
+          protocol: item.protocol,
+          customerPublicId: item.customerPublicId,
+          customerName: item.customerName,
+          startsAt: item.startsAt,
+          priceCents: item.priceCents,
+          balanceCents: item.balanceCents,
+          state: item.state,
+        })),
     };
   }
 

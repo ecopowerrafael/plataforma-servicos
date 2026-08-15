@@ -16,6 +16,7 @@ import './appointments-console.css';
 import './customers-crm.css';
 import './customer-recovery.css';
 import './finance-overview.css';
+import './financial-operations.css';
 
 const rootElement = document.getElementById('root');
 

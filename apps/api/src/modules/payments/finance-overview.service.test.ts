@@ -36,7 +36,11 @@ interface Options {
   paid?: ReturnType<typeof payment>[];
   coupons?: { appointmentId: bigint; _sum: { discountAmountCents: bigint } }[];
   loyalty?: { sourceAppointmentId: bigint; discountCentsApplied: bigint }[];
-  delinquency?: { items: Record<string, unknown>[]; totalBalanceCents: string };
+  delinquency?: {
+    items: Record<string, unknown>[];
+    totalBalanceCents: string;
+    summary?: Record<string, unknown>;
+  };
   gatewayCharges?: { status: string; appointment: { publicId: string } }[];
   movements?: {
     direction: string;
@@ -157,6 +161,13 @@ describe('painel financeiro', () => {
     const result = await build({
       delinquency: {
         totalBalanceCents: '15000',
+        summary: {
+          totalBalanceCents: '15000',
+          count: 2,
+          onlinePendingCents: '5000',
+          onlineFailedCents: '0',
+          onSiteCents: '10000',
+        },
         items: [
           {
             appointmentPublicId: '00000000-0000-4000-8000-0000000000b1',
@@ -172,6 +183,7 @@ describe('painel financeiro', () => {
             priceCents: '10000',
             paidCents: '0',
             balanceCents: '10000',
+            state: 'ON_SITE',
           },
           {
             appointmentPublicId: '00000000-0000-4000-8000-0000000000b2',
@@ -187,6 +199,7 @@ describe('painel financeiro', () => {
             priceCents: '5000',
             paidCents: '0',
             balanceCents: '5000',
+            state: 'ONLINE_PENDING',
           },
         ],
       },
@@ -208,6 +221,13 @@ describe('painel financeiro', () => {
     const result = await build({
       delinquency: {
         totalBalanceCents: '5000',
+        summary: {
+          totalBalanceCents: '5000',
+          count: 1,
+          onlinePendingCents: '0',
+          onlineFailedCents: '5000',
+          onSiteCents: '0',
+        },
         items: [
           {
             appointmentPublicId: '00000000-0000-4000-8000-0000000000b2',
@@ -223,12 +243,10 @@ describe('painel financeiro', () => {
             priceCents: '5000',
             paidCents: '0',
             balanceCents: '5000',
+            state: 'ONLINE_FAILED',
           },
         ],
       },
-      gatewayCharges: [
-        { status: 'EXPIRED', appointment: { publicId: '00000000-0000-4000-8000-0000000000b2' } },
-      ],
     }).service.overview(1n, period, scope);
     expect(result.receivables.onlinePendingCents).toBe('0');
     expect(result.receivables.onlineFailedCents).toBe('5000');

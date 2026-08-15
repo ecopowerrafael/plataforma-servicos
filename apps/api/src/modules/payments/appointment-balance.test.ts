@@ -94,6 +94,7 @@ const appointment = (overrides: Record<string, unknown> = {}) => ({
   priceCents: 10_000n,
   customer: { publicId: '00000000-0000-4000-8000-000000000002', name: 'João' },
   professional: { publicId: '00000000-0000-4000-8000-000000000003', name: 'Rafael' },
+  service: { name: 'Corte' },
   unit: null,
   payments: [] as { amountCents: bigint }[],
   ...overrides,
@@ -103,12 +104,14 @@ function delinquency(options: {
   appointments?: ReturnType<typeof appointment>[];
   coupons?: { appointmentId: bigint; _sum: { discountAmountCents: bigint } }[];
   loyalty?: { sourceAppointmentId: bigint; discountCentsApplied: bigint }[];
+  charges?: { appointmentId: bigint; status: string }[];
 }) {
   const findMany = vi.fn().mockResolvedValue(options.appointments ?? [appointment()]);
   const prisma = {
     appointment: { findMany },
     couponRedemption: { groupBy: vi.fn().mockResolvedValue(options.coupons ?? []) },
     loyaltyLedgerEntry: { findMany: vi.fn().mockResolvedValue(options.loyalty ?? []) },
+    paymentGatewayCharge: { findMany: vi.fn().mockResolvedValue(options.charges ?? []) },
   } as unknown as PrismaClient;
   return { service: new DelinquencyService(prisma), findMany };
 }
@@ -141,6 +144,40 @@ describe('DelinquencyService usa o valor líquido', () => {
       tenantId: 1n,
       status: { not: 'CANCELED', equals: 'COMPLETED' },
     });
+  });
+
+  it('classifica o saldo por situação real da cobrança online', async () => {
+    const aguardando = await delinquency({
+      charges: [{ appointmentId: 1n, status: 'PENDING' }],
+    }).service.list(1n, {});
+    expect(aguardando.items[0]?.state).toBe('ONLINE_PENDING');
+    expect(aguardando.summary?.onlinePendingCents).toBe('10000');
+
+    const falhou = await delinquency({
+      charges: [{ appointmentId: 1n, status: 'EXPIRED' }],
+    }).service.list(1n, {});
+    expect(falhou.items[0]?.state).toBe('ONLINE_FAILED');
+    expect(falhou.summary?.onlineFailedCents).toBe('10000');
+
+    const local = await delinquency({}).service.list(1n, {});
+    expect(local.items[0]?.state).toBe('ON_SITE');
+    expect(local.summary?.onSiteCents).toBe('10000');
+  });
+
+  it('pagina sem perder o total da exposição inteira', async () => {
+    const many = Array.from({ length: 3 }, (_, index) =>
+      appointment({
+        id: BigInt(index + 1),
+        publicId: `00000000-0000-4000-8000-00000000001${String(index)}`,
+      }),
+    );
+    const result = await delinquency({ appointments: many }).service.list(1n, {
+      page: 2,
+      limit: 2,
+    });
+    expect(result.items).toHaveLength(1);
+    expect(result.page).toMatchObject({ page: 2, limit: 2, total: 3, totalPages: 2 });
+    expect(result.summary?.totalBalanceCents).toBe('30000');
   });
 
   it('pagamento parcial deixa apenas o restante do líquido em aberto', async () => {

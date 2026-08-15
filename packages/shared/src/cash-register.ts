@@ -34,6 +34,12 @@ export const CashMovementPublicSchema = z.object({
   reason: z.string().nullable(),
   paymentPublicId: z.uuid().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
+  /* Contexto operacional do movimento; nulo quando nao se aplica. */
+  userEmail: z.string().nullable().default(null),
+  paymentMethodName: z.string().nullable().default(null),
+  customerName: z.string().nullable().default(null),
+  serviceName: z.string().nullable().default(null),
+  appointmentPublicId: z.uuid().nullable().default(null),
 });
 
 export const CashRegisterPublicSchema = z.object({
@@ -46,6 +52,12 @@ export const CashRegisterPublicSchema = z.object({
   openedAt: z.iso.datetime({ offset: true }),
   closedAt: z.iso.datetime({ offset: true }).nullable(),
   notes: z.string().nullable(),
+  openedByEmail: z.string().nullable().default(null),
+  closedByEmail: z.string().nullable().default(null),
+  /* Somatorios do caixa, para a tela nao recalcular. */
+  totalInCents: MoneyPublicSchema.default('0'),
+  totalOutCents: MoneyPublicSchema.default('0'),
+  paymentInCents: MoneyPublicSchema.default('0'),
 });
 
 export const CashRegisterDetailResponseSchema = z.object({

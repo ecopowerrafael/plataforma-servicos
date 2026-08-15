@@ -1,4 +1,5 @@
 import {
+  CashMovementPublicSchema,
   CashRegisterDetailResponseSchema,
   CashRegisterListResponseSchema,
   CashRegisterPublicSchema,
@@ -23,8 +24,12 @@ import {
   type CashMovementFilter,
 } from './financial-operations.js';
 import { UnitSelect } from './UnitSelect.js';
-import { httpClient } from '../../lib/http.js';
+import { httpClient, HttpError } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, SectionCard } from '../ui/AppUi.js';
+
+/** Falha de contrato não deve chegar ao usuário como texto do Zod. */
+const friendlyError = (error: unknown, fallback: string) =>
+  error instanceof HttpError ? error.message : error instanceof Error ? fallback : null;
 
 export function CashRegisterModule({
   tenantPublicId,
@@ -91,7 +96,8 @@ export function CashRegisterModule({
         {
           method: 'POST',
           body: CreateCashMovementRequestSchema.parse(input),
-          schema: CashRegisterDetailResponseSchema,
+          // O POST devolve apenas o movimento criado; a tela se atualiza pelo refetch.
+          schema: CashMovementPublicSchema,
           tenantPublicId,
         },
       ),
@@ -371,7 +377,7 @@ export function CashRegisterModule({
       {openOpen && (
         <OpenDialog
           busy={open.isPending}
-          error={open.error instanceof Error ? open.error.message : null}
+          error={friendlyError(open.error, 'Não foi possível abrir o caixa.')}
           onClose={() => {
             setOpenOpen(false);
           }}
@@ -383,7 +389,7 @@ export function CashRegisterModule({
       {movementOpen && (
         <MovementDialog
           busy={addMovement.isPending}
-          error={addMovement.error instanceof Error ? addMovement.error.message : null}
+          error={friendlyError(addMovement.error, 'Não foi possível registrar a movimentação.')}
           onClose={() => {
             setMovementOpen(false);
           }}
@@ -397,7 +403,7 @@ export function CashRegisterModule({
           register={register}
           movements={detail?.movements ?? []}
           busy={close.isPending}
-          error={close.error instanceof Error ? close.error.message : null}
+          error={friendlyError(close.error, 'Não foi possível fechar o caixa.')}
           onClose={() => {
             setCloseOpen(false);
           }}

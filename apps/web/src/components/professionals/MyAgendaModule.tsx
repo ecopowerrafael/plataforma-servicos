@@ -447,10 +447,20 @@ export function MyAgendaModule({
       key,
       items: items.filter((item) => dayKey(item.startsAt) === key && isOpen(item)),
     }));
+  const todayAppointments = countsByDay.get(today()) ?? 0;
+  const todayLabel =
+    todayAppointments === 0
+      ? 'Nenhum atendimento hoje'
+      : `${String(todayAppointments)} ${todayAppointments === 1 ? 'atendimento' : 'atendimentos'} hoje`;
 
   return (
     <div className="ds-stack my-agenda" aria-label="Minha agenda">
-      <PageHeader
+      {selfOnly ? (
+        <div className="professional-agenda-greeting">
+          <span>Olá, {me.data?.publicName.split(' ')[0] ?? ''}</span>
+          <strong>{todayLabel}</strong>
+        </div>
+      ) : <PageHeader
         eyebrow={
           me.data === undefined ? 'Agenda' : `Olá, ${me.data.publicName.split(' ')[0] ?? ''}`
         }
@@ -482,7 +492,7 @@ export function MyAgendaModule({
             </div>
           ) : undefined
         }
-      />
+      />}
 
       {view === 'calendar' && canViewCalendar ? (
         <CalendarModule tenantPublicId={tenantPublicId} />

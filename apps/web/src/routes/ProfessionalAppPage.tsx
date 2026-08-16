@@ -1,11 +1,12 @@
 import { AuthMeResponseSchema, ProfessionalPublicSchema, PublicTenantSiteResponseSchema, SuccessResponseSchema, UpdateMyProfessionalProfileRequestSchema, type UpdateMyProfessionalProfileRequest } from '@plataforma/shared';
-import { IconCalendar, IconCoin, IconLogout, IconUser } from '@tabler/icons-react';
+import { IconCalendar, IconCoin, IconLogout, IconPencil, IconUser } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavLink, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useEffect } from 'react';
 
 import { MyAgendaModule } from '../components/professionals/MyAgendaModule.js';
 import { MyCommissionsModule } from '../components/professionals/MyCommissionsModule.js';
+import { TenantProfessionalPhoto } from '../components/professionals/TenantProfessionalPhoto.js';
 import { PwaInstall } from '../components/public/PwaInstall.js';
 import { httpClient } from '../lib/http.js';
 import { clearSelectedTenant } from '../lib/tenant-selection.js';
@@ -16,10 +17,11 @@ function Profile({ tenantPublicId }: { tenantPublicId: string }) {
   const queryClient = useQueryClient();
   const profile = useQuery({ queryKey: ['tenant', tenantPublicId, 'professionals', 'me'], queryFn: () => httpClient.request('/tenant/professionals/me', { schema: ProfessionalPublicSchema, tenantPublicId }), retry: false });
   const save = useMutation({ mutationFn: (body: UpdateMyProfessionalProfileRequest) => httpClient.request('/tenant/professionals/me/profile', { method: 'PATCH', body, schema: ProfessionalPublicSchema, tenantPublicId }), onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'professionals', 'me'] }) });
+  const uploadPhoto = useMutation({ mutationFn: (file: File) => { const body = new FormData(); body.set('file', file, file.name); return httpClient.request(`/tenant/professionals/${profile.data?.publicId ?? ''}/photo`, { method: 'PUT', body, schema: ProfessionalPublicSchema, tenantPublicId }); }, onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'professionals', 'me'] }) });
   if (profile.isPending) return <p>Carregando perfil…</p>;
   if (profile.data === undefined) return <p className="form-error">Não foi possível carregar seu perfil profissional.</p>;
   const person = profile.data;
-  return <section className="ds-stack"><header><p className="ds-eyebrow">Profissional</p><h2>Meu perfil</h2><p>Edite somente seus dados de apresentação e contato.</p></header><form className="ds-stack" onSubmit={(event) => { event.preventDefault(); const values = new FormData(event.currentTarget); const parsed = UpdateMyProfessionalProfileRequestSchema.safeParse({ name: values.get('name'), publicName: values.get('publicName'), bio: values.get('bio') || null, phone: values.get('phone') || null }); if (parsed.success) save.mutate(parsed.data); }}><label>Nome<input name="name" defaultValue={person.name} required /></label><label>Nome público<input name="publicName" defaultValue={person.publicName} required /></label><label>Telefone<input name="phone" defaultValue={person.phone ?? ''} /></label><label>Bio<textarea name="bio" rows={4} defaultValue={person.bio ?? ''} /></label>{save.error instanceof Error ? <p className="form-error">Não foi possível salvar seu perfil.</p> : null}<button className="primary-button" type="submit" disabled={save.isPending}>{save.isPending ? 'Salvando…' : 'Salvar perfil'}</button></form></section>;
+  return <section className="ds-stack"><header className="professional-self-profile"><div className="professional-self-photo"><TenantProfessionalPhoto name={person.publicName} professionalPublicId={person.publicId} tenantPublicId={tenantPublicId} size="large" version={person.updatedAt} /><label className="professional-self-photo-edit" aria-label="Alterar foto" title="Alterar foto"><IconPencil size={15} /><input accept="image/jpeg,image/png,image/webp" type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file !== undefined) uploadPhoto.mutate(file); }} /></label></div><p className="ds-eyebrow">Profissional</p><h2>{person.name}</h2><p>Edite somente seus dados de apresentação e contato.</p></header><form className="ds-stack" onSubmit={(event) => { event.preventDefault(); const values = new FormData(event.currentTarget); const parsed = UpdateMyProfessionalProfileRequestSchema.safeParse({ name: values.get('name'), publicName: values.get('publicName'), bio: values.get('bio') || null, phone: values.get('phone') || null }); if (parsed.success) save.mutate(parsed.data); }}><label>Nome<input name="name" defaultValue={person.name} required /></label><label>Nome público<input name="publicName" defaultValue={person.publicName} required /></label><label>Telefone<input name="phone" defaultValue={person.phone ?? ''} /></label><label>Bio<textarea name="bio" rows={4} defaultValue={person.bio ?? ''} /></label>{save.error instanceof Error || uploadPhoto.error instanceof Error ? <p className="form-error">Não foi possível salvar a alteração.</p> : null}<button className="primary-button" type="submit" disabled={save.isPending}>{save.isPending ? 'Salvando…' : 'Salvar perfil'}</button></form></section>;
 }
 
 export function ProfessionalAppPage({ section = 'agenda' }: { section?: Section }) {

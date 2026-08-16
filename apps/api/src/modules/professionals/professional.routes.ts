@@ -40,6 +40,15 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     cookieName: options.cookieName,
     client: options.client,
   });
+  const ownProfessional = async (r: { tenant: { id: bigint; membership: { permissions: string[] } }; auth: { user: { id: bigint } }; params: { publicId: string } }) => {
+    if (r.tenant.membership.permissions.includes('professional.image.manage')) {
+      options.authService.requirePermission(r.tenant, 'professional.image.manage');
+      return;
+    }
+    options.authService.requirePermission(r.tenant, 'professional.self.update');
+    if ((await options.service.me(r.tenant.id, r.auth.user.id)).publicId !== r.params.publicId)
+      throw new AppError({ code: 'PROFESSIONAL_NOT_FOUND', message: 'Profissional não encontrado.', statusCode: 404 });
+  };
   app.get(
     '/tenant/professionals',
     { schema: { querystring: query, response: { 200: ProfessionalListResponseSchema } } },
@@ -105,7 +114,7 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     '/tenant/professionals/:publicId/photo',
     { schema: { params, response: { 200: ProfessionalPublicSchema } } },
     async (r) => {
-      options.authService.requirePermission(r.tenant, 'professional.image.manage');
+      await ownProfessional(r);
       const upload = await r.file();
       if (upload === undefined)
         throw new AppError({
@@ -122,12 +131,12 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     '/tenant/professionals/:publicId/photo',
     { schema: { params, response: { 200: ProfessionalPublicSchema } } },
     (r) => {
-      options.authService.requirePermission(r.tenant, 'professional.image.manage');
-      return options.service.removePhoto(r.tenant.id, r.params.publicId, actor(r));
+      return ownProfessional(r).then(() => options.service.removePhoto(r.tenant.id, r.params.publicId, actor(r)));
     },
   );
   app.get('/tenant/professionals/:publicId/photo', { schema: { params, querystring: ImageVariantQuerySchema } }, async (r, reply) => {
-    options.authService.requirePermission(r.tenant, 'professional.read');
+    if (r.tenant.membership.permissions.includes('professional.read')) options.authService.requirePermission(r.tenant, 'professional.read');
+    else await ownProfessional(r);
     const photo = await options.service.photo(r.tenant.id, r.params.publicId, r.query.variant);
     return reply
       .header('Cache-Control', 'private, max-age=300')

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import { contrastTextColor } from '../components/branding/brand-studio.js';
+import { contrastTextColor, type BrandThemeCode } from '../components/branding/brand-studio.js';
 import { PremiumApp } from '../components/public/premium/PremiumApp.js';
 import { PublicHeader } from '../components/public/PublicHeader.js';
 import { PublicLocationSection } from '../components/public/PublicLocationSection.js';
@@ -16,6 +16,7 @@ import { ClassicTheme } from '../themes/classic/ClassicTheme.js';
 import { LuxuryTheme } from '../themes/luxury/LuxuryTheme.js';
 import { ModernTheme } from '../themes/modern/ModernTheme.js';
 import { PremiumTheme } from '../themes/premium/PremiumTheme.js';
+import { useThemeFont } from '../themes/theme-fonts.js';
 
 const brl = (cents: string) =>
   (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -111,6 +112,10 @@ export function PublicTenantPage() {
     }
     return undefined;
   }, [site.data]);
+  // Calculado antes dos retornos antecipados: a fonte do tema é um hook.
+  const activeTheme =
+    previewOverride?.theme ?? searchParams.get('previewTheme') ?? site.data?.site.theme ?? 'CLASSIC';
+  useThemeFont(activeTheme as BrandThemeCode);
   if (site.isPending)
     return (
       <main className="app-shell">
@@ -140,8 +145,6 @@ export function PublicTenantPage() {
       Object.entries(previewOverride?.branding ?? {}).filter(([, value]) => value !== undefined),
     ),
   };
-  const activeTheme =
-    previewOverride?.theme ?? searchParams.get('previewTheme') ?? site.data.site.theme;
   const Theme =
     activeTheme === 'MODERN'
       ? ModernTheme

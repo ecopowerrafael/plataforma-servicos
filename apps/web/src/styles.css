@@ -6374,16 +6374,8 @@ h1 {
   border-radius: var(--tenant-radius);
   background: var(--tenant-surface);
 }
-.public-theme-modern .public-header {
-  border-bottom: 1px solid var(--tenant-border);
-}
 .public-theme-modern .public-hero {
   text-align: center;
-}
-.public-theme-premium .public-hero {
-  min-height: 420px;
-  display: grid;
-  align-content: center;
 }
 .legacy-billing-fields,
 .legacy-cycle {
@@ -6524,12 +6516,33 @@ h1 {
   border-color: #4f46e5;
   box-shadow: 0 0 0 3px rgb(79 70 229 / 12%);
 }
+/* Cada cartão carrega a cor e a tipografia do tema que representa. */
+.brand-theme-card--classic {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.brand-theme-card--classic strong {
+  font-family: 'Manrope', system-ui, sans-serif;
+}
 .brand-theme-card--premium {
-  background: #111827;
-  color: #f8fafc;
+  border-radius: 1.5rem;
+  background: linear-gradient(160deg, #f7f4fe, #fff);
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+.brand-theme-card--premium strong {
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 500;
 }
 .brand-theme-card--modern {
-  background: linear-gradient(145deg, #eef2ff, #fff7ed);
+  border-radius: 1.5rem;
+  background: linear-gradient(145deg, #fff4f8, #fff);
+  font-family: 'Nunito', system-ui, sans-serif;
+}
+.brand-theme-card--modern strong {
+  font-weight: 800;
+}
+.brand-theme-card--luxury {
+  background: #111827;
+  color: #f8fafc;
 }
 .theme-miniature {
   display: grid;
@@ -6586,30 +6599,83 @@ h1 {
   border: 1px solid #e2e8f0;
   background: #fff;
 }
-.brand-theme-card--premium .theme-miniature {
+.brand-theme-card--luxury .theme-miniature {
   background: #030712;
 }
-.brand-theme-card--premium .theme-miniature-hero {
+.brand-theme-card--luxury .theme-miniature-hero {
   justify-content: end;
   min-height: 62px;
   background: linear-gradient(120deg, #1f2937, #713f12);
 }
-.brand-theme-card--premium .theme-miniature-hero i {
+.brand-theme-card--luxury .theme-miniature-hero i {
   background: #f8fafc;
 }
-.brand-theme-card--premium .theme-miniature-hero b {
+.brand-theme-card--luxury .theme-miniature-hero b {
   background: #d4af37;
 }
+.brand-theme-card--luxury .theme-miniature-services i {
+  border-color: #1f2937;
+  background: #111827;
+}
+/* Essential: azul, reto, bordas discretas. */
+.brand-theme-card--classic .theme-miniature {
+  background: #f4f7fc;
+}
+.brand-theme-card--classic .theme-miniature-hero {
+  border-radius: 0.25rem;
+  background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+}
+.brand-theme-card--classic .theme-miniature-hero i {
+  background: rgb(255 255 255 / 85%);
+}
+.brand-theme-card--classic .theme-miniature-hero b {
+  border-radius: 0.2rem;
+  background: #fff;
+}
+.brand-theme-card--classic .theme-miniature-services i {
+  border-color: #dce4f2;
+}
+/* Vibrante: rosa, tudo arredondado. */
+.brand-theme-card--modern .theme-miniature {
+  border-radius: 1rem;
+  background: #fff4f8;
+}
 .brand-theme-card--modern .theme-miniature-hero {
-  border-radius: 0.6rem;
-  background: linear-gradient(135deg, #4f46e5, #ec4899);
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, #e1418a, #fb7185);
 }
 .brand-theme-card--modern .theme-miniature-hero i {
   background: #fff;
 }
 .brand-theme-card--modern .theme-miniature-hero b {
   border-radius: 999px;
-  background: #fbbf24;
+  background: #fff;
+}
+.brand-theme-card--modern .theme-miniature-services i {
+  border: 0;
+  border-radius: 0.65rem;
+  background: #fde3ee;
+}
+/* Aura: lilás, arejado, cantos generosos. */
+.brand-theme-card--premium .theme-miniature {
+  border-radius: 1rem;
+  background: #f7f4fe;
+}
+.brand-theme-card--premium .theme-miniature-hero {
+  justify-content: end;
+  border-radius: 0.9rem;
+  background: linear-gradient(160deg, #8b5cf6, #c4b5fd);
+}
+.brand-theme-card--premium .theme-miniature-hero i {
+  background: rgb(255 255 255 / 90%);
+}
+.brand-theme-card--premium .theme-miniature-hero b {
+  border-radius: 999px;
+  background: rgb(255 255 255 / 60%);
+}
+.brand-theme-card--premium .theme-miniature-services i {
+  border-color: #e7dff9;
+  border-radius: 0.6rem;
 }
 
 .brand-color-picker,
@@ -6695,14 +6761,56 @@ h1 {
   color: var(--preview-on-primary);
   background: var(--preview-primary);
 }
-.brand-preview-page--premium .brand-preview-hero {
+.brand-preview-page--luxury .brand-preview-hero {
   background: #111827;
   text-align: center;
+}
+/* A prévia do onboarding segue a mesma direção visual da página pública. */
+.brand-preview-page--classic {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.brand-preview-page--classic h2,
+.brand-preview-page--classic strong {
+  font-family: 'Manrope', system-ui, sans-serif;
+}
+.brand-preview-page--classic .brand-preview-hero {
+  text-align: left;
+}
+.brand-preview-page--classic .brand-preview-hero button {
+  border-radius: 0.5rem;
+}
+.brand-preview-page--modern {
+  font-family: 'Nunito', system-ui, sans-serif;
 }
 .brand-preview-page--modern .brand-preview-hero {
   margin: 0.75rem;
   border-radius: 1.25rem;
   background: linear-gradient(135deg, var(--preview-primary), var(--preview-secondary));
+}
+.brand-preview-page--modern .brand-preview-hero button,
+.brand-preview-page--premium .brand-preview-hero button {
+  border-radius: 999px;
+}
+.brand-preview-page--modern .brand-preview-services article {
+  border: 0;
+  border-radius: 1.25rem;
+}
+.brand-preview-page--premium {
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+.brand-preview-page--premium h2,
+.brand-preview-page--premium strong {
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 500;
+}
+.brand-preview-page--premium .brand-preview-hero {
+  margin: 0.75rem;
+  padding: 2.75rem 1rem;
+  border-radius: 1.5rem;
+  background: linear-gradient(160deg, var(--preview-primary), var(--preview-secondary));
+}
+.brand-preview-page--premium .brand-preview-services article {
+  border-radius: 1.25rem;
 }
 .brand-preview-services {
   display: grid;
@@ -6816,83 +6924,315 @@ h1 {
   background: color-mix(in srgb, var(--tenant-primary) 82%, #000);
 }
 
+/* --------------------------------------------------------------------------
+   Essential (CLASSIC) — azul, clean, organizado.
+   Tipografia Manrope/Inter, radius médio, borda sutil, sombra discreta.
+   -------------------------------------------------------------------------- */
 .public-theme-classic {
+  --theme-font-heading: 'Manrope', system-ui, sans-serif;
+  --theme-font-body: 'Inter', system-ui, sans-serif;
+  --tenant-radius: 0.7rem;
+
   background: var(--tenant-background);
+  font-family: var(--theme-font-body);
+}
+.public-theme-classic h1,
+.public-theme-classic h2,
+.public-theme-classic h3,
+.public-theme-classic .public-brand-name {
+  font-family: var(--theme-font-heading);
+  letter-spacing: -0.02em;
 }
 .public-theme-classic .public-header {
-  padding-block: 2.4rem;
+  padding-block: 1.5rem;
+  border-bottom: 1px solid var(--tenant-border);
+  background: var(--tenant-surface);
 }
+/* Banner: composição limpa, texto à esquerda, poucos elementos decorativos. */
 .public-theme-classic .public-hero {
   display: grid;
   align-content: center;
-  min-height: 390px;
+  min-height: 360px;
   text-align: left;
   background-position: center;
+  background-image:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--tenant-primary) 94%, #000) 32%,
+      color-mix(in srgb, var(--tenant-primary) 55%, transparent)
+    ),
+    var(--tenant-banner-desktop);
 }
 .public-theme-classic .public-hero > * {
   width: min(100%, 1100px);
 }
+.public-theme-classic .public-hero h1 {
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  line-height: 1.1;
+  max-width: 20ch;
+}
+.public-theme-classic .public-cta {
+  border-radius: 0.55rem;
+  padding: 0.85rem 1.5rem;
+  font-family: var(--theme-font-heading);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: none;
+  background: var(--tenant-primary);
+  color: var(--tenant-on-primary);
+}
 .public-theme-classic section:not(.public-hero) {
-  padding-block: 3.5rem;
+  padding-block: 3rem;
+}
+.public-theme-classic section:not(.public-hero) > h2 {
+  font-size: 1.4rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 2px solid var(--tenant-border);
 }
 .public-theme-classic .public-cards article {
   padding: 1.4rem;
   box-shadow: none;
 }
+/* ServiceCard: imagem superior delimitada, preço em evidência, CTA reto. */
+.public-theme-classic .public-service-card {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+}
+.public-theme-classic .public-service-media {
+  aspect-ratio: 16 / 9;
+  border-bottom: 1px solid var(--tenant-border);
+}
+.public-theme-classic .public-service-body {
+  padding: 1.1rem;
+  gap: 0.45rem;
+}
+.public-theme-classic .public-service-meta {
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--tenant-border);
+}
+.public-theme-classic .public-service-meta strong {
+  font-family: var(--theme-font-heading);
+  font-size: 1.35rem;
+  color: var(--tenant-primary);
+}
+.public-theme-classic .public-service-cta {
+  border-radius: 0.5rem;
+  font-family: var(--theme-font-heading);
+}
+/* ProfessionalCard: compacto, foto circular à esquerda, dados alinhados. */
+.public-theme-classic .public-professional-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.public-theme-classic .public-professional-card {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  padding: 0.9rem;
+  justify-items: start;
+  text-align: left;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+}
+.public-theme-classic .public-professional-avatar {
+  grid-row: span 3;
+  width: 58px;
+  height: 58px;
+  font-size: 0.95rem;
+}
+.public-theme-classic .public-professional-card h3 {
+  font-size: 1rem;
+}
+.public-theme-classic .public-professional-card p {
+  font-size: 0.78rem;
+}
+.public-theme-classic .public-professional-cta {
+  min-height: 36px;
+  padding: 0 0.85rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  background: transparent;
+  border: 1px solid var(--tenant-primary);
+  color: var(--tenant-primary);
+}
 
+/* --------------------------------------------------------------------------
+   Aura (chave interna PREMIUM) — lilás, editorial, arejado.
+   Tipografia Lora/DM Sans, radius grande, sombras suaves, muito respiro.
+   -------------------------------------------------------------------------- */
 .public-theme-premium {
-  --signature-ink: color-mix(in srgb, var(--tenant-primary) 15%, #080808);
-  background: #0b0b0c;
-  color: #f5f1e8;
-  font-family: Georgia, 'Times New Roman', serif;
+  --theme-font-heading: 'Lora', Georgia, serif;
+  --theme-font-body: 'DM Sans', system-ui, sans-serif;
+  --tenant-radius: 1.5rem;
+
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--tenant-accent) 26%, transparent),
+      transparent 40%
+    ),
+    var(--tenant-background);
+  color: var(--tenant-text);
+  font-family: var(--theme-font-body);
+}
+.public-theme-premium h1,
+.public-theme-premium h2,
+.public-theme-premium h3,
+.public-theme-premium .public-brand-name {
+  font-family: var(--theme-font-heading);
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 .public-theme-premium .public-header {
   max-width: none;
-  padding: 1.5rem max(2rem, calc((100vw - 1180px) / 2));
-  border-bottom: 1px solid rgb(255 255 255 / 15%);
-  background: #09090a;
+  padding: 1.6rem max(2rem, calc((100vw - 1180px) / 2));
+  background: transparent;
 }
+/* Banner: tratamento editorial, véu lilás sutil, texto ancorado embaixo. */
 .public-theme-premium .public-hero {
-  min-height: 560px;
+  display: grid;
+  min-height: 480px;
   align-content: end;
-  padding-bottom: 5rem;
+  margin: 0 auto;
+  max-width: min(1180px, calc(100% - 3rem)) !important;
+  padding-bottom: 3.5rem;
+  border-radius: 2.25rem;
   background-image:
-    linear-gradient(0deg, #080808 2%, transparent 70%),
-    linear-gradient(90deg, rgb(0 0 0 / 72%), rgb(0 0 0 / 12%)), var(--tenant-banner-desktop);
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--tenant-primary) 70%, transparent),
+      color-mix(in srgb, var(--tenant-accent) 40%, transparent) 55%,
+      color-mix(in srgb, var(--tenant-primary) 82%, #000)
+    ),
+    var(--tenant-banner-desktop);
   background-position: center;
 }
 .public-theme-premium .public-hero h1 {
-  max-width: 720px;
+  max-width: 16ch;
   margin-left: 0;
-  font-size: clamp(2.8rem, 6vw, 5.8rem);
-  line-height: 0.95;
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1.02;
 }
 .public-theme-premium .public-hero p {
-  max-width: 560px;
+  max-width: 46ch;
   margin-left: 0;
-  font-family: var(--tenant-font);
+  font-size: 1.02rem;
+}
+.public-theme-premium .public-cta {
+  padding: 0.85rem 1.8rem;
+  border: 1px solid rgb(255 255 255 / 65%);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+  box-shadow: none;
+}
+.public-theme-premium .public-cta:hover {
+  background: rgb(255 255 255 / 14%);
 }
 .public-theme-premium section:not(.public-hero) {
   max-width: 1180px;
-  padding-block: 4.5rem;
+  padding-block: 4rem;
 }
 .public-theme-premium section:not(.public-hero) > h2 {
-  font-size: clamp(2rem, 3vw, 3.2rem);
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
   font-weight: 500;
 }
 .public-theme-premium .public-cards {
   gap: 1.5rem;
 }
-.public-theme-premium .public-cards article {
-  border-color: rgb(255 255 255 / 14%);
-  border-radius: 0.25rem;
-  background: #151517;
-  box-shadow: 0 24px 60px rgb(0 0 0 / 24%);
+/* ServiceCard: imagem de destaque, cartão suave, preço integrado ao texto. */
+.public-theme-premium .public-service-grid {
+  gap: 1.75rem;
 }
-.public-theme-premium .public-cards article img {
+.public-theme-premium .public-service-card {
+  border-color: color-mix(in srgb, var(--tenant-primary) 12%, var(--tenant-border));
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--tenant-primary) 10%, transparent);
+}
+.public-theme-premium .public-service-media {
+  aspect-ratio: 3 / 2;
+  background: color-mix(in srgb, var(--tenant-accent) 30%, var(--tenant-surface));
+}
+.public-theme-premium .public-service-body {
+  gap: 0.6rem;
+  padding: 1.5rem 1.4rem 1.4rem;
+}
+.public-theme-premium .public-service-body h3 {
+  font-size: 1.25rem;
+}
+.public-theme-premium .public-service-meta {
+  padding-top: 0.2rem;
+  justify-content: flex-start;
+  gap: 0.75rem;
+}
+.public-theme-premium .public-service-meta strong {
+  font-family: var(--theme-font-heading);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--tenant-text);
+}
+.public-theme-premium .public-service-meta span::before {
+  content: '·';
+  margin-right: 0.6rem;
+}
+.public-theme-premium .public-service-cta {
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--tenant-primary);
+  font-size: 0.84rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid color-mix(in srgb, var(--tenant-primary) 45%, transparent);
+  justify-self: start;
+}
+.public-theme-premium .public-service-cta:hover {
+  filter: none;
+  border-bottom-color: var(--tenant-primary);
+}
+/* ProfessionalCard: retrato vertical, nome em destaque, dados abaixo. */
+.public-theme-premium .public-professional-grid {
+  grid-template-columns: repeat(auto-fill, minmax(210px, 260px));
+  gap: 1.75rem;
+}
+.public-theme-premium .public-professional-card {
+  padding: 0;
+  gap: 0;
+  border: 0;
+  background: transparent;
+  justify-items: start;
+  text-align: left;
+}
+.public-theme-premium .public-professional-avatar {
   width: 100%;
-  min-height: 220px;
-  object-fit: cover;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  margin-bottom: 1rem;
+  border-radius: 1.75rem;
+  font-size: 2rem;
+  background: color-mix(in srgb, var(--tenant-accent) 32%, var(--tenant-surface));
+}
+.public-theme-premium .public-professional-card h3 {
+  font-size: 1.35rem;
+  margin-bottom: 0.25rem;
+}
+.public-theme-premium .public-professional-card p {
+  font-size: 0.86rem;
+  margin-bottom: 0.7rem;
+}
+.public-theme-premium .public-professional-cta {
+  min-height: 34px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--tenant-primary);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid color-mix(in srgb, var(--tenant-primary) 45%, transparent);
 }
 
 /* Painel premium: sistema visual compartilhado */
@@ -7504,19 +7844,42 @@ h1 {
 }
 .public-theme-premium footer {
   max-width: none;
-  border-top: 1px solid rgb(255 255 255 / 15%);
-  background: #050506;
+  padding-block: 3rem;
+  border-top: 1px solid var(--tenant-border);
   text-align: center;
+  font-family: var(--theme-font-heading);
 }
 
+/* --------------------------------------------------------------------------
+   Vibrante (MODERN) — rosa, arredondado, expressivo.
+   Tipografia Nunito, radius grande, sombras presentes, imagem protagonista.
+   -------------------------------------------------------------------------- */
 .public-theme-modern {
+  --theme-font-heading: 'Nunito', system-ui, sans-serif;
+  --theme-font-body: 'Nunito', system-ui, sans-serif;
+  --tenant-radius: 1.25rem;
+
   background:
     radial-gradient(
       circle at 8% 12%,
       color-mix(in srgb, var(--tenant-primary) 18%, transparent),
       transparent 30%
     ),
+    radial-gradient(
+      circle at 92% 4%,
+      color-mix(in srgb, var(--tenant-accent) 26%, transparent),
+      transparent 26%
+    ),
     var(--tenant-background);
+  font-family: var(--theme-font-body);
+}
+.public-theme-modern h1,
+.public-theme-modern h2,
+.public-theme-modern h3,
+.public-theme-modern .public-brand-name {
+  font-family: var(--theme-font-heading);
+  font-weight: 800;
+  letter-spacing: -0.015em;
 }
 .public-theme-modern .public-header {
   margin-top: 1rem;
@@ -7526,6 +7889,7 @@ h1 {
   box-shadow: 0 12px 35px color-mix(in srgb, var(--tenant-primary) 12%, transparent);
   backdrop-filter: blur(14px);
 }
+/* Banner: bloco visual arredondado, headline grande, CTA em pílula. */
 .public-theme-modern .public-hero {
   min-height: 440px;
   margin: 1.25rem auto 0;
@@ -7547,6 +7911,9 @@ h1 {
 .public-theme-modern section:not(.public-hero) {
   padding-block: 3.5rem;
 }
+.public-theme-modern section:not(.public-hero) > h2 {
+  font-size: 1.75rem;
+}
 .public-theme-modern .public-cards article {
   border: 0;
   border-radius: 1.25rem;
@@ -7561,9 +7928,99 @@ h1 {
 }
 .public-theme-modern .public-cta {
   border-radius: 999px;
+  padding: 0.9rem 2rem;
   color: #111827;
   background: var(--tenant-accent);
   font-weight: 800;
+}
+/* ServiceCard: imagem maior, cantos bem arredondados, preço em pílula. */
+.public-theme-modern .public-service-card,
+.public-theme-modern .public-professional-card {
+  border: 0;
+  border-radius: 1.5rem;
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--tenant-primary) 12%, transparent);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+.public-theme-modern .public-service-card:hover,
+.public-theme-modern .public-professional-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 55px color-mix(in srgb, var(--tenant-primary) 20%, transparent);
+}
+.public-theme-modern .public-service-media {
+  aspect-ratio: 4 / 3;
+  background: color-mix(in srgb, var(--tenant-primary) 16%, var(--tenant-surface));
+}
+.public-theme-modern .public-service-body {
+  gap: 0.55rem;
+  padding: 1.15rem 1.15rem 1.25rem;
+}
+.public-theme-modern .public-service-meta strong {
+  padding: 0.3rem 0.9rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tenant-primary) 14%, var(--tenant-surface));
+  color: var(--tenant-primary);
+  font-size: 1rem;
+  font-weight: 800;
+}
+.public-theme-modern .public-service-cta,
+.public-theme-modern .public-professional-cta {
+  border-radius: 999px;
+  min-height: 48px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--tenant-primary) 30%, transparent);
+}
+/* ProfessionalCard: foto grande como protagonista, moldura rosa. */
+.public-theme-modern .public-professional-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 240px));
+}
+.public-theme-modern .public-professional-card {
+  gap: 0.6rem;
+  padding: 1.4rem 1rem 1.25rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--tenant-primary) 10%, var(--tenant-surface)),
+    var(--tenant-surface) 45%
+  );
+}
+.public-theme-modern .public-professional-avatar {
+  width: 124px;
+  height: 124px;
+  font-size: 1.7rem;
+  box-shadow: 0 0 0 4px var(--tenant-surface), 0 0 0 7px color-mix(in srgb, var(--tenant-primary) 45%, transparent);
+}
+.public-theme-modern .public-professional-card h3 {
+  margin-top: 0.35rem;
+  font-size: 1.08rem;
+}
+
+/* Ajustes comuns aos três temas não-Luxury (o Luxury não é alcançado). */
+.public-theme-classic .public-cta,
+.public-theme-modern .public-cta,
+.public-theme-premium .public-cta,
+.public-theme-classic .public-service-cta,
+.public-theme-premium .public-service-cta,
+.public-theme-classic .public-professional-cta,
+.public-theme-premium .public-professional-cta {
+  text-decoration: none;
+}
+.public-theme-classic .public-hero > .public-cta,
+.public-theme-modern .public-hero > .public-cta,
+.public-theme-premium .public-hero > .public-cta {
+  width: auto;
+  justify-self: start;
+}
+.public-theme-modern .public-hero > .public-cta {
+  justify-self: center;
+}
+@media (max-width: 640px) {
+  .public-theme-classic .public-professional-grid,
+  .public-theme-modern .public-professional-grid,
+  .public-theme-premium .public-professional-grid,
+  .public-theme-premium .public-service-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .public-splash {
@@ -7604,13 +8061,29 @@ h1 {
     padding-inline: 1.35rem;
   }
   .public-theme-premium .public-hero {
-    min-height: 560px;
-    padding-bottom: 3rem;
+    min-height: 460px;
+    max-width: calc(100% - 1.5rem) !important;
+    padding-bottom: 2.5rem;
+    border-radius: 1.75rem;
     background-image:
-      linear-gradient(0deg, #080808 4%, transparent 72%), var(--tenant-banner-mobile);
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--tenant-accent) 45%, transparent),
+        color-mix(in srgb, var(--tenant-primary) 88%, #000) 92%
+      ),
+      var(--tenant-banner-mobile);
   }
   .public-theme-premium section:not(.public-hero) {
     padding-block: 3rem;
+  }
+  .public-theme-classic .public-hero {
+    background-image:
+      linear-gradient(
+        0deg,
+        color-mix(in srgb, var(--tenant-primary) 94%, #000) 30%,
+        color-mix(in srgb, var(--tenant-primary) 45%, transparent)
+      ),
+      var(--tenant-banner-mobile);
   }
   .public-theme-modern .public-header {
     margin-inline: 0.75rem;

@@ -6,6 +6,7 @@ import {
   contrastTextColor,
   deriveBrandPalette,
 } from './brand-studio.js';
+import { useAllThemeFonts } from '../../themes/theme-fonts.js';
 
 export function BrandPreview({
   displayName,
@@ -20,9 +21,10 @@ export function BrandPreview({
   logoUrl?: string | undefined;
   mode: 'mobile' | 'desktop';
 }) {
+  useAllThemeFonts();
   const palette = /^#[0-9A-Fa-f]{6}$/u.test(color)
-    ? deriveBrandPalette(color)
-    : deriveBrandPalette('#2457D6');
+    ? deriveBrandPalette(color, theme)
+    : deriveBrandPalette('#2457D6', theme);
   return (
     <div
       className={`brand-preview-frame brand-preview-frame--${mode}`}

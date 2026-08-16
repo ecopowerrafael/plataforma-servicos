@@ -1,4 +1,5 @@
 import { BRAND_THEMES, type BrandThemeCode } from './brand-studio.js';
+import { useAllThemeFonts } from '../../themes/theme-fonts.js';
 
 export function BrandThemePicker({
   value,
@@ -7,6 +8,8 @@ export function BrandThemePicker({
   value: BrandThemeCode;
   onChange: (value: BrandThemeCode) => void;
 }) {
+  // Cada cartão exibe a tipografia real do tema que representa.
+  useAllThemeFonts();
   return (
     <div className="brand-theme-grid">
       {BRAND_THEMES.map((theme) => (
@@ -21,10 +24,20 @@ export function BrandThemePicker({
         >
           {/* Mini prévia abstrata: comunica a direção visual, não a página. */}
           <span className="theme-miniature" aria-hidden="true">
-            <i className="theme-miniature-bar" />
-            <i className="theme-miniature-block" />
-            <i className="theme-miniature-line" />
-            <i className="theme-miniature-line theme-miniature-line--short" />
+            <span className="theme-miniature-header">
+              <i />
+              <b />
+            </span>
+            <span className="theme-miniature-hero">
+              <i />
+              <i />
+              <b />
+            </span>
+            <span className="theme-miniature-services">
+              <i />
+              <i />
+              <i />
+            </span>
           </span>
           <strong>{theme.name}</strong>
           <span>{theme.description}</span>

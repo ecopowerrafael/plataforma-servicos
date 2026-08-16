@@ -11,6 +11,9 @@ import { environment } from '../../config/environment.js';
 import { HttpError, httpClient } from '../../lib/http.js';
 import {
   deriveBrandPalette,
+  PALETTE_KEYS,
+  resolveSavedPalette,
+  themeDefaultPalette,
   type BrandPalette,
   type BrandThemeCode,
   type PublicLayoutCode,
@@ -23,22 +26,6 @@ import { PublicLayoutPicker } from '../branding/PublicLayoutPicker.js';
 import { PageHeader } from '../ui/AppUi.js';
 
 type AssetKind = 'LOGO';
-
-const PALETTE_KEYS = [
-  'primaryColor',
-  'secondaryColor',
-  'accentColor',
-  'backgroundColor',
-  'surfaceColor',
-  'textColor',
-  'mutedTextColor',
-  'borderColor',
-  'onPrimaryColor',
-  'headerColor',
-  'headerTextColor',
-  'navigationColor',
-  'activeColor',
-] as const satisfies readonly (keyof BrandPalette)[];
 
 const HEX = /^#[0-9A-Fa-f]{6}$/u;
 
@@ -77,16 +64,12 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
   // Tenants sem escolha explícita permanecem no modelo clássico.
   const layout = layoutOverride ?? settings.data?.site.layout ?? 'CLASSIC';
 
-  const savedPalette = useMemo<BrandPalette>(() => {
-    const branding = settings.data?.branding;
-    // Tokens semânticos ainda não escolhidos seguem o derivado do tema, que é
-    // exatamente o que a página pública mostra hoje para tenants legados.
-    const derived = deriveBrandPalette(branding?.primaryColor ?? '#2457D6', theme);
-    if (branding === undefined) return derived;
-    return Object.fromEntries(
-      PALETTE_KEYS.map((key) => [key, branding[key] ?? derived[key]]),
-    ) as BrandPalette;
-  }, [settings.data?.branding, theme]);
+  // Tokens salvos vencem sempre; só o que nunca foi escolhido segue o preset
+  // do tema. Não há efeito que reaplique cores padrão ao carregar a página.
+  const savedPalette = useMemo<BrandPalette>(
+    () => resolveSavedPalette(settings.data?.branding, theme),
+    [settings.data?.branding, theme],
+  );
 
   const palette = { ...savedPalette, ...paletteOverride };
   const dirty =
@@ -277,9 +260,11 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
               value={theme}
               onChange={(value) => {
                 setThemeOverride(value);
-                // Trocar o tema carrega os defaults dele; ajustes posteriores
-                // sobrescrevem apenas os tokens escolhidos.
-                setPaletteOverride(deriveBrandPalette(palette.primaryColor, value));
+                // Escolher um tema explicitamente aplica o preset dele (azul,
+                // rosa ou lilás) nos seletores e na prévia. Só a seleção faz
+                // isso: recarregar a página mantém o que está salvo, e edições
+                // manuais posteriores sobrescrevem apenas os tokens tocados.
+                setPaletteOverride(themeDefaultPalette(value, palette.primaryColor));
               }}
             />
           </section>
@@ -297,7 +282,8 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
                 setPaletteOverride(deriveBrandPalette(color, theme));
               }}
               onRestoreTheme={() => {
-                setPaletteOverride(deriveBrandPalette(palette.primaryColor, theme));
+                // Ação explícita do tenant: volta ao preset original do tema.
+                setPaletteOverride(themeDefaultPalette(theme, palette.primaryColor));
               }}
             />
           </section>

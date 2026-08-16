@@ -14,7 +14,11 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import { persistLayoutAndAdvance } from './onboarding-flow.js';
-import { deriveBrandPalette, type BrandThemeCode } from '../components/branding/brand-studio.js';
+import {
+  deriveBrandPalette,
+  themeDefaultPalette,
+  type BrandThemeCode,
+} from '../components/branding/brand-studio.js';
 import { BrandAssetDropzone } from '../components/branding/BrandAssetDropzone.js';
 import { BrandColorPicker } from '../components/branding/BrandColorPicker.js';
 import { BrandPreview } from '../components/branding/BrandPreview.js';
@@ -1038,7 +1042,14 @@ export function HomePage() {
               <>
                 <h2>Como você quer apresentar seu negócio?</h2>
                 <p>Escolha um tema real da sua página pública.</p>
-                <BrandThemePicker value={publicTheme} onChange={setPublicTheme} />
+                <BrandThemePicker
+                  value={publicTheme}
+                  onChange={(value) => {
+                    setPublicTheme(value);
+                    // Escolher o tema já traz a cor principal do preset dele.
+                    setPrimaryColor(themeDefaultPalette(value, primaryColor).primaryColor);
+                  }}
+                />
                 <button
                   className="primary-button"
                   disabled={savePublicTheme.isPending || updateOnboarding.isPending}
@@ -1061,7 +1072,7 @@ export function HomePage() {
                 <button
                   className="primary-button"
                   onClick={() => {
-                    saveBranding.mutate(deriveBrandPalette(primaryColor), {
+                    saveBranding.mutate(deriveBrandPalette(primaryColor, publicTheme), {
                       onSuccess: () => {
                         updateOnboarding.mutate({ step: 'SPLASH' });
                       },

@@ -12,6 +12,7 @@ import { type ProfessionalService } from './professional.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type AuthorizedTenantContext } from '../auth/identity.repository.js';
 import { validateServiceImageUpload } from '../services/service-image.storage.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 interface Options {
@@ -40,7 +41,7 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     cookieName: options.cookieName,
     client: options.client,
   });
-  const ownProfessional = async (r: { tenant: { id: bigint; membership: { permissions: string[] } }; auth: { user: { id: bigint } }; params: { publicId: string } }) => {
+  const ownProfessional = async (r: { tenant: AuthorizedTenantContext; auth: { user: { id: bigint } }; params: { publicId: string } }) => {
     if (r.tenant.membership.permissions.includes('professional.image.manage')) {
       options.authService.requirePermission(r.tenant, 'professional.image.manage');
       return;

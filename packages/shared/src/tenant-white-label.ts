@@ -5,6 +5,7 @@ import {
   BusinessTerminologySchema,
   TenantBrandingSchema,
 } from './business-profile.js';
+import { ServicePricingModeSchema } from './service.js';
 import { TenantPublicIdSchema, TenantSlugOutputSchema, TenantSlugSchema } from './tenant.js';
 
 export const TenantMediaKindSchema = z.enum([
@@ -96,6 +97,9 @@ export const PublicTenantSiteResponseSchema = z.object({
       imageUrl: z.string().nullable(),
       iconKey: z.string().nullable(),
       priceCents: z.string(),
+      /** Serviços sob orçamento não expõem preço: o público vê o aviso. */
+      pricingMode: ServicePricingModeSchema.default('FIXED'),
+      quoteNotice: z.string().nullable().default(null),
       durationMinutes: z.number().int(),
     }),
   ),

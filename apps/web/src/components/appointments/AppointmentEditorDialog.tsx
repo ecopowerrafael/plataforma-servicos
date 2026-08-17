@@ -29,6 +29,7 @@ export function AppointmentEditorDialog({
   tenantPublicId,
   appointment,
   presetCustomerPublicId,
+  treatmentPlan,
   canFitIn,
   onClose,
   onSaved,
@@ -36,16 +37,29 @@ export function AppointmentEditorDialog({
   tenantPublicId: string;
   appointment: Appointment | null;
   presetCustomerPublicId?: string;
+  /** Sessão de um tratamento: cliente, serviço e profissional vêm do plano. */
+  treatmentPlan?: {
+    publicId: string;
+    customerPublicId: string;
+    servicePublicId: string;
+    professionalPublicId: string;
+    sessionLabel: string;
+    recommendedNextDate: string | null;
+  };
   canFitIn: boolean;
   onClose: () => void;
   onSaved: (message: string) => void;
 }) {
   const editing = appointment !== null;
   const [customer, setCustomer] = useState(
-    appointment?.customerPublicId ?? presetCustomerPublicId ?? '',
+    appointment?.customerPublicId ?? treatmentPlan?.customerPublicId ?? presetCustomerPublicId ?? '',
   );
-  const [professional, setProfessional] = useState(appointment?.professionalPublicId ?? '');
-  const [service, setService] = useState(appointment?.servicePublicId ?? '');
+  const [professional, setProfessional] = useState(
+    appointment?.professionalPublicId ?? treatmentPlan?.professionalPublicId ?? '',
+  );
+  const [service, setService] = useState(
+    appointment?.servicePublicId ?? treatmentPlan?.servicePublicId ?? '',
+  );
   const [unitPublicId, setUnitPublicId] = useState(appointment?.unitPublicId ?? '');
   const [startsAt, setStartsAt] = useState(() => localDateTime(appointment?.startsAt));
   const [notes, setNotes] = useState(appointment?.notes ?? '');
@@ -106,6 +120,9 @@ export function AppointmentEditorDialog({
             startsAt: new Date(startsAt).toISOString(),
             notes: notes === '' ? null : notes,
             source: 'INTERNAL',
+            ...(editing || treatmentPlan === undefined
+              ? {}
+              : { treatmentPlanPublicId: treatmentPlan.publicId }),
             ...(!editing || rescheduleReason === '' ? {} : { rescheduleReason }),
             isFitIn,
             ...(isFitIn ? { fitInReason } : {}),
@@ -156,6 +173,17 @@ export function AppointmentEditorDialog({
         aria-labelledby="appointment-editor"
       >
         <h3 id="appointment-editor">{editing ? 'Editar agendamento' : 'Novo agendamento'}</h3>
+        {treatmentPlan === undefined ? null : (
+          /* A data recomendada é sugestão: o horário real vem da agenda. */
+          <p className="ds-note">
+            <strong>{treatmentPlan.sessionLabel}</strong>
+            {treatmentPlan.recommendedNextDate === null
+              ? ' — escolha a data com o cliente.'
+              : ` — recomendada a partir de ${new Date(
+                  treatmentPlan.recommendedNextDate,
+                ).toLocaleDateString('pt-BR')}.`}
+          </p>
+        )}
         <p>Preencha os dados para reservar este horário.</p>
         <fieldset className="ds-form-section ds-form-section--2">
           {editing && (

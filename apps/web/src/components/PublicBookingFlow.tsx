@@ -3,14 +3,14 @@ import {
   CUSTOMER_PASSWORD_RULES,
   PaymentGatewayChargePublicSchema,
   PixChargeResponseSchema,
+  servicePriceLabel,
 } from '@plataforma/shared';
 import { IconCreditCard, IconQrcode } from '@tabler/icons-react';
-
-import { PushReminderCta } from './public/PushReminderCta.js';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { type z } from 'zod';
 
+import { PushReminderCta } from './public/PushReminderCta.js';
 import {
   BOOKING_STEPS as steps,
   centsToBrl,
@@ -107,7 +107,7 @@ function ServiceStep({
               <strong>{service.name}</strong>
               {service.description === null ? null : <small>{service.description}</small>}
               <span className="booking-choice-meta">
-                <b>{centsToBrl(service.priceCents)}</b>
+                <b>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</b>
                 <span>{`${String(service.durationMinutes)} min`}</span>
               </span>
             </span>
@@ -537,7 +537,7 @@ function BookingSummary({
             </div>
             <div>
               <dt>Valor</dt>
-              <dd>{centsToBrl(service.priceCents)}</dd>
+              <dd>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</dd>
             </div>
           </>
         )}

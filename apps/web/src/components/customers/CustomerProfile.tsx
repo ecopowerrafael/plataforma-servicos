@@ -31,6 +31,7 @@ import {
   whatsappNumber,
 } from './customer-crm.js';
 import { CustomerForm } from './CustomerForm.js';
+import { CustomerTreatmentPlans } from './CustomerTreatmentPlans.js';
 import { httpClient } from '../../lib/http.js';
 import { AppointmentStatusBadge } from '../appointments/appointment-status.js';
 import { EmptyState, ListSkeleton, SectionCard } from '../ui/AppUi.js';
@@ -408,6 +409,7 @@ export function CustomerProfile({
               </ul>
             )}
           </SectionCard>
+          <CustomerTreatmentPlans tenantPublicId={tenantPublicId} customerPublicId={publicId} />
         </div>
       )}
 

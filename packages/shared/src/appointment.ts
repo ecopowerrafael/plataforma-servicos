@@ -12,6 +12,8 @@ const inputShape = {
   fitInReason: z.string().trim().min(3).max(500).optional(),
   depositType: DepositTypeSchema.nullable().optional(),
   depositValue: z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+  /** Agenda uma sessão do plano informado, em vez de um atendimento comum. */
+  treatmentPlanPublicId: z.uuid().optional(),
 };
 function withFitInValidation<T extends z.ZodType>(schema: T): T {
   return schema.superRefine((value, context) => {
@@ -90,6 +92,8 @@ export const AppointmentQuerySchema = z
     direction: z.enum(['asc', 'desc']).optional(),
   })
   .strict();
+/** Papel do agendamento; persistido, nunca inferido pelo status ou pelo nome. */
+export const AppointmentKindSchema = z.enum(['STANDARD', 'EVALUATION', 'TREATMENT_SESSION']);
 export const AppointmentPublicSchema = z.object({
   publicId: z.uuid(),
   protocol: z.string(),
@@ -112,6 +116,10 @@ export const AppointmentPublicSchema = z.object({
   source: z.string(),
   canceledReason: z.string().nullable(),
   rescheduleReason: z.string().nullable(),
+  kind: AppointmentKindSchema,
+  /** Plano de tratamento das sessões; nulo em avaliações e atendimentos comuns. */
+  treatmentPlanPublicId: z.uuid().nullable(),
+  sessionNumber: z.number().int().min(1).nullable(),
   isFitIn: z.boolean(),
   fitInReason: z.string().nullable(),
   checkedInAt: z.iso.datetime({ offset: true }).nullable(),

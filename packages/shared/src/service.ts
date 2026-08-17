@@ -4,6 +4,12 @@ const ServiceColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/u);
 const MoneyInputSchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const MoneyPublicSchema = z.string().regex(/^\d+$/u);
 
+/**
+ * `FIXED` mantém o comportamento atual (preço no catálogo). `QUOTE` agenda uma
+ * avaliação e o preço é definido depois, por cliente, no orçamento.
+ */
+export const ServicePricingModeSchema = z.enum(['FIXED', 'QUOTE']);
+
 const ServiceInputShape = {
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().min(1).max(1000).nullable().optional(),
@@ -15,6 +21,10 @@ const ServiceInputShape = {
   hasPostServiceBreak: z.boolean().default(false),
   postServiceBreakMinutes: z.coerce.number().int().min(0).max(240).default(0),
   priceCents: MoneyInputSchema,
+  /** Ausente nos serviços já existentes: o padrão continua sendo preço fixo. */
+  pricingMode: ServicePricingModeSchema.optional(),
+  /** Texto público exibido no lugar do preço nos serviços sob orçamento. */
+  quoteNotice: z.string().trim().min(1).max(160).nullable().optional(),
   color: ServiceColorSchema,
   sortOrder: z.coerce.number().int().min(0).max(999).default(0),
   active: z.boolean().default(true),
@@ -25,7 +35,16 @@ function withBreakValidation<T extends z.ZodType>(schema: T): T {
     const service = value as {
       hasPostServiceBreak?: boolean;
       postServiceBreakMinutes?: number;
+      pricingMode?: 'FIXED' | 'QUOTE';
+      priceCents?: number;
     };
+    // Sob orçamento o preço só é definido depois da avaliação.
+    if (service.pricingMode === 'QUOTE' && (service.priceCents ?? 0) !== 0)
+      context.addIssue({
+        code: 'custom',
+        path: ['priceCents'],
+        message: 'Serviços sob orçamento não têm preço no cadastro.',
+      });
     if (service.hasPostServiceBreak === true && service.postServiceBreakMinutes === 0) {
       context.addIssue({
         code: 'custom',
@@ -64,6 +83,8 @@ export const ServicePublicSchema = z
     hasPostServiceBreak: z.boolean(),
     postServiceBreakMinutes: z.number().int(),
     priceCents: MoneyPublicSchema,
+    pricingMode: ServicePricingModeSchema,
+    quoteNotice: z.string().nullable(),
     color: ServiceColorSchema,
     sortOrder: z.number().int(),
     active: z.boolean(),
@@ -90,6 +111,21 @@ export function blockedServiceMinutes(
   postServiceBreakMinutes: number,
 ): number {
   return durationMinutes + (hasPostServiceBreak ? postServiceBreakMinutes : 0);
+}
+
+/** Rótulo público de um serviço sob orçamento — nunca exibir R$ 0,00. */
+export const DEFAULT_QUOTE_NOTICE = 'Valor sob orçamento';
+
+export function servicePriceLabel(
+  pricingMode: 'FIXED' | 'QUOTE',
+  priceCents: string,
+  quoteNotice: string | null,
+): string {
+  if (pricingMode === 'QUOTE') return quoteNotice ?? DEFAULT_QUOTE_NOTICE;
+  return (Number(priceCents) / 100).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
 }
 
 export type CreateServiceRequest = z.infer<typeof CreateServiceRequestSchema>;

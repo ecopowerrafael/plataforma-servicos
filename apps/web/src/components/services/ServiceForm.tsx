@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   CreateServiceRequestSchema,
+  DEFAULT_QUOTE_NOTICE,
   blockedServiceMinutes,
   type ServicePublicSchema,
   type ServiceCategoryPublicSchema,
@@ -29,6 +30,8 @@ function defaults(service?: Service): ServiceInput {
       hasPostServiceBreak: false,
       postServiceBreakMinutes: 0,
       priceCents: 0,
+      pricingMode: 'FIXED',
+      quoteNotice: null,
       color: '#2563EB',
       sortOrder: 0,
       active: true,
@@ -44,6 +47,8 @@ function defaults(service?: Service): ServiceInput {
     hasPostServiceBreak: service.hasPostServiceBreak,
     postServiceBreakMinutes: service.postServiceBreakMinutes,
     priceCents: Number(service.priceCents),
+    pricingMode: service.pricingMode,
+    quoteNotice: service.quoteNotice,
     color: service.color,
     sortOrder: service.sortOrder,
     active: service.active,
@@ -88,7 +93,7 @@ export function ServiceForm({
     setValue,
     formState: { errors },
   } = form;
-  const [duration, hasBreak, breakMinutes, priceCents, iconKey] = useWatch({
+  const [duration, hasBreak, breakMinutes, priceCents, iconKey, pricingMode] = useWatch({
     control,
     name: [
       'durationMinutes',
@@ -96,8 +101,10 @@ export function ServiceForm({
       'postServiceBreakMinutes',
       'priceCents',
       'iconKey',
+      'pricingMode',
     ],
   });
+  const isQuote = pricingMode === 'QUOTE';
   useEffect(() => {
     reset(defaults(service));
   }, [reset, service]);
@@ -145,7 +152,7 @@ export function ServiceForm({
   );
   const durationField = (
     <label>
-      {'Duração (minutos)'}
+      {isQuote ? 'Duração da avaliação (minutos)' : 'Duração (minutos)'}
       <input
         min="1"
         max="1440"
@@ -160,6 +167,43 @@ export function ServiceForm({
         <option value="90">1 h 30</option>
         <option value="120">2 h</option>
       </datalist>
+    </label>
+  );
+  // Sob orçamento a tela guarda só o essencial: a complexidade (sessões,
+  // intervalo, valor) pertence ao atendimento de cada cliente.
+  const pricingModeField = (
+    <div className="service-field--wide service-pricing-mode">
+      <span>Tipo de preço</span>
+      <div className="service-pricing-options" role="radiogroup" aria-label="Tipo de preço">
+        {(
+          [
+            ['FIXED', 'Preço fixo', 'O valor já aparece para o cliente.'],
+            ['QUOTE', 'Sob orçamento', 'O cliente agenda uma avaliação e o valor vem depois.'],
+          ] as const
+        ).map(([value, label, hint]) => (
+          <label key={value} className={pricingMode === value ? 'is-selected' : undefined}>
+            <input
+              type="radio"
+              value={value}
+              checked={pricingMode === value}
+              onChange={() => {
+                setValue('pricingMode', value, { shouldDirty: true });
+                // Sob orçamento não existe preço no cadastro.
+                if (value === 'QUOTE') setValue('priceCents', 0, { shouldDirty: true });
+              }}
+            />
+            <strong>{label}</strong>
+            <small>{hint}</small>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+  const quoteNoticeField = (
+    <label className="service-field--wide">
+      {'Texto exibido no lugar do preço'}
+      <input placeholder={DEFAULT_QUOTE_NOTICE} {...register('quoteNotice')} />
+      <small>{`Sem preencher, o cliente vê "${DEFAULT_QUOTE_NOTICE}".`}</small>
     </label>
   );
   const priceField = (
@@ -263,7 +307,8 @@ export function ServiceForm({
           <fieldset className="service-form-section">
             <legend>Preço e duração</legend>
             <div className="service-form-grid">
-              {priceField}
+              {pricingModeField}
+              {isQuote ? quoteNoticeField : priceField}
               {durationField}
               {colorField}
               {breakFields}
@@ -287,8 +332,9 @@ export function ServiceForm({
         <div className="service-form-grid">
           {nameField}
           {categoryField}
+          {pricingModeField}
           {durationField}
-          {priceField}
+          {isQuote ? quoteNoticeField : priceField}
           {colorField}
           {statusField}
           {sortOrderField}

@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { accountPath } from './customer-account.js';
+import { CustomerTreatments } from './CustomerTreatments.js';
 import { httpClient } from '../../../lib/http.js';
 import { AppointmentStatusBadge } from '../../appointments/appointment-status.js';
 
@@ -113,6 +114,8 @@ export function CustomerAccountHome({ slug, name }: { slug: string; name: string
           </div>
         )}
       </section>
+
+      <CustomerTreatments slug={slug} />
 
       <nav className="customer-home-shortcuts" aria-label="Atalhos">
         {shortcuts.map((shortcut) => {

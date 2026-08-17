@@ -375,6 +375,8 @@ export class TenantWhiteLabelService {
             : `/public/services/${service.publicId}/image?variant=thumbnail`,
         iconKey: service.iconKey,
         priceCents: service.priceCents.toString(),
+        pricingMode: service.pricingMode,
+        quoteNotice: service.quoteNotice,
         durationMinutes: service.durationMinutes,
       })),
       professionals: tenant.professionals.map((professional) => ({

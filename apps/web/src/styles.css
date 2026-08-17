@@ -9518,3 +9518,226 @@ h1 {
 @media (max-width: 360px) {
   .professional-agenda-greeting { align-items: flex-start; flex-wrap: wrap; gap: .2rem .65rem; }
 }
+
+/* Serviço sob orçamento: escolha do tipo de preço no cadastro */
+.service-pricing-mode > span {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.service-pricing-options {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.service-pricing-options label {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  cursor: pointer;
+}
+.service-pricing-options label.is-selected {
+  border-color: var(--app-accent, #2563eb);
+  box-shadow: 0 0 0 1px var(--app-accent, #2563eb) inset;
+}
+.service-pricing-options small {
+  color: var(--ds-text-muted);
+}
+
+/* Orçamento e tratamento dentro do atendimento (Professional App) */
+.treatment-panel {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-muted, #f8fafc);
+}
+.treatment-panel--pending {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+.treatment-panel-head {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.treatment-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.86rem;
+}
+.treatment-next {
+  color: var(--ds-text-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.treatment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Bottom sheet "Definir orçamento" — mobile-first */
+.treatment-sheet-backdrop {
+  align-items: flex-end;
+  background: rgb(15 23 42 / 55%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 0;
+  position: fixed;
+  z-index: 70;
+}
+.treatment-sheet {
+  background: var(--ds-surface, #fff);
+  border-radius: 1.25rem 1.25rem 0 0;
+  display: grid;
+  gap: 1rem;
+  max-height: 92vh;
+  max-width: 30rem;
+  overflow: auto;
+  padding: 1.25rem 1.15rem calc(1.25rem + env(safe-area-inset-bottom));
+  width: 100%;
+}
+.treatment-sheet h3 {
+  margin: 0;
+}
+.treatment-amount input {
+  font-size: 1.5rem;
+  font-weight: 700;
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+}
+.treatment-choice > span,
+.treatment-stepper > span {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.treatment-choice > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.treatment-choice button {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0 1rem;
+}
+.treatment-choice button.is-selected {
+  background: var(--app-accent, #2563eb);
+  border-color: var(--app-accent, #2563eb);
+  color: #fff;
+}
+.treatment-stepper > div {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+}
+.treatment-stepper button {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  height: 44px;
+  width: 44px;
+}
+.treatment-stepper strong {
+  font-size: 1.15rem;
+  min-width: 5rem;
+  text-align: center;
+}
+.treatment-choice small,
+.treatment-stepper small {
+  color: var(--ds-text-muted);
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+}
+@media (min-width: 640px) {
+  .treatment-sheet-backdrop {
+    align-items: center;
+    padding: 1rem;
+  }
+  .treatment-sheet {
+    border-radius: 1.25rem;
+  }
+}
+
+/* Tratamentos no Cliente 360 e na conta do cliente */
+.crm-treatment-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.crm-treatment {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem;
+}
+.crm-treatment__head {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.customer-treatments {
+  display: grid;
+  gap: 0.75rem;
+}
+.customer-treatments > header span {
+  font-weight: 700;
+}
+.customer-treatment {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.95rem;
+}
+.customer-treatment__head {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.customer-treatment__amount,
+.customer-treatment__progress,
+.customer-treatment__next,
+.customer-treatment__hint {
+  margin: 0;
+  font-size: 0.86rem;
+}
+.customer-treatment__progress span {
+  display: block;
+  letter-spacing: 0.2em;
+  color: var(--tenant-primary, #2563eb);
+}
+.customer-treatment__hint,
+.customer-treatment__next {
+  color: var(--tenant-muted, #64748b);
+}
+.customer-treatment__next strong {
+  color: var(--tenant-text, #0f172a);
+  display: block;
+  font-size: 1.05rem;
+}

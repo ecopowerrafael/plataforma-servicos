@@ -20,6 +20,7 @@ const record = (publicId: string, professionalId: bigint, professionalPublicId: 
   protocol: `AGD-${publicId[0]}`, status: 'CONFIRMED', startsAt: new Date('2026-09-01T13:00:00.000Z'),
   endsAt: new Date('2026-09-01T13:30:00.000Z'), durationMinutes: 30, postServiceBreakMinutes: 0,
   priceCents: 10_000n, notes: null, source: 'ADMIN', canceledReason: null, rescheduleReason: null,
+  kind: 'STANDARD' as const, treatmentPlan: null, sessionNumber: null,
   isFitIn: false, fitInReason: null, checkedInAt: null, depositType: null, depositPercentage: null,
   depositAmountCents: null, createdAt: new Date('2026-08-01T00:00:00.000Z'), updatedAt: new Date('2026-08-01T00:00:00.000Z'),
   customer: { publicId: 'dddddddd-0000-4000-8000-000000000004', name: 'Cliente', phone: '11999999999' },

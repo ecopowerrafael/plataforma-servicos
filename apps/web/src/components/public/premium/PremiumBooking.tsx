@@ -1,4 +1,4 @@
-import { CUSTOMER_PASSWORD_RULES } from '@plataforma/shared';
+import { CUSTOMER_PASSWORD_RULES, servicePriceLabel } from '@plataforma/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { environment } from '../../../config/environment.js';
@@ -8,7 +8,6 @@ import { PushReminderCta } from '../PushReminderCta.js';
 import { ServiceVisual } from '../ServiceVisual.js';
 import {
   BOOKING_STEPS,
-  centsToBrl,
   dateFromIso,
   humanError,
   initialsOf,
@@ -275,7 +274,8 @@ export function PremiumBooking({
                   <span className="premium-pick-body">
                     <strong>{item.name}</strong>
                     <small>
-                      {centsToBrl(item.priceCents)} · {item.durationMinutes} min
+                      {servicePriceLabel(item.pricingMode, item.priceCents, item.quoteNotice)}
+                      {` · ${String(item.durationMinutes)} min`}
                     </small>
                   </span>
                   <span className="premium-pick-check" aria-hidden="true">
@@ -603,7 +603,7 @@ export function PremiumBooking({
                 </div>
                 <div>
                   <dt>Valor</dt>
-                  <dd>{centsToBrl(service.priceCents)}</dd>
+                  <dd>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</dd>
                 </div>
                 <div>
                   <dt>Duração aproximada</dt>

@@ -20,6 +20,10 @@ import { appointmentRoutes } from './modules/appointments/appointment.routes.js'
 import { customerAppointmentsRoutes } from './modules/appointments/customer-appointments.routes.js';
 import { customerReviewsRoutes } from './modules/appointments/customer-reviews.routes.js';
 import {
+  customerTreatmentPlanRoutes,
+  treatmentPlanRoutes,
+} from './modules/appointments/treatment-plan.routes.js';
+import {
   internalIdentityRoutes,
   protectedAuthRoutes,
   publicAuthRoutes,
@@ -379,6 +383,13 @@ export async function buildApp(options: BuildAppOptions) {
         cookieName: 'customer_session',
       });
     }
+    if (options.database.treatmentPlans !== undefined) {
+      await app.register(customerTreatmentPlanRoutes, {
+        service: options.database.treatmentPlans,
+        authService: options.database.customerAuth,
+        cookieName: 'customer_session',
+      });
+    }
     if (options.database.customerFavorites !== undefined) {
       await app.register(customerFavoriteRoutes, {
         service: options.database.customerFavorites,
@@ -450,6 +461,19 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.appointmentNotifications === undefined
         ? {}
         : { notifications: options.database.appointmentNotifications }),
+    });
+  if (
+    options.database.treatmentPlans !== undefined &&
+    options.database.professionals !== undefined &&
+    options.database.appointments !== undefined
+  )
+    await app.register(treatmentPlanRoutes, {
+      service: options.database.treatmentPlans,
+      appointments: options.database.appointments,
+      professionals: options.database.professionals,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
     });
   if (options.database.appointmentWaitlists !== undefined)
     await app.register(appointmentWaitlistRoutes, {

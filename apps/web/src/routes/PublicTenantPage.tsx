@@ -1,4 +1,4 @@
-import { CustomerAuthResponseSchema, PublicTenantSiteResponseSchema } from '@plataforma/shared';
+import { CustomerAuthResponseSchema, PublicTenantSiteResponseSchema, servicePriceLabel } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -17,9 +17,6 @@ import { LuxuryTheme } from '../themes/luxury/LuxuryTheme.js';
 import { ModernTheme } from '../themes/modern/ModernTheme.js';
 import { PremiumTheme } from '../themes/premium/PremiumTheme.js';
 import { useThemeFont } from '../themes/theme-fonts.js';
-
-const brl = (cents: string) =>
-  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const initials = (name: string) =>
   name
@@ -267,7 +264,13 @@ export function PublicTenantPage() {
                         <h3>{service.name}</h3>
                         {service.description === null ? null : <p>{service.description}</p>}
                         <div className="public-service-meta">
-                          <strong>{brl(service.priceCents)}</strong>
+                          <strong>
+                            {servicePriceLabel(
+                              service.pricingMode,
+                              service.priceCents,
+                              service.quoteNotice,
+                            )}
+                          </strong>
                           <span>{`${String(service.durationMinutes)} min`}</span>
                         </div>
                         <a

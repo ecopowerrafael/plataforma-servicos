@@ -1,6 +1,7 @@
 import {
   AppointmentListResponseSchema,
   type PublicTenantSiteResponseSchema,
+  servicePriceLabel,
 } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -17,9 +18,6 @@ import { ServiceVisual } from '../ServiceVisual.js';
 import { usePwaInstall } from '../use-pwa-install.js';
 
 type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
-
-const brl = (cents: string) =>
-  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const initials = (name: string) =>
   name
@@ -172,8 +170,14 @@ export function PremiumApp({
                       iconKey={service.iconKey}
                     />
                     <strong>{service.name}</strong>
-                    <small>A partir de</small>
-                    <b>{brl(service.priceCents)}</b>
+                    {service.pricingMode === 'QUOTE' ? null : <small>A partir de</small>}
+                    <b>
+                      {servicePriceLabel(
+                        service.pricingMode,
+                        service.priceCents,
+                        service.quoteNotice,
+                      )}
+                    </b>
                   </button>
                 ))}
               </div>
@@ -295,7 +299,13 @@ export function PremiumApp({
                     {service.description === null ? null : <small>{service.description}</small>}
                   </span>
                   <span className="premium-service-meta">
-                    <b>{brl(service.priceCents)}</b>
+                    <b>
+                      {servicePriceLabel(
+                        service.pricingMode,
+                        service.priceCents,
+                        service.quoteNotice,
+                      )}
+                    </b>
                     <small>{service.durationMinutes} min</small>
                   </span>
                 </button>

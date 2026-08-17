@@ -138,6 +138,9 @@ describe('tenant Brand Studio contracts', () => {
     expect(stylesSource).toContain('.public-theme-classic .public-hero');
     expect(stylesSource).toContain('.public-theme-premium .public-hero h1');
     expect(stylesSource).toContain('.public-theme-modern .public-cards article:hover');
-    expect(stylesSource).toContain("font-family: Georgia, 'Times New Roman', serif");
+    // Cada tema não-Luxury tem a própria tipografia, não só outra cor.
+    expect(stylesSource).toContain("--theme-font-heading: 'Manrope'");
+    expect(stylesSource).toContain("--theme-font-heading: 'Nunito'");
+    expect(stylesSource).toContain("--theme-font-heading: 'Lora'");
   });
 });

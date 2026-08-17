@@ -8,6 +8,7 @@ import {
 
 import { type AppointmentWaitlistService } from './appointment-waitlist.service.js';
 import { type AppointmentRepository } from './appointment.repository.js';
+import { type TreatmentPlanService } from './treatment-plan.service.js';
 import { type AppointmentStatus, type Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
@@ -30,6 +31,8 @@ interface Input {
   fitInReason?: string | undefined;
   depositType?: 'FIXED' | 'PERCENTAGE' | null | undefined;
   depositValue?: number | undefined;
+  /** Agenda uma sessão do plano informado em vez de um atendimento comum. */
+  treatmentPlanPublicId?: string | undefined;
 }
 type AppointmentRecord = Awaited<ReturnType<AppointmentRepository['find']>> & {};
 const pub = (x: AppointmentRecord) =>
@@ -55,6 +58,9 @@ const pub = (x: AppointmentRecord) =>
     source: x.source,
     canceledReason: x.canceledReason,
     rescheduleReason: x.rescheduleReason,
+    kind: x.kind,
+    treatmentPlanPublicId: x.treatmentPlan?.publicId ?? null,
+    sessionNumber: x.sessionNumber,
     isFitIn: x.isFitIn,
     fitInReason: x.fitInReason,
     checkedInAt: x.checkedInAt?.toISOString() ?? null,
@@ -66,6 +72,7 @@ const pub = (x: AppointmentRecord) =>
   });
 export class AppointmentService {
   private waitlistService?: AppointmentWaitlistService;
+  private treatmentPlans?: TreatmentPlanService;
   private readonly commercialStatusResolver = new TenantCommercialStatusResolver();
 
   constructor(
@@ -77,6 +84,10 @@ export class AppointmentService {
 
   setWaitlistService(service: AppointmentWaitlistService): void {
     this.waitlistService = service;
+  }
+
+  setTreatmentPlanService(service: TreatmentPlanService): void {
+    this.treatmentPlans = service;
   }
 
   private async assertCommercialCapability(t: bigint, source: string): Promise<void> {
@@ -290,7 +301,12 @@ export class AppointmentService {
   }
   async create(t: bigint, i: Input, a: Actor) {
     await this.assertCommercialCapability(t, i.source);
-    return this.save(t, i, a);
+    // Sessões de um plano são numeradas sob trava: dois pedidos simultâneos não
+    // podem ler o mesmo "último número" e gravar duas sessões iguais.
+    if (i.treatmentPlanPublicId === undefined || this.treatmentPlans === undefined)
+      return this.save(t, i, a);
+    const plan = i.treatmentPlanPublicId;
+    return this.treatmentPlans.reserveSession(plan, () => this.save(t, i, a));
   }
   async update(t: bigint, id: string, i: Input, a: Actor) {
     const old = await this.repo.find(t, id);
@@ -355,6 +371,9 @@ export class AppointmentService {
     if (status === 'CANCELED' && this.waitlistService !== undefined) {
       await this.waitlistService.markWaitlistOpportunityOnAppointmentCancellation(t, old.id);
     }
+    // Concluir a sessão é o único evento que move o progresso do tratamento.
+    if (old.treatmentPlanId !== null && this.treatmentPlans !== undefined && status === 'COMPLETED')
+      await this.treatmentPlans.refreshProgress(t, old.treatmentPlanId);
     await this.recordHistory(t, old.id, {
       action: 'STATUS_CHANGED',
       previousStatus: old.status,
@@ -464,7 +483,36 @@ export class AppointmentService {
         message: 'Há conflito na agenda do profissional.',
         statusCode: 409,
       });
-    const priceCents = link.priceCents ?? service.priceCents;
+    // Sessão de tratamento: o preço e a ordem vêm do plano. Avaliação de um
+    // serviço sob orçamento nasce sem preço — ele só existe após o orçamento.
+    const session =
+      i.treatmentPlanPublicId === undefined || this.treatmentPlans === undefined
+        ? null
+        : await this.treatmentPlans.nextSession(t, i.treatmentPlanPublicId);
+    if (session !== null) {
+      if (
+        session.customerId !== customer.id ||
+        session.serviceId !== service.id ||
+        session.professionalId !== professional.id
+      )
+        throw new AppError({
+          code: 'TREATMENT_PLAN_SESSION_MISMATCH',
+          message: 'A sessão precisa manter o cliente, o serviço e o profissional do orçamento.',
+          statusCode: 400,
+        });
+    }
+    const kind =
+      session !== null
+        ? ('TREATMENT_SESSION' as const)
+        : service.pricingMode === 'QUOTE'
+          ? ('EVALUATION' as const)
+          : ('STANDARD' as const);
+    const priceCents =
+      // Reagendar uma avaliação ou sessão preserva o valor já acordado.
+      old !== undefined && (old.treatmentPlanId !== null || old.kind === 'EVALUATION')
+        ? old.priceCents
+        : (session?.priceCents ??
+          (kind === 'EVALUATION' ? 0n : (link.priceCents ?? service.priceCents)));
     const depositType = i.depositType ?? null;
     let depositPercentage: number | null = null;
     let depositAmountCents: bigint | null = null;
@@ -499,6 +547,9 @@ export class AppointmentService {
       durationMinutes: duration,
       postServiceBreakMinutes: pause,
       priceCents,
+      kind: old === undefined ? kind : old.kind,
+      treatmentPlanId: old === undefined ? (session?.planId ?? null) : old.treatmentPlanId,
+      sessionNumber: old === undefined ? (session?.sessionNumber ?? null) : old.sessionNumber,
       notes: i.notes ?? null,
       source: i.source,
       isFitIn,

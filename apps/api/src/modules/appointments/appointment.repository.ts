@@ -5,6 +5,7 @@ const include = {
   professional: { select: { publicId: true, publicName: true } },
   service: { select: { publicId: true, name: true } },
   unit: { select: { publicId: true, name: true } },
+  treatmentPlan: { select: { publicId: true } },
 } as const;
 export class AppointmentRepository {
   constructor(private readonly client: PrismaClient) {}
@@ -20,6 +21,13 @@ export class AppointmentRepository {
   }
   service(t: bigint, id: string) {
     return this.client.service.findFirst({ where: { tenantId: t, publicId: id, active: true } });
+  }
+  /** Plano de uma sessão já agendada, para recalcular o progresso. */
+  planIdOf(t: bigint, appointmentId: bigint) {
+    return this.client.appointment.findFirst({
+      where: { tenantId: t, id: appointmentId },
+      select: { treatmentPlanId: true },
+    });
   }
   unit(t: bigint, id: string) {
     return this.client.businessUnit.findFirst({

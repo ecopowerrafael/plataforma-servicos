@@ -24,6 +24,8 @@ function service(overrides: Record<string, unknown> = {}) {
     hasPostServiceBreak: false,
     postServiceBreakMinutes: 0,
     priceCents: 5_000n,
+    pricingMode: 'FIXED' as const,
+    quoteNotice: null,
     color: '#2563EB',
     sortOrder: 0,
     active: true,

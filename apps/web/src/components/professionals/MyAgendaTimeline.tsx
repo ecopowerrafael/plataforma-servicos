@@ -284,6 +284,7 @@ export function MyAgendaTimeline({
   busy,
   notesFor,
   notesSlot,
+  treatmentSlot,
 }: {
   entries: TimelineEntry[];
   paymentStates: Map<string, AppointmentPaymentState>;
@@ -292,6 +293,8 @@ export function MyAgendaTimeline({
   busy: boolean;
   notesFor: string | null;
   notesSlot: (appointment: Appointment) => React.ReactNode;
+  /** Bloco de orçamento/tratamento; só aparece em avaliações e sessões. */
+  treatmentSlot?: (appointment: Appointment) => React.ReactNode;
 }) {
   return (
     <ol className="my-agenda-timeline">
@@ -365,6 +368,7 @@ export function MyAgendaTimeline({
                   handlers={handlers}
                 />
               </div>
+              {treatmentSlot?.(appointment)}
               {notesFor === appointment.publicId && notesSlot(appointment)}
             </div>
           </li>

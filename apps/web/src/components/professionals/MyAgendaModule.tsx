@@ -7,6 +7,7 @@ import {
   ProfessionalPublicSchema,
   ProfessionalServicesResponseSchema,
   type AppointmentPaymentState,
+  type TreatmentPlanPublic,
 } from '@plataforma/shared';
 import { IconCalendarOff, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -33,8 +34,10 @@ import {
   type MyAgendaHandlers,
   type MyAgendaPermissions,
 } from './MyAgendaTimeline.js';
+import { TreatmentPlanPanel } from './TreatmentPlanPanel.js';
 import { httpClient, HttpError } from '../../lib/http.js';
 import { AgendaCompleteDialog, type AgendaCompleteTarget } from '../agenda/AgendaCompleteDialog.js';
+import { AppointmentEditorDialog } from '../appointments/AppointmentEditorDialog.js';
 import { CalendarModule } from '../calendar/CalendarModule.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { EmptyState, ListSkeleton, PageHeader, SectionCard } from '../ui/AppUi.js';
@@ -70,6 +73,8 @@ export function MyAgendaModule({
   const [mode, setMode] = useState<'day' | 'upcoming'>('day');
   const [date, setDate] = useState(today);
   const [notesFor, setNotesFor] = useState<string | null>(null);
+  /** Plano cuja próxima sessão está sendo agendada no fluxo normal da agenda. */
+  const [sessionPlan, setSessionPlan] = useState<TreatmentPlanPublic | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const [completeTarget, setCompleteTarget] = useState<
@@ -437,6 +442,23 @@ export function MyAgendaModule({
     </div>
   );
 
+  // Orçamento e sessões aparecem dentro do próprio atendimento.
+  // No Professional App a sessão é agendada pelas rotas do próprio
+  // profissional; no painel, pelo editor completo da agenda.
+  const treatmentSlot = (appointment: Appointment) => (
+    <TreatmentPlanPanel
+      appointment={appointment}
+      tenantPublicId={tenantPublicId}
+      {...(selfOnly || !canCreate
+        ? {}
+        : {
+            onScheduleSession: (plan: TreatmentPlanPublic) => {
+              setSessionPlan(plan);
+            },
+          })}
+    />
+  );
+
   if (me.error instanceof Error) return null;
 
   const dayStrip = Array.from({ length: DAY_STRIP_LENGTH }, (_, index) => addDays(date, index));
@@ -656,6 +678,7 @@ export function MyAgendaModule({
                       busy={busy}
                       notesFor={notesFor}
                       notesSlot={notesSlot}
+                      treatmentSlot={treatmentSlot}
                     />
                     {blocks.length > 0 && (
                       <p className="ds-form-hint">
@@ -718,6 +741,32 @@ export function MyAgendaModule({
             setCompleteTarget(null);
             if (dialogMode === 'complete') selfStatus.mutate({ publicId, status: 'completed' });
             else void invalidateAgenda();
+          }}
+        />
+      )}
+      {sessionPlan !== null && (
+        /* Mesmo editor da agenda: só o plano vem pré-selecionado. */
+        <AppointmentEditorDialog
+          tenantPublicId={tenantPublicId}
+          appointment={null}
+          canFitIn={false}
+          treatmentPlan={{
+            publicId: sessionPlan.publicId,
+            customerPublicId: sessionPlan.customerPublicId,
+            servicePublicId: sessionPlan.servicePublicId,
+            professionalPublicId: sessionPlan.professionalPublicId,
+            sessionLabel:
+              sessionPlan.sessionsPlanned === null
+                ? `Sessão ${String(sessionPlan.sessions.length + 1)}`
+                : `Sessão ${String(sessionPlan.sessions.length + 1)} de ${String(sessionPlan.sessionsPlanned)}`,
+            recommendedNextDate: sessionPlan.recommendedNextDate,
+          }}
+          onClose={() => {
+            setSessionPlan(null);
+          }}
+          onSaved={() => {
+            setSessionPlan(null);
+            void invalidateAgenda();
           }}
         />
       )}

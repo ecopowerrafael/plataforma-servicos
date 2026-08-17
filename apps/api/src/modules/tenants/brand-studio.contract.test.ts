@@ -51,18 +51,21 @@ describe('cores', () => {
 
   it('envia a paleta inteira no PATCH de branding', () => {
     expect(studio).toContain("body: { ...palette, useProfileDefaults: false }");
-    for (const key of PALETTE_KEYS) expect(studio).toContain(key);
+    // Os tokens vivem em `brand-studio.ts`, junto dos presets de cada tema.
+    for (const key of PALETTE_KEYS) expect(themes).toContain(key);
   });
 
   it('oferece presets e restauração das cores do tema', () => {
     expect(palette).toContain('Restaurar cores do tema');
     expect(studio).toContain('onRestoreTheme');
     expect(studio).toContain('onApplyPreset');
-    expect(studio).toContain('deriveBrandPalette(palette.primaryColor, theme)');
+    expect(studio).toContain('themeDefaultPalette(theme, palette.primaryColor)');
   });
 
-  it('trocar o tema carrega os defaults dele', () => {
-    expect(studio).toContain('setPaletteOverride(deriveBrandPalette(palette.primaryColor, value))');
+  it('trocar o tema carrega o preset dele', () => {
+    // Seleção explícita aplica o preset do tema (azul, rosa ou lilás).
+    expect(studio).toContain('setPaletteOverride(themeDefaultPalette(value, palette.primaryColor))');
+    expect(themes).toContain('export const THEME_PRESETS');
   });
 
   it('avisa sobre contraste sem alterar a cor escolhida', () => {
@@ -102,11 +105,13 @@ describe('tokens semânticos', () => {
   it('restaurar tema devolve também os tokens semânticos', () => {
     const themeFile = readWeb('components/branding/brand-studio.ts');
     for (const key of SEMANTIC_KEYS) expect(themeFile).toContain(`${key}:`);
-    expect(studio).toContain('deriveBrandPalette(palette.primaryColor, theme)');
+    expect(studio).toContain('themeDefaultPalette(theme, palette.primaryColor)');
   });
 
   it('tenant legado com tokens null cai no derivado do tema', () => {
-    expect(studio).toContain('branding[key] ?? derived[key]');
+    // Carregar a página respeita o que está salvo e só completa o que falta.
+    expect(themes).toContain('branding[key] ?? derived[key]');
+    expect(studio).toContain('resolveSavedPalette(settings.data?.branding, theme)');
   });
 });
 

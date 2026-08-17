@@ -10,6 +10,8 @@ import { AppointmentWaitlistRepository } from '../modules/appointments/appointme
 import { AppointmentWaitlistService } from '../modules/appointments/appointment-waitlist.service.js';
 import { AppointmentRepository } from '../modules/appointments/appointment.repository.js';
 import { AppointmentService } from '../modules/appointments/appointment.service.js';
+import { TreatmentPlanRepository } from '../modules/appointments/treatment-plan.repository.js';
+import { TreatmentPlanService } from '../modules/appointments/treatment-plan.service.js';
 import { type IdentityRepository } from '../modules/auth/identity.repository.js';
 import { PasswordService } from '../modules/auth/password.service.js';
 import { PrismaIdentityRepository } from '../modules/auth/prisma-identity.repository.js';
@@ -125,6 +127,7 @@ export interface DatabaseConnection {
   readonly availability?: AvailabilityService;
   readonly appointments?: AppointmentService;
   readonly appointmentWaitlists?: AppointmentWaitlistService;
+  readonly treatmentPlans?: TreatmentPlanService;
   readonly platform?: PlatformService;
   readonly platformBilling?: PlatformBillingService;
   readonly commercialPolicy?: TenantCommercialPolicyService;
@@ -255,6 +258,8 @@ export function createDatabaseConnection(
     availability,
   );
   appointments.setWaitlistService(appointmentWaitlists);
+  const treatmentPlans = new TreatmentPlanService(new TreatmentPlanRepository(client));
+  appointments.setTreatmentPlanService(treatmentPlans);
   const appointmentReviews = new AppointmentReviewService(
     new AppointmentReviewRepository(client),
     appointmentRepository,
@@ -389,6 +394,7 @@ export function createDatabaseConnection(
     availability,
     appointments: appointments,
     appointmentWaitlists: appointmentWaitlists,
+    treatmentPlans,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
     platformBilling,

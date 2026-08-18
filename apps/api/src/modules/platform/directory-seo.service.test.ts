@@ -22,6 +22,14 @@ describe('DirectorySeoService', () => {
     expect(updateMany).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps a failed IndexNow batch queued for a later retry', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const client = { seoUrlSubmission: { findMany: vi.fn().mockResolvedValue([{ id: 1n, url: 'https://agendei.site/encontre/barbearias/fortaleza-ce/a', attempts: 2 }]), updateMany } } as unknown as PrismaClient;
+    const service = new DirectorySeoService(client, { indexNowKey: 'indexnow-test-key' }, undefined, vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
+    await expect(service.processIndexNow()).resolves.toEqual({ processed: 0, configured: true });
+    expect(updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED', nextAttemptAt: expect.any(Date), lastError: 'Error: IndexNow respondeu 503.' }) }));
+  });
+
   it('upserts only directory Search Console pages and maps an individual business', async () => {
     const dailyUpsert = vi.fn().mockResolvedValue({}); const queryUpsert = vi.fn().mockResolvedValue({}); const update = vi.fn().mockResolvedValue({});
     const run = { id: 1n, fromDate: new Date('2026-08-01T00:00:00.000Z'), toDate: new Date('2026-08-03T00:00:00.000Z') };

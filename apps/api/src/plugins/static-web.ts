@@ -92,6 +92,32 @@ export async function registerStaticWeb(
     },
   });
 
+  const prerenderedCommercialRoutes = new Set([
+    '/',
+    '/aplicativo-de-agendamento',
+    '/agendamento-pelo-whatsapp',
+    '/chatbot-whatsapp-para-agendamento',
+    '/assistente-virtual-para-agendamento',
+    '/agenda-online',
+    '/sistema-de-agendamento-online',
+    '/lembrete-de-agendamento-whatsapp',
+    '/sistema-de-agendamento',
+    '/ia-para-agendamento',
+    '/sistema-para-salao-de-beleza',
+    '/crm-para-salao-de-beleza',
+    '/aplicativo-para-salao-de-beleza',
+    '/agenda-online-para-salao-de-beleza',
+    '/aplicativo-para-cabeleireiro',
+    '/sistema-de-agendamento-para-cabeleireiro',
+    '/sistema-de-comissao-para-salao',
+    '/controle-financeiro-para-salao-de-beleza',
+    '/programa-de-fidelidade-para-salao-de-beleza',
+    '/recepcionista-virtual-para-salao-de-beleza',
+    '/como-reduzir-faltas-no-salao', '/como-recuperar-clientes-de-salao', '/como-preencher-horarios-cancelados', '/como-organizar-agenda-de-salao', '/como-controlar-comissao-de-cabeleireiro', '/como-automatizar-agendamento-pelo-whatsapp', '/sistema-para-recuperar-clientes', '/sistema-para-preencher-horarios-cancelados',
+    '/sistema-para-barbearia', '/aplicativo-para-barbearia', '/crm-para-barbearia', '/agenda-online-para-barbearia', '/ia-para-barbearia', '/whatsapp-para-barbearia', '/controle-financeiro-para-barbearia', '/programa-de-fidelidade-para-barbearia',
+    '/sistema-para-clinica-de-estetica', '/crm-para-clinica-de-estetica', '/agendamento-para-estetica', '/aplicativo-para-estetica', '/sistema-para-tratamentos-esteticos', '/sistema-para-sessoes-de-estetica', '/orcamento-para-clinica-de-estetica', '/controle-de-retorno-de-clientes',
+  ]);
+
   // As telas administrativas e a API compartilham o prefixo `/platform`.
   // NavegaÃ§Ãµes do browser pedem HTML; chamadas do cliente HTTP pedem JSON.
   // Interceptar o HTML antes do roteamento evita que refresh/deep-link de
@@ -116,6 +142,11 @@ export async function registerStaticWeb(
     const accept = request.headers.accept ?? '';
     if (!accept.includes('text/html')) {
       return false;
+    }
+    const path = request.url.split('?', 1)[0] ?? request.url;
+    if (prerenderedCommercialRoutes.has(path) && path !== '/') {
+      void reply.status(200).type('text/html').sendFile(`${path.slice(1)}/index.html`);
+      return true;
     }
     void reply.status(200).type('text/html').sendFile('index.html');
     return true;

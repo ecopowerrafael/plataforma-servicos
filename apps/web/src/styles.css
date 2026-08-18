@@ -1573,7 +1573,7 @@ a {
   display: block;
   width: 172px;
   height: auto;
-  transform: translateY(-31px);
+  transform: translateY(-3px);
 }
 
 .marketing-instagram-link {
@@ -10142,3 +10142,30 @@ h1 {
     padding: 13px;
   }
 }
+
+.saas-niches {
+  padding: 0;
+  background: #102b20;
+}
+
+.saas-niches .marketing-container {
+  width: 100%;
+  max-width: none;
+}
+
+.saas-niches-image {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.saas-niche-links { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; padding:22px 16px 28px; background:#102b20; }
+.saas-niche-links a { padding:9px 13px; border:1px solid #ffffff3b; border-radius:999px; color:#fff; font-size:.8rem; font-weight:700; text-decoration:none; }
+.saas-niche-links a:hover { background:#ffffff18; color:#fff; }
+
+.seo-landing-hero { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,.62fr); align-items:center; gap:48px; padding:76px 0; }
+.seo-landing-hero-image { display:block; width:100%; max-width:360px; justify-self:end; border-radius:24px; box-shadow:0 22px 55px rgb(20 61 42 / 20%); }
+@media (max-width:760px) { .seo-landing-hero { grid-template-columns:1fr; padding:56px 0; } .seo-landing-hero-image { justify-self:start; max-width:300px; } }
+/* Features hub */
+.marketing-site .features-hub-hero{padding:7rem 0 4rem;background:#f8f5ed}.marketing-site .features-hub-hero__grid,.marketing-site .features-hub-feature>.marketing-container{display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center}.marketing-site .features-hub-orbit{min-height:300px;border-radius:32px;background:#123a29;color:#fff;display:grid;place-items:center;position:relative;box-shadow:0 24px 60px #123a2940}.marketing-site .features-hub-orbit span{padding:.45rem .75rem;border-radius:99px;background:#ffffff18;animation:features-hub-float 4s ease-in-out infinite}.marketing-site .features-hub-nav{padding:1rem 0;overflow:auto;background:#fff}.marketing-site .features-hub-nav .marketing-container{display:flex;gap:.6rem;min-width:max-content}.marketing-site .features-hub-nav a{scroll-snap-align:start;padding:.6rem .8rem;border-radius:99px;background:#edf2ed}.marketing-site .features-hub-feature img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:24px}.marketing-site .features-hub-flow,.marketing-site .features-hub-metrics{padding:1.25rem;border-radius:24px;background:#e9f1e9}.marketing-site .features-hub-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}.marketing-site .features-hub-metrics span{padding:1rem;background:#fff;border-radius:16px}.marketing-site .features-hub-metrics b{display:block}.marketing-site .features-hub-ecosystem{padding:5rem 0;background:#102f23;color:#fff}.marketing-site .features-hub-matrix{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.marketing-site .features-hub-matrix article,.marketing-site .features-hub-comparison>div>div{padding:1.25rem;border-radius:20px;background:#f4f2eb}.marketing-site .features-hub-comparison{padding:4rem 0}.marketing-site .features-hub-comparison>.marketing-container{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.marketing-site .features-hub-faq details{padding:1rem;border-bottom:1px solid #ddd}@keyframes features-hub-float{50%{transform:translateY(-6px)}}@media (prefers-reduced-motion:reduce){.marketing-site .features-hub-orbit span{animation:none}}@media(max-width:700px){.marketing-site .features-hub-hero__grid,.marketing-site .features-hub-feature>.marketing-container,.marketing-site .features-hub-comparison>.marketing-container{grid-template-columns:1fr}.marketing-site .features-hub-hero{padding-top:5rem}.marketing-site .features-hub-matrix{grid-template-columns:1fr}.marketing-site .features-hub-nav{scroll-snap-type:x mandatory}}

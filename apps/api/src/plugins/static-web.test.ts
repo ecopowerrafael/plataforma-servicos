@@ -17,7 +17,9 @@ afterEach(async () => {
 async function server() {
   directory = await mkdtemp(join(tmpdir(), 'agendei-static-'));
   await mkdir(join(directory, 'assets'));
+  await mkdir(join(directory, 'ia-para-agendamento'));
   await writeFile(join(directory, 'index.html'), '<main>Agendei</main>');
+  await writeFile(join(directory, 'ia-para-agendamento', 'index.html'), '<main>IA prerenderizada</main>');
   await writeFile(join(directory, 'assets', 'PricingPage-12345678.js'), 'export {};');
   const app = Fastify();
   const fallback = await registerStaticWeb(app, directory);
@@ -74,6 +76,21 @@ describe('static web delivery', () => {
       expect(subscriptionPage.headers['content-type']).toContain('text/html');
       expect(subscriptionPage.body).toContain('Agendei');
       expect(plansApi.json()).toEqual({ plans: [] });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('serves the prerendered HTML for known commercial landing pages', async () => {
+    const app = await server();
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/ia-para-agendamento',
+        headers: { accept: 'text/html' },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain('IA prerenderizada');
     } finally {
       await app.close();
     }

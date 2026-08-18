@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { frequentlyAskedQuestions } from '../marketing/marketing-data.js';
 import { MarketingShell } from '../marketing/MarketingShell.js';
 import { PricingCards, trialMessage } from '../marketing/PricingCards.js';
-import { usePageMetadata } from '../marketing/use-page-metadata.js';
+import { marketingSiteUrl, usePageMetadata } from '../marketing/use-page-metadata.js';
 import { usePublicPlans } from '../marketing/use-public-plans.js';
 
 const productImages = {
@@ -22,7 +22,7 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow: string; titl
 }
 
 function ProductImage({ src, alt, className = '' }: { src: string; alt: string; className?: string }) {
-  return <div className={`saas-product-image ${className}`}><img src={src} alt={alt} loading="lazy" /></div>;
+  return <div className={`saas-product-image ${className}`}><img src={src} alt={alt} loading="lazy" decoding="async" /></div>;
 }
 
 export function CommercialHomePage() {
@@ -30,7 +30,16 @@ export function CommercialHomePage() {
   const planData = plans.data;
   const trial = trialMessage(planData?.plans, planData?.defaultTrialDays);
 
-  usePageMetadata({ title: 'Agendei - Agendamento, WhatsApp com IA e gestão', description: 'Agendamento online, atendimento com IA no WhatsApp, CRM, aplicativo do profissional e gestão financeira em um só lugar.', path: '/' });
+  usePageMetadata({
+    title: 'Agendei | Sistema de Agendamento com WhatsApp, CRM e Gestão',
+    description: 'Sistema de agendamento online com atendimento automático pelo WhatsApp, CRM, financeiro, app do profissional, fidelidade e white label.',
+    path: '/',
+    structuredData: [
+      { '@context': 'https://schema.org', '@type': 'Organization', name: 'Agendei', url: `${marketingSiteUrl}/`, logo: `${marketingSiteUrl}/imagens/logo%20rodape.png`, sameAs: ['https://www.instagram.com/app.agendei'] },
+      { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Agendei', applicationCategory: 'BusinessApplication', operatingSystem: 'Web', description: 'Plataforma de agendamento e gestão para negócios com hora marcada.', url: `${marketingSiteUrl}/`, offers: { '@type': 'Offer', priceCurrency: 'BRL', price: '59.90' } },
+      { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: frequentlyAskedQuestions.map((item) => ({ '@type': 'Question', name: item.question, acceptedAnswer: { '@type': 'Answer', text: item.answer } })) },
+    ],
+  });
 
   return <MarketingShell>
     <section className="saas-hero">
@@ -56,7 +65,7 @@ export function CommercialHomePage() {
 
     <section className="saas-section"><div className="marketing-container saas-media-layout saas-media-layout--reverse"><div className="saas-copy-block"><p className="saas-kicker"><i /> White label</p><h2>Seu negócio. Sua marca. Seu aplicativo.</h2><p>Ofereça uma experiência própria com sua identidade, logo, cores e PWA com cara de app.</p><div className="saas-brand-points"><span>Logo</span><span>Cores</span><span>Identidade</span><span>Experiência própria</span></div></div><ProductImage src={productImages.whiteLabel} alt="Exemplo de personalização white label" /></div></section>
 
-    <section className="saas-section saas-niches" id="para-quem"><div className="marketing-container"><ProductImage src={productImages.niches} alt="Profissões e nichos atendidos pelo Agendei" /></div></section>
+    <section className="saas-section saas-niches" id="para-quem"><div className="marketing-container"><ProductImage className="saas-niches-image" src={productImages.niches} alt="Profissões e nichos atendidos pelo Agendei" /><nav className="saas-niche-links" aria-label="Soluções do Agendei"><Link to="/sistema-de-agendamento">Sistema de agendamento</Link><Link to="/ia-para-agendamento">IA para agendamento</Link><Link to="/sistema-para-salao-de-beleza">Sistema para salão de beleza</Link><Link to="/crm-para-salao-de-beleza">CRM para salão de beleza</Link></nav></div></section>
 
     <section className="saas-pricing" id="planos"><div className="marketing-container"><div className="saas-pricing__lead"><p className="saas-kicker"><i /> Comece agora</p><h2>Tudo o que sua operação precisa para crescer.</h2><p>Aplicativo de agendamento, CRM, chatbot WhatsApp, app do profissional, gestão financeira, fluxo de caixa e lembretes automáticos.</p><strong>A partir de R$ 59,90 por mês</strong></div>{plans.isError ? <div className="pricing-empty"><h3>Não foi possível carregar os planos agora.</h3><p>Tente novamente em instantes ou acesse a página completa de planos.</p></div> : plans.isPending ? <div className="pricing-loading" aria-label="Carregando planos"><span /><span /><span /></div> : <PricingCards plans={plans.data.plans} compact />}<div className="saas-pricing__actions"><Link className="marketing-button marketing-button--light" to="/planos">Começar agora</Link><Link className="marketing-button marketing-button--secondary" to="/planos">Testar grátis</Link><a className="saas-text-cta" href="#faq">Falar com atendimento →</a></div><ul><li>Sem complicação</li><li>Setup rápido</li><li>White label</li><li>Suporte</li></ul></div></section>
 

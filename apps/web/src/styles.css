@@ -194,7 +194,7 @@ a {
   width: 150px;
   max-width: none;
   height: auto;
-  transform: translateY(-26px);
+  transform: none;
 }
 
 .marketing-footer .marketing-brand-logo {
@@ -1560,6 +1560,42 @@ a {
   margin: 23px 0 0;
   color: #9eb0a4;
   font-size: 0.83rem;
+}
+
+.marketing-footer-logo {
+  display: block;
+  width: 172px;
+  height: 52px;
+  overflow: hidden;
+}
+
+.marketing-footer-logo img {
+  display: block;
+  width: 172px;
+  height: auto;
+  transform: translateY(-31px);
+}
+
+.marketing-instagram-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  margin-top: 19px;
+  color: #c5d6ca;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.marketing-instagram-link:hover { color: #fff; }
+
+.marketing-instagram-link svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
 }
 
 .marketing-footer-grid > div:not(:first-child) {

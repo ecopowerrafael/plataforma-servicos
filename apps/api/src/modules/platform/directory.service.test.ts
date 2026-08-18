@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DirectoryService, aggregateDirectoryMetrics, looksLikeApproximateDirectoryDuplicate, normalizeDirectoryPhone, parseDirectoryXml } from './directory.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
@@ -48,5 +48,14 @@ describe('Directory telemetry aggregation', () => {
     const metrics = await new DirectoryService(client).metrics();
     expect(metrics.rows).toEqual(expect.arrayContaining([expect.objectContaining({ business: 'Barbearia A', pageViews: 1, whatsappClicks: 1, uniqueWhatsappClicks: 1, whatsappCtr: 1 }), expect.objectContaining({ business: 'Barbearia B', pageViews: 0, whatsappClicks: 2, uniqueWhatsappClicks: 2, whatsappCtr: 0 })]));
     expect(metrics.ranking).toEqual([expect.objectContaining({ business: 'Barbearia A', whatsappClicks: 1, tenantLinked: false })]);
+  });
+
+  it('applies the requested period and business filters before aggregating metrics', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const client = { directoryBusiness: { findMany } } as unknown as PrismaClient;
+    await new DirectoryService(client).metrics({ from: new Date('2026-08-10T00:00:00.000Z'), to: new Date('2026-08-18T00:00:00.000Z'), businessPublicId: '00000000-0000-4000-8000-000000000001', hasTenant: false });
+    const call = findMany.mock.calls[0][0] as { where: { publicId: string; tenantId: null }; include: { events: { where: { createdAt: { gte: Date; lte: Date } } } } };
+    expect(call.where).toMatchObject({ publicId: '00000000-0000-4000-8000-000000000001', tenantId: null });
+    expect(call.include.events.where.createdAt).toEqual({ gte: new Date('2026-08-10T00:00:00.000Z'), lte: new Date('2026-08-18T23:59:59.999Z') });
   });
 });

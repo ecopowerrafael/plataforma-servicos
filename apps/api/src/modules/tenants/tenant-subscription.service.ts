@@ -23,12 +23,12 @@ export class TenantSubscriptionService {
     const subscription =
       (await this.client.tenantSubscription.findFirst({
         where: { tenantId, effectiveKey: 'EFFECTIVE' },
-        include: { tenant: true, plan: true, scheduledPlan: true },
+        include: { tenant: true, plan: true, scheduledPlan: { include: { limits: true } } },
       })) ??
       (await this.client.tenantSubscription.findFirst({
         where: { tenantId },
         orderBy: { createdAt: 'desc' },
-        include: { tenant: true, plan: true, scheduledPlan: true },
+        include: { tenant: true, plan: true, scheduledPlan: { include: { limits: true } } },
       }));
     if (subscription === null)
       throw new AppError({

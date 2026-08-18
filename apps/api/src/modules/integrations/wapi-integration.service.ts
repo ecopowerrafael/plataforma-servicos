@@ -142,7 +142,11 @@ export class WApiIntegrationService {
     const payload = body as { qrcode?: unknown };
     if (typeof payload.qrcode !== 'string' || payload.qrcode.trim() === '')
       throw new WApiProviderError('O provedor não devolveu um QR Code.', null, null);
-    return payload.qrcode;
+    // A W-API pode devolver apenas o base64 ou um data URL completo. A UI
+    // recebe sempre uma fonte válida para <img>, sem persistir o QR.
+    return payload.qrcode.startsWith('data:image/')
+      ? payload.qrcode
+      : `data:image/png;base64,${payload.qrcode}`;
   }
 
   public async getInstanceStatus(instanceId: string, token: string): Promise<WApiInstanceStatus> {

@@ -167,6 +167,16 @@ describe('provisionamento — QR e reconexão', () => {
     expect(result.view.state).toBe('WAITING_QR');
   });
 
+  it('normaliza QR base64 sem prefixo para uma imagem renderizável', async () => {
+    const { database, whatsapp } = client();
+    whatsapp.findUnique.mockResolvedValue(config());
+    const { service } = provider({
+      '/v1/instance/qr-code': { error: false, qrcode: 'AAA' },
+    });
+    const result = await new WhatsAppProvisioningService(database, service, cipher).qrCode(1n);
+    expect(result.qrCode).toBe('data:image/png;base64,AAA');
+  });
+
   it('reconectar usa a mesma instância e apenas devolve um novo QR', async () => {
     const { database, whatsapp } = client();
     whatsapp.findUnique.mockResolvedValue(config({ connectionStatus: 'DISCONNECTED' }));

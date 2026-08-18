@@ -46,6 +46,8 @@ const environmentSchema = z
     GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN: z.string().trim().min(1).optional(),
     INDEXNOW_KEY: z.string().trim().regex(/^[A-Za-z0-9-]{8,128}$/u).optional(),
     INDEXNOW_ENDPOINT: z.url().optional(),
+    DIRECTORY_IMPORT_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(25),
+    DIRECTORY_IMPORT_MAX_XML_MB: z.coerce.number().int().min(1).max(100).default(20),
     /**
      * Chave mestra da W-API (API Integration). Fica só no backend: nunca é
      * devolvida por rota nem registrada em log — serve apenas para criar e

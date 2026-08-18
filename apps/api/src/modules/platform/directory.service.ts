@@ -248,18 +248,24 @@ export class DirectoryService {
     return this.preview(publicId);
   }
 
-  public async processBatch(publicId: string, batchSize = 100) {
+  public async processBatch(publicId: string, batchSize = Math.min(Math.max(Number(process.env.DIRECTORY_IMPORT_BATCH_SIZE ?? 25), 1), 100)) {
     const directoryImport = await this.client.directoryImport.findUnique({ where: { publicId } });
     if (directoryImport === null) throw new AppError({ code: 'DIRECTORY_IMPORT_NOT_FOUND', message: 'Importação não encontrada.', statusCode: 404 });
     if (directoryImport.status === 'PAUSED' || directoryImport.status === 'COMPLETED') return this.preview(publicId);
-    await this.client.directoryImport.update({ where: { id: directoryImport.id }, data: { status: 'PROCESSING' } });
+    const staleBefore = new Date(Date.now() - 2 * 60_000);
+    const claim = await this.client.directoryImport.updateMany({ where: { id: directoryImport.id, OR: [{ status: 'QUEUED' }, { status: 'PROCESSING', updatedAt: { lte: staleBefore } }] }, data: { status: 'PROCESSING' } });
+    if (claim.count === 0) return this.preview(publicId);
     const items = await this.client.directoryImportItem.findMany({ where: { importId: directoryImport.id, categoryId: { not: null }, status: 'SKIPPED' }, take: batchSize, orderBy: { position: 'asc' }, include: { category: true } });
-    for (const item of items) await this.processItem(item);
+    for (const item of items) {
+      try { await this.processItem(item); }
+      catch (error) { await this.client.directoryImportItem.update({ where: { id: item.id }, data: { status: 'ERROR', message: String(error).slice(0, 500) } }); }
+    }
     const remaining = await this.client.directoryImportItem.count({ where: { importId: directoryImport.id, categoryId: { not: null }, status: 'SKIPPED' } });
     const counts = await this.client.directoryImportItem.groupBy({ by: ['status'], where: { importId: directoryImport.id }, _count: true });
     const count = (status: string) => counts.find((entry) => entry.status === status)?._count ?? 0;
     await this.client.directoryImport.update({ where: { id: directoryImport.id }, data: { processedCount: directoryImport.totalSelected - remaining, totalCreated: count('CREATED'), totalUpdated: count('UPDATED'), totalUnchanged: count('UNCHANGED'), totalDuplicates: count('POSSIBLE_DUPLICATE'), status: remaining === 0 ? 'COMPLETED' : 'QUEUED', ...(remaining === 0 ? { completedAt: new Date() } : {}) } });
-    return this.preview(publicId);
+    const preview = await this.preview(publicId);
+    return { ...preview, remaining, progressPercent: directoryImport.totalSelected === 0 ? 100 : Math.round((preview.import.processedCount / directoryImport.totalSelected) * 10_000) / 100, batchProcessed: items.length, errors: count('ERROR'), completedWithErrors: remaining === 0 && count('ERROR') > 0 };
   }
 
   private async processItem(item: Awaited<ReturnType<PrismaClient['directoryImportItem']['findMany']>>[number] & { category: { id: bigint } | null }) {
@@ -277,6 +283,8 @@ export class DirectoryService {
 
   public async pause(publicId: string) { const found = await this.client.directoryImport.update({ where: { publicId }, data: { status: 'PAUSED' } }); return this.preview(found.publicId); }
   public async resume(publicId: string) { const found = await this.client.directoryImport.update({ where: { publicId }, data: { status: 'QUEUED', completedAt: null } }); return this.preview(found.publicId); }
+  public async retryErrors(publicId: string) { const directoryImport = await this.client.directoryImport.findUnique({ where: { publicId } }); if (directoryImport === null) throw new AppError({ code: 'DIRECTORY_IMPORT_NOT_FOUND', message: 'Importação não encontrada.', statusCode: 404 }); await this.client.directoryImportItem.updateMany({ where: { importId: directoryImport.id, status: 'ERROR' }, data: { status: 'SKIPPED', message: null } }); await this.client.directoryImport.update({ where: { id: directoryImport.id }, data: { status: 'QUEUED', completedAt: null } }); return this.preview(publicId); }
+  public async importErrors(publicId: string) { const directoryImport = await this.client.directoryImport.findUnique({ where: { publicId }, select: { id: true } }); if (directoryImport === null) throw new AppError({ code: 'DIRECTORY_IMPORT_NOT_FOUND', message: 'Importação não encontrada.', statusCode: 404 }); const items = await this.client.directoryImportItem.findMany({ where: { importId: directoryImport.id, status: 'ERROR' }, orderBy: { position: 'asc' }, select: { position: true, sourceData: true, message: true, status: true } }); return items.map((item) => { const source = item.sourceData as unknown as DirectorySourceRecord; return { position: item.position, name: source.name, city: source.city, state: source.state, status: item.status, message: item.message ?? 'Erro sem detalhe.' }; }); }
   public async categories() { const categories = await this.client.directoryCategory.findMany({ where: { active: true, businesses: { some: { active: true } } }, orderBy: [{ sortOrder: 'asc' }, { pluralName: 'asc' }], include: { _count: { select: { businesses: { where: { active: true } } } } } }); return categories.map((category) => this.categoryPublic(category)); }
   public async adminCategories() {
     return this.client.directoryCategory.findMany({

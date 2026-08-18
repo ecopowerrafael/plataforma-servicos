@@ -776,6 +776,7 @@ model DirectoryImport {
   totalDuplicates Int                  @default(0) @map("total_duplicates")
   processedCount Int                   @default(0) @map("processed_count")
   createdAt      DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime              @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   completedAt    DateTime?             @map("completed_at") @db.DateTime(3)
   items          DirectoryImportItem[]
 

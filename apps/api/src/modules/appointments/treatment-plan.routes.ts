@@ -1,5 +1,6 @@
 import {
   AppointmentPublicSchema,
+  ApproveTreatmentPlanRequestSchema,
   CancelTreatmentPlanRequestSchema,
   CreateTreatmentPlanRequestSchema,
   CreateTreatmentSessionRequestSchema,
@@ -15,6 +16,7 @@ import { type TreatmentPlanService } from './treatment-plan.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { type CustomerAuthService } from '../customers/customer-auth.service.js';
+import { type TreatmentPlanNotificationService } from '../notifications/treatment-plan-notification.service.js';
 import { type ProfessionalService } from '../professionals/professional.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 
@@ -25,12 +27,15 @@ interface Options {
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
+  notifications?: TreatmentPlanNotificationService;
 }
 
 interface CustomerOptions {
   service: TreatmentPlanService;
+  appointments: AppointmentService;
   authService: CustomerAuthService;
   cookieName: string;
+  notifications?: TreatmentPlanNotificationService;
 }
 
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() }).strict();
@@ -124,6 +129,12 @@ export const treatmentPlanRoutes: FastifyPluginAsyncZod<Options> = async (app, o
         actor(request),
         professionalId,
       );
+      // O orçamento não depende da entrega da mensagem: falhar aqui não o desfaz.
+      try {
+        await options.notifications?.notifyQuoteReady(request.tenant.id, plan);
+      } catch {
+        /* a própria fila de notificações registra o erro */
+      }
       return reply.status(201).send(plan);
     },
   );
@@ -230,17 +241,102 @@ export const treatmentPlanRoutes: FastifyPluginAsyncZod<Options> = async (app, o
   );
 };
 
-/** Área do cliente: leitura dos próprios tratamentos. */
+/**
+ * Área do cliente. Toda autorização vem da sessão (`CustomerAuth`) somada ao
+ * tenant e ao dono do plano: alterar o publicId na URL nunca dá acesso ao
+ * tratamento de outro cliente.
+ */
 export const customerTreatmentPlanRoutes: FastifyPluginAsyncZod<CustomerOptions> = (
   app,
   options,
 ) => {
+  const CustomerPlanParamsSchema = z
+    .object({ slug: z.string().trim().min(1).max(63), publicId: z.uuid() })
+    .strict();
+
   app.get(
     '/public/sites/:slug/customer/treatment-plans',
     { schema: { params: SlugParamsSchema, response: { 200: TreatmentPlanListResponseSchema } } },
     async (request) => {
       const session = await options.authService.authenticate(request.cookies[options.cookieName]);
       return options.service.listForCustomer(session.tenantId, session.customer.id);
+    },
+  );
+
+  app.get(
+    '/public/sites/:slug/customer/treatment-plans/:publicId',
+    { schema: { params: CustomerPlanParamsSchema, response: { 200: TreatmentPlanPublicSchema } } },
+    async (request) => {
+      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      return options.service.getForCustomer(
+        session.tenantId,
+        session.customer.id,
+        request.params.publicId,
+      );
+    },
+  );
+
+  app.post(
+    '/public/sites/:slug/customer/treatment-plans/:publicId/approve',
+    {
+      schema: {
+        params: CustomerPlanParamsSchema,
+        body: ApproveTreatmentPlanRequestSchema,
+        response: { 200: TreatmentPlanPublicSchema },
+      },
+    },
+    async (request) => {
+      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const result = await options.service.approveForCustomer(
+        session.tenantId,
+        session.customer.id,
+        request.params.publicId,
+      );
+      // Só a transição real avisa o profissional: reenvio não duplica evento.
+      if (result.changed)
+        try {
+          await options.notifications?.notifyApproved(session.tenantId, result.plan);
+        } catch {
+          /* a própria fila de notificações registra o erro */
+        }
+      return result.plan;
+    },
+  );
+
+  app.post(
+    '/public/sites/:slug/customer/treatment-plans/:publicId/sessions',
+    {
+      schema: {
+        params: CustomerPlanParamsSchema,
+        body: CreateTreatmentSessionRequestSchema,
+        response: { 201: AppointmentPublicSchema },
+      },
+    },
+    async (request, reply) => {
+      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      // O plano é lido pelo dono autenticado; cliente, serviço e profissional
+      // vêm dele, então o corpo não escolhe de quem é a sessão.
+      const plan = await options.service.getForCustomer(
+        session.tenantId,
+        session.customer.id,
+        request.params.publicId,
+      );
+      const appointment = await options.appointments.create(
+        session.tenantId,
+        {
+          customerPublicId: plan.customerPublicId,
+          servicePublicId: plan.servicePublicId,
+          professionalPublicId: plan.professionalPublicId,
+          treatmentPlanPublicId: plan.publicId,
+          startsAt: request.body.startsAt,
+          ...(request.body.unitPublicId === undefined || request.body.unitPublicId === null
+            ? {}
+            : { unitPublicId: request.body.unitPublicId }),
+          source: 'CUSTOMER_ACCOUNT',
+        },
+        { userId: null, sessionId: null },
+      );
+      return reply.status(201).send(appointment);
     },
   );
   return Promise.resolve();

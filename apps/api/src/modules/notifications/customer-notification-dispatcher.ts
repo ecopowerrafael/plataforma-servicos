@@ -38,6 +38,8 @@ export class CustomerNotificationDispatcher {
     targetPublicId: string,
     variables: Record<string, string>,
     targetType = 'appointment',
+    /** Sobrescreve o destino do CTA e a ficha do e-mail (usado por tratamentos). */
+    options?: { ctaUrl?: string; details?: { label: string; value: string }[] },
   ): Promise<boolean> {
     const customer = await this.client.customer.findUnique({
       where: { id: customerId },
@@ -87,11 +89,13 @@ export class CustomerNotificationDispatcher {
     const publicBase = this.appWebUrl.replace(/\/+$/u, '');
     const appointmentUrl =
       tenant === null ? publicBase : `${publicBase}/public/${tenant.slug}/conta/agendamentos`;
-    const renderedVariables = { ...variables, tenantName, appointmentUrl };
+    const ctaUrl = options?.ctaUrl ?? appointmentUrl;
+    const renderedVariables = { ...variables, tenantName, appointmentUrl, treatmentUrl: ctaUrl };
     const email = await this.templates.render(tenantId, kind, renderedVariables);
-    const push = kind.startsWith('appointment.')
-      ? renderPushTemplate(kind, renderedVariables)
-      : email;
+    const push =
+      kind.startsWith('appointment.') || kind.startsWith('treatment_plan.')
+        ? renderPushTemplate(kind, renderedVariables)
+        : email;
     const whatsappBody =
       kind === 'appointment.booking_confirmed'
         ? `Seu agendamento foi criado ✅\n\n📅 ${variables.date ?? ''}\n🕐 ${variables.time ?? ''}\n✂️ ${variables.serviceName ?? ''}\n👤 ${variables.professionalName ?? ''}\n💰 ${variables.value ?? ''}\n\nO que deseja fazer?`
@@ -103,7 +107,7 @@ export class CustomerNotificationDispatcher {
       primaryColor: tenant?.branding?.primaryColor ?? '#2457d6',
       title: email.title ?? email.subject,
       intro: email.intro ?? `Olá, ${variables.customerName ?? 'cliente'}.`,
-      details: [
+      details: options?.details ?? [
         { label: 'Serviço', value: variables.serviceName ?? '' },
         { label: 'Profissional', value: variables.professionalName ?? '' },
         { label: 'Data', value: variables.date ?? '' },
@@ -113,7 +117,7 @@ export class CustomerNotificationDispatcher {
       ],
       afterText: email.afterText ?? '',
       ctaLabel: email.ctaLabel ?? 'Ver agendamento',
-      ctaUrl: appointmentUrl,
+      ctaUrl,
       protocol: variables.protocol,
     });
 
@@ -126,7 +130,7 @@ export class CustomerNotificationDispatcher {
         recipient: customer.email,
         subject: email.subject,
         body: email.body,
-        ...(kind.startsWith('appointment.')
+        ...(kind.startsWith('appointment.') || kind.startsWith('treatment_plan.')
           ? { email: { html, fromName: tenant === null ? 'Agendei' : `${tenantName} via Agendei` } }
           : {}),
       });

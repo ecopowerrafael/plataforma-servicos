@@ -9741,3 +9741,199 @@ h1 {
   display: block;
   font-size: 1.05rem;
 }
+
+/* Meus tratamentos — área do cliente */
+.treatment-title-field {
+  display: grid;
+  gap: 0.25rem;
+}
+.treatment-title-field input {
+  font-size: 1.05rem;
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+}
+.treatment-sent {
+  color: #15803d;
+  font-size: 0.85rem;
+  margin: 0;
+}
+.customer-treatments-page {
+  display: grid;
+  gap: 0.9rem;
+  animation: customer-fade-in 0.24s ease-out;
+}
+.customer-treatments-page h1 {
+  font-size: 1.5rem;
+  margin: 0.25rem 0 0;
+}
+.customer-treatments-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.customer-treatments-filters button {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  min-height: 40px;
+  padding: 0 1rem;
+  transition: transform 0.14s ease, background 0.14s ease;
+}
+.customer-treatments-filters button.is-selected {
+  background: var(--tenant-primary, #2563eb);
+  border-color: var(--tenant-primary, #2563eb);
+  color: var(--tenant-on-primary, #fff);
+}
+.customer-treatments-filters button:active {
+  transform: scale(0.97);
+}
+.customer-treatment--card {
+  animation: customer-fade-in 0.24s ease-out;
+}
+.customer-treatment__head small {
+  color: var(--tenant-muted, #64748b);
+  display: block;
+  font-size: 0.78rem;
+}
+.customer-treatment__professional,
+.customer-treatment__paid {
+  color: var(--tenant-muted, #64748b);
+  font-size: 0.84rem;
+  margin: 0;
+}
+.customer-treatment__actions {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+.customer-treatment__actions button,
+.customer-treatment__actions a {
+  justify-content: center;
+  text-align: center;
+}
+.customer-treatment-detail {
+  display: grid;
+  gap: 1rem;
+  animation: customer-fade-in 0.24s ease-out;
+}
+.customer-treatment-detail__back {
+  align-items: center;
+  color: var(--tenant-muted, #64748b);
+  display: inline-flex;
+  font-size: 0.86rem;
+  gap: 0.25rem;
+  text-decoration: none;
+}
+.customer-treatment-detail h1 {
+  font-size: 1.5rem;
+  margin: 0.4rem 0 0.15rem;
+}
+.customer-treatment-detail header p {
+  margin: 0;
+}
+.customer-treatment-block {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem;
+}
+.customer-treatment-block h2 {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.2rem;
+  text-transform: uppercase;
+  color: var(--tenant-muted, #64748b);
+}
+.customer-treatment-sessions {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.customer-treatment-sessions li {
+  border-top: 1px solid var(--tenant-border, #e2e8f0);
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.86rem;
+  padding-top: 0.5rem;
+}
+.customer-treatment-sessions li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.customer-treatment-approval {
+  background: color-mix(in srgb, var(--tenant-primary, #2563eb) 8%, var(--tenant-surface, #fff));
+  border: 1px solid color-mix(in srgb, var(--tenant-primary, #2563eb) 28%, transparent);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+.customer-treatment-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.customer-treatment-slots button {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0 1rem;
+  transition: transform 0.14s ease;
+}
+.customer-treatment-slots button:active {
+  transform: scale(0.97);
+}
+.customer-home-treatments {
+  background: var(--tenant-surface, #fff);
+  border: 1px solid var(--tenant-border, #e2e8f0);
+  border-radius: var(--tenant-radius, 0.9rem);
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.95rem;
+}
+.customer-home-treatments header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+.customer-home-treatments header span {
+  font-weight: 700;
+}
+.customer-home-treatments article {
+  display: grid;
+  gap: 0.35rem;
+}
+.customer-home-treatments article small {
+  color: var(--tenant-muted, #64748b);
+  display: block;
+}
+.customer-home-treatments article p {
+  font-size: 0.86rem;
+  margin: 0;
+}
+@keyframes customer-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-treatments-page,
+  .customer-treatment--card,
+  .customer-treatment-detail {
+    animation: none;
+  }
+}
+@media (min-width: 720px) {
+  .customer-treatment__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

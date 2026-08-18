@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { accountPath } from './customer-account.js';
-import { CustomerTreatments } from './CustomerTreatments.js';
+import { CustomerTreatmentsTeaser } from './CustomerTreatmentsTeaser.js';
 import { httpClient } from '../../../lib/http.js';
 import { AppointmentStatusBadge } from '../../appointments/appointment-status.js';
 
@@ -36,6 +36,7 @@ const timeLabel = (iso: string) =>
 const shortcuts = [
   { label: 'Agendar', description: 'Escolha seu próximo horário', icon: IconCalendarPlus, section: null },
   { label: 'Agendamentos', description: 'Veja seus próximos horários', icon: IconCalendarEvent, section: 'appointments' },
+  { label: 'Tratamentos', description: 'Orçamentos e sessões', icon: IconSparkles, section: 'treatments' },
   { label: 'Favoritos', description: 'Acesse suas escolhas salvas', icon: IconHeart, section: 'favorites' },
   { label: 'Perfil', description: 'Gerencie sua conta', icon: IconUser, section: 'profile' },
 ] as const;
@@ -115,7 +116,7 @@ export function CustomerAccountHome({ slug, name }: { slug: string; name: string
         )}
       </section>
 
-      <CustomerTreatments slug={slug} />
+      <CustomerTreatmentsTeaser slug={slug} />
 
       <nav className="customer-home-shortcuts" aria-label="Atalhos">
         {shortcuts.map((shortcut) => {

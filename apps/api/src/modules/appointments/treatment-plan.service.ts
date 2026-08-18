@@ -53,6 +53,8 @@ export class TreatmentPlanService {
     );
     return TreatmentPlanPublicSchema.parse({
       publicId: plan.publicId,
+      // Planos criados antes do campo caem no nome do serviço.
+      title: plan.title ?? plan.service.name,
       status: plan.status,
       billingMode: plan.billingMode,
       amountCents: plan.amountCents.toString(),
@@ -138,6 +140,7 @@ export class TreatmentPlanService {
       serviceId: appointment.serviceId,
       professionalId: appointment.professionalId,
       originAppointmentId: appointment.id,
+      title: input.title,
       status: 'PENDING',
       billingMode: input.billingMode,
       amountCents: BigInt(input.amountCents),
@@ -161,6 +164,34 @@ export class TreatmentPlanService {
       throw planNotFound();
     const plan = await this.repo.findByOriginAppointment(tenantId, appointment.id);
     if (plan === null) return null;
+    return this.toPublic(tenantId, plan);
+  }
+
+  /**
+   * Aprovação pelo próprio cliente. `customerId` vem da sessão autenticada —
+   * o publicId do corpo/rota nunca autoriza nada. Idempotente: aprovar de
+   * novo devolve o estado atual sem novo `approvedAt` nem novo evento.
+   */
+  public async approveForCustomer(tenantId: bigint, customerId: bigint, publicId: string) {
+    const plan = await this.repo.find(tenantId, publicId);
+    if (plan?.customerId !== customerId) throw planNotFound();
+    if (plan.status !== 'PENDING')
+      return { plan: await this.toPublic(tenantId, plan), changed: false };
+    const updated = await this.repo.update(plan.id, {
+      status: 'APPROVED',
+      approvedAt: new Date(),
+    });
+    await this.audit(tenantId, publicId, 'treatment_plan.approved_by_customer', {
+      userId: null,
+      sessionId: null,
+    });
+    return { plan: await this.toPublic(tenantId, updated), changed: true };
+  }
+
+  /** Detalhe de um plano do próprio cliente autenticado. */
+  public async getForCustomer(tenantId: bigint, customerId: bigint, publicId: string) {
+    const plan = await this.repo.find(tenantId, publicId);
+    if (plan?.customerId !== customerId) throw planNotFound();
     return this.toPublic(tenantId, plan);
   }
 
@@ -222,6 +253,7 @@ export class TreatmentPlanService {
         statusCode: 409,
       });
     const updated = await this.repo.update(plan.id, {
+      title: input.title,
       billingMode: input.billingMode,
       amountCents: BigInt(input.amountCents),
       sessionsPlanned: input.sessionsPlanned ?? null,

@@ -48,7 +48,11 @@ export function CustomerTreatmentPlans({
         {(plans.data?.items ?? []).map((plan) => (
           <li key={plan.publicId} className="crm-treatment">
             <div className="crm-treatment__head">
-              <strong>{plan.serviceName}</strong>
+              {/* O título definido no orçamento manda; o serviço é secundário. */}
+              <div>
+                <strong>{plan.title}</strong>
+                <small>{plan.serviceName}</small>
+              </div>
               <span className="ds-badge">{STATUS_LABEL[plan.status]}</span>
             </div>
             <dl className="crm-facts">

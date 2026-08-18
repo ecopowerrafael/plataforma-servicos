@@ -19,6 +19,8 @@ import { CustomerAccountHome } from '../components/public/account/CustomerAccoun
 import { CustomerAccountLayout } from '../components/public/account/CustomerAccountLayout.js';
 import { CustomerAccountSecurity } from '../components/public/account/CustomerAccountSecurity.js';
 import { CustomerProfileScreen } from '../components/public/account/CustomerProfileScreen.js';
+import { CustomerTreatmentDetail } from '../components/public/account/CustomerTreatmentDetail.js';
+import { CustomerTreatmentsPage } from '../components/public/account/CustomerTreatmentsPage.js';
 import { httpClient } from '../lib/http.js';
 
 /**
@@ -26,7 +28,7 @@ import { httpClient } from '../lib/http.js';
  * branding da página pública.
  */
 export function CustomerAccountPage() {
-  const { slug = '', section: segment } = useParams();
+  const { slug = '', section: segment, itemPublicId } = useParams();
   const section = sectionFromPath(segment);
   const account = useCustomerAccount(slug);
 
@@ -110,6 +112,18 @@ export function CustomerAccountPage() {
         ) : null}
         {customer !== null && section === 'appointments' ? (
           <CustomerAppointments slug={slug} />
+        ) : null}
+        {customer !== null && section === 'treatments' ? (
+          itemPublicId === undefined ? (
+            <CustomerTreatmentsPage slug={slug} />
+          ) : (
+            <CustomerTreatmentDetail
+              slug={slug}
+              publicId={itemPublicId}
+              /* Sem número público cadastrado no tenant, o botão não aparece. */
+              whatsappNumber={null}
+            />
+          )
         ) : null}
         {customer !== null && section === 'loyalty' ? <CustomerLoyalty slug={slug} /> : null}
         {customer !== null && section === 'favorites' ? (

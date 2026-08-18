@@ -4,9 +4,9 @@ import {
   CancelTreatmentPlanRequestSchema,
   CreateTreatmentPlanRequestSchema,
   CreateTreatmentSessionRequestSchema,
+  treatmentPlanStateLabel,
   TreatmentPlanPublicSchema,
   UpdateTreatmentPlanRequestSchema,
-  type AppointmentPublicSchema,
   type TreatmentPlanPublic,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,22 +40,27 @@ export function amountLabel(plan: TreatmentPlanPublic): string {
 /** Formulário de orçamento em bottom sheet, pensado para o celular. */
 function QuoteSheet({
   plan,
+  suggestedTitle,
   busy,
   error,
   onClose,
   onSave,
 }: {
   plan: TreatmentPlanPublic | null;
+  /** Sugestão inicial: o nome do serviço, sempre editável. */
+  suggestedTitle: string;
   busy: boolean;
   error: string | null;
   onClose: () => void;
   onSave: (value: {
+    title: string;
     billingMode: 'TOTAL' | 'PER_SESSION';
     amountCents: number;
     sessionsPlanned: number | null;
     returnIntervalDays: number | null;
   }) => void;
 }) {
+  const [title, setTitle] = useState(plan?.title ?? suggestedTitle);
   const [billingMode, setBillingMode] = useState<'TOTAL' | 'PER_SESSION'>(
     plan?.billingMode ?? 'PER_SESSION',
   );
@@ -69,16 +74,28 @@ function QuoteSheet({
       !INTERVAL_OPTIONS.includes(plan.returnIntervalDays as (typeof INTERVAL_OPTIONS)[number]),
   );
   const amountCents = Math.round(Number(amount.replace(',', '.')) * 100);
-  const valid = Number.isFinite(amountCents) && amountCents > 0;
+  const valid = Number.isFinite(amountCents) && amountCents > 0 && title.trim().length >= 2;
 
   return (
     <div className="treatment-sheet-backdrop" role="dialog" aria-label="Definir orçamento">
       <div className="treatment-sheet">
         <h3>{plan === null ? 'Definir orçamento' : 'Editar orçamento'}</h3>
+        <label className="treatment-title-field">
+          Título do tratamento
+          <input
+            autoFocus
+            maxLength={120}
+            placeholder="Ex.: Protocolo Facial Premium"
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value);
+            }}
+          />
+          <small>Aparece para o cliente, nas mensagens e no histórico.</small>
+        </label>
         <label className="treatment-amount">
           Valor
           <input
-            autoFocus
             inputMode="decimal"
             placeholder="0,00"
             value={amount}
@@ -192,6 +209,7 @@ function QuoteSheet({
             disabled={busy || !valid}
             onClick={() => {
               onSave({
+                title: title.trim(),
                 billingMode,
                 amountCents,
                 sessionsPlanned: sessions,
@@ -320,11 +338,17 @@ export function TreatmentPlanPanel({
   appointment,
   tenantPublicId,
   onScheduleSession,
+  allowStaffApproval = false,
 }: {
   appointment: Appointment;
   tenantPublicId: string;
   /** Sem handler o próprio painel agenda pelas rotas do profissional. */
   onScheduleSession?: (plan: TreatmentPlanPublic) => void;
+  /**
+   * Aprovação administrativa (exceção). A aprovação normal é do cliente, então
+   * ela só aparece para quem administra a agenda — nunca no app do profissional.
+   */
+  allowStaffApproval?: boolean;
 }) {
   const client = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -355,6 +379,7 @@ export function TreatmentPlanPanel({
 
   const save = useMutation({
     mutationFn: (value: {
+      title: string;
       billingMode: 'TOTAL' | 'PER_SESSION';
       amountCents: number;
       sessionsPlanned: number | null;
@@ -429,6 +454,7 @@ export function TreatmentPlanPanel({
         {sheetOpen ? (
           <QuoteSheet
             plan={null}
+            suggestedTitle={appointment.serviceName}
             busy={save.isPending}
             error={error?.message ?? null}
             onClose={() => {
@@ -446,19 +472,16 @@ export function TreatmentPlanPanel({
   return (
     <div className="treatment-panel">
       <div className="treatment-panel-head">
-        <strong>{current.serviceName}</strong>
+        <strong>{current.title}</strong>
         <span className={`ds-badge ds-badge--${current.status === 'CANCELED' ? 'danger' : 'info'}`}>
           {current.status === 'PENDING'
-            ? 'Aguardando aprovação'
-            : current.status === 'APPROVED'
-              ? 'Aprovado'
-              : current.status === 'IN_PROGRESS'
-                ? 'Em andamento'
-                : current.status === 'COMPLETED'
-                  ? 'Concluído'
-                  : 'Cancelado'}
+            ? 'Aguardando aprovação do cliente'
+            : treatmentPlanStateLabel(current)}
         </span>
       </div>
+      {current.status === 'PENDING' ? (
+        <p className="treatment-sent">✓ Orçamento definido. O cliente foi avisado.</p>
+      ) : null}
       <ul className="treatment-facts">
         <li>{amountLabel(current)}</li>
         {current.sessionsPlanned === null ? null : (
@@ -496,17 +519,20 @@ export function TreatmentPlanPanel({
         </p>
       )}
       <div className="treatment-actions">
+        {/* A aprovação é do cliente. Aqui fica só a exceção administrativa. */}
         {current.status === 'PENDING' ? (
-          <button
-            className="primary-button button--sm"
-            type="button"
-            disabled={approve.isPending}
-            onClick={() => {
-              approve.mutate(current.publicId);
-            }}
-          >
-            {approve.isPending ? 'Aprovando…' : 'Marcar como aprovado'}
-          </button>
+          allowStaffApproval ? (
+            <button
+              className="text-button button--sm"
+              type="button"
+              disabled={approve.isPending}
+              onClick={() => {
+                approve.mutate(current.publicId);
+              }}
+            >
+              {approve.isPending ? 'Aprovando…' : 'Aprovar pelo estabelecimento'}
+            </button>
+          ) : null
         ) : closed ? null : (
           <button
             className="primary-button button--sm"
@@ -561,6 +587,7 @@ export function TreatmentPlanPanel({
       {sheetOpen ? (
         <QuoteSheet
           plan={current}
+          suggestedTitle={appointment.serviceName}
           busy={save.isPending}
           error={error?.message ?? null}
           onClose={() => {

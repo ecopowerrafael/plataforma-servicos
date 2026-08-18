@@ -18,6 +18,8 @@ const AmountInputSchema = z.coerce.number().int().min(1).max(Number.MAX_SAFE_INT
 const MoneyOutputSchema = z.string().regex(/^\d+$/u);
 
 const planInputShape = {
+  /** Nome do tratamento; obrigatório e sempre validado no backend. */
+  title: z.string().trim().min(2).max(120),
   billingMode: TreatmentBillingModeSchema,
   amountCents: AmountInputSchema,
   /** Pode ficar em aberto quando ainda não dá para prever o total de sessões. */
@@ -55,6 +57,8 @@ export const TreatmentPlanSessionSchema = z.object({
 
 export const TreatmentPlanPublicSchema = z.object({
   publicId: z.uuid(),
+  /** Planos anteriores ao campo caem no nome do serviço. */
+  title: z.string(),
   status: TreatmentPlanStatusSchema,
   billingMode: TreatmentBillingModeSchema,
   amountCents: MoneyOutputSchema,
@@ -114,6 +118,47 @@ export function estimatedTotalCents(
 ): bigint | null {
   if (billingMode !== 'PER_SESSION' || sessionsPlanned === null) return null;
   return amountCents * BigInt(sessionsPlanned);
+}
+
+/** Aprovação pelo cliente: o corpo é vazio — a identidade vem da sessão. */
+export const ApproveTreatmentPlanRequestSchema = z.object({}).strict();
+
+/**
+ * Rótulo de estado para o cliente — nunca o enum cru. `APPROVED` ainda se
+ * divide entre "pronto para iniciar" e "primeira sessão agendada".
+ */
+export function treatmentPlanStateLabel(plan: {
+  status: z.infer<typeof TreatmentPlanStatusSchema>;
+  sessionsCompleted: number;
+  sessions: { status: string }[];
+}): string {
+  const hasUpcoming = plan.sessions.some(
+    (session) => session.status !== 'CANCELED' && session.status !== 'NO_SHOW',
+  );
+  switch (plan.status) {
+    case 'PENDING':
+      return 'Aguardando aprovação';
+    case 'APPROVED':
+      return hasUpcoming ? 'Primeira sessão agendada' : 'Pronto para iniciar';
+    case 'IN_PROGRESS':
+      return 'Em tratamento';
+    case 'COMPLETED':
+      return 'Concluído';
+    default:
+      return 'Cancelado';
+  }
+}
+
+/** Texto de valor usado em tela e nas notificações. */
+export function treatmentAmountLabel(plan: {
+  billingMode: z.infer<typeof TreatmentBillingModeSchema>;
+  amountCents: string;
+}): string {
+  const value = (Number(plan.amountCents) / 100).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+  return plan.billingMode === 'TOTAL' ? `Valor total: ${value}` : `Valor por sessão: ${value}`;
 }
 
 export type CreateTreatmentPlanRequest = z.infer<typeof CreateTreatmentPlanRequestSchema>;

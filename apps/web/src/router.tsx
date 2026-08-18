@@ -123,6 +123,7 @@ export const router = createBrowserRouter([
   // Área do cliente em página inteira: uma URL por seção.
   { path: '/public/:slug/conta', element: <CustomerAccountPage /> },
   { path: '/public/:slug/conta/:section', element: <CustomerAccountPage /> },
+  { path: '/public/:slug/conta/:section/:itemPublicId', element: <CustomerAccountPage /> },
   {
     path: '*',
     element: <NotFoundPage />,

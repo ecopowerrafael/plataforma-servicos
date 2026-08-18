@@ -52,6 +52,7 @@ import {
   WebPushDelivery,
 } from '../modules/notifications/push-delivery.js';
 import { PushSubscriptionService } from '../modules/notifications/push-subscription.service.js';
+import { TreatmentPlanNotificationService } from '../modules/notifications/treatment-plan-notification.service.js';
 import { CashRegisterService } from '../modules/payments/cash-register.service.js';
 import { CouponService } from '../modules/payments/coupon.service.js';
 import { DelinquencyService } from '../modules/payments/delinquency.service.js';
@@ -160,6 +161,7 @@ export interface DatabaseConnection {
   readonly notificationTemplates?: NotificationTemplateService;
   readonly notificationCampaigns?: NotificationCampaignService;
   readonly appointmentNotifications?: AppointmentNotificationService;
+  readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
   readonly appointmentReminders?: AppointmentReminderService;
   readonly automations?: AutomationService;
   readonly pushSubscriptions?: PushSubscriptionService;
@@ -356,6 +358,11 @@ export function createDatabaseConnection(
     client,
     notificationDispatcher,
   );
+  const treatmentPlanNotifications = new TreatmentPlanNotificationService(
+    client,
+    notificationDispatcher,
+    notifications,
+  );
   const appointmentReminders = new AppointmentReminderService(client, notificationDispatcher);
   const automations = new AutomationService(client, notificationDispatcher);
   const pushSubscriptions = new PushSubscriptionService(client);
@@ -455,6 +462,7 @@ export function createDatabaseConnection(
     notificationTemplates: notificationTemplates,
     notificationCampaigns: notificationCampaigns,
     appointmentNotifications: appointmentNotifications,
+    treatmentPlanNotifications,
     appointmentReminders: appointmentReminders,
     automations: automations,
     pushSubscriptions: pushSubscriptions,

@@ -15,6 +15,7 @@ export type AccountSection =
   | 'home'
   | 'profile'
   | 'appointments'
+  | 'treatments'
   | 'loyalty'
   | 'favorites'
   | 'reviews'
@@ -26,6 +27,7 @@ export const ACCOUNT_SECTIONS: { id: AccountSection; label: string; path: string
   { id: 'home', label: 'Início', path: '' },
   { id: 'profile', label: 'Dados pessoais', path: 'dados' },
   { id: 'appointments', label: 'Meus agendamentos', path: 'agendamentos' },
+  { id: 'treatments', label: 'Meus tratamentos', path: 'tratamentos' },
   { id: 'loyalty', label: 'Fidelidade', path: 'fidelidade' },
   { id: 'favorites', label: 'Favoritos', path: 'favoritos' },
   { id: 'reviews', label: 'Avaliações', path: 'avaliacoes' },

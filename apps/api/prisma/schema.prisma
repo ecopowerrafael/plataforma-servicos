@@ -1738,6 +1738,8 @@ model TreatmentPlan {
   professionalId      BigInt               @map("professional_id") @db.UnsignedBigInt
   /** Avaliacao que originou o orcamento; nunca conta como sessao. */
   originAppointmentId BigInt               @unique @map("origin_appointment_id") @db.UnsignedBigInt
+  /** Nome do tratamento definido pelo profissional; planos antigos caem no nome do servico. */
+  title               String?              @db.VarChar(120)
   status              TreatmentPlanStatus  @default(PENDING)
   billingMode         TreatmentBillingMode @map("billing_mode")
   amountCents         BigInt               @map("amount_cents") @db.UnsignedBigInt

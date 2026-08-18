@@ -449,6 +449,8 @@ export function MyAgendaModule({
     <TreatmentPlanPanel
       appointment={appointment}
       tenantPublicId={tenantPublicId}
+      // A aprovação normal é do cliente; a administrativa fica só no painel.
+      allowStaffApproval={!selfOnly && canManageStatus}
       {...(selfOnly || !canCreate
         ? {}
         : {

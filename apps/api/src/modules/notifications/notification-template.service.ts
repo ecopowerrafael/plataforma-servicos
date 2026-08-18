@@ -41,12 +41,27 @@ const APPOINTMENT_VARIABLES = new Set([
   'isToday',
 ]);
 const RECOVERY_VARIABLES = new Set(['customerName', 'tenantName', 'referenceDate']);
+const TREATMENT_VARIABLES = new Set([
+  'customerName',
+  'tenantName',
+  'treatmentTitle',
+  'amountLine',
+  'sessionsLine',
+  'estimatedTotalLine',
+  'intervalLine',
+  'professionalName',
+  'treatmentUrl',
+]);
 
 function assertSupportedVariables(
   kind: NotificationKind,
   values: Array<string | null | undefined>,
 ) {
-  const supported = kind.startsWith('appointment.') ? APPOINTMENT_VARIABLES : RECOVERY_VARIABLES;
+  const supported = kind.startsWith('appointment.')
+    ? APPOINTMENT_VARIABLES
+    : kind.startsWith('treatment_plan.')
+      ? TREATMENT_VARIABLES
+      : RECOVERY_VARIABLES;
   for (const value of values) {
     if (value === null || value === undefined) continue;
     for (const token of value.matchAll(/\{\{(\w+)\}\}/g)) {
@@ -117,6 +132,22 @@ const DEFAULT_TEMPLATES: Record<NotificationKind, TemplateContent> = {
     subject: 'Feliz aniversário, {{customerName}}!',
     body: 'Olá, {{customerName}}! Desejamos um feliz aniversário e um excelente novo ciclo.',
   },
+  'treatment_plan.quote_ready': {
+    subject: 'Seu orçamento está pronto — {{tenantName}}',
+    body: "Olá, {{customerName}}! O orçamento para o tratamento '{{treatmentTitle}}' já foi definido.\n\n{{amountLine}}{{sessionsLine}}{{estimatedTotalLine}}{{intervalLine}}\n\nAcesse sua conta para revisar e aprovar o orçamento.",
+    title: 'Seu orçamento está pronto',
+    intro: "Olá, {{customerName}}! O orçamento para '{{treatmentTitle}}' já está disponível.",
+    afterText: 'Revise os valores e aprove pela sua conta quando quiser.',
+    ctaLabel: 'Ver orçamento',
+  },
+  'treatment_plan.approved': {
+    subject: 'Orçamento aprovado — {{treatmentTitle}}',
+    body: "{{customerName}} aprovou o orçamento '{{treatmentTitle}}'.\n\n{{amountLine}}{{sessionsLine}}\n\nPrimeira sessão ainda não agendada.",
+    title: 'Orçamento aprovado',
+    intro: "{{customerName}} aprovou o orçamento '{{treatmentTitle}}'.",
+    afterText: 'Primeira sessão ainda não agendada.',
+    ctaLabel: 'Ver tratamento',
+  },
 };
 
 export function renderTemplate(
@@ -178,6 +209,16 @@ export function renderPushTemplate(
     return {
       subject: 'Lembrete de agendamento',
       body: `Seu horário para ${variables.serviceName ?? 'o serviço'}${withProfessional} é ${variables.isToday === 'true' ? 'hoje' : (variables.date ?? '')} às ${variables.time ?? ''}.`,
+    };
+  if (kind === 'treatment_plan.quote_ready')
+    return {
+      subject: 'Seu orçamento está pronto',
+      body: `${variables.treatmentTitle ?? 'Seu tratamento'} — ${(variables.amountLine ?? '').trim()}`.trim(),
+    };
+  if (kind === 'treatment_plan.approved')
+    return {
+      subject: 'Orçamento aprovado',
+      body: `${variables.customerName ?? 'O cliente'} aprovou '${variables.treatmentTitle ?? 'o tratamento'}'.`,
     };
   if (kind === 'appointment.booking_canceled')
     return {

@@ -383,11 +383,18 @@ export async function buildApp(options: BuildAppOptions) {
         cookieName: 'customer_session',
       });
     }
-    if (options.database.treatmentPlans !== undefined) {
+    if (
+      options.database.treatmentPlans !== undefined &&
+      options.database.appointments !== undefined
+    ) {
       await app.register(customerTreatmentPlanRoutes, {
         service: options.database.treatmentPlans,
+        appointments: options.database.appointments,
         authService: options.database.customerAuth,
         cookieName: 'customer_session',
+        ...(options.database.treatmentPlanNotifications === undefined
+          ? {}
+          : { notifications: options.database.treatmentPlanNotifications }),
       });
     }
     if (options.database.customerFavorites !== undefined) {
@@ -474,6 +481,9 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
+      ...(options.database.treatmentPlanNotifications === undefined
+        ? {}
+        : { notifications: options.database.treatmentPlanNotifications }),
     });
   if (options.database.appointmentWaitlists !== undefined)
     await app.register(appointmentWaitlistRoutes, {

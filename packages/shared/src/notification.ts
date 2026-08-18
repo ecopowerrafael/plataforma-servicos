@@ -18,6 +18,8 @@ export const NotificationKinds = [
   'customer.recovery.no_show',
   'customer.recovery.post_service',
   'customer.recovery.birthday',
+  'treatment_plan.quote_ready',
+  'treatment_plan.approved',
 ] as const;
 export const NotificationKindSchema = z.enum(NotificationKinds);
 
@@ -32,6 +34,9 @@ export const TransactionalNotificationKinds = [
   'appointment.booking_confirmed',
   'appointment.booking_canceled',
   'appointment.reminder',
+  // Orçamento e aprovação fazem parte do atendimento contratado.
+  'treatment_plan.quote_ready',
+  'treatment_plan.approved',
 ] as const satisfies readonly (typeof NotificationKinds)[number][];
 
 export function isTransactionalNotification(kind: string): boolean {

@@ -53,12 +53,15 @@ const channelsOf = (enqueue: ReturnType<typeof vi.fn>) =>
   enqueue.mock.calls.map((call) => (call[1] as { channel: string }).channel);
 
 describe('classificação de notificações', () => {
-  it('trata como transacionais apenas os eventos do próprio agendamento', () => {
+  it('trata como transacionais apenas os eventos do atendimento contratado', () => {
     const transactional = NotificationKinds.filter((kind) => isTransactionalNotification(kind));
+    // Orçamento e aprovação fazem parte do atendimento, não são marketing.
     expect(transactional).toEqual([
       'appointment.booking_confirmed',
       'appointment.booking_canceled',
       'appointment.reminder',
+      'treatment_plan.quote_ready',
+      'treatment_plan.approved',
     ]);
   });
 

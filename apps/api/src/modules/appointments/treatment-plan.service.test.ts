@@ -1,4 +1,13 @@
-import { estimatedTotalCents, recommendedNextDate, servicePriceLabel } from '@plataforma/shared';
+import { readFileSync } from 'node:fs';
+
+import {
+  CreateTreatmentPlanRequestSchema,
+  estimatedTotalCents,
+  recommendedNextDate,
+  servicePriceLabel,
+  treatmentAmountLabel,
+  treatmentPlanStateLabel,
+} from '@plataforma/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { type TreatmentPlanRepository } from './treatment-plan.repository.js';
@@ -25,6 +34,7 @@ const plan = (overrides: Record<string, unknown> = {}) => ({
   serviceId: 3n,
   professionalId: 4n,
   originAppointmentId: 9n,
+  title: 'Protocolo Facial Premium',
   status: 'APPROVED' as const,
   billingMode: 'PER_SESSION' as const,
   amountCents: 30000n,
@@ -90,6 +100,7 @@ describe('TreatmentPlanService — orçamento', () => {
       1n,
       {
         appointmentPublicId: '00000000-0000-4000-8000-0000000000f1',
+        title: 'Protocolo Facial Premium',
         billingMode: 'PER_SESSION',
         amountCents: 30000,
         sessionsPlanned: 4,
@@ -113,6 +124,7 @@ describe('TreatmentPlanService — orçamento', () => {
       1n,
       {
         appointmentPublicId: '00000000-0000-4000-8000-0000000000f1',
+        title: 'Protocolo Facial Premium',
         billingMode: 'TOTAL',
         amountCents: 120000,
         sessionsPlanned: 4,
@@ -129,6 +141,7 @@ describe('TreatmentPlanService — orçamento', () => {
       1n,
       {
         appointmentPublicId: '00000000-0000-4000-8000-0000000000f1',
+        title: 'Protocolo Facial Premium',
         billingMode: 'PER_SESSION',
         amountCents: 30000,
         sessionsPlanned: null,
@@ -156,6 +169,7 @@ describe('TreatmentPlanService — orçamento', () => {
         1n,
         {
           appointmentPublicId: '00000000-0000-4000-8000-0000000000f1',
+          title: 'Protocolo Facial Premium',
           billingMode: 'TOTAL',
           amountCents: 1000,
         },
@@ -274,7 +288,7 @@ describe('TreatmentPlanService — sessões e cobrança', () => {
       new TreatmentPlanService(repo).update(
         1n,
         PLAN_ID,
-        { billingMode: 'PER_SESSION', amountCents: 50000 },
+        { title: 'Protocolo Facial Premium', billingMode: 'PER_SESSION', amountCents: 50000 },
         ACTOR,
       ),
     ).rejects.toMatchObject({ code: 'TREATMENT_PLAN_AMOUNT_LOCKED' });
@@ -409,7 +423,7 @@ describe('TreatmentPlanService — isolamento', () => {
       new TreatmentPlanService(repo).update(
         1n,
         PLAN_ID,
-        { billingMode: 'PER_SESSION', amountCents: 50000 },
+        { title: 'Protocolo Facial Premium', billingMode: 'PER_SESSION', amountCents: 50000 },
         ACTOR,
       ),
     ).rejects.toMatchObject({ code: 'TREATMENT_PLAN_AMOUNT_LOCKED' });
@@ -422,7 +436,7 @@ describe('TreatmentPlanService — isolamento', () => {
     const updated = await new TreatmentPlanService(repo).update(
       1n,
       PLAN_ID,
-      { billingMode: 'PER_SESSION', amountCents: 30000, sessionsPlanned: 6 },
+      { title: 'Protocolo Facial Premium', billingMode: 'PER_SESSION', amountCents: 30000, sessionsPlanned: 6 },
       ACTOR,
     );
     expect(updated.sessionsPlanned).toBe(6);
@@ -441,5 +455,123 @@ describe('TreatmentPlanService — isolamento', () => {
     await expect(new TreatmentPlanService(repo).get(2n, PLAN_ID)).rejects.toMatchObject({
       code: 'TREATMENT_PLAN_NOT_FOUND',
     });
+  });
+});
+
+describe('TreatmentPlanService — título do tratamento', () => {
+  it('exige título ao definir o orçamento', () => {
+    expect(
+      CreateTreatmentPlanRequestSchema.safeParse({
+        appointmentPublicId: '00000000-0000-4000-8000-0000000000f1',
+        title: ' ',
+        billingMode: 'TOTAL',
+        amountCents: 1000,
+      }).success,
+    ).toBe(false);
+    const parsed = CreateTreatmentPlanRequestSchema.parse({
+      appointmentPublicId: '00000000-0000-4000-8000-0000000000f1',
+      title: '  Protocolo Facial Premium  ',
+      billingMode: 'TOTAL',
+      amountCents: 1000,
+    });
+    expect(parsed.title).toBe('Protocolo Facial Premium');
+  });
+
+  it('usa o nome do serviço em planos antigos sem título', async () => {
+    const repo = repository({ find: vi.fn().mockResolvedValue(plan({ title: null })) });
+    const result = await new TreatmentPlanService(repo).get(1n, PLAN_ID);
+    expect(result.title).toBe('Tratamento Capilar');
+  });
+});
+
+describe('TreatmentPlanService — aprovação pelo cliente', () => {
+  it('aprova um plano PENDING do próprio cliente', async () => {
+    const repo = repository({
+      find: vi.fn().mockResolvedValue(plan({ status: 'PENDING' as const })),
+    });
+    const result = await new TreatmentPlanService(repo).approveForCustomer(1n, 2n, PLAN_ID);
+    expect(result.changed).toBe(true);
+    expect(result.plan.status).toBe('APPROVED');
+  });
+
+  it('é idempotente: aprovar de novo não muda nada nem reemite evento', async () => {
+    const update = vi.fn();
+    const repo = repository({
+      find: vi.fn().mockResolvedValue(plan({ status: 'APPROVED' as const })),
+      update,
+    });
+    const result = await new TreatmentPlanService(repo).approveForCustomer(1n, 2n, PLAN_ID);
+    expect(result.changed).toBe(false);
+    expect(result.plan.status).toBe('APPROVED');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('cliente não aprova nem lê plano de outro cliente', async () => {
+    const repo = repository({ find: vi.fn().mockResolvedValue(plan({ customerId: 99n })) });
+    const service = new TreatmentPlanService(repo);
+    await expect(service.approveForCustomer(1n, 2n, PLAN_ID)).rejects.toMatchObject({
+      code: 'TREATMENT_PLAN_NOT_FOUND',
+    });
+    await expect(service.getForCustomer(1n, 2n, PLAN_ID)).rejects.toMatchObject({
+      code: 'TREATMENT_PLAN_NOT_FOUND',
+    });
+  });
+
+  it('tenant de outro estabelecimento não encontra o plano', async () => {
+    const repo = repository({ find: vi.fn().mockResolvedValue(null) });
+    await expect(
+      new TreatmentPlanService(repo).getForCustomer(9n, 2n, PLAN_ID),
+    ).rejects.toMatchObject({ code: 'TREATMENT_PLAN_NOT_FOUND' });
+  });
+
+  it('depois de aprovado permite agendar a primeira sessão', async () => {
+    const repo = repository({
+      find: vi.fn().mockResolvedValue(plan({ status: 'APPROVED' as const, sessions: [] })),
+    });
+    await expect(new TreatmentPlanService(repo).nextSession(1n, PLAN_ID)).resolves.toMatchObject({
+      sessionNumber: 1,
+    });
+  });
+});
+
+describe('estado e mensagens do tratamento', () => {
+  const base = {
+    status: 'APPROVED' as const,
+    sessionsCompleted: 0,
+    sessions: [] as { status: string }[],
+  };
+
+  it('traduz o estado sem expor o enum', () => {
+    expect(treatmentPlanStateLabel({ ...base, status: 'PENDING' })).toBe('Aguardando aprovação');
+    expect(treatmentPlanStateLabel(base)).toBe('Pronto para iniciar');
+    expect(treatmentPlanStateLabel({ ...base, sessions: [{ status: 'CONFIRMED' }] })).toBe(
+      'Primeira sessão agendada',
+    );
+    expect(treatmentPlanStateLabel({ ...base, status: 'IN_PROGRESS' })).toBe('Em tratamento');
+    expect(treatmentPlanStateLabel({ ...base, status: 'COMPLETED' })).toBe('Concluído');
+    expect(treatmentPlanStateLabel({ ...base, status: 'CANCELED' })).toBe('Cancelado');
+  });
+
+  it('TOTAL fala em valor total e PER_SESSION em valor por sessão', () => {
+    expect(treatmentAmountLabel({ billingMode: 'TOTAL', amountCents: '120000' })).toContain(
+      'Valor total',
+    );
+    expect(treatmentAmountLabel({ billingMode: 'TOTAL', amountCents: '120000' })).not.toContain(
+      'por sessão',
+    );
+    expect(treatmentAmountLabel({ billingMode: 'PER_SESSION', amountCents: '30000' })).toContain(
+      'Valor por sessão',
+    );
+  });
+});
+
+describe('orçamento não depende da entrega da mensagem', () => {
+  it('a rota isola a falha de notificação do salvamento do orçamento', () => {
+    const routes = readFileSync(new URL('./treatment-plan.routes.ts', import.meta.url), 'utf8');
+    // Criar o plano e avisar o cliente são passos independentes.
+    expect(routes).toContain('await options.notifications?.notifyQuoteReady(request.tenant.id, plan)');
+    expect(routes).toContain('a própria fila de notificações registra o erro');
+    // O evento de aprovação só é emitido na transição real (idempotência).
+    expect(routes).toContain('if (result.changed)');
   });
 });

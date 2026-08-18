@@ -16,6 +16,34 @@ export const WhatsAppConfigSchema = z.object({
   connectionStatus: z.enum(['NOT_CONFIGURED', 'INACTIVE', 'CONNECTED', 'ERROR']).nullable(),
   lastValidatedAt: z.iso.datetime({ offset: true }).nullable(),
 });
+/**
+ * Conexão do WhatsApp provisionada pelo painel. O tenant nunca vê instanceId,
+ * token nem qualquer credencial do provedor.
+ */
+export const WhatsAppConnectionStateSchema = z.enum([
+  'NOT_CREATED',
+  'CREATED',
+  'WAITING_QR',
+  'CONNECTED',
+  'DISCONNECTED',
+  'ERROR',
+]);
+export const WhatsAppConnectionSchema = z.object({
+  available: z.boolean(),
+  provisioned: z.boolean(),
+  state: WhatsAppConnectionStateSchema,
+  connectedPhone: z.string().nullable(),
+  connectedName: z.string().nullable(),
+  connectedAt: z.iso.datetime({ offset: true }).nullable(),
+  lastStatusCheckAt: z.iso.datetime({ offset: true }).nullable(),
+  /** Instância configurada manualmente antes do provisionamento automático. */
+  legacy: z.boolean(),
+});
+/** QR é temporário: vem na resposta e não é persistido em lugar nenhum. */
+export const WhatsAppQrCodeSchema = z.object({
+  qrCode: z.string().min(1),
+  connection: WhatsAppConnectionSchema,
+});
 export const WhatsAppConnectionTestSchema = z.object({
   connected: z.boolean(),
   code: z.enum(['WHATSAPP_CONNECTED','WHATSAPP_CREDENTIALS_MISSING','WHATSAPP_INVALID_TOKEN','WHATSAPP_INSTANCE_NOT_FOUND','WHATSAPP_DISCONNECTED','WHATSAPP_ROUTE_UNAVAILABLE','WHATSAPP_RATE_LIMITED','WHATSAPP_TIMEOUT','WHATSAPP_NETWORK_ERROR','WHATSAPP_EXTERNAL_UNAVAILABLE','WHATSAPP_UNEXPECTED_RESPONSE']),

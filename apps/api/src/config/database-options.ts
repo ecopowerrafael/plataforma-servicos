@@ -55,5 +55,11 @@ export function databaseOptionsFromEnvironment(environment: Environment): Custom
     ...(environment.PAYMENT_GATEWAY_ENCRYPTION_KEY === undefined
       ? {}
       : { paymentGatewayEncryptionKey: environment.PAYMENT_GATEWAY_ENCRYPTION_KEY }),
+    // Chave mestra da W-API: só chega ao serviço de provisionamento.
+    ...(environment.WAPI_MASTER_API_KEY === undefined
+      ? {}
+      : { wapiMasterApiKey: environment.WAPI_MASTER_API_KEY }),
+    ...(environment.WAPI_BASE_URL === undefined ? {} : { wapiBaseUrl: environment.WAPI_BASE_URL }),
+    appWebUrl: environment.APP_WEB_URL,
   };
 }

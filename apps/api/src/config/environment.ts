@@ -41,6 +41,14 @@ const environmentSchema = z
     LOG_LEVEL: z.enum(logLevels),
     APP_WEB_URL: z.url().default('http://localhost:5173'),
     PUBLIC_BASE_DOMAIN: z.string().trim().toLowerCase().optional(),
+    /**
+     * Chave mestra da W-API (API Integration). Fica só no backend: nunca é
+     * devolvida por rota nem registrada em log — serve apenas para criar e
+     * administrar instâncias dos tenants.
+     */
+    WAPI_MASTER_API_KEY: z.string().trim().min(8).optional(),
+    /** Base opcional; o cliente da W-API já usa a URL oficial por padrão. */
+    WAPI_BASE_URL: z.url().optional(),
     AUTH_COOKIE_NAME: z
       .string()
       .trim()

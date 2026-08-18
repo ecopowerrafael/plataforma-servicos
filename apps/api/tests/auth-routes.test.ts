@@ -25,6 +25,7 @@ const environment: Environment = {
   CORS_ORIGINS: ['http://localhost:5173'],
   LOG_LEVEL: 'silent',
   APP_WEB_URL: 'http://localhost:5173',
+  WAPI_BASE_URL: 'https://api.w-api.app',
   AUTH_COOKIE_NAME: 'ps_session',
   AUTH_SESSION_TTL_HOURS: 168,
   AUTH_MAX_ACTIVE_SESSIONS: 2,

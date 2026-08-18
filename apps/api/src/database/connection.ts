@@ -34,6 +34,8 @@ import {
 } from '../modules/integrations/integration-delivery.js';
 import { IntegrationRepository } from '../modules/integrations/integration.repository.js';
 import { IntegrationService } from '../modules/integrations/integration.service.js';
+import { WApiIntegrationService } from '../modules/integrations/wapi-integration.service.js';
+import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
 import { AutomationService } from '../modules/notifications/automation.service.js';
@@ -160,6 +162,7 @@ export interface DatabaseConnection {
   readonly notifications?: NotificationService;
   readonly notificationTemplates?: NotificationTemplateService;
   readonly notificationCampaigns?: NotificationCampaignService;
+  readonly whatsappProvisioning?: WhatsAppProvisioningService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
   readonly appointmentReminders?: AppointmentReminderService;
@@ -214,6 +217,10 @@ export interface CustomerAuthOptions {
     subject: string;
   };
   paymentGatewayEncryptionKey?: string;
+  /** Credencial mestra da W-API; nunca sai do backend. */
+  wapiMasterApiKey?: string;
+  wapiBaseUrl?: string;
+  appWebUrl?: string;
 }
 
 export function createDatabaseConnection(
@@ -337,6 +344,16 @@ export function createDatabaseConnection(
       ? undefined
       : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
   const whatsappDelivery = new WApiWhatsAppDelivery(client, credentialsCipher);
+  // Provisionamento da instância: chave mestra só existe aqui, no backend.
+  const whatsappProvisioning = new WhatsAppProvisioningService(
+    client,
+    new WApiIntegrationService(
+      customerAuthOptions?.wapiMasterApiKey,
+      customerAuthOptions?.wapiBaseUrl,
+    ),
+    credentialsCipher,
+    customerAuthOptions?.appWebUrl,
+  );
   const notifications = new NotificationService(client, {
     email: emailDelivery,
     push: pushDelivery,
@@ -461,6 +478,7 @@ export function createDatabaseConnection(
     notifications: notifications,
     notificationTemplates: notificationTemplates,
     notificationCampaigns: notificationCampaigns,
+    whatsappProvisioning,
     appointmentNotifications: appointmentNotifications,
     treatmentPlanNotifications,
     appointmentReminders: appointmentReminders,

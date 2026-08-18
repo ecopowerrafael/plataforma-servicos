@@ -499,7 +499,17 @@ model TenantWhatsAppConfig {
   publicId             String   @unique @map("public_id") @db.Char(36)
   tenantId             BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
   active               Boolean  @default(false)
+  /** Provedor da instancia; hoje sempre W-API. */
+  provider             String   @default("WAPI") @db.VarChar(32)
+  /** Identificador da instancia no provedor (mantido em phone_number_id por compatibilidade). */
   phoneNumberId        String   @map("phone_number_id") @db.VarChar(80)
+  /** Nome enviado ao provedor ao criar a instancia. */
+  instanceName         String?  @map("instance_name") @db.VarChar(120)
+  connectionStatus     String   @default("NOT_CREATED") @map("connection_status") @db.VarChar(24)
+  connectedPhone       String?  @map("connected_phone") @db.VarChar(32)
+  connectedName        String?  @map("connected_name") @db.VarChar(120)
+  connectedAt          DateTime? @map("connected_at") @db.DateTime(3)
+  lastStatusCheckAt    DateTime? @map("last_status_check_at") @db.DateTime(3)
   businessAccountId    String   @map("business_account_id") @db.VarChar(80)
   encryptedAccessToken String   @map("encrypted_access_token") @db.Text
   apiVersion           String   @default("v23.0") @map("api_version") @db.VarChar(16)

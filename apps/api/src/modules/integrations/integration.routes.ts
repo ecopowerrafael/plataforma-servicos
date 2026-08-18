@@ -7,10 +7,12 @@ import {
   WhatsAppButtonTestRequestSchema,
   WhatsAppButtonTestResponseSchema,
   WhatsAppConfigSchema,
+  WhatsAppConnectionSchema,
   WhatsAppConnectionTestSchema,
   WhatsAppControlTestResponseSchema,
   WhatsAppConnectionTestRequestSchema,
   WhatsAppInstanceDiagnosticsSchema,
+  WhatsAppQrCodeSchema,
   WhatsAppLastInboundEventSchema,
   WhatsAppWebhookConfigResponseSchema,
 } from '@plataforma/shared';
@@ -18,8 +20,10 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { type IntegrationService } from './integration.service.js';
+import { type WhatsAppProvisioningService } from './whatsapp-provisioning.service.js';
 import { whatsappWebhookPath } from './whatsapp-webhook.routes.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 
@@ -30,6 +34,7 @@ const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } 
 });
 export const integrationRoutes: FastifyPluginAsyncZod<{
   service: IntegrationService;
+  provisioning?: WhatsAppProvisioningService;
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
@@ -53,6 +58,81 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
     async (request) => {
       options.authService.requirePermission(request.tenant, 'integration.manage');
       return options.service.updateWhatsapp(request.tenant.id, request.body, actor(request));
+    },
+  );
+  /**
+   * Conexão do WhatsApp pelo painel. Todas as rotas resolvem a instância pela
+   * sessão autenticada — o frontend nunca informa instanceId nem token, e
+   * nenhuma credencial do provedor volta na resposta.
+   */
+  const provisioning = () => {
+    if (options.provisioning === undefined)
+      throw new AppError({
+        code: 'WHATSAPP_PROVIDER_UNAVAILABLE',
+        message: 'A conexão com o WhatsApp está indisponível no momento.',
+        statusCode: 503,
+      });
+    return options.provisioning;
+  };
+  const logged = (
+    request: { log: { info: (payload: object, message: string) => void }; tenant: { publicId: string } },
+    operation: string,
+  ) => {
+    // Log técnico sem credencial, token, chave mestra ou QR.
+    request.log.info(
+      { operation, tenantPublicId: request.tenant.publicId },
+      'Operação de conexão do WhatsApp',
+    );
+  };
+
+  app.get(
+    '/tenant/integrations/whatsapp/status',
+    { schema: { response: { 200: WhatsAppConnectionSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.read');
+      const service = provisioning();
+      const current = await service.current(request.tenant.id);
+      if (!current.provisioned) return current;
+      logged(request, 'whatsapp_status_refresh');
+      return service.refreshStatus(request.tenant.id);
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/instance',
+    { schema: { response: { 200: WhatsAppConnectionSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      logged(request, 'whatsapp_instance_create');
+      return provisioning().connect(request.tenant.id);
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/qr',
+    { schema: { response: { 200: WhatsAppQrCodeSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      logged(request, 'whatsapp_qr_code');
+      const { qrCode, view } = await provisioning().qrCode(request.tenant.id);
+      return { qrCode, connection: view };
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/reconnect',
+    { schema: { response: { 200: WhatsAppQrCodeSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      logged(request, 'whatsapp_reconnect');
+      const { qrCode, view } = await provisioning().reconnect(request.tenant.id);
+      return { qrCode, connection: view };
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/disconnect',
+    { schema: { response: { 200: WhatsAppConnectionSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      logged(request, 'whatsapp_disconnect');
+      return provisioning().disconnect(request.tenant.id);
     },
   );
   app.post(

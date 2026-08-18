@@ -1006,16 +1006,14 @@ export class PlatformService {
       ...(query.planPublicId === undefined ? {} : { plan: { publicId: query.planPublicId } }),
       ...(query.tenantPublicId === undefined ? {} : { tenant: { publicId: query.tenantPublicId } }),
     };
-    const [total, items] = await this.client.$transaction([
-      this.client.tenantSubscription.count({ where }),
-      this.client.tenantSubscription.findMany({
-        where,
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
-        orderBy: { [query.orderBy]: query.direction },
-        include: { tenant: true, plan: true },
-      }),
-    ]);
+    const total = await this.client.tenantSubscription.count({ where });
+    const items = await this.client.tenantSubscription.findMany({
+      where,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+      orderBy: { [query.orderBy]: query.direction },
+      include: { tenant: true, plan: true },
+    });
     return { items: items.map(mapSubscription), page: pageMeta(total, query) };
   }
 

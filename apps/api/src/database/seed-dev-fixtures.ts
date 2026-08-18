@@ -27,6 +27,7 @@ const fixtureIds = {
   billingOption: '10000000-0000-4000-8000-000000000008',
   subscription: '10000000-0000-4000-8000-000000000009',
   tenantRole: '10000000-0000-4000-8000-000000000010',
+  audit: '10000000-0000-4000-8000-000000000011',
 } as const;
 
 const platformPermissions = [
@@ -244,35 +245,51 @@ try {
   const effective = await client.tenantSubscription.findFirst({
     where: { tenantId: tenant.id, effectiveKey: 'EFFECTIVE' },
   });
-  if (effective === null) {
-    await client.tenantSubscription.create({
+  const subscription =
+    effective === null
+      ? await client.tenantSubscription.create({
+          data: {
+            publicId: fixtureIds.subscription,
+            tenantId: tenant.id,
+            planId: plan.id,
+            status: 'ACTIVE',
+            startsAt: now,
+            currentPeriodStartsAt: now,
+            currentPeriodEndsAt: periodEndsAt,
+            priceCents: billingOption.priceCents,
+            currency: plan.currency,
+            billingCycle: billingOption.billingCycle,
+            effectiveKey: 'EFFECTIVE',
+          },
+        })
+      : await client.tenantSubscription.update({
+          where: { id: effective.id },
+          data: {
+            planId: plan.id,
+            status: 'ACTIVE',
+            startsAt: now,
+            currentPeriodStartsAt: now,
+            currentPeriodEndsAt: periodEndsAt,
+            priceCents: billingOption.priceCents,
+            currency: plan.currency,
+            billingCycle: billingOption.billingCycle,
+            effectiveKey: 'EFFECTIVE',
+          },
+        });
+  const audit = await client.auditLog.findFirst({
+    where: { action: 'platform.dev_fixture.ready', targetPublicId: subscription.publicId },
+    select: { id: true },
+  });
+  if (audit === null) {
+    await client.auditLog.create({
       data: {
-        publicId: fixtureIds.subscription,
+        publicId: fixtureIds.audit,
         tenantId: tenant.id,
-        planId: plan.id,
-        status: 'ACTIVE',
-        startsAt: now,
-        currentPeriodStartsAt: now,
-        currentPeriodEndsAt: periodEndsAt,
-        priceCents: billingOption.priceCents,
-        currency: plan.currency,
-        billingCycle: billingOption.billingCycle,
-        effectiveKey: 'EFFECTIVE',
-      },
-    });
-  } else {
-    await client.tenantSubscription.update({
-      where: { id: effective.id },
-      data: {
-        planId: plan.id,
-        status: 'ACTIVE',
-        startsAt: now,
-        currentPeriodStartsAt: now,
-        currentPeriodEndsAt: periodEndsAt,
-        priceCents: billingOption.priceCents,
-        currency: plan.currency,
-        billingCycle: billingOption.billingCycle,
-        effectiveKey: 'EFFECTIVE',
+        userId: admin.id,
+        action: 'platform.dev_fixture.ready',
+        targetType: 'tenant_subscription',
+        targetPublicId: subscription.publicId,
+        metadata: { source: 'development-fixture' },
       },
     });
   }

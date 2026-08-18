@@ -513,6 +513,11 @@ enum DirectoryImportItemStatus {
   ERROR
 }
 
+enum DirectoryBusinessEventType {
+  BUSINESS_VIEW
+  WHATSAPP_CLICK
+}
+
 model DirectoryCategory {
   id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
   publicId     String   @unique @map("public_id") @db.Char(36)
@@ -575,6 +580,7 @@ model DirectoryBusiness {
   category         DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   tenant           Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   importItems      DirectoryImportItem[]
+  events           DirectoryBusinessEvent[]
 
   @@unique([categoryId, state, citySlug, slug], map: "udb_category_city_slug")
   @@index([categoryId, citySlug, active])
@@ -584,6 +590,27 @@ model DirectoryBusiness {
   @@index([phone])
   @@index([tenantId])
   @@map("directory_businesses")
+}
+
+model DirectoryBusinessEvent {
+  id          BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId    String                    @unique @map("public_id") @db.Char(36)
+  businessId  BigInt                    @map("business_id") @db.UnsignedBigInt
+  type        DirectoryBusinessEventType
+  visitorHash String?                   @map("visitor_hash") @db.Char(64)
+  sessionHash String?                   @map("session_hash") @db.Char(64)
+  sourcePath  String                    @map("source_path") @db.VarChar(500)
+  referrer    String?                   @db.VarChar(500)
+  utmSource   String?                   @map("utm_source") @db.VarChar(160)
+  utmMedium   String?                   @map("utm_medium") @db.VarChar(160)
+  utmCampaign String?                   @map("utm_campaign") @db.VarChar(160)
+  createdAt   DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  business    DirectoryBusiness         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, type, createdAt])
+  @@index([type, createdAt])
+  @@index([visitorHash, businessId, type, createdAt])
+  @@map("directory_business_events")
 }
 
 model DirectoryImport {

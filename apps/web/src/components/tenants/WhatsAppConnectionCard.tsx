@@ -41,12 +41,9 @@ const prettyPhone = (phone: string | null) => {
 export function WhatsAppConnectionCard({
   tenantPublicId,
   canManage,
-  children,
 }: {
   tenantPublicId: string;
   canManage: boolean;
-  /** Ferramentas de diagnóstico já existentes, exibidas quando há instância. */
-  children?: (provisioned: boolean) => React.ReactNode;
 }) {
   const client = useQueryClient();
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -346,8 +343,6 @@ export function WhatsAppConnectionCard({
           </div>
         </div>
       ) : null}
-
-      {children?.(provisioned)}
     </fieldset>
   );
 }

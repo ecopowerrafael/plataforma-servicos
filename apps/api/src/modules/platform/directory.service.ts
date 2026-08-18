@@ -170,8 +170,8 @@ export class DirectoryService {
   private async approximateDuplicate(categoryId: bigint, record: DirectorySourceRecord) {
     const token = comparableText(record.name).split(' ').find((word) => word.length >= 4);
     if (token === undefined) return null;
-    const candidates = await this.client.directoryBusiness.findMany({ where: { categoryId, city: record.city, state: record.state, name: { contains: token } }, select: { id: true, name: true, rawAddress: true }, take: 20 });
-    return candidates.find((candidate) => looksLikeApproximateDirectoryDuplicate(record, candidate)) ?? null;
+    const candidates = await this.client.directoryBusiness.findMany({ where: { categoryId, city: record.city, state: record.state }, select: { id: true, name: true, rawAddress: true }, take: 200 });
+    return candidates.find((candidate) => comparableText(candidate.name).includes(token) && looksLikeApproximateDirectoryDuplicate(record, candidate)) ?? null;
   }
   private eventHash(value: string | undefined): string | null { return value === undefined || value.trim() === '' ? null : createHash('sha256').update(`${process.env.DIRECTORY_EVENT_SALT ?? 'agendei-directory-events'}:${value}`).digest('hex'); }
   public async recordEvent(publicId: string, input: { type: 'BUSINESS_VIEW' | 'WHATSAPP_CLICK'; visitorId?: string | undefined; sessionId?: string | undefined; sourcePath: string; referrer?: string | undefined; utmSource?: string | undefined; utmMedium?: string | undefined; utmCampaign?: string | undefined }) {

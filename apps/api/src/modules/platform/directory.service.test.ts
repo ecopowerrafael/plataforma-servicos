@@ -33,6 +33,15 @@ describe('Directory XML importer', () => {
 });
 
 describe('Directory import batches', () => {
+  it('checks approximate duplicates without a MySQL LIKE comparison', async () => {
+    const findMany = vi.fn().mockResolvedValue([{ id: 1n, name: 'Mr. Barba Barbearia', rawAddress: 'Av. Santos Dumont, 100 - Aldeota, Fortaleza - CE' }]);
+    const client = { directoryBusiness: { findMany } } as unknown as PrismaClient;
+    const service = new DirectoryService(client);
+    const result = await service['approximateDuplicate'](1n, parseDirectoryXml(Buffer.from(xml))[0]);
+    expect(result).toMatchObject({ id: 1n });
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { categoryId: 1n, city: 'Fortaleza', state: 'CE' } }));
+  });
+
   it('claims one conservative batch and never asks for more than 25 pending items', async () => {
     const directoryImport = { id: 1n, publicId: '00000000-0000-4000-8000-000000000010', status: 'QUEUED', totalSelected: 0, totalFound: 0, totalCreated: 0, totalUpdated: 0, totalUnchanged: 0, totalDuplicates: 0, processedCount: 0, filename: 'barbearias.xml' };
     const findUnique = vi.fn().mockResolvedValueOnce(directoryImport).mockResolvedValue({ ...directoryImport, items: [] });

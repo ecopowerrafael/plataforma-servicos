@@ -76,6 +76,7 @@ import { ReceiptService } from '../modules/payments/receipt.service.js';
 import { PlatformBillingService } from '../modules/platform/platform-billing.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
 import { DirectoryService } from '../modules/platform/directory.service.js';
+import { DirectorySeoService } from '../modules/platform/directory-seo.service.js';
 import { TenantCommercialPolicyService } from '../modules/platform/tenant-commercial-policy.service.js';
 import { TenantCommercialSweepService } from '../modules/platform/tenant-commercial-sweep.service.js';
 import { ProductSaleRepository } from '../modules/products/product-sale.repository.js';
@@ -134,6 +135,7 @@ export interface DatabaseConnection {
   readonly treatmentPlans?: TreatmentPlanService;
   readonly platform?: PlatformService;
   readonly directory?: DirectoryService;
+  readonly directorySeo?: DirectorySeoService;
   readonly platformBilling?: PlatformBillingService;
   readonly commercialPolicy?: TenantCommercialPolicyService;
   readonly commercialSweep?: TenantCommercialSweepService;
@@ -413,6 +415,13 @@ export function createDatabaseConnection(
     paymentGatewayRegistry,
     credentialsCipher,
   );
+  const directorySeo = new DirectorySeoService(client, {
+    ...(process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL === undefined ? {} : { siteUrl: process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL }),
+    ...(process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON === undefined ? {} : { serviceAccountJson: process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }),
+    ...(process.env.GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN === undefined ? {} : { accessToken: process.env.GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN }),
+    ...(process.env.INDEXNOW_KEY === undefined ? {} : { indexNowKey: process.env.INDEXNOW_KEY }),
+    ...(process.env.INDEXNOW_ENDPOINT === undefined ? {} : { indexNowEndpoint: process.env.INDEXNOW_ENDPOINT }),
+  });
 
   return {
     client,
@@ -423,7 +432,8 @@ export function createDatabaseConnection(
     treatmentPlans,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
-    directory: new DirectoryService(client),
+    directorySeo,
+    directory: new DirectoryService(client, directorySeo),
     platformBilling,
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client),

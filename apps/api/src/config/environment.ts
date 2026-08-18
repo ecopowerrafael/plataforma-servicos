@@ -41,6 +41,11 @@ const environmentSchema = z
     LOG_LEVEL: z.enum(logLevels),
     APP_WEB_URL: z.url().default('http://localhost:5173'),
     PUBLIC_BASE_DOMAIN: z.string().trim().toLowerCase().optional(),
+    GOOGLE_SEARCH_CONSOLE_SITE_URL: z.string().trim().min(1).optional(),
+    GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: z.string().trim().min(2).optional(),
+    GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN: z.string().trim().min(1).optional(),
+    INDEXNOW_KEY: z.string().trim().regex(/^[A-Za-z0-9-]{8,128}$/u).optional(),
+    INDEXNOW_ENDPOINT: z.url().optional(),
     /**
      * Chave mestra da W-API (API Integration). Fica só no backend: nunca é
      * devolvida por rota nem registrada em log — serve apenas para criar e

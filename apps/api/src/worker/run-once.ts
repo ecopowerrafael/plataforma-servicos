@@ -51,6 +51,9 @@ async function runOnce(): Promise<void> {
       await database.notifications.processPending();
     }
     await database.notificationCampaigns?.reconcile();
+    await database.directorySeo?.processSyncs();
+    await database.directorySeo?.processIndexNow();
+    await database.directorySeo?.processInspections();
     logger.info('Rodada de tarefas periódicas concluída.');
   } finally {
     await database.close();

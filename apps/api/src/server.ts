@@ -47,6 +47,7 @@ async function start(environment: Environment, startedAt: number): Promise<void>
             ...(database.commercialSweep === undefined
               ? {}
               : { commercialSweep: database.commercialSweep }),
+            ...(database.directorySeo === undefined ? {} : { directorySeo: database.directorySeo }),
           },
           { intervalMs: 60_000, logger: app.log },
         )

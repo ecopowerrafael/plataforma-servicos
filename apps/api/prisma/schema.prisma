@@ -518,6 +518,38 @@ enum DirectoryBusinessEventType {
   WHATSAPP_CLICK
 }
 
+enum DirectorySeoSyncStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum SeoUrlSubmissionProvider {
+  INDEXNOW
+}
+
+enum SeoUrlSubmissionReason {
+  CREATED
+  UPDATED
+  DELETED
+  MANUAL
+}
+
+enum SeoUrlSubmissionStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum SeoUrlInspectionStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
 model DirectoryCategory {
   id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
   publicId     String   @unique @map("public_id") @db.Char(36)
@@ -536,6 +568,8 @@ model DirectoryCategory {
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   businesses   DirectoryBusiness[]
   importItems  DirectoryImportItem[]
+  seoMetrics   DirectorySeoDailyMetric[]
+  seoQueries   DirectorySeoQueryMetric[]
 
   @@index([active, sortOrder])
   @@map("directory_categories")
@@ -581,6 +615,10 @@ model DirectoryBusiness {
   tenant           Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   importItems      DirectoryImportItem[]
   events           DirectoryBusinessEvent[]
+  seoMetrics       DirectorySeoDailyMetric[]
+  seoQueries       DirectorySeoQueryMetric[]
+  seoSubmissions   SeoUrlSubmission[]
+  seoInspections   SeoUrlInspection[]
 
   @@unique([categoryId, state, citySlug, slug], map: "udb_category_city_slug")
   @@index([categoryId, citySlug, active])
@@ -611,6 +649,118 @@ model DirectoryBusinessEvent {
   @@index([type, createdAt])
   @@index([visitorHash, businessId, type, createdAt])
   @@map("directory_business_events")
+}
+
+model DirectorySeoDailyMetric {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  date        DateTime @db.Date
+  pageUrl     String   @map("page_url") @db.VarChar(700)
+  pageHash    String   @map("page_hash") @db.Char(64)
+  businessId  BigInt?  @map("business_id") @db.UnsignedBigInt
+  categoryId  BigInt?  @map("category_id") @db.UnsignedBigInt
+  citySlug    String?  @map("city_slug") @db.VarChar(180)
+  clicks      Float    @default(0)
+  impressions Float    @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+  syncedAt    DateTime @default(now()) @map("synced_at") @db.DateTime(3)
+  business    DirectoryBusiness? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  category    DirectoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([date, pageHash], map: "udsdm_date_page")
+  @@index([date])
+  @@index([businessId, date])
+  @@index([categoryId, date])
+  @@map("directory_seo_daily_metrics")
+}
+
+model DirectorySeoQueryMetric {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  date        DateTime @db.Date
+  pageUrl     String   @map("page_url") @db.VarChar(700)
+  pageHash    String   @map("page_hash") @db.Char(64)
+  query       String   @db.VarChar(500)
+  businessId  BigInt?  @map("business_id") @db.UnsignedBigInt
+  categoryId  BigInt?  @map("category_id") @db.UnsignedBigInt
+  citySlug    String?  @map("city_slug") @db.VarChar(180)
+  clicks      Float    @default(0)
+  impressions Float    @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+  syncedAt    DateTime @default(now()) @map("synced_at") @db.DateTime(3)
+  business    DirectoryBusiness? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  category    DirectoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([date, pageHash, query], map: "udsqm_date_page_query")
+  @@index([date])
+  @@index([businessId, date])
+  @@index([categoryId, date])
+  @@map("directory_seo_query_metrics")
+}
+
+model DirectorySeoSyncRun {
+  id          BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId    String                 @unique @map("public_id") @db.Char(36)
+  status      DirectorySeoSyncStatus @default(PENDING)
+  fromDate    DateTime               @map("from_date") @db.Date
+  toDate      DateTime               @map("to_date") @db.Date
+  attempts    Int                    @default(0)
+  lastError   String?                @map("last_error") @db.VarChar(1000)
+  startedAt   DateTime?              @map("started_at") @db.DateTime(3)
+  completedAt DateTime?              @map("completed_at") @db.DateTime(3)
+  createdAt   DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([status, createdAt])
+  @@map("directory_seo_sync_runs")
+}
+
+model SeoUrlSubmission {
+  id             BigInt                   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                   @unique @map("public_id") @db.Char(36)
+  url            String                   @db.VarChar(700)
+  provider       SeoUrlSubmissionProvider
+  reason         SeoUrlSubmissionReason
+  status         SeoUrlSubmissionStatus   @default(PENDING)
+  businessId     BigInt?                  @map("business_id") @db.UnsignedBigInt
+  attempts       Int                      @default(0)
+  lastError      String?                  @map("last_error") @db.VarChar(1000)
+  responseStatus Int?                     @map("response_status")
+  lastAttemptAt  DateTime?                @map("last_attempt_at") @db.DateTime(3)
+  processedAt    DateTime?                @map("processed_at") @db.DateTime(3)
+  nextAttemptAt  DateTime?                @map("next_attempt_at") @db.DateTime(3)
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                 @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  business       DirectoryBusiness?       @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, url], map: "usu_provider_url")
+  @@index([status, nextAttemptAt])
+  @@index([businessId])
+  @@map("seo_url_submissions")
+}
+
+model SeoUrlInspection {
+  id                    BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                 @unique @map("public_id") @db.Char(36)
+  url                   String                 @unique @db.VarChar(700)
+  businessId            BigInt?                @map("business_id") @db.UnsignedBigInt
+  status                SeoUrlInspectionStatus @default(PENDING)
+  priority              Int                    @default(0)
+  attempts              Int                    @default(0)
+  lastError             String?                @map("last_error") @db.VarChar(1000)
+  verdict               String?                @db.VarChar(80)
+  coverageState         String?                @map("coverage_state") @db.VarChar(160)
+  googleCanonical       String?                @map("google_canonical") @db.VarChar(700)
+  lastCrawlAt           DateTime?              @map("last_crawl_at") @db.DateTime(3)
+  lastAttemptAt         DateTime?              @map("last_attempt_at") @db.DateTime(3)
+  processedAt           DateTime?              @map("processed_at") @db.DateTime(3)
+  nextAttemptAt         DateTime?              @map("next_attempt_at") @db.DateTime(3)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  business              DirectoryBusiness?     @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([status, priority, nextAttemptAt])
+  @@index([businessId])
+  @@map("seo_url_inspections")
 }
 
 model DirectoryImport {

@@ -730,12 +730,13 @@ export async function buildApp(options: BuildAppOptions) {
   });
   if (options.database.platform !== undefined) {
     if (options.database.directory !== undefined) {
-      await app.register(publicDirectoryRoutes, { service: options.database.directory });
+      await app.register(publicDirectoryRoutes, { service: options.database.directory, ...(options.environment.INDEXNOW_KEY === undefined ? {} : { indexNowKey: options.environment.INDEXNOW_KEY }) });
       await app.register(directoryRoutes, {
         service: options.database.directory,
         platformService: options.database.platform,
         authService,
         cookieName: options.environment.AUTH_COOKIE_NAME,
+        ...(options.database.directorySeo === undefined ? {} : { seo: options.database.directorySeo }),
       });
     }
     if (options.database.commercialPolicy !== undefined) {

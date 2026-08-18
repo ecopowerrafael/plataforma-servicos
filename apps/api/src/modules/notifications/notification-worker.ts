@@ -5,6 +5,7 @@ import { type NotificationCampaignService } from './notification-campaign.servic
 import { type CustomerRecoveryService } from '../customers/customer-recovery.service.js';
 import { type LoyaltyService } from '../payments/loyalty.service.js';
 import { type TenantCommercialSweepService } from '../platform/tenant-commercial-sweep.service.js';
+import { type DirectorySeoService } from '../platform/directory-seo.service.js';
 
 interface WorkerLogger {
   info: (payload: unknown, message?: string) => void;
@@ -19,6 +20,7 @@ interface WorkerDeps {
   customerRecovery?: CustomerRecoveryService;
   loyalty?: LoyaltyService;
   commercialSweep?: TenantCommercialSweepService;
+  directorySeo?: DirectorySeoService;
 }
 
 interface WorkerOptions {
@@ -51,6 +53,9 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
       await deps.campaigns?.materializePending();
       const { processed } = await deps.notifications.processPending();
       await deps.campaigns?.reconcile();
+      await deps.directorySeo?.processSyncs();
+      await deps.directorySeo?.processIndexNow();
+      await deps.directorySeo?.processInspections();
       // Só registra lotes com trabalho real: ticks ociosos não geram log.
       if (processed > 0) options.logger.info({ processed }, 'Lote de notificações processado');
     } catch (error) {

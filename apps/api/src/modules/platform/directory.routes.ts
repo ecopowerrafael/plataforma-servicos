@@ -2,6 +2,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { DirectoryService } from './directory.service.js';
+import { type DirectorySeoService } from './directory-seo.service.js';
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { type PlatformService } from './platform.service.js';
 import { type AuthService } from '../auth/auth.service.js';
@@ -9,8 +10,9 @@ import { type AuthService } from '../auth/auth.service.js';
 const importParams = z.object({ publicId: z.uuid() });
 const pagination = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(50).default(20) });
 const metricsQuery = z.object({ from: z.coerce.date().optional(), to: z.coerce.date().optional(), categorySlug: z.string().optional(), state: z.string().length(2).optional(), city: z.string().optional(), search: z.string().optional(), hasTenant: z.enum(['true', 'false']).transform((value) => value === 'true').optional(), businessPublicId: z.uuid().optional() });
+const seoQuery = z.object({ from: z.coerce.date().optional(), to: z.coerce.date().optional(), categorySlug: z.string().optional(), city: z.string().optional(), citySlug: z.string().optional(), search: z.string().optional(), hasTenant: z.enum(['true', 'false']).transform((value) => value === 'true').optional() });
 
-interface DirectoryRoutesOptions { service: DirectoryService; platformService: PlatformService; authService: AuthService; cookieName: string }
+interface DirectoryRoutesOptions { service: DirectoryService; seo?: DirectorySeoService; platformService: PlatformService; authService: AuthService; cookieName: string }
 
 export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = async (app, options) => {
   await app.register(platformAuthenticationPlugin, { platformService: options.platformService, authService: options.authService, cookieName: options.cookieName });
@@ -35,10 +37,26 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
   app.patch('/platform/directory/businesses/:publicId', { schema: { params: importParams, body: z.object({ active: z.boolean().optional(), indexable: z.boolean().optional() }) } }, (request) => { allow(request, 'platform.tenant.update'); return options.service.updateBusiness(request.params.publicId, request.body); });
   app.get('/platform/directory/metrics', { schema: { querystring: metricsQuery } }, (request) => { allow(request, 'platform.tenant.read'); return options.service.metrics(request.query); });
   app.get('/platform/directory/metrics.csv', { schema: { querystring: metricsQuery } }, async (request, reply) => { allow(request, 'platform.tenant.read'); const metrics = await options.service.metrics(request.query); const quote = (value: string | number | boolean | Date | null) => `"${String(value ?? '').replace(/"/gu, '""')}"`; const lines = [['empresa','categoria','cidade','telefone','whatsapp','cliques','cliques_unicos','visualizacoes','ctr','ultimo_clique','tenant_vinculado'].join(','), ...metrics.rows.map((row) => [row.business,row.category,`${row.city}/${row.state}`,row.phone,row.whatsapp,row.whatsappClicks,row.uniqueWhatsappClicks,row.pageViews,row.whatsappCtr,row.lastWhatsappClickAt,row.tenantLinked].map(quote).join(','))]; return reply.type('text/csv; charset=utf-8').send(lines.join('\n')); });
+  const seo = () => { if (options.seo === undefined) throw new Error('SEO do Diretório indisponível.'); return options.seo; };
+  app.get('/platform/directory/seo/status', {}, (request) => { allow(request, 'platform.tenant.read'); return seo().status(); });
+  app.get('/platform/directory/seo/overview', { schema: { querystring: seoQuery } }, (request) => { allow(request, 'platform.tenant.read'); return seo().overview(request.query); });
+  app.get('/platform/directory/seo/businesses', { schema: { querystring: seoQuery } }, async (request) => { allow(request, 'platform.tenant.read'); return (await seo().overview(request.query)).rows; });
+  app.get('/platform/directory/seo/queries', { schema: { querystring: seoQuery } }, (request) => { allow(request, 'platform.tenant.read'); return seo().queries(request.query); });
+  app.get('/platform/directory/seo/businesses/:publicId', { schema: { params: importParams } }, (request) => { allow(request, 'platform.tenant.read'); return seo().businessDetail(request.params.publicId); });
+  app.get('/platform/directory/seo/businesses.csv', { schema: { querystring: seoQuery } }, async (request, reply) => { allow(request, 'platform.tenant.read'); const rows = (await seo().overview(request.query)).rows; const quote = (value: string | number | boolean) => `"${String(value).replace(/"/gu, '""')}"`; const lines = [['empresa','categoria','cidade','uf','impressoes','google_clicks','google_ctr','position','page_views','whatsapp_clicks','unique_whatsapp_clicks','whatsapp_conversion','tenant_linked'].join(','), ...rows.map((row) => [row.business,row.category,row.city,row.state,row.impressions,row.googleClicks,row.googleCtr,row.position,row.pageViews,row.whatsappClicks,row.uniqueWhatsappClicks,row.whatsappConversion,row.tenantLinked].map(quote).join(','))]; return reply.type('text/csv; charset=utf-8').send(lines.join('\n')); });
+  app.post('/platform/directory/seo/search-console/sync', {}, (request) => { allow(request, 'platform.tenant.update'); return seo().enqueueSync(); });
+  app.get('/platform/directory/seo/sitemaps', {}, (request) => { allow(request, 'platform.tenant.read'); return seo().sitemapStatus(); });
+  app.post('/platform/directory/seo/sitemaps/submit', {}, (request) => { allow(request, 'platform.tenant.update'); return seo().submitDirectorySitemap(); });
+  app.get('/platform/directory/seo/submissions', {}, (request) => { allow(request, 'platform.tenant.read'); return seo().submissions(); });
+  app.post('/platform/directory/seo/submissions/:publicId/retry', { schema: { params: importParams } }, (request) => { allow(request, 'platform.tenant.update'); return seo().retrySubmission(request.params.publicId); });
+  app.post('/platform/directory/seo/indexnow/enqueue', { schema: { body: z.object({ url: z.url() }) } }, (request) => { allow(request, 'platform.tenant.update'); return seo().enqueueManual(request.body.url); });
+  app.get('/platform/directory/seo/inspections', {}, (request) => { allow(request, 'platform.tenant.read'); return seo().inspections(); });
+  app.post('/platform/directory/seo/inspections', { schema: { body: z.object({ url: z.url(), priority: z.number().int().min(0).max(1000).default(0) }) } }, (request) => { allow(request, 'platform.tenant.update'); return seo().enqueueInspection(request.body.url, request.body.priority); });
 };
 
-interface PublicDirectoryRoutesOptions { service: DirectoryService }
+interface PublicDirectoryRoutesOptions { service: DirectoryService; indexNowKey?: string }
 export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesOptions> = async (app, options) => {
+  if (options.indexNowKey !== undefined) app.get(`/${options.indexNowKey}.txt`, async (_request, reply) => reply.type('text/plain; charset=utf-8').send(options.indexNowKey));
   const eventBody = z.object({ type: z.enum(['BUSINESS_VIEW', 'WHATSAPP_CLICK']), visitorId: z.string().max(200).optional(), sessionId: z.string().max(200).optional(), sourcePath: z.string().min(1).max(500), referrer: z.string().max(500).optional(), utmSource: z.string().max(160).optional(), utmMedium: z.string().max(160).optional(), utmCampaign: z.string().max(160).optional() });
   app.post('/public/directory/businesses/:publicId/events', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } }, schema: { params: importParams, body: eventBody } }, async (request, reply) => { await options.service.recordEvent(request.params.publicId, request.body); return reply.status(202).send({ accepted: true }); });
   app.get('/sitemap-directory.xml', async (_request, reply) => {

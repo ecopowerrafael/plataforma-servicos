@@ -37,7 +37,7 @@ describe('Directory import batches', () => {
     const directoryImport = { id: 1n, publicId: '00000000-0000-4000-8000-000000000010', status: 'QUEUED', totalSelected: 0, totalFound: 0, totalCreated: 0, totalUpdated: 0, totalUnchanged: 0, totalDuplicates: 0, processedCount: 0, filename: 'barbearias.xml' };
     const findUnique = vi.fn().mockResolvedValueOnce(directoryImport).mockResolvedValue({ ...directoryImport, items: [] });
     const findMany = vi.fn().mockResolvedValue([]);
-    const client = { directoryImport: { findUnique, updateMany: vi.fn().mockResolvedValue({ count: 1 }), update: vi.fn().mockResolvedValue(directoryImport) }, directoryImportItem: { findMany, count: vi.fn().mockResolvedValue(0), groupBy: vi.fn().mockResolvedValue([]) } } as unknown as PrismaClient;
+    const client = { directoryImport: { findUnique, updateMany: vi.fn().mockResolvedValue({ count: 1 }), update: vi.fn().mockResolvedValue(directoryImport) }, directoryImportItem: { findMany, count: vi.fn().mockResolvedValue(0), groupBy: vi.fn().mockResolvedValue([]) }, directoryCategory: { findMany: vi.fn().mockResolvedValue([]) } } as unknown as PrismaClient;
     await new DirectoryService(client).processBatch(directoryImport.publicId);
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 25, where: expect.objectContaining({ status: 'SKIPPED' }) }));
   });

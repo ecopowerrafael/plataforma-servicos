@@ -205,26 +205,21 @@ export class DirectoryService {
       const candidate = categoryCandidate(record); const category = candidate === null ? undefined : categoryBySlug.get(candidate.slug);
       return { position, sourceLocalId: record.sourceLocalId, categoryDetected: candidate?.singular ?? record.businessType ?? record.segmentKey, categoryId: category?.id, sourceData: record as unknown as Prisma.InputJsonValue };
     }) } } });
-    return this.preview(directoryImport.publicId);
+    return this.importStatus(directoryImport.publicId);
   }
 
-  public async preview(publicId: string) {
-    const directoryImport = await this.client.directoryImport.findUnique({ where: { publicId }, include: { items: { include: { category: true } } } });
+  public async preview(publicId: string) { return this.importStatus(publicId); }
+
+  public async importStatus(publicId: string) {
+    const directoryImport = await this.client.directoryImport.findUnique({ where: { publicId } });
     if (directoryImport === null) throw new AppError({ code: 'DIRECTORY_IMPORT_NOT_FOUND', message: 'Importação não encontrada.', statusCode: 404 });
-    const groups = new Map<string, { slug: string | null; name: string; detected: string; count: number; existing: boolean; created: number; updated: number; unchanged: number; duplicates: number }>();
-    for (const item of directoryImport.items) {
-      const key = item.category?.slug ?? item.categoryDetected ?? 'Não classificado'; const group = groups.get(key) ?? { slug: item.category?.slug ?? null, name: item.category?.pluralName ?? item.categoryDetected ?? 'Não classificado', detected: item.categoryDetected ?? item.category?.singularName ?? 'Não classificado', count: 0, existing: item.category !== null, created: 0, updated: 0, unchanged: 0, duplicates: 0 };
-      group.count += 1;
-      if (item.category !== null) {
-        const record = item.sourceData as unknown as DirectorySourceRecord;
-        const exact = await this.client.directoryBusiness.findFirst({ where: { categoryId: item.category.id, OR: [...(record.whatsapp === null ? [] : [{ whatsapp: record.whatsapp }]), ...(record.phone === null ? [] : [{ phone: record.phone }]), { name: record.name, city: record.city, state: record.state }] }, select: { sourceHash: true } });
-        if (exact === null) { const duplicate = await this.approximateDuplicate(item.category.id, record); if (duplicate === null) group.created += 1; else group.duplicates += 1; }
-        else if (exact.sourceHash === sourceHash(record)) group.unchanged += 1;
-        else group.updated += 1;
-      }
-      groups.set(key, group);
-    }
-    return { import: { publicId: directoryImport.publicId, filename: directoryImport.filename, status: directoryImport.status, totalFound: directoryImport.totalFound, totalSelected: directoryImport.totalSelected, processedCount: directoryImport.processedCount, totalCreated: directoryImport.totalCreated, totalUpdated: directoryImport.totalUpdated, totalUnchanged: directoryImport.totalUnchanged, totalDuplicates: directoryImport.totalDuplicates }, categories: [...groups.values()] };
+    const grouped = await this.client.directoryImportItem.groupBy({ by: ['categoryDetected'], where: { importId: directoryImport.id }, _count: true });
+    const names = grouped.flatMap((item) => item.categoryDetected === null ? [] : [item.categoryDetected]);
+    const categories = await this.client.directoryCategory.findMany({ where: { singularName: { in: names } }, select: { slug: true, singularName: true, pluralName: true } });
+    const categoryByName = new Map(categories.map((item) => [item.singularName, item]));
+    const counts = await this.client.directoryImportItem.groupBy({ by: ['status'], where: { importId: directoryImport.id }, _count: true });
+    const count = (status: string) => counts.find((item) => item.status === status)?._count ?? 0;
+    return { import: { publicId: directoryImport.publicId, filename: directoryImport.filename, status: directoryImport.status, totalFound: directoryImport.totalFound, totalSelected: directoryImport.totalSelected, processedCount: directoryImport.processedCount, totalCreated: directoryImport.totalCreated, totalUpdated: directoryImport.totalUpdated, totalUnchanged: directoryImport.totalUnchanged, totalDuplicates: directoryImport.totalDuplicates, errors: count('ERROR') }, categories: grouped.map((item) => { const detected = item.categoryDetected ?? 'Não classificado'; const category = categoryByName.get(detected); return { slug: category?.slug ?? null, name: category?.pluralName ?? detected, detected, count: item._count, existing: category !== undefined, created: 0, updated: 0, unchanged: 0, duplicates: 0 }; }) };
   }
 
   public async imports() {
@@ -241,11 +236,12 @@ export class DirectoryService {
     const created = await Promise.all(newCategories.map((category) => this.client.directoryCategory.upsert({ where: { slug: directorySlug(category.slug) }, update: { name: category.name, singularName: category.singularName, pluralName: category.pluralName, active: category.active ?? true, indexable: category.indexable ?? true }, create: { publicId: randomUUID(), name: category.name, singularName: category.singularName, pluralName: category.pluralName, slug: directorySlug(category.slug), active: category.active ?? true, indexable: category.indexable ?? true } })));
     const categories = await this.client.directoryCategory.findMany({ where: { slug: { in: [...assignments.map((assignment) => directorySlug(assignment.categorySlug)), ...created.map((category) => category.slug)] } } });
     const bySlug = new Map(categories.map((category) => [category.slug, category]));
-    const items = await this.client.directoryImportItem.findMany({ where: { importId: directoryImport.id } });
-    let selected = 0;
-    await this.client.$transaction(items.map((item) => { const record = item.sourceData as unknown as DirectorySourceRecord; const candidate = categoryCandidate(record); const detected = candidate?.singular ?? item.categoryDetected ?? ''; const assignment = assignments.find((value) => value.detected === detected); const category = assignment === undefined ? undefined : bySlug.get(directorySlug(assignment.categorySlug)); const eligible = category !== undefined; if (eligible) selected += 1; return this.client.directoryImportItem.update({ where: { id: item.id }, data: { categoryId: category?.id ?? null, status: 'SKIPPED', message: eligible ? null : 'Categoria não selecionada' } }); }));
-    await this.client.directoryImport.update({ where: { id: directoryImport.id }, data: { status: 'QUEUED', totalSelected: selected } });
-    return this.preview(publicId);
+    const selectedDetected: string[] = [];
+    for (const assignment of assignments) { const category = bySlug.get(directorySlug(assignment.categorySlug)); if (category === undefined) continue; selectedDetected.push(assignment.detected); await this.client.directoryImportItem.updateMany({ where: { importId: directoryImport.id, categoryDetected: assignment.detected }, data: { categoryId: category.id, status: 'SKIPPED', message: null } }); }
+    await this.client.directoryImportItem.updateMany({ where: { importId: directoryImport.id, ...(selectedDetected.length === 0 ? {} : { categoryDetected: { notIn: selectedDetected } }) }, data: { categoryId: null, status: 'SKIPPED', message: 'Categoria não selecionada' } });
+    const selected = await this.client.directoryImportItem.count({ where: { importId: directoryImport.id, categoryId: { not: null } } });
+    await this.client.directoryImport.update({ where: { id: directoryImport.id }, data: { status: 'QUEUED', totalSelected: selected, processedCount: 0 } });
+    return this.importStatus(publicId);
   }
 
   public async processBatch(publicId: string, batchSize = Math.min(Math.max(Number(process.env.DIRECTORY_IMPORT_BATCH_SIZE ?? 25), 1), 100)) {

@@ -82,6 +82,32 @@ export function looksLikeApproximateDirectoryDuplicate(record: DirectorySourceRe
   return number !== undefined && otherAddress.includes(number) && words.filter((word) => otherAddress.includes(word)).length >= 2;
 }
 
+export interface DirectoryMetricEvent {
+  type: 'BUSINESS_VIEW' | 'WHATSAPP_CLICK';
+  visitorHash: string | null;
+  createdAt: Date;
+}
+
+export function aggregateDirectoryMetrics(events: DirectoryMetricEvent[]) {
+  let pageViews = 0;
+  let whatsappClicks = 0;
+  let lastWhatsappClickAt: Date | null = null;
+  const uniqueVisitors = new Set<string>();
+  const daily = new Map<string, { date: string; pageViews: number; whatsappClicks: number }>();
+  for (const event of events) {
+    const date = event.createdAt.toISOString().slice(0, 10);
+    const day = daily.get(date) ?? { date, pageViews: 0, whatsappClicks: 0 };
+    if (event.type === 'BUSINESS_VIEW') { pageViews += 1; day.pageViews += 1; }
+    else {
+      whatsappClicks += 1; day.whatsappClicks += 1;
+      if (event.visitorHash !== null) uniqueVisitors.add(event.visitorHash);
+      if (lastWhatsappClickAt === null || event.createdAt > lastWhatsappClickAt) lastWhatsappClickAt = event.createdAt;
+    }
+    daily.set(date, day);
+  }
+  return { pageViews, whatsappClicks, uniqueWhatsappClicks: uniqueVisitors.size, whatsappCtr: pageViews === 0 ? 0 : whatsappClicks / pageViews, lastWhatsappClickAt, daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)) };
+}
+
 function addressParts(rawAddress: string) {
   const postalCode = /(?:CEP[:\s]*)?(\d{5})-?(\d{3})/iu.exec(rawAddress)?.[1];
   const pieces = rawAddress.split(',').map((part) => part.trim()).filter(Boolean);
@@ -151,14 +177,14 @@ export class DirectoryService {
     if (business === null) throw new AppError({ code: 'DIRECTORY_BUSINESS_NOT_FOUND', message: 'Estabelecimento não encontrado.', statusCode: 404 });
     await this.client.directoryBusinessEvent.create({ data: { publicId: randomUUID(), businessId: business.id, type: input.type, visitorHash: this.eventHash(input.visitorId), sessionHash: this.eventHash(input.sessionId), sourcePath: input.sourcePath.slice(0, 500), ...(input.referrer === undefined ? {} : { referrer: input.referrer.slice(0, 500) }), ...(input.utmSource === undefined ? {} : { utmSource: input.utmSource.slice(0, 160) }), ...(input.utmMedium === undefined ? {} : { utmMedium: input.utmMedium.slice(0, 160) }), ...(input.utmCampaign === undefined ? {} : { utmCampaign: input.utmCampaign.slice(0, 160) }) } });
   }
-  public async metrics(input: { from?: Date | undefined; to?: Date | undefined; categorySlug?: string | undefined; state?: string | undefined; city?: string | undefined; search?: string | undefined; hasTenant?: boolean | undefined } = {}) {
-    const events = await this.client.directoryBusinessEvent.findMany({ where: { ...(input.from === undefined ? {} : { createdAt: { gte: input.from, ...(input.to === undefined ? {} : { lte: input.to }) } }), business: { ...(input.categorySlug === undefined ? {} : { category: { slug: input.categorySlug } }), ...(input.state === undefined ? {} : { state: input.state }), ...(input.city === undefined ? {} : { city: input.city }), ...(input.search === undefined ? {} : { name: { contains: input.search } }), ...(input.hasTenant === undefined ? {} : { tenantId: input.hasTenant ? { not: null } : null }) } }, include: { business: { include: { category: true } } }, orderBy: { createdAt: 'desc' } });
-    const grouped = new Map<string, { business: (typeof events)[number]['business']; pageViews: number; whatsappClicks: number; unique: Set<string>; lastWhatsappClickAt: Date | null }>();
-    for (const event of events) { const current = grouped.get(event.business.publicId) ?? { business: event.business, pageViews: 0, whatsappClicks: 0, unique: new Set<string>(), lastWhatsappClickAt: null }; if (event.type === 'BUSINESS_VIEW') current.pageViews += 1; else { current.whatsappClicks += 1; if (event.visitorHash !== null) current.unique.add(event.visitorHash); if (current.lastWhatsappClickAt === null || event.createdAt > current.lastWhatsappClickAt) current.lastWhatsappClickAt = event.createdAt; } grouped.set(event.business.publicId, current); }
-    const rows = [...grouped.values()].map((value) => ({ businessPublicId: value.business.publicId, business: value.business.name, category: value.business.category.pluralName, city: value.business.city, state: value.business.state, phone: value.business.phone, whatsapp: value.business.whatsapp, tenantLinked: value.business.tenantId !== null, pageViews: value.pageViews, whatsappClicks: value.whatsappClicks, uniqueWhatsappClicks: value.unique.size, whatsappCtr: value.pageViews === 0 ? 0 : value.whatsappClicks / value.pageViews, lastWhatsappClickAt: value.lastWhatsappClickAt }));
+  public async metrics(input: { from?: Date | undefined; to?: Date | undefined; categorySlug?: string | undefined; state?: string | undefined; city?: string | undefined; search?: string | undefined; hasTenant?: boolean | undefined; businessPublicId?: string | undefined } = {}) {
+    const endOfDay = input.to === undefined ? undefined : new Date(input.to.getFullYear(), input.to.getMonth(), input.to.getDate(), 23, 59, 59, 999);
+    const eventWhere = input.from === undefined && endOfDay === undefined ? undefined : { createdAt: { ...(input.from === undefined ? {} : { gte: input.from }), ...(endOfDay === undefined ? {} : { lte: endOfDay }) } };
+    const businesses = await this.client.directoryBusiness.findMany({ where: { ...(input.businessPublicId === undefined ? {} : { publicId: input.businessPublicId }), ...(input.categorySlug === undefined ? {} : { category: { slug: input.categorySlug } }), ...(input.state === undefined ? {} : { state: input.state }), ...(input.city === undefined ? {} : { city: input.city }), ...(input.search === undefined ? {} : { name: { contains: input.search } }), ...(input.hasTenant === undefined ? {} : { tenantId: input.hasTenant ? { not: null } : null }) }, include: { category: true, events: { where: eventWhere, orderBy: { createdAt: 'asc' } } }, orderBy: { name: 'asc' } });
+    const rows = businesses.map((business) => { const metrics = aggregateDirectoryMetrics(business.events); return { businessPublicId: business.publicId, business: business.name, category: business.category.pluralName, city: business.city, state: business.state, phone: business.phone, whatsapp: business.whatsapp, tenantLinked: business.tenantId !== null, ...metrics }; });
     rows.sort((a, b) => b.whatsappClicks - a.whatsappClicks || a.business.localeCompare(b.business));
     const summary = rows.reduce((acc, row) => ({ pageViews: acc.pageViews + row.pageViews, whatsappClicks: acc.whatsappClicks + row.whatsappClicks, uniqueWhatsappClicks: acc.uniqueWhatsappClicks + row.uniqueWhatsappClicks, businessesWithClicks: acc.businessesWithClicks + (row.whatsappClicks > 0 ? 1 : 0), prospectsWithClicks: acc.prospectsWithClicks + (!row.tenantLinked && row.whatsappClicks > 0 ? 1 : 0) }), { pageViews: 0, whatsappClicks: 0, uniqueWhatsappClicks: 0, businessesWithClicks: 0, prospectsWithClicks: 0 });
-    return { summary: { ...summary, whatsappCtr: summary.pageViews === 0 ? 0 : summary.whatsappClicks / summary.pageViews }, rows, ranking: rows.filter((row) => !row.tenantLinked && row.whatsappClicks > 0) };
+    return { summary: { ...summary, whatsappCtr: summary.pageViews === 0 ? 0 : summary.whatsappClicks / summary.pageViews }, rows, ranking: rows.filter((row) => !row.tenantLinked && row.whatsappClicks > 0), detail: input.businessPublicId === undefined ? null : rows[0] ?? null };
   }
 
   public async analyze(filename: string, xml: Buffer) {

@@ -100,7 +100,7 @@ export const frequentlyAskedQuestions = [
   {
     question: 'Preciso instalar alguma coisa?',
     answer:
-      'Não. A plataforma é acessada pelo navegador, tanto pela equipe quanto pelos clientes que usam a página pública do estabelecimento.',
+      'Não. A plataforma funciona pelo navegador para a equipe e para os clientes na página pública do estabelecimento. Se preferir, ela também pode ser instalada no celular como um app (PWA), com acesso rápido pela tela inicial, sem precisar baixar nada em uma loja de aplicativos.',
   },
   {
     question: 'Funciona no celular?',

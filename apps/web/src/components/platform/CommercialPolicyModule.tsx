@@ -241,6 +241,23 @@ export function CommercialPolicyModule() {
             />
           </section>
           <section className="platform-panel">
+            <h3>Atendimento comercial</h3>
+            <label className="platform-field">
+              <strong>WhatsApp comercial do Agendei</strong>
+              <small>Exibido somente no botão flutuante das páginas comerciais públicas.</small>
+              <input
+                inputMode="tel"
+                placeholder="5511999999999"
+                type="tel"
+                value={form.commercialWhatsapp ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value.trim();
+                  change('commercialWhatsapp', value === '' ? null : value);
+                }}
+              />
+            </label>
+          </section>
+          <section className="platform-panel">
             <h3>Agendamentos durante bloqueio</h3>
             <PolicySwitch
               title="Permitir agendamento interno"

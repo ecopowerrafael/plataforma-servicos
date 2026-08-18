@@ -17,6 +17,7 @@ export const TenantCommercialPolicySchema = z.object({
   publicSiteBehaviorWhileBlocked: PublicSiteBehaviorSchema,
   adminMessage: z.string(),
   publicMessage: z.string(),
+  commercialWhatsapp: z.string().nullable(),
   createdAt: IsoDateSchema,
   updatedAt: IsoDateSchema,
 });
@@ -34,6 +35,7 @@ export const UpdateTenantCommercialPolicyRequestSchema = z
     publicSiteBehaviorWhileBlocked: PublicSiteBehaviorSchema.optional(),
     adminMessage: z.string().trim().min(1).max(1000).optional(),
     publicMessage: z.string().trim().min(1).max(1000).optional(),
+    commercialWhatsapp: z.string().trim().min(8).max(32).nullable().optional(),
   })
   .strict();
 

@@ -1,5 +1,22 @@
 import { type PropsWithChildren, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { z } from 'zod';
+
+import { httpClient } from '../lib/http.js';
+
+const CommercialContactSchema = z.object({ whatsapp: z.string().nullable() });
+
+function CommercialWhatsAppButton() {
+  const contact = useQuery({
+    queryKey: ['public', 'commercial-contact'],
+    queryFn: () => httpClient.request('/public/commercial-contact', { schema: CommercialContactSchema }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const phone = contact.data?.whatsapp?.replace(/\D/gu, '') ?? '';
+  if (phone === '') return null;
+  return <a className="commercial-whatsapp-button" href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer" aria-label="Falar com o Agendei pelo WhatsApp"><span aria-hidden="true">◔</span><b>Fale conosco</b></a>;
+}
 
 function Brand() {
   return (
@@ -131,6 +148,7 @@ export function MarketingShell({ children }: PropsWithChildren) {
       </a>
       <MarketingHeader />
       <main id="main-content">{children}</main>
+      <CommercialWhatsAppButton />
       <MarketingFooter />
     </div>
   );

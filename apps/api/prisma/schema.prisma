@@ -2603,6 +2603,7 @@ model TenantCommercialPolicy {
   publicSiteBehaviorWhileBlocked   PublicSiteBlockedBehavior @default(HIDE_BOOKING) @map("public_site_behavior_while_blocked")
   adminMessage                     String                    @map("admin_message") @db.VarChar(1000)
   publicMessage                    String                    @map("public_message") @db.VarChar(1000)
+  commercialWhatsapp               String?                   @map("commercial_whatsapp") @db.VarChar(32)
   createdAt                        DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                        DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
 

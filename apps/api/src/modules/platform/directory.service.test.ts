@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { DirectoryService, aggregateDirectoryMetrics, looksLikeApproximateDirectoryDuplicate, normalizeDirectoryPhone, parseDirectoryXml } from './directory.service.js';
+import { DirectoryService, aggregateDirectoryMetrics, extractDirectoryAddressParts, looksLikeApproximateDirectoryDuplicate, normalizeDirectoryPhone, parseDirectoryXml } from './directory.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 
 const xml = `<?xml version="1.0"?><local-commerce-data><cities><city ibge_code="2304400"><name>Fortaleza - CE</name><establishments><establishment local_id="1910"><business_type>Barbearia</business_type><segment_key>barbearia</segment_key><name>Mr. Barba</name><address>Av. Santos Dumont, 100, CEP 60150-161</address><phone>085987805630</phone><whatsapp>85987805630</whatsapp><quality><relevance_score>95</relevance_score><review_status>approved</review_status></quality></establishment></establishments></city></cities></local-commerce-data>`;
@@ -9,11 +9,16 @@ describe('Directory XML importer', () => {
   it('normalizes Brazilian phone numbers without duplicating country code', () => {
     expect(normalizeDirectoryPhone('85987805630')).toBe('5585987805630');
     expect(normalizeDirectoryPhone('+55 (85) 98780-5630')).toBe('5585987805630');
+    expect(normalizeDirectoryPhone('085987805630')).toBe('5585987805630');
     expect(normalizeDirectoryPhone('123')).toBeNull();
   });
 
   it('reads establishments from the expected collector XML format', () => {
     expect(parseDirectoryXml(Buffer.from(xml))).toMatchObject([{ sourceLocalId: '1910', name: 'Mr. Barba', city: 'Fortaleza', state: 'CE', whatsapp: '5585987805630', relevanceScore: 95 }]);
+  });
+
+  it('extracts the complete CEP from real collector addresses', () => {
+    expect(extractDirectoryAddressParts('Conj. Tupã Mirim, Rua 122 - n 144 - Parque Dois Irmãos, Fortaleza - CE, 60744-600').postalCode).toBe('60744600');
   });
 
   it('rejects XML with DTD or external entities', () => {

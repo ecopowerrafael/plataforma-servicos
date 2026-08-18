@@ -56,7 +56,8 @@ function attribute(source: string, name: string): string | null {
 
 export function normalizeDirectoryPhone(value: string | null): string | null {
   if (value === null) return null;
-  const digits = value.replace(/\D/gu, '');
+  const rawDigits = value.replace(/\D/gu, '');
+  const digits = rawDigits.startsWith('0') && rawDigits.length >= 11 ? rawDigits.slice(1) : rawDigits;
   if (digits.length < 10 || digits.length > 13) return null;
   return digits.startsWith('55') ? digits : `55${digits}`;
 }
@@ -108,8 +109,8 @@ export function aggregateDirectoryMetrics(events: DirectoryMetricEvent[]) {
   return { pageViews, whatsappClicks, uniqueWhatsappClicks: uniqueVisitors.size, whatsappCtr: pageViews === 0 ? 0 : whatsappClicks / pageViews, lastWhatsappClickAt, daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
-function addressParts(rawAddress: string) {
-  const postalCode = /(?:CEP[:\s]*)?(\d{5})-?(\d{3})/iu.exec(rawAddress)?.[1];
+export function extractDirectoryAddressParts(rawAddress: string) {
+  const postalCode = /(?:CEP[:\s]*)?(\d{5})-?(\d{3})/iu.exec(rawAddress);
   const pieces = rawAddress.split(',').map((part) => part.trim()).filter(Boolean);
   const street = pieces[0] ?? null;
   const number = /(?:,|\s)(\d+[A-Za-z]?)\b/u.exec(rawAddress)?.[1] ?? null;
@@ -117,7 +118,7 @@ function addressParts(rawAddress: string) {
   const beforeCity = rawAddress.replace(/,\s*[^,]+\s*-\s*[A-Z]{2}(?:,.*)?$/u, '');
   const inferredNeighborhood = beforeCity.includes(' - ') ? beforeCity.split(' - ').at(-1)?.trim() : undefined;
   const neighborhood = explicitNeighborhood ?? (inferredNeighborhood === '' ? undefined : inferredNeighborhood) ?? null;
-  return { street, number, neighborhood, postalCode: postalCode === undefined ? null : `${postalCode}${/(\d{3})/u.exec(rawAddress)?.[1] ?? ''}` };
+  return { street, number, neighborhood, postalCode: postalCode === null ? null : `${postalCode[1]}${postalCode[2]}` };
 }
 
 function categoryCandidate(record: DirectorySourceRecord) {
@@ -262,9 +263,9 @@ export class DirectoryService {
 
   private async processItem(item: Awaited<ReturnType<PrismaClient['directoryImportItem']['findMany']>>[number] & { category: { id: bigint } | null }) {
     if (item.category === null) return;
-    const record = item.sourceData as unknown as DirectorySourceRecord; const hash = sourceHash(record); const address = addressParts(record.rawAddress); const citySlug = directorySlug(`${record.city}-${record.state}`); const slug = directorySlug(record.name);
+    const record = item.sourceData as unknown as DirectorySourceRecord; const hash = sourceHash(record); const address = extractDirectoryAddressParts(record.rawAddress); const citySlug = directorySlug(`${record.city}-${record.state}`); const slug = directorySlug(record.name);
     const exact = await this.client.directoryBusiness.findFirst({ where: { categoryId: item.category.id, OR: [ ...(record.whatsapp === null ? [] : [{ whatsapp: record.whatsapp }]), ...(record.phone === null ? [] : [{ phone: record.phone }]), { name: record.name, city: record.city, state: record.state } ] } });
-    if (exact !== null && exact.sourceHash === hash && (address.neighborhood === null || exact.neighborhood !== null)) { await this.client.directoryImportItem.update({ where: { id: item.id }, data: { businessId: exact.id, status: 'UNCHANGED' } }); return; }
+    if (exact !== null && exact.sourceHash === hash && (address.neighborhood === null || exact.neighborhood !== null) && (address.postalCode === null || exact.postalCode === address.postalCode)) { await this.client.directoryImportItem.update({ where: { id: item.id }, data: { businessId: exact.id, status: 'UNCHANGED' } }); return; }
     if (exact !== null) { const data = { sourceLocalId: record.sourceLocalId ?? exact.sourceLocalId, sourceSegmentKey: record.segmentKey ?? exact.sourceSegmentKey, sourceSearchTerm: record.searchTerm ?? exact.sourceSearchTerm, rawAddress: record.rawAddress || exact.rawAddress, street: address.street ?? exact.street, number: address.number ?? exact.number, neighborhood: address.neighborhood ?? exact.neighborhood, postalCode: address.postalCode ?? exact.postalCode, phone: record.phone ?? exact.phone, whatsapp: record.whatsapp ?? exact.whatsapp, email: record.email ?? exact.email, websiteUrl: record.websiteUrl ?? exact.websiteUrl, imageUrl: record.imageUrl ?? exact.imageUrl, sourceUrl: record.sourceUrl ?? exact.sourceUrl, relevanceScore: record.relevanceScore ?? exact.relevanceScore, reviewStatus: record.reviewStatus ?? exact.reviewStatus, sourceHash: hash, lastImportedAt: new Date() }; const business = await this.client.directoryBusiness.update({ where: { id: exact.id }, data }); await this.client.directoryImportItem.update({ where: { id: item.id }, data: { businessId: business.id, status: 'UPDATED' } }); return; }
     const approximate = await this.approximateDuplicate(item.category.id, record);
     if (approximate !== null) { await this.client.directoryImportItem.update({ where: { id: item.id }, data: { businessId: approximate.id, status: 'POSSIBLE_DUPLICATE', message: 'Possível duplicidade por nome/endereço; revise antes de fundir.' } }); return; }

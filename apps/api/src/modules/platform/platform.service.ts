@@ -1026,16 +1026,14 @@ export class PlatformService {
     });
     if (subscription === null)
       throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura não foi encontrada.', 404);
-    const [total, history] = await this.client.$transaction([
-      this.client.subscriptionHistory.count({ where: { subscriptionId: subscription.id } }),
-      this.client.subscriptionHistory.findMany({
-        where: { subscriptionId: subscription.id },
-        skip: (page.page - 1) * page.limit,
-        take: page.limit,
-        orderBy: { createdAt: 'desc' },
-        include: { performedByUser: true },
-      }),
-    ]);
+    const total = await this.client.subscriptionHistory.count({ where: { subscriptionId: subscription.id } });
+    const history = await this.client.subscriptionHistory.findMany({
+      where: { subscriptionId: subscription.id },
+      skip: (page.page - 1) * page.limit,
+      take: page.limit,
+      orderBy: { createdAt: 'desc' },
+      include: { performedByUser: true },
+    });
     return SubscriptionDetailResponseSchema.parse({
       subscription: mapSubscription(subscription),
       history: history.map((item) => ({

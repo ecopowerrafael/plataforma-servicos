@@ -544,6 +544,7 @@ export function createPrismaClient(databaseUrl: string): PrismaClient {
     connectionLimit: readPositiveInteger(url.searchParams.get('connection_limit'), 10),
     connectTimeout: 5_000,
     idleTimeout: 300,
+    ...(process.env.NODE_ENV === 'production' ? {} : { allowPublicKeyRetrieval: true }),
   });
   return new PrismaClient({ adapter });
 }

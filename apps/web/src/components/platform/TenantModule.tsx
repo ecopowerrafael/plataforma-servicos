@@ -349,7 +349,7 @@ export function TenantModule() {
           />
         </>
       )}
-      {detail.data !== undefined ? (
+      {selected !== null ? (
         <>
           <button
             className="platform-backdrop"
@@ -370,6 +370,20 @@ export function TenantModule() {
             >
               ×
             </button>
+            {detail.isPending ? (
+              <div className="platform-detail-loading">
+                <i className="platform-skeleton" />
+                <p>Carregando estabelecimento…</p>
+              </div>
+            ) : detail.error instanceof Error ? (
+              <ErrorState
+                message={detail.error.message}
+                retry={() => {
+                  void detail.refetch();
+                }}
+              />
+            ) : detail.data === undefined ? null : (
+              <>
             <h3>{detail.data.tenant.displayName}</h3>
             <StatusBadge value={detail.data.tenant.status} />
             <div aria-label="Abas do estabelecimento" className="form-actions" role="tablist">
@@ -808,6 +822,8 @@ export function TenantModule() {
                 Desativar
               </button>
             </div>
+              </>
+            )}
           </article>
         </>
       ) : null}

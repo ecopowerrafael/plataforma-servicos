@@ -17,6 +17,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:reset-initial": "tsx src/database/reset-initial-database.ts",
     "db:bootstrap": "tsx src/database/bootstrap.ts",
+    "db:seed:dev": "tsx src/database/seed-dev-fixtures.ts",
     "platform-admin:create": "tsx src/database/create-platform-admin.ts",
     "worker:once": "node dist/worker/run-once.js",
     "db:migrate:recover": "tsx src/database/recover-failed-migrations.ts"

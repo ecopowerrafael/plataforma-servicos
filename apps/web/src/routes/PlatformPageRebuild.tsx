@@ -22,6 +22,7 @@ import {
 } from '../components/platform/PlatformUi.js';
 import { SubscriptionModule } from '../components/platform/SubscriptionModule.js';
 import { TenantModule } from '../components/platform/TenantModule.js';
+import { DirectoryModule } from '../components/platform/DirectoryModule.js';
 import { HttpError, httpClient } from '../lib/http.js';
 
 export function PlatformPageRebuild() {
@@ -38,6 +39,7 @@ export function PlatformPageRebuild() {
     'finance',
     'commercial-policy',
     'audit',
+    'directory',
   ].includes(routeSection ?? '')
     ? (routeSection as PlatformSection)
     : 'dashboard';
@@ -101,6 +103,8 @@ export function PlatformPageRebuild() {
         <FinanceModule />
       ) : section === 'commercial-policy' ? (
         <CommercialPolicyModule />
+      ) : section === 'directory' ? (
+        <DirectoryModule />
       ) : (
         <AuditModule />
       )}

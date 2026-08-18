@@ -75,6 +75,7 @@ import { ProfessionalCommissionService } from '../modules/payments/professional-
 import { ReceiptService } from '../modules/payments/receipt.service.js';
 import { PlatformBillingService } from '../modules/platform/platform-billing.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
+import { DirectoryService } from '../modules/platform/directory.service.js';
 import { TenantCommercialPolicyService } from '../modules/platform/tenant-commercial-policy.service.js';
 import { TenantCommercialSweepService } from '../modules/platform/tenant-commercial-sweep.service.js';
 import { ProductSaleRepository } from '../modules/products/product-sale.repository.js';
@@ -132,6 +133,7 @@ export interface DatabaseConnection {
   readonly appointmentWaitlists?: AppointmentWaitlistService;
   readonly treatmentPlans?: TreatmentPlanService;
   readonly platform?: PlatformService;
+  readonly directory?: DirectoryService;
   readonly platformBilling?: PlatformBillingService;
   readonly commercialPolicy?: TenantCommercialPolicyService;
   readonly commercialSweep?: TenantCommercialSweepService;
@@ -421,6 +423,7 @@ export function createDatabaseConnection(
     treatmentPlans,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
+    directory: new DirectoryService(client),
     platformBilling,
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client),

@@ -2,7 +2,7 @@ import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 export type PlatformSection =
-  'dashboard' | 'tenants' | 'plans' | 'subscriptions' | 'finance' | 'commercial-policy' | 'audit';
+  'dashboard' | 'tenants' | 'plans' | 'subscriptions' | 'finance' | 'commercial-policy' | 'audit' | 'directory';
 const items: { id: PlatformSection; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Visao geral', icon: '⌂' },
   { id: 'tenants', label: 'Estabelecimentos', icon: '▦' },
@@ -11,6 +11,7 @@ const items: { id: PlatformSection; label: string; icon: string }[] = [
   { id: 'finance', label: 'Financeiro', icon: '$' },
   { id: 'commercial-policy', label: 'Politica comercial', icon: '⚙' },
   { id: 'audit', label: 'Auditoria', icon: '◷' },
+  { id: 'directory', label: 'Diretório', icon: '⌕' },
 ];
 export function PlatformShell({
   email,

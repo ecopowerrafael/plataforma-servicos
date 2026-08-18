@@ -68,6 +68,7 @@ import { receiptRoutes } from './modules/payments/receipt.routes.js';
 import { platformBillingWebhookRoutes } from './modules/platform/platform-billing-webhook.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
 import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
+import { directoryRoutes, publicDirectoryRoutes } from './modules/platform/directory.routes.js';
 import { productSaleRoutes } from './modules/products/product-sale.routes.js';
 import { productRoutes } from './modules/products/product.routes.js';
 import { stockMovementRoutes } from './modules/products/stock-movement.routes.js';
@@ -728,6 +729,15 @@ export async function buildApp(options: BuildAppOptions) {
     client: options.database.client,
   });
   if (options.database.platform !== undefined) {
+    if (options.database.directory !== undefined) {
+      await app.register(publicDirectoryRoutes, { service: options.database.directory });
+      await app.register(directoryRoutes, {
+        service: options.database.directory,
+        platformService: options.database.platform,
+        authService,
+        cookieName: options.environment.AUTH_COOKIE_NAME,
+      });
+    }
     if (options.database.commercialPolicy !== undefined) {
       await app.register(publicCommercialRoutes, {
         service: options.database.platform,

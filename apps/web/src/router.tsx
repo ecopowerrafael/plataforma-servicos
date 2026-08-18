@@ -16,6 +16,7 @@ import { RegisterPage } from './routes/RegisterPage.js';
 import { ResetPasswordPage } from './routes/ResetPasswordPage.js';
 import { RootPage } from './routes/RootPage.js';
 import { SelectTenantPage } from './routes/SelectTenantPage.js';
+import { DirectoryBusinessPage, DirectoryCategoryPage, DirectoryCityPage, DirectoryHomePage } from './routes/DirectoryPages.js';
 
 const FeaturesPage = lazy(async () => {
   const module = await import('./routes/FeaturesPage.js');
@@ -91,6 +92,10 @@ export const router = createBrowserRouter([
   { path: '/funcionalidades', element: lazyPage(FeaturesPage) },
   { path: '/planos', element: lazyPage(PricingPage) },
   { path: '/profissionais', element: lazyPage(ProfessionalPage) },
+  { path: '/encontre', element: <DirectoryHomePage /> },
+  { path: '/encontre/:categorySlug', element: <DirectoryCategoryPage /> },
+  { path: '/encontre/:categorySlug/:citySlug', element: <DirectoryCityPage /> },
+  { path: '/encontre/:categorySlug/:citySlug/:businessSlug', element: <DirectoryBusinessPage /> },
   { path: '/sistema-de-agendamento', element: lazyPage(SchedulingSystemPage) },
   { path: '/ia-para-agendamento', element: lazyPage(AISchedulingPage) },
   { path: '/sistema-para-salao-de-beleza', element: lazyPage(SalonSystemPage) },

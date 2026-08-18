@@ -1388,6 +1388,21 @@ a {
   text-align: right;
 }
 
+.marketing-nav-find { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.find-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgb(8 19 31 / 58%); }
+.find-modal { position: relative; width: min(100%, 440px); display: grid; gap: .9rem; padding: 1.5rem; border-radius: 18px; background: #fff; color: #102231; box-shadow: 0 24px 70px rgb(0 0 0 / 25%); }
+.find-modal label { display: grid; gap: .35rem; font-weight: 700; }
+.find-modal select { min-height: 44px; border: 1px solid #c9d2d9; border-radius: 9px; padding: 0 .7rem; background: #fff; }
+.find-modal-close { position: absolute; top: .5rem; right: .7rem; border: 0; background: transparent; font-size: 1.8rem; cursor: pointer; }
+.directory-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.directory-category-card, .directory-card { display: grid; gap: .45rem; padding: 1.1rem; border: 1px solid #dce4e9; border-radius: 16px; background: #fff; color: #173042; text-decoration: none; }
+.directory-category-card span { color: #64747f; font-size: .9rem; }
+.directory-list { display: grid; gap: 1rem; margin-top: 1.5rem; }
+.directory-card img, .directory-business > img { width: 100%; max-height: 280px; object-fit: cover; border-radius: 13px; }
+.directory-card h2 { margin: 0; font-size: 1.15rem; }.directory-card p { margin: 0; color: #52636e; }
+.directory-pagination { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem; }.directory-pagination a { padding: .45rem .7rem; border: 1px solid #cfd8df; border-radius: 7px; }
+.directory-business { max-width: 760px; }.directory-business aside { display: grid; gap: .5rem; margin-top: 1.5rem; padding: 1rem; border-radius: 12px; background: #f2f6f8; }
+
 .pricing-card .pricing-benefits li {
   justify-content: flex-start;
   padding: 12px 0 12px 24px;

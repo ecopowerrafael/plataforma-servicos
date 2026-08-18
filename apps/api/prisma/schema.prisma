@@ -489,9 +489,143 @@ model Tenant {
   whatsappOutboundMessages     WhatsAppOutboundMessage[]
   whatsappConversations        WhatsAppConversation[]
   externalIntegrations         ExternalIntegration[]
+  directoryBusinesses          DirectoryBusiness[]
 
   @@index([status])
   @@map("tenants")
+}
+
+enum DirectoryImportStatus {
+  ANALYZED
+  QUEUED
+  PROCESSING
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+enum DirectoryImportItemStatus {
+  CREATED
+  UPDATED
+  UNCHANGED
+  POSSIBLE_DUPLICATE
+  SKIPPED
+  ERROR
+}
+
+model DirectoryCategory {
+  id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId     String   @unique @map("public_id") @db.Char(36)
+  name         String   @db.VarChar(120)
+  singularName String   @map("singular_name") @db.VarChar(120)
+  pluralName   String   @map("plural_name") @db.VarChar(120)
+  slug         String   @unique @db.VarChar(120)
+  description  String?  @db.Text
+  seoTitle     String?  @map("seo_title") @db.VarChar(180)
+  seoDescription String? @map("seo_description") @db.VarChar(320)
+  icon         String?  @db.VarChar(40)
+  active       Boolean  @default(true)
+  indexable    Boolean  @default(true)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  businesses   DirectoryBusiness[]
+  importItems  DirectoryImportItem[]
+
+  @@index([active, sortOrder])
+  @@map("directory_categories")
+}
+
+model DirectoryBusiness {
+  id               BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId         String   @unique @map("public_id") @db.Char(36)
+  categoryId       BigInt   @map("category_id") @db.UnsignedBigInt
+  tenantId         BigInt?  @map("tenant_id") @db.UnsignedBigInt
+  sourceLocalId    String?  @map("source_local_id") @db.VarChar(120)
+  sourceSegmentKey String?  @map("source_segment_key") @db.VarChar(120)
+  sourceSearchTerm String?  @map("source_search_term") @db.VarChar(160)
+  name             String   @db.VarChar(180)
+  slug             String   @db.VarChar(180)
+  citySlug         String   @map("city_slug") @db.VarChar(180)
+  rawAddress       String   @map("raw_address") @db.Text
+  street           String?  @db.VarChar(180)
+  number           String?  @db.VarChar(32)
+  complement       String?  @db.VarChar(160)
+  neighborhood     String?  @db.VarChar(120)
+  city             String   @db.VarChar(120)
+  state            String   @db.Char(2)
+  postalCode       String?  @map("postal_code") @db.Char(8)
+  ibgeCode         String?  @map("ibge_code") @db.VarChar(16)
+  phone            String?  @db.VarChar(20)
+  whatsapp         String?  @db.VarChar(20)
+  email            String?  @db.VarChar(254)
+  websiteUrl       String?  @map("website_url") @db.VarChar(500)
+  imageUrl         String?  @map("image_url") @db.VarChar(500)
+  sourceUrl        String?  @map("source_url") @db.VarChar(500)
+  relevanceScore   Int?     @map("relevance_score")
+  reviewStatus     String?  @map("review_status") @db.VarChar(40)
+  active           Boolean  @default(true)
+  indexable        Boolean  @default(true)
+  sourceHash       String   @map("source_hash") @db.Char(64)
+  firstImportedAt  DateTime @default(now()) @map("first_imported_at") @db.DateTime(3)
+  lastImportedAt   DateTime @default(now()) @map("last_imported_at") @db.DateTime(3)
+  claimedAt        DateTime? @map("claimed_at") @db.DateTime(3)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  category         DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  tenant           Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  importItems      DirectoryImportItem[]
+
+  @@unique([categoryId, state, citySlug, slug], map: "udb_category_city_slug")
+  @@index([categoryId, citySlug, active])
+  @@index([city, state])
+  @@index([ibgeCode])
+  @@index([whatsapp])
+  @@index([phone])
+  @@index([tenantId])
+  @@map("directory_businesses")
+}
+
+model DirectoryImport {
+  id             BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                @unique @map("public_id") @db.Char(36)
+  filename       String                @db.VarChar(255)
+  status         DirectoryImportStatus @default(ANALYZED)
+  totalFound     Int                   @default(0) @map("total_found")
+  totalSelected  Int                   @default(0) @map("total_selected")
+  totalCreated   Int                   @default(0) @map("total_created")
+  totalUpdated   Int                   @default(0) @map("total_updated")
+  totalUnchanged Int                   @default(0) @map("total_unchanged")
+  totalDuplicates Int                  @default(0) @map("total_duplicates")
+  processedCount Int                   @default(0) @map("processed_count")
+  createdAt      DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  completedAt    DateTime?             @map("completed_at") @db.DateTime(3)
+  items          DirectoryImportItem[]
+
+  @@index([status, createdAt])
+  @@map("directory_imports")
+}
+
+model DirectoryImportItem {
+  id              BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  importId        BigInt                    @map("import_id") @db.UnsignedBigInt
+  categoryId      BigInt?                   @map("category_id") @db.UnsignedBigInt
+  businessId      BigInt?                   @map("business_id") @db.UnsignedBigInt
+  sourceLocalId   String?                   @map("source_local_id") @db.VarChar(120)
+  categoryDetected String?                  @map("category_detected") @db.VarChar(160)
+  status          DirectoryImportItemStatus @default(SKIPPED)
+  position        Int
+  sourceData      Json                      @map("source_data")
+  message         String?                   @db.VarChar(500)
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  import          DirectoryImport           @relation(fields: [importId], references: [id], onDelete: Cascade)
+  category        DirectoryCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  business        DirectoryBusiness?        @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@unique([importId, position], map: "udi_import_position")
+  @@index([importId, status])
+  @@map("directory_import_items")
 }
 
 model TenantWhatsAppConfig {

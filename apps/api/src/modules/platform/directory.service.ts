@@ -1,0 +1,263 @@
+import { createHash, randomUUID } from 'node:crypto';
+
+import { PrismaClient, type Prisma } from '../../database-client/client.js';
+import { AppError } from '../../errors/AppError.js';
+
+const MAX_XML_BYTES = 8 * 1024 * 1024;
+const knownCategories: Record<string, { slug: string; singular: string; plural: string }> = {
+  barbearia: { slug: 'barbearias', singular: 'Barbearia', plural: 'Barbearias' },
+  barba: { slug: 'barbearias', singular: 'Barbearia', plural: 'Barbearias' },
+  barber: { slug: 'barbearias', singular: 'Barbearia', plural: 'Barbearias' },
+  barbershop: { slug: 'barbearias', singular: 'Barbearia', plural: 'Barbearias' },
+  salao: { slug: 'saloes-de-beleza', singular: 'Salão de Beleza', plural: 'Salões de Beleza' },
+  'salao de beleza': { slug: 'saloes-de-beleza', singular: 'Salão de Beleza', plural: 'Salões de Beleza' },
+  dentista: { slug: 'dentistas', singular: 'Dentista', plural: 'Dentistas' },
+  estetica: { slug: 'estetica', singular: 'Estética', plural: 'Estética' },
+};
+
+export interface DirectorySourceRecord {
+  sourceLocalId: string | null;
+  businessType: string | null;
+  segmentKey: string | null;
+  searchTerm: string | null;
+  name: string;
+  rawAddress: string;
+  city: string;
+  state: string;
+  ibgeCode: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  websiteUrl: string | null;
+  sourceUrl: string | null;
+  imageUrl: string | null;
+  relevanceScore: number | null;
+  reviewStatus: string | null;
+}
+
+function text(value: string | undefined): string | null {
+  const trimmed = value?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gu, '$1').replace(/&amp;/gu, '&').replace(/&lt;/gu, '<').replace(/&gt;/gu, '>').replace(/&quot;/gu, '"').replace(/&#39;/gu, "'").trim();
+  return trimmed === undefined || trimmed === '' ? null : trimmed;
+}
+
+function tag(source: string, name: string): string | null {
+  const match = new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>|<${name}(?:\\s[^>]*)?\\s*\\/>`, 'iu').exec(source);
+  return text(match?.[1]);
+}
+
+function blocks(source: string, name: string): string[] {
+  return [...source.matchAll(new RegExp(`<${name}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${name}>`, 'giu'))].map((match) => match[0]);
+}
+
+function attribute(source: string, name: string): string | null {
+  const match = new RegExp(`${name}=["']([^"']+)["']`, 'iu').exec(source);
+  return text(match?.[1]);
+}
+
+export function normalizeDirectoryPhone(value: string | null): string | null {
+  if (value === null) return null;
+  const digits = value.replace(/\D/gu, '');
+  if (digits.length < 10 || digits.length > 13) return null;
+  return digits.startsWith('55') ? digits : `55${digits}`;
+}
+
+export function directorySlug(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/(^-|-$)/gu, '').slice(0, 180) || 'estabelecimento';
+}
+
+function sourceHash(record: DirectorySourceRecord): string {
+  return createHash('sha256').update(JSON.stringify(record)).digest('hex');
+}
+
+function comparableText(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLowerCase().replace(/[^a-z0-9]+/gu, ' ').trim();
+}
+
+export function looksLikeApproximateDirectoryDuplicate(record: DirectorySourceRecord, candidate: { name: string; rawAddress: string }): boolean {
+  const name = comparableText(record.name); const otherName = comparableText(candidate.name);
+  if (name.length >= 8 && otherName.length >= 8 && (name.includes(otherName) || otherName.includes(name))) return true;
+  const number = /\b\d{1,5}\b/u.exec(record.rawAddress)?.[0];
+  const words = comparableText(record.rawAddress).split(' ').filter((word) => word.length >= 5);
+  const otherAddress = comparableText(candidate.rawAddress);
+  return number !== undefined && otherAddress.includes(number) && words.filter((word) => otherAddress.includes(word)).length >= 2;
+}
+
+function addressParts(rawAddress: string) {
+  const postalCode = /(?:CEP[:\s]*)?(\d{5})-?(\d{3})/iu.exec(rawAddress)?.[1];
+  const pieces = rawAddress.split(',').map((part) => part.trim()).filter(Boolean);
+  const street = pieces[0] ?? null;
+  const number = /(?:,|\s)(\d+[A-Za-z]?)\b/u.exec(rawAddress)?.[1] ?? null;
+  const explicitNeighborhood = /(?:bairro[:\s]*)([^,\-]+)/iu.exec(rawAddress)?.[1]?.trim();
+  const beforeCity = rawAddress.replace(/,\s*[^,]+\s*-\s*[A-Z]{2}(?:,.*)?$/u, '');
+  const inferredNeighborhood = beforeCity.includes(' - ') ? beforeCity.split(' - ').at(-1)?.trim() : undefined;
+  const neighborhood = explicitNeighborhood ?? (inferredNeighborhood === '' ? undefined : inferredNeighborhood) ?? null;
+  return { street, number, neighborhood, postalCode: postalCode === undefined ? null : `${postalCode}${/(\d{3})/u.exec(rawAddress)?.[1] ?? ''}` };
+}
+
+function categoryCandidate(record: DirectorySourceRecord) {
+  for (const candidate of [record.segmentKey, record.businessType, record.searchTerm]) {
+    if (candidate === null) continue;
+    const normalized = directorySlug(candidate).replace(/-/gu, ' ');
+    const known = knownCategories[normalized] ?? knownCategories[normalized.replace(/s$/u, '')];
+    if (known !== undefined) return known;
+  }
+  return null;
+}
+
+export function parseDirectoryXml(xml: Buffer): DirectorySourceRecord[] {
+  if (xml.byteLength > MAX_XML_BYTES) throw new AppError({ code: 'DIRECTORY_XML_TOO_LARGE', message: 'O XML excede o limite de 8 MB.', statusCode: 400 });
+  const document = xml.toString('utf8');
+  if (!/^\s*<\?xml|^\s*<local-commerce-data[\s>]/iu.test(document) || /<!DOCTYPE|<!ENTITY|\bSYSTEM\b|\bPUBLIC\b/iu.test(document)) {
+    throw new AppError({ code: 'DIRECTORY_XML_INVALID', message: 'Envie um XML válido, sem DTD ou entidades externas.', statusCode: 400 });
+  }
+  const records: DirectorySourceRecord[] = [];
+  for (const cityBlock of blocks(document, 'city')) {
+    const city = tag(cityBlock, 'name');
+    const state = /(?:-|,)\s*([A-Z]{2})\s*$/u.exec(city ?? '')?.[1] ?? null;
+    const cityName = (city ?? '').replace(/(?:-|,)\s*[A-Z]{2}\s*$/u, '').trim();
+    if (cityName === '' || state === null) continue;
+    for (const establishment of blocks(cityBlock, 'establishment')) {
+      const name = tag(establishment, 'name');
+      if (name === null) continue;
+      const image = tag(establishment, 'image');
+      records.push({
+        sourceLocalId: attribute(establishment, 'local_id'), businessType: tag(establishment, 'business_type'), segmentKey: tag(establishment, 'segment_key'), searchTerm: tag(establishment, 'search_term'), name,
+        rawAddress: tag(establishment, 'address') ?? '', city: cityName, state, ibgeCode: attribute(cityBlock, 'ibge_code'), phone: normalizeDirectoryPhone(tag(establishment, 'phone')), whatsapp: normalizeDirectoryPhone(tag(establishment, 'whatsapp')), email: tag(establishment, 'email'), websiteUrl: tag(establishment, 'website_url'), sourceUrl: tag(establishment, 'source_url'), imageUrl: image === null ? null : tag(image, 'url'), relevanceScore: Number(tag(establishment, 'relevance_score')) || null, reviewStatus: tag(establishment, 'review_status'),
+      });
+    }
+  }
+  if (records.length === 0) throw new AppError({ code: 'DIRECTORY_XML_EMPTY', message: 'Não foram encontrados estabelecimentos válidos no XML.', statusCode: 400 });
+  return records;
+}
+
+export class DirectoryService {
+  public constructor(private readonly client: PrismaClient) {}
+
+  private categoryPublic(category: { publicId: string; name: string; singularName: string; pluralName: string; slug: string; description: string | null; seoTitle: string | null; seoDescription: string | null; icon: string | null; active: boolean; indexable: boolean; sortOrder: number; _count?: { businesses: number } }) {
+    return { publicId: category.publicId, name: category.name, singularName: category.singularName, pluralName: category.pluralName, slug: category.slug, description: category.description, seoTitle: category.seoTitle, seoDescription: category.seoDescription, icon: category.icon, active: category.active, indexable: category.indexable, sortOrder: category.sortOrder, ...(category._count === undefined ? {} : { _count: category._count }) };
+  }
+  private businessPublic(business: { publicId: string; name: string; slug: string; citySlug: string; rawAddress: string; neighborhood: string | null; city: string; state: string; postalCode: string | null; phone: string | null; whatsapp: string | null; imageUrl: string | null; tenantId: bigint | null; category?: { publicId: string; name: string; singularName: string; pluralName: string; slug: string; description: string | null; seoTitle: string | null; seoDescription: string | null; icon: string | null; active: boolean; indexable: boolean; sortOrder: number } }) {
+    return { publicId: business.publicId, name: business.name, slug: business.slug, citySlug: business.citySlug, rawAddress: business.rawAddress, neighborhood: business.neighborhood, city: business.city, state: business.state, postalCode: business.postalCode, phone: business.phone, whatsapp: business.whatsapp, imageUrl: business.imageUrl, tenantId: business.tenantId === null ? null : 'linked', ...(business.category === undefined ? {} : { category: this.categoryPublic(business.category) }) };
+  }
+  private async approximateDuplicate(categoryId: bigint, record: DirectorySourceRecord) {
+    const token = comparableText(record.name).split(' ').find((word) => word.length >= 4);
+    if (token === undefined) return null;
+    const candidates = await this.client.directoryBusiness.findMany({ where: { categoryId, city: record.city, state: record.state, name: { contains: token } }, select: { id: true, name: true, rawAddress: true }, take: 20 });
+    return candidates.find((candidate) => looksLikeApproximateDirectoryDuplicate(record, candidate)) ?? null;
+  }
+
+  public async analyze(filename: string, xml: Buffer) {
+    const records = parseDirectoryXml(xml);
+    const detected = new Map<string, { candidate: ReturnType<typeof categoryCandidate>; count: number }>();
+    for (const record of records) {
+      const candidate = categoryCandidate(record);
+      const key = candidate?.slug ?? `unknown:${record.segmentKey ?? record.businessType ?? record.searchTerm ?? 'unknown'}`;
+      const current = detected.get(key);
+      detected.set(key, { candidate, count: (current?.count ?? 0) + 1 });
+    }
+    const categorySlugs = [...detected.values()].flatMap((entry) => entry.candidate === null ? [] : [entry.candidate.slug]);
+    const categories = await this.client.directoryCategory.findMany({ where: { slug: { in: categorySlugs } } });
+    const categoryBySlug = new Map(categories.map((category) => [category.slug, category]));
+    const directoryImport = await this.client.directoryImport.create({ data: { publicId: randomUUID(), filename, totalFound: records.length, items: { create: records.map((record, position) => {
+      const candidate = categoryCandidate(record); const category = candidate === null ? undefined : categoryBySlug.get(candidate.slug);
+      return { position, sourceLocalId: record.sourceLocalId, categoryDetected: candidate?.singular ?? record.businessType ?? record.segmentKey, categoryId: category?.id, sourceData: record as unknown as Prisma.InputJsonValue };
+    }) } } });
+    return this.preview(directoryImport.publicId);
+  }
+
+  public async preview(publicId: string) {
+    const directoryImport = await this.client.directoryImport.findUnique({ where: { publicId }, include: { items: { include: { category: true } } } });
+    if (directoryImport === null) throw new AppError({ code: 'DIRECTORY_IMPORT_NOT_FOUND', message: 'Importação não encontrada.', statusCode: 404 });
+    const groups = new Map<string, { slug: string | null; name: string; detected: string; count: number; existing: boolean; created: number; updated: number; unchanged: number; duplicates: number }>();
+    for (const item of directoryImport.items) {
+      const key = item.category?.slug ?? item.categoryDetected ?? 'Não classificado'; const group = groups.get(key) ?? { slug: item.category?.slug ?? null, name: item.category?.pluralName ?? item.categoryDetected ?? 'Não classificado', detected: item.categoryDetected ?? item.category?.singularName ?? 'Não classificado', count: 0, existing: item.category !== null, created: 0, updated: 0, unchanged: 0, duplicates: 0 };
+      group.count += 1;
+      if (item.category !== null) {
+        const record = item.sourceData as unknown as DirectorySourceRecord;
+        const exact = await this.client.directoryBusiness.findFirst({ where: { categoryId: item.category.id, OR: [...(record.whatsapp === null ? [] : [{ whatsapp: record.whatsapp }]), ...(record.phone === null ? [] : [{ phone: record.phone }]), { name: record.name, city: record.city, state: record.state }] }, select: { sourceHash: true } });
+        if (exact === null) { const duplicate = await this.approximateDuplicate(item.category.id, record); if (duplicate === null) group.created += 1; else group.duplicates += 1; }
+        else if (exact.sourceHash === sourceHash(record)) group.unchanged += 1;
+        else group.updated += 1;
+      }
+      groups.set(key, group);
+    }
+    return { import: { publicId: directoryImport.publicId, filename: directoryImport.filename, status: directoryImport.status, totalFound: directoryImport.totalFound, totalSelected: directoryImport.totalSelected, processedCount: directoryImport.processedCount, totalCreated: directoryImport.totalCreated, totalUpdated: directoryImport.totalUpdated, totalUnchanged: directoryImport.totalUnchanged, totalDuplicates: directoryImport.totalDuplicates }, categories: [...groups.values()] };
+  }
+
+  public async imports() {
+    return this.client.directoryImport.findMany({ orderBy: { createdAt: 'desc' }, take: 30, select: { publicId: true, filename: true, status: true, totalFound: true, totalSelected: true, processedCount: true, totalCreated: true, totalUpdated: true, totalUnchanged: true, totalDuplicates: true, createdAt: true } });
+  }
+  public async createCategory(input: { name: string; singularName: string; pluralName: string; slug: string; description?: string | undefined; icon?: string | undefined; active?: boolean | undefined; indexable?: boolean | undefined }) {
+    const slug = directorySlug(input.slug);
+    return this.client.directoryCategory.upsert({ where: { slug }, update: { name: input.name, singularName: input.singularName, pluralName: input.pluralName, ...(input.description === undefined ? {} : { description: input.description }), ...(input.icon === undefined ? {} : { icon: input.icon }), active: input.active ?? true, indexable: input.indexable ?? true }, create: { publicId: randomUUID(), name: input.name, singularName: input.singularName, pluralName: input.pluralName, slug, ...(input.description === undefined ? {} : { description: input.description }), ...(input.icon === undefined ? {} : { icon: input.icon }), active: input.active ?? true, indexable: input.indexable ?? true } });
+  }
+
+  public async configure(publicId: string, assignments: { detected: string; categorySlug: string }[], newCategories: { name: string; singularName: string; pluralName: string; slug: string; active?: boolean | undefined; indexable?: boolean | undefined }[]) {
+    const directoryImport = await this.client.directoryImport.findUnique({ where: { publicId } });
+    if (directoryImport === null) throw new AppError({ code: 'DIRECTORY_IMPORT_NOT_FOUND', message: 'Importação não encontrada.', statusCode: 404 });
+    const created = await Promise.all(newCategories.map((category) => this.client.directoryCategory.upsert({ where: { slug: directorySlug(category.slug) }, update: { name: category.name, singularName: category.singularName, pluralName: category.pluralName, active: category.active ?? true, indexable: category.indexable ?? true }, create: { publicId: randomUUID(), name: category.name, singularName: category.singularName, pluralName: category.pluralName, slug: directorySlug(category.slug), active: category.active ?? true, indexable: category.indexable ?? true } })));
+    const categories = await this.client.directoryCategory.findMany({ where: { slug: { in: [...assignments.map((assignment) => directorySlug(assignment.categorySlug)), ...created.map((category) => category.slug)] } } });
+    const bySlug = new Map(categories.map((category) => [category.slug, category]));
+    const items = await this.client.directoryImportItem.findMany({ where: { importId: directoryImport.id } });
+    let selected = 0;
+    await this.client.$transaction(items.map((item) => { const record = item.sourceData as unknown as DirectorySourceRecord; const candidate = categoryCandidate(record); const detected = candidate?.singular ?? item.categoryDetected ?? ''; const assignment = assignments.find((value) => value.detected === detected); const category = assignment === undefined ? undefined : bySlug.get(directorySlug(assignment.categorySlug)); const eligible = category !== undefined; if (eligible) selected += 1; return this.client.directoryImportItem.update({ where: { id: item.id }, data: { categoryId: category?.id ?? null, status: 'SKIPPED', message: eligible ? null : 'Categoria não selecionada' } }); }));
+    await this.client.directoryImport.update({ where: { id: directoryImport.id }, data: { status: 'QUEUED', totalSelected: selected } });
+    return this.preview(publicId);
+  }
+
+  public async processBatch(publicId: string, batchSize = 100) {
+    const directoryImport = await this.client.directoryImport.findUnique({ where: { publicId } });
+    if (directoryImport === null) throw new AppError({ code: 'DIRECTORY_IMPORT_NOT_FOUND', message: 'Importação não encontrada.', statusCode: 404 });
+    if (directoryImport.status === 'PAUSED' || directoryImport.status === 'COMPLETED') return this.preview(publicId);
+    await this.client.directoryImport.update({ where: { id: directoryImport.id }, data: { status: 'PROCESSING' } });
+    const items = await this.client.directoryImportItem.findMany({ where: { importId: directoryImport.id, categoryId: { not: null }, status: 'SKIPPED' }, take: batchSize, orderBy: { position: 'asc' }, include: { category: true } });
+    for (const item of items) await this.processItem(item);
+    const remaining = await this.client.directoryImportItem.count({ where: { importId: directoryImport.id, categoryId: { not: null }, status: 'SKIPPED' } });
+    const counts = await this.client.directoryImportItem.groupBy({ by: ['status'], where: { importId: directoryImport.id }, _count: true });
+    const count = (status: string) => counts.find((entry) => entry.status === status)?._count ?? 0;
+    await this.client.directoryImport.update({ where: { id: directoryImport.id }, data: { processedCount: directoryImport.totalSelected - remaining, totalCreated: count('CREATED'), totalUpdated: count('UPDATED'), totalUnchanged: count('UNCHANGED'), totalDuplicates: count('POSSIBLE_DUPLICATE'), status: remaining === 0 ? 'COMPLETED' : 'QUEUED', ...(remaining === 0 ? { completedAt: new Date() } : {}) } });
+    return this.preview(publicId);
+  }
+
+  private async processItem(item: Awaited<ReturnType<PrismaClient['directoryImportItem']['findMany']>>[number] & { category: { id: bigint } | null }) {
+    if (item.category === null) return;
+    const record = item.sourceData as unknown as DirectorySourceRecord; const hash = sourceHash(record); const address = addressParts(record.rawAddress); const citySlug = directorySlug(`${record.city}-${record.state}`); const slug = directorySlug(record.name);
+    const exact = await this.client.directoryBusiness.findFirst({ where: { categoryId: item.category.id, OR: [ ...(record.whatsapp === null ? [] : [{ whatsapp: record.whatsapp }]), ...(record.phone === null ? [] : [{ phone: record.phone }]), { name: record.name, city: record.city, state: record.state } ] } });
+    if (exact !== null && exact.sourceHash === hash && (address.neighborhood === null || exact.neighborhood !== null)) { await this.client.directoryImportItem.update({ where: { id: item.id }, data: { businessId: exact.id, status: 'UNCHANGED' } }); return; }
+    if (exact !== null) { const data = { sourceLocalId: record.sourceLocalId ?? exact.sourceLocalId, sourceSegmentKey: record.segmentKey ?? exact.sourceSegmentKey, sourceSearchTerm: record.searchTerm ?? exact.sourceSearchTerm, rawAddress: record.rawAddress || exact.rawAddress, street: address.street ?? exact.street, number: address.number ?? exact.number, neighborhood: address.neighborhood ?? exact.neighborhood, postalCode: address.postalCode ?? exact.postalCode, phone: record.phone ?? exact.phone, whatsapp: record.whatsapp ?? exact.whatsapp, email: record.email ?? exact.email, websiteUrl: record.websiteUrl ?? exact.websiteUrl, imageUrl: record.imageUrl ?? exact.imageUrl, sourceUrl: record.sourceUrl ?? exact.sourceUrl, relevanceScore: record.relevanceScore ?? exact.relevanceScore, reviewStatus: record.reviewStatus ?? exact.reviewStatus, sourceHash: hash, lastImportedAt: new Date() }; const business = await this.client.directoryBusiness.update({ where: { id: exact.id }, data }); await this.client.directoryImportItem.update({ where: { id: item.id }, data: { businessId: business.id, status: 'UPDATED' } }); return; }
+    const approximate = await this.approximateDuplicate(item.category.id, record);
+    if (approximate !== null) { await this.client.directoryImportItem.update({ where: { id: item.id }, data: { businessId: approximate.id, status: 'POSSIBLE_DUPLICATE', message: 'Possível duplicidade por nome/endereço; revise antes de fundir.' } }); return; }
+    const business = await this.client.directoryBusiness.create({ data: { publicId: randomUUID(), categoryId: item.category.id, sourceLocalId: record.sourceLocalId, sourceSegmentKey: record.segmentKey, sourceSearchTerm: record.searchTerm, name: record.name, slug, citySlug, rawAddress: record.rawAddress, street: address.street, number: address.number, neighborhood: address.neighborhood, city: record.city, state: record.state, postalCode: address.postalCode, ibgeCode: record.ibgeCode, phone: record.phone, whatsapp: record.whatsapp, email: record.email, websiteUrl: record.websiteUrl, imageUrl: record.imageUrl, sourceUrl: record.sourceUrl, relevanceScore: record.relevanceScore, reviewStatus: record.reviewStatus, sourceHash: hash } });
+    await this.client.directoryImportItem.update({ where: { id: item.id }, data: { businessId: business.id, status: 'CREATED' } });
+  }
+
+  public async pause(publicId: string) { const found = await this.client.directoryImport.update({ where: { publicId }, data: { status: 'PAUSED' } }); return this.preview(found.publicId); }
+  public async resume(publicId: string) { const found = await this.client.directoryImport.update({ where: { publicId }, data: { status: 'QUEUED', completedAt: null } }); return this.preview(found.publicId); }
+  public async categories() { const categories = await this.client.directoryCategory.findMany({ where: { active: true, businesses: { some: { active: true } } }, orderBy: [{ sortOrder: 'asc' }, { pluralName: 'asc' }], include: { _count: { select: { businesses: { where: { active: true } } } } } }); return categories.map((category) => this.categoryPublic(category)); }
+  public async adminCategories() {
+    return this.client.directoryCategory.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { pluralName: 'asc' }],
+      include: { _count: { select: { businesses: true } } },
+    });
+  }
+  public async updateCategory(publicId: string, input: { name?: string | undefined; singularName?: string | undefined; pluralName?: string | undefined; description?: string | null | undefined; icon?: string | null | undefined; active?: boolean | undefined; indexable?: boolean | undefined; sortOrder?: number | undefined }) {
+    return this.client.directoryCategory.update({ where: { publicId }, data: Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)) });
+  }
+  public async adminBusinesses(page: number, limit: number) { const [total, items] = await Promise.all([this.client.directoryBusiness.count(), this.client.directoryBusiness.findMany({ orderBy: { updatedAt: 'desc' }, skip: (page - 1) * limit, take: limit, include: { category: true } })]); return { items, page, limit, total, totalPages: Math.ceil(total / limit) }; }
+  public async updateBusiness(publicId: string, input: { active?: boolean | undefined; indexable?: boolean | undefined; tenantId?: bigint | null | undefined }) { return this.client.directoryBusiness.update({ where: { publicId }, data: Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)) }); }
+  public async categoryCities(slug: string) { const category = await this.client.directoryCategory.findFirst({ where: { slug, active: true } }); if (category === null) throw new AppError({ code: 'DIRECTORY_CATEGORY_NOT_FOUND', message: 'Categoria não encontrada.', statusCode: 404 }); const rows = await this.client.directoryBusiness.groupBy({ by: ['city', 'state', 'citySlug'], where: { categoryId: category.id, active: true }, _count: true, orderBy: { _count: { city: 'desc' } } }); return { category: this.categoryPublic(category), cities: rows.map((row) => ({ city: row.city, state: row.state, citySlug: row.citySlug, count: row._count })) }; }
+  public async cityBusinesses(categorySlug: string, citySlug: string, page: number, limit: number) { const category = await this.client.directoryCategory.findFirst({ where: { slug: categorySlug, active: true } }); if (category === null) throw new AppError({ code: 'DIRECTORY_CATEGORY_NOT_FOUND', message: 'Categoria não encontrada.', statusCode: 404 }); const where = { categoryId: category.id, citySlug, active: true }; const [total, items, whatsappCount, neighborhoods] = await Promise.all([this.client.directoryBusiness.count({ where }), this.client.directoryBusiness.findMany({ where, orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }], skip: (page - 1) * limit, take: limit }), this.client.directoryBusiness.count({ where: { ...where, whatsapp: { not: null } } }), this.client.directoryBusiness.groupBy({ by: ['neighborhood'], where: { ...where, neighborhood: { not: null } }, _count: true, orderBy: { _count: { neighborhood: 'desc' } }, take: 12 })]); return { category: this.categoryPublic(category), total, page, limit, totalPages: Math.ceil(total / limit), stats: { whatsappCount, neighborhoods: neighborhoods.flatMap((row) => row.neighborhood === null ? [] : [{ name: row.neighborhood, count: row._count }]) }, items: items.map((item) => this.businessPublic(item) ) }; }
+  public async business(categorySlug: string, citySlug: string, slug: string) { const result = await this.client.directoryBusiness.findFirst({ where: { category: { slug: categorySlug, active: true }, citySlug, slug, active: true }, include: { category: true } }); if (result === null) throw new AppError({ code: 'DIRECTORY_BUSINESS_NOT_FOUND', message: 'Estabelecimento não encontrado.', statusCode: 404 }); return this.businessPublic(result); }
+  public async sitemapUrls(limit = 45_000) {
+    const categories = await this.client.directoryCategory.findMany({ where: { active: true, indexable: true, businesses: { some: { active: true, indexable: true } } }, select: { id: true, slug: true, updatedAt: true } });
+    const cities = await this.client.directoryBusiness.groupBy({ by: ['categoryId', 'citySlug'], where: { active: true, indexable: true }, _max: { updatedAt: true } });
+    const businesses = await this.client.directoryBusiness.findMany({ where: { active: true, indexable: true, category: { active: true, indexable: true } }, take: limit, orderBy: { id: 'asc' }, select: { slug: true, citySlug: true, updatedAt: true, category: { select: { slug: true } } } });
+    const categoryById = new Map(categories.map((category) => [category.id, category]));
+    return [
+      { path: '/encontre', updatedAt: null },
+      ...categories.map((category) => ({ path: `/encontre/${category.slug}`, updatedAt: category.updatedAt })),
+      ...cities.flatMap((city) => { const category = categoryById.get(city.categoryId); return category === undefined ? [] : [{ path: `/encontre/${category.slug}/${city.citySlug}`, updatedAt: city._max.updatedAt }]; }),
+      ...businesses.map((business) => ({ path: `/encontre/${business.category.slug}/${business.citySlug}/${business.slug}`, updatedAt: business.updatedAt })),
+    ];
+  }
+}

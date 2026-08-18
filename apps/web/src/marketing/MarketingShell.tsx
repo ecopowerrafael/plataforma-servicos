@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { z } from 'zod';
 
+import { FindServiceModal } from './FindServiceModal.js';
+
 import { httpClient } from '../lib/http.js';
 
 const CommercialContactSchema = z.object({ whatsapp: z.string().nullable() });
@@ -34,6 +36,7 @@ function Brand() {
 
 function MarketingHeader() {
   const [open, setOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
   const location = useLocation();
   const currentPath = `${location.pathname}${location.hash}`;
   const [lastPath, setLastPath] = useState(currentPath);
@@ -70,6 +73,7 @@ function MarketingHeader() {
         >
           <NavLink to="/">Início</NavLink>
           <NavLink to="/funcionalidades">Funcionalidades</NavLink>
+          <button className="marketing-nav-find" type="button" onClick={() => setFindOpen(true)}>Encontre</button>
           <Link to="/#para-quem">Para quem é</Link>
           <NavLink to="/planos">Planos</NavLink>
           <NavLink to="/profissionais">Profissionais</NavLink>
@@ -81,6 +85,7 @@ function MarketingHeader() {
           </Link>
         </nav>
       </div>
+      {findOpen ? <FindServiceModal onClose={() => setFindOpen(false)} /> : null}
     </header>
   );
 }

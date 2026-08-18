@@ -2450,16 +2450,14 @@ export class PlatformService {
             },
           }),
     };
-    const [total, items] = await this.client.$transaction([
-      this.client.auditLog.count({ where }),
-      this.client.auditLog.findMany({
-        where,
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
-        orderBy: { createdAt: query.direction },
-        include: { tenant: true, user: true },
-      }),
-    ]);
+    const total = await this.client.auditLog.count({ where });
+    const items = await this.client.auditLog.findMany({
+      where,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+      orderBy: { createdAt: query.direction },
+      include: { tenant: true, user: true },
+    });
     return {
       items: items.map((item) => ({
         publicId: item.publicId,

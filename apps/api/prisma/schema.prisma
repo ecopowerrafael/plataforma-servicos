@@ -2438,6 +2438,7 @@ model CommercialPlan {
   benefits         PlanBenefit[]
   billingOptions   PlanBillingOption[]
   subscriptions    TenantSubscription[]
+  scheduledSubscriptions TenantSubscription[] @relation("ScheduledSubscriptionPlan")
 
   @@index([status, sortOrder])
   @@index([billingCycle])
@@ -2512,10 +2513,14 @@ model TenantSubscription {
   currency              String                @db.Char(3)
   billingCycle          BillingCycle          @map("billing_cycle")
   effectiveKey          String?               @map("effective_key") @db.VarChar(20)
+  scheduledPlanId       BigInt?               @map("scheduled_plan_id") @db.UnsignedBigInt
+  scheduledBillingCycle BillingCycle?         @map("scheduled_billing_cycle")
+  scheduledEffectiveAt  DateTime?             @map("scheduled_effective_at") @db.DateTime(3)
   createdAt             DateTime              @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt             DateTime              @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   plan                  CommercialPlan        @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  scheduledPlan         CommercialPlan?       @relation("ScheduledSubscriptionPlan", fields: [scheduledPlanId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   history               SubscriptionHistory[]
   platformCharges       PlatformSubscriptionCharge[]
 

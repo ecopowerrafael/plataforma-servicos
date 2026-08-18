@@ -10,7 +10,7 @@
     "start": "node dist/server.js",
     "pretypecheck": "prisma generate",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --config ./vitest.config.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:deploy": "prisma migrate deploy",

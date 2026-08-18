@@ -1,9 +1,11 @@
-import { TenantSubscriptionResponseSchema } from '@plataforma/shared';
+import { SubscriptionChangePreviewSchema, TenantSubscriptionResponseSchema } from '@plataforma/shared';
 import { IconCheck, IconMinus } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { TenantSubscriptionPayment } from './TenantSubscriptionPayment.js';
 import { httpClient } from '../../lib/http.js';
+import { usePublicPlans } from '../../marketing/use-public-plans.js';
 import {
   InlineAlert,
   ListSkeleton,
@@ -77,6 +79,10 @@ const formatMoney = (cents: string, currency: string) =>
 const formatDate = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 
 export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: string }) {
+  const queryClient = useQueryClient();
+  const [preview, setPreview] = useState<ReturnType<typeof SubscriptionChangePreviewSchema.parse> | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const publicPlans = usePublicPlans();
   const query = useQuery({
     queryKey: ['tenant', tenantPublicId, 'subscription'],
     queryFn: () =>
@@ -88,6 +94,9 @@ export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: s
   });
 
   const data = query.data;
+  const cancelScheduledChange = useMutation({ mutationFn: () => httpClient.request('/tenant/subscription/cancel-scheduled-change', { method: 'POST', schema: TenantSubscriptionResponseSchema, tenantPublicId }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'subscription'] }) });
+  const previewChange = useMutation({ mutationFn: (planPublicId: string) => httpClient.request('/tenant/subscription/change-preview', { method:'POST', body:{planPublicId}, schema: SubscriptionChangePreviewSchema, tenantPublicId }), onSuccess:setPreview });
+  const confirmChange = useMutation({ mutationFn: () => { if (!preview) throw new Error('Selecione um plano.'); return httpClient.request('/tenant/subscription/select-plan',{method:'POST',body:{planPublicId:preview.targetPlan.publicId,billingCycle:preview.targetPlan.billingCycle},schema:TenantSubscriptionResponseSchema,tenantPublicId}); }, onSuccess:(result)=>{setFeedback(preview?.changeType==='UPGRADE'?`Seu plano foi atualizado para ${result.plan.name}.`:`Downgrade agendado para ${formatDate(result.scheduledChange?.effectiveAt ?? new Date().toISOString())}.`);setPreview(null);void queryClient.invalidateQueries({queryKey:['tenant',tenantPublicId,'subscription']});} });
   const quantitative = (data?.limits ?? []).filter((limit) => limit.valueType === 'INTEGER');
   const features = (data?.limits ?? []).filter((limit) => limit.valueType === 'BOOLEAN');
   const included = features.filter((limit) => limit.booleanValue === true);
@@ -167,6 +176,10 @@ export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: s
             </dl>
           </section>
           <TenantSubscriptionPayment tenantPublicId={tenantPublicId}/>
+          {feedback && <InlineAlert tone="success" title={feedback}><button type="button" onClick={()=>setFeedback(null)}>Fechar</button></InlineAlert>}
+          {data.scheduledChange !== null && <InlineAlert tone="warning" title={`Mudança agendada para ${formatDate(data.scheduledChange.effectiveAt)}`} action={<button className="secondary-button" type="button" disabled={cancelScheduledChange.isPending} onClick={() => void cancelScheduledChange.mutate()}>Cancelar mudança</button>}>{`Seu plano atual continuará disponível até essa data. Depois, sua assinatura passará para ${data.scheduledChange.plan.name}. Seus dados não serão apagados.`}</InlineAlert>}
+          <SectionCard title="Outros planos" description="Compare opções públicas disponíveis para sua assinatura.">{publicPlans.isPending ? <p>Carregando planos…</p> : publicPlans.data?.plans.filter(plan=>plan.publicId!==data.plan.publicId).map(plan=>{const scheduled=data.scheduledChange?.plan.publicId===plan.publicId;return <article className="subscription-usage" key={plan.publicId}><p className="ds-eyebrow">{plan.name}</p><p>{plan.shortDescription ?? plan.description}</p><strong>{formatMoney(plan.priceCents,plan.currency)}</strong><button type="button" disabled={scheduled||previewChange.isPending} onClick={()=>void previewChange.mutate(plan.publicId)}>{scheduled?'Downgrade agendado':previewChange.isPending?'Comparando planos…':'Comparar plano'}</button></article>})}</SectionCard>
+          {preview && <div className="app-modal-backdrop" role="presentation" onMouseDown={()=>!confirmChange.isPending&&setPreview(null)}><section className="app-modal" role="dialog" aria-modal="true" aria-labelledby="plan-change-title" onMouseDown={e=>e.stopPropagation()}><h2 id="plan-change-title">{preview.changeType==='UPGRADE'?`Fazer upgrade para ${preview.targetPlan.name}?`:`Revisar downgrade para ${preview.targetPlan.name}`}</h2><p>Plano atual: {preview.currentPlan.name} · Novo plano: {preview.targetPlan.name}</p><p>Novo valor: {formatMoney(preview.targetPlan.priceCents,preview.targetPlan.currency)} / {cycleLabels[preview.targetPlan.billingCycle] ?? preview.targetPlan.billingCycle}</p>{preview.changeType==='UPGRADE'?<><h3>Você ganha</h3>{preview.gainedFeatures.map(x=><p key={x.key}>✓ {x.label}</p>)}{preview.increasedLimits.map(x=><p key={x.key}>{x.label}: {x.currentValue} → {x.targetValue}</p>)}</>:<><p>Seu plano atual continuará ativo até o fim do período contratado.{preview.effectiveAt?` A mudança está prevista para ${formatDate(preview.effectiveAt)}.`:''}</p><h3>Você perderá</h3>{preview.lostFeatures.map(x=><p key={x.key}>− {x.label}</p>)}<h3>Seus limites serão reduzidos</h3>{preview.reducedLimits.map(x=><p key={x.key}>{x.label}: {x.currentValue} → {x.targetValue}</p>)}{preview.usageConflicts.length>0&&<InlineAlert tone="warning" title="Atenção ao uso atual">{preview.usageConflicts.map(x=><p key={x.key}>{`Você possui ${x.currentUsage} ${x.label}, mas o novo plano permite ${x.targetLimit}.`}</p>)}Seus dados existentes não serão apagados.</InlineAlert>}</>}<button type="button" disabled={confirmChange.isPending} onClick={()=>void confirmChange.mutate()}>{confirmChange.isPending?(preview.changeType==='UPGRADE'?'Atualizando plano…':'Agendando mudança…'):(preview.changeType==='UPGRADE'?'Confirmar upgrade':'Agendar downgrade')}</button><button type="button" disabled={confirmChange.isPending} onClick={()=>setPreview(null)}>{preview.changeType==='UPGRADE'?'Cancelar':'Manter meu plano atual'}</button></section></div>}
 
           {data.commercial.state === 'TRIALING' && data.commercial.trialEndsAt !== null && (
             <InlineAlert

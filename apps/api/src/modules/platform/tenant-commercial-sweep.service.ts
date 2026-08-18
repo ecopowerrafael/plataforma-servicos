@@ -44,6 +44,11 @@ export class TenantCommercialSweepService {
       where: { status: 'ACTIVE', currentPeriodEndsAt: { lte: now }, effectiveKey: EFFECTIVE_KEY },
     });
     for (const subscription of expiredPeriods) {
+      if (subscription.scheduledPlanId !== null && subscription.scheduledEffectiveAt !== null && subscription.scheduledEffectiveAt <= now) {
+        const option = await this.client.planBillingOption.findFirst({ where: { planId: subscription.scheduledPlanId, billingCycle: subscription.scheduledBillingCycle!, active: true } });
+        const plan = await this.client.commercialPlan.findUnique({ where: { id: subscription.scheduledPlanId } });
+        if (option !== null && plan !== null) await this.client.tenantSubscription.update({ where: { id: subscription.id }, data: { planId: plan.id, billingCycle: option.billingCycle, priceCents: option.priceCents, currency: plan.currency, scheduledPlanId: null, scheduledBillingCycle: null, scheduledEffectiveAt: null } });
+      }
       await this.transition(
         subscription,
         'PAST_DUE',

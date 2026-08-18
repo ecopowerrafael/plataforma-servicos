@@ -297,14 +297,27 @@ export const PublicCommercialPlansResponseSchema = z.object({
   defaultTrialDays: z.number().int().nonnegative().max(3650),
 });
 
+/**
+ * Item comercial do card: texto livre definido pelo Super Admin. Não liga
+ * nem desliga nada — funcionalidades continuam em `PlanLimit`.
+ */
 export const CreatePlanBenefitRequestSchema = z
   .object({
-    text: z.string().trim().min(1).max(160),
+    text: z.string().trim().min(2).max(160),
     sortOrder: z.coerce.number().int().min(0).max(10_000).default(0),
     enabled: z.boolean().default(true),
   })
   .strict();
-export const UpdatePlanBenefitRequestSchema = CreatePlanBenefitRequestSchema.partial()
+/**
+ * Edição parcial de um item: sem herdar os defaults da criação, senão um PATCH
+ * só de texto reordenaria e reativaria o item sem ninguém pedir.
+ */
+export const UpdatePlanBenefitRequestSchema = z
+  .object({
+    text: z.string().trim().min(2).max(160).optional(),
+    sortOrder: z.coerce.number().int().min(0).max(10_000).optional(),
+    enabled: z.boolean().optional(),
+  })
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'Informe ao menos uma alteração.');
 export const PlanBenefitResponseSchema = z.object({ benefit: PlanBenefitPublicSchema });

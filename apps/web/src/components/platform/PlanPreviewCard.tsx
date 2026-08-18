@@ -1,5 +1,3 @@
-import type { PlanLimitKey } from './PlanLimitsEditor.js';
-
 export interface PlanPreviewLimit {
   key?: string;
   valueType?: 'INTEGER' | 'BOOLEAN' | 'STRING';
@@ -45,30 +43,6 @@ const cycleCaption: Record<string, string> = {
   CUSTOM: 'Cobrança personalizada',
 };
 
-/** [singular, plural, texto quando ilimitado] por limite numérico. */
-const usageCopy: Record<string, [string, string, string]> = {
-  'units.max': ['unidade', 'unidades', 'Unidades ilimitadas'],
-  'professionals.max': ['profissional', 'profissionais', 'Profissionais ilimitados'],
-  'members.max': ['usuário da equipe', 'usuários da equipe', 'Usuários ilimitados'],
-  'services.max': ['serviço', 'serviços', 'Serviços ilimitados'],
-  'monthly_appointments.max': ['agendamento/mês', 'agendamentos/mês', 'Agendamentos ilimitados'],
-};
-
-const featureCopy: Partial<Record<PlanLimitKey, string>> = {
-  'products.enabled': 'Produtos',
-  'stock.enabled': 'Controle de estoque',
-  'commissions.enabled': 'Comissões',
-  'waitlist.enabled': 'Lista de espera',
-  'whatsapp.enabled': 'WhatsApp',
-  'automations.enabled': 'Automações',
-  'integrations.enabled': 'Integrações externas',
-  'loyalty.enabled': 'Fidelidade',
-  'coupons.enabled': 'Cupons',
-  'advanced_reports.enabled': 'Relatórios avançados',
-  'branding.customization.enabled': 'Personalização da marca',
-  'custom_domain.enabled': 'Domínio próprio',
-};
-
 function formatMoneyParts(priceCents: number | undefined, currency: string | undefined) {
   const safeCents = typeof priceCents === 'number' && Number.isFinite(priceCents) ? priceCents : 0;
   const safeCurrency = currency?.trim().length === 3 ? currency : 'BRL';
@@ -82,25 +56,6 @@ function formatMoneyParts(priceCents: number | undefined, currency: string | und
 function primaryOption(options: PlanPreviewBillingOption[] | undefined) {
   const active = (options ?? []).filter((option) => option.active === true);
   return active.find((option) => option.recommended === true) ?? active[0];
-}
-
-function usageLines(limits: PlanPreviewLimit[] | undefined) {
-  return (limits ?? []).flatMap((limit) => {
-    const copy = limit.key === undefined ? undefined : usageCopy[limit.key];
-    if (copy === undefined || limit.valueType !== 'INTEGER') return [];
-    const [singular, plural, unlimited] = copy;
-    const value = limit.integerValue;
-    if (value === null || value === undefined || !Number.isFinite(value)) return [unlimited];
-    return [`${new Intl.NumberFormat('pt-BR').format(value)} ${value === 1 ? singular : plural}`];
-  });
-}
-
-function featureLines(limits: PlanPreviewLimit[] | undefined) {
-  return (limits ?? []).flatMap((limit) => {
-    if (limit.valueType !== 'BOOLEAN' || limit.booleanValue !== true) return [];
-    const label = featureCopy[limit.key as PlanLimitKey];
-    return label === undefined ? [] : [label];
-  });
 }
 
 /** Prévia viva de como o plano será apresentado ao estabelecimento na página pública. */
@@ -121,8 +76,6 @@ export function PlanPreviewCard({
   const badge = value.badge?.trim();
   const description = value.shortDescription?.trim() ?? value.subtitle?.trim() ?? '';
   const cta = value.ctaText?.trim();
-  const usage = usageLines(value.limits);
-  const features = featureLines(value.limits);
 
   return (
     <aside className="plan-preview-panel">
@@ -154,18 +107,10 @@ export function PlanPreviewCard({
           {trialDays !== undefined && trialDays > 0 ? (
             <p className="plan-preview-trial">{`${String(trialDays)} dias grátis`}</p>
           ) : null}
-          {usage.length > 0 ? (
-            <ul className="plan-preview-list">
-              {usage.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          ) : null}
-          {features.length > 0 || benefitTexts.length > 0 ? (
+          {/* A prévia mostra exatamente o que o card público mostra:
+              somente os itens comerciais, sem features nem limites. */}
+          {benefitTexts.length > 0 ? (
             <ul className="plan-preview-list plan-preview-list--divided">
-              {features.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
               {benefitTexts.map((text) => (
                 <li key={`benefit-${text}`}>{text}</li>
               ))}

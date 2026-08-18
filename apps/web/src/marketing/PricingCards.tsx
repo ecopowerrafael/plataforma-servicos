@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type z } from 'zod';
 
-import { planLimitLabels } from './marketing-data.js';
 import { annualSavingsCents } from './pricing.js';
 import { httpClient } from '../lib/http.js';
 
@@ -62,8 +61,11 @@ export function PricingCards({
       {plans.slice(0, compact ? 3 : undefined).map((plan) => {
         const option = plan.billingOptions.find((item) => item.active && item.billingCycle === cycle);
         if (plan.billingOptions.length > 0 && option === undefined) return null;
-        const enabledBenefits = plan.benefits
+        // O card mostra apenas os itens comerciais cadastrados, na ordem
+        // definida pelo Super Admin. Nada é derivado de features/limites.
+        const enabledBenefits = [...plan.benefits]
           .filter((benefit) => benefit.enabled)
+          .sort((left, right) => left.sortOrder - right.sortOrder)
           .slice(0, compact ? 5 : undefined);
         return (
           <article
@@ -100,14 +102,6 @@ export function PricingCards({
                 ))}
               </ul>
             ) : null}
-            <ul>
-              {plan.limits.slice(0, compact ? 4 : 6).map((limit) => (
-                <li key={limit.key}>
-                  <span>{planLimitLabels[limit.key]}</span>
-                  <strong>{formatPlanLimit(limit)}</strong>
-                </li>
-              ))}
-            </ul>
             <Link className="marketing-button marketing-button--full" to={`${session.data === undefined ? '/cadastro' : '/app'}?plan=${encodeURIComponent(plan.publicId)}&billing=${encodeURIComponent(cycle)}`}>
               {plan.ctaText ?? 'Começar grátis'}
             </Link>

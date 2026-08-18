@@ -735,8 +735,8 @@ export function PlanEditForm({
                 </Block>
                 {plan !== undefined && (
                   <Block
-                    title="Benefícios comerciais"
-                    description="Itens exibidos na página pública de planos."
+                    title="Itens do card comercial"
+                    description="Defina os textos que aparecerão no card deste plano na página comercial. Não altera funcionalidades, limites nem permissões."
                   >
                     <PlanBenefitsEditor benefits={plan.benefits} planPublicId={plan.publicId} />
                   </Block>

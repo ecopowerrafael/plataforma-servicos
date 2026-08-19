@@ -14,15 +14,15 @@ afterEach(async () => {
   directory = undefined;
 });
 
-async function server() {
+async function server(options?: { directorySeoPage?: (path: string) => Promise<{ title: string; description: string; canonicalPath: string; heading: string; content: string } | null> }) {
   directory = await mkdtemp(join(tmpdir(), 'agendei-static-'));
   await mkdir(join(directory, 'assets'));
   await mkdir(join(directory, 'ia-para-agendamento'));
-  await writeFile(join(directory, 'index.html'), '<main>Agendei</main>');
+  await writeFile(join(directory, 'index.html'), '<!doctype html><html><head><title>Agendei</title></head><body><div id="root"></div></body></html>');
   await writeFile(join(directory, 'ia-para-agendamento', 'index.html'), '<main>IA prerenderizada</main>');
   await writeFile(join(directory, 'assets', 'PricingPage-12345678.js'), 'export {};');
   const app = Fastify();
-  const fallback = await registerStaticWeb(app, directory);
+  const fallback = await registerStaticWeb(app, directory, options);
   app.get('/platform/plans', (_request, reply) => reply.send({ plans: [] }));
   app.get('/platform/subscriptions/:id', (request, reply) =>
     reply.send({ id: (request.params as { id: string }).id }),
@@ -35,6 +35,18 @@ async function server() {
 }
 
 describe('static web delivery', () => {
+  it('serves valid directory pages with self canonical metadata and rejects empty pages', async () => {
+    const app = await server({ directorySeoPage: async (path) => path === '/encontre/barbearias/fortaleza-ce' ? { title: 'Barbearias em Fortaleza, CE | Agendei', description: 'Estabelecimentos reais.', canonicalPath: path, heading: 'Barbearias em Fortaleza', content: 'Encontramos estabelecimentos.' } : null });
+    try {
+      const [page, empty] = await Promise.all([app.inject({ method: 'GET', url: '/encontre/barbearias/fortaleza-ce', headers: { accept: 'text/html' } }), app.inject({ method: 'GET', url: '/encontre/barbearias/vazia-sp', headers: { accept: 'text/html' } })]);
+      expect(page.statusCode).toBe(200);
+      expect(page.body).toContain('<link rel="canonical" href="https://agendei.site/encontre/barbearias/fortaleza-ce" />');
+      expect(page.body).toContain('<h1>Barbearias em Fortaleza</h1>');
+      expect(page.body).not.toContain('noindex');
+      expect(empty.statusCode).toBe(404);
+    } finally { await app.close(); }
+  });
+
   it('does not cache index, keeps hashed assets immutable and serves SPA refreshes', async () => {
     const app = await server();
     try {

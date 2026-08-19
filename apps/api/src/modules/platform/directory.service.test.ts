@@ -52,6 +52,21 @@ describe('Directory import batches', () => {
   });
 });
 
+describe('Directory sitemap', () => {
+  it('includes only active, indexable category/city/business combinations with real businesses', async () => {
+    const client = {
+      directoryCategory: { findMany: vi.fn().mockResolvedValue([{ id: 1n, slug: 'barbearias', updatedAt: new Date('2026-08-18T10:00:00.000Z') }]) },
+      directoryBusiness: {
+        groupBy: vi.fn().mockResolvedValue([{ categoryId: 1n, citySlug: 'fortaleza-ce', _max: { updatedAt: new Date('2026-08-18T11:00:00.000Z') } }, { categoryId: 2n, citySlug: 'vazia-sp', _max: { updatedAt: new Date() } }]),
+        findMany: vi.fn().mockResolvedValue([{ slug: 'mr-barba', citySlug: 'fortaleza-ce', updatedAt: new Date('2026-08-18T12:00:00.000Z'), category: { slug: 'barbearias' } }]),
+      },
+    } as unknown as PrismaClient;
+    const urls = await new DirectoryService(client).sitemapUrls();
+    expect(urls.map((item) => item.path)).toEqual(['/encontre', '/encontre/barbearias', '/encontre/barbearias/fortaleza-ce', '/encontre/barbearias/fortaleza-ce/mr-barba']);
+    expect(urls.at(-1)?.updatedAt).toEqual(new Date('2026-08-18T12:00:00.000Z'));
+  });
+});
+
 describe('Directory telemetry aggregation', () => {
   it('keeps business events separate, calculates CTR, and deduplicates unique clicks', () => {
     const metrics = aggregateDirectoryMetrics([

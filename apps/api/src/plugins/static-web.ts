@@ -1,4 +1,4 @@
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import fastifyStatic from '@fastify/static';
@@ -43,9 +43,20 @@ function defaultCandidates(): string[] {
   ];
 }
 
+interface DirectorySeoPage { title: string; description: string; canonicalPath: string; heading: string; content: string }
+interface StaticWebOptions { directorySeoPage?: (path: string) => Promise<DirectorySeoPage | null> }
+function escapeHtml(value: string) { return value.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;').replace(/"/gu, '&quot;'); }
+function directoryHtml(index: string, page: DirectorySeoPage) {
+  const canonical = `https://agendei.site${page.canonicalPath}`;
+  const metadata = `<title>${escapeHtml(page.title)}</title><meta name="description" content="${escapeHtml(page.description)}" /><link rel="canonical" href="${canonical}" /><meta property="og:title" content="${escapeHtml(page.title)}" /><meta property="og:description" content="${escapeHtml(page.description)}" /><meta property="og:url" content="${canonical}" />`;
+  const content = `<main data-directory-seo="true"><h1>${escapeHtml(page.heading)}</h1><p>${escapeHtml(page.content)}</p></main>`;
+  return index.replace(/<title>[\s\S]*?<\/title>/u, metadata).replace('<div id="root"></div>', `<div id="root">${content}</div>`);
+}
+
 export async function registerStaticWeb(
   app: FastifyInstance,
   webDistDir?: string,
+  options: StaticWebOptions = {},
 ): Promise<((request: FastifyRequest, reply: FastifyReply) => boolean) | undefined> {
   const candidates =
     webDistDir === undefined || webDistDir.trim().length === 0
@@ -69,6 +80,20 @@ export async function registerStaticWeb(
   }
 
   app.log.info({ webDist: root }, 'Servindo o frontend compilado a partir deste diretório.');
+
+  if (options.directorySeoPage !== undefined) {
+    const index = await readFile(join(root, 'index.html'), 'utf8');
+    const serveDirectory = async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!request.headers.accept?.includes('text/html')) return reply.code(406).send();
+      const path = request.url.split('?', 1)[0] ?? request.url;
+      const page = await options.directorySeoPage!(path);
+      return page === null ? reply.code(404).send() : reply.type('text/html; charset=utf-8').send(directoryHtml(index, page));
+    };
+    app.addHook('onRequest', async (request, reply) => {
+      const path = request.url.split('?', 1)[0] ?? request.url;
+      if (request.method === 'GET' && (path === '/encontre' || path.startsWith('/encontre/')) && request.headers.accept?.includes('text/html')) return serveDirectory(request, reply);
+    });
+  }
 
   await app.register(fastifyStatic, {
     root,

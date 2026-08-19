@@ -307,11 +307,12 @@ export class DirectoryService {
     const cities = await this.client.directoryBusiness.groupBy({ by: ['categoryId', 'citySlug'], where: { active: true, indexable: true }, _max: { updatedAt: true } });
     const businesses = await this.client.directoryBusiness.findMany({ where: { active: true, indexable: true, category: { active: true, indexable: true } }, take: limit, orderBy: { id: 'asc' }, select: { slug: true, citySlug: true, updatedAt: true, category: { select: { slug: true } } } });
     const categoryById = new Map(categories.map((category) => [category.id, category]));
-    return [
+    const urls = [
       { path: '/encontre', updatedAt: null },
       ...categories.map((category) => ({ path: `/encontre/${category.slug}`, updatedAt: category.updatedAt })),
       ...cities.flatMap((city) => { const category = categoryById.get(city.categoryId); return category === undefined ? [] : [{ path: `/encontre/${category.slug}/${city.citySlug}`, updatedAt: city._max.updatedAt }]; }),
       ...businesses.map((business) => ({ path: `/encontre/${business.category.slug}/${business.citySlug}/${business.slug}`, updatedAt: business.updatedAt })),
     ];
+    return [...new Map(urls.map((url) => [url.path, url])).values()];
   }
 }

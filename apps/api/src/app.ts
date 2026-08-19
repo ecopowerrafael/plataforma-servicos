@@ -169,8 +169,19 @@ export async function buildApp(options: BuildAppOptions) {
   // (evita servir um `dist` antigo em desenvolvimento, onde o Vite serve à parte).
   const shouldServeWeb =
     options.environment.WEB_DIST_DIR !== undefined || options.environment.NODE_ENV === 'production';
+  const directorySeoPage = options.database.directory === undefined ? undefined : async (path: string) => {
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length === 1) return { title: 'Encontre serviços perto de você | Agendei', description: 'Encontre estabelecimentos de serviços e entre em contato para solicitar seu agendamento.', canonicalPath: '/encontre', heading: 'Encontre serviços perto de você', content: 'Consulte estabelecimentos, endereço e contatos para solicitar seu agendamento.' };
+    const categorySlug = parts[1]; const categories = await options.database.directory!.categories(); const category = categories.find((item) => item.slug === categorySlug);
+    if (category === undefined) return null;
+    if (parts.length === 2) return { title: `Encontre ${category.pluralName} | Agendei`, description: category.description ?? `Encontre ${category.pluralName.toLowerCase()} perto de você.`, canonicalPath: `/encontre/${categorySlug}`, heading: `Encontre ${category.pluralName}`, content: `Veja estabelecimentos e cidades disponíveis no diretório Agendei.` };
+    const citySlug = parts[2];
+    if (parts.length === 3) { const city = await options.database.directory!.cityBusinesses(categorySlug, citySlug, 1, 1); const item = city.items[0]; return item === undefined ? null : { title: `${city.category.pluralName} em ${item.city}, ${item.state} | Agendei`, description: `Encontre ${city.category.pluralName.toLowerCase()} em ${item.city}, ${item.state}, com endereço e contatos.`, canonicalPath: `/encontre/${categorySlug}/${citySlug}`, heading: `${city.category.pluralName} em ${item.city}`, content: `Encontramos ${city.total} estabelecimentos nesta cidade.` }; }
+    if (parts.length === 4) { const business = await options.database.directory!.business(categorySlug, citySlug, parts[3]!); return { title: `${business.name} em ${business.city}, ${business.state} | Agendei`, description: `Endereço e contatos de ${business.name}.`, canonicalPath: `/encontre/${categorySlug}/${citySlug}/${parts[3]}`, heading: business.name, content: `${business.rawAddress} · ${business.city}/${business.state}` }; }
+    return null;
+  };
   const spaFallback = shouldServeWeb
-    ? await registerStaticWeb(app, options.environment.WEB_DIST_DIR)
+    ? await registerStaticWeb(app, options.environment.WEB_DIST_DIR, { ...(directorySeoPage === undefined ? {} : { directorySeoPage }) })
     : undefined;
   registerErrorHandlers(baseApp, spaFallback === undefined ? {} : { spaFallback });
 

@@ -18,7 +18,95 @@ config({ path: resolve(import.meta.dirname, '../../../../.env'), quiet: true });
  * para que o `deploy` seguinte volte a executá-las. As migrations do projeto são
  * escritas de forma idempotente justamente para tolerar o estado parcial que a
  * falha deixou no banco. Nenhum dado é apagado e nenhum banco é resetado.
+ *
+ * EXCEÇÃO: 20260914100000_add_directory_location_cache
+ * Esta migration falhou porque seus objetos já existem em produção (criados via db push anterior).
+ * Detectamos se TODOS os objetos estão corretos e marcamos como --applied (não --rolled-back).
  */
+
+interface MigrationTableInfo {
+  TABLE_NAME: string;
+}
+
+interface ColumnInfo {
+  COLUMN_NAME: string;
+  COLUMN_TYPE: string;
+}
+
+interface IndexInfo {
+  INDEX_NAME: string;
+  COLUMN_NAME: string;
+  SEQ_IN_INDEX: number;
+  NON_UNIQUE: number;
+}
+
+async function verifyDirectoryMigrationSchema(client: PrismaClient, dbName: string): Promise<boolean> {
+  try {
+    if (!dbName) {
+      console.warn('[db:migrate:recover] Não foi possível determinar o banco de dados');
+      return false;
+    }
+
+    // Verificar se as duas novas tabelas existem
+    const tables = await client.$queryRaw<MigrationTableInfo[]>`
+      SELECT TABLE_NAME
+      FROM INFORMATION_SCHEMA.TABLES
+      WHERE TABLE_SCHEMA = ${dbName}
+      AND TABLE_NAME IN ('directory_postal_code_cache', 'directory_external_search_cache')
+    `;
+    const tableNames = new Set(tables.map((t) => t.TABLE_NAME));
+    if (!tableNames.has('directory_postal_code_cache') || !tableNames.has('directory_external_search_cache')) {
+      console.warn('[directory migration recovery] Tabelas não encontradas: esperado postal_code_cache e external_search_cache');
+      return false;
+    }
+
+    // Verificar se as colunas em directory_categories existem
+    const columns = await client.$queryRaw<ColumnInfo[]>`
+      SELECT COLUMN_NAME, COLUMN_TYPE
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = ${dbName}
+      AND TABLE_NAME = 'directory_categories'
+      AND COLUMN_NAME IN ('external_search_terms', 'geoapify_categories')
+    `;
+    const columnNames = new Set(columns.map((c) => c.COLUMN_NAME));
+    if (!columnNames.has('external_search_terms') || !columnNames.has('geoapify_categories')) {
+      console.warn('[directory migration recovery] Colunas não encontradas em directory_categories');
+      return false;
+    }
+
+    // Verificar índices e constraints em directory_external_search_cache
+    const indexes = await client.$queryRaw<IndexInfo[]>`
+      SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
+      FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = ${dbName}
+      AND TABLE_NAME = 'directory_external_search_cache'
+      ORDER BY INDEX_NAME, SEQ_IN_INDEX
+    `;
+
+    // Verificar unique index em cache_key
+    const hasCacheKeyUnique = indexes.some((idx) => idx.INDEX_NAME === 'udesc_cache_key' && idx.NON_UNIQUE === 0);
+    if (!hasCacheKeyUnique) {
+      console.warn('[directory migration recovery] Índice único udesc_cache_key não encontrado');
+      return false;
+    }
+
+    // Verificar índice composto
+    const compositeIdx = indexes.filter((idx) => idx.INDEX_NAME === 'idesc_category_cep_radius');
+    if (compositeIdx.length < 3) {
+      console.warn('[directory migration recovery] Índice composto idesc_category_cep_radius incompleto');
+      return false;
+    }
+
+    console.log('[directory migration recovery] Physical schema verified: ✓ postal_code_cache ✓ external_search_cache ✓ columns ✓ indexes');
+    return true;
+  } catch (error) {
+    console.warn(
+      `[directory migration recovery] Erro ao verificar schema: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return false;
+  }
+}
+
 async function main(): Promise<void> {
   // Em produção o projeto costuma expor apenas DB_HOST/DB_PORT/DB_NAME/DB_USER/
   // DB_PASSWORD; a URL é montada pelo mesmo helper usado pelo restante do app.
@@ -38,7 +126,61 @@ async function main(): Promise<void> {
       ORDER BY started_at ASC
     `;
     if (failed.length === 0) return;
+    if (failed.length > 0) {
+      console.warn(`[db:migrate:recover] Encontradas ${failed.length} migrations com falha.`);
+    }
+
+    const dbName = process.env.DB_NAME || 'plataforma_audit';
+
     for (const migration of failed) {
+      // Tratamento especial para 20260914100000_add_directory_location_cache
+      if (migration.migration_name === '20260914100000_add_directory_location_cache') {
+        console.warn('[directory migration recovery] Migration detectada: 20260914100000_add_directory_location_cache');
+
+        // Verificar se já está applied (pode ter sido aplicada pela iteração anterior)
+        const currentState = await client.$queryRaw<
+          { migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }[]
+        >`
+          SELECT migration_name, finished_at, rolled_back_at
+          FROM _prisma_migrations
+          WHERE migration_name = '20260914100000_add_directory_location_cache'
+        `;
+
+        if (currentState.length > 0 && currentState[0].finished_at) {
+          console.warn('[directory migration recovery] Migration já estava applied; skipping.');
+          continue;
+        }
+
+        const schemaValid = await verifyDirectoryMigrationSchema(client, dbName);
+        if (schemaValid) {
+          console.warn('[directory migration recovery] Todos os objetos já existem em produção; marcando como aplicada.');
+          const result = spawnSync(
+            'npx',
+            ['prisma', 'migrate', 'resolve', '--applied', migration.migration_name],
+            {
+              stdio: 'inherit',
+              env: { ...process.env, DATABASE_URL: url },
+              shell: process.platform === 'win32',
+              cwd: resolve(import.meta.dirname, '../../'),
+            },
+          );
+          if (result.status !== 0)
+            throw new Error(
+              `Não foi possível marcar a migration ${migration.migration_name} como aplicada.`,
+            );
+          console.warn('[directory migration recovery] Migration marcada como applied: ✓');
+          continue;
+        } else {
+          console.warn(
+            '[directory migration recovery] Schema divergente; objetos faltando. Não é seguro marcar como applied. Abortando recovery.',
+          );
+          throw new Error(
+            'Schema validation failed for 20260914100000_add_directory_location_cache: objetos esperados não encontrados.',
+          );
+        }
+      }
+
+      // Para outras migrations, usar o comportamento padrão: rolled-back
       console.warn(
         `[db:migrate:recover] Migration com falha encontrada: ${migration.migration_name}. Marcando como revertida para reaplicar.`,
       );
@@ -47,9 +189,9 @@ async function main(): Promise<void> {
         ['prisma', 'migrate', 'resolve', '--rolled-back', migration.migration_name],
         {
           stdio: 'inherit',
-          // A CLI precisa enxergar exatamente a mesma conexão resolvida acima.
           env: { ...process.env, DATABASE_URL: url },
           shell: process.platform === 'win32',
+          cwd: resolve(import.meta.dirname, '../../'),
         },
       );
       if (result.status !== 0)

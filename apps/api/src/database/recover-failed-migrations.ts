@@ -176,7 +176,8 @@ async function main(): Promise<void> {
           WHERE migration_name = '20260914100000_add_directory_location_cache'
         `;
 
-        if (currentState.length > 0 && currentState[0].finished_at) {
+        const state = currentState[0];
+        if (state?.finished_at) {
           console.warn('[directory migration recovery] Migration já estava applied; skipping.');
           continue;
         }

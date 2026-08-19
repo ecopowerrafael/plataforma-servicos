@@ -57,6 +57,20 @@ export class CustomerMembershipChargeRepository {
     });
   }
 
+  public findCurrentPaid(tenantId: bigint, membershipId: bigint, now: Date) {
+    // Find paid charge where now falls within [periodStart, periodEnd)
+    return this.client.customerMembershipCharge.findFirst({
+      where: {
+        tenantId,
+        membershipId,
+        status: 'PAID',
+        periodStart: { lte: now },
+        periodEnd: { gt: now }, // Ensure now is strictly before periodEnd
+      },
+      include: { payments: true },
+    });
+  }
+
   public async audit(
     publicId: string,
     tenantId: bigint,

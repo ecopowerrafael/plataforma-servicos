@@ -144,3 +144,28 @@ export type CustomerMembershipChargePublic = z.infer<
 export const CustomerMembershipChargeListResponseSchema = z.object({
   items: z.array(CustomerMembershipChargePublicSchema),
 });
+
+// Usage
+export const MembershipBenefitBalanceSchema = z.object({
+  servicePublicId: z.string().uuid(),
+  serviceName: z.string(),
+  type: MembershipBenefitTypeSchema.nullable(),
+  limit: z.number().int().nullable(),
+  reserved: z.number().int().nonnegative().nullable(),
+  consumed: z.number().int().nonnegative().nullable(),
+  released: z.number().int().nonnegative().nullable(),
+  available: z.number().int().nullable(),
+  discountPercent: z.number().int().min(0).max(100).nullable(),
+  cycleEnd: z.string().datetime().nullable(),
+});
+export type MembershipBenefitBalance = z.infer<typeof MembershipBenefitBalanceSchema>;
+
+export const CustomerMembershipBenefitsBalanceResponseSchema = z.object({
+  membershipStatus: z.enum(['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED', 'CANCELED', 'EXPIRED']),
+  cycleStart: z.string().datetime().nullable(),
+  cycleEnd: z.string().datetime().nullable(),
+  benefits: z.array(MembershipBenefitBalanceSchema),
+});
+export type CustomerMembershipBenefitsBalanceResponse = z.infer<
+  typeof CustomerMembershipBenefitsBalanceResponseSchema
+>;

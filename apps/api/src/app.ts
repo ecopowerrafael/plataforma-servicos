@@ -42,6 +42,7 @@ import { customerFavoriteRoutes } from './modules/customers/customer-favorite.ro
 import { customerMembershipChargeRoutes } from './modules/customers/customer-membership-charge.routes.js';
 import { customerMembershipChargePayLocalRoutes } from './modules/customers/customer-membership-charge-paylocal.routes.js';
 import { customerMembershipPaymentRoutes } from './modules/customers/customer-membership-payment.routes.js';
+import { customerMembershipBenefitBalanceRoutes } from './modules/customers/customer-membership-benefit-balance.routes.js';
 import { customerMembershipRoutes } from './modules/customers/customer-membership.routes.js';
 import { customerMembershipPlanBenefitRoutes } from './modules/customers/customer-membership-plan-benefit.routes.js';
 import { customerMembershipPlanRoutes } from './modules/customers/customer-membership-plan.routes.js';
@@ -748,6 +749,10 @@ export async function buildApp(options: BuildAppOptions) {
     client: options.database.client,
   });
   await app.register(customerMembershipPaymentRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipBenefitBalanceRoutes, {
     authService,
     client: options.database.client,
   });

@@ -14,6 +14,8 @@ import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
 import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
+import { CustomerMembershipBenefitResolver } from '../customers/customer-membership-benefit-resolver.js';
+import { type CustomerMembershipUsageService } from '../customers/customer-membership-usage.service.js';
 interface Actor {
   userId: bigint | null;
   sessionId: bigint | null;
@@ -53,6 +55,9 @@ const pub = (x: AppointmentRecord) =>
     durationMinutes: x.durationMinutes,
     postServiceBreakMinutes: x.postServiceBreakMinutes,
     priceCents: x.priceCents.toString(),
+    chargeSource: x.chargeSource,
+    referencePriceCents: x.referencePriceCents?.toString() ?? null,
+    amountDueCents: x.amountDueCents?.toString() ?? null,
     status: x.status,
     notes: x.notes,
     source: x.source,
@@ -73,11 +78,13 @@ const pub = (x: AppointmentRecord) =>
 export class AppointmentService {
   private waitlistService?: AppointmentWaitlistService;
   private treatmentPlans?: TreatmentPlanService;
+  private membershipUsage?: CustomerMembershipUsageService;
   private readonly commercialStatusResolver = new TenantCommercialStatusResolver();
 
   constructor(
     private readonly repo: AppointmentRepository,
     private readonly availability: AvailabilityService,
+    private readonly client: PrismaClient,
     private readonly commercialPolicyService?: TenantCommercialPolicyService,
     private readonly commercialClient?: PrismaClient,
   ) {}
@@ -88,6 +95,10 @@ export class AppointmentService {
 
   setTreatmentPlanService(service: TreatmentPlanService): void {
     this.treatmentPlans = service;
+  }
+
+  setMembershipUsageService(service: CustomerMembershipUsageService): void {
+    this.membershipUsage = service;
   }
 
   private async assertCommercialCapability(t: bigint, source: string): Promise<void> {
@@ -368,6 +379,26 @@ export class AppointmentService {
       status,
       ...(status === 'CANCELED' ? { canceledReason: reason ?? null } : {}),
     });
+
+    // Handle membership transitions
+    if (this.membershipUsage !== undefined && old.chargeSource !== 'SERVICE_PRICE' && old.chargeSource !== null) {
+      try {
+        const usage = await this.client.customerMembershipUsage.findFirst({
+          where: { appointmentId: old.id, status: 'RESERVED' },
+          select: { id: true },
+        });
+        if (usage) {
+          if (status === 'COMPLETED') {
+            await this.membershipUsage.consume(usage.id);
+          } else if (status === 'CANCELED') {
+            await this.membershipUsage.release(usage.id);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to handle membership benefit transition:', error);
+      }
+    }
+
     if (status === 'CANCELED' && this.waitlistService !== undefined) {
       await this.waitlistService.markWaitlistOpportunityOnAppointmentCancellation(t, old.id);
     }
@@ -513,6 +544,27 @@ export class AppointmentService {
         ? old.priceCents
         : (session?.priceCents ??
           (kind === 'EVALUATION' ? 0n : (link.priceCents ?? service.priceCents)));
+
+    // Resolve membership benefit if applicable
+    const tenant = await this.client.tenant.findFirst({
+      where: { id: t },
+      select: { operatingModel: true },
+    });
+    let chargeSource: 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT' | null = null;
+    let referencePriceCents = priceCents;
+    let amountDueCents = priceCents;
+    let membershipChargeId: bigint | null = null;
+
+    if (tenant?.operatingModel === 'MEMBERSHIP') {
+      const resolver = new CustomerMembershipBenefitResolver(this.client);
+      const benefit = await resolver.resolveBenefit(t, customer.id, service.id, priceCents);
+      chargeSource = benefit.chargeSource as 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT';
+      referencePriceCents = benefit.referencePriceCents;
+      amountDueCents = benefit.amountDueCents;
+      membershipChargeId = benefit.membershipChargeId ?? null;
+    } else {
+      chargeSource = 'SERVICE_PRICE';
+    }
     const depositType = i.depositType ?? null;
     let depositPercentage: number | null = null;
     let depositAmountCents: bigint | null = null;
@@ -547,6 +599,9 @@ export class AppointmentService {
       durationMinutes: duration,
       postServiceBreakMinutes: pause,
       priceCents,
+      chargeSource: chargeSource,
+      referencePriceCents: referencePriceCents,
+      amountDueCents: amountDueCents,
       kind: old === undefined ? kind : old.kind,
       treatmentPlanId: old === undefined ? (session?.planId ?? null) : old.treatmentPlanId,
       sessionNumber: old === undefined ? (session?.sessionNumber ?? null) : old.sessionNumber,
@@ -574,6 +629,40 @@ export class AppointmentService {
         message: 'Há conflito na agenda do profissional.',
         statusCode: 409,
       });
+
+    // Reserve membership benefit if appointment is new and benefit is QUANTITY/UNLIMITED
+    if (old === undefined && chargeSource !== 'SERVICE_PRICE' && membershipChargeId !== null && this.membershipUsage !== undefined) {
+      const resolver = new CustomerMembershipBenefitResolver(this.client);
+      const benefit = await resolver.resolveBenefit(t, customer.id, service.id, priceCents);
+
+      if (benefit.type === 'QUANTITY' || benefit.type === 'UNLIMITED') {
+        try {
+          // Find membership ID for the charge
+          const charge = await this.client.customerMembershipCharge.findUnique({
+            where: { id: membershipChargeId },
+            select: { membershipId: true },
+          });
+          if (charge) {
+            const isQuantity = benefit.type === 'QUANTITY';
+            await this.membershipUsage.reserve({
+              tenantId: t,
+              membershipId: charge.membershipId,
+              membershipChargeId,
+              appointmentId: x.id,
+              serviceId: service.id,
+              quantity: 1,
+              ...(isQuantity ? { quantityLimit: benefit.limit } : {}),
+            });
+          }
+        } catch (error) {
+          // If reserve fails, we already created the appointment.
+          // Log but don't fail the appointment creation - the benefit resolution
+          // should have validated availability. This is a fallback for race conditions.
+          console.error('Failed to reserve membership benefit for appointment:', error);
+        }
+      }
+    }
+
     if (old === undefined) {
       await this.recordHistory(t, x.id, {
         action: 'CREATED',

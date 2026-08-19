@@ -1,14 +1,3 @@
--- Modify Payment table to support multiple origins
-ALTER TABLE `payments` ADD COLUMN `membership_charge_id` BIGINT UNSIGNED UNIQUE AFTER `appointment_id`;
-ALTER TABLE `payments` MODIFY COLUMN `appointment_id` BIGINT UNSIGNED NULL;
-
--- Add foreign key constraint
-ALTER TABLE `payments`
-ADD CONSTRAINT `payments_membership_charge_id_fkey`
-FOREIGN KEY (`membership_charge_id`)
-REFERENCES `customer_membership_charges`(`id`)
-ON DELETE RESTRICT ON UPDATE CASCADE;
-
 -- Create customer_membership_plans table
 CREATE TABLE `customer_membership_plans` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -94,7 +83,7 @@ CREATE TABLE `customer_membership_charges` (
     FOREIGN KEY (`membership_id`) REFERENCES `customer_memberships`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   UNIQUE KEY `customer_membership_charges_membership_id_period_start_key` (`membership_id`, `period_start`),
   INDEX `customer_membership_charges_tenant_id_status_due_at_idx` (`tenant_id`, `status`, `due_at`),
-  INDEX `customer_membership_charges_tenant_id_membership_id_created_at_idx` (`tenant_id`, `membership_id`, `created_at`)
+  INDEX `idx_cmcharge_tenant_membership_created` (`tenant_id`, `membership_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create customer_membership_usages table
@@ -119,10 +108,23 @@ CREATE TABLE `customer_membership_usages` (
     FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `customer_membership_usages_service_id_fkey`
     FOREIGN KEY (`service_id`) REFERENCES `services`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  INDEX `customer_membership_usages_tenant_id_membership_id_status_period_idx` (`tenant_id`, `membership_id`, `status`, `period_start`, `period_end`),
+  INDEX `idx_cmuse_tenant_membership_status_period` (`tenant_id`, `membership_id`, `status`, `period_start`, `period_end`),
   INDEX `customer_membership_usages_appointment_id_idx` (`appointment_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Add index for payments to membership_charge_id
-CREATE INDEX `payments_tenant_id_membership_charge_id_created_at_idx`
+-- Now that customer_membership_charges exists, add Payment columns and FK
+ALTER TABLE `payments`
+ADD COLUMN `membership_charge_id` BIGINT UNSIGNED NULL AFTER `appointment_id`;
+
+ALTER TABLE `payments`
+MODIFY COLUMN `appointment_id` BIGINT UNSIGNED NULL;
+
+ALTER TABLE `payments`
+ADD CONSTRAINT `payments_membership_charge_id_fkey`
+FOREIGN KEY (`membership_charge_id`)
+REFERENCES `customer_membership_charges`(`id`)
+ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Add index for payments to membership_charge_id (after column is added)
+CREATE INDEX `idx_payments_tenant_membershipcharge_created`
 ON `payments` (`tenant_id`, `membership_charge_id`, `created_at`);

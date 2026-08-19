@@ -94,6 +94,7 @@ export const AppointmentQuerySchema = z
   .strict();
 /** Papel do agendamento; persistido, nunca inferido pelo status ou pelo nome. */
 export const AppointmentKindSchema = z.enum(['STANDARD', 'EVALUATION', 'TREATMENT_SESSION']);
+export const AppointmentChargeSourceSchema = z.enum(['SERVICE_PRICE', 'MEMBERSHIP_INCLUDED', 'MEMBERSHIP_DISCOUNT']);
 export const AppointmentPublicSchema = z.object({
   publicId: z.uuid(),
   protocol: z.string(),
@@ -111,6 +112,9 @@ export const AppointmentPublicSchema = z.object({
   durationMinutes: z.number().int(),
   postServiceBreakMinutes: z.number().int(),
   priceCents: z.string(),
+  chargeSource: AppointmentChargeSourceSchema.nullable(),
+  referencePriceCents: z.string().nullable(),
+  amountDueCents: z.string().nullable(),
   status: z.enum(['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED', 'NO_SHOW']),
   notes: z.string().nullable(),
   source: z.string(),

@@ -28,6 +28,7 @@ import { CustomerRecoveryRepository } from '../modules/customers/customer-recove
 import { CustomerRecoveryService } from '../modules/customers/customer-recovery.service.js';
 import { CustomerRepository } from '../modules/customers/customer.repository.js';
 import { CustomerService } from '../modules/customers/customer.service.js';
+import { CustomerMembershipUsageService } from '../modules/customers/customer-membership-usage.service.js';
 import {
   WApiWhatsAppDelivery,
   WebhookDelivery,
@@ -264,6 +265,7 @@ export function createDatabaseConnection(
   const appointments = new AppointmentService(
     appointmentRepository,
     availability,
+    client,
     commercialPolicy,
     client,
   );
@@ -275,6 +277,8 @@ export function createDatabaseConnection(
   appointments.setWaitlistService(appointmentWaitlists);
   const treatmentPlans = new TreatmentPlanService(new TreatmentPlanRepository(client));
   appointments.setTreatmentPlanService(treatmentPlans);
+  const membershipUsage = new CustomerMembershipUsageService(client);
+  appointments.setMembershipUsageService(membershipUsage);
   const appointmentReviews = new AppointmentReviewService(
     new AppointmentReviewRepository(client),
     appointmentRepository,

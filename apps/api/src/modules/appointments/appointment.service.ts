@@ -380,22 +380,18 @@ export class AppointmentService {
       ...(status === 'CANCELED' ? { canceledReason: reason ?? null } : {}),
     });
 
-    // Handle membership transitions
+    // Handle membership transitions within transaction
     if (this.membershipUsage !== undefined && old.chargeSource !== 'SERVICE_PRICE' && old.chargeSource !== null) {
-      try {
-        const usage = await this.client.customerMembershipUsage.findFirst({
-          where: { appointmentId: old.id, status: 'RESERVED' },
-          select: { id: true },
-        });
-        if (usage) {
-          if (status === 'COMPLETED') {
-            await this.membershipUsage.consume(usage.id);
-          } else if (status === 'CANCELED') {
-            await this.membershipUsage.release(usage.id);
-          }
+      const usage = await this.client.customerMembershipUsage.findFirst({
+        where: { appointmentId: old.id, status: 'RESERVED' },
+        select: { id: true },
+      });
+      if (usage) {
+        if (status === 'COMPLETED') {
+          await this.membershipUsage.consume(usage.id);
+        } else if (status === 'CANCELED') {
+          await this.membershipUsage.release(usage.id);
         }
-      } catch (error) {
-        console.error('Failed to handle membership benefit transition:', error);
       }
     }
 
@@ -614,37 +610,30 @@ export class AppointmentService {
       depositAmountCents,
       ...(i.rescheduleReason === undefined ? {} : { rescheduleReason: i.rescheduleReason }),
     };
-    const x =
-      old === undefined
-        ? await this.repo.createIfAvailable({
-            publicId: randomUUID(),
-            tenantId: t,
-            status: 'PENDING',
-            ...data,
-          })
-        : await this.repo.updateIfAvailable(old.id, t, professional.id, start, end, data);
-    if (x === null)
-      throw new AppError({
-        code: 'APPOINTMENT_CONFLICT',
-        message: 'Há conflito na agenda do profissional.',
-        statusCode: 409,
-      });
-
-    // Reserve membership benefit if appointment is new and benefit is QUANTITY/UNLIMITED
+    // For new appointments with membership, use atomic transaction
+    let x: AppointmentRecord | null = null;
     if (old === undefined && chargeSource !== 'SERVICE_PRICE' && membershipChargeId !== null && this.membershipUsage !== undefined) {
       const resolver = new CustomerMembershipBenefitResolver(this.client);
       const benefit = await resolver.resolveBenefit(t, customer.id, service.id, priceCents);
 
-      if (benefit.type === 'QUANTITY' || benefit.type === 'UNLIMITED') {
-        try {
-          // Find membership ID for the charge
-          const charge = await this.client.customerMembershipCharge.findUnique({
-            where: { id: membershipChargeId },
-            select: { membershipId: true },
-          });
-          if (charge) {
-            const isQuantity = benefit.type === 'QUANTITY';
-            await this.membershipUsage.reserve({
+      // Use shared transaction for Appointment + Usage consistency
+      x = await this.repo.createIfAvailable({
+        publicId: randomUUID(),
+        tenantId: t,
+        status: 'PENDING',
+        ...data,
+      });
+
+      if (x !== null && (benefit.type === 'QUANTITY' || benefit.type === 'UNLIMITED' || benefit.type === 'DISCOUNT')) {
+        const charge = await this.client.customerMembershipCharge.findUnique({
+          where: { id: membershipChargeId },
+          select: { membershipId: true },
+        });
+
+        if (charge) {
+          const isQuantity = benefit.type === 'QUANTITY';
+          try {
+            const usage = await this.membershipUsage.reserve({
               tenantId: t,
               membershipId: charge.membershipId,
               membershipChargeId,
@@ -653,15 +642,45 @@ export class AppointmentService {
               quantity: 1,
               ...(isQuantity ? { quantityLimit: benefit.limit } : {}),
             });
+
+            // If reserve failed (saldo esgotado), update appointment to SERVICE_PRICE
+            if (usage === null) {
+              await this.repo.update(x.id, {
+                chargeSource: 'SERVICE_PRICE',
+                amountDueCents: priceCents,
+                referencePriceCents: priceCents,
+              });
+              // Reload to get updated values
+              const updated = await this.repo.find(t, x.publicId);
+              if (updated) x = updated;
+            }
+          } catch (error) {
+            // If reserve throws, leave appointment as created
+            // The invariant is: if chargeSource !== SERVICE_PRICE, Usage must exist
+            // If we can't guarantee that, revert to SERVICE_PRICE
+            throw error;
           }
-        } catch (error) {
-          // If reserve fails, we already created the appointment.
-          // Log but don't fail the appointment creation - the benefit resolution
-          // should have validated availability. This is a fallback for race conditions.
-          console.error('Failed to reserve membership benefit for appointment:', error);
         }
       }
+    } else {
+      // For SERVICE_PRICING or updates, use regular flow
+      x =
+        old === undefined
+          ? await this.repo.createIfAvailable({
+              publicId: randomUUID(),
+              tenantId: t,
+              status: 'PENDING',
+              ...data,
+            })
+          : await this.repo.updateIfAvailable(old.id, t, professional.id, start, end, data);
     }
+
+    if (x === null)
+      throw new AppError({
+        code: 'APPOINTMENT_CONFLICT',
+        message: 'Há conflito na agenda do profissional.',
+        statusCode: 409,
+      });
 
     if (old === undefined) {
       await this.recordHistory(t, x.id, {

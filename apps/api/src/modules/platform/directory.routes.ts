@@ -2,6 +2,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { DirectoryService } from './directory.service.js';
+import { type DirectoryLocationService } from './directory-location.service.js';
 import { type DirectorySeoService } from './directory-seo.service.js';
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { type PlatformService } from './platform.service.js';
@@ -59,7 +60,7 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
   app.post('/platform/directory/seo/inspections', { schema: { body: z.object({ url: z.url(), priority: z.number().int().min(0).max(1000).default(0) }) } }, (request) => { allow(request, 'platform.tenant.update'); return seo().enqueueInspection(request.body.url, request.body.priority); });
 };
 
-interface PublicDirectoryRoutesOptions { service: DirectoryService; indexNowKey?: string }
+interface PublicDirectoryRoutesOptions { service: DirectoryService; locationService: DirectoryLocationService; indexNowKey?: string }
 export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesOptions> = async (app, options) => {
   if (options.indexNowKey !== undefined) app.get(`/${options.indexNowKey}.txt`, async (_request, reply) => reply.type('text/plain; charset=utf-8').send(options.indexNowKey));
   const eventBody = z.object({ type: z.enum(['BUSINESS_VIEW', 'WHATSAPP_CLICK']), visitorId: z.string().max(200).optional(), sessionId: z.string().max(200).optional(), sourcePath: z.string().min(1).max(500), referrer: z.string().max(500).optional(), utmSource: z.string().max(160).optional(), utmMedium: z.string().max(160).optional(), utmCampaign: z.string().max(160).optional() });
@@ -70,6 +71,7 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
     return reply.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((url) => `<url><loc>https://agendei.site${escape(url.path)}</loc>${url.updatedAt === null ? '' : `<lastmod>${url.updatedAt.toISOString()}</lastmod>`}</url>`).join('')}</urlset>`);
   });
   app.get('/public/directory/categories', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async () => ({ categories: await options.service.categories() }));
+  app.get('/public/directory/location/by-cep/:cep', { config: { rateLimit: { max: 20, timeWindow: '10 minutes' } }, schema: { params: z.object({ cep: z.string().min(8).max(9) }), querystring: z.object({ category: z.string().min(1).max(120) }) } }, (request) => options.locationService.search(request.query.category, request.params.cep));
   app.get('/public/directory/categories/:categorySlug/cities', { schema: { params: z.object({ categorySlug: z.string().min(1).max(120) }) } }, (request) => options.service.categoryCities(request.params.categorySlug));
   app.get('/public/directory/:categorySlug/:citySlug', { schema: { params: z.object({ categorySlug: z.string().min(1).max(120), citySlug: z.string().min(1).max(180) }), querystring: pagination } }, (request) => options.service.cityBusinesses(request.params.categorySlug, request.params.citySlug, request.query.page, request.query.limit));
   app.get('/public/directory/:categorySlug/:citySlug/:businessSlug', { schema: { params: z.object({ categorySlug: z.string().min(1).max(120), citySlug: z.string().min(1).max(180), businessSlug: z.string().min(1).max(180) }) } }, (request) => options.service.business(request.params.categorySlug, request.params.citySlug, request.params.businessSlug));

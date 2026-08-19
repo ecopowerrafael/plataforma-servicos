@@ -69,6 +69,7 @@ import { platformBillingWebhookRoutes } from './modules/platform/platform-billin
 import { platformRoutes } from './modules/platform/platform.routes.js';
 import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
 import { directoryRoutes, publicDirectoryRoutes } from './modules/platform/directory.routes.js';
+import { DirectoryLocationService } from './modules/platform/directory-location.service.js';
 import { productSaleRoutes } from './modules/products/product-sale.routes.js';
 import { productRoutes } from './modules/products/product.routes.js';
 import { stockMovementRoutes } from './modules/products/stock-movement.routes.js';
@@ -730,7 +731,7 @@ export async function buildApp(options: BuildAppOptions) {
   });
   if (options.database.platform !== undefined) {
     if (options.database.directory !== undefined) {
-      await app.register(publicDirectoryRoutes, { service: options.database.directory, ...(options.environment.INDEXNOW_KEY === undefined ? {} : { indexNowKey: options.environment.INDEXNOW_KEY }) });
+      await app.register(publicDirectoryRoutes, { service: options.database.directory, locationService: options.database.directoryLocation ?? new DirectoryLocationService(options.database.client, { ...(options.environment.GEOAPIFY_API_KEY === undefined ? {} : { geoapifyApiKey: options.environment.GEOAPIFY_API_KEY }), localMinResults: options.environment.DIRECTORY_LOCAL_MIN_RESULTS }), ...(options.environment.INDEXNOW_KEY === undefined ? {} : { indexNowKey: options.environment.INDEXNOW_KEY }) });
       await app.register(directoryRoutes, {
         service: options.database.directory,
         platformService: options.database.platform,

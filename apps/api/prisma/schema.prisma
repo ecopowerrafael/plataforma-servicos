@@ -564,15 +564,49 @@ model DirectoryCategory {
   active       Boolean  @default(true)
   indexable    Boolean  @default(true)
   sortOrder    Int      @default(0) @map("sort_order")
+  externalSearchTerms Json? @map("external_search_terms")
+  geoapifyCategories Json? @map("geoapify_categories")
   createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   businesses   DirectoryBusiness[]
   importItems  DirectoryImportItem[]
   seoMetrics   DirectorySeoDailyMetric[]
   seoQueries   DirectorySeoQueryMetric[]
+  externalSearches DirectoryExternalSearchCache[]
 
   @@index([active, sortOrder])
   @@map("directory_categories")
+}
+
+model DirectoryPostalCodeCache {
+  id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  cep          String   @unique @db.Char(8)
+  city         String   @db.VarChar(120)
+  state        String   @db.Char(2)
+  neighborhood String?  @db.VarChar(120)
+  street       String?  @db.VarChar(180)
+  latitude     Float?
+  longitude    Float?
+  provider     String   @db.VarChar(40)
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("directory_postal_code_cache")
+}
+
+model DirectoryExternalSearchCache {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  cacheKey   String   @unique @map("cache_key") @db.Char(64)
+  categoryId BigInt   @map("category_id") @db.UnsignedBigInt
+  cep        String   @db.Char(8)
+  radius     Int
+  results    Json
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  category   DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, cep, radius])
+  @@map("directory_external_search_cache")
 }
 
 model DirectoryBusiness {

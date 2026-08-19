@@ -74,6 +74,22 @@ async function verifyDirectoryMigrationSchema(client: PrismaClient, dbName: stri
       return false;
     }
 
+    // Verificar índices em directory_postal_code_cache (unique cep)
+    const postalIndexes = await client.$queryRaw<IndexInfo[]>`
+      SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
+      FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = ${dbName}
+      AND TABLE_NAME = 'directory_postal_code_cache'
+      ORDER BY INDEX_NAME, SEQ_IN_INDEX
+    `;
+    const postalCepIndex = postalIndexes.find(
+      (idx) => idx.INDEX_NAME === 'udpcc_cep' && idx.COLUMN_NAME === 'cep' && Number(idx.NON_UNIQUE) === 0,
+    );
+    if (!postalCepIndex) {
+      console.warn('[directory migration recovery] Índice único udpcc_cep não encontrado ou mal configurado');
+      return false;
+    }
+
     // Verificar índices e constraints em directory_external_search_cache
     const indexes = await client.$queryRaw<IndexInfo[]>`
       SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
@@ -83,21 +99,35 @@ async function verifyDirectoryMigrationSchema(client: PrismaClient, dbName: stri
       ORDER BY INDEX_NAME, SEQ_IN_INDEX
     `;
 
-    // Verificar unique index em cache_key
-    const hasCacheKeyUnique = indexes.some((idx) => idx.INDEX_NAME === 'udesc_cache_key' && idx.NON_UNIQUE === 0);
-    if (!hasCacheKeyUnique) {
-      console.warn('[directory migration recovery] Índice único udesc_cache_key não encontrado');
+    // Verificar unique index em cache_key (NON_UNIQUE pode vir como bigint, normalizar com Number())
+    const cacheKeyIndex = indexes.find(
+      (idx) => idx.INDEX_NAME === 'udesc_cache_key' && idx.COLUMN_NAME === 'cache_key' && Number(idx.NON_UNIQUE) === 0,
+    );
+    if (!cacheKeyIndex) {
+      console.warn('[directory migration recovery] Índice único udesc_cache_key não encontrado ou mal configurado');
       return false;
     }
 
-    // Verificar índice composto
+    // Verificar índice composto: category_id (seq 1), cep (seq 2), radius (seq 3)
     const compositeIdx = indexes.filter((idx) => idx.INDEX_NAME === 'idesc_category_cep_radius');
-    if (compositeIdx.length < 3) {
-      console.warn('[directory migration recovery] Índice composto idesc_category_cep_radius incompleto');
+    if (compositeIdx.length !== 3) {
+      console.warn('[directory migration recovery] Índice composto idesc_category_cep_radius incompleto ou ausente');
+      return false;
+    }
+    const expectedColumns = [
+      { column: 'category_id', seq: 1 },
+      { column: 'cep', seq: 2 },
+      { column: 'radius', seq: 3 },
+    ];
+    const compositeValid = expectedColumns.every((exp) =>
+      compositeIdx.some((idx) => idx.COLUMN_NAME === exp.column && Number(idx.SEQ_IN_INDEX) === exp.seq),
+    );
+    if (!compositeValid) {
+      console.warn('[directory migration recovery] Índice composto com colunas ou sequência incorreta');
       return false;
     }
 
-    console.log('[directory migration recovery] Physical schema verified: ✓ postal_code_cache ✓ external_search_cache ✓ columns ✓ indexes');
+    console.log('[directory migration recovery] Physical schema verified: ✓ postal_code_cache ✓ external_search_cache ✓ columns ✓ udpcc_cep ✓ udesc_cache_key ✓ composite_index');
     return true;
   } catch (error) {
     console.warn(

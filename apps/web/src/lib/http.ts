@@ -1,4 +1,4 @@
-import { ErrorResponseSchema, type ErrorResponse } from '@plataforma/shared';
+import { ErrorResponseSchema, type ErrorDetail, type ErrorResponse } from '@plataforma/shared';
 import { type ZodType } from 'zod';
 
 import { environment } from '../config/environment.js';
@@ -8,6 +8,7 @@ export class HttpError extends Error {
     message: string,
     public readonly status: number,
     public readonly code: string,
+    public readonly details?: ErrorDetail[],
   ) {
     super(message);
     this.name = 'HttpError';
@@ -49,6 +50,7 @@ async function request<T>(path: string, options: RequestOptions<T>): Promise<T> 
       payload?.error.message ?? 'Não foi possível concluir a solicitação.',
       response.status,
       payload?.error.code ?? 'HTTP_ERROR',
+      payload?.error.details,
     );
   }
 

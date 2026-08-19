@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { httpClient } from '../../lib/http.js';
+import { HttpError, httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { ErrorState, formatDate, PageHeader, StatusBadge } from './PlatformUi.js';
 import { Switch } from '../ui/AppUi.js';
@@ -18,11 +18,30 @@ type FormState = Omit<
   Policy,
   'publicId' | 'createdAt' | 'updatedAt' | 'defaultTrialDays' | 'graceDays'
 > & { defaultTrialDays: string; graceDays: string };
-const toForm = (policy: Policy): FormState => ({
+const toForm = ({
+  publicId: _publicId,
+  createdAt: _createdAt,
+  updatedAt: _updatedAt,
+  ...policy
+}: Policy): FormState => ({
   ...policy,
   defaultTrialDays: String(policy.defaultTrialDays),
   graceDays: String(policy.graceDays),
 });
+const policyFieldLabel: Record<string, string> = {
+  commercialWhatsapp: 'WhatsApp comercial',
+  adminMessage: 'Mensagem administrativa',
+  publicMessage: 'Mensagem pública',
+  publicSiteBehaviorWhileBlocked: 'Comportamento do site público',
+};
+const updateErrorMessage = (error: unknown) => {
+  if (!(error instanceof HttpError) || error.details === undefined || error.details.length === 0) {
+    return error instanceof Error ? error.message : 'Não foi possível salvar a política comercial.';
+  }
+  const issue = error.details[0]!;
+  const field = issue.path.replace(/^\//u, '').split('/')[0] ?? '';
+  return `${policyFieldLabel[field] ?? (field || 'Campo')}: ${issue.message}`;
+};
 const behavior = {
   NORMAL: [
     'Manter site disponível',
@@ -251,8 +270,7 @@ export function CommercialPolicyModule() {
                 type="tel"
                 value={form.commercialWhatsapp ?? ''}
                 onChange={(e) => {
-                  const value = e.target.value.trim();
-                  change('commercialWhatsapp', value === '' ? null : value);
+                  change('commercialWhatsapp', e.target.value === '' ? null : e.target.value);
                 }}
               />
             </label>
@@ -325,7 +343,7 @@ export function CommercialPolicyModule() {
           ) : null}
           {update.error instanceof Error ? (
             <p className="form-error" role="alert">
-              {update.error.message}
+              {updateErrorMessage(update.error)}
             </p>
           ) : null}
         </div>

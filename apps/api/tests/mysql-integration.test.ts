@@ -41,6 +41,7 @@ describe.skipIf(!integrationEnabled)('integraÃ§Ã£o com MySQL 8', () => {
     DATABASE_URL: url,
     CORS_ORIGINS: ['http://127.0.0.1:5174'],
     LOG_LEVEL: 'silent',
+    OBSERVABILITY_SLOW_REQUEST_MS: 1_000,
     APP_WEB_URL: 'http://127.0.0.1:5174',
     WAPI_BASE_URL: 'https://api.w-api.app',
     AUTH_COOKIE_NAME: 'ps_session',

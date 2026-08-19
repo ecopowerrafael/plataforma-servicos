@@ -6,6 +6,9 @@ arquitetura. A branch `deploy/hostinger-node` só adiciona adaptações de deplo
 nenhuma regra de negócio foi alterada e nenhuma funcionalidade da `master` foi
 removida.
 
+Para rotina, monitoramento, incidentes, rollback e manutenção, consulte também
+[OPERATIONS.md](OPERATIONS.md).
+
 ## Requisitos
 
 - **Node.js 22.x** — selecione no painel. O projeto fixa
@@ -95,15 +98,18 @@ o deploy inteiro se qualquer passo falhar (sem mascarar erro):
    versionado) **antes** de qualquer TypeScript que o importe.
 2. `build:shared` (`@plataforma/shared`) — necessário antes do bootstrap, que
    importa esse pacote.
-3. `prisma migrate deploy` — aplica **apenas as migrations pendentes** já
+3. `db:migrate:recover` — detecta migrations marcadas como falhas e as marca
+   como revertidas para que a versão versionada seja reaplicada; nunca apaga
+   dados nem reseta o banco.
+4. `prisma migrate deploy` — aplica **apenas as migrations pendentes** já
    versionadas (nunca `migrate dev`/`db push`/reset). Se não houver pendentes,
    segue normalmente.
-4. `db:bootstrap` — semeia papéis/permissões/roles globais de forma
+5. `db:bootstrap` — semeia papéis/permissões/roles globais de forma
    **idempotente** (só `upsert`/`skipDuplicates`) e, quando
    `PLATFORM_ADMIN_EMAIL`/`PLATFORM_ADMIN_PASSWORD` existem, **provisiona o Super
    Admin** de forma idempotente (cria o usuário com senha só em hash Argon2 se
    não existir; se já existir, não altera a senha).
-5. `build:api` e `build:web`.
+6. `build:api` e `build:web`.
 
 Os scripts auxiliares `build:shared`/`build:api`/`build:web` fazem apenas a
 compilação de cada workspace (sem banco) — `npm run build` os orquestra na
@@ -125,8 +131,9 @@ install em modo produção.
 > `.env` de produção já exista antes de buildar o web. Veja a seção 4.
 
 As migrações do banco e o bootstrap **já rodam dentro de `npm run build`** a
-cada deploy — não é preciso executá-los à parte. Para criar o primeiro Super
-Admin, veja a seção 11.
+cada deploy — não é preciso executá-los à parte. O pipeline de produção nunca
+executa `prisma migrate reset`. Para criar o primeiro Super Admin, veja a seção
+11.
 
 ---
 
@@ -182,6 +189,7 @@ Mínimo obrigatório:
 | `WEB_DIST_DIR` | *(opcional)* | frontend servido pela API. **Auto-detectado** em produção (`apps/web/dist`); só defina se o dist estiver em outro caminho. |
 | `AUTH_COOKIE_SECURE` | `true` | obrigatório em produção. |
 | `LOG_LEVEL` | `info` | |
+| `OBSERVABILITY_SLOW_REQUEST_MS` | `1000` | Registra alerta estruturado para respostas lentas (em milissegundos). |
 
 **Banco: NÃO é necessário configurar `DATABASE_URL`.** A aplicação e a CLI do
 Prisma (via `prisma.config.ts`) montam a connection string internamente a partir
@@ -192,6 +200,15 @@ A senha/URL completa **nunca** é escrita em log.
 
 Porta/host: **não** defina `API_PORT` — a Hostinger fornece `PORT`. `API_HOST`
 assume `0.0.0.0`.
+
+## Observabilidade operacional
+
+Use `GET /health` para verificar que o processo está vivo e `GET /ready` para
+monitorar a conectividade com o banco. Um monitor externo deve alertar quando
+`/ready` deixar de responder `200`. `GET /metrics` expõe métricas Prometheus
+somente do processo atual (requisições, respostas 5xx, latência e uptime), sem
+dados de clientes ou tenants. Respostas 5xx e respostas acima de
+`OBSERVABILITY_SLOW_REQUEST_MS` geram alertas estruturados nos logs da API.
 
 Uploads (recomendado apontar para diretório persistente — seção 6):
 `SERVICE_IMAGE_STORAGE_DIR`, `TENANT_MEDIA_STORAGE_DIR`,

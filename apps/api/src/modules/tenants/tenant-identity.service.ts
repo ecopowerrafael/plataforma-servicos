@@ -13,6 +13,7 @@ interface OnboardingIdentityUpdate {
   completed?: boolean | undefined;
   hideChecklist?: boolean | undefined;
   businessProfile?: Prisma.TenantUpdateInput['businessProfile'] | undefined;
+  operatingModel?: 'SERVICE_PRICING' | 'MEMBERSHIP' | undefined;
   businessTypeCustom?: string | null | undefined;
   displayName?: string | undefined;
   slug?: string | undefined;
@@ -139,6 +140,7 @@ export async function updateTenantOnboarding(
         where: { id: tenantId },
         data: {
           onboardingStep: input.step,
+          ...(input.operatingModel === undefined ? {} : { operatingModel: input.operatingModel }),
           ...(input.completed === true ? { onboardingCompletedAt: now } : {}),
           ...(input.hideChecklist === true ? { onboardingChecklistHiddenAt: now } : {}),
           ...(input.businessProfile === undefined ? {} : { businessProfile: input.businessProfile }),

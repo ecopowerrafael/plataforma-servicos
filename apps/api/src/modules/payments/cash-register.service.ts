@@ -35,7 +35,7 @@ type MovementWithContext = CashMovement & {
       publicId: string;
       customer: { name: string };
       service: { name: string };
-    };
+    } | null;
   } | null;
   user?: { email: string } | null;
 };
@@ -115,9 +115,9 @@ const pubMovement = (movement: MovementWithContext) =>
     createdAt: movement.createdAt.toISOString(),
     userEmail: movement.user?.email ?? null,
     paymentMethodName: movement.payment?.paymentMethod.name ?? null,
-    customerName: movement.payment?.appointment.customer.name ?? null,
-    serviceName: movement.payment?.appointment.service.name ?? null,
-    appointmentPublicId: movement.payment?.appointment.publicId ?? null,
+    customerName: movement.payment?.appointment?.customer.name ?? null,
+    serviceName: movement.payment?.appointment?.service.name ?? null,
+    appointmentPublicId: movement.payment?.appointment?.publicId ?? null,
   }) as const;
 
 export class CashRegisterService {

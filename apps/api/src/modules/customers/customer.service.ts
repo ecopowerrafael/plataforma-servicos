@@ -98,7 +98,7 @@ function buildTimeline(
     amountCents: bigint;
     kind: string;
     createdAt: Date;
-    appointment: { publicId: string };
+    appointment: { publicId: string } | null;
   }[],
   reviews: { rating: number; comment: string | null; createdAt: Date; service: { name: string } }[],
   loyalty: { type: string; direction: string; amount: bigint; createdAt: Date }[],
@@ -150,7 +150,8 @@ function buildTimeline(
         amountCents: null,
       });
   }
-  for (const payment of payments)
+  for (const payment of payments) {
+    if (payment.appointment === null) continue;
     entries.push({
       kind: 'PAYMENT',
       at: payment.createdAt.toISOString(),
@@ -159,6 +160,7 @@ function buildTimeline(
       appointmentPublicId: payment.appointment.publicId,
       amountCents: payment.amountCents.toString(),
     });
+  }
   for (const review of reviews)
     entries.push({
       kind: 'REVIEW',
@@ -454,13 +456,16 @@ export class CustomerService {
             paidCount: payments.length,
             averageTicketCents:
               completed.length === 0 ? '0' : (paidTotal / BigInt(completed.length)).toString(),
-            recentPayments: payments.slice(0, 20).map((item) => ({
-              publicId: item.publicId,
-              amountCents: item.amountCents.toString(),
-              kind: item.kind,
-              createdAt: item.createdAt.toISOString(),
-              appointmentPublicId: item.appointment.publicId,
-            })),
+            recentPayments: payments
+              .filter((p) => p.appointment !== null)
+              .slice(0, 20)
+              .map((item) => ({
+                publicId: item.publicId,
+                amountCents: item.amountCents.toString(),
+                kind: item.kind,
+                createdAt: item.createdAt.toISOString(),
+                appointmentPublicId: item.appointment!.publicId,
+              })),
           }
         : null,
       reviews: reviews.map((review) => ({

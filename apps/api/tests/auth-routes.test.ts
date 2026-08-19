@@ -24,6 +24,7 @@ const environment: Environment = {
   DATABASE_URL: 'mysql://USER:PASSWORD@127.0.0.1:3306/plataforma_servicos',
   CORS_ORIGINS: ['http://localhost:5173'],
   LOG_LEVEL: 'silent',
+  OBSERVABILITY_SLOW_REQUEST_MS: 1_000,
   APP_WEB_URL: 'http://localhost:5173',
   WAPI_BASE_URL: 'https://api.w-api.app',
   AUTH_COOKIE_NAME: 'ps_session',

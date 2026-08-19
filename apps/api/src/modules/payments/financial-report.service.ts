@@ -210,6 +210,7 @@ export class FinancialReportService {
     const byProfessional = new Map<string, BreakdownAccumulator>();
     const byUnit = new Map<string, BreakdownAccumulator>();
     for (const payment of paidPayments) {
+      if (payment.appointment === null) continue;
       addToBreakdown(
         byPaymentMethod,
         payment.paymentMethod.publicId,

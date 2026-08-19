@@ -1,22 +1,62 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ComponentType } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
-import { AcceptInvitationPage } from './routes/AcceptInvitationPage.js';
-import { AccessDeniedPage } from './routes/AccessDeniedPage.js';
-import { CustomerAccountPage } from './routes/CustomerAccountPage.js';
-import { ForgotPasswordPage } from './routes/ForgotPasswordPage.js';
-import { HomePage } from './routes/HomePage.js';
-import { LoginPage } from './routes/LoginPage.js';
-import { NotFoundPage } from './routes/NotFoundPage.js';
-import { PlatformPageRebuild } from './routes/PlatformPageRebuild.js';
-import { PublicTenantPage } from './routes/PublicTenantPage.js';
-import { ProfessionalAppPage } from './routes/ProfessionalAppPage.js';
-import { ProfessionalTenantLoginPage } from './routes/ProfessionalTenantLoginPage.js';
-import { RegisterPage } from './routes/RegisterPage.js';
-import { ResetPasswordPage } from './routes/ResetPasswordPage.js';
 import { RootPage } from './routes/RootPage.js';
-import { SelectTenantPage } from './routes/SelectTenantPage.js';
-import { DirectoryBusinessPage, DirectoryCategoryPage, DirectoryCityPage, DirectoryHomePage } from './routes/DirectoryPages.js';
+
+const AcceptInvitationPage = lazy(async () => ({
+  default: (await import('./routes/AcceptInvitationPage.js')).AcceptInvitationPage,
+}));
+const AccessDeniedPage = lazy(async () => ({
+  default: (await import('./routes/AccessDeniedPage.js')).AccessDeniedPage,
+}));
+const CustomerAccountPage = lazy(async () => ({
+  default: (await import('./routes/CustomerAccountPage.js')).CustomerAccountPage,
+}));
+const ForgotPasswordPage = lazy(async () => ({
+  default: (await import('./routes/ForgotPasswordPage.js')).ForgotPasswordPage,
+}));
+const HomePage = lazy(async () => ({ default: (await import('./routes/HomePage.js')).HomePage }));
+const LoginPage = lazy(async () => ({ default: (await import('./routes/LoginPage.js')).LoginPage }));
+const NotFoundPage = lazy(async () => ({ default: (await import('./routes/NotFoundPage.js')).NotFoundPage }));
+const PlatformPageRebuild = lazy(async () => ({
+  default: (await import('./routes/PlatformPageRebuild.js')).PlatformPageRebuild,
+}));
+const PublicTenantPage = lazy(async () => ({
+  default: (await import('./routes/PublicTenantPage.js')).PublicTenantPage,
+}));
+const ProfessionalAppPage = lazy(async () => ({
+  default: (await import('./routes/ProfessionalAppPage.js')).ProfessionalAppPage,
+}));
+const ProfessionalTenantLoginPage = lazy(async () => ({
+  default: (await import('./routes/ProfessionalTenantLoginPage.js')).ProfessionalTenantLoginPage,
+}));
+const RegisterPage = lazy(async () => ({
+  default: (await import('./routes/RegisterPage.js')).RegisterPage,
+}));
+const ResetPasswordPage = lazy(async () => ({
+  default: (await import('./routes/ResetPasswordPage.js')).ResetPasswordPage,
+}));
+const SelectTenantPage = lazy(async () => ({
+  default: (await import('./routes/SelectTenantPage.js')).SelectTenantPage,
+}));
+const DirectoryHomePage = lazy(async () => ({
+  default: (await import('./routes/DirectoryPages.js')).DirectoryHomePage,
+}));
+const DirectoryCategoryPage = lazy(async () => ({
+  default: (await import('./routes/DirectoryPages.js')).DirectoryCategoryPage,
+}));
+const DirectoryCityPage = lazy(async () => ({
+  default: (await import('./routes/DirectoryPages.js')).DirectoryCityPage,
+}));
+const DirectoryBusinessPage = lazy(async () => ({
+  default: (await import('./routes/DirectoryPages.js')).DirectoryBusinessPage,
+}));
+const PrivacyPage = lazy(async () => ({
+  default: (await import('./routes/LegalPages.js')).PrivacyPage,
+}));
+const TermsPage = lazy(async () => ({
+  default: (await import('./routes/LegalPages.js')).TermsPage,
+}));
 
 const FeaturesPage = lazy(async () => {
   const module = await import('./routes/FeaturesPage.js');
@@ -75,7 +115,7 @@ function MarketingPageFallback() {
   );
 }
 
-function lazyPage(Page: typeof FeaturesPage) {
+function lazyPage(Page: ComponentType) {
   return (
     <Suspense fallback={<MarketingPageFallback />}>
       <Page />
@@ -87,15 +127,17 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <RootPage />,
-    errorElement: <NotFoundPage />,
+    errorElement: lazyPage(NotFoundPage),
   },
   { path: '/funcionalidades', element: lazyPage(FeaturesPage) },
   { path: '/planos', element: lazyPage(PricingPage) },
   { path: '/profissionais', element: lazyPage(ProfessionalPage) },
-  { path: '/encontre', element: <DirectoryHomePage /> },
-  { path: '/encontre/:categorySlug', element: <DirectoryCategoryPage /> },
-  { path: '/encontre/:categorySlug/:citySlug', element: <DirectoryCityPage /> },
-  { path: '/encontre/:categorySlug/:citySlug/:businessSlug', element: <DirectoryBusinessPage /> },
+  { path: '/privacidade', element: lazyPage(PrivacyPage) },
+  { path: '/termos', element: lazyPage(TermsPage) },
+  { path: '/encontre', element: lazyPage(DirectoryHomePage) },
+  { path: '/encontre/:categorySlug', element: lazyPage(DirectoryCategoryPage) },
+  { path: '/encontre/:categorySlug/:citySlug', element: lazyPage(DirectoryCityPage) },
+  { path: '/encontre/:categorySlug/:citySlug/:businessSlug', element: lazyPage(DirectoryBusinessPage) },
   { path: '/sistema-de-agendamento', element: lazyPage(SchedulingSystemPage) },
   { path: '/ia-para-agendamento', element: lazyPage(AISchedulingPage) },
   { path: '/sistema-para-salao-de-beleza', element: lazyPage(SalonSystemPage) },
@@ -125,77 +167,77 @@ export const router = createBrowserRouter([
   { path: '/sistema-para-preencher-horarios-cancelados', element: lazyPage(FillCancelledSlotsSystemPage) },
   { path: '/sistema-para-barbearia', element: lazyPage(BarberSystemPage) }, { path: '/aplicativo-para-barbearia', element: lazyPage(BarberAppPage) }, { path: '/crm-para-barbearia', element: lazyPage(BarberCRMPage) }, { path: '/agenda-online-para-barbearia', element: lazyPage(BarberAgendaPage) }, { path: '/ia-para-barbearia', element: lazyPage(BarberAIPage) }, { path: '/whatsapp-para-barbearia', element: lazyPage(BarberWhatsAppPage) }, { path: '/controle-financeiro-para-barbearia', element: lazyPage(BarberFinancePage) }, { path: '/programa-de-fidelidade-para-barbearia', element: lazyPage(BarberLoyaltyPage) },
   { path: '/sistema-para-clinica-de-estetica', element: lazyPage(AestheticClinicSystemPage) }, { path: '/crm-para-clinica-de-estetica', element: lazyPage(AestheticCRMPage) }, { path: '/agendamento-para-estetica', element: lazyPage(AestheticBookingPage) }, { path: '/aplicativo-para-estetica', element: lazyPage(AestheticAppPage) }, { path: '/sistema-para-tratamentos-esteticos', element: lazyPage(AestheticTreatmentsPage) }, { path: '/sistema-para-sessoes-de-estetica', element: lazyPage(AestheticSessionsPage) }, { path: '/orcamento-para-clinica-de-estetica', element: lazyPage(AestheticQuotePage) }, { path: '/controle-de-retorno-de-clientes', element: lazyPage(AestheticReturnPage) },
-  { path: '/login', element: <LoginPage /> },
-  { path: '/cadastro', element: <RegisterPage /> },
-  { path: '/app', element: <HomePage /> },
-  { path: '/public/:slug/profissional/login', element: <ProfessionalTenantLoginPage /> },
-  { path: '/public/:slug/profissional', element: <ProfessionalAppPage /> },
-  { path: '/public/:slug/profissional/comissoes', element: <ProfessionalAppPage section="commissions" /> },
-  { path: '/public/:slug/profissional/perfil', element: <ProfessionalAppPage section="profile" /> },
-  { path: '/app/agenda', element: <HomePage /> },
-  { path: '/app/agenda/minha', element: <HomePage /> },
-  { path: '/app/agenda/agendamentos', element: <HomePage /> },
-  { path: '/app/agenda/disponibilidade', element: <HomePage /> },
-  { path: '/app/agenda/lista-espera', element: <HomePage /> },
-  { path: '/app/clientes', element: <HomePage /> },
-  { path: '/app/clientes/:id', element: <HomePage /> },
-  { path: '/app/clientes/recuperacao', element: <HomePage /> },
-  { path: '/app/clientes/fidelidade', element: <HomePage /> },
-  { path: '/app/clientes/cupons', element: <HomePage /> },
-  { path: '/app/servicos', element: <HomePage /> },
-  { path: '/app/servicos/novo', element: <HomePage /> },
-  { path: '/app/servicos/:id', element: <HomePage /> },
-  { path: '/app/servicos/categorias', element: <HomePage /> },
-  { path: '/app/servicos/combos', element: <HomePage /> },
-  { path: '/app/equipe/profissionais', element: <HomePage /> },
-  { path: '/app/equipe/profissionais/:id', element: <HomePage /> },
-  { path: '/app/equipe/membros', element: <HomePage /> },
-  { path: '/app/equipe/comissoes', element: <HomePage /> },
-  { path: '/app/financeiro', element: <HomePage /> },
-  { path: '/app/financeiro/caixa', element: <HomePage /> },
-  { path: '/app/financeiro/pagamentos', element: <HomePage /> },
-  { path: '/app/financeiro/pendencias', element: <HomePage /> },
-  { path: '/app/financeiro/fechamentos', element: <HomePage /> },
-  { path: '/app/financeiro/relatorios', element: <HomePage /> },
+  { path: '/login', element: lazyPage(LoginPage) },
+  { path: '/cadastro', element: lazyPage(RegisterPage) },
+  { path: '/app', element: lazyPage(HomePage) },
+  { path: '/public/:slug/profissional/login', element: lazyPage(ProfessionalTenantLoginPage) },
+  { path: '/public/:slug/profissional', element: lazyPage(ProfessionalAppPage) },
+  { path: '/public/:slug/profissional/comissoes', element: lazyPage(() => <ProfessionalAppPage section="commissions" />) },
+  { path: '/public/:slug/profissional/perfil', element: lazyPage(() => <ProfessionalAppPage section="profile" />) },
+  { path: '/app/agenda', element: lazyPage(HomePage) },
+  { path: '/app/agenda/minha', element: lazyPage(HomePage) },
+  { path: '/app/agenda/agendamentos', element: lazyPage(HomePage) },
+  { path: '/app/agenda/disponibilidade', element: lazyPage(HomePage) },
+  { path: '/app/agenda/lista-espera', element: lazyPage(HomePage) },
+  { path: '/app/clientes', element: lazyPage(HomePage) },
+  { path: '/app/clientes/:id', element: lazyPage(HomePage) },
+  { path: '/app/clientes/recuperacao', element: lazyPage(HomePage) },
+  { path: '/app/clientes/fidelidade', element: lazyPage(HomePage) },
+  { path: '/app/clientes/cupons', element: lazyPage(HomePage) },
+  { path: '/app/servicos', element: lazyPage(HomePage) },
+  { path: '/app/servicos/novo', element: lazyPage(HomePage) },
+  { path: '/app/servicos/:id', element: lazyPage(HomePage) },
+  { path: '/app/servicos/categorias', element: lazyPage(HomePage) },
+  { path: '/app/servicos/combos', element: lazyPage(HomePage) },
+  { path: '/app/equipe/profissionais', element: lazyPage(HomePage) },
+  { path: '/app/equipe/profissionais/:id', element: lazyPage(HomePage) },
+  { path: '/app/equipe/membros', element: lazyPage(HomePage) },
+  { path: '/app/equipe/comissoes', element: lazyPage(HomePage) },
+  { path: '/app/financeiro', element: lazyPage(HomePage) },
+  { path: '/app/financeiro/caixa', element: lazyPage(HomePage) },
+  { path: '/app/financeiro/pagamentos', element: lazyPage(HomePage) },
+  { path: '/app/financeiro/pendencias', element: lazyPage(HomePage) },
+  { path: '/app/financeiro/fechamentos', element: lazyPage(HomePage) },
+  { path: '/app/financeiro/relatorios', element: lazyPage(HomePage) },
   // A configuração de gateway foi unificada em /app/financeiro/opcoes.
   { path: '/app/financeiro/gateway', element: <Navigate replace to="/app/financeiro/opcoes" /> },
-  { path: '/app/financeiro/opcoes', element: <HomePage /> },
-  { path: '/app/produtos', element: <HomePage /> },
-  { path: '/app/produtos/estoque', element: <HomePage /> },
-  { path: '/app/produtos/movimentacoes', element: <HomePage /> },
-  { path: '/app/produtos/:id', element: <HomePage /> },
-  { path: '/app/marketing', element: <HomePage /> },
-  { path: '/app/marketing/automacoes', element: <HomePage /> },
-  { path: '/app/marketing/notificacoes', element: <HomePage /> },
-  { path: '/app/marketing/modelos', element: <HomePage /> },
-  { path: '/app/empresa', element: <HomePage /> },
-  { path: '/app/empresa/dados', element: <HomePage /> },
-  { path: '/app/empresa/marca', element: <HomePage /> },
-  { path: '/app/empresa/banners', element: <HomePage /> },
-  { path: '/app/empresa/pagina-publica', element: <HomePage /> },
-  { path: '/app/empresa/aplicativo', element: <HomePage /> },
-  { path: '/app/empresa/unidades', element: <HomePage /> },
-  { path: '/app/empresa/dominio', element: <HomePage /> },
-  { path: '/app/empresa/integracoes', element: <HomePage /> },
-  { path: '/app/plano', element: <HomePage /> },
-  { path: '/app/configuracoes', element: <HomePage /> },
-  { path: '/app/configuracoes/sessoes', element: <HomePage /> },
-  { path: '/select-tenant', element: <SelectTenantPage /> },
-  { path: '/forgot-password', element: <ForgotPasswordPage /> },
-  { path: '/reset-password', element: <ResetPasswordPage /> },
-  { path: '/accept-invitation', element: <AcceptInvitationPage /> },
-  { path: '/access-denied', element: <AccessDeniedPage /> },
-  { path: '/platform', element: <PlatformPageRebuild /> },
-  { path: '/platform/plans/:resourceId', element: <PlatformPageRebuild /> },
-  { path: '/platform/subscriptions/:resourceId', element: <PlatformPageRebuild /> },
-  { path: '/platform/:section', element: <PlatformPageRebuild /> },
-  { path: '/public/:slug', element: <PublicTenantPage /> },
+  { path: '/app/financeiro/opcoes', element: lazyPage(HomePage) },
+  { path: '/app/produtos', element: lazyPage(HomePage) },
+  { path: '/app/produtos/estoque', element: lazyPage(HomePage) },
+  { path: '/app/produtos/movimentacoes', element: lazyPage(HomePage) },
+  { path: '/app/produtos/:id', element: lazyPage(HomePage) },
+  { path: '/app/marketing', element: lazyPage(HomePage) },
+  { path: '/app/marketing/automacoes', element: lazyPage(HomePage) },
+  { path: '/app/marketing/notificacoes', element: lazyPage(HomePage) },
+  { path: '/app/marketing/modelos', element: lazyPage(HomePage) },
+  { path: '/app/empresa', element: lazyPage(HomePage) },
+  { path: '/app/empresa/dados', element: lazyPage(HomePage) },
+  { path: '/app/empresa/marca', element: lazyPage(HomePage) },
+  { path: '/app/empresa/banners', element: lazyPage(HomePage) },
+  { path: '/app/empresa/pagina-publica', element: lazyPage(HomePage) },
+  { path: '/app/empresa/aplicativo', element: lazyPage(HomePage) },
+  { path: '/app/empresa/unidades', element: lazyPage(HomePage) },
+  { path: '/app/empresa/dominio', element: lazyPage(HomePage) },
+  { path: '/app/empresa/integracoes', element: lazyPage(HomePage) },
+  { path: '/app/plano', element: lazyPage(HomePage) },
+  { path: '/app/configuracoes', element: lazyPage(HomePage) },
+  { path: '/app/configuracoes/sessoes', element: lazyPage(HomePage) },
+  { path: '/select-tenant', element: lazyPage(SelectTenantPage) },
+  { path: '/forgot-password', element: lazyPage(ForgotPasswordPage) },
+  { path: '/reset-password', element: lazyPage(ResetPasswordPage) },
+  { path: '/accept-invitation', element: lazyPage(AcceptInvitationPage) },
+  { path: '/access-denied', element: lazyPage(AccessDeniedPage) },
+  { path: '/platform', element: lazyPage(PlatformPageRebuild) },
+  { path: '/platform/plans/:resourceId', element: lazyPage(PlatformPageRebuild) },
+  { path: '/platform/subscriptions/:resourceId', element: lazyPage(PlatformPageRebuild) },
+  { path: '/platform/:section', element: lazyPage(PlatformPageRebuild) },
+  { path: '/public/:slug', element: lazyPage(PublicTenantPage) },
   // Área do cliente em página inteira: uma URL por seção.
-  { path: '/public/:slug/conta', element: <CustomerAccountPage /> },
-  { path: '/public/:slug/conta/:section', element: <CustomerAccountPage /> },
-  { path: '/public/:slug/conta/:section/:itemPublicId', element: <CustomerAccountPage /> },
+  { path: '/public/:slug/conta', element: lazyPage(CustomerAccountPage) },
+  { path: '/public/:slug/conta/:section', element: lazyPage(CustomerAccountPage) },
+  { path: '/public/:slug/conta/:section/:itemPublicId', element: lazyPage(CustomerAccountPage) },
   {
     path: '*',
-    element: <NotFoundPage />,
+    element: lazyPage(NotFoundPage),
   },
 ]);

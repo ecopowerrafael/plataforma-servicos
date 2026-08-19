@@ -106,6 +106,8 @@ export async function paidByAppointment(
     where: { tenantId, appointmentId: { in: appointmentIds }, status: 'PAID' },
     _sum: { amountCents: true },
   });
-  for (const entry of grouped) paid.set(entry.appointmentId, entry._sum.amountCents ?? 0n);
+  for (const entry of grouped) {
+    if (entry.appointmentId !== null) paid.set(entry.appointmentId, entry._sum.amountCents ?? 0n);
+  }
   return paid;
 }

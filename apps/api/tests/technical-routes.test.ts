@@ -13,6 +13,7 @@ const environment: Environment = {
   DATABASE_URL: 'mysql://USER:PASSWORD@127.0.0.1:3306/plataforma_servicos',
   CORS_ORIGINS: ['http://localhost:5173'],
   LOG_LEVEL: 'silent',
+  OBSERVABILITY_SLOW_REQUEST_MS: 1_000,
   APP_WEB_URL: 'http://localhost:5173',
   AUTH_COOKIE_NAME: 'ps_session',
   AUTH_SESSION_TTL_HOURS: 168,
@@ -84,6 +85,17 @@ describe('rotas técnicas', () => {
     expect(response.statusCode).toBe(200);
     expect(ReadyResponseSchema.safeParse(response.json()).success).toBe(true);
     expect(database.ping).toHaveBeenCalledOnce();
+  });
+
+  it('expõe métricas operacionais sem dados de requisições', async () => {
+    const app = await createApp(databaseConnection());
+    await app.inject({ method: 'GET', url: '/health' });
+    const response = await app.inject({ method: 'GET', url: '/metrics' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('text/plain');
+    expect(response.body).toContain('agendei_http_requests_total{status_code="200"} 1');
+    expect(response.body).toContain('agendei_http_requests_failed_total 0');
   });
 
   it('retorna erro seguro quando o banco está indisponível', async () => {

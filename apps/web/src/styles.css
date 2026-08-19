@@ -137,6 +137,19 @@ a {
   transform: translateY(0);
 }
 
+.legal-page__content {
+  max-width: 800px;
+}
+
+.legal-page__content h2 {
+  margin-top: 2.5rem;
+}
+
+.legal-page__content a {
+  color: var(--marketing-green);
+  font-weight: 750;
+}
+
 .marketing-header {
   position: sticky;
   z-index: 100;

@@ -14,7 +14,7 @@
   },
   "scripts": {
     "dev": "concurrently --names api,web --prefix-colors blue,green \"npm run dev --workspace=@plataforma/api\" \"npm run dev --workspace=@plataforma/web\"",
-    "build": "npm run db:generate && npm run build:shared && npm run db:reset-initial && npm run db:migrate:recover && npm run db:migrate:deploy && npm run db:bootstrap && npm run build:api && npm run build:web",
+    "build": "npm run db:generate && npm run build:shared && npm run db:migrate:recover && npm run db:migrate:deploy && npm run db:bootstrap && npm run build:api && npm run build:web",
     "build:shared": "npm run build --workspace=@plataforma/shared",
     "build:api": "npm run build --workspace=@plataforma/api",
     "build:web": "npm run build --workspace=@plataforma/web",

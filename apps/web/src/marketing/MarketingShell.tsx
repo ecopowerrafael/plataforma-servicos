@@ -128,8 +128,8 @@ function MarketingFooter() {
         </div>
         <div>
           <strong>Empresa</strong>
-          <span>Termos</span>
-          <span>Privacidade</span>
+          <Link to="/termos">Termos</Link>
+          <Link to="/privacidade">Privacidade</Link>
           <span>Contato</span>
         </div>
         <div>

@@ -176,6 +176,55 @@ enum PaymentKind {
   DEPOSIT
 }
 
+enum PaymentOriginType {
+  APPOINTMENT
+  MEMBERSHIP_CHARGE
+}
+
+/// Define como o estabelecimento comercializa seus serviços. Os tenants
+/// existentes permanecem no modelo histórico, por padrão.
+enum OperatingModel {
+  SERVICE_PRICING
+  MEMBERSHIP
+}
+
+enum MembershipBillingInterval {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+enum MembershipBenefitType {
+  QUANTITY
+  UNLIMITED
+  DISCOUNT
+}
+
+enum CustomerMembershipStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELED
+  EXPIRED
+}
+
+enum CustomerMembershipChargeStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum CustomerMembershipUsageStatus {
+  RESERVED
+  CONSUMED
+  RELEASED
+  REVERSED
+}
+
 enum DepositType {
   FIXED
   PERCENTAGE
@@ -407,6 +456,7 @@ model Tenant {
   timezone                     String                           @db.VarChar(64)
   locale                       String                           @db.VarChar(16)
   currency                     String                           @db.Char(3)
+  operatingModel               OperatingModel                   @default(SERVICE_PRICING) @map("operating_model")
   businessProfile              BusinessProfile                  @default(GENERIC) @map("business_profile")
   businessTypeCustom           String?                           @map("business_type_custom") @db.VarChar(120)
   onboardingStep               String                           @default("WELCOME") @map("onboarding_step") @db.VarChar(40)
@@ -455,7 +505,11 @@ model Tenant {
   publicSite                   TenantPublicSite?
   customerFavorites            CustomerFavorite[]
   appointmentReviews           AppointmentReview[]
-  notificationLogs             NotificationLog[]
+  customerMembershipPlans       CustomerMembershipPlan[]
+  customerMemberships           CustomerMembership[]
+  customerMembershipCharges     CustomerMembershipCharge[]
+  customerMembershipUsages      CustomerMembershipUsage[]
+  notificationLogs              NotificationLog[]
   notificationCampaigns        NotificationCampaign[]
   notificationTemplates        NotificationTemplate[]
   pushSubscriptions            PushSubscription[]
@@ -1721,6 +1775,8 @@ model Service {
   waitlistEntries         AppointmentWaitlist[]
   waitlistOpportunities   AppointmentWaitlistOpportunity[]
   treatmentPlans          TreatmentPlan[]
+  membershipPlanBenefits  CustomerMembershipPlanBenefit[]
+  membershipUsages        CustomerMembershipUsage[]
 
   @@unique([tenantId, name])
   @@index([tenantId, active, sortOrder])
@@ -1976,6 +2032,7 @@ model Customer {
   pushSubscriptions     PushSubscription[]
   productSales          ProductSale[]
   treatmentPlans        TreatmentPlan[]
+  memberships           CustomerMembership[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
@@ -2072,6 +2129,7 @@ model Appointment {
   waitlistOpportunity     AppointmentWaitlistOpportunity? @relation("ReleasedAppointment")
   treatmentPlan           TreatmentPlan?                  @relation("TreatmentPlanSessions", fields: [treatmentPlanId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   originatedTreatmentPlan TreatmentPlan?                  @relation("TreatmentPlanOrigin")
+  membershipUsages        CustomerMembershipUsage[]
 
   @@unique([tenantId, protocol])
   @@index([tenantId, treatmentPlanId, sessionNumber])
@@ -2203,7 +2261,9 @@ model Payment {
   id                   BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
   publicId             String                  @unique @map("public_id") @db.Char(36)
   tenantId             BigInt                  @map("tenant_id") @db.UnsignedBigInt
-  appointmentId        BigInt                  @map("appointment_id") @db.UnsignedBigInt
+  originType           PaymentOriginType       @default(APPOINTMENT) @map("origin_type")
+  appointmentId        BigInt?                 @map("appointment_id") @db.UnsignedBigInt
+  membershipChargeId   BigInt?                 @map("membership_charge_id") @db.UnsignedBigInt
   paymentMethodId      BigInt                  @map("payment_method_id") @db.UnsignedBigInt
   kind                 PaymentKind             @default(PAYMENT)
   status               PaymentStatus           @default(PAID)
@@ -2216,7 +2276,8 @@ model Payment {
   createdAt            DateTime                @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt            DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  appointment          Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment          Appointment?            @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membershipCharge     CustomerMembershipCharge? @relation("PaymentToMembershipCharge", fields: [membershipChargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   paymentMethod        PaymentMethod           @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   user                 User?                   @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   session              UserSession?            @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -2227,7 +2288,9 @@ model Payment {
   loyaltyLedgerEntries LoyaltyLedgerEntry[]
 
   @@index([tenantId, appointmentId, createdAt])
+  @@index([tenantId, membershipChargeId, createdAt])
   @@index([tenantId, status, createdAt])
+  @@index([originType])
   @@map("payments")
 }
 
@@ -2960,3 +3023,118 @@ model TenantCommercialPolicy {
 
   @@map("tenant_commercial_policies")
 }
+
+model CustomerMembershipPlan {
+  id            BigInt                         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId      String                         @unique @map("public_id") @db.Char(36)
+  tenantId      BigInt                         @map("tenant_id") @db.UnsignedBigInt
+  name          String                         @db.VarChar(120)
+  description   String?                        @db.Text
+  priceCents    BigInt                         @map("price_cents") @db.UnsignedBigInt
+  billingInterval MembershipBillingInterval   @map("billing_interval")
+  active        Boolean                        @default(true)
+  sortOrder     Int                            @default(0) @map("sort_order")
+  createdAt     DateTime                       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime                       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant        Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  benefits      CustomerMembershipPlanBenefit[]
+  memberships   CustomerMembership[]
+
+  @@index([tenantId, active, sortOrder])
+  @@map("customer_membership_plans")
+}
+
+model CustomerMembershipPlanBenefit {
+  id              BigInt                        @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String                        @unique @map("public_id") @db.Char(36)
+  planId          BigInt                        @map("plan_id") @db.UnsignedBigInt
+  serviceId       BigInt                        @map("service_id") @db.UnsignedBigInt
+  type            MembershipBenefitType
+  quantityPerCycle Int?                          @map("quantity_per_cycle") @db.UnsignedInt
+  discountPercent Int?                          @map("discount_percent") @db.UnsignedSmallInt
+  createdAt       DateTime                      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime                      @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  plan            CustomerMembershipPlan        @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service         Service                       @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([planId, serviceId])
+  @@index([serviceId])
+  @@map("customer_membership_plan_benefits")
+}
+
+model CustomerMembership {
+  id                 BigInt                         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId           String                         @unique @map("public_id") @db.Char(36)
+  tenantId           BigInt                         @map("tenant_id") @db.UnsignedBigInt
+  customerId         BigInt                         @map("customer_id") @db.UnsignedBigInt
+  planId             BigInt                         @map("plan_id") @db.UnsignedBigInt
+  status             CustomerMembershipStatus      @default(PENDING)
+  activeKey          String?                        @unique @map("active_key") @db.VarChar(100)
+  startedAt          DateTime?                      @map("started_at") @db.DateTime(3)
+  currentPeriodStart DateTime?                      @map("current_period_start") @db.DateTime(3)
+  currentPeriodEnd   DateTime?                      @map("current_period_end") @db.DateTime(3)
+  nextBillingAt      DateTime?                      @map("next_billing_at") @db.DateTime(3)
+  pausedAt           DateTime?                      @map("paused_at") @db.DateTime(3)
+  canceledAt         DateTime?                      @map("canceled_at") @db.DateTime(3)
+  cancelAtPeriodEnd  Boolean                        @default(false) @map("cancel_at_period_end")
+  createdAt          DateTime                       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime                       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant             Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer           Customer                       @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  plan               CustomerMembershipPlan         @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  charges            CustomerMembershipCharge[]
+  usages             CustomerMembershipUsage[]
+
+  @@index([tenantId, customerId, status])
+  @@index([tenantId, status, currentPeriodEnd])
+  @@index([planId])
+  @@map("customer_memberships")
+}
+
+model CustomerMembershipCharge {
+  id             BigInt                            @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                            @unique @map("public_id") @db.Char(36)
+  tenantId       BigInt                            @map("tenant_id") @db.UnsignedBigInt
+  membershipId   BigInt                            @map("membership_id") @db.UnsignedBigInt
+  periodStart    DateTime                          @map("period_start") @db.DateTime(3)
+  periodEnd      DateTime                          @map("period_end") @db.DateTime(3)
+  amountCents    BigInt                            @map("amount_cents") @db.UnsignedBigInt
+  status         CustomerMembershipChargeStatus    @default(PENDING)
+  dueAt          DateTime                          @map("due_at") @db.DateTime(3)
+  paidAt         DateTime?                         @map("paid_at") @db.DateTime(3)
+  planSnapshot   Json?                             @map("plan_snapshot")
+  createdAt      DateTime                          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant         Tenant                            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membership     CustomerMembership                @relation(fields: [membershipId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payments       Payment[]                         @relation("PaymentToMembershipCharge")
+
+  @@unique([membershipId, periodStart])
+  @@index([tenantId, status, dueAt])
+  @@index([tenantId, membershipId, createdAt])
+  @@map("customer_membership_charges")
+}
+
+model CustomerMembershipUsage {
+  id              BigInt                         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String                         @unique @map("public_id") @db.Char(36)
+  tenantId        BigInt                         @map("tenant_id") @db.UnsignedBigInt
+  membershipId    BigInt                         @map("membership_id") @db.UnsignedBigInt
+  appointmentId   BigInt?                        @map("appointment_id") @db.UnsignedBigInt
+  serviceId       BigInt                         @map("service_id") @db.UnsignedBigInt
+  periodStart     DateTime                       @map("period_start") @db.DateTime(3)
+  periodEnd       DateTime                       @map("period_end") @db.DateTime(3)
+  quantity        Int                            @db.UnsignedInt
+  status          CustomerMembershipUsageStatus
+  createdAt       DateTime                       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime                       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant          Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membership      CustomerMembership             @relation(fields: [membershipId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment     Appointment?                   @relation(fields: [appointmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  service         Service                        @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, membershipId, status, periodStart, periodEnd])
+  @@index([appointmentId])
+  @@map("customer_membership_usages")
+}
+

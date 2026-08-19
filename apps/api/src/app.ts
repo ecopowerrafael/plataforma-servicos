@@ -39,6 +39,12 @@ import { publicBookingRoutes } from './modules/booking/public-booking.routes.js'
 import { availabilityRoutes } from './modules/calendar/availability.routes.js';
 import { customerAuthRoutes } from './modules/customers/customer-auth.routes.js';
 import { customerFavoriteRoutes } from './modules/customers/customer-favorite.routes.js';
+import { customerMembershipChargeRoutes } from './modules/customers/customer-membership-charge.routes.js';
+import { customerMembershipChargePayLocalRoutes } from './modules/customers/customer-membership-charge-paylocal.routes.js';
+import { customerMembershipPaymentRoutes } from './modules/customers/customer-membership-payment.routes.js';
+import { customerMembershipRoutes } from './modules/customers/customer-membership.routes.js';
+import { customerMembershipPlanBenefitRoutes } from './modules/customers/customer-membership-plan-benefit.routes.js';
+import { customerMembershipPlanRoutes } from './modules/customers/customer-membership-plan.routes.js';
 import { customerRecoveryRoutes } from './modules/customers/customer-recovery.routes.js';
 import { customerRoutes } from './modules/customers/customer.routes.js';
 import { integrationRoutes } from './modules/integrations/integration.routes.js';
@@ -100,6 +106,7 @@ import { tenantRoutes } from './modules/tenants/tenant.routes.js';
 import { TenantService } from './modules/tenants/tenant.service.js';
 import { databasePlugin } from './plugins/database.js';
 import { registerStaticWeb } from './plugins/static-web.js';
+import { OperationalTelemetry } from './observability/operational-telemetry.js';
 import { technicalRoutes } from './routes/technical.js';
 
 interface BuildAppOptions {
@@ -158,9 +165,42 @@ export async function buildApp(options: BuildAppOptions) {
   };
   const baseApp = Fastify(serverOptions);
   const app = baseApp.withTypeProvider<ZodTypeProvider>();
+  const telemetry = new OperationalTelemetry(options.environment.OBSERVABILITY_SLOW_REQUEST_MS);
+  const requestStartedAt = new WeakMap<object, number>();
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+
+  app.addHook('onRequest', (request, _reply, done) => {
+    telemetry.requestStarted();
+    requestStartedAt.set(request, performance.now());
+    done();
+  });
+  app.addHook('onResponse', (request, reply, done) => {
+    const startedAt = requestStartedAt.get(request);
+    const durationMilliseconds = Math.max(0, performance.now() - (startedAt ?? performance.now()));
+    const observation = telemetry.requestCompleted(reply.statusCode, durationMilliseconds);
+    if (observation.failed) {
+      request.log.error(
+        {
+          route: request.routeOptions.url,
+          statusCode: observation.statusCode,
+          durationMilliseconds: observation.durationMilliseconds,
+        },
+        'Alerta operacional: resposta HTTP 5xx.',
+      );
+    } else if (observation.slow) {
+      request.log.warn(
+        {
+          route: request.routeOptions.url,
+          statusCode: observation.statusCode,
+          durationMilliseconds: observation.durationMilliseconds,
+        },
+        'Alerta operacional: resposta HTTP lenta.',
+      );
+    }
+    done();
+  });
 
   // Deploy single-origin (ex.: Node.js compartilhado da Hostinger): a própria
   // API serve o frontend Vite compilado e faz o fallback SPA. Em produção isso
@@ -308,7 +348,7 @@ export async function buildApp(options: BuildAppOptions) {
   });
 
   await app.register(databasePlugin, { connection: options.database });
-  await app.register(technicalRoutes);
+  await app.register(technicalRoutes, { telemetry });
   const tenantService = new TenantService(options.database.tenants);
   const passwordService = new PasswordService({
     memoryCost: options.environment.PASSWORD_ARGON2_MEMORY_COST,
@@ -695,6 +735,30 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });
+  await app.register(customerMembershipRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipChargeRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipChargePayLocalRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipPaymentRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipPlanRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipPlanBenefitRoutes, {
+    authService,
+    client: options.database.client,
+  });
   if (options.database.serviceCategories !== undefined) {
     await app.register(serviceCategoryRoutes, {
       service: options.database.serviceCategories,

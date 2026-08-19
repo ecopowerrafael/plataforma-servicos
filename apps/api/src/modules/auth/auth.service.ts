@@ -1,4 +1,5 @@
 import {
+  hasCapability,
   normalizeEmail,
   type AcceptInvitationRequest,
   type AuthenticatedTenant,
@@ -10,6 +11,7 @@ import {
   type MembershipPublic,
   type PermissionCode,
   type SessionPublic,
+  type TenantCapability,
   type UpdateMembershipRequest,
 } from '@plataforma/shared';
 
@@ -67,6 +69,7 @@ function isoTenant(tenant: AuthorizedTenantContext): AuthenticatedTenant {
       timezone: tenant.timezone,
       locale: tenant.locale,
       currency: tenant.currency,
+      ...(tenant.operatingModel === undefined ? {} : { operatingModel: tenant.operatingModel }),
     },
     membership: {
       publicId: tenant.membership.publicId,
@@ -276,6 +279,23 @@ export class AuthService {
         statusCode: 403,
       });
     }
+  }
+
+  /**
+   * Capacidade do modelo operacional. A UI esconde o que não se aplica, mas quem
+   * decide é o servidor: sem a capacidade a rota recusa.
+   */
+  public requireCapability(
+    tenant: AuthorizedTenantContext,
+    capability: TenantCapability,
+  ): void {
+    const model = tenant.operatingModel ?? 'SERVICE_PRICING';
+    if (!hasCapability(model, capability))
+      throw new AppError({
+        code: 'CAPABILITY_UNAVAILABLE',
+        message: 'Este recurso não está disponível no modelo operacional atual.',
+        statusCode: 409,
+      });
   }
 
   public async me(auth: AuthRequestContext, selectedTenantId?: string) {

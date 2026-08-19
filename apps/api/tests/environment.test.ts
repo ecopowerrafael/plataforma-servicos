@@ -9,6 +9,7 @@ const validEnvironment = {
   DATABASE_URL: 'mysql://USER:PASSWORD@127.0.0.1:3306/plataforma_servicos',
   CORS_ORIGINS: 'http://localhost:5173',
   LOG_LEVEL: 'silent',
+  OBSERVABILITY_SLOW_REQUEST_MS: 1_000,
 };
 
 function omit(source: Record<string, string>, key: string): Record<string, string> {
@@ -21,6 +22,12 @@ describe('validação do ambiente', () => {
 
     expect(environment.API_PORT).toBe(3000);
     expect(environment.CORS_ORIGINS).toEqual(['http://localhost:5173']);
+  });
+
+  it('usa o limite padrão para alertas de lentidão', () => {
+    const environment = loadEnvironment(omit(validEnvironment, 'OBSERVABILITY_SLOW_REQUEST_MS'));
+
+    expect(environment.OBSERVABILITY_SLOW_REQUEST_MS).toBe(1_000);
   });
 
   it('rejeita variáveis obrigatórias ausentes', () => {

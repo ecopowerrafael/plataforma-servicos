@@ -1,6 +1,7 @@
 import {
   CreateBusinessUnitRequestSchema,
   BusinessProfileCodeSchema,
+  OperatingModelSchema,
   TenantSlugSchema,
   TenantContextResponseSchema,
   TenantIdentityResponseSchema,
@@ -52,6 +53,7 @@ const OnboardingRequestSchema = z.object({
   completed: z.boolean().optional(),
   hideChecklist: z.boolean().optional(),
   businessProfile: BusinessProfileCodeSchema.optional(),
+  operatingModel: OperatingModelSchema.optional(),
   businessTypeCustom: z.string().trim().min(2).max(120).nullable().optional(),
   displayName: z.string().trim().min(2).max(120).optional(),
   slug: TenantSlugSchema.optional(),
@@ -70,7 +72,15 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
 
   app.get('/tenant/onboarding', async (request) => {
     options.authService.requirePermission(request.tenant, 'tenant.read');
-    const tenant = await options.client.tenant.findUniqueOrThrow({ where: { id: request.tenant.id }, select: { onboardingStep: true, onboardingCompletedAt: true, onboardingChecklistHiddenAt: true } });
+    const tenant = await options.client.tenant.findUniqueOrThrow({
+      where: { id: request.tenant.id },
+      select: {
+        onboardingStep: true,
+        onboardingCompletedAt: true,
+        onboardingChecklistHiddenAt: true,
+        operatingModel: true,
+      },
+    });
     return tenant;
   });
   app.patch('/tenant/onboarding', { schema: { body: OnboardingRequestSchema } }, async (request) => {

@@ -61,7 +61,7 @@ export function WhatsAppMessageEditor({
   isSaving,
   error,
 }: WhatsAppMessageEditorProps) {
-  const [body, setBody] = useState(message.body);
+  const [body, setBody] = useState(message.body ?? '');
   const [enabled, setEnabled] = useState(message.enabled);
   const [buttons, setButtons] = useState<WhatsAppButton[]>(message.buttons);
   const [dayBeforeEnabled, setDayBeforeEnabled] = useState(
@@ -82,7 +82,7 @@ export function WhatsAppMessageEditor({
   const [hasReminderChanges, setHasReminderChanges] = useState(false);
 
   useEffect(() => {
-    setBody(message.body);
+    setBody(message.body ?? '');
     setEnabled(message.enabled);
     setButtons(message.buttons);
     setHasChanges(false);

@@ -9,10 +9,8 @@ export const WhatsAppButtonSchema = z.object({
 
 export const WhatsAppMessageConfigSchema = z.object({
   kind: z.string(),
-  title: z.string(),
-  description: z.string(),
   enabled: z.boolean(),
-  body: z.string(),
+  body: z.string().nullable(),
   buttons: z.array(WhatsAppButtonSchema),
   allowedActions: z.array(z.string()),
   isCustomized: z.boolean(),

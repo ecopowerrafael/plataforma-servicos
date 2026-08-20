@@ -1,4 +1,5 @@
 import {
+  SuccessResponseSchema,
   WhatsAppMessagesListResponseSchema,
   WhatsAppReminderConfigSchema,
 } from '@plataforma/shared';
@@ -74,7 +75,7 @@ export function WhatsAppMessagesCard({
       httpClient.request(`/tenant/integrations/whatsapp/messages/${input.kind}`, {
         method: 'PATCH',
         body: input.payload,
-        schema: WhatsAppMessagesListResponseSchema.shape.items.element,
+        schema: SuccessResponseSchema,
         tenantPublicId,
       }),
     onSuccess: async () => {
@@ -88,7 +89,7 @@ export function WhatsAppMessagesCard({
       httpClient.request('/tenant/integrations/whatsapp/reminder-config', {
         method: 'PATCH',
         body: payload,
-        schema: WhatsAppReminderConfigSchema,
+        schema: SuccessResponseSchema,
         tenantPublicId,
       }),
     onSuccess: async () => {
@@ -102,7 +103,7 @@ export function WhatsAppMessagesCard({
       httpClient.request(`/tenant/integrations/whatsapp/messages/${kind}/restore`, {
         method: 'POST',
         body: {},
-        schema: WhatsAppMessagesListResponseSchema.shape.items.element,
+        schema: SuccessResponseSchema,
         tenantPublicId,
       }),
     onSuccess: async () => {

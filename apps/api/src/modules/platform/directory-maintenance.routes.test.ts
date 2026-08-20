@@ -18,6 +18,7 @@ import { type AuthService } from '../auth/auth.service.js';
 const MAINTENANCE_ENDPOINTS = [
   { method: 'POST', url: '/platform/directory/maintenance/seo/process-batch' },
   { method: 'POST', url: '/platform/directory/maintenance/aggregates/process-batch' },
+  { method: 'POST', url: '/platform/directory/maintenance/aggregates/retry-failed' },
   { method: 'GET', url: '/platform/directory/maintenance/status' },
   { method: 'POST', url: '/platform/directory/maintenance/category/1/mark-seo-recalc' },
 ] as const;
@@ -178,6 +179,7 @@ describe('rotas de manutenção do diretório — protegidas', () => {
     expect(body).toHaveProperty('aggregatesQueueSize');
     expect(body.seo).toMatchObject({
       totalBusinesses: 0,
+      activeBusinesses: 0,
       seoEvaluated: 0,
       seoPending: 0,
       seoEligible: 0,
@@ -229,7 +231,8 @@ describe('GET status — diagnóstico de elegibilidade SEO (read-only)', () => {
     const client = fakeClient();
     client.directoryBusiness.count = vi
       .fn()
-      // totalBusinesses, seoEvaluated, seoPending, seoEligible, seoIneligible
+      // totalBusinesses, activeBusinesses, seoEvaluated, seoPending, seoEligible, seoIneligible
+      .mockResolvedValueOnce(4)
       .mockResolvedValueOnce(4)
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(1)

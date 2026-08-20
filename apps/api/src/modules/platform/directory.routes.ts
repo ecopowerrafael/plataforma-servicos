@@ -15,6 +15,7 @@ import { type AuthService } from '../auth/auth.service.js';
 import {
   processDirectoryCityAggregateJobs,
   getDirectoryCityAggregateJobStats,
+  retryFailedDirectoryCityAggregateJobs,
 } from './directory-city-aggregate-job.js';
 import {
   processDirectorySeoEligibilityBatch,
@@ -459,6 +460,15 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
     return { processed };
   });
 
+  // Ação manual — nunca disparada automaticamente. Reseta jobs FAILED
+  // (inclusive os que já esgotaram as 5 tentativas) para PENDING, para que o
+  // próximo process-batch tente de novo. Não apaga nenhum registro.
+  app.post('/platform/directory/maintenance/aggregates/retry-failed', async (request) => {
+    allow(request, 'platform.tenant.update');
+    const retried = await retryFailedDirectoryCityAggregateJobs(options.service['client']);
+    return { retried };
+  });
+
   app.get('/platform/directory/maintenance/status', async (request) => {
     allow(request, 'platform.tenant.read');
     const client = options.service['client'];
@@ -466,16 +476,25 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
     // Diagnóstico read-only: nenhuma escrita, só COUNTs e a mesma função pura
     // de avaliação (evaluateDirectoryBusinessSeo) já usada pelo backfill,
     // rodada em memória sobre os dados atuais — nunca grava seoEligible/score.
-    const [stats, totalBusinesses, seoEvaluated, seoPendingCount, seoEligible, seoIneligible, sitemapCounts] =
-      await Promise.all([
-        getDirectoryCityAggregateJobStats(client),
-        client.directoryBusiness.count(),
-        client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null } } }),
-        client.directoryBusiness.count({ where: { seoEvaluatedAt: null } }),
-        client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null }, seoEligible: true } }),
-        client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null }, seoEligible: false } }),
-        options.service['sitemapCounts'](),
-      ]);
+    const [
+      stats,
+      totalBusinesses,
+      activeBusinesses,
+      seoEvaluated,
+      seoPendingCount,
+      seoEligible,
+      seoIneligible,
+      sitemapCounts,
+    ] = await Promise.all([
+      getDirectoryCityAggregateJobStats(client),
+      client.directoryBusiness.count(),
+      client.directoryBusiness.count({ where: { active: true } }),
+      client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null } } }),
+      client.directoryBusiness.count({ where: { seoEvaluatedAt: null } }),
+      client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null }, seoEligible: true } }),
+      client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null }, seoEligible: false } }),
+      options.service['sitemapCounts'](),
+    ]);
 
     const ineligibleBusinesses = await client.directoryBusiness.findMany({
       where: { seoEvaluatedAt: { not: null }, seoEligible: false },
@@ -535,6 +554,7 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
       oldestPendingAt: stats.oldestPendingAt,
       seo: {
         totalBusinesses,
+        activeBusinesses,
         seoEvaluated,
         seoPending: seoPendingCount,
         seoEligible,

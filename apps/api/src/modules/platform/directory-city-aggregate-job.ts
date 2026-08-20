@@ -9,12 +9,26 @@ import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '../../database-client/client.js';
 import { refreshDirectoryCityAggregate } from './directory-city-aggregate.js';
 
+export interface DirectoryCityAggregateJobFailedSample {
+  categoryId: string;
+  citySlug: string;
+  attempts: number;
+  lastError: string | null;
+  nextAttemptAt: Date | null;
+}
+
 export interface DirectoryCityAggregateJobStats {
   pendingCount: number;
   processingCount: number;
   failedCount: number;
+  /** attempts < 5: ainda será tentado de novo automaticamente pelo backoff. */
+  failedRetryableCount: number;
+  /** attempts >= 5: excluído da fila normal; só volta com retry manual. */
+  failedPermanentCount: number;
   processedCount: number;
   oldestPendingAt: Date | null;
+  /** Amostra (até 10) dos jobs FAILED mais recentes, para diagnóstico da causa. */
+  failedSample: DirectoryCityAggregateJobFailedSample[];
 }
 
 /**
@@ -136,25 +150,57 @@ export async function processDirectoryCityAggregateJobs(
 export async function getDirectoryCityAggregateJobStats(
   prisma: PrismaClient,
 ): Promise<DirectoryCityAggregateJobStats> {
-  const [pending, processing, failed, processed, oldest] = await Promise.all([
-    prisma.directoryCityAggregateJob.count({ where: { status: 'PENDING' } }),
-    prisma.directoryCityAggregateJob.count({ where: { status: 'PROCESSING' } }),
-    prisma.directoryCityAggregateJob.count({ where: { status: 'FAILED' } }),
-    prisma.directoryCityAggregateJob.count({ where: { status: 'DONE' } }),
-    prisma.directoryCityAggregateJob.findFirst({
-      where: { status: 'PENDING' },
-      select: { createdAt: true },
-      orderBy: { createdAt: 'asc' },
-    }),
-  ]);
+  const [pending, processing, failedRetryable, failedPermanent, processed, oldest, failedSample] =
+    await Promise.all([
+      prisma.directoryCityAggregateJob.count({ where: { status: 'PENDING' } }),
+      prisma.directoryCityAggregateJob.count({ where: { status: 'PROCESSING' } }),
+      prisma.directoryCityAggregateJob.count({ where: { status: 'FAILED', attempts: { lt: 5 } } }),
+      prisma.directoryCityAggregateJob.count({ where: { status: 'FAILED', attempts: { gte: 5 } } }),
+      prisma.directoryCityAggregateJob.count({ where: { status: 'DONE' } }),
+      prisma.directoryCityAggregateJob.findFirst({
+        where: { status: 'PENDING' },
+        select: { createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.directoryCityAggregateJob.findMany({
+        where: { status: 'FAILED' },
+        select: { categoryId: true, citySlug: true, attempts: true, lastError: true, nextAttemptAt: true },
+        orderBy: { updatedAt: 'desc' },
+        take: 10,
+      }),
+    ]);
 
   return {
     pendingCount: pending,
     processingCount: processing,
-    failedCount: failed,
+    failedCount: failedRetryable + failedPermanent,
+    failedRetryableCount: failedRetryable,
+    failedPermanentCount: failedPermanent,
     processedCount: processed,
     oldestPendingAt: oldest?.createdAt ?? null,
+    failedSample: failedSample.map((job) => ({
+      categoryId: job.categoryId.toString(),
+      citySlug: job.citySlug,
+      attempts: job.attempts,
+      lastError: job.lastError,
+      nextAttemptAt: job.nextAttemptAt,
+    })),
   };
+}
+
+/**
+ * Reseta manualmente os jobs FAILED (retryable ou não) para uma nova
+ * tentativa — ação disparada só pelo clique do Super Admin, nunca automática.
+ * Não apaga nenhum job; apenas limpa attempts/nextAttemptAt/lastError e
+ * devolve o job para PENDING, de onde processDirectoryCityAggregateJobs volta
+ * a pegá-lo normalmente.
+ */
+export async function retryFailedDirectoryCityAggregateJobs(prisma: PrismaClient): Promise<number> {
+  const result = await prisma.directoryCityAggregateJob.updateMany({
+    where: { status: 'FAILED' },
+    data: { status: 'PENDING', attempts: 0, nextAttemptAt: null, lastError: null },
+  });
+  return result.count;
 }
 
 /**

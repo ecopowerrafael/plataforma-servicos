@@ -1,34 +1,38 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { runMaintenanceLoop } from './directory-maintenance-runner.js';
+import { runMaintenanceLoop, type MaintenanceStatusSnapshot } from './directory-maintenance-runner.js';
+
+const cleanStatus = (): MaintenanceStatusSnapshot => ({
+  seoPending: 0,
+  aggregatePending: 0,
+  aggregateProcessing: 0,
+  aggregateFailed: 0,
+});
 
 describe('runMaintenanceLoop', () => {
-  it('processa SEO sequencialmente até processedCount = 0, depois aggregates até processed = 0', async () => {
+  it('processa SEO sequencialmente até processedCount = 0, depois aggregates até a fila esvaziar', async () => {
     const callOrder: string[] = [];
     let seoCall = 0;
     const runSeoBatch = vi.fn(async () => {
       callOrder.push(`seo-${String(seoCall)}`);
       seoCall += 1;
-      // 3 batches com trabalho, o 4º já vazio.
       return seoCall <= 3 ? { processedCount: 200, errorCount: 0 } : { processedCount: 0, errorCount: 0 };
     });
     let aggCall = 0;
     const runAggregatesBatch = vi.fn(async () => {
       callOrder.push(`agg-${String(aggCall)}`);
       aggCall += 1;
-      return aggCall <= 2 ? { processed: 10 } : { processed: 0 };
+      return { processed: aggCall <= 2 ? 10 : 0 };
     });
+    const getStatus = vi.fn(async () =>
+      aggCall < 3 ? { ...cleanStatus(), aggregatePending: 3 - aggCall } : cleanStatus(),
+    );
 
-    const outcome = await runMaintenanceLoop({
-      runSeoBatch,
-      runAggregatesBatch,
-      isPaused: () => false,
-    });
+    const outcome = await runMaintenanceLoop({ runSeoBatch, runAggregatesBatch, getStatus, isPaused: () => false });
 
     expect(outcome).toBe('done');
     expect(runSeoBatch).toHaveBeenCalledTimes(4);
     expect(runAggregatesBatch).toHaveBeenCalledTimes(3);
-    // Sequencial: todo batch de agregados vem depois do último batch de SEO.
     expect(callOrder).toEqual(['seo-0', 'seo-1', 'seo-2', 'seo-3', 'agg-0', 'agg-1', 'agg-2']);
   });
 
@@ -45,8 +49,9 @@ describe('runMaintenanceLoop', () => {
       return calls <= 3 ? { processedCount: 50, errorCount: 0 } : { processedCount: 0, errorCount: 0 };
     });
     const runAggregatesBatch = vi.fn(async () => ({ processed: 0 }));
+    const getStatus = vi.fn(async () => cleanStatus());
 
-    await runMaintenanceLoop({ runSeoBatch, runAggregatesBatch, isPaused: () => false });
+    await runMaintenanceLoop({ runSeoBatch, runAggregatesBatch, getStatus, isPaused: () => false });
 
     expect(maxConcurrent).toBe(1);
   });
@@ -56,57 +61,71 @@ describe('runMaintenanceLoop', () => {
     let paused = false;
     const runSeoBatch = vi.fn(async () => {
       calls += 1;
-      if (calls === 1) paused = true; // pausa é sinalizada durante a 1ª chamada
-      return { processedCount: 100, errorCount: 0 }; // a 1ª chamada sempre completa normalmente
+      if (calls === 1) paused = true;
+      return { processedCount: 100, errorCount: 0 };
     });
     const runAggregatesBatch = vi.fn(async () => ({ processed: 0 }));
+    const getStatus = vi.fn(async () => cleanStatus());
 
-    const outcome = await runMaintenanceLoop({
-      runSeoBatch,
-      runAggregatesBatch,
-      isPaused: () => paused,
-    });
+    const outcome = await runMaintenanceLoop({ runSeoBatch, runAggregatesBatch, getStatus, isPaused: () => paused });
 
     expect(outcome).toBe('paused');
-    // A 1ª chamada (já em andamento quando a pausa foi sinalizada) completou normalmente...
     expect(runSeoBatch).toHaveBeenCalledTimes(1);
-    // ...mas a 2ª nunca foi disparada, e aggregates nunca começou.
     expect(runAggregatesBatch).not.toHaveBeenCalled();
   });
 
-  it('pausa entre a fase de SEO e a fase de aggregates também impede o início dos aggregates', async () => {
+  it('NÃO mostra sucesso ("done") enquanto aggregatePending > 0 — continua batches em vez de parar em processed=0', async () => {
     const runSeoBatch = vi.fn(async () => ({ processedCount: 0, errorCount: 0 }));
-    const runAggregatesBatch = vi.fn(async () => ({ processed: 10 }));
+    // Cada batch "processa" 0 (tudo que resta é FAILED aguardando backoff),
+    // mas a fila real (getStatus) só esvazia depois de 5 consultas.
+    let statusCall = 0;
+    const runAggregatesBatch = vi.fn(async () => ({ processed: 0 }));
+    const getStatus = vi.fn(async () => {
+      statusCall += 1;
+      return statusCall < 5 ? { ...cleanStatus(), aggregatePending: 5 - statusCall } : cleanStatus();
+    });
+
+    const outcome = await runMaintenanceLoop({ runSeoBatch, runAggregatesBatch, getStatus, isPaused: () => false });
+
+    expect(outcome).toBe('done');
+    // Continuou chamando process-batch mesmo com processed=0 em toda chamada,
+    // porque quem manda é getStatus().aggregatePending, não o retorno do batch.
+    expect(runAggregatesBatch).toHaveBeenCalledTimes(5);
+  });
+
+  it('NÃO mostra sucesso quando restam jobs FAILED, mesmo com pending e processing zerados', async () => {
+    const runSeoBatch = vi.fn(async () => ({ processedCount: 0, errorCount: 0 }));
+    const runAggregatesBatch = vi.fn(async () => ({ processed: 0 }));
+    const getStatus = vi.fn(async () => ({ ...cleanStatus(), aggregateFailed: 10 }));
+
+    const outcome = await runMaintenanceLoop({ runSeoBatch, runAggregatesBatch, getStatus, isPaused: () => false });
+
+    expect(outcome).toBe('incomplete');
+    // pending=0 e processing=0 encerram o loop de tentativas — falhas não
+    // são retentadas automaticamente em loop infinito, só reportadas.
+    expect(runAggregatesBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reporta progresso de aggregates a cada consulta de status', async () => {
+    const runSeoBatch = vi.fn(async () => ({ processedCount: 0, errorCount: 0 }));
+    const runAggregatesBatch = vi.fn(async () => ({ processed: 5 }));
+    let statusCall = 0;
+    const getStatus = vi.fn(async () => {
+      statusCall += 1;
+      return statusCall === 1 ? { ...cleanStatus(), aggregatePending: 1 } : cleanStatus();
+    });
+    const onAggregatesProgress = vi.fn();
 
     const outcome = await runMaintenanceLoop({
       runSeoBatch,
       runAggregatesBatch,
-      isPaused: () => true,
-    });
-
-    expect(outcome).toBe('paused');
-    expect(runAggregatesBatch).not.toHaveBeenCalled();
-  });
-
-  it('reporta progresso a cada batch de SEO e sinaliza o início da fase de aggregates', async () => {
-    let calls = 0;
-    const runSeoBatch = vi.fn(async () => {
-      calls += 1;
-      return calls === 1 ? { processedCount: 200, errorCount: 1 } : { processedCount: 0, errorCount: 0 };
-    });
-    const runAggregatesBatch = vi.fn(async () => ({ processed: 0 }));
-    const onSeoProgress = vi.fn();
-    const onAggregatesStart = vi.fn();
-
-    await runMaintenanceLoop({
-      runSeoBatch,
-      runAggregatesBatch,
+      getStatus,
       isPaused: () => false,
-      onSeoProgress,
-      onAggregatesStart,
+      onAggregatesProgress,
     });
 
-    expect(onSeoProgress).toHaveBeenCalledWith({ processed: 200, errors: 1 });
-    expect(onAggregatesStart).toHaveBeenCalledTimes(1);
+    expect(outcome).toBe('done');
+    expect(onAggregatesProgress).toHaveBeenCalledTimes(2);
+    expect(onAggregatesProgress).toHaveBeenLastCalledWith(cleanStatus());
   });
 });

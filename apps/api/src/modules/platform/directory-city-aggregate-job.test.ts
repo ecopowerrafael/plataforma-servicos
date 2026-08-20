@@ -4,6 +4,7 @@ import {
   enqueueDirectoryCityAggregate,
   processDirectoryCityAggregateJobs,
   getDirectoryCityAggregateJobStats,
+  retryFailedDirectoryCityAggregateJobs,
 } from './directory-city-aggregate-job.js';
 
 describe('DirectoryCityAggregateJob - Persistent Queue', () => {
@@ -210,24 +211,59 @@ describe('DirectoryCityAggregateJob - Persistent Queue', () => {
   });
 
   describe('getDirectoryCityAggregateJobStats', () => {
-    it('returns job counts', async () => {
+    it('returns job counts, split between failed retryable and permanent', async () => {
       mockPrisma.directoryCityAggregateJob.count
         .mockResolvedValueOnce(5) // pending
         .mockResolvedValueOnce(2) // processing
-        .mockResolvedValueOnce(1) // failed
+        .mockResolvedValueOnce(1) // failed, attempts < 5 (retryable)
+        .mockResolvedValueOnce(3) // failed, attempts >= 5 (permanent)
         .mockResolvedValueOnce(150); // done
 
       mockPrisma.directoryCityAggregateJob.findFirst.mockResolvedValue({
         createdAt: new Date('2025-08-20T10:00:00Z'),
       });
+      mockPrisma.directoryCityAggregateJob.findMany.mockResolvedValue([
+        {
+          categoryId: 1n,
+          citySlug: 'maceio-al',
+          attempts: 5,
+          lastError: 'Timeout ao consultar directoryBusiness',
+          nextAttemptAt: null,
+        },
+      ]);
 
       const stats = await getDirectoryCityAggregateJobStats(mockPrisma);
 
       expect(stats.pendingCount).toBe(5);
       expect(stats.processingCount).toBe(2);
-      expect(stats.failedCount).toBe(1);
+      expect(stats.failedRetryableCount).toBe(1);
+      expect(stats.failedPermanentCount).toBe(3);
+      expect(stats.failedCount).toBe(4);
       expect(stats.processedCount).toBe(150);
       expect(stats.oldestPendingAt).toBeDefined();
+      expect(stats.failedSample).toEqual([
+        {
+          categoryId: '1',
+          citySlug: 'maceio-al',
+          attempts: 5,
+          lastError: 'Timeout ao consultar directoryBusiness',
+          nextAttemptAt: null,
+        },
+      ]);
+    });
+  });
+
+  describe('retryFailedDirectoryCityAggregateJobs', () => {
+    it('reseta jobs FAILED para PENDING sem apagar nenhum registro', async () => {
+      mockPrisma.directoryCityAggregateJob.updateMany.mockResolvedValue({ count: 4 });
+
+      const retried = await retryFailedDirectoryCityAggregateJobs(mockPrisma);
+
+      expect(retried).toBe(4);
+      expect(mockPrisma.directoryCityAggregateJob.updateMany).toHaveBeenCalledWith({
+        where: { status: 'FAILED' },
+        data: { status: 'PENDING', attempts: 0, nextAttemptAt: null, lastError: null },
+      });
     });
   });
 });

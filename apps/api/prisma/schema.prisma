@@ -552,6 +552,9 @@ model Tenant {
   appointmentReminderConfig    AppointmentReminderConfig?
   externalIntegrations         ExternalIntegration[]
   directoryBusinesses          DirectoryBusiness[]
+  collectionRules              CollectionRule[]
+  debts                        Debt[]
+  debtEvents                   DebtEvent[]
 
   @@index([status])
   @@map("tenants")
@@ -1147,6 +1150,7 @@ model User {
   loyaltyLedgerEntries          LoyaltyLedgerEntry[]
   stockMovementsPerformed       StockMovement[]
   productSales                  ProductSale[]
+  debtsCreated                  Debt[]
 
   @@index([status])
   @@map("users")
@@ -1993,6 +1997,7 @@ model BusinessUnit {
   membershipUnits              TenantMembershipUnit[]
   waitlistEntries              AppointmentWaitlist[]
   waitlistOpportunities        AppointmentWaitlistOpportunity[]
+  debts                        Debt[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -2122,6 +2127,7 @@ model Customer {
   productSales          ProductSale[]
   treatmentPlans        TreatmentPlan[]
   memberships           CustomerMembership[]
+  debts                 Debt[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
@@ -2222,6 +2228,7 @@ model Appointment {
   treatmentPlan           TreatmentPlan?                  @relation("TreatmentPlanSessions", fields: [treatmentPlanId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   originatedTreatmentPlan TreatmentPlan?                  @relation("TreatmentPlanOrigin")
   membershipUsages        CustomerMembershipUsage[]
+  debts                   Debt[]
 
   @@unique([tenantId, protocol])
   @@index([tenantId, treatmentPlanId, sessionNumber])
@@ -3231,5 +3238,130 @@ model CustomerMembershipUsage {
   @@index([membershipChargeId])
   @@index([appointmentId])
   @@map("customer_membership_usages")
+}
+
+// Bot Cobra — cobrança e negociação automática de dívidas.
+// Fase 1: CollectionRule + Debt + DebtEvent apenas (CRUD administrativo,
+// sem WhatsApp/scheduler/PIX/PaymentPromise/CollectionAttempt operacional).
+
+enum DebtOriginType {
+  APPOINTMENT
+  MANUAL
+}
+
+enum DebtStatus {
+  OPEN
+  COLLECTING
+  WAITING_RESPONSE
+  PROMISE_SCHEDULED
+  PIX_PENDING
+  PARTIALLY_PAID
+  PROMISE_OVERDUE
+  NEGOTIATING
+  DISPUTED
+  HUMAN_SUPPORT
+  PAUSED
+  PAID
+  CANCELED
+}
+
+enum CollectionCadenceType {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  CUSTOM_DAYS
+}
+
+model CollectionRule {
+  id                             BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                       String                @unique @map("public_id") @db.Char(36)
+  tenantId                       BigInt                @map("tenant_id") @db.UnsignedBigInt
+  name                           String                @db.VarChar(120)
+  active                         Boolean               @default(true)
+  cadenceType                    CollectionCadenceType @map("cadence_type")
+  cadenceDays                    Int?                  @map("cadence_days") @db.UnsignedSmallInt
+  preferredWeekday               Int?                  @map("preferred_weekday") @db.UnsignedTinyInt
+  monthlyDay                     Int?                  @map("monthly_day") @db.UnsignedTinyInt
+  allowedStartHour               Int                   @default(9) @map("allowed_start_hour") @db.UnsignedTinyInt
+  allowedEndHour                 Int                   @default(18) @map("allowed_end_hour") @db.UnsignedTinyInt
+  maxAttemptsPerDay              Int                   @default(1) @map("max_attempts_per_day") @db.UnsignedTinyInt
+  consecutiveDays                Int                   @default(3) @map("consecutive_days") @db.UnsignedTinyInt
+  pauseDaysAfterCycle            Int                   @default(4) @map("pause_days_after_cycle") @db.UnsignedTinyInt
+  maxCycles                      Int?                  @map("max_cycles") @db.UnsignedTinyInt
+  skipSundays                    Boolean               @default(true) @map("skip_sundays")
+  partialPaymentEnabled          Boolean               @default(true) @map("partial_payment_enabled")
+  partialOfferPercentages        Json                  @map("partial_offer_percentages")
+  partialMinimumCents            BigInt                @default(0) @map("partial_minimum_cents") @db.UnsignedBigInt
+  partialRoundingStepCents       BigInt                @default(1) @map("partial_rounding_step_cents") @db.UnsignedBigInt
+  askPromiseAfterPartialPayment  Boolean               @default(true) @map("ask_promise_after_partial_payment")
+  promiseQuickOptionsDays        Json                  @map("promise_quick_options_days")
+  noResponseFollowupNextDay      Boolean               @default(true) @map("no_response_followup_next_day")
+  createdAt                      DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                      DateTime              @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debts                          Debt[]
+
+  @@index([tenantId, active])
+  @@map("collection_rules")
+}
+
+model Debt {
+  id                     BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String         @unique @map("public_id") @db.Char(36)
+  tenantId                BigInt         @map("tenant_id") @db.UnsignedBigInt
+  unitId                  BigInt?        @map("unit_id") @db.UnsignedBigInt
+  originType               DebtOriginType @map("origin_type")
+  originAppointmentId      BigInt?        @map("origin_appointment_id") @db.UnsignedBigInt
+  customerId               BigInt?        @map("customer_id") @db.UnsignedBigInt
+  debtorName               String         @map("debtor_name") @db.VarChar(160)
+  debtorWhatsapp           String         @map("debtor_whatsapp") @db.VarChar(20)
+  debtorEmail              String?        @map("debtor_email") @db.VarChar(254)
+  debtorDocument           String?        @map("debtor_document") @db.VarChar(32)
+  description              String         @db.VarChar(500)
+  originalAmountCents      BigInt         @map("original_amount_cents") @db.UnsignedBigInt
+  currentBalanceCents      BigInt         @map("current_balance_cents") @db.UnsignedBigInt
+  dueDate                  DateTime       @map("due_date") @db.Date
+  status                   DebtStatus     @default(OPEN)
+  collectionRuleId         BigInt         @map("collection_rule_id") @db.UnsignedBigInt
+  collectionPausedAt       DateTime?      @map("collection_paused_at") @db.DateTime(3)
+  collectionPausedReason   String?        @map("collection_paused_reason") @db.VarChar(500)
+  humanSupportAt           DateTime?      @map("human_support_at") @db.DateTime(3)
+  disputedAt               DateTime?      @map("disputed_at") @db.DateTime(3)
+  paidAt                   DateTime?      @map("paid_at") @db.DateTime(3)
+  canceledAt               DateTime?      @map("canceled_at") @db.DateTime(3)
+  canceledReason           String?        @map("canceled_reason") @db.VarChar(500)
+  notes                    String?        @db.VarChar(1000)
+  createdByUserId          BigInt?        @map("created_by_user_id") @db.UnsignedBigInt
+  createdAt                DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                DateTime       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit                     BusinessUnit?  @relation(fields: [unitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  originAppointment        Appointment?   @relation(fields: [originAppointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer                 Customer?      @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  collectionRule           CollectionRule @relation(fields: [collectionRuleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser            User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  events                   DebtEvent[]
+
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, debtorWhatsapp])
+  @@index([tenantId, customerId])
+  @@index([tenantId, originAppointmentId])
+  @@index([tenantId, collectionRuleId, status])
+  @@map("debts")
+}
+
+model DebtEvent {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId  String   @unique @map("public_id") @db.Char(36)
+  tenantId  BigInt   @map("tenant_id") @db.UnsignedBigInt
+  debtId    BigInt   @map("debt_id") @db.UnsignedBigInt
+  eventType String   @map("event_type") @db.VarChar(40)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt      Debt     @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, debtId, createdAt])
+  @@map("debt_events")
 }
 

@@ -18,6 +18,8 @@ import { PrismaIdentityRepository } from '../modules/auth/prisma-identity.reposi
 import { PublicBookingService } from '../modules/booking/public-booking.service.js';
 import { AvailabilityRepository } from '../modules/calendar/availability.repository.js';
 import { AvailabilityService } from '../modules/calendar/availability.service.js';
+import { CollectionRuleService } from '../modules/collections/collection-rule.service.js';
+import { DebtService } from '../modules/collections/debt.service.js';
 import { CustomerAuthRepository } from '../modules/customers/customer-auth.repository.js';
 import { CustomerAuthService } from '../modules/customers/customer-auth.service.js';
 import { CustomerFavoriteRepository } from '../modules/customers/customer-favorite.repository.js';
@@ -185,6 +187,8 @@ export interface DatabaseConnection {
   readonly commissions?: ProfessionalCommissionService;
   readonly coupons?: CouponService;
   readonly loyalty?: LoyaltyService;
+  readonly collectionRules?: CollectionRuleService;
+  readonly debts?: DebtService;
   readonly financialClosings?: FinancialClosingService;
   readonly delinquency?: DelinquencyService;
   readonly financialReports?: FinancialReportService;
@@ -405,6 +409,8 @@ export function createDatabaseConnection(
   const coupons = new CouponService(client);
   const loyalty = new LoyaltyService(client, coupons);
   const delinquency = new DelinquencyService(client);
+  const collectionRules = new CollectionRuleService(client);
+  const debts = new DebtService(client, collectionRules);
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
@@ -520,6 +526,8 @@ export function createDatabaseConnection(
     commissions: commissions,
     coupons: coupons,
     loyalty: loyalty,
+    collectionRules: collectionRules,
+    debts: debts,
     financialClosings: new FinancialClosingService(client),
     delinquency: delinquency,
     financialReports: new FinancialReportService(client, delinquency),

@@ -108,6 +108,8 @@ const permissions = [
   ['loyalty.manage', 'Configurar regras de fidelidade e resgatar pontos/cashback em agendamentos.'],
   ['integration.read', 'Consultar integrações externas do estabelecimento.'],
   ['integration.manage', 'Configurar integrações externas do estabelecimento.'],
+  ['collection.read', 'Consultar dívidas e réguas de cobrança do estabelecimento.'],
+  ['collection.manage', 'Criar, atualizar e administrar dívidas e réguas de cobrança.'],
 ] as const;
 
 const roles = [
@@ -206,6 +208,8 @@ const roles = [
       'loyalty.manage',
       'integration.read',
       'integration.manage',
+      'collection.read',
+      'collection.manage',
     ],
   },
   {

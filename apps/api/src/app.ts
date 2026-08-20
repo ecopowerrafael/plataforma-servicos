@@ -37,6 +37,8 @@ import {
 import { PasswordService } from './modules/auth/password.service.js';
 import { publicBookingRoutes } from './modules/booking/public-booking.routes.js';
 import { availabilityRoutes } from './modules/calendar/availability.routes.js';
+import { collectionRuleRoutes } from './modules/collections/collection-rule.routes.js';
+import { debtRoutes } from './modules/collections/debt.routes.js';
 import { customerAuthRoutes } from './modules/customers/customer-auth.routes.js';
 import { customerFavoriteRoutes } from './modules/customers/customer-favorite.routes.js';
 import { customerMembershipChargeRoutes } from './modules/customers/customer-membership-charge.routes.js';
@@ -645,6 +647,20 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.loyalty !== undefined)
     await app.register(loyaltyRoutes, {
       service: options.database.loyalty,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.collectionRules !== undefined)
+    await app.register(collectionRuleRoutes, {
+      service: options.database.collectionRules,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.debts !== undefined)
+    await app.register(debtRoutes, {
+      service: options.database.debts,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

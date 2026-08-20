@@ -50,6 +50,7 @@ export * from './finance-overview.js';
 export * from './payment-gateway.js';
 export * from './tenant-payment-options.js';
 export * from './automation.js';
+export * from './collection.js';
 export * from './customer-recovery.js';
 export * from './coupon.js';
 export * from './loyalty.js';

@@ -165,6 +165,8 @@ export const PermissionCodeSchema = z.enum([
   'loyalty.manage',
   'integration.read',
   'integration.manage',
+  'collection.read',
+  'collection.manage',
 ]);
 
 export const UserPublicSchema = z.object({

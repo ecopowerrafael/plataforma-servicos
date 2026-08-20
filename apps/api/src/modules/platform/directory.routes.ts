@@ -1,9 +1,14 @@
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-import { DirectoryService } from './directory.service.js';
+import {
+  DirectoryService,
+  DIRECTORY_SITEMAP_PAGE_SIZE,
+  directorySitemapPageCount,
+} from './directory.service.js';
 import { type DirectoryLocationService } from './directory-location.service.js';
 import { type DirectorySeoService } from './directory-seo.service.js';
+import { evaluateDirectoryBusinessSeo, type DirectorySeoEligibilityReason } from './directory-seo-quality.js';
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { type PlatformService } from './platform.service.js';
 import { type AuthService } from '../auth/auth.service.js';
@@ -456,15 +461,94 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
 
   app.get('/platform/directory/maintenance/status', async (request) => {
     allow(request, 'platform.tenant.read');
-    const [stats, seoPendingCount] = await Promise.all([
-      getDirectoryCityAggregateJobStats(options.service['client']),
-      options.service['client'].directoryBusiness.count({ where: { seoEvaluatedAt: null } }),
-    ]);
+    const client = options.service['client'];
+
+    // Diagnóstico read-only: nenhuma escrita, só COUNTs e a mesma função pura
+    // de avaliação (evaluateDirectoryBusinessSeo) já usada pelo backfill,
+    // rodada em memória sobre os dados atuais — nunca grava seoEligible/score.
+    const [stats, totalBusinesses, seoEvaluated, seoPendingCount, seoEligible, seoIneligible, sitemapCounts] =
+      await Promise.all([
+        getDirectoryCityAggregateJobStats(client),
+        client.directoryBusiness.count(),
+        client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null } } }),
+        client.directoryBusiness.count({ where: { seoEvaluatedAt: null } }),
+        client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null }, seoEligible: true } }),
+        client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null }, seoEligible: false } }),
+        options.service['sitemapCounts'](),
+      ]);
+
+    const ineligibleBusinesses = await client.directoryBusiness.findMany({
+      where: { seoEvaluatedAt: { not: null }, seoEligible: false },
+      select: {
+        active: true,
+        indexable: true,
+        name: true,
+        city: true,
+        state: true,
+        rawAddress: true,
+        neighborhood: true,
+        postalCode: true,
+        phone: true,
+        whatsapp: true,
+        websiteUrl: true,
+        tenantId: true,
+        category: { select: { active: true, indexable: true } },
+      },
+    });
+    const reasonCounts: Record<DirectorySeoEligibilityReason, number> = {
+      BUSINESS_INACTIVE: 0,
+      BUSINESS_NOT_INDEXABLE: 0,
+      CATEGORY_INACTIVE: 0,
+      CATEGORY_NOT_INDEXABLE: 0,
+      MISSING_NAME: 0,
+      MISSING_CITY: 0,
+      INVALID_STATE: 0,
+      MISSING_ADDRESS: 0,
+      MISSING_CONTACT: 0,
+      LOW_SCORE: 0,
+    };
+    for (const business of ineligibleBusinesses) {
+      const evaluation = evaluateDirectoryBusinessSeo({
+        active: business.active,
+        indexable: business.indexable,
+        name: business.name,
+        city: business.city,
+        state: business.state,
+        rawAddress: business.rawAddress,
+        neighborhood: business.neighborhood,
+        postalCode: business.postalCode,
+        phone: business.phone,
+        whatsapp: business.whatsapp,
+        websiteUrl: business.websiteUrl,
+        tenantId: business.tenantId,
+        categoryActive: business.category.active,
+        categoryIndexable: business.category.indexable,
+      });
+      for (const reason of evaluation.reasons) reasonCounts[reason] += 1;
+    }
+
+    const totalUrls = sitemapCounts.total;
     return {
       seoPendingCount,
       cityAggregates: stats,
       aggregatesQueueSize: stats.pendingCount + stats.processingCount,
       oldestPendingAt: stats.oldestPendingAt,
+      seo: {
+        totalBusinesses,
+        seoEvaluated,
+        seoPending: seoPendingCount,
+        seoEligible,
+        seoIneligible,
+        ineligibleReasons: reasonCounts,
+      },
+      sitemap: {
+        pageSize: DIRECTORY_SITEMAP_PAGE_SIZE,
+        categoryCount: sitemapCounts.categories,
+        cityCount: sitemapCounts.cities,
+        businessCount: sitemapCounts.businesses,
+        totalUrls,
+        pageCount: directorySitemapPageCount(totalUrls),
+      },
     };
   });
 

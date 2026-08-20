@@ -40,6 +40,15 @@ function fakeClient() {
   };
 }
 
+/** `sitemapCounts` é privado em DirectoryService e acessado via bracket notation
+ * pela rota (mesmo padrão já usado para `client`) — o fake precisa do método. */
+function fakeService() {
+  return {
+    client: fakeClient(),
+    sitemapCounts: vi.fn().mockResolvedValue({ categories: 1, cities: 2, businesses: 3, total: 6 }),
+  } as unknown as DirectoryService;
+}
+
 const apps: ReturnType<typeof Fastify>[] = [];
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
@@ -86,7 +95,7 @@ describe('rotas de manutenção do diretório — protegidas', () => {
     const { app, authService, platformService } = buildAuthenticatedApp([]);
     await app.register(cookie);
     await app.register(directoryRoutes, {
-      service: { client: fakeClient() } as unknown as DirectoryService,
+      service: fakeService(),
       platformService,
       authService,
       cookieName: 'platform_session',
@@ -102,7 +111,7 @@ describe('rotas de manutenção do diretório — protegidas', () => {
     const { app, authService, platformService } = buildAuthenticatedApp([]);
     await app.register(cookie);
     await app.register(directoryRoutes, {
-      service: { client: fakeClient() } as unknown as DirectoryService,
+      service: fakeService(),
       platformService,
       authService,
       cookieName: 'platform_session',
@@ -125,7 +134,7 @@ describe('rotas de manutenção do diretório — protegidas', () => {
     ]);
     await app.register(cookie);
     await app.register(directoryRoutes, {
-      service: { client: fakeClient() } as unknown as DirectoryService,
+      service: fakeService(),
       platformService,
       authService,
       cookieName: 'platform_session',
@@ -145,16 +154,52 @@ describe('rotas de manutenção do diretório — protegidas', () => {
       url: '/platform/directory/maintenance/status',
       cookies: { platform_session: 'a'.repeat(40) },
     });
-    const body = statusResponse.json() as { seoPendingCount: number; aggregatesQueueSize: number };
+    const body = statusResponse.json() as {
+      seoPendingCount: number;
+      aggregatesQueueSize: number;
+      seo: {
+        totalBusinesses: number;
+        seoEvaluated: number;
+        seoPending: number;
+        seoEligible: number;
+        seoIneligible: number;
+        ineligibleReasons: Record<string, number>;
+      };
+      sitemap: {
+        pageSize: number;
+        categoryCount: number;
+        cityCount: number;
+        businessCount: number;
+        totalUrls: number;
+        pageCount: number;
+      };
+    };
     expect(body).toHaveProperty('seoPendingCount');
     expect(body).toHaveProperty('aggregatesQueueSize');
+    expect(body.seo).toMatchObject({
+      totalBusinesses: 0,
+      seoEvaluated: 0,
+      seoPending: 0,
+      seoEligible: 0,
+      seoIneligible: 0,
+    });
+    expect(body.seo.ineligibleReasons).toHaveProperty('LOW_SCORE');
+    expect(body.seo.ineligibleReasons).toHaveProperty('MISSING_CONTACT');
+    expect(body.sitemap).toEqual({
+      pageSize: 1000,
+      categoryCount: 1,
+      cityCount: 2,
+      businessCount: 3,
+      totalUrls: 6,
+      pageCount: 1,
+    });
   });
 
   it('GET status exige platform.tenant.read; POST process-batch exige platform.tenant.update', async () => {
     const { app, authService, platformService } = buildAuthenticatedApp(['platform.tenant.read']);
     await app.register(cookie);
     await app.register(directoryRoutes, {
-      service: { client: fakeClient() } as unknown as DirectoryService,
+      service: fakeService(),
       platformService,
       authService,
       cookieName: 'platform_session',
@@ -176,6 +221,80 @@ describe('rotas de manutenção do diretório — protegidas', () => {
   });
 });
 
+describe('GET status — diagnóstico de elegibilidade SEO (read-only)', () => {
+  it('conta motivos de inelegibilidade reaproveitando evaluateDirectoryBusinessSeo, sem gravar nada', async () => {
+    const { app, authService, platformService } = buildAuthenticatedApp(['platform.tenant.read']);
+    await app.register(cookie);
+
+    const client = fakeClient();
+    client.directoryBusiness.count = vi
+      .fn()
+      // totalBusinesses, seoEvaluated, seoPending, seoEligible, seoIneligible
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2);
+    client.directoryBusiness.findMany = vi.fn().mockResolvedValue([
+      // Reprovado por flag dura (categoria inativa) — não acumula outros motivos.
+      {
+        active: true,
+        indexable: true,
+        name: 'Barbearia A',
+        city: 'Maceió',
+        state: 'AL',
+        rawAddress: 'Rua 1',
+        neighborhood: null,
+        postalCode: null,
+        phone: '82999999999',
+        whatsapp: null,
+        websiteUrl: null,
+        tenantId: null,
+        category: { active: false, indexable: true },
+      },
+      // Reprovado por campos faltando: sem endereço e sem contato.
+      {
+        active: true,
+        indexable: true,
+        name: 'Barbearia B',
+        city: 'Maceió',
+        state: 'AL',
+        rawAddress: '',
+        neighborhood: null,
+        postalCode: null,
+        phone: null,
+        whatsapp: null,
+        websiteUrl: null,
+        tenantId: null,
+        category: { active: true, indexable: true },
+      },
+    ]);
+
+    const service = { client, sitemapCounts: vi.fn().mockResolvedValue({ categories: 1, cities: 2, businesses: 3, total: 6 }) } as unknown as DirectoryService;
+    await app.register(directoryRoutes, { service, platformService, authService, cookieName: 'platform_session' });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/platform/directory/maintenance/status',
+      cookies: { platform_session: 'a'.repeat(40) },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      seo: { totalBusinesses: number; seoEligible: number; seoIneligible: number; ineligibleReasons: Record<string, number> };
+    };
+    expect(body.seo).toMatchObject({ totalBusinesses: 4, seoEligible: 1, seoIneligible: 2 });
+    expect(body.seo.ineligibleReasons.CATEGORY_INACTIVE).toBe(1);
+    expect(body.seo.ineligibleReasons.MISSING_ADDRESS).toBe(1);
+    expect(body.seo.ineligibleReasons.MISSING_CONTACT).toBe(1);
+    // Negócio B também fica com score < 60 (só 50 pontos: nome+categoria+cidade+estado).
+    expect(body.seo.ineligibleReasons.LOW_SCORE).toBe(1);
+    // Negócio A falhou só por flag dura (early return) — nenhum outro motivo some para ele.
+    expect(body.seo.ineligibleReasons.MISSING_NAME).toBe(0);
+    // Nenhuma escrita: só count/findMany foram chamados no directoryBusiness.
+    expect(client.directoryBusiness.updateMany).not.toHaveBeenCalled();
+  });
+});
+
 describe('publicDirectoryRoutes não expõe endpoints de manutenção', () => {
   it('404 nas rotas de manutenção quando registradas apenas em publicDirectoryRoutes', async () => {
     const app = Fastify().withTypeProvider<ZodTypeProvider>();
@@ -183,7 +302,7 @@ describe('publicDirectoryRoutes não expõe endpoints de manutenção', () => {
     app.setSerializerCompiler(serializerCompiler);
     apps.push(app);
     await app.register(publicDirectoryRoutes, {
-      service: { client: fakeClient() } as unknown as DirectoryService,
+      service: fakeService(),
       locationService: {} as DirectoryLocationService,
     });
 

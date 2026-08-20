@@ -52,11 +52,13 @@ describe('directory sitemap route', () => {
       } as unknown as DirectoryService,
       locationService: {} as DirectoryLocationService,
     });
-    const [index, first, second, missing] = await Promise.all([
+    const [index, first, second, missing, categories, citiesOne] = await Promise.all([
       app.inject('/sitemap-directory.xml'),
       app.inject('/sitemap-directory-1.xml'),
       app.inject('/sitemap-directory-2.xml'),
       app.inject('/sitemap-directory-3.xml'),
+      app.inject('/sitemap-directory-categories.xml'),
+      app.inject('/sitemap-directory-cities-1.xml'),
     ]);
     expect(index.statusCode).toBe(200);
     expect(index.headers['content-type']).toContain('application/xml');
@@ -69,5 +71,9 @@ describe('directory sitemap route', () => {
     expect(first.body).toContain('<lastmod>2026-08-18T12:00:00.000Z</lastmod>');
     expect(second.statusCode).toBe(200);
     expect(missing.statusCode).toBe(404);
+    // Sufixos não numéricos (URLs antigas/erradas indexadas pelo Search
+    // Console) devem virar 404 limpo, nunca VALIDATION_ERROR/400.
+    expect(categories.statusCode).toBe(404);
+    expect(citiesOne.statusCode).toBe(404);
   });
 });

@@ -439,6 +439,44 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
       return seo().enqueueInspection(request.body.url, request.body.priority);
     },
   );
+
+  // Temporary maintenance endpoints for queue/backfill operations.
+  // Protegidos por platformAuthenticationPlugin (registrado no início deste
+  // plugin) + allow() — nunca em publicDirectoryRoutes, que não tem sessão.
+  app.post('/platform/directory/maintenance/seo/process-batch', async (request) => {
+    allow(request, 'platform.tenant.update');
+    return processDirectorySeoEligibilityBatch(options.service['client'], 200);
+  });
+
+  app.post('/platform/directory/maintenance/aggregates/process-batch', async (request) => {
+    allow(request, 'platform.tenant.update');
+    const processed = await processDirectoryCityAggregateJobs(options.service['client'], 10);
+    return { processed };
+  });
+
+  app.get('/platform/directory/maintenance/status', async (request) => {
+    allow(request, 'platform.tenant.read');
+    const [stats, seoPendingCount] = await Promise.all([
+      getDirectoryCityAggregateJobStats(options.service['client']),
+      options.service['client'].directoryBusiness.count({ where: { seoEvaluatedAt: null } }),
+    ]);
+    return {
+      seoPendingCount,
+      cityAggregates: stats,
+      aggregatesQueueSize: stats.pendingCount + stats.processingCount,
+      oldestPendingAt: stats.oldestPendingAt,
+    };
+  });
+
+  app.post(
+    '/platform/directory/maintenance/category/:categoryId/mark-seo-recalc',
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const categoryId = BigInt((request.params as any).categoryId);
+      const count = await markCategoryForSeoRecalculation(options.service['client'], categoryId);
+      return { markedCount: count };
+    },
+  );
 };
 
 interface PublicDirectoryRoutesOptions {
@@ -493,10 +531,18 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
   });
   app.get(
     '/sitemap-directory-:page.xml',
-    { schema: { params: z.object({ page: z.coerce.number().int().min(1) }) } },
+    // O param aceita qualquer segmento (não só dígitos) de propósito: sufixos
+    // não numéricos como "categories" ou "cities-1" (URLs antigas/erradas
+    // indexadas pelo Search Console) devem virar 404 "página não existe",
+    // nunca 400 de validação — por isso a checagem é manual abaixo, sem
+    // z.coerce.number() no schema (que rejeitaria com VALIDATION_ERROR/400).
+    { schema: { params: z.object({ page: z.string() }) } },
     async (request, reply) => {
       reply.header('Cache-Control', 'public, max-age=600, s-maxage=21600, stale-while-revalidate=86400');
-      const sitemap = await options.service.sitemapPage(request.params.page);
+      if (!/^\d+$/u.test(request.params.page)) return reply.code(404).send();
+      const page = Number(request.params.page);
+      if (page < 1) return reply.code(404).send();
+      const sitemap = await options.service.sitemapPage(page);
       if (sitemap.urls.length === 0) return reply.code(404).send();
       return reply
         .type('application/xml; charset=utf-8')
@@ -571,45 +617,6 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
         request.params.citySlug,
         request.params.businessSlug,
       );
-    },
-  );
-
-  // Temporary maintenance endpoints for queue/backfill operations
-  // Authentication provided by platformAuthenticationPlugin registered above
-  app.post(
-    '/platform/directory/maintenance/seo/process-batch',
-    async () => {
-      const result = await processDirectorySeoEligibilityBatch(options.service['client'], 200);
-      return result;
-    },
-  );
-
-  app.post(
-    '/platform/directory/maintenance/aggregates/process-batch',
-    async () => {
-      const processed = await processDirectoryCityAggregateJobs(options.service['client'], 10);
-      return { processed };
-    },
-  );
-
-  app.get(
-    '/platform/directory/maintenance/status',
-    async () => {
-      const stats = await getDirectoryCityAggregateJobStats(options.service['client']);
-      return {
-        cityAggregates: stats,
-        aggregatesQueueSize: stats.pendingCount + stats.processingCount,
-        oldestPendingAt: stats.oldestPendingAt,
-      };
-    },
-  );
-
-  app.post(
-    '/platform/directory/maintenance/category/:categoryId/mark-seo-recalc',
-    async (request) => {
-      const categoryId = BigInt((request.params as any).categoryId);
-      const count = await markCategoryForSeoRecalculation(options.service['client'], categoryId);
-      return { markedCount: count };
     },
   );
 };

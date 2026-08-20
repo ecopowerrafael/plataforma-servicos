@@ -178,6 +178,14 @@ const WhiteLabelModule = load(
   import('../components/tenants/WhiteLabelModule.js'),
   'WhiteLabelModule',
 );
+const WhatsAppPage = load(
+  import('../components/tenants/WhatsAppPage.js'),
+  'WhatsAppPage',
+);
+const EmailTemplateModule = load(
+  import('../components/tenants/EmailTemplateModule.js'),
+  'EmailTemplateModule',
+);
 
 const OnboardingResponseSchema = z.object({
   onboardingStep: z.string(),
@@ -748,11 +756,17 @@ export function HomePage() {
       items: [{ label: 'Minha assinatura', to: '/app/plano', visible: canViewSubscription }],
     },
     {
+      label: 'WhatsApp',
+      path: '/app/whatsapp',
+      items: [{ label: 'WhatsApp', to: '/app/whatsapp', visible: planFeatureEnabled('whatsapp.enabled') }],
+    },
+    {
       label: 'Configurações',
       path: '/app/configuracoes',
       items: [
         { label: 'Preferências', to: '/app/configuracoes', visible: canUpdateTenantSettings },
         { label: 'Sessões', to: '/app/configuracoes/sessoes', visible: true },
+        { label: 'E-mails automáticos', to: '/app/configuracoes/emails', visible: canViewNotifications },
       ],
     },
   ]
@@ -1743,6 +1757,20 @@ export function HomePage() {
             ))}
           </div>
         </section>
+      )}
+      {isRoute('/app/whatsapp') && planFeatureEnabled('whatsapp.enabled') && (
+        <ErrorBoundary key={selectedTenant}>
+          <Suspense fallback={<p>Carregando WhatsApp…</p>}>
+            <WhatsAppPage tenantPublicId={selectedTenant} canManage={canManageIntegrations} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      {isRoute('/app/configuracoes/emails') && canViewNotifications && (
+        <ErrorBoundary key={selectedTenant}>
+          <Suspense fallback={<p>Carregando E-mails automáticos…</p>}>
+            <EmailTemplateModule tenantPublicId={selectedTenant} canManage={canManageNotifications} />
+          </Suspense>
+        </ErrorBoundary>
       )}
     </main>
   );

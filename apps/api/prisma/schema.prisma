@@ -635,6 +635,8 @@ model DirectoryCategory {
   seoMetrics   DirectorySeoDailyMetric[]
   seoQueries   DirectorySeoQueryMetric[]
   externalSearches DirectoryExternalSearchCache[]
+  cityAggregates DirectoryCityAggregate[]
+  aggregateJobs DirectoryCityAggregateJob[]
 
   @@index([active, sortOrder])
   @@map("directory_categories")
@@ -701,6 +703,9 @@ model DirectoryBusiness {
   reviewStatus     String?  @map("review_status") @db.VarChar(40)
   active           Boolean  @default(true)
   indexable        Boolean  @default(true)
+  seoQualityScore  Int      @default(0) @map("seo_quality_score") @db.UnsignedTinyInt
+  seoEligible      Boolean  @default(false) @map("seo_eligible")
+  seoEvaluatedAt   DateTime? @map("seo_evaluated_at") @db.DateTime(3)
   sourceHash       String   @map("source_hash") @db.Char(64)
   firstImportedAt  DateTime @default(now()) @map("first_imported_at") @db.DateTime(3)
   lastImportedAt   DateTime @default(now()) @map("last_imported_at") @db.DateTime(3)
@@ -723,7 +728,62 @@ model DirectoryBusiness {
   @@index([whatsapp])
   @@index([phone])
   @@index([tenantId])
+  @@index([seoEligible, active])
+  @@index([categoryId, seoEligible])
   @@map("directory_businesses")
+}
+
+model DirectoryCityAggregate {
+  id                          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  categoryId                  BigInt   @map("category_id") @db.UnsignedBigInt
+  citySlug                    String   @map("city_slug") @db.VarChar(180)
+  city                        String   @db.VarChar(120)
+  state                       String   @db.Char(2)
+
+  businessCount               Int      @default(0) @map("business_count")
+  seoEligibleBusinessCount    Int      @default(0) @map("seo_eligible_business_count")
+  whatsappCount               Int      @default(0) @map("whatsapp_count")
+
+  topNeighborhoods            Json     @default("[]") @map("top_neighborhoods")
+  lastBusinessUpdatedAt       DateTime? @map("last_business_updated_at") @db.DateTime(3)
+
+  seoEligible                 Boolean  @default(false) @map("seo_eligible")
+
+  createdAt                   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                   DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  category                    DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, citySlug], map: "udca_category_city")
+  @@index([categoryId, seoEligible])
+  @@index([seoEligibleBusinessCount])
+  @@map("directory_city_aggregates")
+}
+
+model DirectoryCityAggregateJob {
+  id                BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String    @unique @map("public_id") @db.Char(36)
+
+  categoryId        BigInt    @map("category_id") @db.UnsignedBigInt
+  citySlug          String    @map("city_slug") @db.VarChar(180)
+
+  status            String    @default("PENDING") @db.VarChar(20)
+  attempts          Int       @default(0)
+
+  pendingKey        String?   @map("pending_key") @db.VarChar(220)
+  nextAttemptAt     DateTime? @map("next_attempt_at") @db.DateTime(3)
+  lastError         String?   @map("last_error") @db.Text
+
+  createdAt         DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  processedAt       DateTime? @map("processed_at") @db.DateTime(3)
+
+  category          DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([pendingKey], map: "udcaj_pending_key")
+  @@index([status, nextAttemptAt])
+  @@index([categoryId, citySlug])
+  @@map("directory_city_aggregate_jobs")
 }
 
 model DirectoryBusinessEvent {

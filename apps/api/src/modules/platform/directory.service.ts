@@ -3,6 +3,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { PrismaClient, type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type DirectorySeoService } from './directory-seo.service.js';
+import { evaluateDirectoryBusinessSeo } from './directory-seo-quality.js';
+import { enqueueDirectoryCityAggregate } from './directory-city-aggregate-job.js';
 
 const MAX_XML_BYTES = 8 * 1024 * 1024;
 export const DIRECTORY_SITEMAP_PAGE_SIZE = 1_000;
@@ -266,7 +268,11 @@ export class DirectoryService {
   public constructor(
     private readonly client: PrismaClient,
     private readonly seo?: DirectorySeoService,
-  ) {}
+  ) {
+    // Constructor does NOT initiate jobs or workers
+    // Jobs are enqueued (persisted) but not auto-processed
+    // Processing is triggered explicitly via endpoint or external scheduler
+  }
 
   private categoryPublic(category: {
     publicId: string;
@@ -895,7 +901,7 @@ export class DirectoryService {
 
   private async processItem(
     item: Awaited<ReturnType<PrismaClient['directoryImportItem']['findMany']>>[number] & {
-      category: { id: bigint } | null;
+      category: { id: bigint; active: boolean; indexable: boolean } | null;
     },
   ) {
     if (item.category === null) return;
@@ -947,9 +953,33 @@ export class DirectoryService {
         sourceHash: hash,
         lastImportedAt: new Date(),
       };
+
+      // Evaluate SEO quality for updated business
+      const seoEval = evaluateDirectoryBusinessSeo({
+        active: exact.active,
+        indexable: exact.indexable,
+        name: exact.name,
+        city: exact.city,
+        state: exact.state,
+        rawAddress: data.rawAddress,
+        neighborhood: data.neighborhood,
+        postalCode: data.postalCode,
+        phone: data.phone,
+        whatsapp: data.whatsapp,
+        websiteUrl: data.websiteUrl,
+        tenantId: exact.tenantId,
+        categoryActive: item.category.active,
+        categoryIndexable: item.category.indexable,
+      });
+
       const business = await this.client.directoryBusiness.update({
         where: { id: exact.id },
-        data,
+        data: {
+          ...data,
+          seoQualityScore: seoEval.score,
+          seoEligible: seoEval.eligible,
+          seoEvaluatedAt: new Date(),
+        },
         include: { category: { select: { slug: true } } },
       });
       await this.client.directoryImportItem.update({
@@ -957,6 +987,9 @@ export class DirectoryService {
         data: { businessId: business.id, status: 'UPDATED' },
       });
       await this.seo?.enqueueBusiness(business, 'UPDATED').catch(() => undefined);
+
+      // Enqueue city aggregate refresh (persisted, deduped)
+      await enqueueDirectoryCityAggregate(this.client, exact.categoryId, exact.citySlug);
       return;
     }
     const approximate = await this.approximateDuplicate(item.category.id, record);
@@ -971,6 +1004,24 @@ export class DirectoryService {
       });
       return;
     }
+    // Evaluate SEO quality for new business
+    const seoEval = evaluateDirectoryBusinessSeo({
+      active: true, // New businesses are active by default
+      indexable: true, // New businesses are indexable by default
+      name: record.name,
+      city: record.city,
+      state: record.state,
+      rawAddress: record.rawAddress,
+      neighborhood: address.neighborhood,
+      postalCode: address.postalCode,
+      phone: record.phone,
+      whatsapp: record.whatsapp,
+      websiteUrl: record.websiteUrl,
+      tenantId: null,
+      categoryActive: item.category.active,
+      categoryIndexable: item.category.indexable,
+    });
+
     const business = await this.client.directoryBusiness.create({
       data: {
         publicId: randomUUID(),
@@ -998,6 +1049,9 @@ export class DirectoryService {
         relevanceScore: record.relevanceScore,
         reviewStatus: record.reviewStatus,
         sourceHash: hash,
+        seoQualityScore: seoEval.score,
+        seoEligible: seoEval.eligible,
+        seoEvaluatedAt: new Date(),
       },
       include: { category: { select: { slug: true } } },
     });
@@ -1006,6 +1060,9 @@ export class DirectoryService {
       data: { businessId: business.id, status: 'CREATED' },
     });
     await this.seo?.enqueueBusiness(business, 'CREATED').catch(() => undefined);
+
+    // Enqueue city aggregate refresh (persisted, deduped)
+    await enqueueDirectoryCityAggregate(this.client, item.category.id, citySlug);
   }
 
   public async pause(publicId: string) {
@@ -1099,10 +1156,27 @@ export class DirectoryService {
       sortOrder?: number | undefined;
     },
   ) {
-    return this.client.directoryCategory.update({
+    // Check if active or indexable will change
+    const current = await this.client.directoryCategory.findFirst({ where: { publicId } });
+    const willChangeActiveOrIndexable =
+      (input.active !== undefined && input.active !== current?.active) ||
+      (input.indexable !== undefined && input.indexable !== current?.indexable);
+
+    // Update category
+    const category = await this.client.directoryCategory.update({
       where: { publicId },
       data: Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
     });
+
+    // If active or indexable changed, mark all businesses for SEO recalculation
+    if (willChangeActiveOrIndexable) {
+      await this.client.directoryBusiness.updateMany({
+        where: { categoryId: category.id },
+        data: { seoEvaluatedAt: null },
+      });
+    }
+
+    return category;
   }
   public async adminBusinesses(page: number, limit: number) {
     const [total, items] = await Promise.all([
@@ -1124,10 +1198,71 @@ export class DirectoryService {
       tenantId?: bigint | null | undefined;
     },
   ) {
-    return this.client.directoryBusiness.update({
+    // Fetch current business to get full data for SEO evaluation
+    const current = await this.client.directoryBusiness.findFirst({
       where: { publicId },
-      data: Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
+      include: { category: true },
     });
+
+    if (!current) {
+      throw new AppError({
+        code: 'DIRECTORY_BUSINESS_NOT_FOUND',
+        message: 'Negócio não encontrado.',
+        statusCode: 404,
+      });
+    }
+
+    // Prepare updated business data
+    const updated = {
+      ...current,
+      ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
+    };
+
+    // Evaluate SEO with updated data
+    const seoEval = evaluateDirectoryBusinessSeo({
+      active: updated.active,
+      indexable: updated.indexable,
+      name: updated.name,
+      city: updated.city,
+      state: updated.state,
+      rawAddress: updated.rawAddress,
+      neighborhood: updated.neighborhood,
+      postalCode: updated.postalCode,
+      phone: updated.phone,
+      whatsapp: updated.whatsapp,
+      websiteUrl: updated.websiteUrl,
+      tenantId: input.tenantId ?? current.tenantId,
+      categoryActive: updated.category.active,
+      categoryIndexable: updated.category.indexable,
+    });
+
+    // Remember old eligibility to detect changes
+    const wasEligible = (current as any).seoEligible ?? false;
+
+    // Perform update with new SEO scores
+    const business = await this.client.directoryBusiness.update({
+      where: { publicId },
+      data: {
+        ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
+        seoQualityScore: seoEval.score,
+        seoEligible: seoEval.eligible,
+        seoEvaluatedAt: new Date(),
+      },
+      include: { category: true },
+    });
+
+    // If eligibility changed, enqueue city aggregate refresh (persisted, deduped)
+    if (wasEligible !== seoEval.eligible) {
+      await enqueueDirectoryCityAggregate(this.client, business.categoryId, business.citySlug);
+    }
+
+    // If city or category changed, enqueue BOTH old and new aggregates
+    if (current.categoryId !== business.categoryId || current.citySlug !== business.citySlug) {
+      await enqueueDirectoryCityAggregate(this.client, current.categoryId, current.citySlug);
+      await enqueueDirectoryCityAggregate(this.client, business.categoryId, business.citySlug);
+    }
+
+    return business;
   }
   public async categoryCities(slug: string) {
     const category = await this.client.directoryCategory.findFirst({
@@ -1165,24 +1300,27 @@ export class DirectoryService {
         message: 'Categoria não encontrada.',
         statusCode: 404,
       });
-    const where = { categoryId: category.id, citySlug, active: true };
-    const [total, items, whatsappCount, neighborhoods] = await Promise.all([
-      this.client.directoryBusiness.count({ where }),
+
+    // Optimized: Use DirectoryCityAggregate for neighborhoods & whatsapp count
+    const [aggregate, items, total] = await Promise.all([
+      this.client.directoryCityAggregate.findFirst({
+        where: { categoryId: category.id, citySlug },
+      }),
       this.client.directoryBusiness.findMany({
-        where,
+        where: { categoryId: category.id, citySlug, active: true },
         orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
-      this.client.directoryBusiness.count({ where: { ...where, whatsapp: { not: null } } }),
-      this.client.directoryBusiness.groupBy({
-        by: ['neighborhood'],
-        where: { ...where, neighborhood: { not: null } },
-        _count: true,
-        orderBy: { _count: { neighborhood: 'desc' } },
-        take: 12,
+      this.client.directoryBusiness.count({
+        where: { categoryId: category.id, citySlug, active: true },
       }),
     ]);
+
+    // Use aggregate data for neighborhoods and whatsapp count
+    const neighborhoods = aggregate?.topNeighborhoods as Array<{ name: string; count: number }> || [];
+    const whatsappCount = aggregate?.whatsappCount ?? 0;
+
     return {
       category: this.categoryPublic(category),
       total,
@@ -1191,9 +1329,7 @@ export class DirectoryService {
       totalPages: Math.ceil(total / limit),
       stats: {
         whatsappCount,
-        neighborhoods: neighborhoods.flatMap((row) =>
-          row.neighborhood === null ? [] : [{ name: row.neighborhood, count: row._count }],
-        ),
+        neighborhoods,
       },
       items: items.map((item) => this.businessPublic(item)),
     };
@@ -1214,33 +1350,22 @@ export class DirectoryService {
   private readonly sitemapCategoryWhere = {
     active: true,
     indexable: true,
-    businesses: { some: { active: true, indexable: true } },
+    // Category included if it has at least 1 SEO-eligible business
+    cityAggregates: { some: { seoEligible: true } },
   };
   private readonly sitemapBusinessWhere = {
     active: true,
     indexable: true,
+    seoEligible: true,
     category: { active: true, indexable: true },
   };
 
   private async sitemapCounts() {
-    const [categories, businesses, cityResult] = await Promise.all([
+    const [categories, businesses, cities] = await Promise.all([
       this.client.directoryCategory.count({ where: this.sitemapCategoryWhere }),
       this.client.directoryBusiness.count({ where: this.sitemapBusinessWhere }),
-      this.client.$queryRaw<Array<{ total: bigint | number }>>`
-        SELECT COUNT(*) AS total
-        FROM (
-          SELECT business.category_id, business.city_slug
-          FROM directory_businesses AS business
-          INNER JOIN directory_categories AS category ON category.id = business.category_id
-          WHERE business.active = 1
-            AND business.indexable = 1
-            AND category.active = 1
-            AND category.indexable = 1
-          GROUP BY business.category_id, business.city_slug
-        ) AS sitemap_cities
-      `,
+      this.client.directoryCityAggregate.count({ where: { seoEligible: true } }),
     ]);
-    const cities = Number(cityResult[0]?.total ?? 0);
     return {
       categories,
       cities,
@@ -1306,27 +1431,24 @@ export class DirectoryService {
 
     const citiesPage = takeFrom(counts.cities);
     if (citiesPage.take > 0) {
-      const cities = await this.client.directoryBusiness.groupBy({
-        by: ['categoryId', 'citySlug'],
-        where: this.sitemapBusinessWhere,
-        _max: { updatedAt: true },
+      // Use DirectoryCityAggregate for optimized city listing
+      const cities = await this.client.directoryCityAggregate.findMany({
+        where: { seoEligible: true },
         orderBy: [{ categoryId: 'asc' }, { citySlug: 'asc' }],
         skip: citiesPage.skip,
         take: citiesPage.take,
+        select: {
+          categoryId: true,
+          citySlug: true,
+          lastBusinessUpdatedAt: true,
+          category: { select: { slug: true } },
+        },
       });
-      const categoryIds = [...new Set(cities.map((city) => city.categoryId))];
-      const categories = await this.client.directoryCategory.findMany({
-        where: { id: { in: categoryIds }, active: true, indexable: true },
-        select: { id: true, slug: true },
-      });
-      const categoryById = new Map(categories.map((category) => [category.id, category.slug]));
       urls.push(
-        ...cities.flatMap((city) => {
-          const slug = categoryById.get(city.categoryId);
-          return slug === undefined
-            ? []
-            : [{ path: `/encontre/${slug}/${city.citySlug}`, updatedAt: city._max.updatedAt }];
-        }),
+        ...cities.map((city) => ({
+          path: `/encontre/${city.category.slug}/${city.citySlug}`,
+          updatedAt: city.lastBusinessUpdatedAt,
+        })),
       );
     }
 

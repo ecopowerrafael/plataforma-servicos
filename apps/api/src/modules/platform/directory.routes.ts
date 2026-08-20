@@ -7,6 +7,14 @@ import { type DirectorySeoService } from './directory-seo.service.js';
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { type PlatformService } from './platform.service.js';
 import { type AuthService } from '../auth/auth.service.js';
+import {
+  processDirectoryCityAggregateJobs,
+  getDirectoryCityAggregateJobStats,
+} from './directory-city-aggregate-job.js';
+import {
+  processDirectorySeoEligibilityBatch,
+  markCategoryForSeoRecalculation,
+} from './directory-seo-backfill.js';
 
 const importParams = z.object({ publicId: z.uuid() });
 const pagination = z.object({
@@ -470,6 +478,7 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
   const escapeXml = (value: string) =>
     value.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;');
   app.get('/sitemap-directory.xml', async (_request, reply) => {
+    reply.header('Cache-Control', 'public, max-age=600, s-maxage=21600, stale-while-revalidate=86400');
     const summary = await options.service.sitemapSummary();
     const entries = Array.from(
       { length: summary.pageCount },
@@ -486,6 +495,7 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
     '/sitemap-directory-:page.xml',
     { schema: { params: z.object({ page: z.coerce.number().int().min(1) }) } },
     async (request, reply) => {
+      reply.header('Cache-Control', 'public, max-age=600, s-maxage=21600, stale-while-revalidate=86400');
       const sitemap = await options.service.sitemapPage(request.params.page);
       if (sitemap.urls.length === 0) return reply.code(404).send();
       return reply
@@ -498,7 +508,10 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
   app.get(
     '/public/directory/categories',
     { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
-    async () => ({ categories: await options.service.categories() }),
+    async (_request, reply) => {
+      reply.header('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+      return { categories: await options.service.categories() };
+    },
   );
   app.get(
     '/public/directory/location/by-cep/:cep',
@@ -514,7 +527,10 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
   app.get(
     '/public/directory/categories/:categorySlug/cities',
     { schema: { params: z.object({ categorySlug: z.string().min(1).max(120) }) } },
-    (request) => options.service.categoryCities(request.params.categorySlug),
+    async (request, reply) => {
+      reply.header('Cache-Control', 'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400');
+      return options.service.categoryCities(request.params.categorySlug);
+    },
   );
   app.get(
     '/public/directory/:categorySlug/:citySlug',
@@ -527,13 +543,15 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
         querystring: pagination,
       },
     },
-    (request) =>
-      options.service.cityBusinesses(
+    async (request, reply) => {
+      reply.header('Cache-Control', 'public, max-age=120, s-maxage=900, stale-while-revalidate=3600');
+      return options.service.cityBusinesses(
         request.params.categorySlug,
         request.params.citySlug,
         request.query.page,
         request.query.limit,
-      ),
+      );
+    },
   );
   app.get(
     '/public/directory/:categorySlug/:citySlug/:businessSlug',
@@ -546,11 +564,52 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
         }),
       },
     },
-    (request) =>
-      options.service.business(
+    async (request, reply) => {
+      reply.header('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+      return options.service.business(
         request.params.categorySlug,
         request.params.citySlug,
         request.params.businessSlug,
-      ),
+      );
+    },
+  );
+
+  // Temporary maintenance endpoints for queue/backfill operations
+  // Authentication provided by platformAuthenticationPlugin registered above
+  app.post(
+    '/platform/directory/maintenance/seo/process-batch',
+    async () => {
+      const result = await processDirectorySeoEligibilityBatch(options.service['client'], 200);
+      return result;
+    },
+  );
+
+  app.post(
+    '/platform/directory/maintenance/aggregates/process-batch',
+    async () => {
+      const processed = await processDirectoryCityAggregateJobs(options.service['client'], 10);
+      return { processed };
+    },
+  );
+
+  app.get(
+    '/platform/directory/maintenance/status',
+    async () => {
+      const stats = await getDirectoryCityAggregateJobStats(options.service['client']);
+      return {
+        cityAggregates: stats,
+        aggregatesQueueSize: stats.pendingCount + stats.processingCount,
+        oldestPendingAt: stats.oldestPendingAt,
+      };
+    },
+  );
+
+  app.post(
+    '/platform/directory/maintenance/category/:categoryId/mark-seo-recalc',
+    async (request) => {
+      const categoryId = BigInt((request.params as any).categoryId);
+      const count = await markCategoryForSeoRecalculation(options.service['client'], categoryId);
+      return { markedCount: count };
+    },
   );
 };

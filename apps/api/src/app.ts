@@ -50,10 +50,10 @@ import { customerRecoveryRoutes } from './modules/customers/customer-recovery.ro
 import { customerRoutes } from './modules/customers/customer.routes.js';
 import { integrationRoutes } from './modules/integrations/integration.routes.js';
 import { whatsappWebhookRoutes } from './modules/integrations/whatsapp-webhook.routes.js';
-import { whatsappAutoMessageRoutes } from './modules/integrations/whatsapp-auto-message.routes.js';
 import { automationRoutes } from './modules/notifications/automation.routes.js';
 import { notificationTemplateRoutes } from './modules/notifications/notification-template.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
+import { appointmentReminderConfigRoutes } from './modules/notifications/appointment-reminder-config.routes.js';
 import { pushSubscriptionRoutes } from './modules/notifications/push-subscription.routes.js';
 import { cashRegisterRoutes } from './modules/payments/cash-register.routes.js';
 import { commissionRoutes } from './modules/payments/commission.routes.js';
@@ -439,12 +439,6 @@ export async function buildApp(options: BuildAppOptions) {
       client: options.database.client,
     });
     await app.register(whatsappWebhookRoutes, { service: options.database.integrations });
-    if (options.database.whatsappAutoMessages !== undefined)
-      await app.register(whatsappAutoMessageRoutes, {
-        service: options.database.whatsappAutoMessages,
-        authService,
-        client: options.database.client,
-      });
   }
   if (options.database.tenantWhiteLabel !== undefined) {
     await app.register(publicTenantWhiteLabelRoutes, {
@@ -711,6 +705,13 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.notificationTemplates !== undefined)
     await app.register(notificationTemplateRoutes, {
       service: options.database.notificationTemplates,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.appointmentReminderConfig !== undefined)
+    await app.register(appointmentReminderConfigRoutes, {
+      service: options.database.appointmentReminderConfig,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

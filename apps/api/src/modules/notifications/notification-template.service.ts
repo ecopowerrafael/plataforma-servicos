@@ -11,6 +11,21 @@ import { type z } from 'zod';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
+export interface WhatsAppButton {
+  actionKey: string;
+  label: string;
+  enabled: boolean;
+  order: number;
+}
+
+export type WhatsAppActionKey = 'CONFIRM_APPOINTMENT' | 'RESCHEDULE_APPOINTMENT' | 'CANCEL_APPOINTMENT';
+
+const WHATSAPP_ACTION_KEYS: Set<WhatsAppActionKey> = new Set([
+  'CONFIRM_APPOINTMENT',
+  'RESCHEDULE_APPOINTMENT',
+  'CANCEL_APPOINTMENT',
+]);
+
 export type NotificationKind = z.infer<typeof NotificationKindSchema>;
 type UpdateInput = z.infer<typeof UpdateNotificationTemplateRequestSchema>;
 
@@ -39,6 +54,7 @@ const APPOINTMENT_VARIABLES = new Set([
   'value',
   'appointmentUrl',
   'isToday',
+  'professionalPhrase',
 ]);
 const RECOVERY_VARIABLES = new Set(['customerName', 'tenantName', 'referenceDate']);
 const TREATMENT_VARIABLES = new Set([
@@ -52,6 +68,27 @@ const TREATMENT_VARIABLES = new Set([
   'professionalName',
   'treatmentUrl',
 ]);
+
+const WHATSAPP_ALLOWED_ACTIONS_BY_KIND: Partial<Record<NotificationKind, Set<WhatsAppActionKey>>> = {
+  'appointment.booking_confirmed': new Set(['CONFIRM_APPOINTMENT', 'RESCHEDULE_APPOINTMENT']),
+  'appointment.day_before_reminder': new Set(['CONFIRM_APPOINTMENT', 'RESCHEDULE_APPOINTMENT']),
+  'appointment.upcoming_reminder': new Set(['CONFIRM_APPOINTMENT']),
+  'appointment.booking_canceled': new Set([]),
+};
+
+const DEFAULT_WHATSAPP_BUTTONS: Partial<Record<NotificationKind, WhatsAppButton[]>> = {
+  'appointment.booking_confirmed': [
+    { actionKey: 'CONFIRM_APPOINTMENT', label: 'Confirmar agendamento', enabled: true, order: 1 },
+    { actionKey: 'RESCHEDULE_APPOINTMENT', label: 'Reagendar', enabled: true, order: 2 },
+  ],
+  'appointment.day_before_reminder': [
+    { actionKey: 'CONFIRM_APPOINTMENT', label: 'Confirmar presença', enabled: true, order: 1 },
+    { actionKey: 'RESCHEDULE_APPOINTMENT', label: 'Reagendar', enabled: true, order: 2 },
+  ],
+  'appointment.upcoming_reminder': [
+    { actionKey: 'CONFIRM_APPOINTMENT', label: 'Confirmar', enabled: true, order: 1 },
+  ],
+};
 
 function assertSupportedVariables(
   kind: NotificationKind,
@@ -75,6 +112,55 @@ function assertSupportedVariables(
         });
     }
   }
+}
+
+function validateAndNormalizeWhatsAppButtons(
+  kind: NotificationKind,
+  buttons: unknown,
+): WhatsAppButton[] {
+  if (buttons === null || buttons === undefined) {
+    return DEFAULT_WHATSAPP_BUTTONS[kind] ?? [];
+  }
+  if (!Array.isArray(buttons)) {
+    throw new AppError({
+      code: 'INVALID_WHATSAPP_BUTTONS',
+      message: 'Botões WhatsApp devem ser um array.',
+      statusCode: 400,
+    });
+  }
+  const allowed = WHATSAPP_ALLOWED_ACTIONS_BY_KIND[kind] ?? new Set();
+  const normalized: WhatsAppButton[] = [];
+  for (const btn of buttons) {
+    if (typeof btn !== 'object' || btn === null) continue;
+    const obj = btn as Record<string, unknown>;
+    const actionKey = obj.actionKey as string | undefined;
+    if (typeof actionKey !== 'string' || !WHATSAPP_ACTION_KEYS.has(actionKey as WhatsAppActionKey)) {
+      throw new AppError({
+        code: 'INVALID_ACTION_KEY',
+        message: `actionKey inválida: ${actionKey}`,
+        statusCode: 400,
+      });
+    }
+    if (!allowed.has(actionKey as WhatsAppActionKey)) {
+      throw new AppError({
+        code: 'ACTION_NOT_ALLOWED_FOR_KIND',
+        message: `A ação ${actionKey} não é permitida para este tipo de notificação.`,
+        statusCode: 400,
+      });
+    }
+    const label = obj.label as string | undefined;
+    if (typeof label !== 'string' || label.trim().length === 0) {
+      throw new AppError({
+        code: 'INVALID_BUTTON_LABEL',
+        message: 'Label do botão é obrigatório e não pode ser vazio.',
+        statusCode: 400,
+      });
+    }
+    const enabled = typeof obj.enabled === 'boolean' ? obj.enabled : true;
+    const order = typeof obj.order === 'number' ? Math.max(1, obj.order) : normalized.length + 1;
+    normalized.push({ actionKey: actionKey as WhatsAppActionKey, label: label.trim(), enabled, order });
+  }
+  return normalized;
 }
 
 const DEFAULT_WHATSAPP_TEMPLATES: Partial<Record<NotificationKind, string>> = {
@@ -284,7 +370,11 @@ export class NotificationTemplateService {
     });
   }
 
-  public async update(tenantId: bigint, kind: NotificationKind, input: UpdateInput): Promise<void> {
+  public async update(
+    tenantId: bigint,
+    kind: NotificationKind,
+    input: UpdateInput & { whatsappEnabled?: boolean; whatsappButtons?: unknown },
+  ): Promise<void> {
     if (input.subject === null || input.body === null) {
       await this.client.notificationTemplate.deleteMany({ where: { tenantId, kind } });
       return;
@@ -298,6 +388,7 @@ export class NotificationTemplateService {
       input.ctaLabel,
       input.whatsappBody,
     ]);
+    const normalizedButtons = validateAndNormalizeWhatsAppButtons(kind, input.whatsappButtons);
     const existing = await this.client.notificationTemplate.findFirst({
       where: { tenantId, kind },
       select: { id: true },
@@ -322,17 +413,22 @@ export class NotificationTemplateService {
           subject: input.subject,
           body: storedBody,
           whatsappBody: input.whatsappBody ?? DEFAULT_WHATSAPP_TEMPLATES[kind] ?? null,
+          whatsappEnabled: input.whatsappEnabled ?? true,
+          whatsappButtons: normalizedButtons.length > 0 ? (normalizedButtons as any) : null,
         },
       });
       return;
     }
+    const updateData: any = {
+      subject: input.subject,
+      body: storedBody,
+    };
+    if (input.whatsappBody !== undefined) updateData.whatsappBody = input.whatsappBody;
+    if (input.whatsappEnabled !== undefined) updateData.whatsappEnabled = input.whatsappEnabled;
+    if (input.whatsappButtons !== undefined) updateData.whatsappButtons = normalizedButtons.length > 0 ? (normalizedButtons as any) : null;
     await this.client.notificationTemplate.update({
       where: { id: existing.id },
-      data: {
-        subject: input.subject,
-        body: storedBody,
-        ...(input.whatsappBody === undefined ? {} : { whatsappBody: input.whatsappBody }),
-      },
+      data: updateData,
     });
   }
 
@@ -353,8 +449,9 @@ export class NotificationTemplateService {
     tenantId: bigint,
     kind: NotificationKind,
     variables: Record<string, string>,
-  ): Promise<string> {
+  ): Promise<string | null> {
     const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
+    if (custom?.whatsappEnabled === false) return null;
     const template =
       custom?.whatsappBody ?? DEFAULT_WHATSAPP_TEMPLATES[kind] ?? DEFAULT_TEMPLATES[kind].body;
     const professional = variables.professionalName?.trim() ?? '';
@@ -362,5 +459,46 @@ export class NotificationTemplateService {
       { subject: '', body: template },
       { ...variables, professionalPhrase: professional === '' ? '' : ` com ${professional}` },
     ).body;
+  }
+
+  public async getWhatsAppButtons(tenantId: bigint, kind: NotificationKind): Promise<WhatsAppButton[]> {
+    const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
+    const buttons = custom?.whatsappButtons as unknown as WhatsAppButton[] | null | undefined;
+    if (buttons !== null && buttons !== undefined && Array.isArray(buttons)) {
+      return validateAndNormalizeWhatsAppButtons(kind, buttons);
+    }
+    return DEFAULT_WHATSAPP_BUTTONS[kind] ?? [];
+  }
+
+  public async isWhatsAppEnabled(tenantId: bigint, kind: NotificationKind): Promise<boolean> {
+    const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
+    return custom?.whatsappEnabled ?? true;
+  }
+
+  public async getWhatsAppInfo(tenantId: bigint, kind: NotificationKind) {
+    const custom = await this.client.notificationTemplate.findFirst({ where: { tenantId, kind } });
+    const isEnabled = custom?.whatsappEnabled ?? true;
+    const buttons = custom?.whatsappButtons as unknown as WhatsAppButton[] | null | undefined;
+    const normalizedButtons = validateAndNormalizeWhatsAppButtons(kind, buttons);
+    const body = custom?.whatsappBody ?? DEFAULT_WHATSAPP_TEMPLATES[kind];
+    const allowed = WHATSAPP_ALLOWED_ACTIONS_BY_KIND[kind] ?? new Set();
+    return {
+      kind,
+      enabled: isEnabled,
+      body: body ?? null,
+      buttons: normalizedButtons,
+      allowedActions: Array.from(allowed),
+      isCustomized: custom !== null,
+      placeholders: this.getPlaceholdersForKind(kind),
+    };
+  }
+
+  public getPlaceholdersForKind(kind: NotificationKind): string[] {
+    const supported = kind.startsWith('appointment.')
+      ? APPOINTMENT_VARIABLES
+      : kind.startsWith('treatment_plan.')
+        ? TREATMENT_VARIABLES
+        : RECOVERY_VARIABLES;
+    return Array.from(supported).sort();
   }
 }

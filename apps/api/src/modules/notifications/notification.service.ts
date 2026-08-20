@@ -21,6 +21,7 @@ export interface NotificationInput {
   subject: string;
   body: string;
   email?: { html: string; fromName: string } | undefined;
+  whatsappButtons?: Array<{ actionKey: string; label: string; enabled: boolean; order: number }> | undefined;
 }
 
 const EMAIL_ENVELOPE_PREFIX = '__AG_EMAIL_V1__';
@@ -143,6 +144,7 @@ export class NotificationService {
           body: encodeEmailBody(input),
           status: 'PENDING',
           ...(scheduledAt !== undefined && { scheduledAt }),
+          ...(input.whatsappButtons !== undefined && input.channel === 'WHATSAPP' ? { whatsappButtons: (input.whatsappButtons as any) } : {}),
         },
       });
       if (input.channel !== 'WEBHOOK')
@@ -319,15 +321,24 @@ export class NotificationService {
       } else if (log.channel === 'WHATSAPP') {
         if (this.deliveries.whatsapp === undefined)
           throw new IntegrationUnavailableError('WhatsApp não configurado.');
-        if (log.kind === 'appointment.booking_confirmed') {
+        const buttons = log.whatsappButtons as unknown as Array<{ actionKey: string; label: string; enabled: boolean }> | null;
+        const hasButtons = buttons !== null && buttons.length > 0;
+        if (hasButtons && buttons.some((b) => b.enabled)) {
+          const actionKeyToButtonId = {
+            CONFIRM_APPOINTMENT: 'BOOKING_CONFIRM',
+            RESCHEDULE_APPOINTMENT: 'BOOKING_RESCHEDULE',
+            CANCEL_APPOINTMENT: 'BOOKING_CANCEL',
+          } as Record<string, string>;
+          const enabledButtons = buttons.filter((b) => b.enabled);
+          const mappedButtons = enabledButtons.map((b) => ({
+            buttonId: actionKeyToButtonId[b.actionKey as keyof typeof actionKeyToButtonId] || b.actionKey,
+            label: b.label,
+          }));
           const result = await this.deliveries.whatsapp.sendInteractiveButtons(
             log.tenantId,
             log.recipient,
             log.body,
-            [
-              { buttonId: 'BOOKING_CONFIRM', label: 'Confirmar agendamento' },
-              { buttonId: 'BOOKING_RESCHEDULE', label: 'Reagendar' },
-            ],
+            mappedButtons,
           );
           const config = await this.client.tenantWhatsAppConfig.findUnique({
             where: { tenantId: log.tenantId },
@@ -340,7 +351,7 @@ export class NotificationService {
               instanceId: config?.phoneNumberId ?? '',
               phone: log.recipient,
               externalMessageId: result.externalMessageId,
-              actionIds: ['BOOKING_CONFIRM', 'BOOKING_RESCHEDULE'],
+              actionIds: mappedButtons.map((b) => b.buttonId),
               status: result.status,
               notificationLogId: log.id,
               errorCode: result.errorCode,

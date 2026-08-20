@@ -37,7 +37,6 @@ import { IntegrationRepository } from '../modules/integrations/integration.repos
 import { IntegrationService } from '../modules/integrations/integration.service.js';
 import { WApiIntegrationService } from '../modules/integrations/wapi-integration.service.js';
 import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
-import { WhatsAppAutoMessageService } from '../modules/integrations/whatsapp-auto-message.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
 import { AppointmentReminderConfigService } from '../modules/notifications/appointment-reminder-config.service.js';
@@ -172,9 +171,9 @@ export interface DatabaseConnection {
   readonly notificationTemplates?: NotificationTemplateService;
   readonly notificationCampaigns?: NotificationCampaignService;
   readonly whatsappProvisioning?: WhatsAppProvisioningService;
-  readonly whatsappAutoMessages?: WhatsAppAutoMessageService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
+  readonly appointmentReminderConfig?: AppointmentReminderConfigService;
   readonly appointmentReminders?: AppointmentReminderService;
   readonly automations?: AutomationService;
   readonly pushSubscriptions?: PushSubscriptionService;
@@ -507,9 +506,9 @@ export function createDatabaseConnection(
     notificationTemplates: notificationTemplates,
     notificationCampaigns: notificationCampaigns,
     whatsappProvisioning,
-    whatsappAutoMessages: new WhatsAppAutoMessageService(client),
     appointmentNotifications: appointmentNotifications,
     treatmentPlanNotifications,
+    appointmentReminderConfig: appointmentReminderConfig,
     appointmentReminders: appointmentReminders,
     automations: automations,
     pushSubscriptions: pushSubscriptions,

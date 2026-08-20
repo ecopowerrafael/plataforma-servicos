@@ -57,6 +57,7 @@ export * from './multi-unit.js';
 export * from './location.js';
 export * from './integration.js';
 export * from './treatment-plan.js';
+export * from './whatsapp-notifications.js';
 
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),

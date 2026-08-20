@@ -422,6 +422,8 @@ export class DirectoryService {
       search?: string | undefined;
       hasTenant?: boolean | undefined;
       businessPublicId?: string | undefined;
+      page?: number | undefined;
+      limit?: number | undefined;
     } = {},
   ) {
     const endOfDay =
@@ -447,26 +449,46 @@ export class DirectoryService {
               ...(endOfDay === undefined ? {} : { lte: endOfDay }),
             },
           };
-    const businesses = await this.client.directoryBusiness.findMany({
-      where: {
-        ...(input.businessPublicId === undefined ? {} : { publicId: input.businessPublicId }),
-        ...(input.categorySlug === undefined ? {} : { category: { slug: input.categorySlug } }),
-        ...(input.state === undefined ? {} : { state: input.state }),
-        ...(input.city === undefined ? {} : { city: input.city }),
-        ...(input.search === undefined ? {} : { name: { contains: input.search } }),
-        ...(input.hasTenant === undefined
-          ? {}
-          : { tenantId: input.hasTenant ? { not: null } : null }),
-      },
-      include: {
-        category: true,
-        events: {
-          ...(eventWhere === undefined ? {} : { where: eventWhere }),
-          orderBy: { createdAt: 'asc' },
+    const page = input.page ?? 1;
+    const limit = input.limit ?? 25;
+    const skip = (page - 1) * limit;
+
+    const [businesses, totalCount] = await Promise.all([
+      this.client.directoryBusiness.findMany({
+        where: {
+          ...(input.businessPublicId === undefined ? {} : { publicId: input.businessPublicId }),
+          ...(input.categorySlug === undefined ? {} : { category: { slug: input.categorySlug } }),
+          ...(input.state === undefined ? {} : { state: input.state }),
+          ...(input.city === undefined ? {} : { city: input.city }),
+          ...(input.search === undefined ? {} : { name: { contains: input.search } }),
+          ...(input.hasTenant === undefined
+            ? {}
+            : { tenantId: input.hasTenant ? { not: null } : null }),
         },
-      },
-      orderBy: { name: 'asc' },
-    });
+        include: {
+          category: true,
+          events: {
+            ...(eventWhere === undefined ? {} : { where: eventWhere }),
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+        orderBy: { name: 'asc' },
+        skip,
+        take: limit,
+      }),
+      this.client.directoryBusiness.count({
+        where: {
+          ...(input.businessPublicId === undefined ? {} : { publicId: input.businessPublicId }),
+          ...(input.categorySlug === undefined ? {} : { category: { slug: input.categorySlug } }),
+          ...(input.state === undefined ? {} : { state: input.state }),
+          ...(input.city === undefined ? {} : { city: input.city }),
+          ...(input.search === undefined ? {} : { name: { contains: input.search } }),
+          ...(input.hasTenant === undefined
+            ? {}
+            : { tenantId: input.hasTenant ? { not: null } : null }),
+        },
+      }),
+    ]);
     const rows = businesses.map((business) => {
       const metrics = aggregateDirectoryMetrics(business.events);
       return {
@@ -509,6 +531,9 @@ export class DirectoryService {
       rows,
       ranking: rows.filter((row) => !row.tenantLinked && row.whatsappClicks > 0),
       detail: input.businessPublicId === undefined ? null : (rows[0] ?? null),
+      total: totalCount,
+      page,
+      limit,
     };
   }
 

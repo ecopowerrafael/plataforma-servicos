@@ -6,7 +6,6 @@ import {
   type UpdateAutomationRequest,
 } from '@plataforma/shared';
 
-import { type CustomerNotificationDispatcher } from './customer-notification-dispatcher.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
@@ -15,7 +14,6 @@ type AutomationTrigger =
 export class AutomationService {
   public constructor(
     private readonly client: PrismaClient,
-    private readonly dispatcher: CustomerNotificationDispatcher,
   ) {}
   private assertEnabled(tenantId: bigint) { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'automations.enabled'); }
   public async list(tenantId: bigint) {
@@ -83,22 +81,13 @@ export class AutomationService {
           select: { publicId: true, customerId: true, protocol: true },
         });
         for (const appointment of appointments)
-          await this.execute(automation, appointment.publicId, appointment.customerId, {
-            customerName: '',
-            protocol: appointment.protocol,
-            serviceName: '',
-            professionalName: '',
-            when: '',
-            canceledReasonLine: '',
-          });
+          await this.execute(automation, appointment.publicId);
       }
     }
   }
   private async execute(
     automation: { id: bigint; tenantId: bigint; trigger: string },
     targetPublicId: string,
-    customerId: bigint,
-    variables: Record<string, string>,
   ) {
     try {
       await this.client.automationExecution.create({
@@ -114,26 +103,9 @@ export class AutomationService {
     } catch {
       return;
     }
-    try {
-      const sent = await this.dispatcher.dispatch(
-        automation.tenantId,
-        customerId,
-        'appointment.reminder',
-        targetPublicId,
-        variables,
-      );
-      await this.client.automationExecution.updateMany({
-        where: { automationId: automation.id, targetPublicId },
-        data: { status: sent ? 'SENT' : 'SKIPPED' },
-      });
-    } catch (error) {
-      await this.client.automationExecution.updateMany({
-        where: { automationId: automation.id, targetPublicId },
-        data: {
-          status: 'FAILED',
-          error: error instanceof Error ? error.message.slice(0, 500) : 'Falha desconhecida.',
-        },
-      });
-    }
+    await this.client.automationExecution.updateMany({
+      where: { automationId: automation.id, targetPublicId },
+      data: { status: 'SKIPPED' },
+    });
   }
 }

@@ -37,8 +37,10 @@ import { IntegrationRepository } from '../modules/integrations/integration.repos
 import { IntegrationService } from '../modules/integrations/integration.service.js';
 import { WApiIntegrationService } from '../modules/integrations/wapi-integration.service.js';
 import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
+import { WhatsAppAutoMessageService } from '../modules/integrations/whatsapp-auto-message.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
+import { AppointmentReminderConfigService } from '../modules/notifications/appointment-reminder-config.service.js';
 import { AutomationService } from '../modules/notifications/automation.service.js';
 import { CustomerNotificationDispatcher } from '../modules/notifications/customer-notification-dispatcher.js';
 import { type EmailDelivery } from '../modules/notifications/email-delivery.js';
@@ -170,6 +172,7 @@ export interface DatabaseConnection {
   readonly notificationTemplates?: NotificationTemplateService;
   readonly notificationCampaigns?: NotificationCampaignService;
   readonly whatsappProvisioning?: WhatsAppProvisioningService;
+  readonly whatsappAutoMessages?: WhatsAppAutoMessageService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
   readonly appointmentReminders?: AppointmentReminderService;
@@ -390,8 +393,13 @@ export function createDatabaseConnection(
     notificationDispatcher,
     notifications,
   );
-  const appointmentReminders = new AppointmentReminderService(client, notificationDispatcher);
-  const automations = new AutomationService(client, notificationDispatcher);
+  const appointmentReminderConfig = new AppointmentReminderConfigService(client);
+  const appointmentReminders = new AppointmentReminderService(
+    client,
+    notificationDispatcher,
+    appointmentReminderConfig,
+  );
+  const automations = new AutomationService(client);
   const pushSubscriptions = new PushSubscriptionService(client);
   const cashRegisters = new CashRegisterService(client);
   const commissions = new ProfessionalCommissionService(client);
@@ -499,6 +507,7 @@ export function createDatabaseConnection(
     notificationTemplates: notificationTemplates,
     notificationCampaigns: notificationCampaigns,
     whatsappProvisioning,
+    whatsappAutoMessages: new WhatsAppAutoMessageService(client),
     appointmentNotifications: appointmentNotifications,
     treatmentPlanNotifications,
     appointmentReminders: appointmentReminders,

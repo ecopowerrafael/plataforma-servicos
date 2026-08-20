@@ -82,6 +82,10 @@ const DEFAULT_WHATSAPP_TEMPLATES: Partial<Record<NotificationKind, string>> = {
     'Ola, {{customerName}}! Seu agendamento de {{serviceName}}{{professionalPhrase}} foi confirmado para {{date}} as {{time}}.',
   'appointment.reminder':
     'Ola, {{customerName}}! Lembrete: seu agendamento de {{serviceName}}{{professionalPhrase}} e {{date}} as {{time}}.',
+  'appointment.day_before_reminder':
+    'Ola, {{customerName}}! Lembrete: seu agendamento de {{serviceName}}{{professionalPhrase}} é amanha às {{time}}.',
+  'appointment.upcoming_reminder':
+    'Ola, {{customerName}}! Seu agendamento de {{serviceName}}{{professionalPhrase}} começa em breve, às {{time}}.',
   'appointment.booking_canceled':
     'Ola, {{customerName}}. Seu agendamento de {{serviceName}} para {{date}} as {{time}} foi cancelado.',
 };
@@ -110,6 +114,22 @@ const DEFAULT_TEMPLATES: Record<NotificationKind, TemplateContent> = {
     title: 'Lembrete de agendamento',
     intro: 'Olá, {{customerName}}. Seu agendamento está chegando.',
     afterText: 'Consulte os detalhes do horário pelo aplicativo.',
+    ctaLabel: 'Ver agendamento',
+  },
+  'appointment.day_before_reminder': {
+    subject: 'Lembrete: seu agendamento é amanhã — {{tenantName}}',
+    body: 'Olá, {{customerName}}. Seu agendamento está marcado para amanhã!\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nHorário: {{time}}\nProtocolo: {{protocol}}',
+    title: 'Lembrete: agendamento amanhã',
+    intro: 'Olá, {{customerName}}. Seu agendamento é amanhã!',
+    afterText: 'Confirme comparecimento ou reagende pelo aplicativo, se necessário.',
+    ctaLabel: 'Ver agendamento',
+  },
+  'appointment.upcoming_reminder': {
+    subject: 'Seu agendamento começa em breve — {{tenantName}}',
+    body: 'Olá, {{customerName}}. Seu agendamento está começando!\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nHorário: {{time}}\nProtocolo: {{protocol}}',
+    title: 'Agendamento começando agora',
+    intro: 'Olá, {{customerName}}. Seu agendamento está começando!',
+    afterText: 'Acesse o aplicativo para mais detalhes ou contate o estabelecimento.',
     ctaLabel: 'Ver agendamento',
   },
   'customer.recovery.inactive': {
@@ -209,6 +229,16 @@ export function renderPushTemplate(
     return {
       subject: 'Lembrete de agendamento',
       body: `Seu horário para ${variables.serviceName ?? 'o serviço'}${withProfessional} é ${variables.isToday === 'true' ? 'hoje' : (variables.date ?? '')} às ${variables.time ?? ''}.`,
+    };
+  if (kind === 'appointment.day_before_reminder')
+    return {
+      subject: 'Lembrete: agendamento amanhã',
+      body: `Seu horário para ${variables.serviceName ?? 'o serviço'}${withProfessional} é amanhã às ${variables.time ?? ''}.`,
+    };
+  if (kind === 'appointment.upcoming_reminder')
+    return {
+      subject: 'Agendamento começando agora',
+      body: `Seu horário para ${variables.serviceName ?? 'o serviço'}${withProfessional} está começando agora às ${variables.time ?? ''}.`,
     };
   if (kind === 'treatment_plan.quote_ready')
     return {

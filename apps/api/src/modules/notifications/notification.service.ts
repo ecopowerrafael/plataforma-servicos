@@ -65,8 +65,12 @@ const FALLBACK_PUSH_ICON = '/icons/agendei-192.png';
 
 const MAX_AUTOMATIC_ATTEMPTS = 5;
 const BACKOFF_MINUTES_PER_ATTEMPT = 2;
-/** Um worker interrompido não pode deixar um envio preso indefinidamente. */
 export const PROCESSING_LEASE_MINUTES = 10;
+
+const MAX_NOTIFICATIONS_PER_TENANT_PER_BATCH = 2;
+const MAX_GLOBAL_BATCH_SIZE = 20;
+const MAX_CONCURRENT_DELIVERIES = 5;
+const MAX_CONCURRENT_PER_TENANT = 1;
 
 const pub = (item: NotificationLog) => ({
   publicId: item.publicId,
@@ -101,7 +105,7 @@ export class NotificationService {
    * da inscrição push) é o que permite múltiplos dispositivos push por
    * cliente sem colidir na constraint.
    */
-  public async enqueue(tenantId: bigint, input: NotificationInput): Promise<void> {
+  public async enqueue(tenantId: bigint, input: NotificationInput, scheduledAt?: Date): Promise<void> {
     const channel = input.channel ?? 'EMAIL';
     const identity = [
       tenantId.toString(),
@@ -138,6 +142,7 @@ export class NotificationService {
           subject: input.subject,
           body: encodeEmailBody(input),
           status: 'PENDING',
+          ...(scheduledAt !== undefined && { scheduledAt }),
         },
       });
       if (input.channel !== 'WEBHOOK')
@@ -195,16 +200,15 @@ export class NotificationService {
   }
 
   /**
-   * Processa a fila: reivindica (claim atômico via UPDATE condicional,
-   * impedindo duas execuções concorrentes de processarem a mesma linha) um
-   * lote de notificações PENDING, mais as FAILED elegíveis para nova
-   * tentativa automática (dentro do limite de tentativas e do backoff
-   * mínimo desde a última tentativa), e tenta a entrega de cada uma.
+   * Processa a fila com fairness multi-tenant e concorrência controlada.
+   * Busca no máximo N notificações por tenant para evitar que um tenant
+   * monopolize o batch. Limita entregas simultâneas a M.
    */
-  public async processPending(batchSize = 20): Promise<{ processed: number }> {
+  public async processPending(batchSize = MAX_GLOBAL_BATCH_SIZE): Promise<{ processed: number }> {
     const backoffThreshold = new Date(Date.now() - BACKOFF_MINUTES_PER_ATTEMPT * 60_000);
     const processingLeaseThreshold = new Date(Date.now() - PROCESSING_LEASE_MINUTES * 60_000);
-    const candidates = await this.client.notificationLog.findMany({
+
+    const allCandidates = await this.client.notificationLog.findMany({
       where: {
         OR: [
           { status: 'PENDING' },
@@ -217,17 +221,62 @@ export class NotificationService {
         ],
       },
       orderBy: { createdAt: 'asc' },
-      take: batchSize,
-      select: { id: true, status: true },
+      select: { id: true, status: true, tenantId: true },
     });
 
+    const tenantMap = new Map<bigint, Array<{ id: bigint; status: NotificationLog['status']; tenantId: bigint }>>();
+    for (const candidate of allCandidates) {
+      if (!tenantMap.has(candidate.tenantId)) {
+        tenantMap.set(candidate.tenantId, []);
+      }
+      const list = tenantMap.get(candidate.tenantId)!;
+      if (list.length < MAX_NOTIFICATIONS_PER_TENANT_PER_BATCH) {
+        list.push({ id: candidate.id, status: candidate.status, tenantId: candidate.tenantId });
+      }
+    }
+
+    const candidates: Array<{ id: bigint; status: NotificationLog['status']; tenantId: bigint }> = [];
+    for (const list of tenantMap.values()) {
+      candidates.push(...list);
+      if (candidates.length >= batchSize) break;
+    }
+
     let processed = 0;
+    const inFlight = new Set<Promise<void>>();
+    const tenantInFlight = new Map<bigint, number>();
+
     for (const candidate of candidates) {
       const claimed = await this.claim(candidate.id, candidate.status);
       if (!claimed) continue;
-      await this.attempt(candidate.id);
-      processed += 1;
+
+      const tenantId = candidate.tenantId;
+      const tenantCount = tenantInFlight.get(tenantId) ?? 0;
+
+      if (tenantCount >= MAX_CONCURRENT_PER_TENANT) continue;
+
+      tenantInFlight.set(tenantId, tenantCount + 1);
+
+      const attemptPromise = this.attempt(candidate.id)
+        .then(
+          () => {
+            processed += 1;
+          },
+          () => {},
+        )
+        .finally(() => {
+          inFlight.delete(attemptPromise);
+          const current = tenantInFlight.get(tenantId) ?? 1;
+          tenantInFlight.set(tenantId, current - 1);
+        });
+
+      inFlight.add(attemptPromise);
+
+      if (inFlight.size >= MAX_CONCURRENT_DELIVERIES) {
+        await Promise.race(inFlight);
+      }
     }
+
+    await Promise.all(inFlight);
     return { processed };
   }
 

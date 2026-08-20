@@ -45,6 +45,7 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
     if (running) return;
     running = true;
     try {
+      await deps.reminders.scheduleDayBeforeReminders();
       await deps.reminders.scheduleUpcomingReminders();
       await deps.automations?.run();
       await deps.customerRecovery?.run();

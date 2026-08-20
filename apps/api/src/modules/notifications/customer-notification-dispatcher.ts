@@ -40,6 +40,7 @@ export class CustomerNotificationDispatcher {
     targetType = 'appointment',
     /** Sobrescreve o destino do CTA e a ficha do e-mail (usado por tratamentos). */
     options?: { ctaUrl?: string; details?: { label: string; value: string }[] },
+    scheduledAt?: Date,
   ): Promise<boolean> {
     const customer = await this.client.customer.findUnique({
       where: { id: customerId },
@@ -133,7 +134,7 @@ export class CustomerNotificationDispatcher {
         ...(kind.startsWith('appointment.') || kind.startsWith('treatment_plan.')
           ? { email: { html, fromName: tenant === null ? 'Agendei' : `${tenantName} via Agendei` } }
           : {}),
-      });
+      }, scheduledAt);
     }
 
     for (const subscription of subscriptions) {
@@ -145,7 +146,7 @@ export class CustomerNotificationDispatcher {
         recipient: subscription.publicId,
         subject: push.subject,
         body: push.body,
-      });
+      }, scheduledAt);
     }
     if (whatsappConfigured && customer.whatsapp !== null) {
       const recipient = normalizeWhatsAppPhone(customer.whatsapp);
@@ -158,7 +159,7 @@ export class CustomerNotificationDispatcher {
         recipient,
         subject: email.subject,
         body: whatsappBody,
-      });
+      }, scheduledAt);
     }
 
     return true;

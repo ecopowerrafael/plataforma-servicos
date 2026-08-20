@@ -398,6 +398,18 @@ export class AppointmentService {
     if (status === 'CANCELED' && this.waitlistService !== undefined) {
       await this.waitlistService.markWaitlistOpportunityOnAppointmentCancellation(t, old.id);
     }
+
+    if (status === 'CANCELED') {
+      await this.client.notificationLog.updateMany({
+        where: {
+          tenantId: t,
+          targetPublicId: old.publicId,
+          kind: { in: ['appointment.day_before_reminder', 'appointment.upcoming_reminder'] },
+          status: 'PENDING',
+        },
+        data: { status: 'SKIPPED' },
+      });
+    }
     // Concluir a sessão é o único evento que move o progresso do tratamento.
     if (old.treatmentPlanId !== null && this.treatmentPlans !== undefined && status === 'COMPLETED')
       await this.treatmentPlans.refreshProgress(t, old.treatmentPlanId);
@@ -681,6 +693,20 @@ export class AppointmentService {
         message: 'Há conflito na agenda do profissional.',
         statusCode: 409,
       });
+
+    if (old !== undefined && new Date(i.startsAt).getTime() !== old.startsAt.getTime()) {
+      const now = new Date();
+      await this.client.notificationLog.updateMany({
+        where: {
+          tenantId: t,
+          targetPublicId: old.publicId,
+          kind: { in: ['appointment.day_before_reminder', 'appointment.upcoming_reminder'] },
+          status: 'PENDING',
+          scheduledAt: { lte: now },
+        },
+        data: { status: 'SKIPPED' },
+      });
+    }
 
     if (old === undefined) {
       await this.recordHistory(t, x.id, {

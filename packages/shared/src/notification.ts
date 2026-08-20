@@ -13,6 +13,8 @@ export const NotificationKinds = [
   'appointment.booking_confirmed',
   'appointment.booking_canceled',
   'appointment.reminder',
+  'appointment.day_before_reminder',
+  'appointment.upcoming_reminder',
   'customer.recovery.inactive',
   'customer.recovery.canceled',
   'customer.recovery.no_show',
@@ -34,6 +36,8 @@ export const TransactionalNotificationKinds = [
   'appointment.booking_confirmed',
   'appointment.booking_canceled',
   'appointment.reminder',
+  'appointment.day_before_reminder',
+  'appointment.upcoming_reminder',
   // Orçamento e aprovação fazem parte do atendimento contratado.
   'treatment_plan.quote_ready',
   'treatment_plan.approved',

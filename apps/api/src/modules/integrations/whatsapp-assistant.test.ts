@@ -154,6 +154,7 @@ function fakeRepository(seed: StoredConversation[] = []) {
     tenantName: () => Promise.resolve({ displayName: 'Studio Bela', timezone: 'America/Sao_Paulo', currency: 'BRL' }),
     tenantSlug: () => Promise.resolve({ slug: 'studio-bela' }),
     customerName: () => Promise.resolve({ name: 'Rafael Augusto' }),
+    whatsapp: () => Promise.resolve(null), // assistantConfig: null → defaults
   } as unknown as IntegrationRepository;
   const delivery = {
     sendInteractiveButtons: (

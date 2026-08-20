@@ -64,3 +64,48 @@ export type WhatsAppMessagesListResponse = z.infer<typeof WhatsAppMessagesListRe
 export type UpdateWhatsAppMessage = z.infer<typeof UpdateWhatsAppMessageSchema>;
 export type WhatsAppReminderConfig = z.infer<typeof WhatsAppReminderConfigSchema>;
 export type UpdateWhatsAppReminderConfig = z.infer<typeof UpdateWhatsAppReminderConfigSchema>;
+
+/**
+ * Assistente automático — configuração de saudação e menu.
+ */
+
+const ALLOWED_ASSISTANT_ACTION_IDS = [
+  'MAIN_MENU_BOOK',
+  'MAIN_MENU_QUERY',
+  'MAIN_MENU_RESCHEDULE',
+  'MAIN_MENU_CANCEL',
+  'MAIN_MENU_OTHER',
+] as const;
+
+export const WhatsAppAssistantMenuButtonSchema = z.object({
+  actionId: z.enum(ALLOWED_ASSISTANT_ACTION_IDS),
+  label: z.string(),
+  enabled: z.boolean(),
+  order: z.number(),
+});
+
+export const WhatsAppAssistantGreetingSchema = z.object({
+  enabled: z.boolean(),
+  newCustomerBody: z.string(),
+  returningCustomerBody: z.string(),
+});
+
+export const WhatsAppAssistantMenuSchema = z.object({
+  buttons: z.array(WhatsAppAssistantMenuButtonSchema),
+});
+
+export const WhatsAppAssistantConfigSchema = z.object({
+  greeting: WhatsAppAssistantGreetingSchema,
+  menu: WhatsAppAssistantMenuSchema,
+});
+
+export const WhatsAppAssistantConfigResponseSchema = z.object({
+  config: WhatsAppAssistantConfigSchema,
+  isCustomized: z.boolean(),
+});
+
+export type WhatsAppAssistantMenuButton = z.infer<typeof WhatsAppAssistantMenuButtonSchema>;
+export type WhatsAppAssistantGreeting = z.infer<typeof WhatsAppAssistantGreetingSchema>;
+export type WhatsAppAssistantMenu = z.infer<typeof WhatsAppAssistantMenuSchema>;
+export type WhatsAppAssistantConfig = z.infer<typeof WhatsAppAssistantConfigSchema>;
+export type WhatsAppAssistantConfigResponse = z.infer<typeof WhatsAppAssistantConfigResponseSchema>;

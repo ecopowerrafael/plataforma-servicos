@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../lib/http.js';
 import { WhatsAppConnectionCard } from './WhatsAppConnectionCard.js';
+import { WhatsAppAssistantConfigCard } from './WhatsAppAssistantConfigCard.js';
 import { WhatsAppMessagesCard } from './WhatsAppMessagesCard.js';
 
 export function WhatsAppPage({
@@ -34,6 +35,11 @@ export function WhatsAppPage({
         </div>
 
         <WhatsAppConnectionCard tenantPublicId={tenantPublicId} canManage={canManage} />
+        <WhatsAppAssistantConfigCard
+          tenantPublicId={tenantPublicId}
+          canManage={canManage}
+          whatsappConnected={whatsappConnected}
+        />
         <WhatsAppMessagesCard
           tenantPublicId={tenantPublicId}
           canManage={canManage}

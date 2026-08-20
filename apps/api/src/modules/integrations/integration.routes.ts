@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { type IntegrationService } from './integration.service.js';
 import { type WhatsAppProvisioningService } from './whatsapp-provisioning.service.js';
 import { whatsappWebhookPath } from './whatsapp-webhook.routes.js';
+import { whatsappAssistantConfigRoutes } from './whatsapp-assistant-config.routes.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
@@ -44,6 +45,13 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
     cookieName: options.cookieName,
     client: options.client,
   });
+  if (options.client !== undefined) {
+    await app.register(whatsappAssistantConfigRoutes, {
+      authService: options.authService,
+      cookieName: options.cookieName,
+      client: options.client,
+    });
+  }
   app.get(
     '/tenant/integrations/whatsapp',
     { schema: { response: { 200: WhatsAppConfigSchema } } },

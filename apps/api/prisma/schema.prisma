@@ -923,6 +923,7 @@ model TenantWhatsAppConfig {
   apiVersion           String   @default("v23.0") @map("api_version") @db.VarChar(16)
   lastValidationStatus String?  @map("last_validation_status") @db.VarChar(32)
   lastValidatedAt      DateTime? @map("last_validated_at") @db.DateTime(3)
+  assistantConfig      Json?     @map("assistant_config")
   createdAt            DateTime @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)

@@ -5,9 +5,14 @@ import {
   BOOKING_ACTIONS,
   conversationExpiresAt,
   conversationIsUsable,
-  greetingMessage,
   MAIN_MENU_ACTIONS,
+  FALLBACK_PROMPT,
+  firstNameOf,
 } from './whatsapp-assistant.js';
+import {
+  resolveAssistantConfig,
+  renderPlaceholders,
+} from './whatsapp-assistant-config.js';
 import { type NormalizedWhatsAppEvent } from './whatsapp-inbound.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
@@ -1486,14 +1491,51 @@ export class WhatsAppAssistantService {
     phone: string,
     conversationId: bigint,
   ) {
-    const [tenant, customer] = await Promise.all([
+    const [tenant, customer, whatsappConfig] = await Promise.all([
       this.repository.tenantName(input.tenantId),
       input.customerId === null
         ? Promise.resolve(null)
         : this.repository.customerName(input.customerId),
+      this.repository.whatsapp(input.tenantId),
     ]);
-    const greeting = greetingMessage(tenant?.displayName ?? 'nossa equipe', customer?.name ?? null);
-    await this.dispatchButtons(input, phone, greeting, conversationId);
+
+    const tenantName = tenant?.displayName ?? 'nossa equipe';
+    const config = resolveAssistantConfig(whatsappConfig?.assistantConfig);
+
+    // Escolher template baseado em customer conhecido ou novo
+    let greeting: string;
+    if (config.greeting.enabled) {
+      const isReturningCustomer = customer !== null;
+      const template = isReturningCustomer
+        ? config.greeting.returningCustomerBody
+        : config.greeting.newCustomerBody;
+
+      const customerFirstName = isReturningCustomer
+        ? firstNameOf(customer.name)
+        : null;
+
+      greeting = renderPlaceholders(template, tenantName, customerFirstName);
+    } else {
+      // greeting.enabled = false: usar prompt neutro
+      greeting = FALLBACK_PROMPT;
+    }
+
+    // Montar menu customizado com enabled/order
+    const enabledButtons = config.menu.buttons
+      .filter((btn) => btn.enabled)
+      .sort((a, b) => a.order - b.order)
+      .map((btn) => ({
+        buttonId: this.actionIdToButtonId(btn.actionId),
+        label: btn.label,
+      }));
+
+    await this.dispatchCustomButtons(input, phone, greeting, enabledButtons, conversationId);
+  }
+
+  private actionIdToButtonId(actionId: string): string {
+    // Mapeamento de actionId para buttonId
+    // Hoje o buttonId é o próprio actionId
+    return actionId;
   }
 
   /** Menu principal. O envio e o rastreio passam pelo mesmo caminho de sempre. */

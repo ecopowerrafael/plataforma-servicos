@@ -42,7 +42,7 @@ export function conversationIsUsable(
   return conversation.expiresAt.getTime() > now.getTime();
 }
 
-const firstNameOf = (name: string | null) => {
+export const firstNameOf = (name: string | null): string | null => {
   const trimmed = name?.trim() ?? '';
   if (trimmed === '') return null;
   return trimmed.split(/\s+/u)[0] ?? null;

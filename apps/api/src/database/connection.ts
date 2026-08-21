@@ -428,7 +428,14 @@ export function createDatabaseConnection(
   // debtPixPayments/collectionAttemptExecution só podem ser construídos depois
   // de paymentMethods/payments (Fase 6 do Bot Cobra — PIX integral): o
   // executor da régua passa a saber gerar cobrança PIX via paymentGateway.
-  const debtPixPayments = new DebtPixPaymentService(client, debts, notifications, paymentMethods, payments);
+  const debtPixPayments = new DebtPixPaymentService(
+    client,
+    debts,
+    notifications,
+    paymentMethods,
+    payments,
+    paymentPromises,
+  );
   const paymentGateway = new PaymentGatewayService(
     client,
     paymentGatewayRegistry,

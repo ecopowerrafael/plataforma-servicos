@@ -23,9 +23,17 @@ export const COLLECTION_TEMPLATE_BODIES: Record<string, string> = {
   'collection.debt_settled': 'Recebemos seu pagamento, {{debtorName}}! Sua dívida com {{tenantName}} está quitada. Obrigado!',
   'collection.debt_already_settled': 'Olá, {{debtorName}}. Já identificamos aqui que o valor com {{tenantName}} está regularizado — obrigado!',
   'collection.pix_unavailable': 'No momento não conseguimos gerar o PIX automaticamente. Nossa equipe vai entrar em contato para te ajudar.',
+  'collection.partial_options': 'Quanto você consegue pagar agora?',
+  'collection.partial_pix':
+    'Perfeito. Gere o pagamento de {{amount}} pelo PIX abaixo:\n\n{{pixCode}}\n\nApós a confirmação do pagamento, seu saldo ficará em {{remainingAmount}}.',
+  'collection.partial_received':
+    'Recebemos seu pagamento de {{amount}}, {{debtorName}}! Seu saldo atual com {{tenantName}} é {{remainingAmount}}.',
+  'collection.payment_pending': 'Seu PIX ainda está aguardando confirmação.',
+  'collection.payment_status_open': 'Recebemos seu pagamento. Seu saldo atual é {{amount}}.',
+  'collection.payment_status_paid': 'Pagamento confirmado. Sua pendência está quitada.',
 };
 
-/** Placeholders permitidos: debtorName, tenantName, amount, dueDate, pixCode — resolvidos só no backend. */
+/** Placeholders permitidos: debtorName, tenantName, amount, dueDate, pixCode, remainingAmount — resolvidos só no backend. */
 export function renderCollectionMessage(
   templateKey: string,
   variables: Record<string, string>,

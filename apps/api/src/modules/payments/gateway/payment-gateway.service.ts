@@ -303,15 +303,20 @@ export class PaymentGatewayService {
   }
 
   /**
-   * Cria (ou reaproveita) uma cobrança PIX para o saldo integral de uma Debt do Bot Cobra —
-   * chamada automática (WhatsApp), não uma rota HTTP: falhas viram `null` em vez de exceção,
-   * para o chamador decidir a mensagem de fallback ao devedor. A idempotência real é a
-   * checagem de cobrança ativa abaixo, não a idempotencyKey (que é gerada nova a cada
-   * chamada — uma chave fixa reaproveitada para sempre travaria o devedor num PIX expirado).
+   * Cria (ou reaproveita) uma cobrança PIX de uma Debt do Bot Cobra — chamada
+   * automática (WhatsApp), não uma rota HTTP: falhas viram `null` em vez de
+   * exceção, para o chamador decidir a mensagem de fallback ao devedor.
+   * `amountCents` ausente = saldo integral; informado = valor parcial (Fase
+   * 7), sempre validado contra o saldo ATUAL (nunca acima dele). A
+   * idempotência real é a checagem de cobrança ativa abaixo — agora também
+   * pelo VALOR: uma cobrança pendente de R$ 50 não é reaproveitada quando o
+   * devedor pede R$ 30 — não a idempotencyKey (gerada nova a cada chamada,
+   * uma chave fixa reaproveitada travaria o devedor num PIX expirado).
    */
   public async createDebtCharge(
     tenantId: bigint,
     debtId: bigint,
+    amountCents?: bigint,
   ): Promise<{ publicId: string; status: string; pixCopyPaste: string | null } | null> {
     const debt = await this.client.debt.findUnique({
       where: { id: debtId },
@@ -319,12 +324,16 @@ export class PaymentGatewayService {
     });
     if (debt === null || debt.currentBalanceCents <= 0n) return null;
 
+    const chargeAmount = amountCents ?? debt.currentBalanceCents;
+    if (chargeAmount <= 0n || chargeAmount > debt.currentBalanceCents) return null;
+
     const existing = await this.client.paymentGatewayCharge.findFirst({
       where: {
         tenantId,
         debtId: debt.id,
         originType: 'DEBT',
         status: { in: ['PENDING', 'PROCESSING'] },
+        amountCents: chargeAmount,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -341,7 +350,7 @@ export class PaymentGatewayService {
       const resolved = await this.requireActiveAdapter(tenantId, provider);
       config = resolved.config;
       adapterResult = await resolved.adapter.createCharge(resolved.credentials, resolved.config.environment, {
-        amountCents: debt.currentBalanceCents,
+        amountCents: chargeAmount,
         currency: 'BRL',
         description: 'Cobrança de dívida em aberto',
         idempotencyKey,
@@ -377,7 +386,7 @@ export class PaymentGatewayService {
         environment: config.environment,
         externalId: adapterResult.externalId,
         status: adapterResult.status,
-        amountCents: debt.currentBalanceCents,
+        amountCents: chargeAmount,
         currency: 'BRL',
         idempotencyKey,
         kind: 'PAYMENT',

@@ -67,6 +67,9 @@ function mockClient(overrides: Record<string, unknown> = {}) {
     whatsAppOutboundMessage: {
       findFirst: vi.fn().mockResolvedValue({ externalMessageId: 'WAMSG-1' }),
     },
+    paymentGatewayCharge: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     ...overrides,
   } as unknown as PrismaClient;
 }
@@ -561,38 +564,63 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
     });
   });
 
-  it.each(['COLLECTION_PAYMENT_STATUS', 'COLLECTION_PROMISE_CUSTOM_DATE'])(
-    '21) %s continua só com o ack genérico nesta fase (sem efeito colateral)',
-    async (actionId) => {
-      const client = mockClient({
-        collectionAttempt: {
-          findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
-          update: vi.fn().mockResolvedValue({}),
-          updateMany: vi.fn(),
-          findMany: vi.fn(),
-        },
-      });
-      const notifications = mockNotifications();
-      const debts = mockDebts();
-      const paymentPromises = mockPaymentPromises();
+  it('21) COLLECTION_PAYMENT_STATUS envia o status de pagamento da dívida', async () => {
+    const client = mockClient({
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+    });
+    const notifications = mockNotifications();
+    const debts = mockDebts();
+    const paymentPromises = mockPaymentPromises();
 
-      const result = await new CollectionAttemptExecutionService(client, notifications, debts, paymentPromises).handleWhatsAppResponse(
-        10n,
-        'attempt-public-id',
-        actionId,
-      );
+    const result = await new CollectionAttemptExecutionService(client, notifications, debts, paymentPromises).handleWhatsAppResponse(
+      10n,
+      'attempt-public-id',
+      'COLLECTION_PAYMENT_STATUS',
+      now,
+    );
 
-      expect(result).toEqual({ handled: true });
-      expect(client.collectionAttempt.update).toHaveBeenCalledWith({
-        where: { id: 100n },
-        data: { status: 'RESPONDED', respondedAt: expect.any(Date) },
-      });
-      expect(notifications.enqueue).not.toHaveBeenCalled();
-      expect(paymentPromises.createOrReplace).not.toHaveBeenCalled();
-      expect(debts.markDisputed).not.toHaveBeenCalled();
-      expect(debts.markHumanSupport).not.toHaveBeenCalled();
-    },
-  );
+    expect(result).toEqual({ handled: true });
+    expect(client.collectionAttempt.update).toHaveBeenCalledWith({
+      where: { id: 100n },
+      data: { status: 'RESPONDED', respondedAt: expect.any(Date) },
+    });
+    expect(notifications.enqueue).toHaveBeenCalled();
+  });
+
+  it('21.1) COLLECTION_PROMISE_CUSTOM_DATE é apenas ack genérico (sem implementação de data custom nesta fase)', async () => {
+    const client = mockClient({
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+    });
+    const notifications = mockNotifications();
+    const debts = mockDebts();
+    const paymentPromises = mockPaymentPromises();
+
+    const result = await new CollectionAttemptExecutionService(client, notifications, debts, paymentPromises).handleWhatsAppResponse(
+      10n,
+      'attempt-public-id',
+      'COLLECTION_PROMISE_CUSTOM_DATE',
+    );
+
+    expect(result).toEqual({ handled: true });
+    expect(client.collectionAttempt.update).toHaveBeenCalledWith({
+      where: { id: 100n },
+      data: { status: 'RESPONDED', respondedAt: expect.any(Date) },
+    });
+    expect(notifications.enqueue).not.toHaveBeenCalled();
+    expect(paymentPromises.createOrReplace).not.toHaveBeenCalled();
+    expect(debts.markDisputed).not.toHaveBeenCalled();
+    expect(debts.markHumanSupport).not.toHaveBeenCalled();
+  });
 
   it('22) COLLECTION_PAY_FULL com saldo > 0 gera o PIX e envia o código copia-e-cola', async () => {
     const client = mockClient({

@@ -44,6 +44,24 @@ export class PaymentPromiseService {
     });
   }
 
+  /**
+   * Fase 7: quando um pagamento (integral ou o último parcial) zera o saldo
+   * de uma Debt, a promessa ativa que estava esperando esse pagamento vira
+   * FULFILLED — nunca é apagada nem substituída por uma data nova. Aceita um
+   * client de transação opcional (chamado de dentro da transação de
+   * DebtPixPaymentService.reconcile no caso de Debt MANUAL).
+   */
+  public async fulfillActive(
+    tenantId: bigint,
+    debtId: bigint,
+    client: PrismaClient | Prisma.TransactionClient = this.client,
+  ): Promise<void> {
+    await client.paymentPromise.updateMany({
+      where: { tenantId, debtId, status: 'ACTIVE' },
+      data: { status: 'FULFILLED' },
+    });
+  }
+
   public async sweep(now: Date = new Date()): Promise<{ dueReminders: number; overdue: number }> {
     const activePromises = await this.client.paymentPromise.findMany({
       where: { status: 'ACTIVE' },

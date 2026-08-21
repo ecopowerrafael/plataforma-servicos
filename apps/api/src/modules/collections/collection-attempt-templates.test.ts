@@ -43,6 +43,24 @@ describe('renderCollectionMessage', () => {
       expect(renderCollectionMessage(key, { debtorName: 'X', tenantName: 'Y', amount: 'Z', dueDate: 'W' })).not.toBeNull();
     }
   });
+
+  it('cobre os templateKeys de promessa da Fase 5', () => {
+    expect(
+      renderCollectionMessage('collection.promise_due', { debtorName: 'Maria', tenantName: 'Studio Bela', amount: 'R$ 50,00', dueDate: '24/08/2026' }),
+    ).toBe('Olá, Maria. Hoje é o dia combinado para regularizar o valor de R$ 50,00 com Studio Bela. Podemos contar com você?');
+
+    expect(
+      renderCollectionMessage('collection.promise_overdue', { debtorName: 'Maria', tenantName: 'Studio Bela', amount: 'R$ 50,00', dueDate: '' }),
+    ).toBe('Olá, Maria. O valor combinado de R$ 50,00 com Studio Bela ainda não foi regularizado. Podemos te ajudar?');
+
+    expect(renderCollectionMessage('collection.promise_confirmation', { dueDate: '27/08/2026' })).toBe(
+      'Combinado! Vamos te lembrar em 27/08/2026.',
+    );
+
+    expect(renderCollectionMessage('collection.need_more_time_options', { debtorName: 'Maria' })).toBe(
+      'Sem problema, Maria. Para quando você consegue pagar?',
+    );
+  });
 });
 
 describe('formatMoneyCents', () => {

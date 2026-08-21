@@ -556,6 +556,7 @@ model Tenant {
   debts                        Debt[]
   debtEvents                   DebtEvent[]
   collectionAttempts           CollectionAttempt[]
+  paymentPromises               PaymentPromise[]
 
   @@index([status])
   @@map("tenants")
@@ -3347,6 +3348,7 @@ model Debt {
   createdByUser            User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   events                   DebtEvent[]
   attempts                 CollectionAttempt[]
+  paymentPromises          PaymentPromise[]
 
   @@index([tenantId, status, dueDate])
   @@index([tenantId, debtorWhatsapp])
@@ -3370,6 +3372,44 @@ model DebtEvent {
 
   @@index([tenantId, debtId, createdAt])
   @@map("debt_events")
+}
+
+// Fase 5: promessa de pagamento — devedor escolhe uma data (via WhatsApp) e a
+// régua pausa (Debt sai de OPEN) até essa data. dueReminderSentAt controla o
+// claim atômico do lembrete do dia (PaymentPromiseService.sweep); FULFILLED
+// fica reservado no enum mas nenhum código produz esse status ainda (não há
+// sinal de pagamento confirmado até a Fase 6/PIX).
+enum PaymentPromiseStatus {
+  ACTIVE
+  FULFILLED
+  OVERDUE
+  REPLACED
+  CANCELED
+}
+
+enum PaymentPromiseSource {
+  WHATSAPP
+  MANUAL
+}
+
+model PaymentPromise {
+  id                  BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String               @unique @map("public_id") @db.Char(36)
+  tenantId            BigInt               @map("tenant_id") @db.UnsignedBigInt
+  debtId              BigInt               @map("debt_id") @db.UnsignedBigInt
+  promisedDate        DateTime             @map("promised_date") @db.Date
+  promisedAmountCents BigInt?              @map("promised_amount_cents") @db.UnsignedBigInt
+  status              PaymentPromiseStatus @default(ACTIVE)
+  source              PaymentPromiseSource
+  dueReminderSentAt   DateTime?            @map("due_reminder_sent_at") @db.DateTime(3)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt                Debt                 @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, debtId, status])
+  @@index([status, promisedDate])
+  @@map("payment_promises")
 }
 
 // Fase 3: motor de régua — decide QUANDO uma Debt ativa ganha uma nova

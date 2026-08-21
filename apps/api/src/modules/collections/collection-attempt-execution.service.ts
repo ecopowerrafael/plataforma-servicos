@@ -1,18 +1,39 @@
-import { isCollectionAction } from './collection-actions.js';
+import { randomUUID } from 'node:crypto';
+
+import { COLLECTION_ACTIONS, isCollectionAction } from './collection-actions.js';
 import { formatDueDate, formatMoneyCents, renderCollectionMessage } from './collection-attempt-templates.js';
 import { type DebtService } from './debt.service.js';
-import { type PrismaClient } from '../../database-client/client.js';
+import { type PaymentPromiseService } from './payment-promise.service.js';
+import { type NotificationLog, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
 import { type NotificationService } from '../notifications/notification.service.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
-import { resolveTimezone } from '../tenants/timezone.js';
+import { addDaysToDay, resolveTimezone, zonedDayKey } from '../tenants/timezone.js';
 
 const COLLECTION_BUTTONS = [
   { actionKey: 'COLLECTION_PAY_FULL', label: 'Pagar valor total', enabled: true, order: 0 },
   { actionKey: 'COLLECTION_NEED_MORE_TIME', label: 'Preciso de mais prazo', enabled: true, order: 1 },
   { actionKey: 'COLLECTION_HUMAN_SUPPORT', label: 'Falar com atendimento', enabled: true, order: 2 },
 ];
+
+const PROMISE_DAYS_BY_ACTION: Record<string, number> = {
+  COLLECTION_PROMISE_1D: 1,
+  COLLECTION_PROMISE_3D: 3,
+  COLLECTION_PROMISE_7D: 7,
+  COLLECTION_PROMISE_10D: 10,
+};
+
+const actionLabel = (actionId: string): string =>
+  COLLECTION_ACTIONS.find((action) => action.actionId === actionId)?.label ?? actionId;
+
+/** As 4 opções de prazo cabem numa única mensagem (mensagens com 5 botões já funcionam em produção). */
+const PROMISE_OPTION_BUTTONS = Object.keys(PROMISE_DAYS_BY_ACTION).map((actionKey, order) => ({
+  actionKey,
+  label: actionLabel(actionKey),
+  enabled: true,
+  order,
+}));
 
 const MAX_TECHNICAL_RETRIES = 3;
 
@@ -33,14 +54,21 @@ type DebtForSend = {
   tenant: { displayName: string; timezone: string };
 };
 
-/** Retorna o motivo do bloqueio, ou null se a Debt pode receber cobrança agora. */
-function debtBlockReason(debt: DebtForSend): string | null {
-  if (debt.status === 'PAUSED') return 'DEBT_PAUSED';
-  if (debt.status === 'HUMAN_SUPPORT') return 'DEBT_HUMAN_SUPPORT';
-  if (debt.status === 'DISPUTED') return 'DEBT_DISPUTED';
-  if (debt.status === 'PAID') return 'DEBT_PAID';
-  if (debt.status === 'CANCELED') return 'DEBT_CANCELED';
-  if (debt.status !== 'OPEN') return 'DEBT_STATUS_NOT_COLLECTIBLE';
+/**
+ * Retorna o motivo do bloqueio, ou null se a Debt pode receber cobrança agora.
+ * PROMISE_DUE é a única exceção ao "status precisa ser OPEN": é exatamente o
+ * lembrete da promessa que pausou a régua (Debt em PROMISE_SCHEDULED).
+ */
+function debtBlockReason(debt: DebtForSend, attemptType: string): string | null {
+  const isPromiseDueException = attemptType === 'PROMISE_DUE' && debt.status === 'PROMISE_SCHEDULED';
+  if (!isPromiseDueException) {
+    if (debt.status === 'PAUSED') return 'DEBT_PAUSED';
+    if (debt.status === 'HUMAN_SUPPORT') return 'DEBT_HUMAN_SUPPORT';
+    if (debt.status === 'DISPUTED') return 'DEBT_DISPUTED';
+    if (debt.status === 'PAID') return 'DEBT_PAID';
+    if (debt.status === 'CANCELED') return 'DEBT_CANCELED';
+    if (debt.status !== 'OPEN') return 'DEBT_STATUS_NOT_COLLECTIBLE';
+  }
   if (debt.currentBalanceCents <= 0n) return 'DEBT_BALANCE_ZERO';
   if (debt.balanceSyncPending) return 'DEBT_BALANCE_SYNC_PENDING';
   return null;
@@ -57,6 +85,7 @@ export class CollectionAttemptExecutionService {
     private readonly client: PrismaClient,
     private readonly notifications: NotificationService,
     private readonly debts: DebtService,
+    private readonly paymentPromises: PaymentPromiseService,
   ) {}
 
   public async run(
@@ -114,6 +143,7 @@ export class CollectionAttemptExecutionService {
       debtId: bigint;
       tenantId: bigint;
       templateKey: string;
+      attemptType: string;
       technicalRetryCount: number;
     },
     now: Date,
@@ -134,7 +164,7 @@ export class CollectionAttemptExecutionService {
     });
     if (debt === null) return 'failed';
 
-    const blockReason = debtBlockReason(debt);
+    const blockReason = debtBlockReason(debt, attempt.attemptType);
     if (blockReason !== null) {
       await this.client.collectionAttempt.update({
         where: { id: attempt.id },
@@ -175,46 +205,16 @@ export class CollectionAttemptExecutionService {
       return 'failed';
     }
 
-    await this.notifications.enqueue(
+    const { log: refreshed, outbound } = await this.sendWhatsApp(
       debt.tenantId,
-      {
-        channel: 'WHATSAPP',
-        kind: attempt.templateKey,
-        targetType: 'collection_attempt',
-        targetPublicId: attempt.publicId,
-        recipient: phone,
-        subject: 'Cobrança em aberto',
-        body,
-        whatsappButtons: COLLECTION_BUTTONS,
-      },
+      phone,
+      body,
+      COLLECTION_BUTTONS,
+      attempt.templateKey,
+      'collection_attempt',
+      attempt.publicId,
       now,
     );
-
-    const log = await this.client.notificationLog.findFirst({
-      where: {
-        tenantId: debt.tenantId,
-        kind: attempt.templateKey,
-        targetType: 'collection_attempt',
-        targetPublicId: attempt.publicId,
-        channel: 'WHATSAPP',
-        recipient: phone,
-      },
-    });
-    if (log === null) throw new Error('NotificationLog não encontrado após enqueue.');
-
-    try {
-      await this.notifications.retry(debt.tenantId, log.publicId);
-    } catch (error) {
-      // Já foi enviado numa rodada anterior que caiu antes de refletir aqui —
-      // idempotência: segue como sucesso, sem reenviar.
-      if (!(error instanceof AppError) || error.code !== 'NOTIFICATION_ALREADY_SENT') throw error;
-    }
-
-    const refreshed = await this.client.notificationLog.findUniqueOrThrow({ where: { id: log.id } });
-    const outbound = await this.client.whatsAppOutboundMessage.findFirst({
-      where: { notificationLogId: log.id },
-      orderBy: { id: 'desc' },
-    });
 
     if (refreshed.status === 'SENT') {
       await this.client.collectionAttempt.update({
@@ -222,7 +222,7 @@ export class CollectionAttemptExecutionService {
         data: {
           status: 'SENT',
           sentAt: refreshed.sentAt ?? now,
-          notificationLogId: log.id,
+          notificationLogId: refreshed.id,
           providerMessageId: outbound?.externalMessageId ?? null,
         },
       });
@@ -236,7 +236,7 @@ export class CollectionAttemptExecutionService {
     if (refreshed.status === 'SKIPPED') {
       await this.client.collectionAttempt.update({
         where: { id: attempt.id },
-        data: { status: 'FAILED', lastError: 'WHATSAPP_NOT_CONFIGURED', notificationLogId: log.id },
+        data: { status: 'FAILED', lastError: 'WHATSAPP_NOT_CONFIGURED', notificationLogId: refreshed.id },
       });
       return 'failed';
     }
@@ -247,7 +247,7 @@ export class CollectionAttemptExecutionService {
       attempt.technicalRetryCount,
       now,
       refreshed.lastError,
-      log.id,
+      refreshed.id,
     );
     if (retried) return 'retried';
 
@@ -256,6 +256,70 @@ export class CollectionAttemptExecutionService {
       templateKey: attempt.templateKey,
     });
     return 'failed';
+  }
+
+  /**
+   * Envio compartilhado: cria/reaproveita o NotificationLog (idempotente,
+   * mesma identidade tupla do NotificationService) e dispara na hora via
+   * retry() — usado tanto pelas tentativas agendadas quanto pelas respostas
+   * imediatas de conversa (confirmação de promessa, menu de prazo).
+   */
+  private async sendWhatsApp(
+    tenantId: bigint,
+    phone: string,
+    body: string,
+    buttons: Array<{ actionKey: string; label: string; enabled: boolean; order: number }>,
+    kind: string,
+    targetType: string,
+    targetPublicId: string,
+    now: Date,
+  ): Promise<{ log: NotificationLog; outbound: { externalMessageId: string | null } | null }> {
+    await this.notifications.enqueue(
+      tenantId,
+      {
+        channel: 'WHATSAPP',
+        kind,
+        targetType,
+        targetPublicId,
+        recipient: phone,
+        subject: 'Cobrança em aberto',
+        body,
+        whatsappButtons: buttons,
+      },
+      now,
+    );
+
+    const log = await this.client.notificationLog.findFirst({
+      where: { tenantId, kind, targetType, targetPublicId, channel: 'WHATSAPP', recipient: phone },
+    });
+    if (log === null) throw new Error('NotificationLog não encontrado após enqueue.');
+
+    try {
+      await this.notifications.retry(tenantId, log.publicId);
+    } catch (error) {
+      // Já foi enviado numa rodada anterior que caiu antes de refletir aqui —
+      // idempotência: segue como sucesso, sem reenviar.
+      if (!(error instanceof AppError) || error.code !== 'NOTIFICATION_ALREADY_SENT') throw error;
+    }
+
+    const refreshed = await this.client.notificationLog.findUniqueOrThrow({ where: { id: log.id } });
+    const outbound = await this.client.whatsAppOutboundMessage.findFirst({
+      where: { notificationLogId: log.id },
+      orderBy: { id: 'desc' },
+    });
+    return { log: refreshed, outbound };
+  }
+
+  /** Resposta imediata de conversa (não é uma CollectionAttempt agendada) — melhor esforço. */
+  private async sendImmediateReply(
+    tenantId: bigint,
+    phone: string,
+    body: string,
+    buttons: Array<{ actionKey: string; label: string; enabled: boolean; order: number }>,
+    kind: string,
+    now: Date,
+  ): Promise<void> {
+    await this.sendWhatsApp(tenantId, phone, body, buttons, kind, 'collection_reply', randomUUID(), now);
   }
 
   /** Aplica o backoff técnico; retorna true se reagendou (SCHEDULED), false se esgotou (FAILED terminal). */
@@ -316,6 +380,7 @@ export class CollectionAttemptExecutionService {
     tenantId: bigint,
     collectionAttemptPublicId: string,
     actionId: string | null,
+    now: Date = new Date(),
   ): Promise<{ handled: boolean }> {
     if (actionId === null || !isCollectionAction(actionId)) return { handled: false };
 
@@ -328,19 +393,89 @@ export class CollectionAttemptExecutionService {
     if (attempt.status === 'SENT') {
       await this.client.collectionAttempt.update({
         where: { id: attempt.id },
-        data: { status: 'RESPONDED', respondedAt: new Date() },
+        data: { status: 'RESPONDED', respondedAt: now },
       });
     }
     await this.debts.recordEvent(tenantId, attempt.debtId, 'COLLECTION_RESPONSE_RECEIVED', { actionId });
 
     if (actionId === 'COLLECTION_HUMAN_SUPPORT') {
       await this.debts.markHumanSupport(tenantId, attempt.debtId);
-      await this.client.collectionAttempt.updateMany({
-        where: { tenantId, debtId: attempt.debtId, status: 'SCHEDULED' },
-        data: { status: 'CANCELED', skippedAt: new Date(), skipReason: 'HUMAN_SUPPORT_REQUESTED' },
-      });
+      await this.cancelScheduledAttempts(tenantId, attempt.debtId, 'HUMAN_SUPPORT_REQUESTED', now);
+      return { handled: true };
     }
 
+    if (actionId === 'COLLECTION_DISPUTE') {
+      await this.debts.markDisputed(tenantId, attempt.debtId);
+      await this.cancelScheduledAttempts(tenantId, attempt.debtId, 'DEBT_DISPUTED', now);
+      return { handled: true };
+    }
+
+    const promiseDays = PROMISE_DAYS_BY_ACTION[actionId];
+    if (promiseDays !== undefined) {
+      await this.createPromiseAndConfirm(tenantId, attempt.debtId, promiseDays, now);
+      return { handled: true };
+    }
+
+    if (actionId === 'COLLECTION_NEED_MORE_TIME') {
+      await this.offerPromiseOptions(tenantId, attempt.debtId, now);
+      return { handled: true };
+    }
+
+    // COLLECTION_PAY_FULL / COLLECTION_PAYMENT_STATUS / COLLECTION_PROMISE_CUSTOM_DATE:
+    // dependem de Fase 6+ (pagamento) ou de texto livre — só o ack genérico acima nesta fase.
     return { handled: true };
+  }
+
+  private async cancelScheduledAttempts(tenantId: bigint, debtId: bigint, skipReason: string, now: Date): Promise<void> {
+    await this.client.collectionAttempt.updateMany({
+      where: { tenantId, debtId, status: 'SCHEDULED' },
+      data: { status: 'CANCELED', skippedAt: now, skipReason },
+    });
+  }
+
+  /** Cria/substitui a promessa (Fase 5) e confirma por WhatsApp — melhor esforço na confirmação. */
+  private async createPromiseAndConfirm(tenantId: bigint, debtId: bigint, days: number, now: Date): Promise<void> {
+    const debt = await this.client.debt.findUnique({
+      where: { id: debtId },
+      select: { debtorWhatsapp: true, tenant: { select: { timezone: true } } },
+    });
+    if (debt === null) return;
+
+    const timezone = resolveTimezone(debt.tenant.timezone);
+    const promisedDayKey = addDaysToDay(zonedDayKey(now, timezone), days);
+    const promisedDate = new Date(`${promisedDayKey}T00:00:00.000Z`);
+
+    await this.paymentPromises.createOrReplace(tenantId, debtId, promisedDate, 'WHATSAPP');
+
+    const phone = normalizeWhatsAppPhone(debt.debtorWhatsapp);
+    if (phone === null) return;
+    const body = renderCollectionMessage('collection.promise_confirmation', {
+      dueDate: formatDueDate(promisedDate, timezone),
+    });
+    if (body === null) return;
+    try {
+      await this.sendImmediateReply(tenantId, phone, body, [], 'collection.promise_confirmation', now);
+    } catch {
+      // A promessa já foi criada e vale mesmo se a confirmação falhar ao enviar.
+    }
+  }
+
+  /** Oferece as 4 opções de prazo — melhor esforço, não muda nenhum estado. */
+  private async offerPromiseOptions(tenantId: bigint, debtId: bigint, now: Date): Promise<void> {
+    const debt = await this.client.debt.findUnique({
+      where: { id: debtId },
+      select: { debtorName: true, debtorWhatsapp: true },
+    });
+    if (debt === null) return;
+    const phone = normalizeWhatsAppPhone(debt.debtorWhatsapp);
+    if (phone === null) return;
+
+    const body = renderCollectionMessage('collection.need_more_time_options', { debtorName: debt.debtorName });
+    if (body === null) return;
+    try {
+      await this.sendImmediateReply(tenantId, phone, body, PROMISE_OPTION_BUTTONS, 'collection.need_more_time_options', now);
+    } catch {
+      // Melhor esforço — o devedor pode tentar de novo clicando "preciso de mais prazo".
+    }
   }
 }

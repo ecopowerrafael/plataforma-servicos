@@ -1,7 +1,7 @@
 /**
- * Corpo determinístico das mensagens de cobrança da Fase 4 — sem editor de
- * template ainda, só os textos necessários para os tipos que a Fase 3 já
- * produz. Sem ameaça, negativação ou urgência falsa.
+ * Corpo determinístico das mensagens de cobrança das Fases 4-5 — sem editor
+ * de template ainda, só os textos necessários para os tipos que o motor e o
+ * fluxo de promessa produzem. Sem ameaça, negativação ou urgência falsa.
  */
 export const COLLECTION_TEMPLATE_BODIES: Record<string, string> = {
   'collection.initial':
@@ -12,6 +12,12 @@ export const COLLECTION_TEMPLATE_BODIES: Record<string, string> = {
     'Olá, {{debtorName}}. O valor de {{amount}} com {{tenantName}} continua em aberto. Podemos conversar sobre isso?',
   'collection.cycle_restart':
     'Olá, {{debtorName}}. O valor de {{amount}} com {{tenantName}} (vencido em {{dueDate}}) ainda não foi regularizado. Podemos te ajudar?',
+  'collection.promise_due':
+    'Olá, {{debtorName}}. Hoje é o dia combinado para regularizar o valor de {{amount}} com {{tenantName}}. Podemos contar com você?',
+  'collection.promise_overdue':
+    'Olá, {{debtorName}}. O valor combinado de {{amount}} com {{tenantName}} ainda não foi regularizado. Podemos te ajudar?',
+  'collection.promise_confirmation': 'Combinado! Vamos te lembrar em {{dueDate}}.',
+  'collection.need_more_time_options': 'Sem problema, {{debtorName}}. Para quando você consegue pagar?',
 };
 
 /** Placeholders permitidos: debtorName, tenantName, amount, dueDate — resolvidos só no backend. */

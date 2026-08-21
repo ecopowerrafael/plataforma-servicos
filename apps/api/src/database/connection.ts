@@ -22,6 +22,7 @@ import { CollectionAttemptExecutionService } from '../modules/collections/collec
 import { CollectionAttemptEngineService } from '../modules/collections/collection-attempt.service.js';
 import { CollectionRuleService } from '../modules/collections/collection-rule.service.js';
 import { DebtService } from '../modules/collections/debt.service.js';
+import { PaymentPromiseService } from '../modules/collections/payment-promise.service.js';
 import { CustomerAuthRepository } from '../modules/customers/customer-auth.repository.js';
 import { CustomerAuthService } from '../modules/customers/customer-auth.service.js';
 import { CustomerFavoriteRepository } from '../modules/customers/customer-favorite.repository.js';
@@ -193,6 +194,7 @@ export interface DatabaseConnection {
   readonly debts?: DebtService;
   readonly collectionAttempts?: CollectionAttemptEngineService;
   readonly collectionAttemptExecution?: CollectionAttemptExecutionService;
+  readonly paymentPromises?: PaymentPromiseService;
   readonly financialClosings?: FinancialClosingService;
   readonly delinquency?: DelinquencyService;
   readonly financialReports?: FinancialReportService;
@@ -416,7 +418,13 @@ export function createDatabaseConnection(
   const collectionRules = new CollectionRuleService(client);
   const debts = new DebtService(client, collectionRules);
   const collectionAttempts = new CollectionAttemptEngineService(client);
-  const collectionAttemptExecution = new CollectionAttemptExecutionService(client, notifications, debts);
+  const paymentPromises = new PaymentPromiseService(client, debts);
+  const collectionAttemptExecution = new CollectionAttemptExecutionService(
+    client,
+    notifications,
+    debts,
+    paymentPromises,
+  );
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
@@ -536,6 +544,7 @@ export function createDatabaseConnection(
     debts: debts,
     collectionAttempts: collectionAttempts,
     collectionAttemptExecution: collectionAttemptExecution,
+    paymentPromises: paymentPromises,
     financialClosings: new FinancialClosingService(client),
     delinquency: delinquency,
     financialReports: new FinancialReportService(client, delinquency),

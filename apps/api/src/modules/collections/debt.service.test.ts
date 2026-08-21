@@ -531,3 +531,87 @@ describe('DebtService.markHumanSupport (Fase 4 — transição automática via w
     expect(client.debt.update).not.toHaveBeenCalled();
   });
 });
+
+describe('DebtService.markPromiseScheduled (Fase 5 — transição automática via webhook)', () => {
+  it.each(['OPEN', 'PROMISE_SCHEDULED'])('%s -> PROMISE_SCHEDULED, registra o evento e não usa audit()', async (status) => {
+    const client = mockClient({
+      debt: {
+        findFirst: vi.fn().mockResolvedValue(fakeDebtRow({ id: 1n, status })),
+        update: vi.fn().mockResolvedValue(fakeDebtRow({ status: 'PROMISE_SCHEDULED' })),
+      },
+    });
+    await buildService(client).markPromiseScheduled(10n, 1n);
+
+    expect(client.debt.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: { status: 'PROMISE_SCHEDULED' },
+    });
+    expect((client.debtEvent.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toMatchObject({
+      data: { eventType: 'PAYMENT_PROMISE_CREATED' },
+    });
+    expect(client.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['HUMAN_SUPPORT', 'PAUSED', 'PAID', 'CANCELED'])('no-op quando não está OPEN nem PROMISE_SCHEDULED (%s)', async (status) => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue(fakeDebtRow({ id: 1n, status })), update: vi.fn() },
+    });
+    await buildService(client).markPromiseScheduled(10n, 1n);
+    expect(client.debt.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('DebtService.resumeAfterPromiseOverdue (Fase 5 — varredura de promessa vencida)', () => {
+  it('PROMISE_SCHEDULED -> OPEN, registra o evento e não usa audit()', async () => {
+    const client = mockClient({
+      debt: {
+        findFirst: vi.fn().mockResolvedValue(fakeDebtRow({ id: 1n, status: 'PROMISE_SCHEDULED' })),
+        update: vi.fn().mockResolvedValue(fakeDebtRow({ status: 'OPEN' })),
+      },
+    });
+    await buildService(client).resumeAfterPromiseOverdue(10n, 1n);
+
+    expect(client.debt.update).toHaveBeenCalledWith({ where: { id: 1n }, data: { status: 'OPEN' } });
+    expect((client.debtEvent.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toMatchObject({
+      data: { eventType: 'PAYMENT_PROMISE_OVERDUE' },
+    });
+    expect(client.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('no-op quando não está PROMISE_SCHEDULED', async () => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue(fakeDebtRow({ id: 1n, status: 'OPEN' })), update: vi.fn() },
+    });
+    await buildService(client).resumeAfterPromiseOverdue(10n, 1n);
+    expect(client.debt.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('DebtService.markDisputed (Fase 5 — resposta "não reconheço esta cobrança")', () => {
+  it('OPEN -> DISPUTED, registra o evento e não usa audit()', async () => {
+    const client = mockClient({
+      debt: {
+        findFirst: vi.fn().mockResolvedValue(fakeDebtRow({ id: 1n, status: 'OPEN' })),
+        update: vi.fn().mockResolvedValue(fakeDebtRow({ status: 'DISPUTED' })),
+      },
+    });
+    await buildService(client).markDisputed(10n, 1n);
+
+    expect(client.debt.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: { status: 'DISPUTED', disputedAt: expect.any(Date) },
+    });
+    expect((client.debtEvent.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toMatchObject({
+      data: { eventType: 'DEBT_DISPUTED' },
+    });
+    expect(client.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['DISPUTED', 'PAID', 'CANCELED'])('no-op silencioso quando já está %s', async (status) => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue(fakeDebtRow({ id: 1n, status })), update: vi.fn() },
+    });
+    await buildService(client).markDisputed(10n, 1n);
+    expect(client.debt.update).not.toHaveBeenCalled();
+  });
+});

@@ -378,19 +378,77 @@ export class DebtService {
     await this.recordEvent(tenantId, existing.id, 'HUMAN_SUPPORT_REQUESTED');
   }
 
+  /**
+   * Transição automática (Fase 5, resposta de promessa via WhatsApp) — sem
+   * audit(). Permitida a partir de OPEN ou já PROMISE_SCHEDULED (idempotente:
+   * uma nova promessa substituindo outra ativa não é erro). Aceita um client
+   * de transação opcional para participar da mesma transação de
+   * PaymentPromiseService.createOrReplace (fechamento de consistência).
+   */
+  public async markPromiseScheduled(
+    tenantId: bigint,
+    debtId: bigint,
+    client: PrismaClient | Prisma.TransactionClient = this.client,
+  ): Promise<void> {
+    const existing = await client.debt.findFirst({ where: { tenantId, id: debtId } });
+    if (existing === null) return;
+    if (existing.status !== 'OPEN' && existing.status !== 'PROMISE_SCHEDULED') return;
+
+    await client.debt.update({
+      where: { id: existing.id },
+      data: { status: 'PROMISE_SCHEDULED' },
+    });
+    await this.recordEvent(tenantId, existing.id, 'PAYMENT_PROMISE_CREATED', undefined, client);
+  }
+
+  /**
+   * Transição automática (Fase 5, varredura de promessa vencida) — sem
+   * audit(). Aceita um client de transação opcional para participar da mesma
+   * transação de PaymentPromiseService.sweep (fechamento de consistência).
+   */
+  public async resumeAfterPromiseOverdue(
+    tenantId: bigint,
+    debtId: bigint,
+    client: PrismaClient | Prisma.TransactionClient = this.client,
+  ): Promise<void> {
+    const existing = await client.debt.findFirst({ where: { tenantId, id: debtId } });
+    if (existing === null || existing.status !== 'PROMISE_SCHEDULED') return;
+
+    await client.debt.update({
+      where: { id: existing.id },
+      data: { status: 'OPEN' },
+    });
+    await this.recordEvent(tenantId, existing.id, 'PAYMENT_PROMISE_OVERDUE', undefined, client);
+  }
+
+  /** Transição automática (Fase 5, resposta "não reconheço esta cobrança") — sem audit(). */
+  public async markDisputed(tenantId: bigint, debtId: bigint): Promise<void> {
+    const existing = await this.client.debt.findFirst({ where: { tenantId, id: debtId } });
+    if (existing === null) return;
+    if (existing.status === 'DISPUTED' || existing.status === 'PAID' || existing.status === 'CANCELED')
+      return;
+
+    await this.client.debt.update({
+      where: { id: existing.id },
+      data: { status: 'DISPUTED', disputedAt: new Date() },
+    });
+    await this.recordEvent(tenantId, existing.id, 'DEBT_DISPUTED');
+  }
+
   public async recordEvent(
     tenantId: bigint,
     debtId: bigint,
     eventType: string,
     metadata?: Record<string, unknown>,
+    client: PrismaClient | Prisma.TransactionClient = this.client,
   ) {
     if (metadata === undefined) {
-      await this.client.debtEvent.create({
+      await client.debtEvent.create({
         data: { publicId: randomUUID(), tenantId, debtId, eventType },
       });
       return;
     }
-    await this.client.debtEvent.create({
+    await client.debtEvent.create({
       data: {
         publicId: randomUUID(),
         tenantId,

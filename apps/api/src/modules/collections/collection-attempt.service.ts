@@ -78,7 +78,10 @@ export class CollectionAttemptEngineService {
 
     for (const debt of debts) {
       const existingAttempts = await this.client.collectionAttempt.findMany({
-        where: { debtId: debt.id },
+        // PROMISE_DUE/PROMISE_OVERDUE (Fase 5) usam cycleNumber 0, fora da
+        // numeração da régua — excluídos para não contaminar o cálculo de
+        // início de ciclo.
+        where: { debtId: debt.id, attemptType: { notIn: ['PROMISE_DUE', 'PROMISE_OVERDUE'] } },
         orderBy: { id: 'asc' },
         select: { cycleNumber: true, scheduledAt: true },
       });

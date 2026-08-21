@@ -4,6 +4,7 @@ import { type NotificationService } from './notification.service.js';
 import { type NotificationCampaignService } from './notification-campaign.service.js';
 import { type CollectionAttemptExecutionService } from '../collections/collection-attempt-execution.service.js';
 import { type CollectionAttemptEngineService } from '../collections/collection-attempt.service.js';
+import { type PaymentPromiseService } from '../collections/payment-promise.service.js';
 import { type CustomerRecoveryService } from '../customers/customer-recovery.service.js';
 import { type LoyaltyService } from '../payments/loyalty.service.js';
 import { type TenantCommercialSweepService } from '../platform/tenant-commercial-sweep.service.js';
@@ -22,6 +23,7 @@ interface WorkerDeps {
   customerRecovery?: CustomerRecoveryService;
   collectionAttempts?: CollectionAttemptEngineService;
   collectionAttemptExecution?: CollectionAttemptExecutionService;
+  paymentPromises?: PaymentPromiseService;
   loyalty?: LoyaltyService;
   commercialSweep?: TenantCommercialSweepService;
   directorySeo?: DirectorySeoService;
@@ -55,6 +57,7 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
       await deps.customerRecovery?.run();
       await deps.collectionAttempts?.run();
       await deps.collectionAttemptExecution?.run();
+      await deps.paymentPromises?.sweep();
       await deps.loyalty?.expireDue();
       await deps.commercialSweep?.run();
       await deps.campaigns?.materializePending();

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CollectionAttemptExecutionService } from './collection-attempt-execution.service.js';
 import { type DebtService } from './debt.service.js';
+import { type PaymentPromiseService } from './payment-promise.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type NotificationService } from '../notifications/notification.service.js';
@@ -14,6 +15,7 @@ const dueAttempt = (overrides: Record<string, unknown> = {}) => ({
   debtId: 1n,
   tenantId: 10n,
   templateKey: 'collection.initial',
+  attemptType: 'INITIAL_COLLECTION',
   technicalRetryCount: 0,
   scheduledAt: now,
   status: 'SCHEDULED',
@@ -80,8 +82,16 @@ function mockDebts(overrides: Record<string, unknown> = {}) {
   return {
     recordEvent: vi.fn().mockResolvedValue(undefined),
     markHumanSupport: vi.fn().mockResolvedValue(undefined),
+    markDisputed: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as DebtService;
+}
+
+function mockPaymentPromises(overrides: Record<string, unknown> = {}) {
+  return {
+    createOrReplace: vi.fn().mockResolvedValue({ publicId: 'promise-public-id' }),
+    ...overrides,
+  } as unknown as PaymentPromiseService;
 }
 
 describe('CollectionAttemptExecutionService.run', () => {
@@ -90,7 +100,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     const notifications = mockNotifications();
     const debts = mockDebts();
 
-    const result = await new CollectionAttemptExecutionService(client, notifications, debts).run(now);
+    const result = await new CollectionAttemptExecutionService(client, notifications, debts, mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 1, canceled: 0, failed: 0, retried: 0 });
     expect(client.collectionAttempt.update).toHaveBeenCalledWith({
@@ -117,7 +127,7 @@ describe('CollectionAttemptExecutionService.run', () => {
         findFirst: vi.fn(),
       },
     });
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
     expect(result).toEqual({ sent: 0, canceled: 0, failed: 0, retried: 0 });
   });
 
@@ -133,7 +143,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     const debtFindUnique = vi.fn();
     (client as any).debt = { findUnique: debtFindUnique };
 
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 0, canceled: 0, failed: 0, retried: 0 });
     expect(debtFindUnique).not.toHaveBeenCalled();
@@ -147,7 +157,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     ['CANCELED', 'DEBT_CANCELED'],
   ])('4) Debt %s cancela a tentativa com skipReason %s', async (status, reason) => {
     const client = mockClient({ debt: { findUnique: vi.fn().mockResolvedValue(openDebt({ status })) } });
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 0, canceled: 1, failed: 0, retried: 0 });
     expect(client.collectionAttempt.update).toHaveBeenCalledWith({
@@ -160,7 +170,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     const client = mockClient({
       debt: { findUnique: vi.fn().mockResolvedValue(openDebt({ currentBalanceCents: 0n })) },
     });
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
     expect(result.canceled).toBe(1);
     expect(client.collectionAttempt.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ skipReason: 'DEBT_BALANCE_ZERO' }) }),
@@ -171,10 +181,35 @@ describe('CollectionAttemptExecutionService.run', () => {
     const client = mockClient({
       debt: { findUnique: vi.fn().mockResolvedValue(openDebt({ balanceSyncPending: true })) },
     });
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
     expect(result.canceled).toBe(1);
     expect(client.collectionAttempt.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ skipReason: 'DEBT_BALANCE_SYNC_PENDING' }) }),
+    );
+  });
+
+  it('4d) PROMISE_DUE é enviado mesmo com Debt PROMISE_SCHEDULED (é o próprio lembrete que pausou a régua)', async () => {
+    const client = mockClient({
+      collectionAttempt: {
+        findMany: vi.fn().mockResolvedValue([dueAttempt({ attemptType: 'PROMISE_DUE', templateKey: 'collection.promise_due' })]),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        update: vi.fn().mockResolvedValue({}),
+        findFirst: vi.fn(),
+      },
+      debt: { findUnique: vi.fn().mockResolvedValue(openDebt({ status: 'PROMISE_SCHEDULED' })) },
+    });
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
+    expect(result).toEqual({ sent: 1, canceled: 0, failed: 0, retried: 0 });
+  });
+
+  it('4e) tentativa normal (não PROMISE_DUE) continua bloqueada com Debt PROMISE_SCHEDULED', async () => {
+    const client = mockClient({
+      debt: { findUnique: vi.fn().mockResolvedValue(openDebt({ status: 'PROMISE_SCHEDULED' })) },
+    });
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
+    expect(result.canceled).toBe(1);
+    expect(client.collectionAttempt.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ skipReason: 'DEBT_STATUS_NOT_COLLECTIBLE' }) }),
     );
   });
 
@@ -182,7 +217,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     const client = mockClient({ tenantWhatsAppConfig: { findUnique: vi.fn().mockResolvedValue(null) } });
     const notifications = mockNotifications();
 
-    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 0, canceled: 0, failed: 1, retried: 0 });
     expect(notifications.enqueue).not.toHaveBeenCalled();
@@ -198,7 +233,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     });
     const notifications = mockNotifications();
 
-    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 0, canceled: 0, failed: 1, retried: 0 });
     expect(notifications.enqueue).not.toHaveBeenCalled();
@@ -212,7 +247,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     const client = mockClient();
     const notifications = mockNotifications();
 
-    await new CollectionAttemptExecutionService(client, notifications, mockDebts()).run(now);
+    await new CollectionAttemptExecutionService(client, notifications, mockDebts(), mockPaymentPromises()).run(now);
 
     expect(notifications.enqueue).toHaveBeenCalledWith(
       10n,
@@ -245,7 +280,7 @@ describe('CollectionAttemptExecutionService.run', () => {
       },
     });
 
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 0, canceled: 0, failed: 0, retried: 1 });
     expect(client.collectionAttempt.update).toHaveBeenCalledWith({
@@ -275,7 +310,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     });
     const debts = mockDebts();
 
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), debts).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), debts, mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 0, canceled: 0, failed: 1, retried: 0 });
     expect(client.collectionAttempt.update).toHaveBeenCalledWith({
@@ -296,7 +331,7 @@ describe('CollectionAttemptExecutionService.run', () => {
       ),
     });
 
-    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 1, canceled: 0, failed: 0, retried: 0 });
   });
@@ -305,7 +340,7 @@ describe('CollectionAttemptExecutionService.run', () => {
     const client = mockClient();
     const notifications = mockNotifications({ retry: vi.fn().mockRejectedValue(new Error('conexão perdida')) });
 
-    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 0, canceled: 0, failed: 0, retried: 1 });
   });
@@ -315,7 +350,7 @@ describe('CollectionAttemptExecutionService.run', () => {
       debt: { findUnique: vi.fn().mockRejectedValue(new Error('DB caiu')) },
     });
 
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result).toEqual({ sent: 0, canceled: 0, failed: 0, retried: 1 });
     expect(client.collectionAttempt.update).toHaveBeenCalledWith(
@@ -336,7 +371,7 @@ describe('CollectionAttemptExecutionService.run', () => {
       },
     });
 
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).run(now);
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).run(now);
 
     expect(result.sent).toBe(1);
     expect(client.collectionAttempt.updateMany).toHaveBeenCalledTimes(2);
@@ -355,7 +390,7 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
     });
     const debts = mockDebts();
 
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), debts).handleWhatsAppResponse(
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), debts, mockPaymentPromises()).handleWhatsAppResponse(
       10n,
       'attempt-public-id',
       'COLLECTION_HUMAN_SUPPORT',
@@ -382,7 +417,7 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
       },
     });
 
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts()).handleWhatsAppResponse(
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), mockDebts(), mockPaymentPromises()).handleWhatsAppResponse(
       10n,
       'attempt-public-id',
       'COLLECTION_PAY_FULL',
@@ -401,7 +436,7 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
     });
     const debts = mockDebts();
 
-    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), debts).handleWhatsAppResponse(
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), debts, mockPaymentPromises()).handleWhatsAppResponse(
       999n,
       'attempt-public-id',
       'COLLECTION_PAY_FULL',
@@ -414,7 +449,7 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
   it('17) actionId desconhecido/nulo é ignorado', async () => {
     const client = mockClient();
     const debts = mockDebts();
-    const service = new CollectionAttemptExecutionService(client, mockNotifications(), debts);
+    const service = new CollectionAttemptExecutionService(client, mockNotifications(), debts, mockPaymentPromises());
 
     expect(await service.handleWhatsAppResponse(10n, 'attempt-public-id', null)).toEqual({ handled: false });
     expect(await service.handleWhatsAppResponse(10n, 'attempt-public-id', 'NOT_A_REAL_ACTION')).toEqual({
@@ -422,4 +457,132 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
     });
     expect(debts.recordEvent).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['COLLECTION_PROMISE_1D', 1],
+    ['COLLECTION_PROMISE_3D', 3],
+    ['COLLECTION_PROMISE_7D', 7],
+    ['COLLECTION_PROMISE_10D', 10],
+  ])('18) %s cria/substitui a PaymentPromise com a data certa e confirma por WhatsApp', async (actionId, days) => {
+    const client = mockClient({
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+    });
+    const notifications = mockNotifications();
+    const paymentPromises = mockPaymentPromises();
+
+    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts(), paymentPromises).handleWhatsAppResponse(
+      10n,
+      'attempt-public-id',
+      actionId,
+      now,
+    );
+
+    expect(result).toEqual({ handled: true });
+    const expectedDate = new Date('2026-08-24T00:00:00.000Z');
+    expectedDate.setUTCDate(expectedDate.getUTCDate() + Number(days));
+    expect(paymentPromises.createOrReplace).toHaveBeenCalledWith(10n, 1n, expectedDate, 'WHATSAPP');
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      10n,
+      expect.objectContaining({ targetType: 'collection_reply', kind: 'collection.promise_confirmation' }),
+      expect.any(Date),
+    );
+  });
+
+  it('19) COLLECTION_NEED_MORE_TIME envia as 4 opções de prazo', async () => {
+    const client = mockClient({
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+    });
+    const notifications = mockNotifications();
+
+    const result = await new CollectionAttemptExecutionService(client, notifications, mockDebts(), mockPaymentPromises()).handleWhatsAppResponse(
+      10n,
+      'attempt-public-id',
+      'COLLECTION_NEED_MORE_TIME',
+      now,
+    );
+
+    expect(result).toEqual({ handled: true });
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      10n,
+      expect.objectContaining({
+        targetType: 'collection_reply',
+        kind: 'collection.need_more_time_options',
+        whatsappButtons: expect.arrayContaining([
+          expect.objectContaining({ actionKey: 'COLLECTION_PROMISE_1D' }),
+          expect.objectContaining({ actionKey: 'COLLECTION_PROMISE_3D' }),
+          expect.objectContaining({ actionKey: 'COLLECTION_PROMISE_7D' }),
+          expect.objectContaining({ actionKey: 'COLLECTION_PROMISE_10D' }),
+        ]),
+      }),
+      expect.any(Date),
+    );
+  });
+
+  it('20) COLLECTION_DISPUTE muda a Debt para DISPUTED e cancela os SCHEDULED futuros', async () => {
+    const client = mockClient({
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        update: vi.fn().mockResolvedValue({}),
+        findMany: vi.fn(),
+      },
+    });
+    const debts = mockDebts();
+
+    const result = await new CollectionAttemptExecutionService(client, mockNotifications(), debts, mockPaymentPromises()).handleWhatsAppResponse(
+      10n,
+      'attempt-public-id',
+      'COLLECTION_DISPUTE',
+    );
+
+    expect(result).toEqual({ handled: true });
+    expect(debts.markDisputed).toHaveBeenCalledWith(10n, 1n);
+    expect(client.collectionAttempt.updateMany).toHaveBeenCalledWith({
+      where: { tenantId: 10n, debtId: 1n, status: 'SCHEDULED' },
+      data: { status: 'CANCELED', skippedAt: expect.any(Date), skipReason: 'DEBT_DISPUTED' },
+    });
+  });
+
+  it.each(['COLLECTION_PAY_FULL', 'COLLECTION_PAYMENT_STATUS', 'COLLECTION_PROMISE_CUSTOM_DATE'])(
+    '21) %s continua só com o ack genérico nesta fase (sem efeito colateral)',
+    async (actionId) => {
+      const client = mockClient({
+        collectionAttempt: {
+          findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+          update: vi.fn().mockResolvedValue({}),
+          updateMany: vi.fn(),
+          findMany: vi.fn(),
+        },
+      });
+      const notifications = mockNotifications();
+      const debts = mockDebts();
+      const paymentPromises = mockPaymentPromises();
+
+      const result = await new CollectionAttemptExecutionService(client, notifications, debts, paymentPromises).handleWhatsAppResponse(
+        10n,
+        'attempt-public-id',
+        actionId,
+      );
+
+      expect(result).toEqual({ handled: true });
+      expect(client.collectionAttempt.update).toHaveBeenCalledWith({
+        where: { id: 100n },
+        data: { status: 'RESPONDED', respondedAt: expect.any(Date) },
+      });
+      expect(notifications.enqueue).not.toHaveBeenCalled();
+      expect(paymentPromises.createOrReplace).not.toHaveBeenCalled();
+      expect(debts.markDisputed).not.toHaveBeenCalled();
+      expect(debts.markHumanSupport).not.toHaveBeenCalled();
+    },
+  );
 });

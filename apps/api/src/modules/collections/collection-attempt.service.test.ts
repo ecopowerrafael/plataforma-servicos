@@ -110,6 +110,20 @@ describe('CollectionAttemptEngineService.run', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('exclui PROMISE_DUE/PROMISE_OVERDUE (Fase 5, cycleNumber 0) do cálculo de ciclo da régua', async () => {
+    const existingAttemptsFindMany = vi.fn().mockResolvedValue([]);
+    const client = mockClient({
+      debt: { findMany: vi.fn().mockResolvedValue([openDebt()]), findFirst: vi.fn() },
+      collectionAttempt: { findMany: existingAttemptsFindMany, create: vi.fn().mockResolvedValue({}) },
+    });
+    await new CollectionAttemptEngineService(client).run(now);
+    expect(existingAttemptsFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { debtId: 1n, attemptType: { notIn: ['PROMISE_DUE', 'PROMISE_OVERDUE'] } },
+      }),
+    );
+  });
+
   it('nunca toca NotificationLog (só agenda, não envia)', async () => {
     const client = mockClient({
       debt: { findMany: vi.fn().mockResolvedValue([openDebt()]), findFirst: vi.fn() },

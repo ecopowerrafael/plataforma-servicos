@@ -7,6 +7,7 @@ import type { NotificationService } from './notification.service.js';
 import type { NotificationCampaignService } from './notification-campaign.service.js';
 import type { CollectionAttemptExecutionService } from '../collections/collection-attempt-execution.service.js';
 import type { CollectionAttemptEngineService } from '../collections/collection-attempt.service.js';
+import type { PaymentPromiseService } from '../collections/payment-promise.service.js';
 
 function build(processed = 0) {
   const processPending = vi.fn().mockResolvedValue({ processed });
@@ -97,9 +98,10 @@ describe('worker de notificações', () => {
     expect(processPending).toHaveBeenCalledOnce();
   });
 
-  it('chama o executor do Bot Cobra (Fase 4) depois do scheduler (Fase 3), a cada tick', async () => {
+  it('chama o executor do Bot Cobra (Fase 4) e a varredura de promessas (Fase 5) depois do scheduler (Fase 3), nessa ordem, a cada tick', async () => {
     const collectionAttemptsRun = vi.fn().mockResolvedValue({ created: 0, skipped: 0 });
     const collectionAttemptExecutionRun = vi.fn().mockResolvedValue({ sent: 0, canceled: 0, failed: 0, retried: 0 });
+    const paymentPromisesSweep = vi.fn().mockResolvedValue({ dueReminders: 0, overdue: 0 });
     const callOrder: string[] = [];
     collectionAttemptsRun.mockImplementation(() => {
       callOrder.push('scheduler');
@@ -108,6 +110,10 @@ describe('worker de notificações', () => {
     collectionAttemptExecutionRun.mockImplementation(() => {
       callOrder.push('executor');
       return Promise.resolve({ sent: 0, canceled: 0, failed: 0, retried: 0 });
+    });
+    paymentPromisesSweep.mockImplementation(() => {
+      callOrder.push('promiseSweep');
+      return Promise.resolve({ dueReminders: 0, overdue: 0 });
     });
 
     const stop = startNotificationWorker(
@@ -119,6 +125,7 @@ describe('worker de notificações', () => {
         notifications: { processPending: vi.fn().mockResolvedValue({ processed: 0 }) } as unknown as NotificationService,
         collectionAttempts: { run: collectionAttemptsRun } as unknown as CollectionAttemptEngineService,
         collectionAttemptExecution: { run: collectionAttemptExecutionRun } as unknown as CollectionAttemptExecutionService,
+        paymentPromises: { sweep: paymentPromisesSweep } as unknown as PaymentPromiseService,
       },
       { intervalMs: 60_000, logger: { info: vi.fn(), error: vi.fn() } },
     );
@@ -127,6 +134,7 @@ describe('worker de notificações', () => {
 
     expect(collectionAttemptsRun).toHaveBeenCalledOnce();
     expect(collectionAttemptExecutionRun).toHaveBeenCalledOnce();
-    expect(callOrder).toEqual(['scheduler', 'executor']);
+    expect(paymentPromisesSweep).toHaveBeenCalledOnce();
+    expect(callOrder).toEqual(['scheduler', 'executor', 'promiseSweep']);
   });
 });

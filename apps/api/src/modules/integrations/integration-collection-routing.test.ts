@@ -163,11 +163,11 @@ void test('clique numa mensagem que não é de cobrança segue o fluxo normal (a
   assert.equal('collectionResponseHandled' in result, false);
 });
 
-void test('clique em resposta imediata (collection_reply) roteia para handleWhatsAppResponse com debtPublicId como collectionAttemptPublicId', async () => {
-  const calls: Array<{ tenantId: bigint; collectionAttemptPublicId: string; actionId: string | null }> = [];
+void test('clique em resposta imediata (collection_reply) roteia para handleWhatsAppDebtResponse com debtPublicId', async () => {
+  const calls: Array<{ tenantId: bigint; debtPublicId: string; actionId: string | null }> = [];
   const collectionAttemptExecution = {
-    handleWhatsAppResponse: (tenantId: bigint, collectionAttemptPublicId: string, actionId: string | null) => {
-      calls.push({ tenantId, collectionAttemptPublicId, actionId });
+    handleWhatsAppDebtResponse: (tenantId: bigint, debtPublicId: string, actionId: string | null) => {
+      calls.push({ tenantId, debtPublicId, actionId });
       return Promise.resolve({ handled: true });
     },
   } as unknown as CollectionAttemptExecutionService;
@@ -185,6 +185,6 @@ void test('clique em resposta imediata (collection_reply) roteia para handleWhat
   assert.equal(result.accepted, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.tenantId, 7n);
-  assert.equal(calls[0]?.collectionAttemptPublicId, 'debt-public-id-123');
+  assert.equal(calls[0]?.debtPublicId, 'debt-public-id-123');
   assert.equal(calls[0]?.actionId, 'COLLECTION_PARTIAL_30');
 });

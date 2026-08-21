@@ -46,6 +46,7 @@ function mockClient(overrides: Record<string, unknown> = {}) {
     },
     debt: {
       findUnique: vi.fn().mockResolvedValue(openDebt()),
+      findFirst: vi.fn().mockResolvedValue(openDebt()),
     },
     tenantWhatsAppConfig: {
       findUnique: vi.fn().mockResolvedValue({ active: true }),
@@ -735,5 +736,136 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
       expect.objectContaining({ kind: 'collection.pix_unavailable' }),
       now,
     );
+  });
+});
+
+describe('CollectionAttemptExecutionService.handleWhatsAppDebtResponse', () => {
+  it('1) Debt não encontrado retorna handled: false', async () => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue(null) },
+    });
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      mockNotifications(),
+      mockDebts(),
+      mockPaymentPromises(),
+    ).handleWhatsAppDebtResponse(10n, 'debt-public-id', 'COLLECTION_HUMAN_SUPPORT', now);
+
+    expect(result).toEqual({ handled: false });
+  });
+
+  it('2) actionId não COLLECTION_* retorna handled: false', async () => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue({ id: 1n, status: 'OPEN' }) },
+    });
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      mockNotifications(),
+      mockDebts(),
+      mockPaymentPromises(),
+    ).handleWhatsAppDebtResponse(10n, 'debt-public-id', 'MAIN_MENU_BOOK', now);
+
+    expect(result).toEqual({ handled: false });
+  });
+
+  it('3) Debt PAID bloqueia ação (handled: false)', async () => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue({ id: 1n, status: 'PAID' }) },
+    });
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      mockNotifications(),
+      mockDebts(),
+      mockPaymentPromises(),
+    ).handleWhatsAppDebtResponse(10n, 'debt-public-id', 'COLLECTION_PAY_FULL', now);
+
+    expect(result).toEqual({ handled: false });
+  });
+
+  it('4) COLLECTION_HUMAN_SUPPORT marca Debt e cancela tentativas', async () => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue({ id: 1n, status: 'OPEN' }) },
+      collectionAttempt: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+        update: vi.fn(),
+        findFirst: vi.fn(),
+      },
+    });
+    const debts = mockDebts();
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      mockNotifications(),
+      debts,
+      mockPaymentPromises(),
+    ).handleWhatsAppDebtResponse(10n, 'debt-public-id', 'COLLECTION_HUMAN_SUPPORT', now);
+
+    expect(result).toEqual({ handled: true });
+    expect(debts.markHumanSupport).toHaveBeenCalledWith(10n, 1n);
+    expect(client.collectionAttempt.updateMany).toHaveBeenCalled();
+  });
+
+  it('5) COLLECTION_DISPUTE marca Debt e cancela tentativas', async () => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue({ id: 1n, status: 'OPEN' }) },
+      collectionAttempt: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        update: vi.fn(),
+        findFirst: vi.fn(),
+      },
+    });
+    const debts = mockDebts();
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      mockNotifications(),
+      debts,
+      mockPaymentPromises(),
+    ).handleWhatsAppDebtResponse(10n, 'debt-public-id', 'COLLECTION_DISPUTE', now);
+
+    expect(result).toEqual({ handled: true });
+    expect(debts.markDisputed).toHaveBeenCalledWith(10n, 1n);
+    expect(client.collectionAttempt.updateMany).toHaveBeenCalled();
+  });
+
+  it('6) Debt PROMISE_SCHEDULED aceita COLLECTION_DISPUTE', async () => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue({ id: 1n, status: 'PROMISE_SCHEDULED' }) },
+      collectionAttempt: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        update: vi.fn(),
+        findFirst: vi.fn(),
+      },
+    });
+    const debts = mockDebts();
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      mockNotifications(),
+      debts,
+      mockPaymentPromises(),
+    ).handleWhatsAppDebtResponse(10n, 'debt-public-id', 'COLLECTION_DISPUTE', now);
+
+    expect(result).toEqual({ handled: true });
+    expect(debts.markDisputed).toHaveBeenCalledWith(10n, 1n);
+  });
+
+  it('7) actionId null retorna handled: false', async () => {
+    const client = mockClient();
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      mockNotifications(),
+      mockDebts(),
+      mockPaymentPromises(),
+    ).handleWhatsAppDebtResponse(10n, 'debt-public-id', null, now);
+
+    expect(result).toEqual({ handled: false });
   });
 });

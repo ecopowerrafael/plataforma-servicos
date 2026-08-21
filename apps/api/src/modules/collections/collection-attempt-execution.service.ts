@@ -411,6 +411,7 @@ export class CollectionAttemptExecutionService {
     });
     if (attempt === null) return { handled: false };
 
+    // Marcar attempt como respondido quando vinha de uma tentativa agendada.
     if (attempt.status === 'SENT') {
       await this.client.collectionAttempt.update({
         where: { id: attempt.id },
@@ -419,51 +420,93 @@ export class CollectionAttemptExecutionService {
     }
     await this.debts.recordEvent(tenantId, attempt.debtId, 'COLLECTION_RESPONSE_RECEIVED', { actionId });
 
+    // Delegar para lógica comum de ações.
+    return this.executeDebtAction(tenantId, attempt.debtId, actionId, now);
+  }
+
+  /**
+   * Resposta imediata de conversa (collection_reply): usuário respondeu a uma mensagem
+   * enviada por sendImmediateReply(), não a uma tentativa agendada.
+   * Roteia para a mesma lógica de ações sem marcar attempt como RESPONDED.
+   */
+  public async handleWhatsAppDebtResponse(
+    tenantId: bigint,
+    debtPublicId: string,
+    actionId: string | null,
+    now: Date = new Date(),
+  ): Promise<{ handled: boolean }> {
+    if (actionId === null || !isCollectionAction(actionId)) return { handled: false };
+
+    const debt = await this.client.debt.findFirst({
+      where: { tenantId, publicId: debtPublicId },
+      select: { id: true, status: true },
+    });
+    if (debt === null) return { handled: false };
+
+    // Validar que a Debt ainda aceita ações de cobrança.
+    if (!['OPEN', 'PROMISE_SCHEDULED'].includes(debt.status)) return { handled: false };
+
+    await this.debts.recordEvent(tenantId, debt.id, 'COLLECTION_RESPONSE_RECEIVED', { actionId });
+
+    // Delegar para lógica comum de ações (HUMAN_SUPPORT, PROMISE, PAY, etc.)
+    return this.executeDebtAction(tenantId, debt.id, actionId, now);
+  }
+
+  /**
+   * Lógica centralizada de execução de ações de cobrança.
+   * Usada tanto por handleWhatsAppResponse (com attempt) quanto
+   * handleWhatsAppDebtResponse (sem attempt).
+   */
+  private async executeDebtAction(
+    tenantId: bigint,
+    debtId: bigint,
+    actionId: string,
+    now: Date,
+  ): Promise<{ handled: boolean }> {
     if (actionId === 'COLLECTION_HUMAN_SUPPORT') {
-      await this.debts.markHumanSupport(tenantId, attempt.debtId);
-      await this.cancelScheduledAttempts(tenantId, attempt.debtId, 'HUMAN_SUPPORT_REQUESTED', now);
+      await this.debts.markHumanSupport(tenantId, debtId);
+      await this.cancelScheduledAttempts(tenantId, debtId, 'HUMAN_SUPPORT_REQUESTED', now);
       return { handled: true };
     }
 
     if (actionId === 'COLLECTION_DISPUTE') {
-      await this.debts.markDisputed(tenantId, attempt.debtId);
-      await this.cancelScheduledAttempts(tenantId, attempt.debtId, 'DEBT_DISPUTED', now);
+      await this.debts.markDisputed(tenantId, debtId);
+      await this.cancelScheduledAttempts(tenantId, debtId, 'DEBT_DISPUTED', now);
       return { handled: true };
     }
 
     const promiseDays = PROMISE_DAYS_BY_ACTION[actionId];
     if (promiseDays !== undefined) {
-      await this.createPromiseAndConfirm(tenantId, attempt.debtId, promiseDays, now);
+      await this.createPromiseAndConfirm(tenantId, debtId, promiseDays, now);
       return { handled: true };
     }
 
     if (actionId === 'COLLECTION_NEED_MORE_TIME') {
-      await this.offerPromiseOptions(tenantId, attempt.debtId, now);
+      await this.offerPromiseOptions(tenantId, debtId, now);
       return { handled: true };
     }
 
     if (actionId === 'COLLECTION_PAY_FULL') {
-      await this.sendPixCharge(tenantId, attempt.debtId, now);
+      await this.sendPixCharge(tenantId, debtId, now);
       return { handled: true };
     }
 
     if (actionId === 'COLLECTION_PAY_PARTIAL') {
-      await this.offerPartialOptions(tenantId, attempt.debtId, now);
+      await this.offerPartialOptions(tenantId, debtId, now);
       return { handled: true };
     }
 
     const partialPercentage = PARTIAL_PERCENTAGE_BY_ACTION[actionId];
     if (partialPercentage !== undefined) {
-      await this.sendPartialPixCharge(tenantId, attempt.debtId, partialPercentage, now);
+      await this.sendPartialPixCharge(tenantId, debtId, partialPercentage, now);
       return { handled: true };
     }
 
     if (actionId === 'COLLECTION_PAYMENT_STATUS') {
-      await this.sendPaymentStatus(tenantId, attempt.debtId, now);
+      await this.sendPaymentStatus(tenantId, debtId, now);
       return { handled: true };
     }
 
-    // COLLECTION_PROMISE_CUSTOM_DATE: depende de texto livre, fora do escopo — só o ack genérico acima.
     return { handled: true };
   }
 

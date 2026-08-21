@@ -363,12 +363,26 @@ export class IntegrationService {
       return { accepted: true, duplicated: true } as const;
     }
 
-    // Mensagem originada de uma cobrança do Bot Cobra: rota própria, nunca
-    // passa pelo fluxo do assistente de agendamentos.
+    // Resposta de tentativa agendada (collection_attempt): rota para Bot Cobra
     if (resolvedAction?.collectionAttemptPublicId !== null && resolvedAction?.collectionAttemptPublicId !== undefined) {
       const result = await this.collectionAttemptExecution?.handleWhatsAppResponse(
         tenantId,
         resolvedAction.collectionAttemptPublicId,
+        actionId,
+      );
+      return {
+        accepted: true,
+        duplicated: false,
+        eventType: event.eventType,
+        collectionResponseHandled: result?.handled ?? false,
+      } as const;
+    }
+
+    // Resposta imediata de cobrança (collection_reply): rota para Bot Cobra
+    if (resolvedAction?.collectionDebtPublicId !== null && resolvedAction?.collectionDebtPublicId !== undefined) {
+      const result = await this.collectionAttemptExecution?.handleWhatsAppDebtResponse(
+        tenantId,
+        resolvedAction.collectionDebtPublicId,
         actionId,
       );
       return {
@@ -424,12 +438,16 @@ export class IntegrationService {
         ? outbound.notification.targetPublicId
         : null;
     const collectionAttemptPublicId =
-      (outbound?.notification?.targetType === 'collection_attempt' ||
-        outbound?.notification?.targetType === 'collection_reply') &&
+      outbound?.notification?.targetType === 'collection_attempt' &&
       typeof outbound.notification.targetPublicId === 'string'
         ? outbound.notification.targetPublicId
         : null;
-    return { actionId: matched, appointmentPublicId, collectionAttemptPublicId };
+    const collectionDebtPublicId =
+      outbound?.notification?.targetType === 'collection_reply' &&
+      typeof outbound.notification.targetPublicId === 'string'
+        ? outbound.notification.targetPublicId
+        : null;
+    return { actionId: matched, appointmentPublicId, collectionAttemptPublicId, collectionDebtPublicId };
   }
 
   /**

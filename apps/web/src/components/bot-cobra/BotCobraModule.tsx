@@ -648,10 +648,27 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (editingId) {
-        await httpClient.patch(`/tenant/collection-rules/${editingId}`, formData);
+      const payload = {
+        name: formData.name,
+        active: formData.active,
+        cadenceType: 'DAILY',
+        allowedStartHour: formData.startHour,
+        allowedEndHour: formData.endHour,
+        maxAttemptsPerDay: formData.maxAttemptsPerDay,
+        consecutiveDays: formData.consecutiveDays,
+        pauseDaysAfterCycle: formData.pauseDaysAfterCycle,
+        maxCycles: formData.maxCycles,
+        skipSundays: true,
+        partialPaymentEnabled: true,
+        partialOfferPercentages: [10, 25, 50],
+        askPromiseAfterPartialPayment: true,
+        promiseQuickOptionsDays: [7, 14, 30],
+        noResponseFollowupNextDay: true,
+      };
+      if (editingId && editingId !== 'new') {
+        await httpClient.patch(`/tenant/collection-rules/${editingId}`, payload);
       } else {
-        await httpClient.post(`/tenant/collection-rules`, formData);
+        await httpClient.post(`/tenant/collection-rules`, payload);
       }
     },
     onSuccess: () => {

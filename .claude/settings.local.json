@@ -61,7 +61,11 @@
       "Bash(curl -s -b /tmp/cookies.txt -X POST http://localhost:3333/api/v1/lead-origins -H 'Content-Type: application/json' -d '{}')",
       "Bash(curl -s -b /tmp/cookies.txt -X POST http://localhost:3333/api/v1/lead-origins -H 'Content-Type: application/json' -H 'X-SENA-CSRF: 33d0c685-e5b8-4d6c-8284-b5e7d857142f' -d '{}')",
       "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npm run dev --workspace=@sena/api)",
-      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npm run dev:api)"
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npm run dev:api)",
+      "Bash(xargs grep -l \"PaymentPublicSchema\")",
+      "Bash(curl -s http://localhost:3000/tenant/info)",
+      "Bash(pkill -f \"node.*server.js\\\\|tsx.*server.ts\")",
+      "PowerShell(Get-Process tsx -ErrorAction SilentlyContinue)"
     ]
   }
 }

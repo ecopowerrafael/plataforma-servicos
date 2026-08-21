@@ -4,13 +4,13 @@
     {
       "name": "api",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "apps/api"],
+      "runtimeArgs": ["run", "dev", "--workspace=@plataforma/api"],
       "port": 3333
     },
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "apps/web"],
+      "runtimeArgs": ["run", "dev", "--workspace=@plataforma/web"],
       "port": 5173
     }
   ]

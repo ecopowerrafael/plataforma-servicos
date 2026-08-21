@@ -153,6 +153,29 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     return updateTenantIdentity(options.client, request.tenant.id, request.body);
   });
 
+  app.get('/tenant/info', async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    const tenant = await options.client.tenant.findUniqueOrThrow({
+      where: { id: request.tenant.id },
+      select: {
+        publicId: true,
+        timezone: true,
+      },
+    });
+
+    const whatsappConfig = await options.client.tenantWhatsAppConfig.findFirst({
+      where: { tenantId: request.tenant.id },
+      select: { id: true },
+    });
+
+    return {
+      publicId: tenant.publicId,
+      timezone: tenant.timezone,
+      whatsappEnabled: whatsappConfig !== null,
+      botCobraEnabled: true,
+    };
+  });
+
   const experienceResolver = options.experience;
   if (experienceResolver !== undefined) {
     app.get(

@@ -84,6 +84,10 @@ export async function receivableStatesByAppointment(
     select: { appointmentId: true, status: true },
   });
   for (const charge of charges) {
+    // appointmentId é opcional no schema desde a Fase 6 do Bot Cobra (cobranças
+    // PIX de Debt não têm Agendamento) — o `where` acima já garante que só
+    // cobranças de Agendamento chegam aqui, isso só fecha o narrowing do TS.
+    if (charge.appointmentId === null) continue;
     const awaiting = (AWAITING_GATEWAY_STATUSES as readonly string[]).includes(charge.status);
     // Aguardando confirmacao prevalece sobre uma tentativa anterior que falhou.
     if (awaiting) states.set(charge.appointmentId, 'ONLINE_PENDING');

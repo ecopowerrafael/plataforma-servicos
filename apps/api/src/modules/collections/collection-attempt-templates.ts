@@ -18,9 +18,14 @@ export const COLLECTION_TEMPLATE_BODIES: Record<string, string> = {
     'Olá, {{debtorName}}. O valor combinado de {{amount}} com {{tenantName}} ainda não foi regularizado. Podemos te ajudar?',
   'collection.promise_confirmation': 'Combinado! Vamos te lembrar em {{dueDate}}.',
   'collection.need_more_time_options': 'Sem problema, {{debtorName}}. Para quando você consegue pagar?',
+  'collection.pix_charge':
+    'Aqui está o PIX para regularizar o valor de {{amount}} com {{tenantName}}. Copie o código abaixo e cole no app do seu banco:\n\n{{pixCode}}',
+  'collection.debt_settled': 'Recebemos seu pagamento, {{debtorName}}! Sua dívida com {{tenantName}} está quitada. Obrigado!',
+  'collection.debt_already_settled': 'Olá, {{debtorName}}. Já identificamos aqui que o valor com {{tenantName}} está regularizado — obrigado!',
+  'collection.pix_unavailable': 'No momento não conseguimos gerar o PIX automaticamente. Nossa equipe vai entrar em contato para te ajudar.',
 };
 
-/** Placeholders permitidos: debtorName, tenantName, amount, dueDate — resolvidos só no backend. */
+/** Placeholders permitidos: debtorName, tenantName, amount, dueDate, pixCode — resolvidos só no backend. */
 export function renderCollectionMessage(
   templateKey: string,
   variables: Record<string, string>,

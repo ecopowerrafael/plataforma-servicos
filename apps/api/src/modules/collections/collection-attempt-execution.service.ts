@@ -8,6 +8,7 @@ import { type NotificationLog, type PrismaClient } from '../../database-client/c
 import { AppError } from '../../errors/AppError.js';
 import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
 import { type NotificationService } from '../notifications/notification.service.js';
+import { type PaymentGatewayService } from '../payments/gateway/payment-gateway.service.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 import { addDaysToDay, resolveTimezone, zonedDayKey } from '../tenants/timezone.js';
 
@@ -86,6 +87,7 @@ export class CollectionAttemptExecutionService {
     private readonly notifications: NotificationService,
     private readonly debts: DebtService,
     private readonly paymentPromises: PaymentPromiseService,
+    private readonly paymentGateway?: PaymentGatewayService,
   ) {}
 
   public async run(
@@ -421,8 +423,13 @@ export class CollectionAttemptExecutionService {
       return { handled: true };
     }
 
-    // COLLECTION_PAY_FULL / COLLECTION_PAYMENT_STATUS / COLLECTION_PROMISE_CUSTOM_DATE:
-    // dependem de Fase 6+ (pagamento) ou de texto livre — só o ack genérico acima nesta fase.
+    if (actionId === 'COLLECTION_PAY_FULL') {
+      await this.sendPixCharge(tenantId, attempt.debtId, now);
+      return { handled: true };
+    }
+
+    // COLLECTION_PAYMENT_STATUS / COLLECTION_PROMISE_CUSTOM_DATE: dependem de
+    // texto livre ou ficam fora do escopo — só o ack genérico acima.
     return { handled: true };
   }
 
@@ -476,6 +483,55 @@ export class CollectionAttemptExecutionService {
       await this.sendImmediateReply(tenantId, phone, body, PROMISE_OPTION_BUTTONS, 'collection.need_more_time_options', now);
     } catch {
       // Melhor esforço — o devedor pode tentar de novo clicando "preciso de mais prazo".
+    }
+  }
+
+  /** Gera (ou reaproveita) o PIX integral (Fase 6) e envia — melhor esforço, não muda nenhum estado por si só. */
+  private async sendPixCharge(tenantId: bigint, debtId: bigint, now: Date): Promise<void> {
+    const debt = await this.client.debt.findUnique({
+      where: { id: debtId },
+      select: { debtorName: true, debtorWhatsapp: true, currentBalanceCents: true, tenant: { select: { displayName: true } } },
+    });
+    if (debt === null) return;
+    const phone = normalizeWhatsAppPhone(debt.debtorWhatsapp);
+    if (phone === null) return;
+
+    if (debt.currentBalanceCents <= 0n) {
+      const body = renderCollectionMessage('collection.debt_already_settled', {
+        debtorName: debt.debtorName,
+        tenantName: debt.tenant.displayName,
+      });
+      if (body === null) return;
+      try {
+        await this.sendImmediateReply(tenantId, phone, body, [], 'collection.debt_already_settled', now);
+      } catch {
+        // Melhor esforço.
+      }
+      return;
+    }
+
+    const charge = await this.paymentGateway?.createDebtCharge(tenantId, debtId);
+    if (charge === undefined || charge === null || charge.pixCopyPaste === null) {
+      const body = renderCollectionMessage('collection.pix_unavailable', {});
+      if (body === null) return;
+      try {
+        await this.sendImmediateReply(tenantId, phone, body, [], 'collection.pix_unavailable', now);
+      } catch {
+        // Melhor esforço.
+      }
+      return;
+    }
+
+    const body = renderCollectionMessage('collection.pix_charge', {
+      amount: formatMoneyCents(debt.currentBalanceCents),
+      tenantName: debt.tenant.displayName,
+      pixCode: charge.pixCopyPaste,
+    });
+    if (body === null) return;
+    try {
+      await this.sendImmediateReply(tenantId, phone, body, [], 'collection.pix_charge', now);
+    } catch {
+      // Melhor esforço — a cobrança já foi criada e continua válida mesmo se o envio falhar.
     }
   }
 }

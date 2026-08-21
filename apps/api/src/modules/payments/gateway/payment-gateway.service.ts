@@ -17,6 +17,7 @@ import {
   type PrismaClient,
 } from '../../../database-client/client.js';
 import { AppError } from '../../../errors/AppError.js';
+import { type DebtPixPaymentService } from '../../collections/debt-pix-payment.service.js';
 import { type PaymentMethodService } from '../payment-method.service.js';
 import { type PaymentService } from '../payment.service.js';
 
@@ -39,13 +40,15 @@ const pubConfig = (config: PaymentGatewayConfig, providerImplemented: boolean) =
 
 const pubCharge = (
   charge: PaymentGatewayCharge & {
-    appointment: { publicId: string };
+    appointment: { publicId: string } | null;
+    debt: { publicId: string } | null;
     payment: { publicId: string } | null;
   },
 ) =>
   PaymentGatewayChargePublicSchema.parse({
     publicId: charge.publicId,
-    appointmentPublicId: charge.appointment.publicId,
+    appointmentPublicId: charge.appointment?.publicId ?? null,
+    debtPublicId: charge.debt?.publicId ?? null,
     paymentPublicId: charge.payment?.publicId ?? null,
     provider: charge.provider,
     environment: charge.environment,
@@ -69,6 +72,7 @@ export class PaymentGatewayService {
     private readonly cipher: CredentialsCipher | undefined,
     private readonly paymentMethods: PaymentMethodService,
     private readonly payments: PaymentService,
+    private readonly debtPixPayments?: DebtPixPaymentService,
   ) {}
 
   public async getConfig(tenantId: bigint, provider: string) {
@@ -223,6 +227,7 @@ export class PaymentGatewayService {
       where: { tenantId, idempotencyKey: input.idempotencyKey },
       include: {
         appointment: { select: { publicId: true } },
+        debt: { select: { publicId: true } },
         payment: { select: { publicId: true } },
       },
     });
@@ -277,6 +282,7 @@ export class PaymentGatewayService {
       },
       include: {
         appointment: { select: { publicId: true } },
+        debt: { select: { publicId: true } },
         payment: { select: { publicId: true } },
       },
     });
@@ -296,12 +302,122 @@ export class PaymentGatewayService {
     return pubCharge(created);
   }
 
+  /**
+   * Cria (ou reaproveita) uma cobrança PIX para o saldo integral de uma Debt do Bot Cobra —
+   * chamada automática (WhatsApp), não uma rota HTTP: falhas viram `null` em vez de exceção,
+   * para o chamador decidir a mensagem de fallback ao devedor. A idempotência real é a
+   * checagem de cobrança ativa abaixo, não a idempotencyKey (que é gerada nova a cada
+   * chamada — uma chave fixa reaproveitada para sempre travaria o devedor num PIX expirado).
+   */
+  public async createDebtCharge(
+    tenantId: bigint,
+    debtId: bigint,
+  ): Promise<{ publicId: string; status: string; pixCopyPaste: string | null } | null> {
+    const debt = await this.client.debt.findUnique({
+      where: { id: debtId },
+      select: { id: true, publicId: true, currentBalanceCents: true },
+    });
+    if (debt === null || debt.currentBalanceCents <= 0n) return null;
+
+    const existing = await this.client.paymentGatewayCharge.findFirst({
+      where: {
+        tenantId,
+        debtId: debt.id,
+        originType: 'DEBT',
+        status: { in: ['PENDING', 'PROCESSING'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing !== null)
+      return { publicId: existing.publicId, status: existing.status, pixCopyPaste: existing.pixCopyPaste };
+
+    const provider = await this.resolveActiveDebtProvider(tenantId);
+    if (provider === null) return null;
+
+    const idempotencyKey = `debt-pix:${debt.publicId}:${randomUUID()}`;
+    let adapterResult;
+    let config;
+    try {
+      const resolved = await this.requireActiveAdapter(tenantId, provider);
+      config = resolved.config;
+      adapterResult = await resolved.adapter.createCharge(resolved.credentials, resolved.config.environment, {
+        amountCents: debt.currentBalanceCents,
+        currency: 'BRL',
+        description: 'Cobrança de dívida em aberto',
+        idempotencyKey,
+      });
+      await this.logEvent({
+        tenantId,
+        chargeId: null,
+        provider,
+        direction: 'OUTBOUND',
+        eventType: 'charge.create',
+        success: true,
+      });
+    } catch (error) {
+      await this.logEvent({
+        tenantId,
+        chargeId: null,
+        provider,
+        direction: 'OUTBOUND',
+        eventType: 'charge.create',
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Erro desconhecido.',
+      });
+      return null;
+    }
+
+    const created = await this.client.paymentGatewayCharge.create({
+      data: {
+        publicId: randomUUID(),
+        tenantId,
+        originType: 'DEBT',
+        debtId: debt.id,
+        provider: config.provider,
+        environment: config.environment,
+        externalId: adapterResult.externalId,
+        status: adapterResult.status,
+        amountCents: debt.currentBalanceCents,
+        currency: 'BRL',
+        idempotencyKey,
+        kind: 'PAYMENT',
+        pixCopyPaste: adapterResult.pixCopyPaste ?? null,
+      },
+    });
+    await this.client.auditLog.create({
+      data: {
+        publicId: randomUUID(),
+        tenantId,
+        userId: null,
+        sessionId: null,
+        action: 'payment_gateway.charge_created',
+        targetType: 'payment_gateway_charge',
+        targetPublicId: created.publicId,
+      },
+    });
+
+    if (created.status === 'PAID') await this.reconcilePaidCharge({ ...created, appointment: null });
+    return { publicId: created.publicId, status: created.status, pixCopyPaste: created.pixCopyPaste };
+  }
+
+  private async resolveActiveDebtProvider(tenantId: bigint): Promise<string | null> {
+    const configs = await this.client.paymentGatewayConfig.findMany({
+      where: { tenantId, active: true },
+      select: { provider: true },
+    });
+    const active = new Set(configs.map((c) => c.provider));
+    if (active.has('mercadopago')) return 'mercadopago';
+    if (active.has('pix-local')) return 'pix-local';
+    return null;
+  }
+
   public async listForAppointment(tenantId: bigint, appointmentPublicId: string) {
     const items = await this.client.paymentGatewayCharge.findMany({
       where: { tenantId, appointment: { publicId: appointmentPublicId } },
       orderBy: { createdAt: 'desc' },
       include: {
         appointment: { select: { publicId: true } },
+        debt: { select: { publicId: true } },
         payment: { select: { publicId: true } },
       },
     });
@@ -331,6 +447,7 @@ export class PaymentGatewayService {
           data: { status: result.status, lastCheckedAt: new Date() },
           include: {
             appointment: { select: { publicId: true } },
+            debt: { select: { publicId: true } },
             payment: { select: { publicId: true } },
           },
         });
@@ -414,6 +531,7 @@ export class PaymentGatewayService {
       data: { status: 'CANCELED', canceledAt: new Date(), canceledReason: reason },
       include: {
         appointment: { select: { publicId: true } },
+        debt: { select: { publicId: true } },
         payment: { select: { publicId: true } },
       },
     });
@@ -535,6 +653,7 @@ export class PaymentGatewayService {
             where: { tenantId: tenant.id, provider, externalId: event.externalId },
             include: {
               appointment: { select: { publicId: true } },
+              debt: { select: { publicId: true } },
               payment: { select: { publicId: true } },
             },
           });
@@ -557,6 +676,7 @@ export class PaymentGatewayService {
       data: { status: event.status },
       include: {
         appointment: { select: { publicId: true } },
+        debt: { select: { publicId: true } },
         payment: { select: { publicId: true } },
       },
     });
@@ -569,12 +689,21 @@ export class PaymentGatewayService {
   /**
    * Materializa a cobrança confirmada como um Payment real, reaproveitando integralmente
    * PaymentService.create() — mesmas regras de saldo, mesmo reflexo em caixa/comissão que
-   * qualquer outro pagamento, sem duplicar lógica de negócio.
+   * qualquer outro pagamento, sem duplicar lógica de negócio. Cobranças originadas do Bot
+   * Cobra (originType DEBT) são inteiramente delegadas a DebtPixPaymentService — a Debt
+   * pode ter vindo de um Agendamento (precisa virar Payment de Agendamento de verdade,
+   * para não divergir do saldo canônico) ou ser MANUAL (Payment isolado, originType DEBT).
    */
   private async reconcilePaidCharge(
-    charge: PaymentGatewayCharge & { appointment: { publicId: string } },
+    charge: PaymentGatewayCharge & { appointment: { publicId: string } | null },
     actor: Actor = { userId: null, sessionId: null },
   ) {
+    if (charge.originType === 'DEBT') {
+      await this.debtPixPayments?.reconcile(charge.id);
+      return;
+    }
+    if (charge.appointment === null) return; // nunca deveria acontecer p/ originType APPOINTMENT
+
     const methodName = `Gateway (${charge.provider})`;
     const methods = await this.paymentMethods.list(charge.tenantId);
     let method = methods.items.find((item) => item.name === methodName);
@@ -633,6 +762,7 @@ export class PaymentGatewayService {
       data: { status: 'PAID', lastCheckedAt: new Date() },
       include: {
         appointment: { select: { publicId: true } },
+        debt: { select: { publicId: true } },
         payment: { select: { publicId: true } },
       },
     });
@@ -656,6 +786,7 @@ export class PaymentGatewayService {
       where: { tenantId, publicId: chargePublicId },
       include: {
         appointment: { select: { publicId: true } },
+        debt: { select: { publicId: true } },
         payment: { select: { publicId: true } },
       },
     });

@@ -21,6 +21,7 @@ import { AvailabilityService } from '../modules/calendar/availability.service.js
 import { CollectionAttemptExecutionService } from '../modules/collections/collection-attempt-execution.service.js';
 import { CollectionAttemptEngineService } from '../modules/collections/collection-attempt.service.js';
 import { CollectionRuleService } from '../modules/collections/collection-rule.service.js';
+import { DebtPixPaymentService } from '../modules/collections/debt-pix-payment.service.js';
 import { DebtService } from '../modules/collections/debt.service.js';
 import { PaymentPromiseService } from '../modules/collections/payment-promise.service.js';
 import { CustomerAuthRepository } from '../modules/customers/customer-auth.repository.js';
@@ -419,23 +420,29 @@ export function createDatabaseConnection(
   const debts = new DebtService(client, collectionRules);
   const collectionAttempts = new CollectionAttemptEngineService(client);
   const paymentPromises = new PaymentPromiseService(client, debts);
-  const collectionAttemptExecution = new CollectionAttemptExecutionService(
-    client,
-    notifications,
-    debts,
-    paymentPromises,
-  );
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
   paymentGatewayRegistry.register(new PixLocalProviderAdapter());
   paymentGatewayRegistry.register(new MercadoPagoProviderAdapter(new FetchHttpClient()));
+  // debtPixPayments/collectionAttemptExecution só podem ser construídos depois
+  // de paymentMethods/payments (Fase 6 do Bot Cobra — PIX integral): o
+  // executor da régua passa a saber gerar cobrança PIX via paymentGateway.
+  const debtPixPayments = new DebtPixPaymentService(client, debts, notifications, paymentMethods, payments);
   const paymentGateway = new PaymentGatewayService(
     client,
     paymentGatewayRegistry,
     credentialsCipher,
     paymentMethods,
     payments,
+    debtPixPayments,
+  );
+  const collectionAttemptExecution = new CollectionAttemptExecutionService(
+    client,
+    notifications,
+    debts,
+    paymentPromises,
+    paymentGateway,
   );
   const tenantPaymentOptions = new TenantPaymentOptionsService(
     client,

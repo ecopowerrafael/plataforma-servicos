@@ -6,6 +6,7 @@ import { type PaymentPromiseService } from './payment-promise.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type NotificationService } from '../notifications/notification.service.js';
+import { type PaymentGatewayService } from '../payments/gateway/payment-gateway.service.js';
 
 const now = new Date('2026-08-24T12:00:00.000Z');
 
@@ -92,6 +93,13 @@ function mockPaymentPromises(overrides: Record<string, unknown> = {}) {
     createOrReplace: vi.fn().mockResolvedValue({ publicId: 'promise-public-id' }),
     ...overrides,
   } as unknown as PaymentPromiseService;
+}
+
+function mockPaymentGateway(overrides: Record<string, unknown> = {}) {
+  return {
+    createDebtCharge: vi.fn().mockResolvedValue({ publicId: 'charge-public-id', status: 'PENDING', pixCopyPaste: '00020126...copia-e-cola' }),
+    ...overrides,
+  } as unknown as PaymentGatewayService;
 }
 
 describe('CollectionAttemptExecutionService.run', () => {
@@ -553,7 +561,7 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
     });
   });
 
-  it.each(['COLLECTION_PAY_FULL', 'COLLECTION_PAYMENT_STATUS', 'COLLECTION_PROMISE_CUSTOM_DATE'])(
+  it.each(['COLLECTION_PAYMENT_STATUS', 'COLLECTION_PROMISE_CUSTOM_DATE'])(
     '21) %s continua só com o ack genérico nesta fase (sem efeito colateral)',
     async (actionId) => {
       const client = mockClient({
@@ -585,4 +593,119 @@ describe('CollectionAttemptExecutionService.handleWhatsAppResponse', () => {
       expect(debts.markHumanSupport).not.toHaveBeenCalled();
     },
   );
+
+  it('22) COLLECTION_PAY_FULL com saldo > 0 gera o PIX e envia o código copia-e-cola', async () => {
+    const client = mockClient({
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+    });
+    const notifications = mockNotifications();
+    const paymentGateway = mockPaymentGateway();
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      notifications,
+      mockDebts(),
+      mockPaymentPromises(),
+      paymentGateway,
+    ).handleWhatsAppResponse(10n, 'attempt-public-id', 'COLLECTION_PAY_FULL', now);
+
+    expect(result).toEqual({ handled: true });
+    expect(paymentGateway.createDebtCharge).toHaveBeenCalledWith(10n, 1n);
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      10n,
+      expect.objectContaining({
+        targetType: 'collection_reply',
+        kind: 'collection.pix_charge',
+        body: expect.stringContaining('00020126...copia-e-cola'),
+      }),
+      now,
+    );
+  });
+
+  it('23) COLLECTION_PAY_FULL com saldo já zerado não gera cobrança', async () => {
+    const client = mockClient({
+      debt: { findUnique: vi.fn().mockResolvedValue(openDebt({ currentBalanceCents: 0n })) },
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+    });
+    const notifications = mockNotifications();
+    const paymentGateway = mockPaymentGateway();
+
+    await new CollectionAttemptExecutionService(
+      client,
+      notifications,
+      mockDebts(),
+      mockPaymentPromises(),
+      paymentGateway,
+    ).handleWhatsAppResponse(10n, 'attempt-public-id', 'COLLECTION_PAY_FULL', now);
+
+    expect(paymentGateway.createDebtCharge).not.toHaveBeenCalled();
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      10n,
+      expect.objectContaining({ kind: 'collection.debt_already_settled' }),
+      now,
+    );
+  });
+
+  it('24) COLLECTION_PAY_FULL sem PIX disponível (createDebtCharge retorna null) cai no fallback', async () => {
+    const client = mockClient({
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+    });
+    const notifications = mockNotifications();
+    const paymentGateway = mockPaymentGateway({ createDebtCharge: vi.fn().mockResolvedValue(null) });
+
+    await new CollectionAttemptExecutionService(
+      client,
+      notifications,
+      mockDebts(),
+      mockPaymentPromises(),
+      paymentGateway,
+    ).handleWhatsAppResponse(10n, 'attempt-public-id', 'COLLECTION_PAY_FULL', now);
+
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      10n,
+      expect.objectContaining({ kind: 'collection.pix_unavailable' }),
+      now,
+    );
+  });
+
+  it('25) COLLECTION_PAY_FULL sem paymentGateway configurado cai no mesmo fallback (sem quebrar)', async () => {
+    const client = mockClient({
+      collectionAttempt: {
+        findFirst: vi.fn().mockResolvedValue({ id: 100n, debtId: 1n, status: 'SENT' }),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+    });
+    const notifications = mockNotifications();
+
+    const result = await new CollectionAttemptExecutionService(
+      client,
+      notifications,
+      mockDebts(),
+      mockPaymentPromises(),
+    ).handleWhatsAppResponse(10n, 'attempt-public-id', 'COLLECTION_PAY_FULL', now);
+
+    expect(result).toEqual({ handled: true });
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      10n,
+      expect.objectContaining({ kind: 'collection.pix_unavailable' }),
+      now,
+    );
+  });
 });

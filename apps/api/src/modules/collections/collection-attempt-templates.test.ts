@@ -61,6 +61,26 @@ describe('renderCollectionMessage', () => {
       'Sem problema, Maria. Para quando você consegue pagar?',
     );
   });
+
+  it('cobre os templateKeys de PIX da Fase 6', () => {
+    expect(
+      renderCollectionMessage('collection.pix_charge', { amount: 'R$ 50,00', tenantName: 'Studio Bela', pixCode: '00020126...copia-e-cola' }),
+    ).toBe(
+      'Aqui está o PIX para regularizar o valor de R$ 50,00 com Studio Bela. Copie o código abaixo e cole no app do seu banco:\n\n00020126...copia-e-cola',
+    );
+
+    expect(renderCollectionMessage('collection.debt_settled', { debtorName: 'Maria', tenantName: 'Studio Bela' })).toBe(
+      'Recebemos seu pagamento, Maria! Sua dívida com Studio Bela está quitada. Obrigado!',
+    );
+
+    expect(
+      renderCollectionMessage('collection.debt_already_settled', { debtorName: 'Maria', tenantName: 'Studio Bela' }),
+    ).toBe('Olá, Maria. Já identificamos aqui que o valor com Studio Bela está regularizado — obrigado!');
+
+    expect(renderCollectionMessage('collection.pix_unavailable', {})).toBe(
+      'No momento não conseguimos gerar o PIX automaticamente. Nossa equipe vai entrar em contato para te ajudar.',
+    );
+  });
 });
 
 describe('formatMoneyCents', () => {

@@ -186,6 +186,7 @@ enum PaymentKind {
 enum PaymentOriginType {
   APPOINTMENT
   MEMBERSHIP_CHARGE
+  DEBT
 }
 
 /// Define como o estabelecimento comercializa seus serviços. Os tenants
@@ -557,6 +558,7 @@ model Tenant {
   debtEvents                   DebtEvent[]
   collectionAttempts           CollectionAttempt[]
   paymentPromises               PaymentPromise[]
+  debtPaymentAllocations        DebtPaymentAllocation[]
 
   @@index([status])
   @@map("tenants")
@@ -2366,6 +2368,7 @@ model Payment {
   originType           PaymentOriginType       @default(APPOINTMENT) @map("origin_type")
   appointmentId        BigInt?                 @map("appointment_id") @db.UnsignedBigInt
   membershipChargeId   BigInt?                 @map("membership_charge_id") @db.UnsignedBigInt
+  debtId               BigInt?                 @map("debt_id") @db.UnsignedBigInt
   paymentMethodId      BigInt                  @map("payment_method_id") @db.UnsignedBigInt
   kind                 PaymentKind             @default(PAYMENT)
   status               PaymentStatus           @default(PAID)
@@ -2380,6 +2383,7 @@ model Payment {
   tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   appointment          Appointment?            @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   membershipCharge     CustomerMembershipCharge? @relation("PaymentToMembershipCharge", fields: [membershipChargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt                 Debt?                   @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   paymentMethod        PaymentMethod           @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   user                 User?                   @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   session              UserSession?            @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -2388,9 +2392,11 @@ model Payment {
   commission           ProfessionalCommission?
   gatewayCharge        PaymentGatewayCharge?
   loyaltyLedgerEntries LoyaltyLedgerEntry[]
+  debtAllocations      DebtPaymentAllocation[]
 
   @@index([tenantId, appointmentId, createdAt])
   @@index([tenantId, membershipChargeId, createdAt])
+  @@index([tenantId, debtId, createdAt])
   @@index([tenantId, status, createdAt])
   @@index([originType])
   @@map("payments")
@@ -2507,11 +2513,18 @@ model PaymentGatewayConfig {
   @@map("payment_gateway_configs")
 }
 
+enum PaymentGatewayChargeOrigin {
+  APPOINTMENT
+  DEBT
+}
+
 model PaymentGatewayCharge {
   id             BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
   publicId       String                     @unique @map("public_id") @db.Char(36)
   tenantId       BigInt                     @map("tenant_id") @db.UnsignedBigInt
-  appointmentId  BigInt                     @map("appointment_id") @db.UnsignedBigInt
+  originType     PaymentGatewayChargeOrigin @default(APPOINTMENT) @map("origin_type")
+  appointmentId  BigInt?                    @map("appointment_id") @db.UnsignedBigInt
+  debtId         BigInt?                    @map("debt_id") @db.UnsignedBigInt
   paymentId      BigInt?                    @unique @map("payment_id") @db.UnsignedBigInt
   provider       String                     @db.VarChar(64)
   environment    PaymentGatewayEnvironment
@@ -2523,17 +2536,23 @@ model PaymentGatewayCharge {
   idempotencyKey String                     @map("idempotency_key") @db.VarChar(191)
   pixCopyPaste   String?                    @map("pix_copy_paste") @db.Text
   lastCheckedAt  DateTime?                  @map("last_checked_at") @db.DateTime(3)
+  /// Claim atômico da reconciliação (Fase 6 do Bot Cobra) — evita que dois
+  /// webhooks quase simultâneos (externalEventId diferentes) gerem 2 Payment
+  /// para a mesma cobrança antes de paymentId ser preenchido.
+  reconciledAt   DateTime?                  @map("reconciled_at") @db.DateTime(3)
   canceledAt     DateTime?                  @map("canceled_at") @db.DateTime(3)
   canceledReason String?                    @map("canceled_reason") @db.VarChar(500)
   createdAt      DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt      DateTime                   @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant         Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  appointment    Appointment                @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment    Appointment?               @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt           Debt?                      @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payment        Payment?                   @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   events         PaymentGatewayEvent[]
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, appointmentId])
+  @@index([tenantId, debtId])
   @@index([tenantId, status])
   @@index([tenantId, provider, externalId])
   @@map("payment_gateway_charges")
@@ -3349,6 +3368,9 @@ model Debt {
   events                   DebtEvent[]
   attempts                 CollectionAttempt[]
   paymentPromises          PaymentPromise[]
+  payments                 Payment[]
+  gatewayCharges           PaymentGatewayCharge[]
+  paymentAllocations       DebtPaymentAllocation[]
 
   @@index([tenantId, status, dueDate])
   @@index([tenantId, debtorWhatsapp])
@@ -3372,6 +3394,38 @@ model DebtEvent {
 
   @@index([tenantId, debtId, createdAt])
   @@map("debt_events")
+}
+
+// Fase 6: ponte de rastreabilidade entre uma Debt e o Payment real que a
+// quitou (parcial ou totalmente) — nunca é a fonte da verdade do saldo, só o
+// registro de auditoria "esse Payment foi cobrado pelo Bot Cobra". O Payment
+// em si pode ter originType DEBT (Debt MANUAL, sem Agendamento por trás) ou
+// APPOINTMENT (Debt de Agendamento — o pagamento vira um Payment real daquele
+// Agendamento, via PaymentService.create(), para não divergir do saldo
+// canônico já sincronizado por syncAppointmentDebtBalance).
+enum DebtPaymentAllocationSource {
+  BOT_PIX
+  MANUAL
+  APPOINTMENT_PAYMENT
+  OTHER
+}
+
+model DebtPaymentAllocation {
+  id          BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId    String                      @unique @map("public_id") @db.Char(36)
+  tenantId    BigInt                      @map("tenant_id") @db.UnsignedBigInt
+  debtId      BigInt                      @map("debt_id") @db.UnsignedBigInt
+  paymentId   BigInt                      @map("payment_id") @db.UnsignedBigInt
+  amountCents BigInt                      @map("amount_cents") @db.UnsignedBigInt
+  source      DebtPaymentAllocationSource
+  createdAt   DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
+  tenant      Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt        Debt                        @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payment     Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([debtId, paymentId])
+  @@index([tenantId, debtId])
+  @@map("debt_payment_allocations")
 }
 
 // Fase 5: promessa de pagamento — devedor escolhe uma data (via WhatsApp) e a

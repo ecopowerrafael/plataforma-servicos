@@ -626,6 +626,8 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
     active: true,
   });
 
+  const previewText = `Cobranças entre ${String(formData.startHour).padStart(2, '0')}:00 e ${String(formData.endHour).padStart(2, '0')}:00 | Até ${formData.maxAttemptsPerDay} tentativas/dia | ${formData.consecutiveDays} dias consecutivos | ${formData.pauseDaysAfterCycle} dia(s) de pausa | ${formData.maxCycles} ciclo(s)`;
+
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ['bot-cobra-campaigns', tenantPublicId],
     queryFn: async () => {
@@ -673,82 +675,139 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
       <PageHeader title="Campanhas" description="Gerenciar campanhas e réguas de cobrança" />
 
       {editingId && (
-        <div className="bg-white rounded-lg border p-6 mb-6 space-y-4">
+        <div className="bg-white rounded-lg border p-6 mb-6 space-y-6">
           <h3 className="font-semibold text-sm">Editar Campanha</h3>
-          <input
-            type="text"
-            placeholder="Nome da campanha"
-            className="w-full px-3 py-2 border rounded-md"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          />
-          <div className="grid grid-cols-2 gap-4">
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Nome da campanha</label>
             <input
-              type="number"
-              min="0"
-              max="23"
-              placeholder="Hora início"
-              className="px-3 py-2 border rounded-md"
-              value={formData.startHour}
-              onChange={(e) => setFormData({ ...formData, startHour: parseInt(e.target.value) })}
+              type="text"
+              placeholder="Ex: Cobrança padrão"
+              className="w-full px-3 py-2 border rounded-md"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
-            <input
-              type="number"
-              min="0"
-              max="23"
-              placeholder="Hora fim"
-              className="px-3 py-2 border rounded-md"
-              value={formData.endHour}
-              onChange={(e) => setFormData({ ...formData, endHour: parseInt(e.target.value) })}
-            />
-            <input
-              type="number"
-              min="1"
-              placeholder="Tentativas/dia"
-              className="px-3 py-2 border rounded-md"
-              value={formData.maxAttemptsPerDay}
-              onChange={(e) => setFormData({ ...formData, maxAttemptsPerDay: parseInt(e.target.value) })}
-            />
-            <input
-              type="number"
-              min="1"
-              placeholder="Dias consecutivos"
-              className="px-3 py-2 border rounded-md"
-              value={formData.consecutiveDays}
-              onChange={(e) => setFormData({ ...formData, consecutiveDays: parseInt(e.target.value) })}
-            />
-            <input
-              type="number"
-              min="0"
-              placeholder="Pausa após ciclo"
-              className="px-3 py-2 border rounded-md"
-              value={formData.pauseDaysAfterCycle}
-              onChange={(e) => setFormData({ ...formData, pauseDaysAfterCycle: parseInt(e.target.value) })}
-            />
-            <input
-              type="number"
-              min="1"
-              placeholder="Máximo ciclos"
-              className="px-3 py-2 border rounded-md"
-              value={formData.maxCycles}
-              onChange={(e) => setFormData({ ...formData, maxCycles: parseInt(e.target.value) })}
-            />
+            <p className="text-xs text-gray-600 mt-1">Nome interno para identificar esta régua de cobrança</p>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
+
+          <div>
+            <label className="block text-sm font-medium mb-3">Horário de cobrança</label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-600">Início</label>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    className="w-16 px-3 py-2 border rounded-md"
+                    value={formData.startHour}
+                    onChange={(e) => setFormData({ ...formData, startHour: parseInt(e.target.value) })}
+                  />
+                  <span className="ml-2 text-sm">:00</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-600">Fim</label>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    className="w-16 px-3 py-2 border rounded-md"
+                    value={formData.endHour}
+                    onChange={(e) => setFormData({ ...formData, endHour: parseInt(e.target.value) })}
+                  />
+                  <span className="ml-2 text-sm">:00</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 mt-2">Horários em que o Bot Cobra pode enviar mensagens automáticas</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Tentativas por dia</label>
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="1"
+                  className="w-20 px-3 py-2 border rounded-md"
+                  value={formData.maxAttemptsPerDay}
+                  onChange={(e) => setFormData({ ...formData, maxAttemptsPerDay: parseInt(e.target.value) })}
+                />
+                <span className="ml-2 text-sm text-gray-600">tentativas</span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Máximo por cobrança/dia</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Dias consecutivos</label>
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="1"
+                  className="w-20 px-3 py-2 border rounded-md"
+                  value={formData.consecutiveDays}
+                  onChange={(e) => setFormData({ ...formData, consecutiveDays: parseInt(e.target.value) })}
+                />
+                <span className="ml-2 text-sm text-gray-600">dias</span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Duração do ciclo</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Pausa entre ciclos</label>
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="0"
+                  className="w-20 px-3 py-2 border rounded-md"
+                  value={formData.pauseDaysAfterCycle}
+                  onChange={(e) => setFormData({ ...formData, pauseDaysAfterCycle: parseInt(e.target.value) })}
+                />
+                <span className="ml-2 text-sm text-gray-600">dia(s)</span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Descanso após cada ciclo</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Máximo de ciclos</label>
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="1"
+                  className="w-20 px-3 py-2 border rounded-md"
+                  value={formData.maxCycles}
+                  onChange={(e) => setFormData({ ...formData, maxCycles: parseInt(e.target.value) })}
+                />
+                <span className="ml-2 text-sm text-gray-600">ciclos</span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Limite de repetições</p>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 rounded-md">
             <input
               type="checkbox"
               checked={formData.active}
               onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
             />
-            <span className="text-sm">Ativa</span>
+            <span className="text-sm font-medium">Campanha ativa</span>
           </label>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <p className="text-sm font-medium text-blue-900 mb-2">Como funciona</p>
+            <p className="text-xs text-blue-800">{previewText}</p>
+          </div>
+
           <div className="flex gap-2">
             <button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
-              Salvar
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar campanha'}
             </button>
             <button
               onClick={() => setEditingId(null)}
@@ -1048,60 +1107,143 @@ function BotCobraSettingsSection({ tenantPublicId }: { tenantPublicId: string })
 
   return (
     <>
-      <PageHeader title="Configurações" description="Configurar Bot Cobra" />
+      <PageHeader title="Configurações do Bot Cobra" description="Gerenciar comportamento e integrações" />
 
       {isLoading ? (
-        <div className="space-y-2">
-          <div className="bg-gray-100 h-20 rounded animate-pulse" />
-          <div className="bg-gray-100 h-20 rounded animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-gray-100 h-32 rounded animate-pulse" />
+          ))}
         </div>
       ) : tenant ? (
-        <div className="space-y-4 max-w-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+          {/* Bot Cobra Status */}
           <div className="bg-white rounded-lg border p-6">
-            <h3 className="font-semibold text-sm mb-4">Status do Bot Cobra</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm">Bot Cobra</span>
-                <span className={`px-3 py-1 rounded text-xs font-medium ${
-                  tenant.botCobraEnabled
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {tenant.botCobraEnabled ? 'Ativo' : 'Inativo'}
-                </span>
+            <h3 className="font-semibold text-sm mb-4">Bot Cobra</h3>
+            <div className="mb-4">
+              <div className={`px-3 py-2 rounded text-sm font-medium inline-block ${
+                tenant.botCobraEnabled
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
+                {tenant.botCobraEnabled ? '✓ Ativo' : 'Inativo'}
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm">WhatsApp integrado</span>
-                <span className={`px-3 py-1 rounded text-xs font-medium ${
-                  tenant.whatsappEnabled
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {tenant.whatsappEnabled ? 'Conectado' : 'Desconectado'}
-                </span>
+            </div>
+            <p className="text-xs text-gray-600">Controla se novas cobranças automáticas podem ser processadas para este estabelecimento.</p>
+          </div>
+
+          {/* WhatsApp Integration */}
+          <div className="bg-white rounded-lg border p-6">
+            <h3 className="font-semibold text-sm mb-4">WhatsApp</h3>
+            <div className="mb-4">
+              <div className={`px-3 py-2 rounded text-sm font-medium inline-block ${
+                tenant.whatsappEnabled
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
+                {tenant.whatsappEnabled ? '✓ Conectado' : 'Desconectado'}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 mb-3">O Bot Cobra utiliza esta integração para enviar mensagens e receber respostas dos clientes.</p>
+            {!tenant.whatsappEnabled && (
+              <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                Configurar WhatsApp →
+              </button>
+            )}
+          </div>
+
+          {/* Timezone */}
+          <div className="bg-white rounded-lg border p-6">
+            <h3 className="font-semibold text-sm mb-4">Horário do estabelecimento</h3>
+            <div className="bg-gray-50 rounded p-3 mb-3">
+              <div className="font-mono text-sm">{tenant.timezone}</div>
+              <div className="text-xs text-gray-600 mt-1">
+                {tenant.timezone === 'America/Sao_Paulo' && 'São Paulo — UTC-3'}
+                {tenant.timezone === 'America/Manaus' && 'Manaus — UTC-4'}
+                {tenant.timezone === 'America/Fortaleza' && 'Fortaleza — UTC-3'}
+                {!['America/Sao_Paulo', 'America/Manaus', 'America/Fortaleza'].includes(tenant.timezone) && tenant.timezone}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600">Os horários das campanhas são calculados usando este fuso horário.</p>
+          </div>
+
+          {/* Comportamento */}
+          <div className="bg-white rounded-lg border p-6">
+            <h3 className="font-semibold text-sm mb-4">Recursos disponíveis</h3>
+            <div className="space-y-2 text-xs">
+              <div className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">✓</span>
+                <div>
+                  <div className="font-medium">Cobranças automáticas</div>
+                  <div className="text-gray-600">Envio de mensagens via WhatsApp</div>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">✓</span>
+                <div>
+                  <div className="font-medium">Promessas de pagamento</div>
+                  <div className="text-gray-600">Registro e acompanhamento</div>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">✓</span>
+                <div>
+                  <div className="font-medium">PIX dinâmico</div>
+                  <div className="text-gray-600">Geração de QR codes</div>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">✓</span>
+                <div>
+                  <div className="font-medium">Atendimento humano</div>
+                  <div className="text-gray-600">Escalação para análise manual</div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border p-6">
-            <h3 className="font-semibold text-sm mb-4">Informações</h3>
-            <div className="space-y-3 text-sm">
-              <div>
-                <div className="text-gray-600">Timezone</div>
-                <div className="font-medium mt-1">{tenant.timezone}</div>
-              </div>
-              <div>
-                <div className="text-gray-600">Tenant ID</div>
-                <div className="font-medium mt-1 font-mono text-xs">{tenant.publicId}</div>
-              </div>
+          {/* Help & Documentation */}
+          <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
+            <h3 className="font-semibold text-sm mb-3 text-blue-900">Gerenciar</h3>
+            <div className="space-y-2 text-sm">
+              <button className="block text-blue-600 hover:text-blue-700 font-medium text-left">
+                Ver campanhas disponíveis →
+              </button>
+              <button className="block text-blue-600 hover:text-blue-700 font-medium text-left">
+                Alterar timezone →
+              </button>
+              <button className="block text-blue-600 hover:text-blue-700 font-medium text-left">
+                Configurar WhatsApp →
+              </button>
             </div>
           </div>
 
-          <div className="bg-blue-50 rounded-lg border border-blue-200 p-4 text-sm text-blue-900">
-            <strong>Nota:</strong> Configurações adicionais podem ser gerenciadas na seção "Minha empresa" ou "Configurações" do painel.
+          {/* Status técnico */}
+          <div className="bg-white rounded-lg border p-6 text-xs">
+            <h3 className="font-semibold text-sm mb-3">Status operacional</h3>
+            <div className="space-y-2 text-gray-600">
+              <div className="flex justify-between">
+                <span>WhatsApp</span>
+                <span className={tenant.whatsappEnabled ? 'text-green-600' : 'text-gray-400'}>
+                  {tenant.whatsappEnabled ? '• Conectado' : '• Não configurado'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Agendador</span>
+                <span className="text-green-600">• Ativo</span>
+              </div>
+              <div className="flex justify-between">
+                <span>PIX</span>
+                <span className="text-green-600">• Disponível</span>
+              </div>
+            </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="bg-gray-50 rounded-lg border p-6 text-center">
+          <p className="text-gray-600 text-sm">Não foi possível carregar as configurações.</p>
+        </div>
+      )}
     </>
   );
 }

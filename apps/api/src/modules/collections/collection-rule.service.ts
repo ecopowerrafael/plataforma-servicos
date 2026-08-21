@@ -160,6 +160,46 @@ export class CollectionRuleService {
     return rule.id;
   }
 
+  /**
+   * Resolve a régua ativa mais antiga do tenant, criando uma "Padrão" (semanal)
+   * se ainda não existir nenhuma. Usada só pela ação de um clique "Iniciar
+   * cobrança automática" em Pendências financeiras — não é backfill, é
+   * provisionamento sob demanda, conforme já previsto na Fase 0.
+   */
+  public async resolveOrCreateDefaultRuleId(tenantId: bigint): Promise<bigint> {
+    const existing = await this.client.collectionRule.findFirst({
+      where: { tenantId, active: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (existing !== null) return existing.id;
+
+    const created = await this.client.collectionRule.create({
+      data: {
+        publicId: randomUUID(),
+        tenantId,
+        name: 'Padrão',
+        active: true,
+        cadenceType: 'WEEKLY',
+        allowedStartHour: 9,
+        allowedEndHour: 18,
+        maxAttemptsPerDay: 1,
+        consecutiveDays: 3,
+        pauseDaysAfterCycle: 4,
+        skipSundays: true,
+        partialPaymentEnabled: true,
+        partialOfferPercentages: [20, 50],
+        partialMinimumCents: 0n,
+        partialRoundingStepCents: 1n,
+        askPromiseAfterPartialPayment: true,
+        promiseQuickOptionsDays: [1, 3, 7, 10],
+        noResponseFollowupNextDay: true,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  }
+
   private notFound() {
     return new AppError({
       code: 'COLLECTION_RULE_NOT_FOUND',

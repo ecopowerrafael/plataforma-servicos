@@ -3322,6 +3322,9 @@ model Debt {
   currentBalanceCents      BigInt         @map("current_balance_cents") @db.UnsignedBigInt
   dueDate                  DateTime       @map("due_date") @db.Date
   status                   DebtStatus     @default(OPEN)
+  /// true quando syncAppointmentDebtBalance falhou e precisa reprocessar via
+  /// processPendingDebtBalanceSync — nunca bloqueia o Payment que a originou.
+  balanceSyncPending       Boolean        @default(false) @map("balance_sync_pending")
   collectionRuleId         BigInt         @map("collection_rule_id") @db.UnsignedBigInt
   collectionPausedAt       DateTime?      @map("collection_paused_at") @db.DateTime(3)
   collectionPausedReason   String?        @map("collection_paused_reason") @db.VarChar(500)
@@ -3347,6 +3350,7 @@ model Debt {
   @@index([tenantId, customerId])
   @@index([tenantId, originAppointmentId])
   @@index([tenantId, collectionRuleId, status])
+  @@index([originType, balanceSyncPending, status])
   @@map("debts")
 }
 

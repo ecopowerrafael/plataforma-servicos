@@ -1,10 +1,11 @@
-import { DelinquencyResponseSchema, ProfessionalListResponseSchema } from '@plataforma/shared';
+import { DebtPublicSchema, DelinquencyResponseSchema, ProfessionalListResponseSchema } from '@plataforma/shared';
 import { IconDots, IconSearch } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
+  delinquencyDebtAction,
   formatDateTime,
   formatMoneyCents,
   initials,
@@ -20,16 +21,33 @@ import { EmptyState, ListSkeleton, PageHeader, Pagination } from '../ui/AppUi.js
 
 const PAGE_SIZE = 20;
 
+const DEBT_STATUS_LABELS: Record<string, string> = {
+  OPEN: 'Em aberto',
+  COLLECTING: 'Cobrando',
+  WAITING_RESPONSE: 'Aguardando resposta',
+  PROMISE_SCHEDULED: 'Promessa agendada',
+  PIX_PENDING: 'PIX pendente',
+  PARTIALLY_PAID: 'Parcialmente paga',
+  PROMISE_OVERDUE: 'Promessa vencida',
+  NEGOTIATING: 'Negociando',
+  DISPUTED: 'Contestada',
+  HUMAN_SUPPORT: 'Com atendimento humano',
+  PAUSED: 'Pausada',
+};
+
 export function DelinquencyModule({
   tenantPublicId,
   canManagePayments = false,
   canReadCustomers = false,
+  canManageCollections = false,
 }: {
   tenantPublicId: string;
   canManagePayments?: boolean;
   canReadCustomers?: boolean;
+  canManageCollections?: boolean;
 }) {
   const navigate = useNavigate();
+  const cache = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [state, setState] = useState<'' | ReceivableState>('');
@@ -38,6 +56,21 @@ export function DelinquencyModule({
   const [moreFilters, setMoreFilters] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [detail, setDetail] = useState<Receivable | null>(null);
+
+  const startCollection = useMutation({
+    mutationFn: (appointmentPublicId: string) =>
+      httpClient.request('/tenant/debts/from-appointment', {
+        method: 'POST',
+        body: { appointmentPublicId },
+        schema: DebtPublicSchema,
+        tenantPublicId,
+      }),
+    onSuccess: () => {
+      setOpenMenu(null);
+      setDetail(null);
+      return cache.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'delinquency'] });
+    },
+  });
 
   const reset = () => {
     setPage(1);
@@ -151,6 +184,34 @@ export function DelinquencyModule({
                 }}
               >
                 Abrir cliente
+              </button>
+            </li>
+          )}
+          {delinquencyDebtAction(item, canManageCollections) === 'start_collection' && (
+            <li>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={startCollection.isPending}
+                onClick={() => {
+                  startCollection.mutate(item.appointmentPublicId);
+                }}
+              >
+                Iniciar cobrança automática
+              </button>
+            </li>
+          )}
+          {delinquencyDebtAction(item, canManageCollections) === 'view_in_bot_cobra' && (
+            <li>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpenMenu(null);
+                  setDetail(item);
+                }}
+              >
+                Ver no Bot Cobra
               </button>
             </li>
           )}
@@ -513,6 +574,18 @@ export function DelinquencyModule({
                   <dd>{detail.unitName ?? 'Não informada'}</dd>
                 </div>
               </dl>
+              {detail.debtPublicId !== null && (
+                <div className="ds-inline-alert" aria-label="Bot Cobra">
+                  <div>
+                    <strong>Bot Cobra ativo</strong>
+                    <p>
+                      Status: {DEBT_STATUS_LABELS[detail.debtStatus ?? ''] ?? detail.debtStatus}
+                      {' · '}
+                      Saldo: {formatMoneyCents(detail.debtCurrentBalanceCents ?? '0')}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
             <footer className="appointments-drawer-footer">
               <div className="ds-form-actions">
@@ -534,6 +607,18 @@ export function DelinquencyModule({
                     }}
                   >
                     Abrir cliente
+                  </button>
+                )}
+                {delinquencyDebtAction(detail, canManageCollections) === 'start_collection' && (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={startCollection.isPending}
+                    onClick={() => {
+                      startCollection.mutate(detail.appointmentPublicId);
+                    }}
+                  >
+                    Iniciar cobrança automática
                   </button>
                 )}
               </div>

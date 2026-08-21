@@ -7,6 +7,7 @@ import {
   receivableStatesByAppointment,
   type ReceivableState,
 } from './appointment-balance.js';
+import { activeDebtsByAppointment } from '../collections/debt-balance.js';
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 
 export class DelinquencyService {
@@ -65,9 +66,10 @@ export class DelinquencyService {
 
     // Valor devido e situação da cobrança vêm das mesmas funções usadas pelo resto do sistema.
     const ids = appointments.map((appointment) => appointment.id);
-    const [discounts, states] = await Promise.all([
+    const [discounts, states, activeDebts] = await Promise.all([
       discountsByAppointment(this.client, tenantId, ids),
       receivableStatesByAppointment(this.client, tenantId, ids),
+      activeDebtsByAppointment(this.client, tenantId, ids),
     ]);
 
     const open = appointments.flatMap((appointment) => {
@@ -76,6 +78,7 @@ export class DelinquencyService {
       const balance = balanceCents(appointment.priceCents, discountCents, paidCents);
       if (balance <= 0n) return [];
       const state: ReceivableState = states.get(appointment.id) ?? 'ON_SITE';
+      const debt = activeDebts.get(appointment.id);
       return [
         {
           appointmentPublicId: appointment.publicId,
@@ -95,6 +98,9 @@ export class DelinquencyService {
           paidCents: paidCents.toString(),
           balanceCents: balance.toString(),
           state,
+          debtPublicId: debt?.publicId ?? null,
+          debtStatus: debt?.status ?? null,
+          debtCurrentBalanceCents: debt === undefined ? null : debt.currentBalanceCents.toString(),
         },
       ];
     });

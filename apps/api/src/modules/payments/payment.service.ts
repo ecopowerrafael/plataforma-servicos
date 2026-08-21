@@ -11,6 +11,7 @@ import { type CashRegisterService } from './cash-register.service.js';
 import { type CouponService } from './coupon.service.js';
 import { type LoyaltyService } from './loyalty.service.js';
 import { type ProfessionalCommissionService } from './professional-commission.service.js';
+import { syncAppointmentDebtBalance } from '../collections/debt-balance.js';
 import { type Payment, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
@@ -181,6 +182,7 @@ export class PaymentService {
         appointment.customerId,
         actor,
       );
+    await this.syncDebtBalance(tenantId, appointment.id, 'PAYMENT_CREATED');
     return pub(payment, appointmentPublicId);
   }
 
@@ -231,7 +233,26 @@ export class PaymentService {
     await this.cashRegisters?.reversePayment(tenantId, updated.id, actor);
     await this.commissions?.cancelForPayment(tenantId, updated.id, reason, actor);
     await this.loyalty?.cancelForPayment(tenantId, updated.id, actor);
+    await this.syncDebtBalance(tenantId, updated.appointmentId, 'PAYMENT_CANCELED');
     return pub(updated, appointmentPublicId);
+  }
+
+  /**
+   * Ressincroniza o saldo do Bot Cobra após um Payment real de Appointment ser
+   * criado/cancelado. Nunca deve derrubar o registro do pagamento em si — uma
+   * falha aqui só é logada, o Payment (já commitado) permanece válido.
+   */
+  private async syncDebtBalance(
+    tenantId: bigint,
+    appointmentId: bigint | null,
+    source: 'PAYMENT_CREATED' | 'PAYMENT_CANCELED',
+  ) {
+    if (appointmentId === null) return;
+    try {
+      await syncAppointmentDebtBalance(this.client, tenantId, appointmentId, source);
+    } catch (error) {
+      console.error('Falha ao sincronizar saldo do Bot Cobra após pagamento:', error);
+    }
   }
 
   public async listForAppointment(tenantId: bigint, appointmentPublicId: string) {

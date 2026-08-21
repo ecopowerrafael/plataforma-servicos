@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { DebtStatusSchema } from './collection.js';
+
 const MoneyPublicSchema = z.string().regex(/^\d+$/u);
 
 export const DelinquencyQuerySchema = z
@@ -39,6 +41,11 @@ export const DelinquentAppointmentSchema = z.object({
   balanceCents: MoneyPublicSchema,
   serviceName: z.string().default(''),
   state: z.enum(['ONLINE_PENDING', 'ONLINE_FAILED', 'ON_SITE']).default('ON_SITE'),
+  /* Dívida ativa do Bot Cobra para este agendamento, se houver. Nunca recalcula
+   * saldo aqui — é o mesmo currentBalanceCents já persistido na Debt. */
+  debtPublicId: z.uuid().nullable().default(null),
+  debtStatus: DebtStatusSchema.nullable().default(null),
+  debtCurrentBalanceCents: MoneyPublicSchema.nullable().default(null),
 });
 
 export const DelinquencySummarySchema = z.object({

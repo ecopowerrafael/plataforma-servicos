@@ -515,6 +515,8 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('payment.read') ?? false;
   const canManagePayments =
     me.data?.currentTenant?.membership.permissions.includes('payment.manage') ?? false;
+  const canManageCollections =
+    me.data?.currentTenant?.membership.permissions.includes('collection.manage') ?? false;
   const canReadCash = me.data?.currentTenant?.membership.permissions.includes('cash.read') ?? false;
   const canManageCash =
     me.data?.currentTenant?.membership.permissions.includes('cash.manage') ?? false;
@@ -1529,6 +1531,7 @@ export function HomePage() {
                 tenantPublicId={selectedTenant}
                 canManagePayments={canManagePayments}
                 canReadCustomers={canReadCustomers}
+                canManageCollections={canManageCollections}
               />
             )}
             {isRoute('/app/financeiro/relatorios') &&

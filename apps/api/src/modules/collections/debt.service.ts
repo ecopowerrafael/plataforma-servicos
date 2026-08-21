@@ -213,10 +213,10 @@ export class DebtService {
         statusCode: 409,
       });
 
-    const collectionRuleId = await this.collectionRules.resolveActiveRuleId(
-      tenantId,
-      input.collectionRulePublicId,
-    );
+    const collectionRuleId =
+      input.collectionRulePublicId === undefined
+        ? await this.collectionRules.resolveOrCreateDefaultRuleId(tenantId)
+        : await this.collectionRules.resolveActiveRuleId(tenantId, input.collectionRulePublicId);
 
     const balance = await calculateDebtBalance(this.client, tenantId, {
       originType: 'APPOINTMENT',
@@ -257,7 +257,7 @@ export class DebtService {
         description,
         originalAmountCents: balance,
         currentBalanceCents: balance,
-        dueDate: new Date(input.dueDate),
+        dueDate: new Date(input.dueDate ?? new Date().toISOString().slice(0, 10)),
         collectionRuleId,
         createdByUserId: actor.userId,
       },

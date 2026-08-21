@@ -114,8 +114,11 @@ export const CreateManualDebtRequestSchema = z
 export const CreateDebtFromAppointmentRequestSchema = z
   .object({
     appointmentPublicId: z.uuid(),
-    dueDate: z.iso.date(),
-    collectionRulePublicId: z.uuid(),
+    // Opcionais para permitir a ação de um clique ("Iniciar cobrança
+    // automática") em Pendências financeiras: quando omitidos, o backend usa
+    // hoje como vencimento e resolve/cria a régua padrão do tenant.
+    dueDate: z.iso.date().optional(),
+    collectionRulePublicId: z.uuid().optional(),
   })
   .strict();
 

@@ -112,6 +112,7 @@ function delinquency(options: {
     couponRedemption: { groupBy: vi.fn().mockResolvedValue(options.coupons ?? []) },
     loyaltyLedgerEntry: { findMany: vi.fn().mockResolvedValue(options.loyalty ?? []) },
     paymentGatewayCharge: { findMany: vi.fn().mockResolvedValue(options.charges ?? []) },
+    debt: { findMany: vi.fn().mockResolvedValue([]) },
   } as unknown as PrismaClient;
   return { service: new DelinquencyService(prisma), findMany };
 }

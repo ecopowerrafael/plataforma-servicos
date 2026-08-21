@@ -293,6 +293,51 @@ describe('DebtService.createFromAppointment', () => {
       buildService(client).createFromAppointment(10n, fromAppointmentInput(), actor),
     ).rejects.toMatchObject({ code: 'CUSTOMER_WHATSAPP_MISSING', statusCode: 409 });
   });
+
+  it('1) ação de um clique: sem collectionRulePublicId/dueDate, resolve régua padrão e usa hoje', async () => {
+    const client = mockClient({
+      appointment: { findFirst: vi.fn().mockResolvedValue(appointmentRow()) },
+      payment: { groupBy: vi.fn().mockResolvedValue([{ appointmentId: 5n, _sum: { amountCents: 4000n } }]) },
+      collectionRule: { findFirst: vi.fn().mockResolvedValue({ id: 9n, active: true }) },
+      debt: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(fakeDebtRow()),
+        update: vi.fn(),
+      },
+    });
+    const result = await buildService(client).createFromAppointment(
+      10n,
+      { appointmentPublicId: 'appt-uuid' },
+      actor,
+    );
+    expect(result).toBeDefined();
+    const createArgs = (client.debt.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(createArgs.data.collectionRuleId).toBe(9n);
+    const today = new Date().toISOString().slice(0, 10);
+    expect((createArgs.data.dueDate as Date).toISOString().slice(0, 10)).toBe(today);
+  });
+
+  it('1b) ação de um clique cria a régua "Padrão" quando o tenant não tem nenhuma', async () => {
+    const collectionRuleCreate = vi.fn().mockResolvedValue({ id: 42n });
+    const client = mockClient({
+      appointment: { findFirst: vi.fn().mockResolvedValue(appointmentRow()) },
+      payment: { groupBy: vi.fn().mockResolvedValue([{ appointmentId: 5n, _sum: { amountCents: 4000n } }]) },
+      collectionRule: { findFirst: vi.fn().mockResolvedValue(null), create: collectionRuleCreate },
+      debt: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(fakeDebtRow()),
+        update: vi.fn(),
+      },
+    });
+    await buildService(client).createFromAppointment(10n, { appointmentPublicId: 'appt-uuid' }, actor);
+    expect(collectionRuleCreate).toHaveBeenCalledTimes(1);
+    const createArgs = (client.debt.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(createArgs.data.collectionRuleId).toBe(42n);
+  });
 });
 
 describe('DebtService — list/detail tenant scoped', () => {

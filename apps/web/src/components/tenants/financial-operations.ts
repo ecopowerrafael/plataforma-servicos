@@ -109,6 +109,22 @@ export const RECEIVABLE_CHIPS: { value: '' | ReceivableState; label: string }[] 
   { value: 'ON_SITE', label: 'No local' },
 ];
 
+export type DelinquencyDebtAction = 'start_collection' | 'view_in_bot_cobra' | 'none';
+
+/**
+ * Decide qual ação de cobrança mostrar para uma pendência: se já existe Debt
+ * ativa, sempre "ver" (nunca duplica); senão, só oferece "iniciar" para quem
+ * tem permissão de gerenciar cobrança.
+ */
+export function delinquencyDebtAction(
+  item: Pick<Receivable, 'debtPublicId'>,
+  canManageCollections: boolean,
+): DelinquencyDebtAction {
+  if (item.debtPublicId !== null) return 'view_in_bot_cobra';
+  if (canManageCollections) return 'start_collection';
+  return 'none';
+}
+
 export const CLOSING_STATUS_LABELS: Record<FinancialClosing['status'], string> = {
   ACTIVE: 'Ativo',
   CANCELED: 'Cancelado',

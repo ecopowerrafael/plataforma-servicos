@@ -1,7 +1,18 @@
 import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import {
+  DebtSummarySchema,
+  DebtListItemSchema,
+  DebtListResponseItemSchema,
+  CollectionRuleListResponseSchema,
+  PaymentPromiseListResponseSchema,
+  TenantInfoSchema,
+  CreateManualDebtRequestSchema,
+  DebtPublicSchema,
+} from '@plataforma/shared';
 import { formatMoneyCents, formatShortDate } from '../../lib/format.js';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, Pagination } from '../ui/AppUi.js';
@@ -93,15 +104,17 @@ function BotCobraOverviewSection({ tenantPublicId }: { tenantPublicId: string })
 
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ['bot-cobra-summary', tenantPublicId],
-    queryFn: async () => {
-      const res = await httpClient.get(`/tenant/debts/summary`);
-      return res.json() as Promise<DebtSummary>;
-    },
+    queryFn: () =>
+      httpClient.request('/tenant/debts/summary', {
+        method: 'GET',
+        schema: DebtSummarySchema,
+        tenantPublicId,
+      }),
   });
 
   const { data: listData, isLoading: listLoading } = useQuery({
     queryKey: ['bot-cobra-list', tenantPublicId, page, pageSize, search, status, originType],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams({
         page: page.toString(),
         pageSize: pageSize.toString(),
@@ -109,14 +122,11 @@ function BotCobraOverviewSection({ tenantPublicId }: { tenantPublicId: string })
         ...(status && { status }),
         ...(originType && { originType }),
       });
-      const res = await httpClient.get(`/tenant/debts?${params}`);
-      return res.json() as Promise<{
-        items: DebtListItem[];
-        page: number;
-        pageSize: number;
-        total: number;
-        totalPages: number;
-      }>;
+      return httpClient.request(`/tenant/debts?${params}`, {
+        method: 'GET',
+        schema: DebtListResponseItemSchema,
+        tenantPublicId,
+      });
     },
   });
 
@@ -262,6 +272,7 @@ function BotCobraOverviewSection({ tenantPublicId }: { tenantPublicId: string })
       {selectedDebtId && (
         <BotCobraDetailDrawer
           debtPublicId={selectedDebtId}
+          tenantPublicId={tenantPublicId}
           isOpen={!!selectedDebtId}
           onClose={() => setSelectedDebtId(null)}
         />
@@ -317,7 +328,7 @@ function BotCobraDebtsSection({ tenantPublicId }: { tenantPublicId: string }) {
 
   const { data: listData, isLoading: listLoading } = useQuery({
     queryKey: ['bot-cobra-list-full', tenantPublicId, page, pageSize, search, status, originType],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams({
         page: page.toString(),
         pageSize: pageSize.toString(),
@@ -325,14 +336,11 @@ function BotCobraDebtsSection({ tenantPublicId }: { tenantPublicId: string }) {
         ...(status && { status }),
         ...(originType && { originType }),
       });
-      const res = await httpClient.get(`/tenant/debts?${params}`);
-      return res.json() as Promise<{
-        items: DebtListItem[];
-        page: number;
-        pageSize: number;
-        total: number;
-        totalPages: number;
-      }>;
+      return httpClient.request(`/tenant/debts?${params}`, {
+        method: 'GET',
+        schema: DebtListResponseItemSchema,
+        tenantPublicId,
+      });
     },
   });
 
@@ -438,6 +446,7 @@ function BotCobraDebtsSection({ tenantPublicId }: { tenantPublicId: string }) {
       {selectedDebtId && (
         <BotCobraDetailDrawer
           debtPublicId={selectedDebtId}
+          tenantPublicId={tenantPublicId}
           isOpen={!!selectedDebtId}
           onClose={() => setSelectedDebtId(null)}
         />
@@ -451,44 +460,42 @@ function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: string }) 
   const [formData, setFormData] = useState({
     name: '',
     whatsapp: '',
-    phone: '',
     email: '',
     valueCents: '',
     dueDate: '',
     description: '',
     collectionRulePublicId: '',
     notes: '',
-    startCollection: true,
   });
 
   const createMutation = useMutation({
-    mutationFn: async () => {
-      const res = await httpClient.post(`/tenant/debts`, {
-        debtorName: formData.name,
-        debtorWhatsapp: formData.whatsapp,
-        debtorPhone: formData.phone || null,
-        debtorEmail: formData.email || null,
-        originalAmountCents: Math.round(parseFloat(formData.valueCents) * 100),
-        dueDate: formData.dueDate,
-        description: formData.description,
-        collectionRulePublicId: formData.collectionRulePublicId,
-        internalNotes: formData.notes,
-      });
-      return res.json();
-    },
+    mutationFn: () =>
+      httpClient.request('/tenant/debts', {
+        method: 'POST',
+        body: {
+          debtorName: formData.name,
+          debtorWhatsapp: formData.whatsapp,
+          debtorEmail: formData.email || null,
+          amountCents: Math.round(parseFloat(formData.valueCents) * 100),
+          dueDate: formData.dueDate,
+          description: formData.description,
+          collectionRulePublicId: formData.collectionRulePublicId,
+          notes: formData.notes || null,
+        },
+        schema: DebtPublicSchema,
+        tenantPublicId,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-cobra'] });
       setFormData({
         name: '',
         whatsapp: '',
-        phone: '',
         email: '',
         valueCents: '',
         dueDate: '',
         description: '',
         collectionRulePublicId: '',
         notes: '',
-        startCollection: true,
       });
       alert('Cobrança criada com sucesso!');
     },
@@ -529,13 +536,6 @@ function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: string }) 
             value={formData.whatsapp}
             onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
             required
-          />
-          <input
-            type="text"
-            placeholder="Telefone (opcional)"
-            className="w-full px-3 py-2 border rounded-md"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
           />
           <input
             type="email"
@@ -590,14 +590,6 @@ function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: string }) 
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
           />
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.startCollection}
-              onChange={(e) => setFormData({ ...formData, startCollection: e.target.checked })}
-            />
-            <span className="text-sm">Iniciar cobrança automática agora</span>
-          </label>
         </div>
 
         <button
@@ -628,26 +620,20 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
 
   const previewText = `Cobranças entre ${String(formData.startHour).padStart(2, '0')}:00 e ${String(formData.endHour).padStart(2, '0')}:00 | Até ${formData.maxAttemptsPerDay} tentativas/dia | ${formData.consecutiveDays} dias consecutivos | ${formData.pauseDaysAfterCycle} dia(s) de pausa | ${formData.maxCycles} ciclo(s)`;
 
-  const { data: campaigns, isLoading } = useQuery({
+  const { data: campaignsData, isLoading } = useQuery({
     queryKey: ['bot-cobra-campaigns', tenantPublicId],
-    queryFn: async () => {
-      const res = await httpClient.get(`/tenant/collection-rules`);
-      return (await res.json()) as Array<{
-        publicId: string;
-        name: string;
-        startHour: number;
-        endHour: number;
-        maxAttemptsPerDay: number;
-        consecutiveDays: number;
-        pauseDaysAfterCycle: number;
-        maxCycles: number;
-        active: boolean;
-      }>;
-    },
+    queryFn: () =>
+      httpClient.request('/tenant/collection-rules', {
+        method: 'GET',
+        schema: CollectionRuleListResponseSchema,
+        tenantPublicId,
+      }),
   });
 
+  const campaigns = campaignsData?.items ?? [];
+
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => {
       const payload = {
         name: formData.name,
         active: formData.active,
@@ -660,16 +646,25 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
         maxCycles: formData.maxCycles,
         skipSundays: true,
         partialPaymentEnabled: true,
-        partialOfferPercentages: [10, 25, 50],
+        partialOfferPercentages: [20, 30, 50],
         askPromiseAfterPartialPayment: true,
-        promiseQuickOptionsDays: [7, 14, 30],
+        promiseQuickOptionsDays: [1, 3, 7, 10],
         noResponseFollowupNextDay: true,
       };
       if (editingId && editingId !== 'new') {
-        await httpClient.patch(`/tenant/collection-rules/${editingId}`, payload);
-      } else {
-        await httpClient.post(`/tenant/collection-rules`, payload);
+        return httpClient.request(`/tenant/collection-rules/${editingId}`, {
+          method: 'PATCH',
+          body: payload,
+          schema: CollectionRuleListResponseSchema.shape.items.element,
+          tenantPublicId,
+        });
       }
+      return httpClient.request('/tenant/collection-rules', {
+        method: 'POST',
+        body: payload,
+        schema: CollectionRuleListResponseSchema.shape.items.element,
+        tenantPublicId,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-cobra-campaigns'] });
@@ -880,12 +875,12 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
                     setEditingId(campaign.publicId);
                     setFormData({
                       name: campaign.name,
-                      startHour: campaign.startHour,
-                      endHour: campaign.endHour,
+                      startHour: campaign.allowedStartHour,
+                      endHour: campaign.allowedEndHour,
                       maxAttemptsPerDay: campaign.maxAttemptsPerDay,
                       consecutiveDays: campaign.consecutiveDays,
                       pauseDaysAfterCycle: campaign.pauseDaysAfterCycle,
-                      maxCycles: campaign.maxCycles,
+                      maxCycles: campaign.maxCycles || 0,
                       active: campaign.active,
                     });
                   }}
@@ -908,24 +903,20 @@ function BotCobraPromisesSection({ tenantPublicId }: { tenantPublicId: string })
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [selectedDebtId, setSelectedDebtId] = useState<string | null>(null);
 
-  const { data: promises, isLoading } = useQuery({
+  const { data: promisesData, isLoading } = useQuery({
     queryKey: ['bot-cobra-promises', tenantPublicId, statusFilter],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
-      const res = await httpClient.get(`/tenant/payment-promises?${params}`);
-      return (await res.json()) as Array<{
-        publicId: string;
-        debtPublicId: string;
-        debtorName: string;
-        promisedDate: string;
-        status: string;
-        source: string;
-        currentBalanceCents: string;
-        createdAt: string;
-      }>;
+      return httpClient.request(`/tenant/payment-promises?${params}`, {
+        method: 'GET',
+        schema: PaymentPromiseListResponseSchema,
+        tenantPublicId,
+      });
     },
   });
+
+  const promises = promisesData?.items ?? [];
 
   const STATUS_LABELS_PROMISE: Record<string, string> = {
     ACTIVE: 'Ativa',
@@ -988,6 +979,7 @@ function BotCobraPromisesSection({ tenantPublicId }: { tenantPublicId: string })
       {selectedDebtId && (
         <BotCobraDetailDrawer
           debtPublicId={selectedDebtId}
+          tenantPublicId={tenantPublicId}
           isOpen={!!selectedDebtId}
           onClose={() => setSelectedDebtId(null)}
         />
@@ -1004,26 +996,28 @@ function BotCobraHumanSupportSection({ tenantPublicId }: { tenantPublicId: strin
 
   const { data: listData, isLoading } = useQuery({
     queryKey: ['bot-cobra-human-support', tenantPublicId, page, pageSize],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams({
         page: page.toString(),
         pageSize: pageSize.toString(),
         status: 'HUMAN_SUPPORT',
       });
-      const res = await httpClient.get(`/tenant/debts?${params}`);
-      return res.json() as Promise<{
-        items: DebtListItem[];
-        page: number;
-        pageSize: number;
-        total: number;
-        totalPages: number;
-      }>;
+      return httpClient.request(`/tenant/debts?${params}`, {
+        method: 'GET',
+        schema: DebtListResponseItemSchema,
+        tenantPublicId,
+      });
     },
   });
 
   const resumeMutation = useMutation({
     mutationFn: (debtPublicId: string) =>
-      httpClient.post(`/tenant/debts/${debtPublicId}/resume-from-human-support`, {}),
+      httpClient.request(`/tenant/debts/${debtPublicId}/resume-from-human-support`, {
+        method: 'POST',
+        body: {},
+        schema: z.object({}),
+        tenantPublicId,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-cobra-human-support'] });
     },
@@ -1100,6 +1094,7 @@ function BotCobraHumanSupportSection({ tenantPublicId }: { tenantPublicId: strin
       {selectedDebtId && (
         <BotCobraDetailDrawer
           debtPublicId={selectedDebtId}
+          tenantPublicId={tenantPublicId}
           isOpen={!!selectedDebtId}
           onClose={() => setSelectedDebtId(null)}
         />
@@ -1111,15 +1106,12 @@ function BotCobraHumanSupportSection({ tenantPublicId }: { tenantPublicId: strin
 function BotCobraSettingsSection({ tenantPublicId }: { tenantPublicId: string }) {
   const { data: tenant, isLoading } = useQuery({
     queryKey: ['bot-cobra-settings', tenantPublicId],
-    queryFn: async () => {
-      const res = await httpClient.get(`/tenant/info`);
-      return (await res.json()) as {
-        publicId: string;
-        timezone: string;
-        whatsappEnabled: boolean;
-        botCobraEnabled: boolean;
-      };
-    },
+    queryFn: () =>
+      httpClient.request('/tenant/info', {
+        method: 'GET',
+        schema: TenantInfoSchema,
+        tenantPublicId,
+      }),
   });
 
   return (

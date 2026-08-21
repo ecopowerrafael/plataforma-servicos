@@ -231,6 +231,115 @@ export const CollectionAttemptListResponseSchema = z.object({
   items: z.array(CollectionAttemptPublicSchema),
 });
 
+export const DebtSummarySchema = z.object({
+  openBalanceCents: z.string(),
+  originalTotalCents: z.string(),
+  receivedTotalCents: z.string(),
+  activeCount: z.number().int(),
+  promiseActiveCount: z.number().int(),
+  promiseOverdueCount: z.number().int(),
+  humanSupportCount: z.number().int(),
+  disputedCount: z.number().int(),
+  paidCount: z.number().int(),
+  failedAttemptCount: z.number().int(),
+});
+
+export const DebtListItemSchema = z.object({
+  publicId: z.string().uuid(),
+  debtorName: z.string(),
+  debtorWhatsapp: z.string(),
+  originType: DebtOriginTypeSchema,
+  originalAmountCents: z.string(),
+  currentBalanceCents: z.string(),
+  status: DebtStatusSchema,
+  dueDate: z.date(),
+  createdAt: z.date(),
+  collectionRulePublicId: z.string().uuid(),
+  activePromiseDate: z.string().nullable(),
+  hasPendingPix: z.boolean(),
+  lastAttemptType: z.string().nullable(),
+  lastAttemptAt: z.date().nullable(),
+});
+
+export const DebtListResponseItemSchema = z.object({
+  items: z.array(DebtListItemSchema),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+  totalPages: z.number().int(),
+});
+
+export const DebtDetailFullSchema = z.object({
+  debt: z.object({
+    publicId: z.string().uuid(),
+    debtorName: z.string(),
+    debtorWhatsapp: z.string(),
+    debtorEmail: z.string().nullable(),
+    originType: DebtOriginTypeSchema,
+    originalAmountCents: z.string(),
+    currentBalanceCents: z.string(),
+    status: DebtStatusSchema,
+    dueDate: z.string(),
+    createdAt: z.string(),
+    paidAt: z.string().nullable(),
+    collectionRulePublicId: z.string().uuid(),
+  }),
+  activePromise: z.object({
+    promisedDate: z.string(),
+    status: PaymentPromiseStatusSchema,
+    source: PaymentPromiseSourceSchema,
+    createdAt: z.string(),
+  }).nullable(),
+  allocations: z.array(z.object({
+    amountCents: z.string(),
+    source: DebtPaymentAllocationSourceSchema,
+    createdAt: z.string(),
+  })),
+  charges: z.array(z.object({
+    amountCents: z.string(),
+    status: z.string(),
+    provider: z.string(),
+    createdAt: z.string(),
+    hasPaid: z.boolean(),
+  })),
+  attempts: z.array(z.object({
+    attemptType: CollectionAttemptTypeSchema,
+    status: CollectionAttemptStatusSchema,
+    scheduledAt: z.string(),
+    sentAt: z.string().nullable(),
+    respondedAt: z.string().nullable(),
+    technicalRetryCount: z.number().int(),
+    lastError: z.string().nullable(),
+  })),
+  events: z.array(z.object({
+    eventType: z.string(),
+    createdAt: z.string(),
+    metadata: z.record(z.string(), z.unknown()).nullable(),
+  })),
+});
+
+export const TenantInfoSchema = z.object({
+  publicId: z.string().uuid(),
+  timezone: z.string(),
+  whatsappEnabled: z.boolean(),
+  botCobraEnabled: z.boolean(),
+});
+
+export const PaymentPromiseListItemSchema = z.object({
+  publicId: z.string().uuid(),
+  debtPublicId: z.string().uuid(),
+  debtorName: z.string(),
+  promisedDate: z.string(),
+  status: PaymentPromiseStatusSchema,
+  source: PaymentPromiseSourceSchema,
+  currentBalanceCents: z.string(),
+  createdAt: z.string(),
+});
+
+export const PaymentPromiseListResponseSchema = z.object({
+  items: z.array(PaymentPromiseListItemSchema),
+});
+
 export type DebtPublic = z.infer<typeof DebtPublicSchema>;
 export type CreateManualDebtRequest = z.infer<typeof CreateManualDebtRequestSchema>;
 export type CreateDebtFromAppointmentRequest = z.infer<typeof CreateDebtFromAppointmentRequestSchema>;
@@ -242,3 +351,8 @@ export type CreateCollectionRuleRequest = z.infer<typeof CreateCollectionRuleReq
 export type UpdateCollectionRuleRequest = z.infer<typeof UpdateCollectionRuleRequestSchema>;
 export type PaymentPromisePublic = z.infer<typeof PaymentPromisePublicSchema>;
 export type CollectionAttemptPublic = z.infer<typeof CollectionAttemptPublicSchema>;
+export type DebtSummary = z.infer<typeof DebtSummarySchema>;
+export type DebtListItem = z.infer<typeof DebtListItemSchema>;
+export type DebtDetailFull = z.infer<typeof DebtDetailFullSchema>;
+export type TenantInfo = z.infer<typeof TenantInfoSchema>;
+export type PaymentPromiseListItem = z.infer<typeof PaymentPromiseListItemSchema>;

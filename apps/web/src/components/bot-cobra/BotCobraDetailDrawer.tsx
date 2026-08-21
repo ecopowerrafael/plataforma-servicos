@@ -1,5 +1,7 @@
 import { IconClock, IconX } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
+import { DebtDetailFullSchema } from '@plataforma/shared';
 import { formatMoneyCents, formatShortDate } from '../../lib/format.js';
 import { httpClient } from '../../lib/http.js';
 import { useState } from 'react';
@@ -80,10 +82,12 @@ const EVENT_LABELS: Record<string, string> = {
 
 export function BotCobraDetailDrawer({
   debtPublicId,
+  tenantPublicId,
   isOpen,
   onClose,
 }: {
   debtPublicId: string;
+  tenantPublicId: string;
   isOpen: boolean;
   onClose: () => void;
 }) {
@@ -92,17 +96,23 @@ export function BotCobraDetailDrawer({
 
   const { data, isLoading } = useQuery({
     queryKey: ['bot-cobra-detail-full', debtPublicId],
-    queryFn: async () => {
-      const res = await httpClient.get(`/tenant/debts/${debtPublicId}/full`);
-      return res.json() as Promise<DebtDetailFull>;
-    },
+    queryFn: () =>
+      httpClient.request(`/tenant/debts/${debtPublicId}/full`, {
+        method: 'GET',
+        schema: DebtDetailFullSchema,
+        tenantPublicId,
+      }),
     enabled: isOpen,
   });
 
   const pauseMutation = useMutation({
-    mutationFn: async () => {
-      await httpClient.post(`/tenant/debts/${debtPublicId}/pause`, { reason: 'Bot Cobra' });
-    },
+    mutationFn: () =>
+      httpClient.request(`/tenant/debts/${debtPublicId}/pause`, {
+        method: 'POST',
+        body: { reason: 'Bot Cobra' },
+        schema: z.object({}),
+        tenantPublicId,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-cobra-detail-full', debtPublicId] });
       setActionInProgress(null);
@@ -110,9 +120,13 @@ export function BotCobraDetailDrawer({
   });
 
   const humanSupportMutation = useMutation({
-    mutationFn: async () => {
-      await httpClient.post(`/tenant/debts/${debtPublicId}/mark-human-support`, {});
-    },
+    mutationFn: () =>
+      httpClient.request(`/tenant/debts/${debtPublicId}/mark-human-support`, {
+        method: 'POST',
+        body: {},
+        schema: z.object({}),
+        tenantPublicId,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-cobra-detail-full', debtPublicId] });
       setActionInProgress(null);
@@ -121,9 +135,13 @@ export function BotCobraDetailDrawer({
 
   const disputeMutation = useMutation({
     mutationFn: async () => {
-      if (window.confirm('Tem certeza que deseja marcar como disputa?')) {
-        await httpClient.post(`/tenant/debts/${debtPublicId}/mark-disputed`, {});
-      }
+      if (!window.confirm('Tem certeza que deseja marcar como disputa?')) return;
+      return httpClient.request(`/tenant/debts/${debtPublicId}/mark-disputed`, {
+        method: 'POST',
+        body: {},
+        schema: z.object({}),
+        tenantPublicId,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-cobra-detail-full', debtPublicId] });

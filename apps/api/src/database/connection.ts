@@ -18,6 +18,7 @@ import { PrismaIdentityRepository } from '../modules/auth/prisma-identity.reposi
 import { PublicBookingService } from '../modules/booking/public-booking.service.js';
 import { AvailabilityRepository } from '../modules/calendar/availability.repository.js';
 import { AvailabilityService } from '../modules/calendar/availability.service.js';
+import { CollectionAttemptEngineService } from '../modules/collections/collection-attempt.service.js';
 import { CollectionRuleService } from '../modules/collections/collection-rule.service.js';
 import { DebtService } from '../modules/collections/debt.service.js';
 import { CustomerAuthRepository } from '../modules/customers/customer-auth.repository.js';
@@ -189,6 +190,7 @@ export interface DatabaseConnection {
   readonly loyalty?: LoyaltyService;
   readonly collectionRules?: CollectionRuleService;
   readonly debts?: DebtService;
+  readonly collectionAttempts?: CollectionAttemptEngineService;
   readonly financialClosings?: FinancialClosingService;
   readonly delinquency?: DelinquencyService;
   readonly financialReports?: FinancialReportService;
@@ -411,6 +413,7 @@ export function createDatabaseConnection(
   const delinquency = new DelinquencyService(client);
   const collectionRules = new CollectionRuleService(client);
   const debts = new DebtService(client, collectionRules);
+  const collectionAttempts = new CollectionAttemptEngineService(client);
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
@@ -528,6 +531,7 @@ export function createDatabaseConnection(
     loyalty: loyalty,
     collectionRules: collectionRules,
     debts: debts,
+    collectionAttempts: collectionAttempts,
     financialClosings: new FinancialClosingService(client),
     delinquency: delinquency,
     financialReports: new FinancialReportService(client, delinquency),

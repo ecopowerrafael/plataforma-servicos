@@ -15,9 +15,10 @@ import { createDatabaseConnection } from '../database/connection.js';
  *   1. agenda lembretes de agendamentos na janela de lembrete;
  *   2. processa automações de notificação;
  *   3. processa recuperação de clientes;
- *   4. expira pontos/benefícios de fidelidade vencidos;
- *   5. varre assinaturas comerciais (trial/carência/suspensão);
- *   6. processa a fila pendente de notificações.
+ *   4. motor de régua do Bot Cobra (agenda CollectionAttempt, não envia nada);
+ *   5. expira pontos/benefícios de fidelidade vencidos;
+ *   6. varre assinaturas comerciais (trial/carência/suspensão);
+ *   7. processa a fila pendente de notificações.
  *
  * O claim atômico em `NotificationService.processPending()` já impede
  * processamento duplicado caso o worker contínuo também esteja ativo, então
@@ -44,6 +45,7 @@ async function runOnce(): Promise<void> {
     }
     await database.automations?.run();
     await database.customerRecovery?.run();
+    await database.collectionAttempts?.run();
     await database.loyalty?.expireDue();
     await database.commercialSweep?.run();
     await database.notificationCampaigns?.materializePending();

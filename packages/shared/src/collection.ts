@@ -212,6 +212,25 @@ export const PaymentPromisePublicSchema = z.object({
   createdAt: z.iso.datetime({ offset: true }),
 });
 
+export const CollectionAttemptPublicSchema = z.object({
+  publicId: z.uuid(),
+  cycleNumber: z.number().int().min(1),
+  attemptNumber: z.number().int().min(1),
+  attemptType: CollectionAttemptTypeSchema,
+  status: CollectionAttemptStatusSchema,
+  scheduledAt: z.iso.datetime({ offset: true }),
+  templateKey: z.string(),
+  sentAt: z.iso.datetime({ offset: true }).nullable(),
+  respondedAt: z.iso.datetime({ offset: true }).nullable(),
+  skippedAt: z.iso.datetime({ offset: true }).nullable(),
+  skipReason: z.string().nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+
+export const CollectionAttemptListResponseSchema = z.object({
+  items: z.array(CollectionAttemptPublicSchema),
+});
+
 export type DebtPublic = z.infer<typeof DebtPublicSchema>;
 export type CreateManualDebtRequest = z.infer<typeof CreateManualDebtRequestSchema>;
 export type CreateDebtFromAppointmentRequest = z.infer<typeof CreateDebtFromAppointmentRequestSchema>;
@@ -222,3 +241,4 @@ export type CollectionRulePublic = z.infer<typeof CollectionRulePublicSchema>;
 export type CreateCollectionRuleRequest = z.infer<typeof CreateCollectionRuleRequestSchema>;
 export type UpdateCollectionRuleRequest = z.infer<typeof UpdateCollectionRuleRequestSchema>;
 export type PaymentPromisePublic = z.infer<typeof PaymentPromisePublicSchema>;
+export type CollectionAttemptPublic = z.infer<typeof CollectionAttemptPublicSchema>;

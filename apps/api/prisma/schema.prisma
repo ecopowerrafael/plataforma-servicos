@@ -555,6 +555,7 @@ model Tenant {
   collectionRules              CollectionRule[]
   debts                        Debt[]
   debtEvents                   DebtEvent[]
+  collectionAttempts           CollectionAttempt[]
 
   @@index([status])
   @@map("tenants")
@@ -1348,6 +1349,7 @@ model NotificationLog {
   tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   whatsappMessages WhatsAppOutboundMessage[]
+  collectionAttempts CollectionAttempt[]
 
   @@unique([tenantId, kind, targetType, targetPublicId, channel, recipient], map: "notification_logs_target_key")
   @@index([tenantId, createdAt])
@@ -3344,6 +3346,7 @@ model Debt {
   collectionRule           CollectionRule @relation(fields: [collectionRuleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdByUser            User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   events                   DebtEvent[]
+  attempts                 CollectionAttempt[]
 
   @@index([tenantId, status, dueDate])
   @@index([tenantId, debtorWhatsapp])
@@ -3367,5 +3370,58 @@ model DebtEvent {
 
   @@index([tenantId, debtId, createdAt])
   @@map("debt_events")
+}
+
+// Fase 3: motor de régua — decide QUANDO uma Debt ativa ganha uma nova
+// tentativa de contato. Ainda não envia nada (WhatsApp é Fase 4): a tentativa
+// só é "agendada" (status SCHEDULED); notificationLogId/sentAt/respondedAt
+// ficam null até a Fase 4 existir.
+
+enum CollectionAttemptType {
+  INITIAL_COLLECTION
+  SAME_DAY_FOLLOWUP
+  NEXT_DAY_FOLLOWUP
+  CYCLE_RESTART
+  PROMISE_DUE
+  PROMISE_OVERDUE
+  PIX_PENDING_REMINDER
+  PARTIAL_PAYMENT_FOLLOWUP
+}
+
+enum CollectionAttemptStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  SKIPPED
+  FAILED
+  RESPONDED
+  CANCELED
+}
+
+model CollectionAttempt {
+  id                BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String                  @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt                  @map("tenant_id") @db.UnsignedBigInt
+  debtId            BigInt                  @map("debt_id") @db.UnsignedBigInt
+  cycleNumber       Int                     @map("cycle_number") @db.UnsignedSmallInt
+  attemptNumber     Int                     @map("attempt_number") @db.UnsignedSmallInt
+  attemptType       CollectionAttemptType   @map("attempt_type")
+  scheduledAt       DateTime                @map("scheduled_at") @db.DateTime(3)
+  status            CollectionAttemptStatus @default(SCHEDULED)
+  templateKey       String                  @map("template_key") @db.VarChar(80)
+  notificationLogId BigInt?                 @map("notification_log_id") @db.UnsignedBigInt
+  sentAt            DateTime?               @map("sent_at") @db.DateTime(3)
+  respondedAt       DateTime?               @map("responded_at") @db.DateTime(3)
+  skippedAt         DateTime?               @map("skipped_at") @db.DateTime(3)
+  skipReason        String?                 @map("skip_reason") @db.VarChar(500)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt              Debt                    @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  notificationLog   NotificationLog?        @relation(fields: [notificationLogId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([debtId, cycleNumber, attemptNumber], map: "udca_debt_cycle_attempt")
+  @@index([tenantId, status, scheduledAt])
+  @@map("collection_attempts")
 }
 

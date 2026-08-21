@@ -43,6 +43,9 @@ async function start(environment: Environment, startedAt: number): Promise<void>
             ...(database.customerRecovery === undefined
               ? {}
               : { customerRecovery: database.customerRecovery }),
+            ...(database.collectionAttempts === undefined
+              ? {}
+              : { collectionAttempts: database.collectionAttempts }),
             ...(database.loyalty === undefined ? {} : { loyalty: database.loyalty }),
             ...(database.commercialSweep === undefined
               ? {}

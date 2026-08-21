@@ -2,7 +2,7 @@ import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   DebtSummarySchema,
   DebtListItemSchema,
@@ -457,6 +457,7 @@ function BotCobraDebtsSection({ tenantPublicId }: { tenantPublicId: string }) {
 
 function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: string }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     whatsapp: '',
@@ -467,6 +468,28 @@ function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: string }) 
     collectionRulePublicId: '',
     notes: '',
   });
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: campaignsData } = useQuery({
+    queryKey: ['bot-cobra-campaigns-select', tenantPublicId],
+    queryFn: () =>
+      httpClient.request('/tenant/collection-rules', {
+        method: 'GET',
+        schema: CollectionRuleListResponseSchema,
+        tenantPublicId,
+      }),
+  });
+
+  const campaigns = campaignsData?.items?.filter((c) => c.active) ?? [];
+
+  const isValid =
+    formData.name.trim() &&
+    formData.whatsapp.trim() &&
+    formData.valueCents &&
+    parseFloat(formData.valueCents) > 0 &&
+    formData.dueDate &&
+    formData.description.trim() &&
+    formData.collectionRulePublicId;
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -486,32 +509,26 @@ function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: string }) 
         tenantPublicId,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bot-cobra'] });
-      setFormData({
-        name: '',
-        whatsapp: '',
-        email: '',
-        valueCents: '',
-        dueDate: '',
-        description: '',
-        collectionRulePublicId: '',
-        notes: '',
-      });
-      alert('Cobrança criada com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['bot-cobra-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['bot-cobra-list'] });
+      queryClient.invalidateQueries({ queryKey: ['bot-cobra-list-full'] });
+      setError(null);
+      navigate('/app/bot-cobra/cobrancas');
+    },
+    onError: (err: any) => {
+      setError(err?.message || 'Não foi possível criar a cobrança.');
+      console.error('Erro ao criar cobrança:', err);
     },
   });
-
-  const isValid =
-    formData.name.trim() &&
-    formData.whatsapp.trim() &&
-    formData.valueCents &&
-    parseFloat(formData.valueCents) > 0 &&
-    formData.dueDate &&
-    formData.collectionRulePublicId;
 
   return (
     <>
       <PageHeader title="Nova Cobrança" description="Criar uma nova cobrança manual" />
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+          {error}
+        </div>
+      )}
       <form
         className="max-w-2xl space-y-6"
         onSubmit={(e) => {
@@ -565,24 +582,39 @@ function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: string }) 
             required
           />
           <textarea
-            placeholder="Descrição (opcional)"
+            placeholder="Descrição *"
             className="w-full px-3 py-2 border rounded-md"
             rows={3}
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            required
           />
         </div>
 
         <div className="bg-white rounded-lg border p-6 space-y-4">
           <h3 className="font-semibold text-sm">Configuração</h3>
-          <input
-            type="text"
-            placeholder="ID da Campanha *"
-            className="w-full px-3 py-2 border rounded-md text-xs"
-            value={formData.collectionRulePublicId}
-            onChange={(e) => setFormData({ ...formData, collectionRulePublicId: e.target.value })}
-            required
-          />
+          {campaigns.length > 0 ? (
+            <select
+              value={formData.collectionRulePublicId}
+              onChange={(e) => setFormData({ ...formData, collectionRulePublicId: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md"
+              required
+            >
+              <option value="">Campanha de cobrança *</option>
+              {campaigns.map((c) => (
+                <option key={c.publicId} value={c.publicId}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+              Nenhuma campanha disponível.{' '}
+              <button type="button" onClick={() => navigate('/app/bot-cobra/campanhas')} className="font-medium hover:underline">
+                Criar campanha
+              </button>
+            </div>
+          )}
           <textarea
             placeholder="Observações internas (opcional)"
             className="w-full px-3 py-2 border rounded-md"
@@ -637,7 +669,7 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
       const payload = {
         name: formData.name,
         active: formData.active,
-        cadenceType: 'DAILY',
+        cadenceType: 'CUSTOM_DAYS',
         allowedStartHour: formData.startHour,
         allowedEndHour: formData.endHour,
         maxAttemptsPerDay: formData.maxAttemptsPerDay,
@@ -679,6 +711,9 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
         maxCycles: 5,
         active: true,
       });
+    },
+    onError: (error: any) => {
+      console.error('Erro ao salvar campanha:', error);
     },
   });
 

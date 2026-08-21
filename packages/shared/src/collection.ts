@@ -252,13 +252,13 @@ export const DebtListItemSchema = z.object({
   originalAmountCents: z.string(),
   currentBalanceCents: z.string(),
   status: DebtStatusSchema,
-  dueDate: z.date(),
-  createdAt: z.date(),
+  dueDate: z.string(),
+  createdAt: z.string(),
   collectionRulePublicId: z.string().uuid(),
   activePromiseDate: z.string().nullable(),
   hasPendingPix: z.boolean(),
   lastAttemptType: z.string().nullable(),
-  lastAttemptAt: z.date().nullable(),
+  lastAttemptAt: z.string().nullable(),
 });
 
 export const DebtListResponseItemSchema = z.object({

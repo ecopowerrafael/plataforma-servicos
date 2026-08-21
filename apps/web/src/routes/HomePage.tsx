@@ -1602,7 +1602,7 @@ export function HomePage() {
                 }
               />
             )}
-            {isRoute('/app/bot-cobra') && canReadCollections && (
+            {location.pathname.startsWith('/app/bot-cobra') && canReadCollections && (
               <BotCobraModule tenantPublicId={selectedTenant} />
             )}
             {isRoute('/app/financeiro/pendencias') && canReadPayments && (

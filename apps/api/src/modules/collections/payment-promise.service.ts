@@ -62,6 +62,55 @@ export class PaymentPromiseService {
     });
   }
 
+  public async listByTenant(
+    tenantId: bigint,
+    statusFilter?: 'ACTIVE' | 'FULFILLED' | 'OVERDUE' | 'REPLACED' | 'CANCELED',
+  ): Promise<
+    Array<{
+      publicId: string;
+      debtPublicId: string;
+      debtorName: string;
+      promisedDate: string;
+      status: 'ACTIVE' | 'FULFILLED' | 'OVERDUE' | 'REPLACED' | 'CANCELED';
+      source: string;
+      currentBalanceCents: string;
+      createdAt: string;
+    }>
+  > {
+    const promises = await this.client.paymentPromise.findMany({
+      where: {
+        tenantId,
+        ...(statusFilter && { status: statusFilter }),
+      },
+      select: {
+        publicId: true,
+        promisedDate: true,
+        status: true,
+        source: true,
+        createdAt: true,
+        debt: {
+          select: {
+            publicId: true,
+            debtorName: true,
+            currentBalanceCents: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return promises.map((p) => ({
+      publicId: p.publicId,
+      debtPublicId: p.debt.publicId,
+      debtorName: p.debt.debtorName,
+      promisedDate: p.promisedDate.toISOString().slice(0, 10),
+      status: p.status as 'ACTIVE' | 'FULFILLED' | 'OVERDUE' | 'REPLACED' | 'CANCELED',
+      source: p.source,
+      currentBalanceCents: p.debt.currentBalanceCents.toString(),
+      createdAt: p.createdAt.toISOString(),
+    }));
+  }
+
   public async sweep(now: Date = new Date()): Promise<{ dueReminders: number; overdue: number }> {
     const activePromises = await this.client.paymentPromise.findMany({
       where: { status: 'ACTIVE' },

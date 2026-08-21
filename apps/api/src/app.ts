@@ -40,6 +40,7 @@ import { availabilityRoutes } from './modules/calendar/availability.routes.js';
 import { collectionAttemptRoutes } from './modules/collections/collection-attempt.routes.js';
 import { collectionRuleRoutes } from './modules/collections/collection-rule.routes.js';
 import { debtRoutes } from './modules/collections/debt.routes.js';
+import { paymentPromiseRoutes } from './modules/collections/payment-promise.routes.js';
 import { customerAuthRoutes } from './modules/customers/customer-auth.routes.js';
 import { customerFavoriteRoutes } from './modules/customers/customer-favorite.routes.js';
 import { customerMembershipChargeRoutes } from './modules/customers/customer-membership-charge.routes.js';
@@ -662,6 +663,13 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.debts !== undefined)
     await app.register(debtRoutes, {
       service: options.database.debts,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.paymentPromises !== undefined)
+    await app.register(paymentPromiseRoutes, {
+      service: options.database.paymentPromises,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

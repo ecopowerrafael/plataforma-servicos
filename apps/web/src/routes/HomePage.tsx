@@ -205,6 +205,7 @@ interface AppMenuItem {
   label: string;
   to: string;
   visible: boolean;
+  items?: AppMenuItem[];
 }
 interface AppMenuGroup {
   label: string;
@@ -684,6 +685,15 @@ export function HomePage() {
           label: 'Bot Cobra',
           to: '/app/bot-cobra',
           visible: canReadCollections,
+          items: [
+            { label: 'Visão geral', to: '/app/bot-cobra', visible: canReadCollections },
+            { label: 'Cobranças', to: '/app/bot-cobra/cobrancas', visible: canReadCollections },
+            { label: 'Nova cobrança', to: '/app/bot-cobra/nova', visible: canManageCollections },
+            { label: 'Campanhas', to: '/app/bot-cobra/campanhas', visible: canReadCollections },
+            { label: 'Promessas', to: '/app/bot-cobra/promessas', visible: canReadCollections },
+            { label: 'Atendimento humano', to: '/app/bot-cobra/atendimento', visible: canReadCollections },
+            { label: 'Configurações', to: '/app/bot-cobra/configuracoes', visible: canManageCollections },
+          ],
         },
       ],
     },
@@ -1251,11 +1261,36 @@ export function HomePage() {
             >
               <summary>{group.label}</summary>
               <div className="app-navigation-submenu">
-                {group.items.map((item) => (
-                  <NavLink key={item.to} to={item.to} end>
-                    {item.label}
-                  </NavLink>
-                ))}
+                {group.items.map((item) => {
+                  const hasSubitems = item.items !== undefined && item.items.length > 0;
+                  const itemExpandKey = `${group.path}/${item.to}`;
+                  if (hasSubitems) {
+                    return (
+                      <details
+                        key={item.to}
+                        open={expandedGroups[itemExpandKey] ?? location.pathname.startsWith(item.to)}
+                        onToggle={(event) => {
+                          const open = event.currentTarget.open;
+                          setExpandedGroups((current) => ({ ...current, [itemExpandKey]: open }));
+                        }}
+                      >
+                        <summary>{item.label}</summary>
+                        <div className="app-navigation-submenu">
+                          {item.items.map((subitem) => (
+                            <NavLink key={subitem.to} to={subitem.to} end>
+                              {subitem.label}
+                            </NavLink>
+                          ))}
+                        </div>
+                      </details>
+                    );
+                  }
+                  return (
+                    <NavLink key={item.to} to={item.to} end>
+                      {item.label}
+                    </NavLink>
+                  );
+                })}
               </div>
             </details>
           ))}
@@ -1343,18 +1378,48 @@ export function HomePage() {
               }}
             >
               <summary>{group.label}</summary>
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                  }}
-                >
-                  {item.label}
-                </NavLink>
-              ))}
+              {group.items.map((item) => {
+                const hasSubitems = item.items !== undefined && item.items.length > 0;
+                const itemExpandKey = `${group.path}/${item.to}`;
+                if (hasSubitems) {
+                  return (
+                    <details
+                      key={item.to}
+                      open={expandedGroups[itemExpandKey] ?? location.pathname.startsWith(item.to)}
+                      onToggle={(event) => {
+                        const open = event.currentTarget.open;
+                        setExpandedGroups((current) => ({ ...current, [itemExpandKey]: open }));
+                      }}
+                    >
+                      <summary>{item.label}</summary>
+                      {item.items.map((subitem) => (
+                        <NavLink
+                          key={subitem.to}
+                          to={subitem.to}
+                          end
+                          onClick={() => {
+                            setMobileMenuOpen(false);
+                          }}
+                        >
+                          {subitem.label}
+                        </NavLink>
+                      ))}
+                    </details>
+                  );
+                }
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    {item.label}
+                  </NavLink>
+                );
+              })}
             </details>
           ))}
         </div>

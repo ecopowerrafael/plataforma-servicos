@@ -202,6 +202,7 @@ export const router = createBrowserRouter([
   // A configuração de gateway foi unificada em /app/financeiro/opcoes.
   { path: '/app/financeiro/gateway', element: <Navigate replace to="/app/financeiro/opcoes" /> },
   { path: '/app/financeiro/opcoes', element: lazyPage(HomePage) },
+  { path: '/app/bot-cobra', element: lazyPage(HomePage) },
   { path: '/app/produtos', element: lazyPage(HomePage) },
   { path: '/app/produtos/estoque', element: lazyPage(HomePage) },
   { path: '/app/produtos/movimentacoes', element: lazyPage(HomePage) },

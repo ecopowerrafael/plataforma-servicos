@@ -680,6 +680,11 @@ export function HomePage() {
           to: '/app/financeiro/opcoes',
           visible: canReadPaymentGateway,
         },
+        {
+          label: 'Bot Cobra',
+          to: '/app/bot-cobra',
+          visible: canReadCollections,
+        },
       ],
     },
     {

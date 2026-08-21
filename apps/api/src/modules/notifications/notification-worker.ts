@@ -2,6 +2,7 @@ import { type AppointmentReminderService } from './appointment-reminder.service.
 import { type AutomationService } from './automation.service.js';
 import { type NotificationService } from './notification.service.js';
 import { type NotificationCampaignService } from './notification-campaign.service.js';
+import { type CollectionAttemptExecutionService } from '../collections/collection-attempt-execution.service.js';
 import { type CollectionAttemptEngineService } from '../collections/collection-attempt.service.js';
 import { type CustomerRecoveryService } from '../customers/customer-recovery.service.js';
 import { type LoyaltyService } from '../payments/loyalty.service.js';
@@ -20,6 +21,7 @@ interface WorkerDeps {
   automations?: AutomationService;
   customerRecovery?: CustomerRecoveryService;
   collectionAttempts?: CollectionAttemptEngineService;
+  collectionAttemptExecution?: CollectionAttemptExecutionService;
   loyalty?: LoyaltyService;
   commercialSweep?: TenantCommercialSweepService;
   directorySeo?: DirectorySeoService;
@@ -52,6 +54,7 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
       await deps.automations?.run();
       await deps.customerRecovery?.run();
       await deps.collectionAttempts?.run();
+      await deps.collectionAttemptExecution?.run();
       await deps.loyalty?.expireDue();
       await deps.commercialSweep?.run();
       await deps.campaigns?.materializePending();

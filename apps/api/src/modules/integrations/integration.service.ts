@@ -19,6 +19,7 @@ import { type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
+import { type CollectionAttemptExecutionService } from '../collections/collection-attempt-execution.service.js';
 import { type CustomerAuthService } from '../customers/customer-auth.service.js';
 import { type CustomerService } from '../customers/customer.service.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
@@ -91,6 +92,7 @@ export class IntegrationService {
     paymentOptions?: TenantPaymentOptionsService,
     payments?: PaymentService,
     customerAuth?: CustomerAuthService,
+    private readonly collectionAttemptExecution?: CollectionAttemptExecutionService,
   ) {
     this.assistant = new WhatsAppAssistantService(
       repository,
@@ -361,6 +363,22 @@ export class IntegrationService {
       return { accepted: true, duplicated: true } as const;
     }
 
+    // Mensagem originada de uma cobrança do Bot Cobra: rota própria, nunca
+    // passa pelo fluxo do assistente de agendamentos.
+    if (resolvedAction?.collectionAttemptPublicId !== null && resolvedAction?.collectionAttemptPublicId !== undefined) {
+      const result = await this.collectionAttemptExecution?.handleWhatsAppResponse(
+        tenantId,
+        resolvedAction.collectionAttemptPublicId,
+        actionId,
+      );
+      return {
+        accepted: true,
+        duplicated: false,
+        eventType: event.eventType,
+        collectionResponseHandled: result?.handled ?? false,
+      } as const;
+    }
+
     // O evento já está persistido; a automação roda depois e só para mensagens
     // do cliente, de modo que uma falha aqui não perde o registro do webhook.
     const entitled = await new PlanEntitlementService().featureEnabledForTenant(
@@ -405,7 +423,12 @@ export class IntegrationService {
       typeof outbound.notification.targetPublicId === 'string'
         ? outbound.notification.targetPublicId
         : null;
-    return { actionId: matched, appointmentPublicId };
+    const collectionAttemptPublicId =
+      outbound?.notification?.targetType === 'collection_attempt' &&
+      typeof outbound.notification.targetPublicId === 'string'
+        ? outbound.notification.targetPublicId
+        : null;
+    return { actionId: matched, appointmentPublicId, collectionAttemptPublicId };
   }
 
   /**

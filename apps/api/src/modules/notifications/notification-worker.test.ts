@@ -5,6 +5,8 @@ import { startNotificationWorker } from './notification-worker.js';
 import type { AppointmentReminderService } from './appointment-reminder.service.js';
 import type { NotificationService } from './notification.service.js';
 import type { NotificationCampaignService } from './notification-campaign.service.js';
+import type { CollectionAttemptExecutionService } from '../collections/collection-attempt-execution.service.js';
+import type { CollectionAttemptEngineService } from '../collections/collection-attempt.service.js';
 
 function build(processed = 0) {
   const processPending = vi.fn().mockResolvedValue({ processed });
@@ -93,5 +95,38 @@ describe('worker de notificações', () => {
     await vi.advanceTimersByTimeAsync(180_000);
 
     expect(processPending).toHaveBeenCalledOnce();
+  });
+
+  it('chama o executor do Bot Cobra (Fase 4) depois do scheduler (Fase 3), a cada tick', async () => {
+    const collectionAttemptsRun = vi.fn().mockResolvedValue({ created: 0, skipped: 0 });
+    const collectionAttemptExecutionRun = vi.fn().mockResolvedValue({ sent: 0, canceled: 0, failed: 0, retried: 0 });
+    const callOrder: string[] = [];
+    collectionAttemptsRun.mockImplementation(() => {
+      callOrder.push('scheduler');
+      return Promise.resolve({ created: 0, skipped: 0 });
+    });
+    collectionAttemptExecutionRun.mockImplementation(() => {
+      callOrder.push('executor');
+      return Promise.resolve({ sent: 0, canceled: 0, failed: 0, retried: 0 });
+    });
+
+    const stop = startNotificationWorker(
+      {
+        reminders: {
+          scheduleDayBeforeReminders: vi.fn().mockResolvedValue(undefined),
+          scheduleUpcomingReminders: vi.fn().mockResolvedValue(undefined),
+        } as unknown as AppointmentReminderService,
+        notifications: { processPending: vi.fn().mockResolvedValue({ processed: 0 }) } as unknown as NotificationService,
+        collectionAttempts: { run: collectionAttemptsRun } as unknown as CollectionAttemptEngineService,
+        collectionAttemptExecution: { run: collectionAttemptExecutionRun } as unknown as CollectionAttemptExecutionService,
+      },
+      { intervalMs: 60_000, logger: { info: vi.fn(), error: vi.fn() } },
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    stop();
+
+    expect(collectionAttemptsRun).toHaveBeenCalledOnce();
+    expect(collectionAttemptExecutionRun).toHaveBeenCalledOnce();
+    expect(callOrder).toEqual(['scheduler', 'executor']);
   });
 });

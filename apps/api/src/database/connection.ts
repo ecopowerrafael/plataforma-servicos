@@ -18,6 +18,7 @@ import { PrismaIdentityRepository } from '../modules/auth/prisma-identity.reposi
 import { PublicBookingService } from '../modules/booking/public-booking.service.js';
 import { AvailabilityRepository } from '../modules/calendar/availability.repository.js';
 import { AvailabilityService } from '../modules/calendar/availability.service.js';
+import { CollectionAttemptExecutionService } from '../modules/collections/collection-attempt-execution.service.js';
 import { CollectionAttemptEngineService } from '../modules/collections/collection-attempt.service.js';
 import { CollectionRuleService } from '../modules/collections/collection-rule.service.js';
 import { DebtService } from '../modules/collections/debt.service.js';
@@ -191,6 +192,7 @@ export interface DatabaseConnection {
   readonly collectionRules?: CollectionRuleService;
   readonly debts?: DebtService;
   readonly collectionAttempts?: CollectionAttemptEngineService;
+  readonly collectionAttemptExecution?: CollectionAttemptExecutionService;
   readonly financialClosings?: FinancialClosingService;
   readonly delinquency?: DelinquencyService;
   readonly financialReports?: FinancialReportService;
@@ -414,6 +416,7 @@ export function createDatabaseConnection(
   const collectionRules = new CollectionRuleService(client);
   const debts = new DebtService(client, collectionRules);
   const collectionAttempts = new CollectionAttemptEngineService(client);
+  const collectionAttemptExecution = new CollectionAttemptExecutionService(client, notifications, debts);
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
@@ -532,6 +535,7 @@ export function createDatabaseConnection(
     collectionRules: collectionRules,
     debts: debts,
     collectionAttempts: collectionAttempts,
+    collectionAttemptExecution: collectionAttemptExecution,
     financialClosings: new FinancialClosingService(client),
     delinquency: delinquency,
     financialReports: new FinancialReportService(client, delinquency),
@@ -550,6 +554,7 @@ export function createDatabaseConnection(
       tenantPaymentOptions,
       payments,
       customerAuth,
+      collectionAttemptExecution,
     ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,

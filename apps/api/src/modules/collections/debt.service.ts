@@ -364,7 +364,21 @@ export class DebtService {
     return debt;
   }
 
-  private async recordEvent(
+  /** Transição automática (webhook do Bot Cobra) — sem audit(), que é para ações humanas no painel. */
+  public async markHumanSupport(tenantId: bigint, debtId: bigint): Promise<void> {
+    const existing = await this.client.debt.findFirst({ where: { tenantId, id: debtId } });
+    if (existing === null) return;
+    if (existing.status === 'HUMAN_SUPPORT' || existing.status === 'PAID' || existing.status === 'CANCELED')
+      return;
+
+    await this.client.debt.update({
+      where: { id: existing.id },
+      data: { status: 'HUMAN_SUPPORT', humanSupportAt: new Date() },
+    });
+    await this.recordEvent(tenantId, existing.id, 'HUMAN_SUPPORT_REQUESTED');
+  }
+
+  public async recordEvent(
     tenantId: bigint,
     debtId: bigint,
     eventType: string,

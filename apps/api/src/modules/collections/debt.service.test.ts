@@ -495,3 +495,39 @@ describe('DebtService — status actions', () => {
     ).rejects.toMatchObject({ code: 'DEBT_INVALID_STATUS_TRANSITION', statusCode: 409 });
   });
 });
+
+describe('DebtService.markHumanSupport (Fase 4 — transição automática via webhook)', () => {
+  it('OPEN -> HUMAN_SUPPORT, registra o evento e não usa audit()', async () => {
+    const client = mockClient({
+      debt: {
+        findFirst: vi.fn().mockResolvedValue(fakeDebtRow({ id: 1n, status: 'OPEN' })),
+        update: vi.fn().mockResolvedValue(fakeDebtRow({ status: 'HUMAN_SUPPORT' })),
+      },
+    });
+    await buildService(client).markHumanSupport(10n, 1n);
+
+    expect(client.debt.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: { status: 'HUMAN_SUPPORT', humanSupportAt: expect.any(Date) },
+    });
+    expect((client.debtEvent.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toMatchObject({
+      data: { eventType: 'HUMAN_SUPPORT_REQUESTED' },
+    });
+    expect(client.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['HUMAN_SUPPORT', 'PAID', 'CANCELED'])('no-op silencioso quando já está %s', async (status) => {
+    const client = mockClient({
+      debt: { findFirst: vi.fn().mockResolvedValue(fakeDebtRow({ id: 1n, status })), update: vi.fn() },
+    });
+    await buildService(client).markHumanSupport(10n, 1n);
+    expect(client.debt.update).not.toHaveBeenCalled();
+    expect(client.debtEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('no-op silencioso quando a Debt não existe', async () => {
+    const client = mockClient({ debt: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() } });
+    await expect(buildService(client).markHumanSupport(10n, 999n)).resolves.toBeUndefined();
+    expect(client.debt.update).not.toHaveBeenCalled();
+  });
+});

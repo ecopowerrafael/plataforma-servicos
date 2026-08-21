@@ -107,6 +107,125 @@ export class DebtService {
     return pubDebt(debt);
   }
 
+  public async detailFull(tenantId: bigint, publicId: string) {
+    const debt = await this.client.debt.findFirst({
+      where: { tenantId, publicId },
+      select: {
+        id: true,
+        publicId: true,
+        tenantId: true,
+        debtorName: true,
+        debtorWhatsapp: true,
+        debtorEmail: true,
+        originType: true,
+        originalAmountCents: true,
+        currentBalanceCents: true,
+        status: true,
+        dueDate: true,
+        createdAt: true,
+        paidAt: true,
+        collectionRule: { select: { publicId: true } },
+      },
+    });
+
+    if (debt === null || debt.tenantId !== tenantId) throw this.debtNotFound();
+
+    const [promise, allocations, charges, attempts, events] = await Promise.all([
+      this.client.paymentPromise.findFirst({
+        where: { tenantId, debtId: debt.id, status: 'ACTIVE' },
+        select: { publicId: true, promisedDate: true, status: true, source: true, createdAt: true },
+      }),
+      this.client.debtPaymentAllocation.findMany({
+        where: { tenantId, debtId: debt.id },
+        select: { amountCents: true, source: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.client.paymentGatewayCharge.findMany({
+        where: { tenantId, debtId: debt.id },
+        select: {
+          amountCents: true,
+          status: true,
+          provider: true,
+          createdAt: true,
+          paymentId: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      this.client.collectionAttempt.findMany({
+        where: { tenantId, debtId: debt.id },
+        select: {
+          attemptType: true,
+          status: true,
+          scheduledAt: true,
+          sentAt: true,
+          respondedAt: true,
+          technicalRetryCount: true,
+          lastError: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      this.client.debtEvent.findMany({
+        where: { tenantId, debtId: debt.id },
+        select: { eventType: true, createdAt: true, metadata: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+    ]);
+
+    return {
+      debt: {
+        publicId: debt.publicId,
+        debtorName: debt.debtorName,
+        debtorWhatsapp: debt.debtorWhatsapp,
+        debtorEmail: debt.debtorEmail,
+        originType: debt.originType,
+        originalAmountCents: debt.originalAmountCents.toString(),
+        currentBalanceCents: debt.currentBalanceCents.toString(),
+        status: debt.status,
+        dueDate: debt.dueDate.toISOString().slice(0, 10),
+        createdAt: debt.createdAt.toISOString(),
+        paidAt: debt.paidAt?.toISOString() ?? null,
+        collectionRulePublicId: debt.collectionRule.publicId,
+      },
+      activePromise: promise
+        ? {
+            promisedDate: promise.promisedDate.toISOString().slice(0, 10),
+            status: promise.status,
+            source: promise.source,
+            createdAt: promise.createdAt.toISOString(),
+          }
+        : null,
+      allocations: allocations.map((a) => ({
+        amountCents: a.amountCents.toString(),
+        source: a.source,
+        createdAt: a.createdAt.toISOString(),
+      })),
+      charges: charges.map((c) => ({
+        amountCents: c.amountCents.toString(),
+        status: c.status,
+        provider: c.provider,
+        createdAt: c.createdAt.toISOString(),
+        hasPaid: c.paymentId !== null,
+      })),
+      attempts: attempts.map((a) => ({
+        attemptType: a.attemptType,
+        status: a.status,
+        scheduledAt: a.scheduledAt.toISOString(),
+        sentAt: a.sentAt?.toISOString() ?? null,
+        respondedAt: a.respondedAt?.toISOString() ?? null,
+        technicalRetryCount: a.technicalRetryCount,
+        lastError: a.lastError,
+      })),
+      events: events.map((e) => ({
+        eventType: e.eventType,
+        createdAt: e.createdAt.toISOString(),
+        metadata: e.metadata,
+      })),
+    };
+  }
+
   public async createManual(tenantId: bigint, input: CreateManualDebtRequest, actor: Actor) {
     const collectionRuleId = await this.collectionRules.resolveActiveRuleId(
       tenantId,
@@ -358,7 +477,7 @@ export class DebtService {
     return pubDebt(updated);
   }
 
-  private async findOwned(tenantId: bigint, publicId: string) {
+  public async findOwned(tenantId: bigint, publicId: string) {
     const debt = await this.client.debt.findFirst({ where: { tenantId, publicId } });
     if (debt === null) throw this.debtNotFound();
     return debt;
@@ -471,6 +590,195 @@ export class DebtService {
         targetPublicId,
       },
     });
+  }
+
+  public async resumeFromHumanSupport(tenantId: bigint, publicId: string, actor: Actor): Promise<void> {
+    const existing = await this.findOwned(tenantId, publicId);
+    if (existing.status !== 'HUMAN_SUPPORT') {
+      throw new AppError({
+        code: 'INVALID_DEBT_STATUS',
+        message: 'Dívida não está em atendimento humano.',
+        statusCode: 400,
+      });
+    }
+    await this.client.debt.update({
+      where: { id: existing.id },
+      data: { status: 'OPEN', collectionPausedAt: null, collectionPausedReason: null },
+    });
+    await this.recordEvent(tenantId, existing.id, 'COLLECTION_RESUMED_FROM_HUMAN_SUPPORT');
+    await this.audit(tenantId, actor, 'RESUME_FROM_HUMAN_SUPPORT', publicId);
+  }
+
+  public async listWithFilters(
+    tenantId: bigint,
+    filters: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      status?: string;
+      originType?: string;
+      hasActivePromise?: boolean;
+      hasPendingPix?: boolean;
+      dateFrom?: Date;
+      dateTo?: Date;
+    },
+  ) {
+    const page = filters.page ?? 1;
+    const pageSize = Math.min(filters.pageSize ?? 25, 100);
+    const skip = (page - 1) * pageSize;
+
+    const where: Prisma.DebtWhereInput = {
+      tenantId,
+      ...(filters.search && {
+        OR: [
+          { debtorName: { contains: filters.search } },
+          { debtorWhatsapp: { contains: filters.search } },
+          { debtorEmail: { contains: filters.search } },
+        ],
+      }),
+      ...(filters.status && { status: filters.status as any }),
+      ...(filters.originType && filters.originType === 'MANUAL' && { originType: 'MANUAL' }),
+      ...(filters.originType && filters.originType === 'APPOINTMENT' && { originType: 'APPOINTMENT' }),
+      ...(filters.dateFrom && { createdAt: { gte: filters.dateFrom } }),
+      ...(filters.dateTo && { createdAt: { lte: filters.dateTo } }),
+      ...(filters.hasActivePromise && {
+        paymentPromise: {
+          some: { status: 'ACTIVE' },
+        },
+      }),
+      ...(filters.hasPendingPix && {
+        paymentGatewayCharge: {
+          some: {
+            status: { in: ['PENDING', 'PROCESSING'] as const },
+          },
+        },
+      }),
+    };
+
+    const [items, total] = await Promise.all([
+      this.client.debt.findMany({
+        where,
+        select: {
+          id: true,
+          publicId: true,
+          debtorName: true,
+          debtorWhatsapp: true,
+          originType: true,
+          originalAmountCents: true,
+          currentBalanceCents: true,
+          status: true,
+          dueDate: true,
+          createdAt: true,
+          collectionRule: { select: { publicId: true } },
+        },
+        orderBy: { createdAt: 'desc' as const },
+        skip,
+        take: pageSize,
+      }),
+      this.client.debt.count({ where }),
+    ]);
+
+    // Fetch related data separately to avoid type issues
+    const promises = await Promise.all(
+      items.map((item) =>
+        Promise.all([
+          this.client.paymentPromise.findFirst({
+            where: { debtId: item.id, status: 'ACTIVE' },
+            select: { promisedDate: true },
+          }),
+          this.client.paymentGatewayCharge.findFirst({
+            where: { debtId: item.id, status: { in: ['PENDING', 'PROCESSING'] } },
+            select: { status: true },
+          }),
+          this.client.debtEvent.findFirst({
+            where: { debtId: item.id, eventType: { in: ['COLLECTION_ATTEMPT_SENT', 'COLLECTION_ATTEMPT_FAILED'] } },
+            orderBy: { createdAt: 'desc' },
+            select: { eventType: true, createdAt: true },
+          }),
+        ]),
+      ),
+    );
+
+    return {
+      items: items.map((item, idx) => ({
+        publicId: item.publicId,
+        debtorName: item.debtorName,
+        debtorWhatsapp: item.debtorWhatsapp,
+        originType: item.originType,
+        originalAmountCents: item.originalAmountCents.toString(),
+        currentBalanceCents: item.currentBalanceCents.toString(),
+        status: item.status,
+        dueDate: item.dueDate,
+        createdAt: item.createdAt,
+        collectionRulePublicId: item.collectionRule.publicId,
+        activePromiseDate: promises[idx]?.[0]?.promisedDate ?? null,
+        hasPendingPix: !!promises[idx]?.[1],
+        lastAttemptType: promises[idx]?.[2]?.eventType ?? null,
+        lastAttemptAt: promises[idx]?.[2]?.createdAt ?? null,
+      })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  public async getSummary(tenantId: bigint, dateFrom?: Date, dateTo?: Date) {
+    const debtWhere: Prisma.DebtWhereInput = {
+      tenantId,
+      ...(dateFrom && { createdAt: { gte: dateFrom } }),
+      ...(dateTo && { createdAt: { lte: dateTo } }),
+    };
+
+    const promiseWhere: Prisma.PaymentPromiseWhereInput = {
+      tenantId,
+      ...(dateFrom && { createdAt: { gte: dateFrom } }),
+      ...(dateTo && { createdAt: { lte: dateTo } }),
+    };
+
+    const attemptWhere: Prisma.CollectionAttemptWhereInput = {
+      tenantId,
+      status: 'FAILED',
+      ...(dateFrom && { createdAt: { gte: dateFrom } }),
+      ...(dateTo && { createdAt: { lte: dateTo } }),
+    };
+
+    const [debts, promises, attempts] = await Promise.all([
+      this.client.debt.findMany({
+        where: debtWhere,
+        select: {
+          status: true,
+          originalAmountCents: true,
+          currentBalanceCents: true,
+        },
+      }),
+      this.client.paymentPromise.findMany({
+        where: promiseWhere,
+        select: { status: true },
+      }),
+      this.client.collectionAttempt.findMany({
+        where: attemptWhere,
+        select: { id: true },
+      }),
+    ]);
+
+    const receivedTotal = debts.reduce((acc, d) => acc + (d.originalAmountCents - d.currentBalanceCents), 0n);
+
+    return {
+      openBalanceCents: debts
+        .filter((d) => !CLOSED_STATUSES.includes(d.status as DebtStatus))
+        .reduce((acc, d) => acc + d.currentBalanceCents, 0n)
+        .toString(),
+      originalTotalCents: debts.reduce((acc, d) => acc + d.originalAmountCents, 0n).toString(),
+      receivedTotalCents: receivedTotal.toString(),
+      activeCount: debts.filter((d) => d.status === 'OPEN').length,
+      promiseActiveCount: promises.filter((p) => p.status === 'ACTIVE').length,
+      promiseOverdueCount: promises.filter((p) => p.status === 'OVERDUE').length,
+      humanSupportCount: debts.filter((d) => d.status === 'HUMAN_SUPPORT').length,
+      disputedCount: debts.filter((d) => d.status === 'DISPUTED').length,
+      paidCount: debts.filter((d) => d.status === 'PAID').length,
+      failedAttemptCount: attempts.length,
+    };
   }
 
   private debtNotFound() {

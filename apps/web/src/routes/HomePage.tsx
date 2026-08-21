@@ -101,6 +101,10 @@ const FinanceOverviewModule = load(
   import('../components/tenants/FinanceOverviewModule.js'),
   'FinanceOverviewModule',
 );
+const BotCobraModule = load(
+  import('../components/bot-cobra/BotCobraModule.js'),
+  'BotCobraModule',
+);
 const DelinquencyModule = load(
   import('../components/tenants/DelinquencyModule.js'),
   'DelinquencyModule',
@@ -515,6 +519,8 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('payment.read') ?? false;
   const canManagePayments =
     me.data?.currentTenant?.membership.permissions.includes('payment.manage') ?? false;
+  const canReadCollections =
+    me.data?.currentTenant?.membership.permissions.includes('collection.read') ?? false;
   const canManageCollections =
     me.data?.currentTenant?.membership.permissions.includes('collection.manage') ?? false;
   const canReadCash = me.data?.currentTenant?.membership.permissions.includes('cash.read') ?? false;
@@ -1525,6 +1531,9 @@ export function HomePage() {
                   canReadFinancialReports && planFeatureEnabled('advanced_reports.enabled')
                 }
               />
+            )}
+            {isRoute('/app/bot-cobra') && canReadCollections && (
+              <BotCobraModule tenantPublicId={selectedTenant} />
             )}
             {isRoute('/app/financeiro/pendencias') && canReadPayments && (
               <DelinquencyModule

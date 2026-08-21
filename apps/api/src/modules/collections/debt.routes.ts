@@ -2,7 +2,6 @@ import {
   CancelDebtRequestSchema,
   CreateDebtFromAppointmentRequestSchema,
   CreateManualDebtRequestSchema,
-  DebtListResponseSchema,
   DebtPublicSchema,
   PauseDebtRequestSchema,
   UpdateDebtRequestSchema,
@@ -29,10 +28,19 @@ export const debtRoutes: FastifyPluginAsyncZod<{
     sessionId: r.auth.session.id,
   });
 
-  app.get('/tenant/debts', { schema: { response: { 200: DebtListResponseSchema } } }, (r) => {
+  app.get('/tenant/debts/summary', {}, (r) => {
     o.authService.requirePermission(r.tenant, 'collection.read');
-    return o.service.list(r.tenant.id);
+    return o.service.getSummary(r.tenant.id);
   });
+
+  app.get(
+    '/tenant/debts/:publicId/full',
+    { schema: { params: debtParams } },
+    (r) => {
+      o.authService.requirePermission(r.tenant, 'collection.read');
+      return o.service.detailFull(r.tenant.id, r.params.publicId);
+    },
+  );
 
   app.get(
     '/tenant/debts/:publicId',
@@ -40,6 +48,39 @@ export const debtRoutes: FastifyPluginAsyncZod<{
     (r) => {
       o.authService.requirePermission(r.tenant, 'collection.read');
       return o.service.detail(r.tenant.id, r.params.publicId);
+    },
+  );
+
+  app.get(
+    '/tenant/debts',
+    {
+      schema: {
+        querystring: z.object({
+          page: z.coerce.number().int().positive().optional(),
+          pageSize: z.coerce.number().int().min(1).max(100).optional(),
+          search: z.string().optional(),
+          status: z.string().optional(),
+          originType: z.enum(['MANUAL', 'APPOINTMENT']).optional(),
+          hasActivePromise: z.coerce.boolean().optional(),
+          hasPendingPix: z.coerce.boolean().optional(),
+          dateFrom: z.string().datetime().optional(),
+          dateTo: z.string().datetime().optional(),
+        }),
+      },
+    },
+    (r) => {
+      o.authService.requirePermission(r.tenant, 'collection.read');
+      const filters: Parameters<typeof o.service.listWithFilters>[1] = {};
+      if (r.query.page !== undefined) filters.page = r.query.page;
+      if (r.query.pageSize !== undefined) filters.pageSize = r.query.pageSize;
+      if (r.query.search !== undefined) filters.search = r.query.search;
+      if (r.query.status !== undefined) filters.status = r.query.status;
+      if (r.query.originType !== undefined) filters.originType = r.query.originType;
+      if (r.query.hasActivePromise !== undefined) filters.hasActivePromise = r.query.hasActivePromise;
+      if (r.query.hasPendingPix !== undefined) filters.hasPendingPix = r.query.hasPendingPix;
+      if (r.query.dateFrom !== undefined) filters.dateFrom = new Date(r.query.dateFrom);
+      if (r.query.dateTo !== undefined) filters.dateTo = new Date(r.query.dateTo);
+      return o.service.listWithFilters(r.tenant.id, filters);
     },
   );
 
@@ -119,6 +160,38 @@ export const debtRoutes: FastifyPluginAsyncZod<{
     (r) => {
       o.authService.requirePermission(r.tenant, 'collection.manage');
       return o.service.cancel(r.tenant.id, r.params.publicId, r.body, actor(r));
+    },
+  );
+
+  app.post(
+    '/tenant/debts/:publicId/mark-human-support',
+    { schema: { params: debtParams, response: { 200: DebtPublicSchema } } },
+    async (r) => {
+      o.authService.requirePermission(r.tenant, 'collection.manage');
+      const debt = await o.service.findOwned(r.tenant.id, r.params.publicId);
+      await o.service.markHumanSupport(r.tenant.id, debt.id);
+      return o.service.detail(r.tenant.id, r.params.publicId);
+    },
+  );
+
+  app.post(
+    '/tenant/debts/:publicId/mark-disputed',
+    { schema: { params: debtParams, response: { 200: DebtPublicSchema } } },
+    async (r) => {
+      o.authService.requirePermission(r.tenant, 'collection.manage');
+      const debt = await o.service.findOwned(r.tenant.id, r.params.publicId);
+      await o.service.markDisputed(r.tenant.id, debt.id);
+      return o.service.detail(r.tenant.id, r.params.publicId);
+    },
+  );
+
+  app.post(
+    '/tenant/debts/:publicId/resume-from-human-support',
+    { schema: { params: debtParams, response: { 200: DebtPublicSchema } } },
+    async (r) => {
+      o.authService.requirePermission(r.tenant, 'collection.manage');
+      await o.service.resumeFromHumanSupport(r.tenant.id, r.params.publicId, actor(r));
+      return o.service.detail(r.tenant.id, r.params.publicId);
     },
   );
 };

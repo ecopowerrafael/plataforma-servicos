@@ -3310,6 +3310,7 @@ model CollectionRule {
   consecutiveDays                Int                   @default(3) @map("consecutive_days") @db.UnsignedTinyInt
   pauseDaysAfterCycle            Int                   @default(4) @map("pause_days_after_cycle") @db.UnsignedTinyInt
   maxCycles                      Int?                  @map("max_cycles") @db.UnsignedTinyInt
+  minMinutesBetweenAttempts      Int                   @default(120) @map("min_minutes_between_attempts") @db.UnsignedSmallInt
   skipSundays                    Boolean               @default(true) @map("skip_sundays")
   partialPaymentEnabled          Boolean               @default(true) @map("partial_payment_enabled")
   partialOfferPercentages        Json                  @map("partial_offer_percentages")

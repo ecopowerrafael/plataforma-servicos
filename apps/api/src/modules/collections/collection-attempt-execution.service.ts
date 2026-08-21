@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { COLLECTION_ACTIONS, isCollectionAction } from './collection-actions.js';
 import { formatDueDate, formatMoneyCents, renderCollectionMessage } from './collection-attempt-templates.js';
 import { type DebtService } from './debt.service.js';
@@ -329,13 +327,20 @@ export class CollectionAttemptExecutionService {
   /** Resposta imediata de conversa (não é uma CollectionAttempt agendada) — melhor esforço. */
   private async sendImmediateReply(
     tenantId: bigint,
+    debtId: bigint,
     phone: string,
     body: string,
     buttons: Array<{ actionKey: string; label: string; enabled: boolean; order: number }>,
     kind: string,
     now: Date,
   ): Promise<void> {
-    await this.sendWhatsApp(tenantId, phone, body, buttons, kind, 'collection_reply', randomUUID(), now);
+    // Recuperar debtPublicId para roteamento correto em resolveActionId.
+    const debt = await this.client.debt.findUnique({
+      where: { id: debtId },
+      select: { publicId: true },
+    });
+    if (debt === null) return;
+    await this.sendWhatsApp(tenantId, phone, body, buttons, kind, 'collection_reply', debt.publicId, now);
   }
 
   /** Aplica o backoff técnico; retorna true se reagendou (SCHEDULED), false se esgotou (FAILED terminal). */
@@ -490,7 +495,7 @@ export class CollectionAttemptExecutionService {
     });
     if (body === null) return;
     try {
-      await this.sendImmediateReply(tenantId, phone, body, [], 'collection.promise_confirmation', now);
+      await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.promise_confirmation', now);
     } catch {
       // A promessa já foi criada e vale mesmo se a confirmação falhar ao enviar.
     }
@@ -509,7 +514,7 @@ export class CollectionAttemptExecutionService {
     const body = renderCollectionMessage('collection.need_more_time_options', { debtorName: debt.debtorName });
     if (body === null) return;
     try {
-      await this.sendImmediateReply(tenantId, phone, body, PROMISE_OPTION_BUTTONS, 'collection.need_more_time_options', now);
+      await this.sendImmediateReply(tenantId, debtId, phone, body, PROMISE_OPTION_BUTTONS, 'collection.need_more_time_options', now);
     } catch {
       // Melhor esforço — o devedor pode tentar de novo clicando "preciso de mais prazo".
     }
@@ -532,7 +537,7 @@ export class CollectionAttemptExecutionService {
       });
       if (body === null) return;
       try {
-        await this.sendImmediateReply(tenantId, phone, body, [], 'collection.debt_already_settled', now);
+        await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.debt_already_settled', now);
       } catch {
         // Melhor esforço.
       }
@@ -544,7 +549,7 @@ export class CollectionAttemptExecutionService {
       const body = renderCollectionMessage('collection.pix_unavailable', {});
       if (body === null) return;
       try {
-        await this.sendImmediateReply(tenantId, phone, body, [], 'collection.pix_unavailable', now);
+        await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.pix_unavailable', now);
       } catch {
         // Melhor esforço.
       }
@@ -558,7 +563,7 @@ export class CollectionAttemptExecutionService {
     });
     if (body === null) return;
     try {
-      await this.sendImmediateReply(tenantId, phone, body, [], 'collection.pix_charge', now);
+      await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.pix_charge', now);
     } catch {
       // Melhor esforço — a cobrança já foi criada e continua válida mesmo se o envio falhar.
     }
@@ -574,7 +579,7 @@ export class CollectionAttemptExecutionService {
     const body = renderCollectionMessage('collection.partial_options', {});
     if (body === null) return;
     try {
-      await this.sendImmediateReply(tenantId, phone, body, PARTIAL_OPTION_BUTTONS, 'collection.partial_options', now);
+      await this.sendImmediateReply(tenantId, debtId, phone, body, PARTIAL_OPTION_BUTTONS, 'collection.partial_options', now);
     } catch {
       // Melhor esforço — o devedor pode tentar de novo clicando "pagar uma parte agora".
     }
@@ -612,7 +617,7 @@ export class CollectionAttemptExecutionService {
       const body = renderCollectionMessage('collection.pix_unavailable', {});
       if (body === null) return;
       try {
-        await this.sendImmediateReply(tenantId, phone, body, [], 'collection.pix_unavailable', now);
+        await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.pix_unavailable', now);
       } catch {
         // Melhor esforço.
       }
@@ -627,7 +632,7 @@ export class CollectionAttemptExecutionService {
     });
     if (body === null) return;
     try {
-      await this.sendImmediateReply(tenantId, phone, body, [], 'collection.partial_pix', now);
+      await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.partial_pix', now);
     } catch {
       // Melhor esforço — a cobrança já foi criada e continua válida mesmo se o envio falhar.
     }
@@ -650,7 +655,7 @@ export class CollectionAttemptExecutionService {
       const body = renderCollectionMessage('collection.payment_status_paid', {});
       if (body === null) return;
       try {
-        await this.sendImmediateReply(tenantId, phone, body, [], 'collection.payment_status_paid', now);
+        await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.payment_status_paid', now);
       } catch {
         // Melhor esforço.
       }
@@ -667,7 +672,7 @@ export class CollectionAttemptExecutionService {
       const body = renderCollectionMessage('collection.payment_pending', {});
       if (body === null) return;
       try {
-        await this.sendImmediateReply(tenantId, phone, body, [], 'collection.payment_pending', now);
+        await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.payment_pending', now);
       } catch {
         // Melhor esforço.
       }
@@ -679,7 +684,7 @@ export class CollectionAttemptExecutionService {
     });
     if (body === null) return;
     try {
-      await this.sendImmediateReply(tenantId, phone, body, [], 'collection.payment_status_open', now);
+      await this.sendImmediateReply(tenantId, debtId, phone, body, [], 'collection.payment_status_open', now);
     } catch {
       // Melhor esforço.
     }

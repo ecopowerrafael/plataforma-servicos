@@ -65,6 +65,7 @@ export class CollectionAttemptEngineService {
             maxCycles: true,
             allowedStartHour: true,
             allowedEndHour: true,
+            minMinutesBetweenAttempts: true,
             skipSundays: true,
           },
         },
@@ -83,7 +84,7 @@ export class CollectionAttemptEngineService {
         // início de ciclo.
         where: { debtId: debt.id, attemptType: { notIn: ['PROMISE_DUE', 'PROMISE_OVERDUE'] } },
         orderBy: { id: 'asc' },
-        select: { cycleNumber: true, scheduledAt: true },
+        select: { cycleNumber: true, scheduledAt: true, sentAt: true, respondedAt: true },
       });
 
       const decision = decideNextAttempt({

@@ -644,13 +644,14 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
     startHour: 9,
     endHour: 18,
     maxAttemptsPerDay: 3,
+    minMinutesBetweenAttempts: 120,
     consecutiveDays: 7,
     pauseDaysAfterCycle: 1,
     maxCycles: 5,
     active: true,
   });
 
-  const previewText = `Cobranças entre ${String(formData.startHour).padStart(2, '0')}:00 e ${String(formData.endHour).padStart(2, '0')}:00 | Até ${formData.maxAttemptsPerDay} tentativas/dia | ${formData.consecutiveDays} dias consecutivos | ${formData.pauseDaysAfterCycle} dia(s) de pausa | ${formData.maxCycles} ciclo(s)`;
+  const previewText = `Cobranças entre ${String(formData.startHour).padStart(2, '0')}:00 e ${String(formData.endHour).padStart(2, '0')}:00 | Até ${formData.maxAttemptsPerDay} tentativas/dia (intervalo mín. ${formData.minMinutesBetweenAttempts}min) | ${formData.consecutiveDays} dias | Pausa ${formData.pauseDaysAfterCycle}d | Max ${formData.maxCycles} ciclos`;
 
   const { data: campaignsData, isLoading } = useQuery({
     queryKey: ['bot-cobra-campaigns', tenantPublicId],
@@ -673,6 +674,7 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
         allowedStartHour: formData.startHour,
         allowedEndHour: formData.endHour,
         maxAttemptsPerDay: formData.maxAttemptsPerDay,
+        minMinutesBetweenAttempts: formData.minMinutesBetweenAttempts,
         consecutiveDays: formData.consecutiveDays,
         pauseDaysAfterCycle: formData.pauseDaysAfterCycle,
         maxCycles: formData.maxCycles,
@@ -706,6 +708,7 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
         startHour: 9,
         endHour: 18,
         maxAttemptsPerDay: 3,
+        minMinutesBetweenAttempts: 120,
         consecutiveDays: 7,
         pauseDaysAfterCycle: 1,
         maxCycles: 5,
@@ -787,6 +790,24 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
               </div>
               <p className="text-xs text-gray-600 mt-1">Máximo por cobrança/dia</p>
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Intervalo mínimo entre mensagens</label>
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="15"
+                  max="1440"
+                  className="w-20 px-3 py-2 border rounded-md"
+                  value={formData.minMinutesBetweenAttempts}
+                  onChange={(e) => setFormData({ ...formData, minMinutesBetweenAttempts: parseInt(e.target.value) })}
+                />
+                <span className="ml-2 text-sm text-gray-600">minutos</span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Tempo mínimo entre duas cobranças automáticas</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Dias consecutivos</label>
               <div className="flex items-center">
@@ -899,7 +920,7 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
                 <div>
                   <div className="font-medium text-sm">{campaign.name}</div>
                   <div className="text-xs text-gray-600 mt-1">
-                    {campaign.startHour}:00 - {campaign.endHour}:00 | {campaign.maxAttemptsPerDay}x/dia | {campaign.consecutiveDays}d | Pausa {campaign.pauseDaysAfterCycle}d | Max {campaign.maxCycles} ciclos
+                    {String(campaign.allowedStartHour).padStart(2, '0')}:00 - {String(campaign.allowedEndHour).padStart(2, '0')}:00 | {campaign.maxAttemptsPerDay}x/dia | {campaign.consecutiveDays}d | Pausa {campaign.pauseDaysAfterCycle}d | Max {campaign.maxCycles} ciclos
                   </div>
                   <div className="text-xs text-gray-600 mt-1">
                     Status: {campaign.active ? <span className="text-green-600">Ativa</span> : <span className="text-gray-600">Inativa</span>}
@@ -913,6 +934,7 @@ function BotCobraCampaignsSection({ tenantPublicId }: { tenantPublicId: string }
                       startHour: campaign.allowedStartHour,
                       endHour: campaign.allowedEndHour,
                       maxAttemptsPerDay: campaign.maxAttemptsPerDay,
+                      minMinutesBetweenAttempts: campaign.minMinutesBetweenAttempts,
                       consecutiveDays: campaign.consecutiveDays,
                       pauseDaysAfterCycle: campaign.pauseDaysAfterCycle,
                       maxCycles: campaign.maxCycles || 0,

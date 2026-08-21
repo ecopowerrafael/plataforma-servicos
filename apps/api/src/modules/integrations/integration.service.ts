@@ -424,7 +424,8 @@ export class IntegrationService {
         ? outbound.notification.targetPublicId
         : null;
     const collectionAttemptPublicId =
-      outbound?.notification?.targetType === 'collection_attempt' &&
+      (outbound?.notification?.targetType === 'collection_attempt' ||
+        outbound?.notification?.targetType === 'collection_reply') &&
       typeof outbound.notification.targetPublicId === 'string'
         ? outbound.notification.targetPublicId
         : null;

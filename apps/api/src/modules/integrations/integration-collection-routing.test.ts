@@ -162,3 +162,29 @@ void test('clique numa mensagem que não é de cobrança segue o fluxo normal (a
   assert.equal(result.accepted, true);
   assert.equal('collectionResponseHandled' in result, false);
 });
+
+void test('clique em resposta imediata (collection_reply) roteia para handleWhatsAppResponse com debtPublicId como collectionAttemptPublicId', async () => {
+  const calls: Array<{ tenantId: bigint; collectionAttemptPublicId: string; actionId: string | null }> = [];
+  const collectionAttemptExecution = {
+    handleWhatsAppResponse: (tenantId: bigint, collectionAttemptPublicId: string, actionId: string | null) => {
+      calls.push({ tenantId, collectionAttemptPublicId, actionId });
+      return Promise.resolve({ handled: true });
+    },
+  } as unknown as CollectionAttemptExecutionService;
+
+  const repository = fakeRepository({
+    tenantId: 7n,
+    outboundTargetType: 'collection_reply',
+    outboundTargetPublicId: 'debt-public-id-123',
+    actionIds: ['COLLECTION_PARTIAL_20', 'COLLECTION_PARTIAL_30', 'COLLECTION_PAY_FULL'],
+  });
+  const service = buildService(repository, collectionAttemptExecution);
+
+  const result = await service.ingestWhatsappInbound(buttonClick(1));
+
+  assert.equal(result.accepted, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.tenantId, 7n);
+  assert.equal(calls[0]?.collectionAttemptPublicId, 'debt-public-id-123');
+  assert.equal(calls[0]?.actionId, 'COLLECTION_PARTIAL_30');
+});

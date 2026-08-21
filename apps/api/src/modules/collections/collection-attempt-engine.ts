@@ -7,12 +7,15 @@ export interface AttemptDecisionRule {
   maxCycles: number | null;
   allowedStartHour: number;
   allowedEndHour: number;
+  minMinutesBetweenAttempts: number;
   skipSundays: boolean;
 }
 
 export interface ExistingAttempt {
   cycleNumber: number;
   scheduledAt: Date;
+  sentAt: Date | null;
+  respondedAt: Date | null;
 }
 
 export type AttemptType = 'INITIAL_COLLECTION' | 'SAME_DAY_FOLLOWUP' | 'NEXT_DAY_FOLLOWUP' | 'CYCLE_RESTART';
@@ -21,6 +24,8 @@ export type AttemptSkipReason =
   | 'OUTSIDE_ALLOWED_HOURS'
   | 'SUNDAY'
   | 'DAILY_LIMIT_REACHED'
+  | 'ATTEMPT_INTERVAL_NOT_REACHED'
+  | 'CUSTOMER_RESPONDED'
   | 'CYCLE_PAUSE'
   | 'MAX_CYCLES_REACHED';
 
@@ -80,8 +85,18 @@ export function decideNextAttempt(input: {
   const lastDay = zonedDayKey(last.scheduledAt, timezone);
 
   if (lastDay === today) {
+    // Se a última tentativa recebeu resposta, não enviar SAME_DAY_FOLLOWUP automaticamente.
+    if (last.respondedAt !== null) return { action: 'skip', reason: 'CUSTOMER_RESPONDED' };
+
     const attemptsToday = existingAttempts.filter((a) => zonedDayKey(a.scheduledAt, timezone) === today).length;
     if (attemptsToday >= rule.maxAttemptsPerDay) return { action: 'skip', reason: 'DAILY_LIMIT_REACHED' };
+
+    // Verificar intervalo mínimo entre tentativas: usar sentAt se disponível, senão scheduledAt.
+    const lastAttemptTime = last.sentAt ?? last.scheduledAt;
+    const minutesSinceLastAttempt = Math.floor((now.getTime() - lastAttemptTime.getTime()) / 60_000);
+    if (minutesSinceLastAttempt < rule.minMinutesBetweenAttempts)
+      return { action: 'skip', reason: 'ATTEMPT_INTERVAL_NOT_REACHED' };
+
     return {
       action: 'create',
       cycleNumber: last.cycleNumber,

@@ -174,6 +174,14 @@ const DEFAULT_WHATSAPP_TEMPLATES: Partial<Record<NotificationKind, string>> = {
     'Ola, {{customerName}}! Seu agendamento de {{serviceName}}{{professionalPhrase}} começa em breve, às {{time}}.',
   'appointment.booking_canceled':
     'Ola, {{customerName}}. Seu agendamento de {{serviceName}} para {{date}} as {{time}} foi cancelado.',
+  'customer.recovery.canceled':
+    'Ola, {{customerName}}! Notamos que seu atendimento de {{referenceDate}} foi cancelado. Gostaria de reagendar com a gente?',
+  'customer.recovery.no_show':
+    'Ola, {{customerName}}! Você não pôde comparecer ao atendimento de {{referenceDate}}. Podemos ajudar com um novo horário?',
+  'customer.recovery.post_service':
+    'Ola, {{customerName}}! Já faz um tempo desde seu atendimento de {{referenceDate}}. Quando precisar, estamos à disposição!',
+  'customer.recovery.birthday':
+    'Ola, {{customerName}}! Feliz aniversário! 🎉 Desejamos um excelente novo ciclo. Conte conosco quando precisar!',
 };
 
 const DEFAULT_TEMPLATES: Record<NotificationKind, TemplateContent> = {

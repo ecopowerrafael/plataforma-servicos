@@ -26,6 +26,22 @@ const FRIENDLY_TITLES: Record<string, { title: string; description: string }> = 
     title: 'Cancelamento de agendamento',
     description: 'Enviada quando um agendamento é cancelado.',
   },
+  'customer.recovery.canceled': {
+    title: 'Recuperação - Agendamento Cancelado',
+    description: 'Enviada para clientes que cancelaram um atendimento sem remarcar.',
+  },
+  'customer.recovery.no_show': {
+    title: 'Recuperação - Falta no Atendimento',
+    description: 'Enviada para clientes que não compareceram ao agendamento.',
+  },
+  'customer.recovery.post_service': {
+    title: 'Recuperação - Pós-Atendimento',
+    description: 'Enviada tempo depois do último atendimento para recuperar cliente.',
+  },
+  'customer.recovery.birthday': {
+    title: 'Aniversário',
+    description: 'Enviada no dia do aniversário do cliente como mensagem de parabéns.',
+  },
 };
 
 export function WhatsAppMessagesCard({

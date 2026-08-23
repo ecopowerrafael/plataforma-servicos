@@ -206,20 +206,30 @@ export class NotificationService {
    * Busca no máximo N notificações por tenant para evitar que um tenant
    * monopolize o batch. Limita entregas simultâneas a M.
    */
-  public async processPending(batchSize = MAX_GLOBAL_BATCH_SIZE): Promise<{ processed: number }> {
-    const backoffThreshold = new Date(Date.now() - BACKOFF_MINUTES_PER_ATTEMPT * 60_000);
-    const processingLeaseThreshold = new Date(Date.now() - PROCESSING_LEASE_MINUTES * 60_000);
+  public async processPending(batchSize = MAX_GLOBAL_BATCH_SIZE, now = new Date()): Promise<{ processed: number }> {
+    const backoffThreshold = new Date(now.getTime() - BACKOFF_MINUTES_PER_ATTEMPT * 60_000);
+    const processingLeaseThreshold = new Date(now.getTime() - PROCESSING_LEASE_MINUTES * 60_000);
 
     const allCandidates = await this.client.notificationLog.findMany({
       where: {
-        OR: [
-          { status: 'PENDING' },
+        AND: [
           {
-            status: 'FAILED',
-            attempts: { lt: MAX_AUTOMATIC_ATTEMPTS },
-            updatedAt: { lte: backoffThreshold },
+            OR: [
+              { status: 'PENDING' },
+              {
+                status: 'FAILED',
+                attempts: { lt: MAX_AUTOMATIC_ATTEMPTS },
+                updatedAt: { lte: backoffThreshold },
+              },
+              { status: 'PROCESSING', updatedAt: { lte: processingLeaseThreshold } },
+            ],
           },
-          { status: 'PROCESSING', updatedAt: { lte: processingLeaseThreshold } },
+          {
+            OR: [
+              { scheduledAt: null },
+              { scheduledAt: { lte: now } },
+            ],
+          },
         ],
       },
       orderBy: { createdAt: 'asc' },

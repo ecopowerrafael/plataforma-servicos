@@ -67,6 +67,7 @@ export class CustomerRecoveryRepository {
         phone: true,
         birthDate: true,
         email: true,
+        whatsapp: true,
         pushSubscriptions: { where: { tenantId, active: true }, select: { id: true }, take: 1 },
         appointments: {
           orderBy: { startsAt: 'desc' },

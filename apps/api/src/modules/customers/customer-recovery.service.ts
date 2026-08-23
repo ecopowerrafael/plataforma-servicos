@@ -18,15 +18,30 @@ const kindByRule = {
 function dayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+// Gera chave mês (YYYY-MM) para usar como periodKey em regra INACTIVE.
+// Isso permite enviar notificação novamente a cada mês para cliente inativo.
+// Comportamento intencional: cliente recebe mensagem de re-engajamento uma vez por mês.
 function monthKey(date: Date): string {
   return date.toISOString().slice(0, 7);
 }
-export function birthdayMatches(date: Date | null, now: Date): boolean {
-  return (
-    date !== null &&
-    date.getUTCMonth() === now.getUTCMonth() &&
-    date.getUTCDate() === now.getUTCDate()
-  );
+export function birthdayMatches(
+  date: Date | null,
+  now: Date,
+  timezone = 'America/Sao_Paulo',
+): boolean {
+  if (date === null) return false;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: timezone,
+  });
+  const birthParts = formatter.formatToParts(date);
+  const nowParts = formatter.formatToParts(now);
+  const birthMonth = birthParts.find((p) => p.type === 'month')?.value;
+  const birthDay = birthParts.find((p) => p.type === 'day')?.value;
+  const nowMonth = nowParts.find((p) => p.type === 'month')?.value;
+  const nowDay = nowParts.find((p) => p.type === 'day')?.value;
+  return birthMonth === nowMonth && birthDay === nowDay;
 }
 
 export class CustomerRecoveryService {
@@ -165,9 +180,15 @@ export class CustomerRecoveryService {
     rule: RuleRecord,
     now: Date,
   ): { referenceAt: Date | null; periodKey: string } | null {
-    if (customer.email === null && customer.pushSubscriptions.length === 0) return null;
+    // Elegível se possuir pelo menos um canal: email, push ativo ou whatsapp
+    if (
+      customer.email === null &&
+      customer.pushSubscriptions.length === 0 &&
+      customer.whatsapp === null
+    )
+      return null;
     if (rule.rule === 'BIRTHDAY')
-      return birthdayMatches(customer.birthDate, now)
+      return birthdayMatches(customer.birthDate, now, 'America/Sao_Paulo')
         ? { referenceAt: customer.birthDate, periodKey: String(now.getUTCFullYear()) }
         : null;
     const cutoff = new Date(now.getTime() - rule.days * 86_400_000);

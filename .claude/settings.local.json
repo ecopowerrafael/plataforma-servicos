@@ -65,7 +65,9 @@
       "Bash(xargs grep -l \"PaymentPublicSchema\")",
       "Bash(curl -s http://localhost:3000/tenant/info)",
       "Bash(pkill -f \"node.*server.js\\\\|tsx.*server.ts\")",
-      "PowerShell(Get-Process tsx -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Process tsx -ErrorAction SilentlyContinue)",
+      "PowerShell($env:DUOVET_VPS_PASSWORD = \"2705@Data2705\"; & \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\duo-vet\\\\deploy_vps.ps1\" 2>&1)",
+      "PowerShell(Get-Command ssh -ErrorAction SilentlyContinue)"
     ]
   }
 }

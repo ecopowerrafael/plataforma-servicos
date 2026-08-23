@@ -4,8 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { CollectionRuleListResponseSchema, DebtPublicSchema } from '@plataforma/shared';
 import { httpClient } from '../../../lib/http.js';
 import { PageHeader } from '../../ui/AppUi.js';
-import { BotCobraCard } from '../ui/BotCobraCard.js';
-import { BotCobraSectionCard } from '../ui/BotCobraSectionCard.js';
+import '../bot-cobra.css';
 
 export function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: string }) {
   const queryClient = useQueryClient();
@@ -63,138 +62,125 @@ export function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: str
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bot-cobra-summary'] });
       queryClient.invalidateQueries({ queryKey: ['bot-cobra-list'] });
-      queryClient.invalidateQueries({ queryKey: ['bot-cobra-list-full'] });
       setError(null);
       navigate('/app/bot-cobra/cobrancas');
     },
     onError: (err: any) => {
       setError(err?.message || 'Não foi possível criar a cobrança.');
-      console.error('Erro ao criar cobrança:', err);
     },
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
-      <PageHeader title="Nova Cobrança" description="Criar uma nova cobrança manual" />
+    <div className="app-shell bot-cobra-page">
+      <div className="bot-cobra-container">
+        <PageHeader title="Nova Cobrança" description="Criar uma nova cobrança manual" />
 
-      <div className="px-4 md:px-6 py-6 max-w-4xl">
         {error && (
-          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+          <div style={{
+            background: 'var(--app-danger-soft)',
+            border: '1px solid var(--app-danger)',
+            color: 'var(--app-danger)',
+            padding: '1rem',
+            borderRadius: 'var(--app-radius-md)',
+            marginBottom: '1.5rem',
+            fontSize: '0.9rem',
+          }}>
             {error}
           </div>
         )}
 
         <form
-          className="space-y-6"
+          style={{ maxWidth: '900px' }}
           onSubmit={(e) => {
             e.preventDefault();
             createMutation.mutate();
           }}
         >
           {/* Devedor */}
-          <BotCobraSectionCard title="Informações do Devedor" subtitle="Dados de contato do cliente">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Nome do Devedor *
-                </label>
+          <div className="bot-cobra-form-section">
+            <h3>Informações do Devedor</h3>
+            <div className="bot-cobra-form-grid">
+              <div className="bot-cobra-form-group">
+                <label>Nome do Devedor *</label>
                 <input
                   type="text"
                   placeholder="Ex: João Silva"
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  WhatsApp *
-                </label>
+              <div className="bot-cobra-form-group">
+                <label>WhatsApp *</label>
                 <input
                   type="text"
                   placeholder="Ex: (11) 99999-9999"
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.whatsapp}
                   onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  E-mail (Opcional)
-                </label>
+              <div className="bot-cobra-form-group">
+                <label>E-mail (Opcional)</label>
                 <input
                   type="email"
                   placeholder="Ex: joao@email.com"
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
               </div>
             </div>
-          </BotCobraSectionCard>
+          </div>
 
           {/* Financeiro */}
-          <BotCobraSectionCard title="Informações Financeiras" subtitle="Detalhes da dívida">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Valor *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={formData.valueCents}
-                    onChange={(e) => setFormData({ ...formData, valueCents: e.target.value })}
-                    required
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Em reais (R$)</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Data de Vencimento *
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={formData.dueDate}
-                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                    required
-                  />
-                </div>
+          <div className="bot-cobra-form-section">
+            <h3>Informações Financeiras</h3>
+            <div className="bot-cobra-form-grid">
+              <div className="bot-cobra-form-group">
+                <label>Valor *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.valueCents}
+                  onChange={(e) => setFormData({ ...formData, valueCents: e.target.value })}
+                  required
+                />
+                <small style={{ color: 'var(--app-muted)', marginTop: '0.25rem' }}>Em reais (R$)</small>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Descrição *
-                </label>
-                <textarea
-                  placeholder="Descreva o motivo da dívida (ex: Serviços prestados, Venda de produto)"
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              <div className="bot-cobra-form-group">
+                <label>Data de Vencimento *</label>
+                <input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                   required
                 />
               </div>
             </div>
-          </BotCobraSectionCard>
+            <div className="bot-cobra-form-group">
+              <label>Descrição *</label>
+              <textarea
+                placeholder="Descreva o motivo da dívida"
+                rows={3}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                required
+                style={{ width: '100%', minHeight: '5rem' }}
+              />
+            </div>
+          </div>
 
           {/* Configuração */}
-          <BotCobraSectionCard title="Configuração de Cobrança" subtitle="Escolha a campanha e adicione observações">
-            <div className="space-y-4">
-              {campaigns.length > 0 ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Campanha de Cobrança *
-                  </label>
+          <div className="bot-cobra-form-section">
+            <h3>Configuração de Cobrança</h3>
+            {campaigns.length > 0 ? (
+              <div className="bot-cobra-form-grid full">
+                <div className="bot-cobra-form-group">
+                  <label>Campanha de Cobrança *</label>
                   <select
                     value={formData.collectionRulePublicId}
                     onChange={(e) => setFormData({ ...formData, collectionRulePublicId: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
                     <option value="">Selecione uma campanha...</option>
@@ -205,48 +191,60 @@ export function BotCobraNewDebtSection({ tenantPublicId }: { tenantPublicId: str
                     ))}
                   </select>
                 </div>
-              ) : (
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                  <p className="text-sm text-amber-900 dark:text-amber-200">
-                    Nenhuma campanha disponível.{' '}
-                    <button
-                      type="button"
-                      onClick={() => navigate('/app/bot-cobra/campanhas')}
-                      className="font-medium hover:underline"
-                    >
-                      Criar uma campanha
-                    </button>
-                  </p>
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Observações Internas (Opcional)
-                </label>
-                <textarea
-                  placeholder="Notas internas sobre esta dívida..."
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={2}
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
               </div>
+            ) : (
+              <div style={{
+                background: 'var(--app-warning-soft)',
+                border: '1px solid var(--app-warning)',
+                color: 'var(--app-warning)',
+                padding: '1rem',
+                borderRadius: 'var(--app-radius-md)',
+                fontSize: '0.9rem',
+              }}>
+                Nenhuma campanha disponível.{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/app/bot-cobra/campanhas')}
+                  style={{ textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Criar uma campanha
+                </button>
+              </div>
+            )}
+            <div className="bot-cobra-form-group">
+              <label>Observações Internas (Opcional)</label>
+              <textarea
+                placeholder="Notas internas sobre esta dívida..."
+                rows={2}
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                style={{ width: '100%', minHeight: '3rem' }}
+              />
             </div>
-          </BotCobraSectionCard>
+          </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4">
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button
               type="submit"
               disabled={!isValid || createMutation.isPending}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+              className="button"
             >
               {createMutation.isPending ? 'Criando...' : 'Criar Cobrança'}
             </button>
             <button
               type="button"
               onClick={() => navigate('/app/bot-cobra')}
-              className="px-6 py-2.5 border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-900/50 transition-colors"
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--app-border)',
+                color: 'var(--app-text)',
+                padding: '0.5rem 0.85rem',
+                borderRadius: 'var(--app-radius-sm)',
+                cursor: 'pointer',
+                fontSize: '0.84rem',
+                fontWeight: 750,
+              }}
             >
               Cancelar
             </button>

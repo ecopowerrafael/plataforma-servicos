@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CreateProfessionalRequestSchema, type ProfessionalPublicSchema } from '@plataforma/shared';
+import { CreateProfessionalRequestSchema, UpdateProfessionalRequestSchema, type ProfessionalPublicSchema } from '@plataforma/shared';
 import { useEffect, useRef } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { type z } from 'zod';
@@ -10,9 +10,13 @@ const FieldError = ({ message }: { message?: string }) =>
 import { MemberSelect } from '../tenants/MemberSelect.js';
 import { UnitSelect } from '../tenants/UnitSelect.js';
 
-type Input = z.input<typeof CreateProfessionalRequestSchema>;
-type Value = z.output<typeof CreateProfessionalRequestSchema>;
 type Professional = z.infer<typeof ProfessionalPublicSchema>;
+
+const getSchema = (isCreate: boolean) =>
+  isCreate ? CreateProfessionalRequestSchema : UpdateProfessionalRequestSchema;
+
+type Input = z.input<typeof CreateProfessionalRequestSchema>;
+type Value = z.output<typeof CreateProfessionalRequestSchema> | z.output<typeof UpdateProfessionalRequestSchema>;
 export const parseProfessionalSpecialties = (value: string) =>
   value
     .split(',')
@@ -75,6 +79,7 @@ export function ProfessionalForm({
   section?: 'profile' | 'commission' | 'access';
 }) {
   const firstErrorRef = useRef<HTMLInputElement | null>(null);
+  const isCreate = professional === undefined;
   const {
     register,
     handleSubmit,
@@ -83,7 +88,7 @@ export function ProfessionalForm({
     formState: { errors, isDirty },
   } = useForm<Input, unknown, Value>({
     defaultValues: defaults(professional),
-    resolver: zodResolver(CreateProfessionalRequestSchema),
+    resolver: zodResolver(getSchema(isCreate)),
   });
   useEffect(() => {
     reset(defaults(professional));

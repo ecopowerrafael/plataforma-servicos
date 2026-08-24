@@ -1,18 +1,20 @@
 import { z } from 'zod';
 const color = z.string().regex(/^#[0-9A-Fa-f]{6}$/u);
 export const CommissionTypeSchema = z.enum(['PERCENTAGE', 'FIXED']);
+const emptyToNull = z.string().transform(v => v.trim() === '' ? null : v.trim());
+
 const inputBase = {
-  name: z.string().trim().min(2).max(120),
-  publicName: z.string().trim().min(2).max(120),
-  bio: z.string().trim().min(1).max(2000).nullable().optional(),
-  phone: z.string().trim().min(3).max(32).nullable().optional(),
-  email: z.email().trim().max(254).nullable().optional(),
-  professionalDocument: z.string().trim().min(2).max(80).nullable().optional(),
+  name: z.string().trim().min(2, 'Informe o nome do profissional.').max(120),
+  publicName: z.string().trim().min(2, 'Informe o nome de exibição.').max(120),
+  bio: emptyToNull.pipe(z.string().min(1).max(2000)).nullable().optional(),
+  phone: emptyToNull.pipe(z.string().min(3, 'Informe um telefone válido.').max(32)).nullable().optional(),
+  email: emptyToNull.pipe(z.string().email('Informe um e-mail válido.').max(254)).nullable().optional(),
+  professionalDocument: emptyToNull.pipe(z.string().min(2, 'Informe pelo menos 2 caracteres.').max(80)).nullable().optional(),
   specialties: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
-  calendarColor: color,
+  calendarColor: color.catch('#2563EB'),
   sortOrder: z.coerce.number().int().min(0).max(999).default(0),
-  primaryUnitPublicId: z.uuid().nullable().optional(),
-  userPublicId: z.uuid().nullable().optional(),
+  primaryUnitPublicId: z.string().uuid('Unidade inválida.').nullable().optional(),
+  userPublicId: z.string().uuid().nullable().optional(),
   commissionType: CommissionTypeSchema.default('PERCENTAGE'),
   commissionValue: z.coerce.number().int().min(0).default(0),
   customFields: z.record(z.string().max(63), z.unknown()).default({}),

@@ -27,7 +27,16 @@ const ServiceInputShape = {
   quoteNotice: z.string().trim().min(1).max(160).nullable().optional(),
   color: ServiceColorSchema,
   sortOrder: z.coerce.number().int().min(0).max(999).default(0),
+};
+
+const ServiceCreateInputShape = {
+  ...ServiceInputShape,
   active: z.boolean().default(true),
+};
+
+const ServiceUpdateInputShape = {
+  ...ServiceInputShape,
+  active: z.boolean().optional(),
 };
 
 function withBreakValidation<T extends z.ZodType>(schema: T): T {
@@ -62,8 +71,8 @@ function withBreakValidation<T extends z.ZodType>(schema: T): T {
   });
 }
 
-export const CreateServiceRequestSchema = withBreakValidation(z.object(ServiceInputShape).strict());
-export const UpdateServiceRequestSchema = withBreakValidation(z.object(ServiceInputShape).strict());
+export const CreateServiceRequestSchema = withBreakValidation(z.object(ServiceCreateInputShape).strict());
+export const UpdateServiceRequestSchema = withBreakValidation(z.object(ServiceUpdateInputShape).strict());
 
 export const ServicePublicSchema = z
   .object({

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 const color = z.string().regex(/^#[0-9A-Fa-f]{6}$/u);
 export const CommissionTypeSchema = z.enum(['PERCENTAGE', 'FIXED']);
-const input = {
+const inputBase = {
   name: z.string().trim().min(2).max(120),
   publicName: z.string().trim().min(2).max(120),
   bio: z.string().trim().min(1).max(2000).nullable().optional(),
@@ -11,13 +11,23 @@ const input = {
   specialties: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
   calendarColor: color,
   sortOrder: z.coerce.number().int().min(0).max(999).default(0),
-  active: z.boolean().default(true),
   primaryUnitPublicId: z.uuid().nullable().optional(),
   userPublicId: z.uuid().nullable().optional(),
   commissionType: CommissionTypeSchema.default('PERCENTAGE'),
   commissionValue: z.coerce.number().int().min(0).default(0),
   customFields: z.record(z.string().max(63), z.unknown()).default({}),
 };
+
+const inputCreate = {
+  ...inputBase,
+  active: z.boolean().default(true),
+};
+
+const inputUpdate = {
+  ...inputBase,
+  active: z.boolean().optional(),
+};
+
 const commissionLimit = (
   v: { commissionType: 'PERCENTAGE' | 'FIXED'; commissionValue: number },
   c: z.RefinementCtx,
@@ -30,11 +40,11 @@ const commissionLimit = (
     });
 };
 export const CreateProfessionalRequestSchema = z
-  .object(input)
+  .object(inputCreate)
   .strict()
   .superRefine(commissionLimit);
 export const UpdateProfessionalRequestSchema = z
-  .object(input)
+  .object(inputUpdate)
   .strict()
   .superRefine(commissionLimit);
 export const UpdateMyProfessionalProfileRequestSchema = z

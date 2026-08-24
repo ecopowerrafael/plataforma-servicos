@@ -69,7 +69,8 @@
       "PowerShell($env:DUOVET_VPS_PASSWORD = \"2705@Data2705\"; & \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\duo-vet\\\\deploy_vps.ps1\" 2>&1)",
       "PowerShell(Get-Command ssh -ErrorAction SilentlyContinue)",
       "Bash(npm test *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(xargs grep -l \"CreateServiceRequestSchema\")"
     ]
   }
 }

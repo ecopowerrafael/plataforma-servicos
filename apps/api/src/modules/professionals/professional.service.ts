@@ -215,7 +215,7 @@ export class ProfessionalService {
       specialties: input.specialties as Prisma.InputJsonValue,
       calendarColor: input.calendarColor,
       sortOrder: input.sortOrder,
-      active: input.active,
+      ...(input.active === undefined ? {} : { active: input.active }),
       primaryUnitId: unit?.id ?? null,
       userId: member?.id ?? null,
       commissionType: input.commissionType,

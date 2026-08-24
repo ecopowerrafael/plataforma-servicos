@@ -156,7 +156,7 @@ export class ServiceService {
         quoteNotice: input.quoteNotice ?? null,
         color: input.color,
         sortOrder: input.sortOrder,
-        active: input.active,
+        ...(input.active === undefined ? {} : { active: input.active }),
       });
       await this.recordAudit(tenantId, service.publicId, 'service.updated', actor);
       return toPublic(service);

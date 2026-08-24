@@ -500,18 +500,31 @@ export function HomePage() {
         tenantPublicId: selectedTenant,
         body,
         schema: z.unknown(),
-      }).finally(() => {
+      }).catch((error) => {
         URL.revokeObjectURL(localUrl);
+        throw error;
       });
     },
     onSuccess: () => {
       onboardingBrand.refetch();
+      // Blob URL revogada somente quando refetch trazer URL persistida
       setLocalAssetPreviews({ LOGO: null, SPLASH: null, APP_ICON: null });
     },
     onError: () => {
       setLocalAssetPreviews({ LOGO: null, SPLASH: null, APP_ICON: null });
     },
   });
+
+  // Revogar blob URLs quando onboardingBrand refetch completar com URL persistida
+  useEffect(() => {
+    if (onboardingBrand.data !== undefined) {
+      Object.values(localAssetPreviews).forEach((url) => {
+        if (url !== null && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    }
+  }, [onboardingBrand.data, localAssetPreviews]);
   const onboardingActionError = [
     updateOnboarding.error,
     savePublicTheme.error,

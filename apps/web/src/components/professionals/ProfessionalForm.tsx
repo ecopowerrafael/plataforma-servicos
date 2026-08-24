@@ -78,13 +78,13 @@ export function ProfessionalForm({
   onCancel?: () => void;
   section?: 'profile' | 'commission' | 'access';
 }) {
-  const firstErrorRef = useRef<HTMLInputElement | null>(null);
   const isCreate = professional === undefined;
   const {
     register,
     handleSubmit,
     reset,
     control,
+    setFocus,
     formState: { errors, isDirty },
   } = useForm<Input, unknown, Value>({
     defaultValues: defaults(professional),
@@ -116,7 +116,13 @@ export function ProfessionalForm({
       className={`platform-form professional-profile-form professional-profile-form--${section}`}
       onSubmit={(event) => {
         event.preventDefault();
-        void handleSubmit(onSave)();
+        void handleSubmit(
+          onSave,
+          (errors) => {
+            const firstField = Object.keys(errors)[0];
+            if (firstField) setFocus(firstField as keyof Input);
+          }
+        )();
       }}
     >
       <header className="profile-form-heading">
@@ -139,12 +145,12 @@ export function ProfessionalForm({
         <>
           <label>
             Nome
-            <input {...register('name')} {...getFieldProps('name')} ref={(el) => { if (errors.name && !firstErrorRef.current) firstErrorRef.current = el; }} />
+            <input {...register('name')} {...getFieldProps('name')} />
             <FieldError message={errors.name?.message} />
           </label>
           <label>
             Nome de exibição
-            <input {...register('publicName')} {...getFieldProps('publicName')} ref={(el) => { if (errors.publicName && !firstErrorRef.current) firstErrorRef.current = el; }} />
+            <input {...register('publicName')} {...getFieldProps('publicName')} />
             <FieldError message={errors.publicName?.message} />
           </label>
           <label>
@@ -157,7 +163,7 @@ export function ProfessionalForm({
           </label>
           <label>
             E-mail
-            <input type="email" {...register('email')} {...getFieldProps('email')} ref={(el) => { if (errors.email && !firstErrorRef.current) firstErrorRef.current = el; }} />
+            <input type="email" {...register('email')} {...getFieldProps('email')} />
             <FieldError message={errors.email?.message} />
           </label>
           <label>

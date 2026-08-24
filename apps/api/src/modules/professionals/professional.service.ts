@@ -164,7 +164,7 @@ export class ProfessionalService {
 
       // Auto-link User por email se Professional não tem userId mas email foi informado
       if (!old.user && input.email) {
-        const linkedUserId = await this.repository.autoLinkUserByEmail(input.email);
+        const linkedUserId = await this.repository.autoLinkUserByEmail(tenantId, input.email);
         if (linkedUserId) {
           (data as any).userId = linkedUserId;
         }
@@ -266,7 +266,7 @@ export class ProfessionalService {
       sortOrder: input.sortOrder,
       ...(input.active === undefined ? {} : { active: input.active }),
       primaryUnitId: unit?.id ?? null,
-      userId: member?.id ?? null,
+      ...(input.userPublicId === undefined ? {} : { userId: member?.id ?? null }),
       commissionType: input.commissionType,
       commissionValue: input.commissionValue,
       customFields: input.customFields as Prisma.InputJsonValue,

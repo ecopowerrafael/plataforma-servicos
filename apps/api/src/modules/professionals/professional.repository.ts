@@ -37,7 +37,7 @@ export interface ProfessionalRepository {
   updateUserPassword(userPublicId: string, passwordHash: string): Promise<{ id: bigint }>;
   findUserIdByPublicId(userPublicId: string): Promise<{ id: bigint } | null>;
   updateUserEmail(userPublicId: string, email: string): Promise<{ id: bigint }>;
-  autoLinkUserByEmail(email: string): Promise<bigint | null>;
+  autoLinkUserByEmail(tenantId: bigint, email: string): Promise<bigint | null>;
   audit(data: Prisma.AuditLogUncheckedCreateInput): Promise<void>;
 }
 const include = {
@@ -130,13 +130,17 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
       select: { id: true },
     });
   }
-  public async autoLinkUserByEmail(email: string): Promise<bigint | null> {
+  public async autoLinkUserByEmail(tenantId: bigint, email: string): Promise<bigint | null> {
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await this.client.user.findUnique({
-      where: { normalizedEmail },
-      select: { id: true },
+    // Procurar User que JÁ tem membership neste tenant
+    const membership = await this.client.tenantMembership.findFirst({
+      where: {
+        tenantId,
+        user: { normalizedEmail },
+      },
+      select: { userId: true },
     });
-    return user?.id ?? null;
+    return membership?.userId ?? null;
   }
   public async createWithAutomaticUser(
     tenantId: bigint,
@@ -156,9 +160,28 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
           where: { normalizedEmail },
           select: { id: true },
         });
-        userId = existingUser?.id ?? null;
 
-        if (!existingUser) {
+        if (existingUser) {
+          userId = existingUser.id;
+          // Verificar se existingUser já tem membership neste tenant
+          const membershipExists = await tx.tenantMembership.findFirst({
+            where: { tenantId, userId: existingUser.id },
+            select: { id: true },
+          });
+          // Se não tem, criar membership
+          if (!membershipExists) {
+            await tx.tenantMembership.create({
+              data: {
+                publicId: randomUUID(),
+                tenantId,
+                userId: existingUser.id,
+                roleId,
+                status: 'ACTIVE',
+              },
+            });
+          }
+        } else {
+          // Criar novo User
           const newUser = await tx.user.create({
             data: {
               publicId: randomUUID(),
@@ -170,22 +193,15 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
           });
           userId = newUser.id;
 
-          const membershipExists = await tx.tenantMembership.findFirst({
-            where: { tenantId, userId: newUser.id },
-            select: { id: true },
+          await tx.tenantMembership.create({
+            data: {
+              publicId: randomUUID(),
+              tenantId,
+              userId: newUser.id,
+              roleId,
+              status: 'ACTIVE',
+            },
           });
-
-          if (!membershipExists) {
-            await tx.tenantMembership.create({
-              data: {
-                publicId: randomUUID(),
-                tenantId,
-                userId: newUser.id,
-                roleId,
-                status: 'ACTIVE',
-              },
-            });
-          }
         }
       }
 

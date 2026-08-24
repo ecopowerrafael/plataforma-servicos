@@ -1,5 +1,6 @@
 import {
   CreateProfessionalRequestSchema,
+  UpdateProfessionalRequestSchema,
   ProfessionalListResponseSchema,
   ProfessionalPublicSchema,
   TenantUnitsResponseSchema,
@@ -86,10 +87,12 @@ export function ProfessionalModule({
     },
   });
   const save = async (value: unknown) => {
+    const isCreate = selected === null;
+    const schema = isCreate ? CreateProfessionalRequestSchema : UpdateProfessionalRequestSchema;
     const out = await mutation.mutateAsync({
-      url: selected === null ? '/tenant/professionals' : `/tenant/professionals/${selected}`,
-      method: selected === null ? 'POST' : 'PATCH',
-      body: CreateProfessionalRequestSchema.parse(value),
+      url: isCreate ? '/tenant/professionals' : `/tenant/professionals/${selected}`,
+      method: isCreate ? 'POST' : 'PATCH',
+      body: schema.parse(value),
     });
     if (selected === null) {
       setCreating(false);

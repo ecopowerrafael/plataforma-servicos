@@ -161,15 +161,22 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
           });
           userId = newUser.id;
 
-          await tx.tenantMembership.create({
-            data: {
-              publicId: randomUUID(),
-              tenantId,
-              userId: newUser.id,
-              roleId,
-              status: 'ACTIVE',
-            },
+          const membershipExists = await tx.tenantMembership.findFirst({
+            where: { tenantId, userId: newUser.id },
+            select: { id: true },
           });
+
+          if (!membershipExists) {
+            await tx.tenantMembership.create({
+              data: {
+                publicId: randomUUID(),
+                tenantId,
+                userId: newUser.id,
+                roleId,
+                status: 'ACTIVE',
+              },
+            });
+          }
         }
       }
 

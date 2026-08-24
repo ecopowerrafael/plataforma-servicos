@@ -31,6 +31,7 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
+import { type PasswordService } from '../auth/password.service.js';
 import { type ProfessionalCommissionService } from '../payments/professional-commission.service.js';
 import { type PaymentService } from '../payments/payment.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
@@ -46,6 +47,7 @@ interface Options {
   commissions?: ProfessionalCommissionService;
   payments?: PaymentService;
   authService: AuthService;
+  passwords: PasswordService;
   cookieName: string;
   client?: PrismaClient;
 }
@@ -97,7 +99,6 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
     '/tenant/professionals/me',
     { schema: { response: { 200: ProfessionalPublicSchema } } },
     (r) => {
-      options.authService.requirePermission(r.tenant, 'professional.self.read');
       return options.professionals.me(r.tenant.id, r.auth.user.id);
     },
   );
@@ -108,6 +109,33 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
     (r) => {
       options.authService.requirePermission(r.tenant, 'professional.self.update');
       return options.professionals.updateMyProfile(r.tenant.id, r.auth.user.id, r.body, actor(r));
+    },
+  );
+
+  app.put(
+    '/tenant/professionals/me/password',
+    {
+      schema: {
+        body: z.object({
+          password: z.string().min(8),
+          passwordConfirmation: z.string().min(8),
+        }).refine(d => d.password === d.passwordConfirmation, {
+          message: 'Senhas não conferem.',
+          path: ['passwordConfirmation'],
+        }).strict(),
+        response: { 200: z.object({ success: z.boolean() }) },
+      },
+    },
+    async (r) => {
+      options.authService.requirePermission(r.tenant, 'professional.self.update');
+      await options.professionals.changePassword(
+        r.tenant.id,
+        r.auth.user.id,
+        r.body.password,
+        options.passwords,
+        actor(r),
+      );
+      return { success: true };
     },
   );
 

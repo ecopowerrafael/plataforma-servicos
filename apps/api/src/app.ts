@@ -868,6 +868,7 @@ export async function buildApp(options: BuildAppOptions) {
       unavailabilities: options.database.professionalUnavailabilities,
       professionalServices: options.database.professionalServices,
       availability: options.database.availability,
+      passwords: passwordService,
       ...(options.database.commissions === undefined
         ? {}
         : { commissions: options.database.commissions }),

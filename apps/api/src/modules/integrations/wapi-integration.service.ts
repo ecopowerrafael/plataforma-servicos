@@ -53,15 +53,48 @@ interface ProviderResponse {
   code?: string;
 }
 
+export interface WapiCredentialProvider {
+  resolve(): Promise<{ masterApiKey: string; source: string }>;
+}
+
+class SimpleCredentialProvider implements WapiCredentialProvider {
+  public constructor(private readonly key: string | undefined) {}
+  async resolve() {
+    return { masterApiKey: this.key ?? '', source: 'static' };
+  }
+}
+
 export class WApiIntegrationService {
+  private readonly credentialProvider: WapiCredentialProvider;
+
   public constructor(
-    private readonly masterApiKey: string | undefined,
+    credential: WapiCredentialProvider | { masterApiKey: string | undefined } | string | undefined,
     private readonly baseUrl = 'https://api.w-api.app',
     private readonly fetcher: typeof fetch = fetch,
-  ) {}
+  ) {
+    if (credential === undefined || typeof credential === 'string') {
+      this.credentialProvider = new SimpleCredentialProvider(credential);
+    } else if ('resolve' in credential) {
+      this.credentialProvider = credential;
+    } else {
+      this.credentialProvider = new SimpleCredentialProvider(credential.masterApiKey);
+    }
+  }
+
+  private async resolveMasterApiKey(): Promise<string> {
+    const credential = await this.credentialProvider.resolve();
+    return credential.masterApiKey;
+  }
+
+  public async isConfigured(): Promise<boolean> {
+    const key = await this.resolveMasterApiKey();
+    return key !== undefined && key.trim() !== '';
+  }
 
   public get configured(): boolean {
-    return this.masterApiKey !== undefined && this.masterApiKey.trim() !== '';
+    if ('resolve' in this.credentialProvider) return false;
+    const provider = this.credentialProvider as SimpleCredentialProvider;
+    return (provider as unknown as { key: string | undefined }).key !== undefined;
   }
 
   private url(path: string, query: Record<string, string> = {}): string {
@@ -102,7 +135,8 @@ export class WApiIntegrationService {
     instanceName: string;
     webhookUrl: string;
   }): Promise<WApiCreatedInstance> {
-    if (this.masterApiKey === undefined || this.masterApiKey.trim() === '')
+    const masterApiKey = await this.resolveMasterApiKey();
+    if (masterApiKey === undefined || masterApiKey.trim() === '')
       throw new WApiMasterKeyMissingError();
     const body = await this.call(
       this.url('/v1/client/create-instance'),
@@ -110,7 +144,7 @@ export class WApiIntegrationService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apiKey: this.masterApiKey,
+          apiKey: masterApiKey,
           instanceName: input.instanceName,
           webhookReceivedUrl: input.webhookUrl,
           webhookDeliveryUrl: input.webhookUrl,

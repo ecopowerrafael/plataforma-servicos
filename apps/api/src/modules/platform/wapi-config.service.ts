@@ -61,12 +61,9 @@ export class WapiConfigService {
     const credential = await this.provider.resolve();
     if (credential.source === 'none') throw new Error('W-API not configured');
 
-    const wapi = new WApiIntegrationService(
-      credential.masterApiKey,
-      'https://api.w-api.app',
-    );
+    const wapi = new WApiIntegrationService(this.provider, 'https://api.w-api.app');
 
-    if (!wapi.configured) throw new Error('W-API configuration invalid');
+    if (!(await wapi.isConfigured())) throw new Error('W-API configuration invalid');
 
     return { valid: true, source: credential.source };
   }

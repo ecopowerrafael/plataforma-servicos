@@ -20,19 +20,19 @@ export const wapiConfigRoutes: FastifyPluginAsyncZod<Options> = async (app, o) =
   });
 
   app.get('/platform/settings/wapi', async (request) => {
-    o.platformService.requirePermission(request.platformAuth, 'platform.dashboard.read');
+    o.platformService.requirePermission(request.platformAuth, 'platform.commercial_policy.manage');
     return o.wapiConfigService.getConfig();
   });
 
   app.put('/platform/settings/wapi', { schema: { body: z.object({
     masterApiKey: z.string().trim().min(8),
   }) } }, async (r) => {
-    o.platformService.requirePermission(r.platformAuth, 'platform.dashboard.read');
+    o.platformService.requirePermission(r.platformAuth, 'platform.commercial_policy.manage');
     return o.wapiConfigService.setConfig(r.body.masterApiKey);
   });
 
   app.post('/platform/settings/wapi/test', async (r) => {
-    o.platformService.requirePermission(r.platformAuth, 'platform.dashboard.read');
+    o.platformService.requirePermission(r.platformAuth, 'platform.commercial_policy.manage');
     return o.wapiConfigService.testConfig();
   });
 };

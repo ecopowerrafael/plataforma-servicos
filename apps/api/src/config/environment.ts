@@ -195,5 +195,17 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
     throw EnvironmentValidationError.fromZod(result.error.issues);
   }
 
+  // Log seguro: apenas indica se a chave está configurada corretamente
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+    const encryptionKeyConfigured = Boolean(normalized.PAYMENT_GATEWAY_ENCRYPTION_KEY);
+    const encryptionKeyValid =
+      normalized.PAYMENT_GATEWAY_ENCRYPTION_KEY !== undefined &&
+      /^[0-9a-f]{64}$/iu.test(normalized.PAYMENT_GATEWAY_ENCRYPTION_KEY);
+    console.log('[Environment] Encryption key status:', {
+      paymentGatewayEncryptionKeyConfigured: encryptionKeyConfigured,
+      paymentGatewayEncryptionKeyValid: encryptionKeyValid,
+    });
+  }
+
   return Object.freeze(result.data);
 }

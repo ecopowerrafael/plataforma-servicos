@@ -31,7 +31,13 @@ export class WapiConfigService {
   }
 
   async setConfig(masterApiKey: string) {
-    if (!this.cipher) throw new Error('Encryption not configured');
+    if (!this.cipher) {
+      throw new Error(
+        'W-API configuration encryption not available. ' +
+        'PAYMENT_GATEWAY_ENCRYPTION_KEY must be configured on the server. ' +
+        'Status: contact administrator.',
+      );
+    }
 
     const ciphertext = this.cipher.encrypt({ masterApiKey });
     const existing = await this.client.platformWapiConfig.findFirst({

@@ -300,8 +300,24 @@ function WapiConfigModule() {
       setTimeout(() => setMessage(''), 3000);
     },
     onError: (err) => {
-      setMessage(err instanceof Error ? 'Erro ao salvar configuração.' : 'Erro desconhecido.');
-      setTimeout(() => setMessage(''), 3000);
+      let errorMsg = 'Erro ao salvar configuração.';
+      if (err instanceof Error) {
+        // Extrair mensagem segura sem expor secrets
+        const msg = err.message.toLowerCase();
+        if (msg.includes('encryption')) {
+          errorMsg = 'Erro: Sistema de encriptação não está configurado corretamente.';
+        } else if (msg.includes('401') || msg.includes('403')) {
+          errorMsg = 'Erro: Permissão negada. Verifique suas credenciais.';
+        } else if (msg.includes('400')) {
+          errorMsg = 'Erro: Dados inválidos. Verifique a chave informada.';
+        } else if (msg.includes('500') || msg.includes('internal')) {
+          errorMsg = 'Erro interno do servidor. Tente novamente em alguns momentos.';
+        } else {
+          errorMsg = 'Erro ao salvar: ' + (err.message.split('\n')[0] || 'operação falhou');
+        }
+      }
+      setMessage(errorMsg);
+      setTimeout(() => setMessage(''), 5000);
     },
   });
 

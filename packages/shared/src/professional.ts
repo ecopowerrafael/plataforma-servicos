@@ -21,6 +21,8 @@ const inputBase = {
 const inputCreate = {
   ...inputBase,
   active: z.boolean().default(true),
+  password: z.string().min(8).max(200).optional(),
+  passwordConfirmation: z.string().min(8).max(200).optional(),
 };
 
 const inputUpdate = {
@@ -39,10 +41,33 @@ const commissionLimit = (
       message: 'A comissão percentual não pode ultrapassar 100.',
     });
 };
+const validatePasswordMatch = (
+  v: { email?: string | null; password?: string; passwordConfirmation?: string },
+  c: z.RefinementCtx,
+) => {
+  if (v.email && !v.password) {
+    c.addIssue({
+      code: 'custom',
+      path: ['password'],
+      message: 'Senha é obrigatória quando email é informado.',
+    });
+  }
+  if (v.password && v.password !== v.passwordConfirmation) {
+    c.addIssue({
+      code: 'custom',
+      path: ['passwordConfirmation'],
+      message: 'Senhas não conferem.',
+    });
+  }
+};
+
 export const CreateProfessionalRequestSchema = z
   .object(inputCreate)
   .strict()
-  .superRefine(commissionLimit);
+  .superRefine((v, c) => {
+    commissionLimit(v as any, c);
+    validatePasswordMatch(v as any, c);
+  });
 export const UpdateProfessionalRequestSchema = z
   .object(inputUpdate)
   .strict()

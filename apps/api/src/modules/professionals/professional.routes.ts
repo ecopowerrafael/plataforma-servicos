@@ -83,7 +83,7 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     },
     async (r, reply) => {
       options.authService.requirePermission(r.tenant, 'professional.create');
-      return reply.status(201).send(await options.service.create(r.tenant.id, r.body, actor(r)));
+      return reply.status(201).send(await options.service.create(r.tenant.id, r.body, actor(r), options.passwords));
     },
   );
   app.patch(

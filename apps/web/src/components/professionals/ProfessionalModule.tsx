@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { ProfessionalForm } from './ProfessionalForm.js';
+import { ProfessionalAccessForm } from './ProfessionalAccessForm.js';
 import {
   AccessOverview,
   CommissionOverview,
@@ -371,29 +372,14 @@ export function ProfessionalModule({
               }}
             />
           ))}
-        {tab === 'access' &&
-          (editing === 'access' ? (
-            <ProfessionalForm
-              professional={professional}
-              busy={mutation.isPending}
-              error={formError}
-              terminology={terminology}
-              tenantPublicId={tenantPublicId}
-              onSave={save}
-              onCancel={() => {
-                setEditing(null);
-              }}
-              section="access"
-            />
-          ) : (
-            <AccessOverview
-              professional={professional}
-              tenantPublicId={tenantPublicId}
-              onEdit={() => {
-                setEditing('access');
-              }}
-            />
-          ))}
+        {tab === 'access' && (
+          <ProfessionalAccessForm
+            professionalPublicId={professional.publicId}
+            email={professional.userPublicId ? professional.email : null}
+            userPublicId={professional.userPublicId}
+            tenantPublicId={tenantPublicId}
+          />
+        )}
       </div>
     </section>
   );

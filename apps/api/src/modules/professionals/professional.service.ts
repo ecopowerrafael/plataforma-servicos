@@ -124,7 +124,9 @@ export class ProfessionalService {
       });
     return item;
   }
-  public async create(tenantId: bigint, input: CreateProfessionalRequest, actor?: Actor) {
+  public async create(tenantId: bigint, input: CreateProfessionalRequest, actor?: Actor, passwordService?: any) {
+    // Extrair senha antes de passar para data() - senha não faz parte do modelo
+    const password = (input as any).password as string | undefined;
     const data = await this.data(tenantId, input);
     let item: ProfessionalRecord;
     try {
@@ -132,6 +134,13 @@ export class ProfessionalService {
         const roleId = await this.repository.findRoleByCode(tenantId, 'PROFESSIONAL');
         if (!roleId) throw new AppError({ code: 'PROFESSIONAL_ROLE_NOT_FOUND', message: 'Permissão de profissional não configurada.', statusCode: 500 });
         item = await this.repository.createWithAutomaticUser(tenantId, { publicId: randomUUID(), ...data }, roleId.id);
+
+        // Se senha foi fornecida, atualizar User criado automaticamente
+        if (password && item.user) {
+          if (!passwordService) throw new AppError({ code: 'PASSWORD_SERVICE_REQUIRED', message: 'Serviço de senha não disponível.', statusCode: 500 });
+          const passwordHash = await passwordService.hash(password);
+          await this.repository.updateUserPassword(item.user.publicId, passwordHash);
+        }
       } else {
         item = await this.repository.create({ publicId: randomUUID(), tenantId, ...data });
       }

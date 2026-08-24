@@ -36,6 +36,7 @@ export interface ProfessionalRepository {
   >;
   updateUserPassword(userPublicId: string, passwordHash: string): Promise<{ id: bigint }>;
   findUserIdByPublicId(userPublicId: string): Promise<{ id: bigint } | null>;
+  updateUserEmail(userPublicId: string, email: string): Promise<{ id: bigint }>;
   audit(data: Prisma.AuditLogUncheckedCreateInput): Promise<void>;
 }
 const include = {
@@ -117,6 +118,14 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
   public async findUserIdByPublicId(userPublicId: string) {
     return this.client.user.findUnique({
       where: { publicId: userPublicId },
+      select: { id: true },
+    });
+  }
+  public async updateUserEmail(userPublicId: string, email: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    return this.client.user.update({
+      where: { publicId: userPublicId },
+      data: { email, normalizedEmail },
       select: { id: true },
     });
   }

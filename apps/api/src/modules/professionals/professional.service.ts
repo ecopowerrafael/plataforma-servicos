@@ -145,7 +145,11 @@ export class ProfessionalService {
     if (old === null) throw this.notFound();
     let item: ProfessionalRecord;
     try {
-      item = await this.repository.update(old.id, await this.data(tenantId, input));
+      const data = await this.data(tenantId, input);
+      if (input.email && old.email !== input.email && old.user) {
+        await this.repository.updateUserEmail(old.user.publicId, input.email);
+      }
+      item = await this.repository.update(old.id, data);
     } catch (error) {
       this.conflict(error);
     }

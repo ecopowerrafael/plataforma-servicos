@@ -10541,4 +10541,93 @@ h1 {
   .whatsapp-message-actions button {
     width: 100%;
   }
+
+  .assignment-toolbar {
+    flex-direction: column;
+  }
+
+  .assignment-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .assignment-actions button {
+    width: 100%;
+  }
+
+  .service-assignment-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .service-assignment-card button {
+    font-size: 0.7rem;
+  }
+}
+
+.assignment-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.assignment-toolbar label {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.assignment-toolbar input {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.assignment-actions {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.assignment-count {
+  color: #64748b;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.service-assignment-card {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.service-assignment-card input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+  accent-color: #2563eb;
+}
+
+.profile-section-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.profile-section-footer .form-error {
+  margin: 0;
+  flex: 1;
 }

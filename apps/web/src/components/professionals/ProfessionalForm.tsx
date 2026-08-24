@@ -1,8 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CreateProfessionalRequestSchema, type ProfessionalPublicSchema } from '@plataforma/shared';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { type z } from 'zod';
+
+const FieldError = ({ message }: { message?: string }) =>
+  message ? <span className="field-error" style={{ color: 'var(--color-red)', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>{message}</span> : null;
 
 import { MemberSelect } from '../tenants/MemberSelect.js';
 import { UnitSelect } from '../tenants/UnitSelect.js';
@@ -71,6 +74,7 @@ export function ProfessionalForm({
   onCancel?: () => void;
   section?: 'profile' | 'commission' | 'access';
 }) {
+  const firstErrorRef = useRef<HTMLInputElement | null>(null);
   const {
     register,
     handleSubmit,
@@ -84,6 +88,15 @@ export function ProfessionalForm({
   useEffect(() => {
     reset(defaults(professional));
   }, [professional, reset]);
+
+  const getFieldProps = (fieldName: keyof Input) => {
+    const error = errors[fieldName];
+    const errorId = error ? `error-${fieldName}` : undefined;
+    return {
+      'aria-invalid': error ? 'true' : 'false',
+      'aria-describedby': errorId,
+    };
+  };
   const title =
     professional === undefined
       ? `Criar ${terminology.toLowerCase()}`
@@ -112,15 +125,22 @@ export function ProfessionalForm({
           </button>
         )}
       </header>
+      {Object.keys(errors).length > 0 && (
+        <p className="form-error" style={{ marginBottom: '1rem' }}>
+          Revise os campos destacados abaixo.
+        </p>
+      )}
       {section === 'profile' && (
         <>
           <label>
             Nome
-            <input {...register('name')} />
+            <input {...register('name')} {...getFieldProps('name')} ref={(el) => { if (errors.name && !firstErrorRef.current) firstErrorRef.current = el; }} />
+            <FieldError message={errors.name?.message} />
           </label>
           <label>
             Nome de exibição
-            <input {...register('publicName')} />
+            <input {...register('publicName')} {...getFieldProps('publicName')} ref={(el) => { if (errors.publicName && !firstErrorRef.current) firstErrorRef.current = el; }} />
+            <FieldError message={errors.publicName?.message} />
           </label>
           <label>
             Biografia
@@ -132,7 +152,8 @@ export function ProfessionalForm({
           </label>
           <label>
             E-mail
-            <input type="email" {...register('email')} />
+            <input type="email" {...register('email')} {...getFieldProps('email')} ref={(el) => { if (errors.email && !firstErrorRef.current) firstErrorRef.current = el; }} />
+            <FieldError message={errors.email?.message} />
           </label>
           <label>
             Documento profissional
@@ -229,7 +250,6 @@ export function ProfessionalForm({
           </label>
         </>
       )}
-      {Object.keys(errors).length > 0 && <p className="form-error">Revise os campos informados.</p>}
       {error !== null && <p className="form-error">{error}</p>}
       {professional === undefined && (
         <button className="primary-button" disabled={busy} type="submit">

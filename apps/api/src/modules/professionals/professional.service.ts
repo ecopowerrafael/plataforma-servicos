@@ -161,9 +161,20 @@ export class ProfessionalService {
     let item: ProfessionalRecord;
     try {
       const data = await this.data(tenantId, input);
+
+      // Auto-link User por email se Professional não tem userId mas email foi informado
+      if (!old.user && input.email) {
+        const linkedUserId = await this.repository.autoLinkUserByEmail(input.email);
+        if (linkedUserId) {
+          (data as any).userId = linkedUserId;
+        }
+      }
+
+      // Sincronizar email se Professional já tem User
       if (input.email && old.email !== input.email && old.user) {
         await this.repository.updateUserEmail(old.user.publicId, input.email);
       }
+
       item = await this.repository.update(old.id, data);
     } catch (error) {
       this.conflict(error);

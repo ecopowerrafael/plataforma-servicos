@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { SuccessResponseSchema } from '@plataforma/shared';
 import { httpClient } from '../../lib/http.js';
 
 export function ProfessionalAccessForm({
@@ -18,11 +19,11 @@ export function ProfessionalAccessForm({
   const [message, setMessage] = useState('');
 
   const changePwd = useMutation({
-    mutationFn: async (pwd: string) =>
+    mutationFn: async (pwd: string, confirm: string) =>
       httpClient.request(`/tenant/professionals/${professionalPublicId}/password`, {
         method: 'PUT',
-        body: { password: pwd, passwordConfirmation: pwd },
-        schema: { success: true },
+        body: { password: pwd, passwordConfirmation: confirm },
+        schema: SuccessResponseSchema,
         tenantPublicId,
       }),
     onSuccess: () => {
@@ -59,7 +60,7 @@ export function ProfessionalAccessForm({
             className="ds-stack"
             onSubmit={(e) => {
               e.preventDefault();
-              if (canChange) changePwd.mutate(password);
+              if (canChange) changePwd.mutate(password, confirmation);
             }}
           >
             <label>

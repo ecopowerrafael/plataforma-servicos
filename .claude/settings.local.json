@@ -72,7 +72,8 @@
       "Bash(npx tsc *)",
       "Bash(xargs grep -l \"CreateServiceRequestSchema\")",
       "Bash(grep -E \"\\\\.ts$\")",
-      "Bash(rm /c/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api/prisma/migrations/create_platform_wapi_config.sql)"
+      "Bash(rm /c/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api/prisma/migrations/create_platform_wapi_config.sql)",
+      "Bash(git commit *)"
     ]
   }
 }

@@ -60,10 +60,13 @@ export function ProfessionalAppPage({ section = 'agenda' }: { section?: Section 
     manifest.href = `/public/professionals/${tenantPublicId}/${professionalId}/manifest.webmanifest`;
     return () => { manifest?.remove(); };
   }, [professional.data?.publicId, tenantPublicId]);
-  if (site.isPending || auth.isPending) return <main className="app-shell"><p>Carregando aplicativo…</p></main>;
+  if (site.isPending || auth.isPending || professional.isPending) return <main className="app-shell"><p>Carregando aplicativo…</p></main>;
   if (site.data === undefined) return <Navigate replace to="/" />;
   if (auth.error !== null) return <Navigate replace to={`/public/${slug}/profissional/login`} />;
-  if (auth.data?.currentTenant?.membership.permissions.includes('professional.self.read') !== true)
+  const hasPermission = auth.data?.currentTenant?.membership.permissions.includes('professional.self.read');
+  const hasProfessional = professional.data !== undefined && professional.data.publicId !== undefined;
+  const canAccessProfessionalApp = hasPermission || hasProfessional;
+  if (!canAccessProfessionalApp)
     return <Navigate replace to={`/public/${slug}/profissional/login`} />;
   const tenant = site.data;
   return <main className="app-shell professional-app">

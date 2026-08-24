@@ -92,6 +92,19 @@ export class ProfessionalService {
     await this.log(tenantId, updated.publicId, 'professional.self_profile_updated', actor);
     return publicValue(updated);
   }
+  public async changePassword(
+    tenantId: bigint,
+    userId: bigint,
+    password: string,
+    passwordService: any,
+    actor: Actor,
+  ) {
+    const professional = await this.myRecord(tenantId, userId);
+    if (!professional.user) throw new AppError({ code: 'PROFESSIONAL_NO_USER', message: 'Nenhuma conta vinculada.', statusCode: 400 });
+    const passwordHash = await passwordService.hash(password);
+    await this.repository.updateUserPassword(professional.user.publicId, passwordHash);
+    await this.log(tenantId, professional.publicId, 'professional.password_changed', actor);
+  }
   public async myId(tenantId: bigint, userId: bigint) {
     return (await this.myRecord(tenantId, userId)).id;
   }
@@ -109,7 +122,13 @@ export class ProfessionalService {
     const data = await this.data(tenantId, input);
     let item: ProfessionalRecord;
     try {
-      item = await this.repository.create({ publicId: randomUUID(), tenantId, ...data });
+      if (input.userPublicId === undefined && input.email) {
+        const roleId = await this.repository.findRoleByCode(tenantId, 'PROFESSIONAL');
+        if (!roleId) throw new AppError({ code: 'PROFESSIONAL_ROLE_NOT_FOUND', message: 'Permissão de profissional não configurada.', statusCode: 500 });
+        item = await this.repository.createWithAutomaticUser(tenantId, { publicId: randomUUID(), ...data }, roleId.id);
+      } else {
+        item = await this.repository.create({ publicId: randomUUID(), tenantId, ...data });
+      }
     } catch (error) {
       this.conflict(error);
     }

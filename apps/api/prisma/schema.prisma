@@ -3757,3 +3757,14 @@ model PlatformWhatsAppConfig {
   @@map("platform_whatsapp_configs")
 }
 
+model PlatformWapiConfig {
+  id                        BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                  String      @unique @map("public_id") @db.Char(36)
+  masterApiKeyCiphertext    String      @map("master_api_key_ciphertext") @db.Text
+  isActive                  Boolean     @default(true) @map("is_active")
+  createdAt                 DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                 DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("platform_wapi_configs")
+}
+

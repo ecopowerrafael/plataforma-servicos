@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type PrismaClient } from '../../database-client/client.js';
 import { CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
-import { WapiIntegrationService } from '../integrations/wapi-integration.service.js';
+import { WApiIntegrationService } from '../integrations/wapi-integration.service.js';
 import { WapiMasterCredentialProvider } from '../integrations/wapi-master-credential-provider.js';
 
 export class WapiConfigService {
@@ -61,7 +61,7 @@ export class WapiConfigService {
     const credential = await this.provider.resolve();
     if (credential.source === 'none') throw new Error('W-API not configured');
 
-    const wapi = new WapiIntegrationService(
+    const wapi = new WApiIntegrationService(
       credential.masterApiKey,
       'https://api.w-api.app',
     );

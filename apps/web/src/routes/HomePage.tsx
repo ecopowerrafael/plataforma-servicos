@@ -451,6 +451,7 @@ export function HomePage() {
     onSuccess: async () => {
       await Promise.all([
         onboarding.refetch(),
+        onboardingBrand.refetch(),
         queryClient.invalidateQueries({ queryKey: ['auth', 'me'] }),
         queryClient.invalidateQueries({ queryKey: ['tenant', selectedTenant, 'experience'] }),
       ]);
@@ -480,18 +481,35 @@ export function HomePage() {
       });
     },
   });
+  const [localAssetPreviews, setLocalAssetPreviews] = useState<Record<string, string | null>>({
+    LOGO: null,
+    SPLASH: null,
+    APP_ICON: null,
+  });
+
   const uploadBrandAsset = useMutation({
     mutationFn: ({ kind, file }: { kind: 'LOGO' | 'SPLASH' | 'APP_ICON'; file: File }) => {
       if (selectedTenant === undefined)
         throw new Error('Selecione um estabelecimento para continuar.');
       const body = new FormData();
       body.set('file', file, file.name);
+      const localUrl = URL.createObjectURL(file);
+      setLocalAssetPreviews((prev) => ({ ...prev, [kind]: localUrl }));
       return httpClient.request(`/tenant/media/${kind}`, {
         method: 'POST',
         tenantPublicId: selectedTenant,
         body,
         schema: z.unknown(),
+      }).finally(() => {
+        URL.revokeObjectURL(localUrl);
       });
+    },
+    onSuccess: () => {
+      onboardingBrand.refetch();
+      setLocalAssetPreviews({ LOGO: null, SPLASH: null, APP_ICON: null });
+    },
+    onError: () => {
+      setLocalAssetPreviews({ LOGO: null, SPLASH: null, APP_ICON: null });
     },
   });
   const onboardingActionError = [
@@ -1050,14 +1068,19 @@ export function HomePage() {
                 <BrandAssetDropzone
                   title="Logo da empresa"
                   description="Envie um logo em PNG, JPG ou WebP."
+                  previewUrl={localAssetPreviews.LOGO ?? onboardingLogoUrl}
                   busy={uploadBrandAsset.isPending}
                   onUpload={(file) => {
                     uploadBrandAsset.mutate({ kind: 'LOGO', file });
                   }}
                 />
+                {uploadBrandAsset.error instanceof Error && (
+                  <p className="form-error">{uploadBrandAsset.error.message}</p>
+                )}
                 <div className="button-row">
                   <button
                     className="primary-button"
+                    disabled={uploadBrandAsset.isPending}
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'LAYOUT' });
                     }}
@@ -1066,6 +1089,7 @@ export function HomePage() {
                   </button>
                   <button
                     className="secondary-button"
+                    disabled={uploadBrandAsset.isPending}
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'LAYOUT' });
                     }}
@@ -1126,14 +1150,19 @@ export function HomePage() {
                 <BrandAssetDropzone
                   title="Tela de abertura"
                   description="Use uma imagem vertical; sem envio, o logo será usado."
+                  previewUrl={localAssetPreviews.SPLASH ?? onboardingBrand.data?.assets.find((a) => a.kind === 'SPLASH')?.url ? `${environment.apiUrl}${onboardingBrand.data?.assets.find((a) => a.kind === 'SPLASH')?.url}` : undefined}
                   busy={uploadBrandAsset.isPending}
                   onUpload={(file) => {
                     uploadBrandAsset.mutate({ kind: 'SPLASH', file });
                   }}
                 />
+                {uploadBrandAsset.error instanceof Error && (
+                  <p className="form-error">{uploadBrandAsset.error.message}</p>
+                )}
                 <div className="button-row">
                   <button
                     className="primary-button"
+                    disabled={uploadBrandAsset.isPending}
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'APP_ICON' });
                     }}
@@ -1142,6 +1171,7 @@ export function HomePage() {
                   </button>
                   <button
                     className="secondary-button"
+                    disabled={uploadBrandAsset.isPending}
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'APP_ICON' });
                     }}
@@ -1157,15 +1187,20 @@ export function HomePage() {
                 <BrandAssetDropzone
                   title="Ícone do aplicativo"
                   description="Use uma imagem quadrada para a tela inicial."
+                  previewUrl={localAssetPreviews.APP_ICON ?? onboardingBrand.data?.assets.find((a) => a.kind === 'APP_ICON')?.url ? `${environment.apiUrl}${onboardingBrand.data?.assets.find((a) => a.kind === 'APP_ICON')?.url}` : undefined}
                   busy={uploadBrandAsset.isPending}
                   square
                   onUpload={(file) => {
                     uploadBrandAsset.mutate({ kind: 'APP_ICON', file });
                   }}
                 />
+                {uploadBrandAsset.error instanceof Error && (
+                  <p className="form-error">{uploadBrandAsset.error.message}</p>
+                )}
                 <div className="button-row">
                   <button
                     className="primary-button"
+                    disabled={uploadBrandAsset.isPending}
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'READY' });
                     }}
@@ -1174,6 +1209,7 @@ export function HomePage() {
                   </button>
                   <button
                     className="secondary-button"
+                    disabled={uploadBrandAsset.isPending}
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'READY' });
                     }}
@@ -1192,6 +1228,7 @@ export function HomePage() {
                   color={primaryColor}
                   logoUrl={onboardingLogoUrl}
                   mode="mobile"
+                  tenantSlug={onboardingBrand.data?.slug}
                 />
                 <p>
                   Seu aplicativo já tem serviços, profissional e horários. Veja como ficou ou vá

@@ -14,17 +14,36 @@ export function BrandPreview({
   color,
   logoUrl,
   mode,
+  tenantSlug,
 }: {
   displayName: string;
   theme: BrandThemeCode;
   color: string;
   logoUrl?: string | undefined;
   mode: 'mobile' | 'desktop';
+  tenantSlug?: string | undefined;
 }) {
   useAllThemeFonts();
   const palette = /^#[0-9A-Fa-f]{6}$/u.test(color)
     ? deriveBrandPalette(color, theme)
     : deriveBrandPalette('#2457D6', theme);
+
+  if (tenantSlug !== undefined) {
+    return (
+      <iframe
+        src={`/public/${tenantSlug}`}
+        title="Preview da página pública"
+        className={`brand-preview-iframe brand-preview-iframe--${mode}`}
+        style={{
+          width: '100%',
+          height: mode === 'mobile' ? '812px' : '600px',
+          border: '1px solid var(--color-border)',
+          borderRadius: '8px',
+        }}
+      />
+    );
+  }
+
   return (
     <div
       className={`brand-preview-frame brand-preview-frame--${mode}`}

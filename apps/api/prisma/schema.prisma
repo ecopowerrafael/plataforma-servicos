@@ -644,6 +644,7 @@ model DirectoryCategory {
   externalSearches DirectoryExternalSearchCache[]
   cityAggregates DirectoryCityAggregate[]
   aggregateJobs DirectoryCityAggregateJob[]
+  prospectingCampaigns ProspectingCampaign[]
 
   @@index([active, sortOrder])
   @@map("directory_categories")
@@ -727,6 +728,7 @@ model DirectoryBusiness {
   seoQueries       DirectorySeoQueryMetric[]
   seoSubmissions   SeoUrlSubmission[]
   seoInspections   SeoUrlInspection[]
+  prospectingLeads ProspectingLead[]
 
   @@unique([categoryId, state, citySlug, slug], map: "udb_category_city_slug")
   @@index([categoryId, citySlug, active])
@@ -3523,5 +3525,235 @@ model CollectionAttempt {
   @@unique([debtId, cycleNumber, attemptNumber], map: "udca_debt_cycle_attempt")
   @@index([tenantId, status, scheduledAt])
   @@map("collection_attempts")
+}
+
+// Fase 1: Fundação do módulo de prospecção/divulgação
+// Objetivo: Materializar leads a partir do DirectoryBusiness, gerenciar campanhas,
+// rastrear interações. Fases posteriores: envio WhatsApp, worker, webhook, objeções.
+
+enum ProspectingCampaignStatus {
+  DRAFT
+  READY
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELED
+}
+
+enum ProspectingLeadStatus {
+  PENDING
+  SCHEDULED
+  CONTACTED
+  WAITING_REPLY
+  RESPONDED
+  QUALIFYING
+  INTERESTED
+  DEMO_SENT
+  FOLLOW_UP
+  WON
+  LOST
+  NO_RESPONSE
+  SUPPRESSED
+  FAILED
+}
+
+enum ObjectionPattern {
+  EXACT
+  STARTS_WITH
+  ENDS_WITH
+  CONTAINS
+}
+
+model ProspectingCampaign {
+  id                    BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                      @unique @map("public_id") @db.Char(36)
+  name                  String                      @db.VarChar(180)
+  status                ProspectingCampaignStatus   @default(DRAFT)
+  categoryId            BigInt?                     @map("category_id") @db.UnsignedBigInt
+  state                 String?                     @db.Char(2)
+  city                  String?                     @db.VarChar(120)
+  dailyLimit            Int                         @default(100) @map("daily_limit") @db.UnsignedSmallInt
+  sendingStartMinutes   Int                         @default(540) @map("sending_start_minutes") @db.UnsignedSmallInt
+  sendingEndMinutes     Int                         @default(1080) @map("sending_end_minutes") @db.UnsignedSmallInt
+  minIntervalSeconds    Int                         @default(30) @map("min_interval_seconds") @db.UnsignedSmallInt
+  maxIntervalSeconds    Int                         @default(120) @map("max_interval_seconds") @db.UnsignedSmallInt
+  allowedWeekdays       Json                        @default("[1,2,3,4,5]") @map("allowed_weekdays")
+  followUpEnabled       Boolean                     @default(false) @map("follow_up_enabled")
+  followUpAfterHours    Int?                        @map("follow_up_after_hours") @db.UnsignedSmallInt
+  maxFollowUps          Int                         @default(2) @map("max_follow_ups") @db.UnsignedTinyInt
+  pauseOnReply          Boolean                     @default(true) @map("pause_on_reply")
+  pauseOnInterest       Boolean                     @default(true) @map("pause_on_interest")
+  startedAt             DateTime?                   @map("started_at") @db.DateTime(3)
+  pausedAt              DateTime?                   @map("paused_at") @db.DateTime(3)
+  completedAt           DateTime?                   @map("completed_at") @db.DateTime(3)
+  createdAt             DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  category              DirectoryCategory?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  leads                 ProspectingLead[]
+  messages              ProspectingMessage[]
+  templates             ProspectingTemplate[]
+  suppressions          ProspectingSuppression[]
+  objectionExclusions   ProspectingObjectionExclusion[]
+
+  @@index([status, startedAt])
+  @@index([categoryId, state, city])
+  @@map("prospecting_campaigns")
+}
+
+model ProspectingLead {
+  id                      BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String                  @unique @map("public_id") @db.Char(36)
+  campaignId              BigInt                  @map("campaign_id") @db.UnsignedBigInt
+  directoryBusinessId     BigInt                  @map("directory_business_id") @db.UnsignedBigInt
+  phoneSnapshot           String                  @map("phone_snapshot") @db.VarChar(20)
+  normalizedPhone         String                  @map("normalized_phone") @db.VarChar(20)
+  nameSnapshot            String                  @map("name_snapshot") @db.VarChar(180)
+  status                  ProspectingLeadStatus   @default(PENDING)
+  currentStep             Int                     @default(0) @map("current_step") @db.UnsignedSmallInt
+  nextActionAt            DateTime?               @map("next_action_at") @db.DateTime(3)
+  attemptCount            Int                     @default(0) @map("attempt_count") @db.UnsignedSmallInt
+  followUpCount           Int                     @default(0) @map("follow_up_count") @db.UnsignedTinyInt
+  lastOutboundAt          DateTime?               @map("last_outbound_at") @db.DateTime(3)
+  lastInboundAt           DateTime?               @map("last_inbound_at") @db.DateTime(3)
+  respondedAt             DateTime?               @map("responded_at") @db.DateTime(3)
+  interestedAt            DateTime?               @map("interested_at") @db.DateTime(3)
+  convertedAt             DateTime?               @map("converted_at") @db.DateTime(3)
+  humanLockStartedAt      DateTime?               @map("human_lock_started_at") @db.DateTime(3)
+  humanLockUntil          DateTime?               @map("human_lock_until") @db.DateTime(3)
+  humanLockReason         String?                 @map("human_lock_reason") @db.VarChar(500)
+  suppressedAt            DateTime?               @map("suppressed_at") @db.DateTime(3)
+  suppressionReason       String?                 @map("suppression_reason") @db.VarChar(500)
+  createdAt               DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign                ProspectingCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  directoryBusiness       DirectoryBusiness       @relation(fields: [directoryBusinessId], references: [id], onDelete: Restrict)
+  messages                ProspectingMessage[]
+
+  @@unique([campaignId, directoryBusinessId], map: "upld_campaign_business")
+  @@index([campaignId, status, nextActionAt])
+  @@index([normalizedPhone])
+  @@index([humanLockUntil])
+  @@map("prospecting_leads")
+}
+
+model ProspectingMessage {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String              @unique @map("public_id") @db.Char(36)
+  campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
+  leadId            BigInt              @map("lead_id") @db.UnsignedBigInt
+  direction         String              @db.VarChar(20)
+  status            String              @default("PENDING") @db.VarChar(20)
+  body              String              @db.Text
+  externalMessageId String?             @map("external_message_id") @db.VarChar(100)
+  sentAt            DateTime?           @map("sent_at") @db.DateTime(3)
+  deliveredAt       DateTime?           @map("delivered_at") @db.DateTime(3)
+  readAt            DateTime?           @map("read_at") @db.DateTime(3)
+  failedAt          DateTime?           @map("failed_at") @db.DateTime(3)
+  errorMessage      String?             @map("error_message") @db.Text
+  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead              ProspectingLead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+  @@index([leadId, direction, createdAt])
+  @@map("prospecting_messages")
+}
+
+model ProspectingTemplate {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String              @unique @map("public_id") @db.Char(36)
+  campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
+  stepNumber        Int                 @map("step_number") @db.UnsignedSmallInt
+  name              String              @db.VarChar(180)
+  body              String              @db.Text
+  type              String              @default("TEXT") @db.VarChar(20)
+  isDefault         Boolean             @default(false) @map("is_default")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  variants          ProspectingTemplateVariant[]
+
+  @@index([campaignId, stepNumber])
+  @@map("prospecting_templates")
+}
+
+model ProspectingTemplateVariant {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  templateId        BigInt              @map("template_id") @db.UnsignedBigInt
+  variantIndex      Int                 @map("variant_index") @db.UnsignedTinyInt
+  body              String              @db.Text
+  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  template          ProspectingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, variantIndex], map: "uptv_template_variant")
+  @@map("prospecting_template_variants")
+}
+
+model ProspectingObjection {
+  id                BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String      @unique @map("public_id") @db.Char(36)
+  name              String      @db.VarChar(180)
+  description       String?     @db.Text
+  isActive          Boolean     @default(true) @map("is_active")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  patterns          ProspectingObjectionPattern[]
+  exclusions        ProspectingObjectionExclusion[]
+
+  @@map("prospecting_objections")
+}
+
+model ProspectingObjectionPattern {
+  id                BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  objectionId       BigInt                  @map("objection_id") @db.UnsignedBigInt
+  patternType       ObjectionPattern        @map("pattern_type")
+  pattern           String                  @db.VarChar(500)
+  priority          Int                     @default(0)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  objection         ProspectingObjection    @relation(fields: [objectionId], references: [id], onDelete: Cascade)
+
+  @@index([objectionId, priority])
+  @@map("prospecting_objection_patterns")
+}
+
+model ProspectingObjectionExclusion {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
+  objectionId       BigInt              @map("objection_id") @db.UnsignedBigInt
+  excludeFollowUp   Boolean             @default(false) @map("exclude_follow_up")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  objection         ProspectingObjection @relation(fields: [objectionId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, objectionId], map: "upoe_campaign_objection")
+  @@map("prospecting_objection_exclusions")
+}
+
+model ProspectingSuppression {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
+  normalizedPhone   String              @map("normalized_phone") @db.VarChar(20)
+  reason            String              @db.VarChar(500)
+  suppressedAt      DateTime            @default(now()) @map("suppressed_at") @db.DateTime(3)
+  campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, normalizedPhone], map: "ups_campaign_phone")
+  @@index([campaignId, normalizedPhone])
+  @@map("prospecting_suppressions")
+}
+
+model PlatformWhatsAppConfig {
+  id                BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String      @unique @map("public_id") @db.Char(36)
+  phoneNumberId     String      @map("phone_number_id") @db.VarChar(100)
+  phoneNumber       String      @map("phone_number") @db.VarChar(20)
+  businessAccountId String      @map("business_account_id") @db.VarChar(100)
+  accessToken       String      @db.Text
+  isActive          Boolean     @default(true) @map("is_active")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("platform_whatsapp_configs")
 }
 

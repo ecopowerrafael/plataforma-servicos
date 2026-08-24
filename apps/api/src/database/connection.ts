@@ -104,6 +104,7 @@ import { PrismaProfessionalUnitRepository } from '../modules/professionals/profe
 import { ProfessionalUnitLinkService } from '../modules/professionals/professional-unit.service.js';
 import { PrismaProfessionalRepository } from '../modules/professionals/professional.repository.js';
 import { ProfessionalService } from '../modules/professionals/professional.service.js';
+import { ProspectingService } from '../modules/prospecting/prospecting.service.js';
 import { PrismaComboRepository } from '../modules/services/combo.repository.js';
 import { ComboService } from '../modules/services/combo.service.js';
 import { PrismaServiceCategoryRepository } from '../modules/services/service-category.repository.js';
@@ -176,6 +177,7 @@ export interface DatabaseConnection {
   readonly notifications?: NotificationService;
   readonly notificationTemplates?: NotificationTemplateService;
   readonly notificationCampaigns?: NotificationCampaignService;
+  readonly prospecting?: ProspectingService;
   readonly whatsappProvisioning?: WhatsAppProvisioningService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
@@ -539,6 +541,7 @@ export function createDatabaseConnection(
     notifications: notifications,
     notificationTemplates: notificationTemplates,
     notificationCampaigns: notificationCampaigns,
+    prospecting: new ProspectingService(client),
     whatsappProvisioning,
     appointmentNotifications: appointmentNotifications,
     treatmentPlanNotifications,

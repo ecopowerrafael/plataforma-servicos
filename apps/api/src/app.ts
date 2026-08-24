@@ -80,6 +80,7 @@ import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { receiptRoutes } from './modules/payments/receipt.routes.js';
 import { platformBillingWebhookRoutes } from './modules/platform/platform-billing-webhook.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
+import { wapiConfigRoutes } from './modules/platform/wapi-config.routes.js';
 import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
 import { directoryRoutes, publicDirectoryRoutes } from './modules/platform/directory.routes.js';
 import { DirectoryLocationService } from './modules/platform/directory-location.service.js';
@@ -954,6 +955,13 @@ export async function buildApp(options: BuildAppOptions) {
   }
   if (options.database.platformBilling)
     await app.register(platformBillingWebhookRoutes, { service: options.database.platformBilling });
+  if (options.database.wapiConfig && options.database.platform)
+    await app.register(wapiConfigRoutes, {
+      wapiConfigService: options.database.wapiConfig,
+      platformService: options.database.platform,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
 
   return app;
 }

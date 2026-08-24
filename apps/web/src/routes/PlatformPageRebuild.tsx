@@ -3,8 +3,9 @@ import {
   PlatformMeResponseSchema,
   PlatformTenantListResponseSchema,
 } from '@plataforma/shared';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { z } from 'zod';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { AuditModule } from '../components/platform/AuditModule.js';
@@ -31,7 +32,7 @@ export function PlatformPageRebuild() {
   const params = useParams();
   const pathSection = location.pathname.split('/')[2];
   const routeSection = pathSection === 'financeiro' ? 'finance' : pathSection;
-  const section: PlatformSection = [
+  const section: PlatformSection | 'settings' = [
     'dashboard',
     'tenants',
     'plans',
@@ -40,8 +41,9 @@ export function PlatformPageRebuild() {
     'commercial-policy',
     'audit',
     'directory',
+    'settings',
   ].includes(routeSection ?? '')
-    ? (routeSection as PlatformSection)
+    ? (routeSection as PlatformSection | 'settings')
     : 'dashboard';
   const me = useQuery({
     queryKey: ['platform', 'me'],
@@ -105,6 +107,8 @@ export function PlatformPageRebuild() {
         <CommercialPolicyModule />
       ) : section === 'directory' ? (
         <DirectoryModule />
+      ) : section === 'settings' ? (
+        <WapiConfigModule />
       ) : (
         <AuditModule />
       )}
@@ -260,6 +264,168 @@ function Overview({ onTenants }: { onTenants: () => void }) {
           </ul>
         </article>
       ) : null}
+    </section>
+  );
+}
+
+function WapiConfigModule() {
+  const [key, setKey] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const { data: config, isPending, error, refetch } = useQuery({
+    queryKey: ['platform', 'wapi-config'],
+    queryFn: () =>
+      httpClient.request('/platform/settings/wapi', {
+        schema: z.object({
+          configured: z.boolean(),
+          source: z.enum(['none', 'environment', 'database']),
+          active: z.boolean().optional(),
+          updatedAt: z.string().optional(),
+        }),
+      }),
+    retry: false,
+  });
+  const saveMutation = useMutation({
+    mutationFn: async (masterApiKey: string) =>
+      httpClient.request('/platform/settings/wapi', {
+        method: 'PUT',
+        body: { masterApiKey },
+      }),
+    onSuccess: () => {
+      setKey('');
+      setEditing(false);
+      setMessage('Configuração W-API salva com sucesso.');
+      void refetch();
+      setTimeout(() => setMessage(''), 3000);
+    },
+    onError: (err) => {
+      setMessage(err instanceof Error ? 'Erro ao salvar configuração.' : 'Erro desconhecido.');
+      setTimeout(() => setMessage(''), 3000);
+    },
+  });
+
+  const testMutation = useMutation({
+    mutationFn: async () =>
+      httpClient.request('/platform/settings/wapi/test', {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      setMessage('Configuração W-API válida.');
+      setTimeout(() => setMessage(''), 3000);
+    },
+    onError: () => {
+      setMessage('Não foi possível validar a configuração W-API.');
+      setTimeout(() => setMessage(''), 3000);
+    },
+  });
+
+  return (
+    <section>
+      <PageHeader title="Configurações" description="Gerenciar integrações da plataforma." />
+      <article className="platform-panel">
+        <header>
+          <h3>WhatsApp / W-API</h3>
+        </header>
+        {isPending ? (
+          <i className="platform-skeleton" />
+        ) : error instanceof Error ? (
+          <ErrorState message={error.message} retry={() => void refetch()} />
+        ) : config ? (
+          <div>
+            {config.source === 'none' ? (
+              <div>
+                <p>A Master API Key da W-API ainda não foi configurada.</p>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="action-button"
+                >
+                  Configurar
+                </button>
+              </div>
+            ) : config.source === 'environment' ? (
+              <div>
+                <p>A aplicação está usando WAPI_MASTER_API_KEY do servidor.</p>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="action-button"
+                  >
+                    Configurar no painel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void testMutation.mutate()}
+                    className="action-button"
+                    disabled={testMutation.isPending}
+                  >
+                    Testar configuração
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p>
+                  Configurada pelo painel
+                  {config.updatedAt ? ` • Última atualização: ${formatDate(config.updatedAt, true)}` : ''}
+                </p>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="action-button"
+                  >
+                    Substituir chave
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void testMutation.mutate()}
+                    className="action-button"
+                    disabled={testMutation.isPending}
+                  >
+                    Testar configuração
+                  </button>
+                </div>
+              </div>
+            )}
+            {editing ? (
+              <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid #ccc' }}>
+                <input
+                  type="password"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                  placeholder="Master API Key"
+                  style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem' }}
+                  minLength={8}
+                />
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => void saveMutation.mutate(key)}
+                    className="action-button"
+                    disabled={saveMutation.isPending || key.length < 8}
+                  >
+                    Salvar chave
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKey('');
+                      setEditing(false);
+                    }}
+                    className="action-button"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {message ? <p style={{ color: 'green', marginTop: '1rem' }}>{message}</p> : null}
+          </div>
+        ) : null}
+      </article>
     </section>
   );
 }

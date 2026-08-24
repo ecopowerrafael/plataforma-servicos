@@ -41,8 +41,10 @@ import {
 } from '../modules/integrations/integration-delivery.js';
 import { IntegrationRepository } from '../modules/integrations/integration.repository.js';
 import { IntegrationService } from '../modules/integrations/integration.service.js';
-import { WApiIntegrationService } from '../modules/integrations/wapi-integration.service.js';
+import { WApiIntegrationService, type WapiCredentialProvider } from '../modules/integrations/wapi-integration.service.js';
+import { WapiMasterCredentialProvider } from '../modules/integrations/wapi-master-credential-provider.js';
 import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
+import { WapiConfigService } from '../modules/platform/wapi-config.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
 import { AppointmentReminderConfigService } from '../modules/notifications/appointment-reminder-config.service.js';
@@ -205,6 +207,7 @@ export interface DatabaseConnection {
   readonly paymentGateway?: PaymentGatewayService;
   readonly tenantPaymentOptions?: TenantPaymentOptionsService;
   readonly integrations?: IntegrationService;
+  readonly wapiConfig?: WapiConfigService;
   readonly publicBooking?: PublicBookingService;
   readonly products?: ProductCatalogService;
   readonly stockMovements?: StockMovementService;
@@ -369,15 +372,22 @@ export function createDatabaseConnection(
       ? undefined
       : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
   const whatsappDelivery = new WApiWhatsAppDelivery(client, credentialsCipher);
-  // Provisionamento da instância: chave mestra só existe aqui, no backend.
+  // Provisionamento da instância: chave mestra resolvida dinamicamente em runtime
+  const wapiCredentialProvider: WapiCredentialProvider = new WapiMasterCredentialProvider(
+    client,
+    customerAuthOptions?.wapiMasterApiKey,
+    credentialsCipher,
+  );
   const whatsappProvisioning = new WhatsAppProvisioningService(
     client,
-    new WApiIntegrationService(
-      customerAuthOptions?.wapiMasterApiKey,
-      customerAuthOptions?.wapiBaseUrl,
-    ),
+    new WApiIntegrationService(wapiCredentialProvider, customerAuthOptions?.wapiBaseUrl),
     credentialsCipher,
     customerAuthOptions?.appWebUrl,
+  );
+  const wapiConfigService = new WapiConfigService(
+    client,
+    credentialsCipher,
+    customerAuthOptions?.wapiMasterApiKey,
   );
   const notifications = new NotificationService(client, {
     email: emailDelivery,
@@ -591,6 +601,7 @@ export function createDatabaseConnection(
       new AvailabilityService(new AvailabilityRepository(client)),
       appointmentNotifications,
     ),
+    wapiConfig: wapiConfigService,
     async ping() {
       try {
         await activeClient.$queryRaw`SELECT 1`;

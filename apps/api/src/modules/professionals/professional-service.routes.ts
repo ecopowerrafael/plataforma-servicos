@@ -57,6 +57,14 @@ export const professionalServiceRoutes: FastifyPluginAsyncZod<Options> = async (
       return o.service.bulkUpsert(r.tenant.id, r.params.publicId, r.body, actor(r));
     },
   );
+  app.put(
+    '/tenant/services/:publicId/professionals/bulk',
+    { schema: { params: base, body: BulkUpsertProfessionalServiceRequestSchema, response: { 200: ProfessionalServicesResponseSchema } } },
+    (r) => {
+      o.authService.requirePermission(r.tenant, 'professional.service.manage');
+      return o.service.bulkUpsertByService(r.tenant.id, r.params.publicId, r.body, actor(r));
+    },
+  );
   for (const [path, active] of [
     ['activate', true],
     ['deactivate', false],

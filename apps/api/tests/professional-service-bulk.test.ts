@@ -343,3 +343,258 @@ describe.skipIf(url === undefined)('Professional Service Bulk Operations', () =>
     });
   });
 });
+
+describe.skipIf(url === undefined)('Service Bulk Operations', () => {
+  const client = createPrismaClient(url ?? 'mysql://invalid');
+  const suffix = randomUUID().slice(0, 8);
+  let tenantId: bigint;
+  let serviceId: string;
+  let professionalIds: string[] = [];
+  const linkRepo = new PrismaProfessionalServiceRepository(client);
+  const service = new ProfessionalServiceLinkService(linkRepo);
+
+  beforeEach(async () => {
+    professionalIds = [];
+
+    const tenant = await client.tenant.create({
+      data: {
+        publicId: randomUUID(),
+        slug: `service-bulk-${suffix}-${randomUUID().slice(0, 4)}`,
+        legalName: 'Service Bulk Test',
+        displayName: 'Service Bulk Test',
+        timezone: 'America/Sao_Paulo',
+        locale: 'pt-BR',
+        currency: 'BRL',
+      },
+    });
+    tenantId = tenant.id;
+
+    const svc = await client.service.create({
+      data: {
+        publicId: randomUUID(),
+        tenantId,
+        name: 'Test Service',
+        durationMinutes: 30,
+        priceCents: BigInt(5000),
+        color: '#2563EB',
+        active: true,
+      },
+    });
+    serviceId = svc.publicId;
+
+    for (let i = 1; i <= 5; i++) {
+      const prof = await client.professional.create({
+        data: {
+          publicId: randomUUID(),
+          tenantId,
+          name: `Professional ${i}`,
+          publicName: `Prof ${i}`,
+          calendarColor: '#2563EB',
+          active: true,
+        },
+      });
+      professionalIds.push(prof.publicId);
+    }
+  });
+
+  afterEach(async () => {
+    try {
+      await Promise.all([
+        client.auditLog.deleteMany({ where: { tenantId } }),
+        client.professionalCommission.deleteMany({ where: { tenantId } }),
+        client.professionalWorkSchedule.deleteMany({ where: { tenantId } }),
+        client.professionalUnavailability.deleteMany({ where: { tenantId } }),
+        client.professionalService.deleteMany({ where: { tenantId } }),
+        client.professionalUnit.deleteMany({ where: { tenantId } }),
+        client.serviceCategory.deleteMany({ where: { tenantId } }),
+        client.appointment.deleteMany({ where: { tenantId } }),
+      ]);
+      await Promise.all([
+        client.professional.deleteMany({ where: { tenantId } }),
+        client.service.deleteMany({ where: { tenantId } }),
+      ]);
+      await client.tenant.deleteMany({ where: { id: tenantId } });
+    } catch (err) {
+      console.error('cleanup error:', err);
+      throw err;
+    }
+  });
+
+  describe('Bulk Upsert by Service', () => {
+    it('1. service bulk cria 3 profissionais', async () => {
+      const result = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1], professionalIds[2]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      expect(result.items).toHaveLength(3);
+      const ids = result.items.map((i) => i.professionalPublicId).sort();
+      expect(ids).toEqual([professionalIds[0], professionalIds[1], professionalIds[2]].sort());
+    });
+
+    it('2. segunda chamada não duplica', async () => {
+      const first = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const second = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      expect(second.items).toHaveLength(2);
+      expect(first.items.map((i) => i.publicId).sort()).toEqual(
+        second.items.map((i) => i.publicId).sort(),
+      );
+    });
+
+    it('3. remover professional desativa', async () => {
+      await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1], professionalIds[2]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const result = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const prof2 = result.items.find((i) => i.professionalPublicId === professionalIds[2]);
+      expect(prof2?.active).toBe(false);
+    });
+
+    it('4. reintroduzir reativa mesmo link/publicId', async () => {
+      const first = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1], professionalIds[2]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const originalId = first.items.find(
+        (i) => i.professionalPublicId === professionalIds[2],
+      )?.publicId;
+
+      await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const reactivated = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1], professionalIds[2]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const prof2 = reactivated.items.find((i) => i.professionalPublicId === professionalIds[2]);
+      expect(prof2?.publicId).toBe(originalId);
+      expect(prof2?.active).toBe(true);
+    });
+
+    it('5. overrides preservados', async () => {
+      const link = await service.upsert(tenantId, professionalIds[0], {
+        servicePublicId: serviceId,
+        active: true,
+        priceCents: 20000,
+        durationMinutes: 45,
+        hasPostServiceBreak: null,
+        postServiceBreakMinutes: null,
+        commissionType: null,
+        commissionValue: null,
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const updated = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const prof0 = updated.items.find((i) => i.professionalPublicId === professionalIds[0]);
+      expect(prof0?.priceCents).toBe(20000);
+      expect(prof0?.durationMinutes).toBe(45);
+    });
+
+    it('6. professional de outro tenant rejeitado', async () => {
+      const otherTenant = await client.tenant.create({
+        data: {
+          publicId: randomUUID(),
+          slug: `other3-${randomUUID().slice(0, 4)}`,
+          legalName: 'Other Tenant 3',
+          displayName: 'Other3',
+          timezone: 'America/Sao_Paulo',
+          locale: 'pt-BR',
+          currency: 'BRL',
+        },
+      });
+
+      const otherProf = await client.professional.create({
+        data: {
+          publicId: randomUUID(),
+          tenantId: otherTenant.id,
+          name: 'Other Prof',
+          publicName: 'Other',
+          calendarColor: '#2563EB',
+          active: true,
+        },
+      });
+
+      try {
+        await service.bulkUpsertByService(tenantId, serviceId, {
+          desiredServicePublicIds: [otherProf.publicId],
+        }, { userId: BigInt(1), sessionId: BigInt(1) });
+        throw new Error('Should have thrown error');
+      } catch (e) {
+        expect(e).toBeInstanceOf(Error);
+      }
+
+      await client.professional.deleteMany({ where: { tenantId: otherTenant.id } });
+      await client.tenant.deleteMany({ where: { id: otherTenant.id } });
+    });
+
+    it('7. service de outro tenant rejeitado', async () => {
+      const otherTenant = await client.tenant.create({
+        data: {
+          publicId: randomUUID(),
+          slug: `other4-${randomUUID().slice(0, 4)}`,
+          legalName: 'Other Tenant 4',
+          displayName: 'Other4',
+          timezone: 'America/Sao_Paulo',
+          locale: 'pt-BR',
+          currency: 'BRL',
+        },
+      });
+
+      try {
+        await service.bulkUpsertByService(otherTenant.id, serviceId, {
+          desiredServicePublicIds: [professionalIds[0]],
+        }, { userId: BigInt(1), sessionId: BigInt(1) });
+        throw new Error('Should have thrown error');
+      } catch (e) {
+        expect(e).toBeInstanceOf(Error);
+      }
+
+      await client.tenant.deleteMany({ where: { id: otherTenant.id } });
+    });
+
+    it('8. erro no conjunto gera rollback', async () => {
+      const beforeCount = (await linkRepo.listByService(tenantId, serviceId)).length;
+
+      const fakeId = randomUUID();
+      try {
+        await service.bulkUpsertByService(tenantId, serviceId, {
+          desiredServicePublicIds: [professionalIds[0], fakeId],
+        }, { userId: BigInt(1), sessionId: BigInt(1) });
+        throw new Error('Should have thrown error');
+      } catch (e) {
+        // esperado
+      }
+
+      const afterCount = (await linkRepo.listByService(tenantId, serviceId)).length;
+      expect(afterCount).toBe(beforeCount);
+    });
+
+    it('10. operação idempotente', async () => {
+      const first = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1], professionalIds[2]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const firstIds = first.items.map((i) => i.publicId).sort();
+
+      const second = await service.bulkUpsertByService(tenantId, serviceId, {
+        desiredServicePublicIds: [professionalIds[0], professionalIds[1], professionalIds[2]],
+      }, { userId: BigInt(1), sessionId: BigInt(1) });
+
+      const secondIds = second.items.map((i) => i.publicId).sort();
+
+      expect(firstIds).toEqual(secondIds);
+    });
+  });
+});

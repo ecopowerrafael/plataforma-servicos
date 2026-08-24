@@ -78,8 +78,11 @@ export function ProfessionalServiceLinks({
   const bulkSave = useMutation({
     mutationFn: () => {
       const desiredServicePublicIds = Array.from(selectedIds);
+      const endpoint = isProfessional
+        ? `/tenant/professionals/${professionalPublicId}/services/bulk`
+        : `/tenant/services/${servicePublicId}/professionals/bulk`;
       return httpClient.request(
-        `/tenant/professionals/${professionalPublicId}/services/bulk`,
+        endpoint,
         {
           method: 'PUT',
           body: { desiredServicePublicIds },

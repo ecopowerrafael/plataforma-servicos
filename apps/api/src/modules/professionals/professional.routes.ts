@@ -173,4 +173,5 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
       .type(photo.mimeType)
       .send(photo.buffer);
   });
+
 };

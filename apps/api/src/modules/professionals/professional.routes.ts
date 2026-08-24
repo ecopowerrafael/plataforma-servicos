@@ -12,12 +12,14 @@ import { type ProfessionalService } from './professional.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PasswordService } from '../auth/password.service.js';
 import { type AuthorizedTenantContext } from '../auth/identity.repository.js';
 import { validateServiceImageUpload } from '../services/service-image.storage.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 interface Options {
   service: ProfessionalService;
   authService: AuthService;
+  passwords: PasswordService;
   cookieName: string;
   client?: PrismaClient;
 }
@@ -96,6 +98,33 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     (r) => {
       options.authService.requirePermission(r.tenant, 'professional.update');
       return options.service.update(r.tenant.id, r.params.publicId, r.body, actor(r));
+    },
+  );
+  app.put(
+    '/tenant/professionals/:publicId/password',
+    {
+      schema: {
+        params,
+        body: z.object({
+          password: z.string().min(8),
+          passwordConfirmation: z.string().min(8),
+        }).refine(d => d.password === d.passwordConfirmation, {
+          message: 'Senhas não conferem.',
+          path: ['passwordConfirmation'],
+        }).strict(),
+        response: { 200: z.object({ success: z.boolean() }) },
+      },
+    },
+    async (r) => {
+      options.authService.requirePermission(r.tenant, 'professional.update');
+      await options.service.changePassword(
+        r.tenant.id,
+        r.params.publicId,
+        r.body.password,
+        options.passwords,
+        actor(r),
+      );
+      return { success: true };
     },
   );
   for (const [path, active] of [

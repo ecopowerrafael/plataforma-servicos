@@ -850,6 +850,7 @@ export async function buildApp(options: BuildAppOptions) {
     await app.register(professionalRoutes, {
       service: options.database.professionals,
       authService,
+      passwords: passwordService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });

@@ -94,12 +94,18 @@ export class ProfessionalService {
   }
   public async changePassword(
     tenantId: bigint,
-    userId: bigint,
+    userIdOrProfPublicId: bigint | string,
     password: string,
     passwordService: any,
     actor: Actor,
   ) {
-    const professional = await this.myRecord(tenantId, userId);
+    let professional: ProfessionalRecord | null;
+    if (typeof userIdOrProfPublicId === 'string') {
+      professional = await this.repository.find(tenantId, userIdOrProfPublicId);
+    } else {
+      professional = await this.repository.findByUserId(tenantId, userIdOrProfPublicId);
+    }
+    if (professional === null) throw this.notFound();
     if (!professional.user) throw new AppError({ code: 'PROFESSIONAL_NO_USER', message: 'Nenhuma conta vinculada.', statusCode: 400 });
     const passwordHash = await passwordService.hash(password);
     await this.repository.updateUserPassword(professional.user.publicId, passwordHash);

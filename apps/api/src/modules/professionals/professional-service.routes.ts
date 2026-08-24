@@ -2,6 +2,7 @@ import {
   ProfessionalServiceStatusResponseSchema,
   ProfessionalServicesResponseSchema,
   UpsertProfessionalServiceRequestSchema,
+  BulkUpsertProfessionalServiceRequestSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -46,6 +47,14 @@ export const professionalServiceRoutes: FastifyPluginAsyncZod<Options> = async (
     (r) => {
       o.authService.requirePermission(r.tenant, 'professional.service.manage');
       return o.service.upsert(r.tenant.id, r.params.publicId, r.body, actor(r));
+    },
+  );
+  app.put(
+    '/tenant/professionals/:publicId/services/bulk',
+    { schema: { params: base, body: BulkUpsertProfessionalServiceRequestSchema, response: { 200: ProfessionalServicesResponseSchema } } },
+    (r) => {
+      o.authService.requirePermission(r.tenant, 'professional.service.manage');
+      return o.service.bulkUpsert(r.tenant.id, r.params.publicId, r.body, actor(r));
     },
   );
   for (const [path, active] of [

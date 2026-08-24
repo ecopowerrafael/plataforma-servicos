@@ -3,9 +3,9 @@ import { config } from 'dotenv';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { createPrismaClient } from '../src/database/connection.js';
-import { ServiceRepository } from '../src/modules/services/service.repository.js';
+import { PrismaServiceRepository } from '../src/modules/services/service.repository.js';
 import { ServiceService } from '../src/modules/services/service.service.js';
-import { UnconfiguredServiceImageStorage } from '../src/modules/services/service-image.storage.js';
+import { LocalServiceImageStorage } from '../src/modules/services/service-image.storage.js';
 
 config({ path: '../../.env' });
 const url = process.env.DATABASE_URL;
@@ -14,8 +14,8 @@ describe.skipIf(url === undefined)('Service Active Bug — BUG 1', () => {
   const client = createPrismaClient(url ?? 'mysql://invalid');
   const suffix = randomUUID().slice(0, 8);
   let tenantId: bigint;
-  const storage = new UnconfiguredServiceImageStorage();
-  const repository = new ServiceRepository(client);
+  const storage = new LocalServiceImageStorage();
+  const repository = new PrismaServiceRepository(client);
   const service = new ServiceService(repository, storage);
 
   beforeEach(async () => {

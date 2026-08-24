@@ -49,10 +49,10 @@ export const UpdateProfessionalRequestSchema = z
   .superRefine(commissionLimit);
 export const UpdateMyProfessionalProfileRequestSchema = z
   .object({
-    name: input.name,
-    publicName: input.publicName,
-    bio: input.bio,
-    phone: input.phone,
+    name: inputBase.name,
+    publicName: inputBase.publicName,
+    bio: inputBase.bio,
+    phone: inputBase.phone,
   })
   .strict();
 export const ProfessionalPublicSchema = z

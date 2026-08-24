@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   type UpsertProfessionalServiceRequest,
+  type BulkUpsertProfessionalServiceRequest,
   ProfessionalCommissionResponseSchema,
   ProfessionalServicesResponseSchema,
 } from '@plataforma/shared';
@@ -156,6 +157,95 @@ export class ProfessionalServiceLinkService {
       action: active ? 'professional_service.activated' : 'professional_service.deactivated',
       targetType: 'professional_service',
       targetPublicId: item.publicId,
+    });
+  }
+  async bulkUpsert(
+    t: bigint,
+    p: string,
+    input: BulkUpsertProfessionalServiceRequest,
+    a: { userId: bigint; sessionId: bigint },
+  ) {
+    const pro = await this.repo.findProfessional(t, p);
+    if (!pro)
+      throw new AppError({
+        code: 'PROFESSIONAL_NOT_FOUND',
+        message: 'Profissional não encontrado.',
+        statusCode: 404,
+      });
+    if (!pro.active)
+      throw new AppError({
+        code: 'PROFESSIONAL_INACTIVE',
+        message: 'Profissional inativo não pode ter serviços vinculados.',
+        statusCode: 400,
+      });
+    const serviceResults = await Promise.all(
+      input.desiredServicePublicIds.map((id: string) => this.repo.findService(t, id)),
+    );
+    for (const s of serviceResults) {
+      if (!s)
+        throw new AppError({
+          code: 'SERVICE_NOT_FOUND',
+          message: 'Um ou mais serviços não foram encontrados.',
+          statusCode: 404,
+        });
+    }
+    const services = serviceResults.filter((s) => s !== null && s !== undefined);
+    const existing = await this.repo.listByProfessional(t, p);
+    const desiredSet = new Set(services.map((s) => s.id));
+    const existingMap = new Map(existing.map((x) => [x.service.id, x]));
+    for (const [serviceId, link] of existingMap) {
+      if (!desiredSet.has(serviceId)) {
+        await this.repo.update(link.id, { active: false });
+        await this.repo.audit({
+          publicId: randomUUID(),
+          tenantId: t,
+          userId: a.userId,
+          sessionId: a.sessionId,
+          action: 'professional_service.deactivated',
+          targetType: 'professional_service',
+          targetPublicId: link.publicId,
+        });
+      } else if (!link.active) {
+        await this.repo.update(link.id, { active: true });
+        await this.repo.audit({
+          publicId: randomUUID(),
+          tenantId: t,
+          userId: a.userId,
+          sessionId: a.sessionId,
+          action: 'professional_service.activated',
+          targetType: 'professional_service',
+          targetPublicId: link.publicId,
+        });
+      }
+    }
+    for (const service of services) {
+      if (!existingMap.has(service.id)) {
+        const newLink = await this.repo.upsert({
+          publicId: randomUUID(),
+          tenantId: t,
+          professionalId: pro.id,
+          serviceId: service.id,
+          priceCents: null,
+          durationMinutes: null,
+          hasPostServiceBreak: null,
+          postServiceBreakMinutes: null,
+          commissionType: null,
+          commissionValue: null,
+          active: true,
+        });
+        await this.repo.audit({
+          publicId: randomUUID(),
+          tenantId: t,
+          userId: a.userId,
+          sessionId: a.sessionId,
+          action: 'professional_service.created',
+          targetType: 'professional_service',
+          targetPublicId: newLink.publicId,
+        });
+      }
+    }
+    return ProfessionalServicesResponseSchema.parse({
+      items: (await this.repo.listByProfessional(t, p)).map(pub),
     });
   }
 }

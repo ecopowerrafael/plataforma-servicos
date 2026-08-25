@@ -1,4 +1,4 @@
-import { LoginRequestSchema, LoginResponseSchema, PublicTenantSiteResponseSchema } from '@plataforma/shared';
+import { LoginRequestSchema, LoginResponseSchema, PublicTenantSiteResponseSchema, ProfessionalPublicSchema } from '@plataforma/shared';
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -21,11 +21,20 @@ export function ProfessionalTenantLoginPage() {
     try {
       const result = await httpClient.request('/auth/login', { method: 'POST', body: parsed.data, schema: LoginResponseSchema });
       const membership = result.tenants.find((item) => item.tenant.publicId === site.data?.publicId);
-      if (membership === undefined || membership.membership.roleCode !== 'PROFESSIONAL') {
-        setError('Esta conta não possui acesso profissional a este estabelecimento.'); return;
+      if (membership === undefined) {
+        await httpClient.request('/auth/logout', { method: 'POST' });
+        setError('Esta conta não pertence a este estabelecimento.');
+        return;
       }
       selectTenant(membership.tenant.publicId);
-      await navigate(`/public/${slug}/profissional`, { replace: true });
+      try {
+        await httpClient.request('/tenant/professionals/me', { schema: ProfessionalPublicSchema, tenantPublicId: membership.tenant.publicId });
+        await navigate(`/public/${slug}/profissional`, { replace: true });
+      } catch (profError) {
+        await httpClient.request('/auth/logout', { method: 'POST' });
+        const msg = profError instanceof HttpError ? profError.message : 'Esta conta não possui acesso profissional a este estabelecimento.';
+        setError(msg);
+      }
     } catch (cause) { setError(cause instanceof HttpError ? cause.message : 'Não foi possível entrar.'); }
   };
   return <AuthLayout title="Área do profissional" description={site.data.displayName} footer={<Link to={`/forgot-password?returnTo=${encodeURIComponent(`/public/${slug}/profissional`)}`}>Esqueci minha senha</Link>}><form className="auth-form" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}><label>E-mail<input required name="email" type="email" autoComplete="email" /></label><label>Senha<input required name="password" type="password" autoComplete="current-password" /></label>{error === null ? null : <p className="form-error" role="alert">{error}</p>}<button className="primary-button" type="submit">Entrar</button></form></AuthLayout>;

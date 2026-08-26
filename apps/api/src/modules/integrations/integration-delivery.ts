@@ -5,6 +5,7 @@ import { isIP } from 'node:net';
 import { mapWapiConnectionResponse, mapWapiTransportError, type WhatsAppConnectionResult } from './whatsapp-connection.js';
 import { sanitizePayload } from './whatsapp-inbound.js';
 import { type WhatsAppMessageStatus } from './whatsapp-message-status.js';
+import { WapiSendTextClient } from './wapi-send-text-client.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
@@ -186,11 +187,15 @@ function mapOperationTransportError(error: unknown): WhatsAppOperationResult {
 }
 
 export class WApiWhatsAppDelivery implements WhatsAppDelivery {
+  private readonly wapiClient: WapiSendTextClient;
+
   public constructor(
     private readonly client: PrismaClient,
     private readonly cipher: CredentialsCipher | undefined,
     private readonly fetcher: typeof fetch = fetch,
-  ) {}
+  ) {
+    this.wapiClient = new WapiSendTextClient(fetcher);
+  }
 
   private async config(tenantId: bigint, requireActive: boolean) {
     try {
@@ -219,20 +224,19 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
     message: string,
   ): Promise<WhatsAppSendOutcome> {
     const { instanceId, token } = await this.config(tenantId, true);
-    try {
-      const response = await this.fetcher(
-        `https://api.w-api.app/v1/message/send-text?instanceId=${encodeURIComponent(instanceId)}`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: to, message }),
-          signal: AbortSignal.timeout(15_000),
-        },
-      );
-      return toSendOutcome(await mapOperationResponse(response, 'Texto enviado.'));
-    } catch (error) {
-      return toSendOutcome(mapOperationTransportError(error));
-    }
+    const result = await this.wapiClient.sendText({
+      instanceId,
+      token,
+      phone: to,
+      message,
+    });
+    return {
+      externalMessageId: result.ok ? result.externalMessageId : null,
+      status: result.ok ? 'SENT' : 'FAILED',
+      httpStatus: result.httpStatus,
+      errorCode: result.ok ? null : (result.externalCode ?? String(result.httpStatus ?? 'NETWORK')),
+      message: result.message,
+    };
   }
 
   /** Grupo de controle: existência do número + envio de texto simples. */

@@ -1,9 +1,11 @@
 import { type PrismaClient } from '../../database-client/client.js';
+import { ProspectingAutoReplyScheduler } from './prospecting-auto-reply-scheduler.js';
 
 interface ClassificationInput {
   campaignId: bigint;
   leadId: bigint;
   messageId: bigint;
+  inboundMessageId?: bigint;
   text: string;
 }
 
@@ -139,6 +141,23 @@ export class ProspectingObjectionEngine {
           where: { id: input.leadId },
           data: { nextActionAt: null },
         });
+      }
+    }
+
+    // Tentar agendar auto-reply se resposta sugerida existe
+    if (bestMatch.suggestedResponse && input.inboundMessageId) {
+      try {
+        const scheduler = new ProspectingAutoReplyScheduler(this.client);
+        await scheduler.scheduleAutoReply({
+          campaignId: input.campaignId,
+          leadId: input.leadId,
+          inboundMessageId: input.inboundMessageId,
+          objectionId: bestMatch.objectionId,
+          suggestedResponse: bestMatch.suggestedResponse,
+        });
+      } catch (error) {
+        // Log but don't fail classification
+        console.error('[ProspectingObjectionEngine] Auto-reply scheduling error:', error);
       }
     }
 

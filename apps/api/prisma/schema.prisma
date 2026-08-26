@@ -3558,6 +3558,23 @@ enum ProspectingLeadStatus {
   NEEDS_REVIEW
 }
 
+enum ProspectingMessagePurpose {
+  CAMPAIGN
+  AUTO_REPLY
+  FOLLOW_UP
+}
+
+enum ProspectingMessageStatus {
+  PENDING
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  DELIVERY_UNCERTAIN
+  CANCELED
+}
+
 enum ObjectionPattern {
   EXACT
   STARTS_WITH
@@ -3584,6 +3601,7 @@ model ProspectingCampaign {
   maxFollowUps          Int                         @default(2) @map("max_follow_ups") @db.UnsignedTinyInt
   pauseOnReply          Boolean                     @default(true) @map("pause_on_reply")
   pauseOnInterest       Boolean                     @default(true) @map("pause_on_interest")
+  autoReplyEnabled      Boolean                     @default(false) @map("auto_reply_enabled")
   startedAt             DateTime?                   @map("started_at") @db.DateTime(3)
   pausedAt              DateTime?                   @map("paused_at") @db.DateTime(3)
   completedAt           DateTime?                   @map("completed_at") @db.DateTime(3)
@@ -3642,38 +3660,46 @@ model ProspectingLead {
 }
 
 model ProspectingMessage {
-  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId          String              @unique @map("public_id") @db.Char(36)
-  campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
-  leadId            BigInt              @map("lead_id") @db.UnsignedBigInt
-  direction         String              @db.VarChar(20)
-  stepNumber        Int?                @map("step_number") @db.UnsignedSmallInt
-  templateId        BigInt?             @map("template_id") @db.UnsignedBigInt
-  variantIndex      Int?                @map("variant_index") @db.UnsignedTinyInt
-  idempotencyKey    String?             @map("idempotency_key") @db.VarChar(255)
-  status            String              @default("PENDING") @db.VarChar(20)
-  sendingStartedAt  DateTime?           @map("sending_started_at") @db.DateTime(3)
-  classifiedAt      DateTime?           @map("classified_at") @db.DateTime(3)
-  body              String              @db.Text
-  externalMessageId String?             @map("external_message_id") @db.VarChar(100)
-  sentAt            DateTime?           @map("sent_at") @db.DateTime(3)
-  deliveredAt       DateTime?           @map("delivered_at") @db.DateTime(3)
-  readAt            DateTime?           @map("read_at") @db.DateTime(3)
-  failedAt          DateTime?           @map("failed_at") @db.DateTime(3)
-  errorMessage      String?             @map("error_message") @db.Text
-  errorCode         String?             @map("error_code") @db.VarChar(100)
-  attemptNumber     Int                 @default(1) @map("attempt_number") @db.UnsignedTinyInt
-  objectionId       BigInt?             @map("objection_id") @db.UnsignedBigInt
-  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  lead              ProspectingLead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  template          ProspectingTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  objection         ProspectingObjection? @relation(fields: [objectionId], references: [id], onDelete: SetNull)
+  id                BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String                      @unique @map("public_id") @db.Char(36)
+  campaignId        BigInt                      @map("campaign_id") @db.UnsignedBigInt
+  leadId            BigInt                      @map("lead_id") @db.UnsignedBigInt
+  direction         String                      @db.VarChar(20)
+  stepNumber        Int?                        @map("step_number") @db.UnsignedSmallInt
+  templateId        BigInt?                     @map("template_id") @db.UnsignedBigInt
+  variantIndex      Int?                        @map("variant_index") @db.UnsignedTinyInt
+  idempotencyKey    String?                     @map("idempotency_key") @db.VarChar(255)
+  status            String                      @default("PENDING") @db.VarChar(20)
+  sendingStartedAt  DateTime?                   @map("sending_started_at") @db.DateTime(3)
+  classifiedAt      DateTime?                   @map("classified_at") @db.DateTime(3)
+  body              String                      @db.Text
+  externalMessageId String?                     @map("external_message_id") @db.VarChar(100)
+  sentAt            DateTime?                   @map("sent_at") @db.DateTime(3)
+  deliveredAt       DateTime?                   @map("delivered_at") @db.DateTime(3)
+  readAt            DateTime?                   @map("read_at") @db.DateTime(3)
+  failedAt          DateTime?                   @map("failed_at") @db.DateTime(3)
+  errorMessage      String?                     @map("error_message") @db.Text
+  errorCode         String?                     @map("error_code") @db.VarChar(100)
+  attemptNumber     Int                         @default(1) @map("attempt_number") @db.UnsignedTinyInt
+  objectionId       BigInt?                     @map("objection_id") @db.UnsignedBigInt
+  purpose           String                      @default("CAMPAIGN") @db.VarChar(50)
+  scheduledAt       DateTime?                   @map("scheduled_at") @db.DateTime(3)
+  nextAttemptAt     DateTime?                   @map("next_attempt_at") @db.DateTime(3)
+  replyToMessageId  BigInt?                     @map("reply_to_message_id") @db.UnsignedBigInt
+  cancelReason      String?                     @map("cancel_reason") @db.VarChar(500)
+  createdAt         DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign          ProspectingCampaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead              ProspectingLead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  template          ProspectingTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  objection         ProspectingObjection?       @relation(fields: [objectionId], references: [id], onDelete: SetNull)
+  replyToMessage    ProspectingMessage?         @relation("repliesTo", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies           ProspectingMessage[]        @relation("repliesTo")
 
   @@index([campaignId, status])
   @@index([leadId, direction, createdAt])
   @@index([objectionId, classifiedAt])
+  @@index([purpose, status, nextAttemptAt])
   @@map("prospecting_messages")
 }
 
@@ -3715,6 +3741,7 @@ model ProspectingObjection {
   name              String      @db.VarChar(180)
   description       String?     @db.Text
   suggestedResponse String?     @db.Text @map("suggested_response")
+  autoReplyAllowed  Boolean     @default(false) @map("auto_reply_allowed")
   isActive          Boolean     @default(true) @map("is_active")
   createdAt         DateTime    @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
@@ -3799,6 +3826,7 @@ model ProspectingWhatsAppConfig {
   isActive                Boolean      @default(true) @map("is_active")
   lastConnectionStatus    String?      @map("last_connection_status") @db.VarChar(50)
   lastCheckedAt           DateTime?    @map("last_checked_at") @db.DateTime(3)
+  nextSendAt              DateTime?    @map("next_send_at") @db.DateTime(3)
   createdAt               DateTime     @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt               DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
 

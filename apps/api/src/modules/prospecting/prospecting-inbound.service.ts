@@ -153,6 +153,7 @@ export class ProspectingInboundService {
         campaignId: leadData.campaignId,
         leadId: leadData.id,
         messageId: message.id,
+        inboundMessageId: message.id,
         text: payload.body as string,
       });
     } catch (error) {

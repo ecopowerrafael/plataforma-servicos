@@ -14,6 +14,7 @@ const objections = [
     name: 'Interessado',
     description: 'Lead mostrou interesse no produto/serviço',
     suggestedResponse: 'Ótimo! Posso te enviar uma demonstração gratuita. Em qual horário você fica disponível?',
+    autoReplyAllowed: true,
     patterns: [
       { type: 'EXACT', text: 'tenho interesse', priority: 10 },
       { type: 'EXACT', text: 'gostei', priority: 10 },
@@ -28,6 +29,7 @@ const objections = [
     name: 'Sem Interesse',
     description: 'Lead indicou não ter interesse',
     suggestedResponse: 'Tudo bem! Qualquer dúvida no futuro, estou à disposição.',
+    autoReplyAllowed: false,
     patterns: [
       { type: 'EXACT', text: 'nao tenho interesse', priority: 10 },
       { type: 'EXACT', text: 'nao me interessa', priority: 10 },
@@ -41,6 +43,7 @@ const objections = [
     name: 'Já Usa Sistema',
     description: 'Lead já utiliza sistema concorrente ou solução similar',
     suggestedResponse: 'Entendo! O Agendei pode complementar sua solução atual. Quer conversar sobre integração?',
+    autoReplyAllowed: true,
     patterns: [
       { type: 'EXACT', text: 'ja tenho sistema', priority: 10 },
       { type: 'EXACT', text: 'ja uso outro sistema', priority: 10 },
@@ -54,6 +57,7 @@ const objections = [
     name: 'Preço',
     description: 'Lead questionou preço ou achou caro',
     suggestedResponse: 'Posso te mostrar os diferentes planos e como isso se encaixa no seu orçamento.',
+    autoReplyAllowed: true,
     patterns: [
       { type: 'EXACT', text: 'quanto custa', priority: 10 },
       { type: 'EXACT', text: 'qual valor', priority: 10 },
@@ -68,6 +72,7 @@ const objections = [
     name: 'Sem Tempo Agora',
     description: 'Lead está ocupado agora mas aberto para conversa depois',
     suggestedResponse: 'Sem problema! Quando você tem um tempo para conversar com calma?',
+    autoReplyAllowed: false,
     patterns: [
       { type: 'EXACT', text: 'agora nao posso', priority: 10 },
       { type: 'EXACT', text: 'estou ocupado', priority: 10 },
@@ -81,6 +86,7 @@ const objections = [
     name: 'Falar Depois',
     description: 'Lead quer conversar em outro momento',
     suggestedResponse: 'Perfeito! Em qual data você prefere que eu entre em contato novamente?',
+    autoReplyAllowed: false,
     patterns: [
       { type: 'EXACT', text: 'me chama depois', priority: 10 },
       { type: 'EXACT', text: 'fala comigo depois', priority: 10 },
@@ -95,6 +101,7 @@ const objections = [
     name: 'Quer Saber Mais',
     description: 'Lead interessado em aprender mais',
     suggestedResponse: 'Claro! Deixa eu te enviar mais informações sobre como funciona.',
+    autoReplyAllowed: true,
     patterns: [
       { type: 'EXACT', text: 'como funciona', priority: 9 },
       { type: 'EXACT', text: 'me explica', priority: 9 },
@@ -108,6 +115,7 @@ const objections = [
     name: 'Não Entendeu',
     description: 'Lead não compreendeu a proposta',
     suggestedResponse: 'Deixa eu tentar explicar melhor. Qual parte ficou confusa?',
+    autoReplyAllowed: true,
     patterns: [
       { type: 'EXACT', text: 'nao entendi', priority: 10 },
       { type: 'EXACT', text: 'entendi nao', priority: 10 },
@@ -120,6 +128,7 @@ const objections = [
     name: 'Contato Errado',
     description: 'Número ou pessoa errada',
     suggestedResponse: 'Desculpa o incômodo! Você conhece alguém que pudesse estar interessado?',
+    autoReplyAllowed: false,
     patterns: [
       { type: 'EXACT', text: 'numero errado', priority: 10 },
       { type: 'EXACT', text: 'contato errado', priority: 10 },
@@ -151,6 +160,7 @@ async function seedObjections() {
         name: objData.name,
         description: objData.description,
         suggestedResponse: objData.suggestedResponse,
+        autoReplyAllowed: (objData as any).autoReplyAllowed || false,
         isActive: true,
       },
     });

@@ -101,6 +101,10 @@ const campaignDetailSchema = campaignSchema.extend({
   autoReplyEnabled: z.boolean(),
 });
 
+const campaignsResponseSchema = z.object({
+  items: z.array(campaignSchema),
+});
+
 export function ProspectingModule({
   campaignPublicId,
   onOpen,
@@ -147,7 +151,7 @@ export function ProspectingModule({
     queryKey: ['prospecting', 'campaigns'],
     queryFn: () =>
       httpClient.request('/platform/prospecting/campaigns', {
-        schema: z.array(campaignSchema),
+        schema: campaignsResponseSchema,
       }),
   });
 

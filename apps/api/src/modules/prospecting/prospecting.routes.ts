@@ -353,6 +353,185 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     },
   );
 
+  // Conversations
+  app.get(
+    '/platform/prospecting/conversations',
+    { schema: { querystring: leadsQuerySchema } },
+    async (request) => {
+      allow(request, 'platform.tenant.read');
+      const page = Number((request.query as any).page || 1);
+      const pageSize = Math.min(Number((request.query as any).pageSize || 25), 100);
+      const skip = (page - 1) * pageSize;
+      const status = (request.query as any).status;
+      const search = (request.query as any).search;
+
+      const where: any = {};
+      if (status) where.status = status;
+      if (search) {
+        where.OR = [
+          { nameSnapshot: { contains: search } },
+          { phoneSnapshot: { contains: search } },
+        ];
+      }
+
+      const [leads, total] = await Promise.all([
+        options.client.prospectingLead.findMany({
+          where,
+          skip,
+          take: pageSize,
+          select: {
+            id: true,
+            publicId: true,
+            nameSnapshot: true,
+            phoneSnapshot: true,
+            status: true,
+            campaign: { select: { publicId: true, name: true } },
+            humanLockType: true,
+            lastInboundAt: true,
+            updatedAt: true,
+          },
+          orderBy: { updatedAt: 'desc' },
+        }),
+        options.client.prospectingLead.count({ where }),
+      ]);
+
+      return {
+        items: leads,
+        pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      };
+    },
+  );
+
+  app.get(
+    '/platform/prospecting/conversations/:leadPublicId/messages',
+    { schema: { params: leadDetailParams } },
+    async (request) => {
+      allow(request, 'platform.tenant.read');
+      const page = Number((request.query as any).page || 1);
+      const pageSize = Math.min(Number((request.query as any).pageSize || 50), 100);
+      const skip = (page - 1) * pageSize;
+
+      const lead = await options.client.prospectingLead.findUnique({
+        where: { publicId: request.params.leadPublicId },
+        select: { id: true },
+      });
+
+      if (!lead) {
+        throw new Error('Lead not found');
+      }
+
+      const [messages, total] = await Promise.all([
+        options.client.prospectingMessage.findMany({
+          where: { leadId: lead.id },
+          skip,
+          take: pageSize,
+          orderBy: { createdAt: 'asc' },
+        }),
+        options.client.prospectingMessage.count({ where: { leadId: lead.id } }),
+      ]);
+
+      return {
+        items: messages,
+        pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      };
+    },
+  );
+
+  app.post(
+    '/platform/prospecting/leads/:publicId/takeover',
+    { schema: { params: z.object({ publicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const lead = await options.client.prospectingLead.findUnique({
+        where: { publicId: request.params.publicId },
+      });
+
+      if (!lead) {
+        throw new Error('Lead not found');
+      }
+
+      const updated = await options.client.prospectingLead.update({
+        where: { publicId: request.params.publicId },
+        data: {
+          humanLockType: 'MANUAL',
+          humanLockStartedAt: new Date(),
+          humanLockUntil: null,
+          humanLockReason: 'Atendimento manual via plataforma',
+        },
+      });
+
+      return updated;
+    },
+  );
+
+  app.post(
+    '/platform/prospecting/leads/:publicId/release',
+    { schema: { params: z.object({ publicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const lead = await options.client.prospectingLead.findUnique({
+        where: { publicId: request.params.publicId },
+      });
+
+      if (!lead) {
+        throw new Error('Lead not found');
+      }
+
+      const updated = await options.client.prospectingLead.update({
+        where: { publicId: request.params.publicId },
+        data: {
+          humanLockType: null,
+          humanLockStartedAt: null,
+          humanLockUntil: null,
+          humanLockReason: null,
+        },
+      });
+
+      return updated;
+    },
+  );
+
+  app.post(
+    '/platform/prospecting/leads/:publicId/messages',
+    { schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ body: z.string().min(1) }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const lead = await options.client.prospectingLead.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true, status: true, campaignId: true, humanLockType: true },
+      });
+
+      if (!lead) {
+        throw new Error('Lead not found');
+      }
+
+      if (lead.status === 'SUPPRESSED') {
+        throw new Error('Lead opted out');
+      }
+
+      if (lead.humanLockType !== 'MANUAL') {
+        throw new Error('Lead not under manual lock');
+      }
+
+      const idempotencyKey = `MANUAL:${request.params.publicId}:${Date.now()}`;
+
+      const message = await options.client.prospectingMessage.create({
+        data: {
+          publicId: require('node:crypto').randomUUID(),
+          campaignId: lead.campaignId,
+          leadId: lead.id,
+          direction: 'OUTBOUND',
+          status: process.env.PROSPECTING_DRY_RUN === 'true' ? 'DRY_RUN' : 'PENDING',
+          body: request.body.body,
+          idempotencyKey,
+          purpose: 'MANUAL',
+        },
+      });
+
+      return message;
+    },
+  );
+
   // Worker run-once endpoint for manual testing (Platform Admin only)
   app.post(
     '/platform/prospecting/worker/run-once',

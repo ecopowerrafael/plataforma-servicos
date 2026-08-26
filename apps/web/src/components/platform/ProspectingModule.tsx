@@ -12,6 +12,7 @@ import {
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { CampaignForm } from './CampaignForm.js';
 import { ProspectingLeadsView } from './ProspectingLeadsView.js';
+import { ProspectingConversationsView } from './ProspectingConversationsView.js';
 
 interface ProspectingStats {
   leads: number;
@@ -62,7 +63,7 @@ export function ProspectingModule({
   campaignPublicId?: string;
   onOpen?: (id: string) => void;
 }) {
-  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads'>(
+  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations'>(
     campaignPublicId ? 'detail' : 'campaigns'
   );
   const [page, setPage] = useState(1);
@@ -192,6 +193,8 @@ export function ProspectingModule({
           campaigns={campaigns.data?.items ?? []}
           onLeadSelect={() => {}}
         />
+      ) : view === 'conversations' ? (
+        <ProspectingConversationsView />
       ) : (
         <DetailView
           campaign={detail.data as CampaignDetail | undefined}

@@ -5,6 +5,7 @@ import { type PlatformService } from '../platform/platform.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { platformAuthenticationPlugin } from '../platform/platform-auth.plugin.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { type ProspectingWorker } from './prospecting-worker.js';
 
 const CreateCampaignSchema = z.object({
   name: z.string().min(1).max(180),
@@ -44,6 +45,7 @@ interface ProspectingRoutesOptions {
   authService: AuthService;
   cookieName: string;
   client: PrismaClient;
+  worker?: ProspectingWorker;
 }
 
 export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesOptions> = async (
@@ -181,6 +183,19 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
 
       const leads = await options.service.getLeads(campaign.id, 100);
       return { items: leads };
+    },
+  );
+
+  // Worker run-once endpoint for manual testing
+  app.post(
+    '/platform/prospecting/worker/run-once',
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      if (!options.worker) {
+        throw new Error('Worker not configured');
+      }
+      const result = await options.worker.runOnce();
+      return result;
     },
   );
 };

@@ -111,6 +111,16 @@ const environmentSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+    PROSPECTING_WORKER_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    PROSPECTING_WORKER_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+    PROSPECTING_WORKER_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(3600).default(10),
+    PROSPECTING_LOCK_TTL_SECONDS: z.coerce.number().int().min(30).max(3600).default(120),
+    PROSPECTING_SENDING_STALE_SECONDS: z.coerce.number().int().min(60).max(3600).default(300),
+    PROSPECTING_MAX_SEND_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(4),
+    PROSPECTING_TIMEZONE: z.string().default('America/Sao_Paulo'),
   })
   .superRefine((value, context) => {
     if (value.NODE_ENV === 'production' && value.CORS_ORIGINS.includes('*')) {

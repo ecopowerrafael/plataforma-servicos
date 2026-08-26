@@ -3586,6 +3586,7 @@ model ProspectingCampaign {
   startedAt             DateTime?                   @map("started_at") @db.DateTime(3)
   pausedAt              DateTime?                   @map("paused_at") @db.DateTime(3)
   completedAt           DateTime?                   @map("completed_at") @db.DateTime(3)
+  nextSendAt            DateTime?                   @map("next_send_at") @db.DateTime(3)
   createdAt             DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   category              DirectoryCategory?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -3621,6 +3622,9 @@ model ProspectingLead {
   humanLockStartedAt      DateTime?               @map("human_lock_started_at") @db.DateTime(3)
   humanLockUntil          DateTime?               @map("human_lock_until") @db.DateTime(3)
   humanLockReason         String?                 @map("human_lock_reason") @db.VarChar(500)
+  processingWorkerId      String?                 @map("processing_worker_id") @db.VarChar(255)
+  processingStartedAt     DateTime?               @map("processing_started_at") @db.DateTime(3)
+  processingExpiresAt     DateTime?               @map("processing_expires_at") @db.DateTime(3)
   suppressedAt            DateTime?               @map("suppressed_at") @db.DateTime(3)
   suppressionReason       String?                 @map("suppression_reason") @db.VarChar(500)
   createdAt               DateTime                @default(now()) @map("created_at") @db.DateTime(3)
@@ -3642,7 +3646,12 @@ model ProspectingMessage {
   campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
   leadId            BigInt              @map("lead_id") @db.UnsignedBigInt
   direction         String              @db.VarChar(20)
+  stepNumber        Int?                @map("step_number") @db.UnsignedSmallInt
+  templateId        BigInt?             @map("template_id") @db.UnsignedBigInt
+  variantIndex      Int?                @map("variant_index") @db.UnsignedTinyInt
+  idempotencyKey    String?             @map("idempotency_key") @db.VarChar(255)
   status            String              @default("PENDING") @db.VarChar(20)
+  sendingStartedAt  DateTime?           @map("sending_started_at") @db.DateTime(3)
   body              String              @db.Text
   externalMessageId String?             @map("external_message_id") @db.VarChar(100)
   sentAt            DateTime?           @map("sent_at") @db.DateTime(3)
@@ -3650,10 +3659,13 @@ model ProspectingMessage {
   readAt            DateTime?           @map("read_at") @db.DateTime(3)
   failedAt          DateTime?           @map("failed_at") @db.DateTime(3)
   errorMessage      String?             @map("error_message") @db.Text
+  errorCode         String?             @map("error_code") @db.VarChar(100)
+  attemptNumber     Int                 @default(1) @map("attempt_number") @db.UnsignedTinyInt
   createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   lead              ProspectingLead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  template          ProspectingTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@index([campaignId, status])
   @@index([leadId, direction, createdAt])
@@ -3673,6 +3685,7 @@ model ProspectingTemplate {
   updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   variants          ProspectingTemplateVariant[]
+  messages          ProspectingMessage[]
 
   @@index([campaignId, stepNumber])
   @@map("prospecting_templates")

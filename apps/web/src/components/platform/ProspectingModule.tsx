@@ -105,6 +105,26 @@ const campaignsResponseSchema = z.object({
   items: z.array(campaignSchema),
 });
 
+const prospectingConfigSchema = z.object({
+  configured: z.boolean(),
+  publicId: z.string().optional(),
+  instanceId: z.string().optional(),
+  phoneNumber: z.string().optional(),
+  instanceName: z.string().optional(),
+  isActive: z.boolean().optional(),
+  lastConnectionStatus: z.string().optional(),
+  lastCheckedAt: z.string().optional(),
+  tokenMasked: z.string().optional(),
+});
+
+const testConnectionSchema = z.object({
+  success: z.boolean(),
+  connected: z.boolean(),
+  phoneNumber: z.string().optional(),
+  instanceName: z.string().optional(),
+  message: z.string(),
+});
+
 export function ProspectingModule({
   campaignPublicId,
   onOpen,
@@ -112,7 +132,7 @@ export function ProspectingModule({
   campaignPublicId?: string;
   onOpen?: (id: string) => void;
 }) {
-  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'templates' | 'objections'>(
+  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'templates' | 'objections' | 'settings'>(
     campaignPublicId ? 'detail' : 'campaigns'
   );
   const [page, setPage] = useState(1);
@@ -201,6 +221,34 @@ export function ProspectingModule({
     },
   });
 
+  const config = useQuery({
+    queryKey: ['prospecting', 'config'],
+    queryFn: () =>
+      httpClient.request('/platform/prospecting/whatsapp', {
+        schema: prospectingConfigSchema,
+      }),
+  });
+
+  const updateConfigMutation = useMutation({
+    mutationFn: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean }) =>
+      httpClient.request('/platform/prospecting/whatsapp', {
+        method: 'PUT',
+        schema: prospectingConfigSchema,
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      void config.refetch();
+    },
+  });
+
+  const testConnectionMutation = useMutation({
+    mutationFn: () =>
+      httpClient.request('/platform/prospecting/whatsapp/test', {
+        method: 'POST',
+        schema: testConnectionSchema,
+      }),
+  });
+
   const handleCancel = (id: string) => {
     setConfirmation({
       title: 'Cancelar campanha?',
@@ -212,8 +260,45 @@ export function ProspectingModule({
     });
   };
 
+  const navItems = [
+    { id: 'dashboard', label: 'Visão geral' },
+    { id: 'campaigns', label: 'Campanhas' },
+    { id: 'leads', label: 'Leads' },
+    { id: 'conversations', label: 'Conversas' },
+    { id: 'templates', label: 'Templates' },
+    { id: 'objections', label: 'Respostas e Objeções' },
+    { id: 'settings', label: 'Configurações' },
+  ];
+
   return (
     <div className="prospecting-module">
+      <nav style={{
+        display: 'flex',
+        gap: '0.5rem',
+        padding: '1rem',
+        borderBottom: '1px solid var(--ds-border-neutral)',
+        flexWrap: 'wrap',
+      }}>
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setView(item.id as any)}
+            style={{
+              padding: '0.5rem 1rem',
+              border: 'none',
+              borderRadius: '4px',
+              backgroundColor: view === item.id ? 'var(--ds-background-tertiary)' : 'transparent',
+              color: view === item.id ? 'var(--ds-text-primary)' : 'var(--ds-text-secondary)',
+              fontWeight: view === item.id ? 600 : 400,
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
       {view === 'dashboard' ? (
         <DashboardView
           stats={stats.data as ProspectingStats | undefined}
@@ -248,6 +333,17 @@ export function ProspectingModule({
         <ProspectingTemplatesView />
       ) : view === 'objections' ? (
         <ProspectingObjectionsView />
+      ) : view === 'settings' ? (
+        <SettingsView
+          config={config.data}
+          status={status.data}
+          isLoadingConfig={config.isPending}
+          isUpdatingConfig={updateConfigMutation.isPending}
+          isTestingConnection={testConnectionMutation.isPending}
+          onUpdateConfig={updateConfigMutation.mutateAsync}
+          onTestConnection={() => testConnectionMutation.mutateAsync()}
+          onNavigate={setView}
+        />
       ) : (
         <DetailView
           campaign={detail.data as CampaignDetail | undefined}
@@ -283,6 +379,7 @@ export function ProspectingModule({
               initial={undefined}
               onClose={() => setFormOpen(false)}
               onSuccess={() => {
+                void campaigns.refetch();
                 void detail.refetch();
                 setFormOpen(false);
               }}
@@ -482,7 +579,7 @@ function CampaignsView({
         <div className="platform-empty">
           <h3>Nenhuma campanha encontrada</h3>
           <p>Crie sua primeira campanha de prospecção para começar.</p>
-          <button className="primary-button" onClick={() => setCreating(true)} type="button">
+          <button className="primary-button" onClick={onNewCampaign} type="button">
             Nova campanha
           </button>
         </div>
@@ -732,6 +829,278 @@ function DetailView({
               <dt>Resposta automática</dt>
               <dd>{campaign.autoReplyEnabled ? 'Ativa' : 'Inativa'}</dd>
             </div>
+          </dl>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function SettingsView({
+  config,
+  status,
+  isLoadingConfig,
+  isUpdatingConfig,
+  isTestingConnection,
+  onUpdateConfig,
+  onTestConnection,
+  onNavigate,
+}: {
+  config?: z.infer<typeof prospectingConfigSchema>;
+  status?: ProspectingStatus;
+  isLoadingConfig: boolean;
+  isUpdatingConfig: boolean;
+  isTestingConnection: boolean;
+  onUpdateConfig: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean }) => Promise<unknown>;
+  onTestConnection: () => Promise<unknown>;
+  onNavigate: (view: string) => void;
+}) {
+  const [formData, setFormData] = useState({
+    instanceId: config?.instanceId ?? '',
+    token: '',
+    phoneNumber: config?.phoneNumber ?? '',
+    instanceName: config?.instanceName ?? '',
+  });
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage(null);
+    try {
+      const payload: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string } = {
+        instanceId: formData.instanceId,
+        phoneNumber: formData.phoneNumber,
+        instanceName: formData.instanceName,
+      };
+      if (formData.token) {
+        payload.token = formData.token;
+      }
+      await onUpdateConfig(payload);
+      setFormData({ ...formData, token: '' });
+      setMessage({ type: 'success', text: 'Configuração salva com sucesso.' });
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Erro ao salvar configuração.',
+      });
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestResult(null);
+    try {
+      await onTestConnection();
+      setTestResult({ type: 'success', text: 'Conexão testada com sucesso!' });
+    } catch (error) {
+      setTestResult({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Erro ao testar conexão.',
+      });
+    }
+  };
+
+  return (
+    <section>
+      <PageHeader
+        title="Configurações da Prospecção"
+        description="Gerencie a instância WhatsApp dedicada para envios de prospecção."
+        action={
+          <button
+            className="secondary-button"
+            onClick={() => onNavigate('campaigns')}
+            type="button"
+          >
+            Voltar
+          </button>
+        }
+      />
+
+      <div style={{ maxWidth: '800px', marginTop: '2rem' }}>
+        {/* WhatsApp Config Section */}
+        <section className="config-section">
+          <h2>WhatsApp da Prospecção</h2>
+          {isLoadingConfig ? (
+            <div className="platform-skeleton" style={{ height: '200px' }} />
+          ) : (
+            <form onSubmit={handleSaveConfig}>
+              {message && (
+                <div
+                  style={{
+                    padding: '0.75rem 1rem',
+                    borderRadius: '4px',
+                    marginBottom: '1rem',
+                    backgroundColor: message.type === 'success' ? '#d1fae5' : '#fee',
+                    color: message.type === 'success' ? '#065f46' : '#c33',
+                    border: `1px solid ${message.type === 'success' ? '#86efac' : '#fcc'}`,
+                  }}
+                >
+                  {message.text}
+                </div>
+              )}
+
+              <div className="config-section" style={{ marginBottom: '1.5rem' }}>
+                <label>
+                  <strong>Instance ID</strong>
+                  <input
+                    type="text"
+                    value={formData.instanceId}
+                    onChange={(e) => setFormData({ ...formData, instanceId: e.target.value })}
+                    placeholder="ex: inst_1234567890"
+                    required
+                    style={{
+                      marginTop: '0.5rem',
+                      display: 'block',
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid var(--ds-border-neutral)',
+                      borderRadius: '4px',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="config-section" style={{ marginBottom: '1.5rem' }}>
+                <label>
+                  <strong>Token da Instância</strong>
+                  {config?.configured && !formData.token && (
+                    <div style={{ fontSize: '0.9rem', color: 'var(--ds-text-secondary)', marginTop: '0.5rem' }}>
+                      Token configurado. Deixe em branco para manter o token existente.
+                    </div>
+                  )}
+                  <input
+                    type="password"
+                    value={formData.token}
+                    onChange={(e) => setFormData({ ...formData, token: e.target.value })}
+                    placeholder={config?.configured ? 'Deixe em branco para manter' : 'Cole seu token aqui'}
+                    required={!config?.configured}
+                    style={{
+                      marginTop: '0.5rem',
+                      display: 'block',
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid var(--ds-border-neutral)',
+                      borderRadius: '4px',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="config-section" style={{ marginBottom: '1.5rem' }}>
+                <label>
+                  <strong>Número de Telefone (opcional)</strong>
+                  <input
+                    type="text"
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                    placeholder="ex: +55 11 98765-4321"
+                    style={{
+                      marginTop: '0.5rem',
+                      display: 'block',
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid var(--ds-border-neutral)',
+                      borderRadius: '4px',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="config-section" style={{ marginBottom: '1.5rem' }}>
+                <label>
+                  <strong>Nome da Instância (opcional)</strong>
+                  <input
+                    type="text"
+                    value={formData.instanceName}
+                    onChange={(e) => setFormData({ ...formData, instanceName: e.target.value })}
+                    placeholder="ex: Prospecção - Empresa XYZ"
+                    style={{
+                      marginTop: '0.5rem',
+                      display: 'block',
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid var(--ds-border-neutral)',
+                      borderRadius: '4px',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={isUpdatingConfig}
+                >
+                  {isUpdatingConfig ? 'Salvando...' : 'Salvar Configuração'}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleTestConnection}
+                  disabled={isTestingConnection || !config?.configured}
+                >
+                  {isTestingConnection ? 'Testando...' : 'Testar Conexão'}
+                </button>
+              </div>
+
+              {testResult && (
+                <div
+                  style={{
+                    marginTop: '1rem',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '4px',
+                    backgroundColor: testResult.type === 'success' ? '#d1fae5' : '#fee',
+                    color: testResult.type === 'success' ? '#065f46' : '#c33',
+                    border: `1px solid ${testResult.type === 'success' ? '#86efac' : '#fcc'}`,
+                  }}
+                >
+                  {testResult.text}
+                </div>
+              )}
+            </form>
+          )}
+        </section>
+
+        {/* Status Section */}
+        <section
+          className="config-section"
+          style={{ marginTop: '2rem', backgroundColor: 'var(--ds-background-secondary)', opacity: 0.8 }}
+        >
+          <h2>Status Operacional</h2>
+          <dl style={{ display: 'grid', gap: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <dt style={{ fontWeight: 600 }}>Worker</dt>
+              <dd>{status?.workerEnabled ? 'Ativo' : 'Desativado'}</dd>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <dt style={{ fontWeight: 600 }}>Dry-run</dt>
+              <dd>{status?.dryRun ? 'Ativo' : 'Desativado'}</dd>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <dt style={{ fontWeight: 600 }}>W-API</dt>
+              <dd>{config?.configured ? 'Configurada' : 'Não configurada'}</dd>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <dt style={{ fontWeight: 600 }}>Instância</dt>
+              <dd>{config?.isActive ? 'Ativa' : 'Inativa'}</dd>
+            </div>
+            {config?.lastConnectionStatus && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <dt style={{ fontWeight: 600 }}>Último Status</dt>
+                <dd>{config.lastConnectionStatus}</dd>
+              </div>
+            )}
+            {config?.lastCheckedAt && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <dt style={{ fontWeight: 600 }}>Último Teste</dt>
+                <dd>{formatDate(new Date(config.lastCheckedAt))}</dd>
+              </div>
+            )}
           </dl>
         </section>
       </div>

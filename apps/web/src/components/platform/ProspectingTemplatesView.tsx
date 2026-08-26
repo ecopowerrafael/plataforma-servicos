@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { formatDate, PageHeader, ErrorState } from './PlatformUi.js';
@@ -42,7 +42,7 @@ export function ProspectingTemplatesView({
   const [formData, setFormData] = useState({ name: '', stepNumber: 1, body: '' });
   const [newVariant, setNewVariant] = useState('');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!selectedCampaignId && campaigns.length > 0) {
       setSelectedCampaignId(campaigns[0].publicId);
     }
@@ -75,6 +75,25 @@ export function ProspectingTemplatesView({
       void queryClient.invalidateQueries({ queryKey: ['prospecting', 'templates', selectedCampaignId] });
       setShowForm(false);
       setFormData({ name: '', stepNumber: 1, body: '' });
+      setEditingTemplate(null);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return httpClient.request(
+        `/platform/prospecting/templates/${editingTemplate?.publicId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(data),
+        }
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'templates', selectedCampaignId] });
+      setShowForm(false);
+      setFormData({ name: '', stepNumber: 1, body: '' });
+      setEditingTemplate(null);
     },
   });
 
@@ -155,7 +174,7 @@ export function ProspectingTemplatesView({
               onSubmit={(e) => {
                 e.preventDefault();
                 if (editingTemplate) {
-                  // Update logic
+                  void updateMutation.mutateAsync(formData);
                 } else {
                   void createMutation.mutateAsync(formData);
                 }
@@ -282,7 +301,15 @@ export function ProspectingTemplatesView({
                 <small>{formatDate(template.updatedAt)}</small>
                 <div className="card-actions">
                   <button
-                    onClick={() => setEditingTemplate(template)}
+                    onClick={() => {
+                      setEditingTemplate(template);
+                      setFormData({
+                        name: template.name,
+                        stepNumber: template.stepNumber,
+                        body: template.body,
+                      });
+                      setShowForm(true);
+                    }}
                     className="secondary-button"
                   >
                     Editar

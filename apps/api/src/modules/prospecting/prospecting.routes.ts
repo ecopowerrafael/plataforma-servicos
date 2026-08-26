@@ -696,6 +696,25 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     },
   );
 
+  app.patch(
+    '/platform/prospecting/templates/:publicId',
+    { schema: { params: z.object({ publicId: z.uuid() }), body: TemplateSchema } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const template = await options.client.prospectingTemplate.update({
+        where: { publicId: request.params.publicId },
+        data: {
+          name: request.body.name,
+          stepNumber: request.body.stepNumber,
+          body: request.body.body,
+        },
+        include: { variants: true },
+      });
+
+      return template;
+    },
+  );
+
   app.delete(
     '/platform/prospecting/templates/:publicId',
     { schema: { params: z.object({ publicId: z.uuid() }) } },

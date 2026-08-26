@@ -1,6 +1,7 @@
 import { type PrismaClient } from '../../database-client/client.js';
 import { type ProspectingWhatsAppConfigService } from './prospecting-whatsapp-config.service.js';
 import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
+import { ProspectingObjectionEngine } from './prospecting-objection-engine.js';
 
 interface ProspectingInboundPayload {
   instanceId: string | null;
@@ -89,7 +90,7 @@ export class ProspectingInboundService {
     }
 
     // Criar mensagem INBOUND
-    await this.client.prospectingMessage.create({
+    const message = await this.client.prospectingMessage.create({
       data: {
         publicId: require('node:crypto').randomUUID(),
         campaignId: leadData.campaignId,
@@ -134,10 +135,29 @@ export class ProspectingInboundService {
       },
     });
 
-    // Verificar opt-out
+    // Verificar opt-out (tem prioridade sobre objection engine)
     const isOptOut = this.detectOptOut(payload.body as string);
     if (isOptOut) {
       await this.handleOptOut(leadData.id, leadData.campaignId, normalizedPhone);
+      return {
+        handled: true,
+        leadPublicId: leadData.publicId,
+        campaignPublicId: campaign?.publicId || '',
+      };
+    }
+
+    // Classificar via Objection Engine (async, não bloqueia resposta de webhook)
+    try {
+      const engine = new ProspectingObjectionEngine(this.client);
+      await engine.classify({
+        campaignId: leadData.campaignId,
+        leadId: leadData.id,
+        messageId: message.id,
+        text: payload.body as string,
+      });
+    } catch (error) {
+      // Log but don't fail webhook
+      console.error('[ProspectingInbound] Classification error:', error);
     }
 
     return {

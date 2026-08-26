@@ -217,11 +217,17 @@ async function main(): Promise<void> {
       console.error(
         `\n[PRODUCTION MIGRATION FAILURE] Migration não recuperável automaticamente: ${migration.migration_name}\n` +
         `Ação necessária (manual):\n` +
-        `1. Investigar o estado parcial no banco de dados\n` +
-        `2. Corrigir a migration no repositório se necessário\n` +
-        `3. Executar manualmente: npx prisma migrate resolve --rolled-back ${migration.migration_name}\n` +
-        `4. Depois: npx prisma migrate deploy\n\n` +
-        `Razão: Auto-rollback é perigoso para DDL MySQL/MariaDB com aplicação parcial.\n`,
+        `1. Investigar o estado físico do banco de dados\n` +
+        `2. Determinar quais operações foram parcialmente aplicadas\n` +
+        `3. Corrigir a migration no repositório se necessário (ex: remover partial indexes incompatíveis)\n` +
+        `4. Aplicar manualmente (SQL direto) operações faltantes se apropriado\n` +
+        `5. Quando o schema físico estiver exatamente no estado esperado:\n` +
+        `   npx prisma migrate resolve --applied ${migration.migration_name}\n` +
+        `   OU se precisar reverter e reaplicar:\n` +
+        `   npx prisma migrate resolve --rolled-back ${migration.migration_name}\n` +
+        `6. Depois: npx prisma migrate deploy\n\n` +
+        `Razão: Auto-rollback é perigoso para DDL MySQL/MariaDB com aplicação parcial.\n` +
+        `Requer inspeção manual para evitar inconsistências.\n`,
       );
       process.exitCode = 1;
     }

@@ -31,13 +31,7 @@ FOREIGN KEY (reply_to_message_id) REFERENCES prospecting_messages(id) ON DELETE 
 ALTER TABLE prospecting_whatsapp_configs
 ADD COLUMN next_send_at DATETIME(3) NULL AFTER last_checked_at;
 
--- Create unique constraint for auto-reply idempotency: auto-reply:{inboundMessagePublicId}
--- Using a combination of lead + objection + scheduled_at window as proxy
-ALTER TABLE prospecting_messages
-ADD UNIQUE KEY uk_auto_reply_idempotency (lead_id, objection_id, scheduled_at)
-WHERE purpose = 'AUTO_REPLY' AND scheduled_at IS NOT NULL;
-
--- Add index for Worker to find pending auto-replies
+-- Add index for Worker to find pending auto-replies (MariaDB: partial indexes not supported, using normal index)
+-- Purpose, status, and next_attempt_at are naturally filtered by Worker queries
 CREATE INDEX idx_prospecting_messages_pending_auto_reply
-ON prospecting_messages(purpose, status, next_attempt_at)
-WHERE purpose = 'AUTO_REPLY' AND status IN ('PENDING', 'SENDING');
+ON prospecting_messages(purpose, status, next_attempt_at);

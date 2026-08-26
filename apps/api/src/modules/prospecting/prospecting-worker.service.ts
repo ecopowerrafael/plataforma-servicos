@@ -7,6 +7,9 @@ import { generateWorkerId } from './prospecting-worker-id.js';
 import { ProspectingClaimRepository } from './prospecting-claim.repository.js';
 import { type ProspectingWorker, type ProspectingWorkerRunResult } from './prospecting-worker.js';
 import { ProspectingClock } from './prospecting-time.js';
+import { ProspectingAutoReplyRepository } from './prospecting-auto-reply.repository.js';
+import { ProspectingAutoReplyProcessor } from './prospecting-auto-reply-processor.js';
+import { ProspectingInstanceRateLimit } from './prospecting-instance-rate-limit.js';
 
 /**
  * Worker responsável por processar leads elegíveis de campanhas RUNNING.
@@ -105,6 +108,16 @@ export class ProspectingWorkerService implements ProspectingWorker {
           status: 'NEEDS_REVIEW',
         },
       });
+    }
+
+    // Processar AUTO_REPLY pendentes (prioridade 1)
+    if (this.environment.PROSPECTING_WORKER_ENABLED) {
+      const autoReplyStats = await this.processAutoReplies();
+      result.sent += autoReplyStats.sent;
+      result.dryRun += autoReplyStats.dryRun;
+      result.skipped += autoReplyStats.skipped;
+      result.failed += autoReplyStats.failed;
+      result.retried += autoReplyStats.retried;
     }
 
     // Buscar campanhas RUNNING
@@ -456,5 +469,129 @@ export class ProspectingWorkerService implements ProspectingWorker {
     //     status: 'FAILED',
     //   },
     // });
+  }
+
+  /**
+   * Processar AUTO_REPLY pendentes (prioridade máxima).
+   */
+  private async processAutoReplies(): Promise<{ sent: number; dryRun: number; skipped: number; failed: number; retried: number }> {
+    const stats = { sent: 0, dryRun: 0, skipped: 0, failed: 0, retried: 0 };
+
+    if (!this.configService) {
+      return stats;
+    }
+
+    const repo = new ProspectingAutoReplyRepository(this.client);
+    const processor = new ProspectingAutoReplyProcessor(this.client);
+    const rateLimiter = new ProspectingInstanceRateLimit(this.client);
+
+    const now = new Date();
+    const startOfDay = this.clock.startOfDay(now);
+
+    // Buscar AUTO_REPLY pendentes
+    const pendingAutoReplies = await repo.findPendingAutoReplies(this.environment.PROSPECTING_WORKER_BATCH_SIZE);
+
+    for (const message of pendingAutoReplies) {
+      // Validar se ainda pode enviar
+      if (!message.objectionId) {
+        // Sem objection definida, cancelar
+        await repo.cancelMessage(message.id, 'NO_OBJECTION');
+        stats.skipped++;
+        continue;
+      }
+
+      const validation = await processor.validateAutoReply({
+        messageId: message.id,
+        campaignId: message.campaignId,
+        leadId: message.leadId,
+        objectionId: message.objectionId,
+        maxSendAttempts: this.environment.PROSPECTING_MAX_SEND_ATTEMPTS,
+        maxAutoRepliesPerDay: 100, // Configurável depois
+        maxAutoRepliesPerLead: 3, // Configurável depois
+        autoReplyCooldownSeconds: 60, // Configurável depois
+        dryRun: this.environment.PROSPECTING_DRY_RUN,
+        startOfDay,
+        now,
+      });
+
+      if (!validation.valid) {
+        // Cancelar mensagem
+        if (validation.cancelReason === 'COOLDOWN') {
+          // Reagendar em vez de cancelar
+          await processor.rescheduleForCooldown(message.id, 60, now);
+          stats.retried++;
+        } else {
+          await repo.cancelMessage(message.id, validation.cancelReason || 'VALIDATION_FAILED');
+          stats.skipped++;
+        }
+        continue;
+      }
+
+      // Em dry-run, não chamar provider nem ocupar slot
+      if (this.environment.PROSPECTING_DRY_RUN) {
+        await repo.cancelMessage(message.id, 'DRY_RUN');
+        stats.dryRun++;
+        continue;
+      }
+
+      // Tentar fazer claim do slot global da instância
+      const config = await this.configService.getConfig();
+      if (!config) {
+        stats.skipped++;
+        continue;
+      }
+
+      const slotDuration = 2; // segundos
+      const reservedUntil = new Date(now.getTime() + slotDuration * 1000);
+      const slotClaimed = await rateLimiter.claimSendSlot(config.instanceId, reservedUntil, now);
+
+      if (!slotClaimed) {
+        // Slot ocupado, manter PENDING para próxima tentativa
+        stats.skipped++;
+        continue;
+      }
+
+      try {
+        // Marcar como SENDING
+        await repo.markSending(message.id);
+
+        // Chamar sender
+        const sendResult = await this.messageSender.sendText({
+          phone: (message.lead as any).phoneSnapshot || (message.lead as any).normalizedPhone,
+          body: message.body,
+        });
+
+        // Sucesso
+        if (sendResult.success) {
+          await processor.handleSuccess(message.id, sendResult.externalMessageId || undefined);
+          stats.sent++;
+        } else if (sendResult.retryable) {
+          // Falha retryable
+          const backoffMs = this.calculateBackoffMs(message.attemptNumber);
+          await processor.handleRetryable(
+            message.id,
+            message.attemptNumber,
+            this.environment.PROSPECTING_MAX_SEND_ATTEMPTS,
+            backoffMs / 1000,
+            now,
+          );
+          stats.retried++;
+        } else {
+          // Falha definitiva
+          const errorMsg = sendResult.errorMessage || 'Unknown error';
+          await processor.handleDefinitiveFailure(message.id, errorMsg);
+          stats.failed++;
+        }
+      } catch (error) {
+        // Erro inesperado
+        await processor.handleDefinitiveFailure(message.id, `Unexpected error: ${String(error)}`);
+        stats.failed++;
+      } finally {
+        // Sempre liberar o slot
+        await rateLimiter.releaseSendSlot(config.instanceId);
+      }
+    }
+
+    return stats;
   }
 }

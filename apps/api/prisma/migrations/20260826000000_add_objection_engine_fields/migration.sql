@@ -1,6 +1,6 @@
 -- Add code field to ProspectingObjection (unique, for idempotent seeding)
 ALTER TABLE prospecting_objections
-ADD COLUMN code VARCHAR(100) UNIQUE NULL AFTER publicId;
+ADD COLUMN code VARCHAR(100) UNIQUE NULL AFTER public_id;
 
 -- Add suggestedResponse field to ProspectingObjection
 ALTER TABLE prospecting_objections

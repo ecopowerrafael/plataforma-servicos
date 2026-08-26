@@ -53,6 +53,27 @@ const leadDetailParams = z.object({
   leadPublicId: z.uuid(),
 });
 
+const TemplateSchema = z.object({
+  name: z.string().min(1).max(180),
+  stepNumber: z.number().int().min(1),
+  body: z.string().min(1),
+  isDefault: z.boolean().optional(),
+});
+
+const ObjectionSchema = z.object({
+  name: z.string().min(1).max(180),
+  description: z.string().nullish(),
+  suggestedResponse: z.string().nullish(),
+  autoReplyAllowed: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+});
+
+const PatternSchema = z.object({
+  pattern: z.string().min(1),
+  patternType: z.enum(['EXACT', 'STARTS_WITH', 'ENDS_WITH', 'CONTAINS']),
+  priority: z.number().int().min(0).optional(),
+});
+
 interface ProspectingRoutesOptions {
   service: ProspectingService;
   platformService: PlatformService;
@@ -525,10 +546,381 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
           body: request.body.body,
           idempotencyKey,
           purpose: 'MANUAL',
+
         },
       });
 
       return message;
+    },
+  );
+
+  // Templates: CRUD
+  app.get(
+    '/platform/prospecting/templates',
+    { schema: { querystring: z.object({ campaignId: z.string().uuid().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.read');
+      const where = request.query.campaignId
+        ? { campaign: { publicId: request.query.campaignId } }
+        : {};
+
+      const templates = await options.client.prospectingTemplate.findMany({
+        where,
+        include: { variants: { orderBy: { variantIndex: 'asc' } } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return { items: templates };
+    },
+  );
+
+  app.post(
+    '/platform/prospecting/campaigns/:publicId/templates',
+    { schema: { params: z.object({ publicId: z.uuid() }), body: TemplateSchema } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const campaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!campaign) throw new Error('Campaign not found');
+
+      const template = await options.client.prospectingTemplate.create({
+        data: {
+          publicId: require('node:crypto').randomUUID(),
+          campaignId: campaign.id,
+          name: request.body.name,
+          stepNumber: request.body.stepNumber,
+          body: request.body.body,
+          isDefault: request.body.isDefault ?? false,
+        },
+        include: { variants: true },
+      });
+
+      return template;
+    },
+  );
+
+  app.put(
+    '/platform/prospecting/templates/:publicId',
+    { schema: { params: z.object({ publicId: z.uuid() }), body: TemplateSchema.partial() } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const data: Record<string, any> = {};
+      if (request.body.name !== undefined) data.name = request.body.name;
+      if (request.body.stepNumber !== undefined) data.stepNumber = request.body.stepNumber;
+      if (request.body.body !== undefined) data.body = request.body.body;
+      if (request.body.isDefault !== undefined) data.isDefault = request.body.isDefault;
+
+      const template = await options.client.prospectingTemplate.update({
+        where: { publicId: request.params.publicId },
+        data,
+        include: { variants: true },
+      });
+
+      return template;
+    },
+  );
+
+  app.delete(
+    '/platform/prospecting/templates/:publicId',
+    { schema: { params: z.object({ publicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      await options.client.prospectingTemplate.delete({
+        where: { publicId: request.params.publicId },
+      });
+
+      return { success: true };
+    },
+  );
+
+  // Template Variants: CRUD
+  app.post(
+    '/platform/prospecting/templates/:publicId/variants',
+    { schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ body: z.string().min(1) }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const template = await options.client.prospectingTemplate.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!template) throw new Error('Template not found');
+
+      const maxIndex = await options.client.prospectingTemplateVariant.aggregate({
+        where: { templateId: template.id },
+        _max: { variantIndex: true },
+      });
+
+      const variant = await options.client.prospectingTemplateVariant.create({
+        data: {
+          templateId: template.id,
+          variantIndex: (maxIndex._max.variantIndex ?? -1) + 1,
+          body: request.body.body,
+        },
+      });
+
+      return variant;
+    },
+  );
+
+  app.delete(
+    '/platform/prospecting/templates/:publicId/variants/:variantIndex',
+    { schema: { params: z.object({ publicId: z.uuid(), variantIndex: z.coerce.number() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const template = await options.client.prospectingTemplate.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!template) throw new Error('Template not found');
+
+      await options.client.prospectingTemplateVariant.delete({
+        where: { templateId_variantIndex: { templateId: template.id, variantIndex: request.params.variantIndex } },
+      });
+
+      return { success: true };
+    },
+  );
+
+  // Objections: CRUD
+  app.get(
+    '/platform/prospecting/objections',
+    { schema: { querystring: z.object({ isActive: z.enum(['true', 'false']).optional() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.read');
+      const where = request.query.isActive !== undefined ? { isActive: request.query.isActive === 'true' } : {};
+
+      const objections = await options.client.prospectingObjection.findMany({
+        where,
+        include: { patterns: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return { items: objections };
+    },
+  );
+
+  app.post(
+    '/platform/prospecting/objections',
+    { schema: { body: ObjectionSchema } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const objection = await options.client.prospectingObjection.create({
+        data: {
+          publicId: require('node:crypto').randomUUID(),
+          name: request.body.name,
+          description: request.body.description ?? null,
+          suggestedResponse: request.body.suggestedResponse ?? null,
+          autoReplyAllowed: request.body.autoReplyAllowed ?? false,
+          isActive: request.body.isActive ?? true,
+        },
+      });
+
+      return objection;
+    },
+  );
+
+  app.put(
+    '/platform/prospecting/objections/:publicId',
+    { schema: { params: z.object({ publicId: z.uuid() }), body: ObjectionSchema.partial() } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const data: Record<string, any> = {};
+      if (request.body.name !== undefined) data.name = request.body.name;
+      if (request.body.description !== undefined) data.description = request.body.description;
+      if (request.body.suggestedResponse !== undefined) data.suggestedResponse = request.body.suggestedResponse;
+      if (request.body.autoReplyAllowed !== undefined) data.autoReplyAllowed = request.body.autoReplyAllowed;
+      if (request.body.isActive !== undefined) data.isActive = request.body.isActive;
+
+      const objection = await options.client.prospectingObjection.update({
+        where: { publicId: request.params.publicId },
+        data,
+      });
+
+      return objection;
+    },
+  );
+
+  // Objection Patterns: CRUD
+  app.post(
+    '/platform/prospecting/objections/:publicId/patterns',
+    { schema: { params: z.object({ publicId: z.uuid() }), body: PatternSchema } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const objection = await options.client.prospectingObjection.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!objection) throw new Error('Objection not found');
+
+      const pattern = await options.client.prospectingObjectionPattern.create({
+        data: {
+          objectionId: objection.id,
+          pattern: request.body.pattern,
+          patternType: request.body.patternType,
+          priority: request.body.priority ?? 0,
+        },
+      });
+
+      return pattern;
+    },
+  );
+
+  app.delete(
+    '/platform/prospecting/objections/:publicId/patterns/:patternId',
+    { schema: { params: z.object({ publicId: z.uuid(), patternId: z.coerce.number() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      await options.client.prospectingObjectionPattern.delete({
+        where: { id: BigInt(request.params.patternId) },
+      });
+
+      return { success: true };
+    },
+  );
+
+  // Objection Exclusions per Campaign
+  app.get(
+    '/platform/prospecting/campaigns/:publicId/objection-exclusions',
+    { schema: { params: z.object({ publicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.read');
+      const campaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!campaign) throw new Error('Campaign not found');
+
+      const exclusions = await options.client.prospectingObjectionExclusion.findMany({
+        where: { campaignId: campaign.id },
+        include: { objection: true },
+      });
+
+      return { items: exclusions };
+    },
+  );
+
+  app.post(
+    '/platform/prospecting/campaigns/:publicId/objection-exclusions',
+    {
+      schema: {
+        params: z.object({ publicId: z.uuid() }),
+        body: z.object({ objectionPublicId: z.uuid() }),
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const campaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!campaign) throw new Error('Campaign not found');
+
+      const objection = await options.client.prospectingObjection.findUnique({
+        where: { publicId: request.body.objectionPublicId },
+        select: { id: true },
+      });
+
+      if (!objection) throw new Error('Objection not found');
+
+      const existing = await options.client.prospectingObjectionExclusion.findFirst({
+        where: { campaignId: campaign.id, objectionId: objection.id },
+      });
+
+      if (existing) return existing;
+
+      const exclusion = await options.client.prospectingObjectionExclusion.create({
+        data: { campaignId: campaign.id, objectionId: objection.id },
+      });
+
+      return exclusion;
+    },
+  );
+
+  app.delete(
+    '/platform/prospecting/campaigns/:publicId/objection-exclusions/:exclusionId',
+    { schema: { params: z.object({ publicId: z.uuid(), exclusionId: z.coerce.number() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      await options.client.prospectingObjectionExclusion.delete({
+        where: { id: BigInt(request.params.exclusionId) },
+      });
+
+      return { success: true };
+    },
+  );
+
+  // Classify preview: test patterns without persistence
+  app.post(
+    '/platform/prospecting/objections/classify-preview',
+    {
+      schema: {
+        body: z.object({
+          text: z.string().min(1),
+          campaignPublicId: z.string().uuid().optional(),
+        }),
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.tenant.read');
+
+      const textLower = request.body.text.toLowerCase();
+      let exclusionObjectionIds: bigint[] = [];
+
+      if (request.body.campaignPublicId) {
+        const campaign = await options.client.prospectingCampaign.findUnique({
+          where: { publicId: request.body.campaignPublicId },
+          select: { id: true },
+        });
+
+        if (campaign) {
+          const exclusions = await options.client.prospectingObjectionExclusion.findMany({
+            where: { campaignId: campaign.id },
+            select: { objectionId: true },
+          });
+
+          exclusionObjectionIds = exclusions.map((e) => e.objectionId);
+        }
+      }
+
+      const objections = await options.client.prospectingObjection.findMany({
+        where: { isActive: true, id: { notIn: exclusionObjectionIds } },
+        include: { patterns: true },
+      });
+
+      for (const objection of objections) {
+        for (const pattern of objection.patterns) {
+          const patternLower = pattern.pattern.toLowerCase();
+
+          const matched =
+            pattern.patternType === 'EXACT'
+              ? textLower === patternLower
+              : pattern.patternType === 'STARTS_WITH'
+                ? textLower.startsWith(patternLower)
+                : pattern.patternType === 'ENDS_WITH'
+                  ? textLower.endsWith(patternLower)
+                  : textLower.includes(patternLower);
+
+          if (matched) {
+            return {
+              matched: true,
+              code: objection.code,
+              name: objection.name,
+              suggestedResponse: objection.suggestedResponse,
+              autoReplyAllowed: objection.autoReplyAllowed,
+            };
+          }
+        }
+      }
+
+      return { matched: false };
     },
   );
 

@@ -186,11 +186,11 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     },
   );
 
-  // Worker run-once endpoint for manual testing
+  // Worker run-once endpoint for manual testing (Platform Admin only)
   app.post(
     '/platform/prospecting/worker/run-once',
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.dashboard.read');
       if (!options.worker) {
         throw new Error('Worker not configured');
       }

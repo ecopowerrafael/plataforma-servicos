@@ -529,7 +529,12 @@ export class ProspectingWorkerService implements ProspectingWorker {
 
       // Em dry-run, não chamar provider nem ocupar slot
       if (this.environment.PROSPECTING_DRY_RUN) {
-        await repo.cancelMessage(message.id, 'DRY_RUN');
+        await this.client.prospectingMessage.update({
+          where: { id: message.id },
+          data: {
+            status: 'DRY_RUN',
+          },
+        });
         stats.dryRun++;
         continue;
       }
@@ -586,10 +591,9 @@ export class ProspectingWorkerService implements ProspectingWorker {
         // Erro inesperado
         await processor.handleDefinitiveFailure(message.id, `Unexpected error: ${String(error)}`);
         stats.failed++;
-      } finally {
-        // Sempre liberar o slot
-        await rateLimiter.releaseSendSlot(config.instanceId);
       }
+      // Nota: nextSendAt NÃO é limpo. É um rate-limit persistente.
+      // Próximos outbounds só conseguem quando now >= nextSendAt.
     }
 
     return stats;

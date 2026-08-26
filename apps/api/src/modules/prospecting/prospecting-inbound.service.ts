@@ -125,13 +125,14 @@ export class ProspectingInboundService {
       });
     }
 
-    // Criar human lock
+    // Criar human lock (automático de resposta inbound)
     const lockMinutes = 60;
     await this.client.prospectingLead.update({
       where: { id: leadData.id },
       data: {
         humanLockUntil: new Date(now.getTime() + lockMinutes * 60_000),
         humanLockReason: 'Resposta recebida do lead',
+        humanLockType: 'INBOUND_REPLY',
       },
     });
 

@@ -37,22 +37,19 @@ export class ProspectingInstanceRateLimit {
   }
 
   /**
-   * Liberar o send-slot (para usar em DRY_RUN ou cancelamento).
+   * Obter nextSendAt atual (quando o slot estará livre).
    */
-  public async releaseSendSlot(instanceId: string): Promise<void> {
+  public async getNextSendAt(instanceId: string): Promise<Date | null> {
     if (!instanceId) {
-      return;
+      return null;
     }
 
-    await this.client.prospectingWhatsAppConfig.updateMany({
-      where: {
-        instanceId,
-        isActive: true,
-      },
-      data: {
-        nextSendAt: null,
-      },
+    const config = await this.client.prospectingWhatsAppConfig.findUnique({
+      where: { instanceId },
+      select: { nextSendAt: true },
     });
+
+    return config?.nextSendAt || null;
   }
 
   /**

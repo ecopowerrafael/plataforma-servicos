@@ -3573,6 +3573,12 @@ enum ProspectingMessageStatus {
   FAILED
   DELIVERY_UNCERTAIN
   CANCELED
+  DRY_RUN
+}
+
+enum ProspectingHumanLockType {
+  INBOUND_REPLY
+  MANUAL
 }
 
 enum ObjectionPattern {
@@ -3641,6 +3647,7 @@ model ProspectingLead {
   humanLockStartedAt      DateTime?               @map("human_lock_started_at") @db.DateTime(3)
   humanLockUntil          DateTime?               @map("human_lock_until") @db.DateTime(3)
   humanLockReason         String?                 @map("human_lock_reason") @db.VarChar(500)
+  humanLockType           String?                 @map("human_lock_type") @db.VarChar(50)
   processingWorkerId      String?                 @map("processing_worker_id") @db.VarChar(255)
   processingStartedAt     DateTime?               @map("processing_started_at") @db.DateTime(3)
   processingExpiresAt     DateTime?               @map("processing_expires_at") @db.DateTime(3)

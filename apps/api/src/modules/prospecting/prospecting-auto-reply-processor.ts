@@ -67,7 +67,10 @@ export class ProspectingAutoReplyProcessor {
     // Lead não deve estar em status final
     const lead = await this.client.prospectingLead.findUnique({
       where: { id: input.leadId },
-      select: { status: true },
+      select: {
+        status: true,
+        humanLockType: true,
+      },
     });
 
     if (!lead) {
@@ -78,6 +81,12 @@ export class ProspectingAutoReplyProcessor {
     if (blockingLeadStatuses.includes(lead.status)) {
       return { valid: false, cancelReason: lead.status };
     }
+
+    // MANUAL lock bloqueia automação
+    if (lead.humanLockType === 'MANUAL') {
+      return { valid: false, cancelReason: 'HUMAN_TAKEOVER' };
+    }
+    // INBOUND_REPLY lock (automático) não bloqueia auto-reply da mesma conversa
 
     // Objection deve estar ativa e com permissão
     const objection = await this.client.prospectingObjection.findUnique({

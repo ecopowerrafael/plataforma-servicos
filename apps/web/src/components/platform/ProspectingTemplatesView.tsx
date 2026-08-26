@@ -28,15 +28,25 @@ const templatesResponseSchema = z.object({
 
 export function ProspectingTemplatesView({
   campaigns = [],
+  onNewCampaign,
 }: {
   campaigns?: Array<{ publicId: string; name: string }>;
+  onNewCampaign?: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>(
+    campaigns.length > 0 ? campaigns[0].publicId : ''
+  );
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', stepNumber: 1, body: '' });
   const [newVariant, setNewVariant] = useState('');
+
+  React.useEffect(() => {
+    if (!selectedCampaignId && campaigns.length > 0) {
+      setSelectedCampaignId(campaigns[0].publicId);
+    }
+  }, [campaigns, selectedCampaignId]);
 
   const templates = useQuery({
     queryKey: ['prospecting', 'templates', selectedCampaignId],
@@ -202,7 +212,17 @@ export function ProspectingTemplatesView({
         </div>
       )}
 
-      {!selectedCampaignId ? (
+      {campaigns.length === 0 ? (
+        <div className="platform-empty">
+          <h3>Crie uma campanha para gerar seus modelos de mensagem</h3>
+          <p>Templates são criados automaticamente para cada campanha.</p>
+          {onNewCampaign && (
+            <button onClick={onNewCampaign} className="primary-button" style={{ marginTop: '1rem' }}>
+              + Nova campanha
+            </button>
+          )}
+        </div>
+      ) : !selectedCampaignId ? (
         <div className="platform-empty">
           <h3>Selecione uma campanha</h3>
           <p>Escolha uma campanha acima para visualizar seus modelos.</p>

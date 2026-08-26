@@ -403,7 +403,10 @@ export function ProspectingModule({
       ) : view === 'conversations' ? (
         <ProspectingConversationsView />
       ) : view === 'templates' ? (
-        <ProspectingTemplatesView campaigns={campaigns.data?.items ?? []} />
+        <ProspectingTemplatesView
+          campaigns={campaigns.data?.items ?? []}
+          onNewCampaign={() => setFormOpen(true)}
+        />
       ) : view === 'objections' ? (
         <ProspectingObjectionsView />
       ) : view === 'settings' ? (

@@ -630,7 +630,20 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         orderBy: { stepNumber: 'asc' },
       });
 
-      return { items: templates };
+      return {
+        items: templates.map((t) => ({
+          publicId: t.publicId,
+          name: t.name,
+          stepNumber: t.stepNumber,
+          body: t.body,
+          isDefault: t.isDefault,
+          updatedAt: t.updatedAt.toISOString(),
+          variants: t.variants.map((v) => ({
+            variantIndex: v.variantIndex,
+            body: v.body,
+          })),
+        })),
+      };
     },
   );
 
@@ -760,7 +773,24 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         orderBy: { createdAt: 'desc' },
       });
 
-      return { items: objections };
+      return {
+        items: objections.map((obj) => ({
+          publicId: obj.publicId,
+          code: obj.code,
+          name: obj.name,
+          description: obj.description,
+          suggestedResponse: obj.suggestedResponse,
+          autoReplyAllowed: obj.autoReplyAllowed,
+          isActive: obj.isActive,
+          createdAt: obj.createdAt.toISOString(),
+          patterns: obj.patterns.map((p) => ({
+            id: p.id.toString(),
+            pattern: p.pattern,
+            type: p.patternType,
+            priority: p.priority,
+          })),
+        })),
+      };
     },
   );
 
@@ -833,7 +863,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
 
   app.delete(
     '/platform/prospecting/objections/:publicId/patterns/:patternId',
-    { schema: { params: z.object({ publicId: z.uuid(), patternId: z.coerce.number() }) } },
+    { schema: { params: z.object({ publicId: z.uuid(), patternId: z.string().regex(/^\d+$/) }) } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
       await options.client.prospectingObjectionPattern.delete({

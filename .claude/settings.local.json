@@ -101,7 +101,11 @@
       "Bash(xargs grep -l \"PlatformPermissionCodeSchema\")",
       "Bash(git commit -m 'PROSPECTING — Etapa 10.1: Document ETAPA 10 closure status and roadmap *)",
       "Bash(xargs grep -l \"WHERE\")",
-      "Bash(xargs grep -l \"objection.*seed\\\\|seed.*objection\\\\|PRECO\\\\|INTERESSADO\")"
+      "Bash(xargs grep -l \"objection.*seed\\\\|seed.*objection\\\\|PRECO\\\\|INTERESSADO\")",
+      "PowerShell(cd C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos; npm run build:web 2>&1; echo \"BUILD_EXIT_CODE=$LASTEXITCODE\")",
+      "PowerShell(cd C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos; npm run build:api 2>&1; echo \"API_EXIT=$LASTEXITCODE\")",
+      "PowerShell(cd C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos; npm run build:api 2>&1; echo \"API_BUILD=$LASTEXITCODE\")",
+      "PowerShell(cd C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\api; npx tsc -p tsconfig.build.json 2>&1; echo \"TS_COMPILE_EXIT=$LASTEXITCODE\")"
     ]
   }
 }

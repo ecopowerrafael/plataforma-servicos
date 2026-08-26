@@ -5,11 +5,10 @@ import { httpClient } from '../../lib/http.js';
 import { formatDate, PageHeader, ErrorState } from './PlatformUi.js';
 
 interface Pattern {
-  id: number;
-  text: string;
+  id: string;
+  pattern: string;
   type: 'EXACT' | 'STARTS_WITH' | 'ENDS_WITH' | 'CONTAINS';
   priority: number;
-  isActive: boolean;
 }
 
 interface Objection {
@@ -33,14 +32,13 @@ const objectionsResponseSchema = z.object({
     suggestedResponse: z.string().optional(),
     autoReplyAllowed: z.boolean(),
     isActive: z.boolean(),
+    createdAt: z.string(),
     patterns: z.array(z.object({
-      id: z.number(),
-      text: z.string(),
+      id: z.string(),
+      pattern: z.string(),
       type: z.string(),
       priority: z.number(),
-      isActive: z.boolean(),
     })),
-    createdAt: z.string(),
   })),
 });
 
@@ -50,6 +48,13 @@ const classifyPreviewSchema = z.object({
   objectionName: z.string().optional(),
   confidence: z.number().optional(),
 });
+
+const patternTypeLabels: Record<string, string> = {
+  EXACT: 'Exato',
+  STARTS_WITH: 'Começa com',
+  ENDS_WITH: 'Termina com',
+  CONTAINS: 'Contém',
+};
 
 export function ProspectingObjectionsView() {
   const queryClient = useQueryClient();
@@ -322,8 +327,8 @@ export function ProspectingObjectionsView() {
                   <ul className="patterns-list">
                     {objection.patterns.map((p) => (
                       <li key={p.id} className={`pattern-${p.type.toLowerCase()}`}>
-                        <span className="pattern-type">{p.type}</span>
-                        <span className="pattern-text">{p.text}</span>
+                        <span className="pattern-type">{patternTypeLabels[p.type] || p.type}</span>
+                        <span className="pattern-text">{p.pattern}</span>
                       </li>
                     ))}
                   </ul>

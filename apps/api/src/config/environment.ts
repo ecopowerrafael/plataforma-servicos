@@ -107,6 +107,10 @@ const environmentSchema = z
     // ambiente após o primeiro acesso.
     PLATFORM_ADMIN_EMAIL: z.email().trim().optional(),
     PLATFORM_ADMIN_PASSWORD: z.string().min(12).max(200).optional(),
+    PROSPECTING_DRY_RUN: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
   })
   .superRefine((value, context) => {
     if (value.NODE_ENV === 'production' && value.CORS_ORIGINS.includes('*')) {

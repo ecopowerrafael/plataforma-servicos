@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import {
   ErrorState,
@@ -58,6 +59,48 @@ interface CampaignDetail extends Campaign {
   autoReplyEnabled: boolean;
 }
 
+const statsSchema = z.object({
+  leads: z.number(),
+  sent: z.number(),
+  delivered: z.number(),
+  read: z.number(),
+  responded: z.number(),
+  interested: z.number(),
+  followUp: z.number(),
+  optOut: z.number(),
+  deliveryRate: z.number(),
+  readRate: z.number(),
+  responseRate: z.number(),
+  interestRate: z.number(),
+});
+
+const statusSchema = z.object({
+  workerEnabled: z.boolean(),
+  dryRun: z.boolean(),
+  whatsappConfigured: z.boolean(),
+  whatsappActive: z.boolean(),
+});
+
+const campaignSchema = z.object({
+  id: z.string(),
+  publicId: z.string(),
+  name: z.string(),
+  status: z.string(),
+  dailyLimit: z.number(),
+  sendingStartMinutes: z.number(),
+  sendingEndMinutes: z.number(),
+  createdAt: z.string(),
+  leads: z.array(z.object({ id: z.string() })).optional(),
+  _count: z.object({ leads: z.number() }).optional(),
+});
+
+const campaignDetailSchema = campaignSchema.extend({
+  followUpEnabled: z.boolean(),
+  pauseOnReply: z.boolean(),
+  pauseOnInterest: z.boolean(),
+  autoReplyEnabled: z.boolean(),
+});
+
 export function ProspectingModule({
   campaignPublicId,
   onOpen,
@@ -87,7 +130,7 @@ export function ProspectingModule({
       const params = new URLSearchParams();
       if (filterCampaign !== 'all') params.set('campaignId', filterCampaign);
       return httpClient.request(`/platform/prospecting/stats?${params.toString()}`, {
-        schema: null as any,
+        schema: statsSchema,
       });
     },
   });
@@ -96,7 +139,7 @@ export function ProspectingModule({
     queryKey: ['prospecting', 'status'],
     queryFn: () =>
       httpClient.request('/platform/prospecting/status', {
-        schema: null as any,
+        schema: statusSchema,
       }),
   });
 
@@ -104,7 +147,7 @@ export function ProspectingModule({
     queryKey: ['prospecting', 'campaigns'],
     queryFn: () =>
       httpClient.request('/platform/prospecting/campaigns', {
-        schema: null as any,
+        schema: z.array(campaignSchema),
       }),
   });
 
@@ -112,7 +155,7 @@ export function ProspectingModule({
     queryKey: ['prospecting', 'campaign', selectedCampaign],
     queryFn: () =>
       httpClient.request(`/platform/prospecting/campaigns/${selectedCampaign ?? ''}`, {
-        schema: null as any,
+        schema: campaignDetailSchema,
       }),
     enabled: selectedCampaign !== null,
   });
@@ -166,7 +209,7 @@ export function ProspectingModule({
   };
 
   return (
-    <>
+    <div className="prospecting-module">
       {view === 'dashboard' ? (
         <DashboardView
           stats={stats.data as ProspectingStats | undefined}
@@ -243,7 +286,7 @@ export function ProspectingModule({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 /* Prospecting Module Styles */
 
-.platform-status-bar {
+.prospecting-module .platform-status-bar {
   display: flex;
   gap: 2rem;
   padding: 1rem;
@@ -10,14 +10,14 @@
   flex-wrap: wrap;
 }
 
-.platform-status-bar > div {
+.prospecting-module .platform-status-bar > div {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   font-size: 0.95rem;
 }
 
-.platform-status-bar strong {
+.prospecting-module .platform-status-bar strong {
   font-weight: 600;
 }
 
@@ -61,7 +61,7 @@
   font-weight: 500;
 }
 
-.platform-metrics-grid {
+.prospecting-module .platform-metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
@@ -234,33 +234,33 @@
   color: var(--ds-text-primary);
 }
 
-.platform-empty {
+.prospecting-module .platform-empty {
   text-align: center;
   padding: 3rem 1rem;
 }
 
-.platform-empty h3 {
+.prospecting-module .platform-empty h3 {
   margin: 0 0 0.5rem 0;
   font-size: 1.3rem;
 }
 
-.platform-empty p {
+.prospecting-module .platform-empty p {
   margin: 0 0 1.5rem 0;
   color: var(--ds-text-secondary);
 }
 
-.platform-empty button {
+.prospecting-module .platform-empty button {
   margin-top: 1rem;
 }
 
-.platform-filter-bar {
+.prospecting-module .platform-filter-bar {
   display: flex;
   gap: 1rem;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
 }
 
-.platform-filter-bar label {
+.prospecting-module .platform-filter-bar label {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -268,8 +268,8 @@
   font-weight: 600;
 }
 
-.platform-filter-bar input,
-.platform-filter-bar select {
+.prospecting-module .platform-filter-bar input,
+.prospecting-module .platform-filter-bar select {
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--ds-border-neutral);
   border-radius: 4px;
@@ -278,13 +278,13 @@
   color: var(--ds-text-primary);
 }
 
-.platform-table-skeleton {
+.prospecting-module .platform-table-skeleton {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.platform-skeleton {
+.prospecting-module .platform-skeleton {
   display: block;
   height: 40px;
   background: var(--ds-background-secondary);
@@ -304,41 +304,41 @@
   }
 }
 
-.platform-table-wrap {
+.prospecting-module .platform-table-wrap {
   overflow-x: auto;
 }
 
-.platform-table {
+.prospecting-module .platform-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
 }
 
-.platform-table thead {
+.prospecting-module .platform-table thead {
   background: var(--ds-background-secondary);
   border-bottom: 2px solid var(--ds-border-neutral);
 }
 
-.platform-table th {
+.prospecting-module .platform-table th {
   padding: 1rem;
   text-align: left;
   font-weight: 600;
   color: var(--ds-text-secondary);
 }
 
-.platform-table td {
+.prospecting-module .platform-table td {
   padding: 1rem;
   border-bottom: 1px solid var(--ds-border-neutral);
   color: var(--ds-text-primary);
 }
 
-.platform-table tbody tr:hover {
+.prospecting-module .platform-table tbody tr:hover {
   background: var(--ds-background-secondary);
 }
 
 /* Mobile responsive */
 @media (max-width: 768px) {
-  .platform-status-bar {
+  .prospecting-module .platform-status-bar {
     flex-direction: column;
     gap: 1rem;
   }
@@ -356,7 +356,7 @@
     grid-template-columns: 1fr;
   }
 
-  .platform-metrics-grid {
+  .prospecting-module .platform-metrics-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -368,12 +368,12 @@
     font-size: 1.5rem;
   }
 
-  .platform-table {
+  .prospecting-module .platform-table {
     font-size: 0.85rem;
   }
 
-  .platform-table th,
-  .platform-table td {
+  .prospecting-module .platform-table th,
+  .prospecting-module .platform-table td {
     padding: 0.75rem;
   }
 }

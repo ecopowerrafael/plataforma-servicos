@@ -442,6 +442,56 @@ async function seedProspectingObjections(
   }
 }
 
+async function seedProspectingTemplates(
+  transaction: any,
+): Promise<void> {
+  const defaultTemplates = [
+    {
+      stepNumber: 1,
+      name: 'Abordagem Inicial',
+      body: 'Olá {{nome}}, tudo bem? Falo da {{empresa}}. Posso te fazer uma pergunta rápida?',
+    },
+    {
+      stepNumber: 2,
+      name: 'Follow-up',
+      body: 'Oi {{nome}}, passando novamente porque talvez minha mensagem anterior tenha ficado perdida. Posso te explicar rapidamente o motivo do contato?',
+    },
+    {
+      stepNumber: 3,
+      name: 'Último Contato',
+      body: 'Olá {{nome}}, este é meu último contato por aqui. Se fizer sentido conversar, fico à disposição.',
+    },
+  ];
+
+  const campaigns = await transaction.prospectingCampaign.findMany({
+    select: { id: true },
+  });
+
+  for (const campaign of campaigns) {
+    for (const template of defaultTemplates) {
+      const existing = await transaction.prospectingTemplate.findFirst({
+        where: {
+          campaignId: campaign.id,
+          stepNumber: template.stepNumber,
+        },
+      });
+
+      if (!existing) {
+        await transaction.prospectingTemplate.create({
+          data: {
+            publicId: randomUUID(),
+            campaignId: campaign.id,
+            stepNumber: template.stepNumber,
+            name: template.name,
+            body: template.body,
+            isDefault: true,
+          },
+        });
+      }
+    }
+  }
+}
+
 async function bootstrap(): Promise<void> {
   const databaseUrl = buildDatabaseUrl(process.env);
   if (databaseUrl === undefined) {
@@ -510,6 +560,7 @@ async function bootstrap(): Promise<void> {
       });
 
       await seedProspectingObjections(transaction);
+      await seedProspectingTemplates(transaction);
     });
 
     // Provisionamento idempotente do primeiro Super Admin durante o deploy,

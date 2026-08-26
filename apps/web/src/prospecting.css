@@ -415,7 +415,7 @@
   flex-direction: column;
   gap: 1rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--ds-border-neutral);
+  border-bottom: 1px solid var(--ds-border-neutral, #e5e7eb);
 }
 
 .form-section:last-of-type {
@@ -426,7 +426,7 @@
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--ds-text-primary);
+  color: var(--ds-text-primary, #172033);
 }
 
 .campaign-form-container label {
@@ -442,11 +442,11 @@
 .campaign-form-container input[type='time'],
 .campaign-form-container select {
   padding: 0.75rem;
-  border: 1px solid var(--ds-border-neutral);
+  border: 1px solid var(--ds-border-neutral, #d1d5db);
   border-radius: 4px;
   font-size: 0.95rem;
-  background: var(--ds-background-secondary);
-  color: var(--ds-text-primary);
+  background: var(--ds-background-secondary, #f9fafb);
+  color: var(--ds-text-primary, #172033);
   font-family: inherit;
 }
 
@@ -508,7 +508,7 @@ legend {
   justify-content: flex-end;
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--ds-border-neutral);
+  border-top: 1px solid var(--ds-border-neutral, #e5e7eb);
 }
 
 .form-actions button {
@@ -588,7 +588,8 @@ legend {
 }
 
 .prospecting-form-drawer {
-  background: var(--ds-background-primary);
+  background: var(--ds-background-primary, #ffffff);
+  color: var(--ds-text-primary, #172033);
   width: 100%;
   max-width: 600px;
   max-height: 90vh;
@@ -596,6 +597,8 @@ legend {
   border-radius: 8px 8px 0 0;
   margin: 0 auto;
   padding: 2rem;
+  box-sizing: border-box;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
 }
 
 .prospecting-form-drawer h2 {

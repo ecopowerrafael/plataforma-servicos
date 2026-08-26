@@ -403,7 +403,7 @@ export function ProspectingModule({
       ) : view === 'conversations' ? (
         <ProspectingConversationsView />
       ) : view === 'templates' ? (
-        <ProspectingTemplatesView />
+        <ProspectingTemplatesView campaigns={campaigns.data?.items ?? []} />
       ) : view === 'objections' ? (
         <ProspectingObjectionsView />
       ) : view === 'settings' ? (

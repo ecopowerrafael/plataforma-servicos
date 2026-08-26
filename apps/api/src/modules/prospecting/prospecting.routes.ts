@@ -1,5 +1,6 @@
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { ProspectingService } from './prospecting.service.js';
 import { ProspectingObjectionEngine } from './prospecting-objection-engine.js';
 import { type PlatformService } from '../platform/platform.service.js';
@@ -215,6 +216,42 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       const campaign = await options.service.createCampaign(
         input as Parameters<typeof options.service.createCampaign>[0],
       );
+
+      // Create default templates for new campaign
+      const defaultTemplates = [
+        {
+          stepNumber: 1,
+          name: 'Abordagem Inicial',
+          body: 'Olá {{nome}}, tudo bem? Falo da {{empresa}}. Posso te fazer uma pergunta rápida?',
+          isDefault: true,
+        },
+        {
+          stepNumber: 2,
+          name: 'Follow-up',
+          body: 'Oi {{nome}}, passando novamente porque talvez minha mensagem anterior tenha ficado perdida. Posso te explicar rapidamente o motivo do contato?',
+          isDefault: true,
+        },
+        {
+          stepNumber: 3,
+          name: 'Último Contato',
+          body: 'Olá {{nome}}, este é meu último contato por aqui. Se fizer sentido conversar, fico à disposição.',
+          isDefault: true,
+        },
+      ];
+
+      for (const template of defaultTemplates) {
+        await options.client.prospectingTemplate.create({
+          data: {
+            publicId: randomUUID(),
+            campaignId: campaign.id,
+            stepNumber: template.stepNumber,
+            name: template.name,
+            body: template.body,
+            isDefault: template.isDefault,
+          },
+        });
+      }
+
       return campaign;
     },
   );
@@ -539,7 +576,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
 
       const message = await options.client.prospectingMessage.create({
         data: {
-          publicId: require('node:crypto').randomUUID(),
+          publicId: randomUUID(),
           campaignId: lead.campaignId,
           leadId: lead.id,
           direction: 'OUTBOUND',
@@ -575,6 +612,28 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     },
   );
 
+  app.get(
+    '/platform/prospecting/campaigns/:publicId/templates',
+    { schema: { params: z.object({ publicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const campaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!campaign) throw new Error('Campaign not found');
+
+      const templates = await options.client.prospectingTemplate.findMany({
+        where: { campaignId: campaign.id },
+        include: { variants: true },
+        orderBy: { stepNumber: 'asc' },
+      });
+
+      return { items: templates };
+    },
+  );
+
   app.post(
     '/platform/prospecting/campaigns/:publicId/templates',
     { schema: { params: z.object({ publicId: z.uuid() }), body: TemplateSchema } },
@@ -589,7 +648,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
 
       const template = await options.client.prospectingTemplate.create({
         data: {
-          publicId: require('node:crypto').randomUUID(),
+          publicId: randomUUID(),
           campaignId: campaign.id,
           name: request.body.name,
           stepNumber: request.body.stepNumber,
@@ -712,7 +771,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       allow(request, 'platform.prospecting.update');
       const objection = await options.client.prospectingObjection.create({
         data: {
-          publicId: require('node:crypto').randomUUID(),
+          publicId: randomUUID(),
           name: request.body.name,
           description: request.body.description ?? null,
           suggestedResponse: request.body.suggestedResponse ?? null,
@@ -910,3 +969,4 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     },
   );
 };
+

@@ -26,28 +26,43 @@ const templatesResponseSchema = z.object({
   })),
 });
 
-export function ProspectingTemplatesView() {
+export function ProspectingTemplatesView({
+  campaigns = [],
+}: {
+  campaigns?: Array<{ publicId: string; name: string }>;
+}) {
   const queryClient = useQueryClient();
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', stepNumber: 1, body: '' });
   const [newVariant, setNewVariant] = useState('');
 
   const templates = useQuery({
-    queryKey: ['prospecting', 'templates'],
-    queryFn: () => httpClient.request('/platform/prospecting/templates', { schema: templatesResponseSchema }),
+    queryKey: ['prospecting', 'templates', selectedCampaignId],
+    queryFn: () => {
+      if (!selectedCampaignId) {
+        return { items: [] };
+      }
+      return httpClient.request(`/platform/prospecting/campaigns/${selectedCampaignId}/templates`, {
+        schema: templatesResponseSchema,
+      });
+    },
+    enabled: !!selectedCampaignId,
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Need campaignId - will be set via parent module selection
-      return httpClient.request('/platform/prospecting/templates', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+      return httpClient.request(
+        `/platform/prospecting/campaigns/${selectedCampaignId}/templates`,
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      );
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'templates'] });
+      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'templates', selectedCampaignId] });
       setShowForm(false);
       setFormData({ name: '', stepNumber: 1, body: '' });
     },
@@ -64,7 +79,7 @@ export function ProspectingTemplatesView() {
       );
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'templates'] });
+      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'templates', selectedCampaignId] });
       setNewVariant('');
     },
   });
@@ -73,7 +88,7 @@ export function ProspectingTemplatesView() {
     mutationFn: (publicId: string) =>
       httpClient.request(`/platform/prospecting/templates/${publicId}`, { method: 'DELETE' }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'templates'] });
+      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'templates', selectedCampaignId] });
       setEditingTemplate(null);
     },
   });
@@ -90,18 +105,37 @@ export function ProspectingTemplatesView() {
         description="Gerencie templates de mensagens para campanhas."
       />
 
-      <div className="content-actions">
-        <button
-          onClick={() => {
-            setShowForm(true);
-            setEditingTemplate(null);
-            setFormData({ name: '', stepNumber: 1, body: '' });
-          }}
-          className="primary-button"
-        >
-          + Novo Template
-        </button>
+      <div className="platform-filter-bar">
+        <label>
+          Campanha
+          <select
+            value={selectedCampaignId}
+            onChange={(e) => setSelectedCampaignId(e.target.value)}
+          >
+            <option value="">Selecione uma campanha</option>
+            {campaigns.map((c) => (
+              <option key={c.publicId} value={c.publicId}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
+
+      {selectedCampaignId && (
+        <div className="content-actions">
+          <button
+            onClick={() => {
+              setShowForm(true);
+              setEditingTemplate(null);
+              setFormData({ name: '', stepNumber: 1, body: '' });
+            }}
+            className="primary-button"
+          >
+            + Novo Template
+          </button>
+        </div>
+      )}
 
       {showForm && (
         <div className="prospecting-form-backdrop" onClick={() => setShowForm(false)}>
@@ -168,7 +202,12 @@ export function ProspectingTemplatesView() {
         </div>
       )}
 
-      {templates.isPending ? (
+      {!selectedCampaignId ? (
+        <div className="platform-empty">
+          <h3>Selecione uma campanha</h3>
+          <p>Escolha uma campanha acima para visualizar seus modelos.</p>
+        </div>
+      ) : templates.isPending ? (
         <div className="skeleton-list">
           <i className="skeleton-item" />
           <i className="skeleton-item" />

@@ -381,11 +381,11 @@
 /* Campaign Form Styles */
 
 .campaign-form-container {
-  background: var(--ds-background-primary);
-  border-radius: 8px;
-  padding: 2rem;
-  max-width: 800px;
-  margin: 0 auto;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  /* Remove max-width and margin when in portal drawer context */
+  /* When needed for standalone/page context, those are handled by parent */
 }
 
 .campaign-form-container h2 {

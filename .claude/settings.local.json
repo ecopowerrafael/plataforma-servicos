@@ -100,7 +100,8 @@
       "Bash(xargs grep -l \"PlatformPermissionCode\")",
       "Bash(xargs grep -l \"PlatformPermissionCodeSchema\")",
       "Bash(git commit -m 'PROSPECTING — Etapa 10.1: Document ETAPA 10 closure status and roadmap *)",
-      "Bash(xargs grep -l \"WHERE\")"
+      "Bash(xargs grep -l \"WHERE\")",
+      "Bash(xargs grep -l \"objection.*seed\\\\|seed.*objection\\\\|PRECO\\\\|INTERESSADO\")"
     ]
   }
 }

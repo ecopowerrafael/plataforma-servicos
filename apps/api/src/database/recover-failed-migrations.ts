@@ -214,15 +214,16 @@ async function main(): Promise<void> {
       // Para outras migrations: NÃO fazer rollback automático cego
       // MySQL/MariaDB DDL com partial application é perigoso (implicit commit)
       // Requerendo resolução manual via: npx prisma migrate resolve --rolled-back <migration_name>
-      throw new Error(
-        `[PRODUCTION MIGRATION FAILURE] Migration não recuperável automaticamente: ${migration.migration_name}\n` +
+      console.error(
+        `\n[PRODUCTION MIGRATION FAILURE] Migration não recuperável automaticamente: ${migration.migration_name}\n` +
         `Ação necessária (manual):\n` +
         `1. Investigar o estado parcial no banco de dados\n` +
         `2. Corrigir a migration no repositório se necessário\n` +
         `3. Executar manualmente: npx prisma migrate resolve --rolled-back ${migration.migration_name}\n` +
         `4. Depois: npx prisma migrate deploy\n\n` +
-        `Razão: Auto-rollback é perigoso para DDL MySQL/MariaDB com aplicação parcial.`,
+        `Razão: Auto-rollback é perigoso para DDL MySQL/MariaDB com aplicação parcial.\n`,
       );
+      process.exitCode = 1;
     }
   } catch (error) {
     // Banco novo (sem `_prisma_migrations`) ou indisponível não deve derrubar o

@@ -100,7 +100,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   ) => options.platformService.requirePermission(request.platformAuth, permission);
 
   app.get('/platform/prospecting/stats', async (request) => {
-    allow(request, 'platform.tenant.read');
+    allow(request, 'platform.prospecting.read');
     const campaignId = (request.query as any).campaignId
       ? BigInt(String((request.query as any).campaignId))
       : undefined;
@@ -183,7 +183,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   });
 
   app.get('/platform/prospecting/status', async (request) => {
-    allow(request, 'platform.tenant.read');
+    allow(request, 'platform.prospecting.read');
     const { PROSPECTING_WORKER_ENABLED, PROSPECTING_DRY_RUN } = process.env;
 
     const whatsappConfig = await options.client.prospectingWhatsAppConfig.findFirst({
@@ -199,7 +199,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   });
 
   app.get('/platform/prospecting/campaigns', async (request) => {
-    allow(request, 'platform.tenant.read');
+    allow(request, 'platform.prospecting.read');
     const campaigns = await options.service.listCampaigns();
     return { items: campaigns };
   });
@@ -223,7 +223,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/campaigns/:publicId',
     { schema: { params } },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
       const campaign = await options.service.getCampaign(request.params.publicId);
       if (!campaign) {
         throw new Error('Campaign not found');
@@ -310,7 +310,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/campaigns/:publicId/leads',
     { schema: { params, querystring: leadsQuerySchema } },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
       const campaign = await options.service.getCampaign(request.params.publicId);
       if (!campaign) {
         throw new Error('Campaign not found');
@@ -360,7 +360,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/campaigns/:publicId/leads/:leadPublicId',
     { schema: { params: leadDetailParams } },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
       const campaign = await options.service.getCampaign(request.params.publicId);
       if (!campaign) {
         throw new Error('Campaign not found');
@@ -380,7 +380,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/conversations',
     { schema: { querystring: leadsQuerySchema } },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
       const page = Number((request.query as any).page || 1);
       const pageSize = Math.min(Number((request.query as any).pageSize || 25), 100);
       const skip = (page - 1) * pageSize;
@@ -428,7 +428,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/conversations/:leadPublicId/messages',
     { schema: { params: leadDetailParams } },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
       const page = Number((request.query as any).page || 1);
       const pageSize = Math.min(Number((request.query as any).pageSize || 50), 100);
       const skip = (page - 1) * pageSize;
@@ -560,7 +560,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/templates',
     { schema: { querystring: z.object({ campaignId: z.string().uuid().optional() }) } },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
       const where = request.query.campaignId
         ? { campaign: { publicId: request.query.campaignId } }
         : {};
@@ -579,7 +579,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/campaigns/:publicId/templates',
     { schema: { params: z.object({ publicId: z.uuid() }), body: TemplateSchema } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       const campaign = await options.client.prospectingCampaign.findUnique({
         where: { publicId: request.params.publicId },
         select: { id: true },
@@ -607,7 +607,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/templates/:publicId',
     { schema: { params: z.object({ publicId: z.uuid() }), body: TemplateSchema.partial() } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       const data: Record<string, any> = {};
       if (request.body.name !== undefined) data.name = request.body.name;
       if (request.body.stepNumber !== undefined) data.stepNumber = request.body.stepNumber;
@@ -628,7 +628,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/templates/:publicId',
     { schema: { params: z.object({ publicId: z.uuid() }) } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       await options.client.prospectingTemplate.delete({
         where: { publicId: request.params.publicId },
       });
@@ -642,7 +642,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/templates/:publicId/variants',
     { schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ body: z.string().min(1) }) } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       const template = await options.client.prospectingTemplate.findUnique({
         where: { publicId: request.params.publicId },
         select: { id: true },
@@ -671,7 +671,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/templates/:publicId/variants/:variantIndex',
     { schema: { params: z.object({ publicId: z.uuid(), variantIndex: z.coerce.number() }) } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       const template = await options.client.prospectingTemplate.findUnique({
         where: { publicId: request.params.publicId },
         select: { id: true },
@@ -692,7 +692,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/objections',
     { schema: { querystring: z.object({ isActive: z.enum(['true', 'false']).optional() }) } },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
       const where = request.query.isActive !== undefined ? { isActive: request.query.isActive === 'true' } : {};
 
       const objections = await options.client.prospectingObjection.findMany({
@@ -709,7 +709,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/objections',
     { schema: { body: ObjectionSchema } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       const objection = await options.client.prospectingObjection.create({
         data: {
           publicId: require('node:crypto').randomUUID(),
@@ -729,7 +729,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/objections/:publicId',
     { schema: { params: z.object({ publicId: z.uuid() }), body: ObjectionSchema.partial() } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       const data: Record<string, any> = {};
       if (request.body.name !== undefined) data.name = request.body.name;
       if (request.body.description !== undefined) data.description = request.body.description;
@@ -751,7 +751,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/objections/:publicId/patterns',
     { schema: { params: z.object({ publicId: z.uuid() }), body: PatternSchema } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       const objection = await options.client.prospectingObjection.findUnique({
         where: { publicId: request.params.publicId },
         select: { id: true },
@@ -776,7 +776,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/objections/:publicId/patterns/:patternId',
     { schema: { params: z.object({ publicId: z.uuid(), patternId: z.coerce.number() }) } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       await options.client.prospectingObjectionPattern.delete({
         where: { id: BigInt(request.params.patternId) },
       });
@@ -790,7 +790,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/campaigns/:publicId/objection-exclusions',
     { schema: { params: z.object({ publicId: z.uuid() }) } },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
       const campaign = await options.client.prospectingCampaign.findUnique({
         where: { publicId: request.params.publicId },
         select: { id: true },
@@ -816,7 +816,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       },
     },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       const campaign = await options.client.prospectingCampaign.findUnique({
         where: { publicId: request.params.publicId },
         select: { id: true },
@@ -849,7 +849,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     '/platform/prospecting/campaigns/:publicId/objection-exclusions/:exclusionId',
     { schema: { params: z.object({ publicId: z.uuid(), exclusionId: z.coerce.number() }) } },
     async (request) => {
-      allow(request, 'platform.tenant.update');
+      allow(request, 'platform.prospecting.update');
       await options.client.prospectingObjectionExclusion.delete({
         where: { id: BigInt(request.params.exclusionId) },
       });
@@ -870,7 +870,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       },
     },
     async (request) => {
-      allow(request, 'platform.tenant.read');
+      allow(request, 'platform.prospecting.read');
 
       let exclusionObjectionIds: bigint[] = [];
 

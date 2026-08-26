@@ -22,6 +22,8 @@ export const PlatformPermissionCodeSchema = z.enum([
   'platform.metrics.read',
   'platform.commercial_policy.read',
   'platform.commercial_policy.manage',
+  'platform.prospecting.read',
+  'platform.prospecting.update',
   'platform.worker.execute',
 ]);
 

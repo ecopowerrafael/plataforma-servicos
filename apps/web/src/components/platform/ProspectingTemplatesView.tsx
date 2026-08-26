@@ -314,13 +314,15 @@ export function ProspectingTemplatesView({
                   >
                     Editar
                   </button>
-                  <button
-                    onClick={() => void deleteMutation.mutateAsync(template.publicId)}
-                    disabled={deleteMutation.isPending}
-                    className="danger-button"
-                  >
-                    Deletar
-                  </button>
+                  {!template.isDefault && (
+                    <button
+                      onClick={() => void deleteMutation.mutateAsync(template.publicId)}
+                      disabled={deleteMutation.isPending}
+                      className="danger-button"
+                    >
+                      Deletar
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

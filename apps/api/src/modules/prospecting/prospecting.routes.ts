@@ -720,6 +720,15 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     { schema: { params: z.object({ publicId: z.uuid() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
+      const template = await options.client.prospectingTemplate.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { isDefault: true },
+      });
+
+      if (template?.isDefault) {
+        throw new Error('Cannot delete default template');
+      }
+
       await options.client.prospectingTemplate.delete({
         where: { publicId: request.params.publicId },
       });
@@ -874,6 +883,25 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
           patternType: request.body.patternType,
           priority: request.body.priority ?? 0,
         },
+      });
+
+      return pattern;
+    },
+  );
+
+  app.put(
+    '/platform/prospecting/objections/:publicId/patterns/:patternId',
+    { schema: { params: z.object({ publicId: z.uuid(), patternId: z.string().regex(/^\d+$/) }), body: PatternSchema.partial() } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const data: Record<string, any> = {};
+      if (request.body.pattern !== undefined) data.pattern = request.body.pattern;
+      if (request.body.patternType !== undefined) data.patternType = request.body.patternType;
+      if (request.body.priority !== undefined) data.priority = request.body.priority;
+
+      const pattern = await options.client.prospectingObjectionPattern.update({
+        where: { id: BigInt(request.params.patternId) },
+        data,
       });
 
       return pattern;

@@ -59,7 +59,9 @@ const patternTypeLabels: Record<string, string> = {
 export function ProspectingObjectionsView() {
   const queryClient = useQueryClient();
   const [editingObjection, setEditingObjection] = useState<Objection | null>(null);
+  const [editingPattern, setEditingPattern] = useState<Pattern | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showPatternForm, setShowPatternForm] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewText, setPreviewText] = useState('');
   const [formData, setFormData] = useState({
@@ -104,6 +106,20 @@ export function ProspectingObjectionsView() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return httpClient.request(`/platform/prospecting/objections/${editingObjection?.publicId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
+      setShowForm(false);
+      resetForm();
+    },
+  });
+
   const addPatternMutation = useMutation({
     mutationFn: (data: { objectionId: string; pattern: any }) =>
       httpClient.request(
@@ -116,6 +132,34 @@ export function ProspectingObjectionsView() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
       setNewPattern({ text: '', type: 'EXACT', priority: 0 });
+    },
+  });
+
+  const updatePatternMutation = useMutation({
+    mutationFn: (data: { objectionPublicId: string; patternId: string; pattern: any }) =>
+      httpClient.request(
+        `/platform/prospecting/objections/${data.objectionPublicId}/patterns/${data.patternId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(data.pattern),
+        }
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
+      setEditingPattern(null);
+      setShowPatternForm(false);
+      setNewPattern({ pattern: '', patternType: 'EXACT', priority: 0 });
+    },
+  });
+
+  const deletePatternMutation = useMutation({
+    mutationFn: (data: { objectionPublicId: string; patternId: string }) =>
+      httpClient.request(
+        `/platform/prospecting/objections/${data.objectionPublicId}/patterns/${data.patternId}`,
+        { method: 'DELETE' }
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
     },
   });
 
@@ -143,6 +187,29 @@ export function ProspectingObjectionsView() {
     void addPatternMutation.mutateAsync({
       objectionId,
       pattern: newPattern,
+    });
+  };
+
+  const handleEditPattern = (objection: Objection, pattern: Pattern) => {
+    setEditingPattern(pattern);
+    setNewPattern({
+      pattern: pattern.pattern,
+      patternType: pattern.type,
+      priority: pattern.priority,
+    });
+    setShowPatternForm(true);
+  };
+
+  const handleSavePattern = (objectionPublicId: string) => {
+    if (!newPattern.pattern.trim() || !editingPattern) return;
+    void updatePatternMutation.mutateAsync({
+      objectionPublicId,
+      patternId: editingPattern.id,
+      pattern: {
+        pattern: newPattern.pattern,
+        patternType: newPattern.patternType,
+        priority: newPattern.priority,
+      },
     });
   };
 
@@ -212,7 +279,11 @@ export function ProspectingObjectionsView() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                void createMutation.mutateAsync(formData);
+                if (editingObjection) {
+                  void updateMutation.mutateAsync(formData);
+                } else {
+                  void createMutation.mutateAsync(formData);
+                }
               }}
               className="campaign-form-container"
             >
@@ -285,6 +356,69 @@ export function ProspectingObjectionsView() {
         </div>
       )}
 
+      {showPatternForm && editingPattern && (
+        <div className="prospecting-form-backdrop" onClick={() => setShowPatternForm(false)}>
+          <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
+            <h2>Editar Padrão</h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSavePattern(editingObjection?.publicId ?? '');
+              }}
+              className="campaign-form-container"
+            >
+              <div className="form-section">
+                <label>
+                  Padrão
+                  <input
+                    type="text"
+                    value={newPattern.pattern}
+                    onChange={(e) => setNewPattern({ ...newPattern, pattern: e.target.value })}
+                    required
+                  />
+                </label>
+
+                <label>
+                  Tipo
+                  <select
+                    value={newPattern.patternType}
+                    onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                  >
+                    <option value="EXACT">Exato</option>
+                    <option value="CONTAINS">Contém</option>
+                    <option value="STARTS_WITH">Começa com</option>
+                    <option value="ENDS_WITH">Termina com</option>
+                  </select>
+                </label>
+
+                <label>
+                  Prioridade
+                  <input
+                    type="number"
+                    value={newPattern.priority}
+                    onChange={(e) => setNewPattern({ ...newPattern, priority: parseInt(e.target.value) })}
+                    min="0"
+                  />
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="primary-button">
+                  Salvar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPatternForm(false)}
+                  className="secondary-button"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {objections.isPending ? (
         <div className="skeleton-list">
           <i className="skeleton-item" />
@@ -327,29 +461,98 @@ export function ProspectingObjectionsView() {
                   <ul className="patterns-list">
                     {objection.patterns.map((p) => (
                       <li key={p.id} className={`pattern-${p.type.toLowerCase()}`}>
-                        <span className="pattern-type">{patternTypeLabels[p.type] || p.type}</span>
-                        <span className="pattern-text">{p.pattern}</span>
+                        <div className="pattern-content">
+                          <span className="pattern-type">{patternTypeLabels[p.type] || p.type}</span>
+                          <span className="pattern-text">{p.pattern}</span>
+                        </div>
+                        <div className="pattern-actions">
+                          <button
+                            onClick={() => handleEditPattern(objection, p)}
+                            className="secondary-button"
+                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => void deletePatternMutation.mutateAsync({
+                              objectionPublicId: objection.publicId,
+                              patternId: p.id,
+                            })}
+                            disabled={deletePatternMutation.isPending}
+                            className="danger-button"
+                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
                 )}
 
-                <div className="pattern-input">
+                  <div className="pattern-input">
                   <input
                     type="text"
                     value={newPattern.pattern}
                     onChange={(e) => setNewPattern({ ...newPattern, pattern: e.target.value })}
                     placeholder="Novo padrão"
                   />
-                  <select
-                    value={newPattern.patternType}
-                    onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
-                  >
-                    <option value="EXACT">Exato</option>
-                    <option value="STARTS_WITH">Começa com</option>
-                    <option value="ENDS_WITH">Termina com</option>
-                    <option value="CONTAINS">Contém</option>
-                  </select>
+                  <div className="pattern-type-options">
+                    <label>
+                      <input
+                        type="radio"
+                        name={`pattern-type-${objection.publicId}`}
+                        value="EXACT"
+                        checked={newPattern.patternType === 'EXACT'}
+                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                      />
+                      <span>Exato</span>
+                      <small>Apenas mensagens exatamente iguais</small>
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name={`pattern-type-${objection.publicId}`}
+                        value="CONTAINS"
+                        checked={newPattern.patternType === 'CONTAINS'}
+                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                      />
+                      <span>Contém</span>
+                      <small>Quando a expressão aparecer em qualquer parte</small>
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        const more = document.getElementById(`more-patterns-${objection.publicId}`);
+                        if (more) more.style.display = more.style.display === 'none' ? 'block' : 'none';
+                      }}
+                    >
+                      Mais opções
+                    </button>
+                  </div>
+                  <div id={`more-patterns-${objection.publicId}`} style={{ display: 'none', marginTop: '0.5rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.25rem' }}>
+                      <input
+                        type="radio"
+                        name={`pattern-type-${objection.publicId}`}
+                        value="STARTS_WITH"
+                        checked={newPattern.patternType === 'STARTS_WITH'}
+                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                      />
+                      <span>Começa com</span>
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name={`pattern-type-${objection.publicId}`}
+                        value="ENDS_WITH"
+                        checked={newPattern.patternType === 'ENDS_WITH'}
+                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                      />
+                      <span>Termina com</span>
+                    </label>
+                  </div>
                   <button
                     onClick={() => handleAddPattern(objection.publicId)}
                     disabled={addPatternMutation.isPending || !newPattern.pattern.trim()}
@@ -362,13 +565,33 @@ export function ProspectingObjectionsView() {
 
               <div className="card-footer">
                 <small>{formatDate(objection.createdAt)}</small>
-                <button
-                  onClick={() => void deleteObjectionMutation.mutateAsync(objection.publicId)}
-                  disabled={deleteObjectionMutation.isPending}
-                  className="danger-button"
-                >
-                  Deletar
-                </button>
+                <div className="card-actions">
+                  <button
+                    onClick={() => {
+                      setEditingObjection(objection);
+                      setFormData({
+                        name: objection.name,
+                        description: objection.description ?? '',
+                        suggestedResponse: objection.suggestedResponse ?? '',
+                        autoReplyAllowed: objection.autoReplyAllowed,
+                        isActive: objection.isActive,
+                      });
+                      setShowForm(true);
+                    }}
+                    className="secondary-button"
+                  >
+                    Editar
+                  </button>
+                  {!objection.code && (
+                    <button
+                      onClick={() => void deleteObjectionMutation.mutateAsync(objection.publicId)}
+                      disabled={deleteObjectionMutation.isPending}
+                      className="danger-button"
+                    >
+                      Deletar
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

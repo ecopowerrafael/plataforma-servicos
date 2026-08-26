@@ -26,6 +26,8 @@ import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.j
 import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-payment-options.service.js';
 import { type PaymentService } from '../payments/payment.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
+import { ProspectingInboundService } from '../prospecting/prospecting-inbound.service.js';
+import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
 
@@ -80,6 +82,8 @@ const externalPublic = (item: {
 
 export class IntegrationService {
   private readonly assistant: WhatsAppAssistantService;
+  private readonly prospectingInbound: ProspectingInboundService;
+
   public constructor(
     private readonly repository: IntegrationRepository,
     private readonly cipher: CredentialsCipher | undefined,
@@ -93,6 +97,8 @@ export class IntegrationService {
     payments?: PaymentService,
     customerAuth?: CustomerAuthService,
     private readonly collectionAttemptExecution?: CollectionAttemptExecutionService,
+    client?: any, // PrismaClient
+    prospectingConfigService?: ProspectingWhatsAppConfigService,
   ) {
     this.assistant = new WhatsAppAssistantService(
       repository,
@@ -106,6 +112,10 @@ export class IntegrationService {
       payments,
       customerAuth,
     );
+
+    this.prospectingInbound = client && prospectingConfigService
+      ? new ProspectingInboundService(client, prospectingConfigService)
+      : new ProspectingInboundService();
   }
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {
     return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repository.client, tenantId, key);
@@ -328,10 +338,35 @@ export class IntegrationService {
   /**
    * Ingestão do webhook: o tenant vem sempre da configuração local a partir do
    * instanceId — nunca de um tenantId recebido de fora.
+   *
+   * IMPORTANTE: Checar Prospecting ANTES de resolver tenant para evitar rotear
+   * erroneamente para tenant quando instanceId pertence a Prospecting.
    */
   public async ingestWhatsappInbound(raw: unknown) {
     const event = normalizeWApiWebhook(raw);
     if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
+
+    // ROTEAMENTO PROSPECTING: checar instância de Prospecting PRIMEIRO
+    if (this.prospectingInbound) {
+      const prospectingResult = await this.prospectingInbound.processInbound({
+        instanceId: event.instanceId || null,
+        externalMessageId: event.externalMessageId || null,
+        fromPhone: event.phone || null,
+        body: event.text || undefined,
+        fromMe: event.fromMe,
+        timestamp: event.timestamp || undefined,
+        eventType: event.eventType || null,
+      });
+
+      // Se foi processado por Prospecting, retornar resultado
+      if (prospectingResult.handled) {
+        return { accepted: true, prospectingHandled: true, ...prospectingResult } as const;
+      }
+
+      // Se retornou handled=false, continuar para fluxo tenant normal
+    }
+
+    // FLUXO TENANT: continuar com comportamento anterior
     const config = await this.repository.whatsappByInstanceId(event.instanceId);
     if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN' } as const;
     const tenantId = config.tenantId;

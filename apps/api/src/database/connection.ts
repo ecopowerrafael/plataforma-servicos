@@ -107,6 +107,7 @@ import { ProfessionalUnitLinkService } from '../modules/professionals/profession
 import { PrismaProfessionalRepository } from '../modules/professionals/professional.repository.js';
 import { ProfessionalService } from '../modules/professionals/professional.service.js';
 import { ProspectingService } from '../modules/prospecting/prospecting.service.js';
+import { ProspectingWhatsAppConfigService } from '../modules/prospecting/prospecting-whatsapp-config.service.js';
 import { PrismaComboRepository } from '../modules/services/combo.repository.js';
 import { ComboService } from '../modules/services/combo.service.js';
 import { PrismaServiceCategoryRepository } from '../modules/services/service-category.repository.js';
@@ -591,6 +592,8 @@ export function createDatabaseConnection(
       payments,
       customerAuth,
       collectionAttemptExecution,
+      client,
+      credentialsCipher ? new ProspectingWhatsAppConfigService(client, credentialsCipher) : undefined,
     ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,

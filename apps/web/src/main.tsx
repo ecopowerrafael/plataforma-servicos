@@ -17,6 +17,7 @@ import './customers-crm.css';
 import './customer-recovery.css';
 import './finance-overview.css';
 import './financial-operations.css';
+import './prospecting.css';
 
 const rootElement = document.getElementById('root');
 

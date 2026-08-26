@@ -19,6 +19,13 @@ const statusMap: Record<string, { label: string; tone: string }> = {
   CANCELED: { label: 'Cancelado', tone: 'neutral' },
   EXPIRED: { label: 'Expirado', tone: 'neutral' },
 };
+const campaignStatusMap: Record<string, { label: string; tone: string }> = {
+  DRAFT: { label: 'Rascunho', tone: 'neutral' },
+  RUNNING: { label: 'Em execução', tone: 'success' },
+  PAUSED: { label: 'Pausada', tone: 'warning' },
+  COMPLETED: { label: 'Concluída', tone: 'muted' },
+  CANCELED: { label: 'Cancelada', tone: 'danger' },
+};
 const cycleMap: Record<string, string> = {
   MONTHLY: 'Mensal',
   QUARTERLY: 'Trimestral',
@@ -38,8 +45,9 @@ export const formatDate = (value: string, withTime = false) =>
       : { dateStyle: 'short', timeZone: 'America/Sao_Paulo' },
   ).format(new Date(value));
 
-export function StatusBadge({ value }: { value: string }) {
-  const status = statusMap[value] ?? { label: value, tone: 'neutral' };
+export function StatusBadge({ value, campaignStatus }: { value: string; campaignStatus?: boolean }) {
+  const map = campaignStatus ? campaignStatusMap : statusMap;
+  const status = map[value] ?? { label: value, tone: 'neutral' };
   const tone: BadgeTone = status.tone === 'neutral' ? 'muted' : (status.tone as BadgeTone);
   return <AppStatusBadge tone={tone}>{status.label}</AppStatusBadge>;
 }

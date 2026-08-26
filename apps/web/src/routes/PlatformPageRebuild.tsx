@@ -24,6 +24,7 @@ import {
 import { SubscriptionModule } from '../components/platform/SubscriptionModule.js';
 import { TenantModule } from '../components/platform/TenantModule.js';
 import { DirectoryModule } from '../components/platform/DirectoryModule.js';
+import { ProspectingModule } from '../components/platform/ProspectingModule.js';
 import { HttpError, httpClient } from '../lib/http.js';
 
 export function PlatformPageRebuild() {
@@ -41,6 +42,7 @@ export function PlatformPageRebuild() {
     'commercial-policy',
     'audit',
     'directory',
+    'prospecting',
     'settings',
   ].includes(routeSection ?? '')
     ? (routeSection as PlatformSection | 'settings')
@@ -107,6 +109,13 @@ export function PlatformPageRebuild() {
         <CommercialPolicyModule />
       ) : section === 'directory' ? (
         <DirectoryModule />
+      ) : section === 'prospecting' ? (
+        <ProspectingModule
+          campaignPublicId={params.resourceId}
+          onOpen={(id) => {
+            void navigate(`/platform/prospecting/${id}`);
+          }}
+        />
       ) : section === 'settings' ? (
         <WapiConfigModule />
       ) : (

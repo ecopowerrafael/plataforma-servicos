@@ -11,6 +11,7 @@ import {
 } from './PlatformUi.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { CampaignForm } from './CampaignForm.js';
+import { ProspectingLeadsView } from './ProspectingLeadsView.js';
 
 interface ProspectingStats {
   leads: number;
@@ -61,7 +62,7 @@ export function ProspectingModule({
   campaignPublicId?: string;
   onOpen?: (id: string) => void;
 }) {
-  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail'>(
+  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads'>(
     campaignPublicId ? 'detail' : 'campaigns'
   );
   const [page, setPage] = useState(1);
@@ -185,6 +186,11 @@ export function ProspectingModule({
           }}
           onViewDashboard={() => setView('dashboard')}
           onNewCampaign={() => setFormOpen(true)}
+        />
+      ) : view === 'leads' ? (
+        <ProspectingLeadsView
+          campaigns={campaigns.data?.items ?? []}
+          onLeadSelect={() => {}}
         />
       ) : (
         <DetailView
@@ -555,6 +561,16 @@ function DetailView({
           <StatusBadge value={campaign.status} campaignStatus={true} />
         </div>
         <div className="campaign-actions">
+          <button
+            className="secondary-button"
+            onClick={() => {
+              const params = new URLSearchParams({ campaignPublicId: campaign.publicId });
+              window.history.pushState({}, '', `?${params.toString()}`);
+            }}
+            type="button"
+          >
+            Ver Leads
+          </button>
           {onEdit && (
             <button
               className="secondary-button"

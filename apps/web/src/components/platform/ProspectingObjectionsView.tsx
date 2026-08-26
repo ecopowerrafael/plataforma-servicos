@@ -352,7 +352,7 @@ export function ProspectingObjectionsView() {
                   </select>
                   <button
                     onClick={() => handleAddPattern(objection.publicId)}
-                    disabled={addPatternMutation.isPending || !newPattern.text.trim()}
+                    disabled={addPatternMutation.isPending || !newPattern.pattern.trim()}
                     className="secondary-button"
                   >
                     Adicionar

@@ -125,6 +125,79 @@ const testConnectionSchema = z.object({
   message: z.string(),
 });
 
+// Placeholder schemas for views without backend implementation yet
+const templatesResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    name: z.string(),
+    stepNumber: z.number(),
+    body: z.string(),
+    isDefault: z.boolean(),
+    variants: z.array(z.object({ variantIndex: z.number(), body: z.string() })),
+    updatedAt: z.string(),
+  })),
+});
+
+const conversationsResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    nameSnapshot: z.string(),
+    phoneSnapshot: z.string(),
+    status: z.string(),
+    campaign: z.object({ publicId: z.string(), name: z.string() }).optional(),
+    humanLockType: z.string().optional(),
+    lastInboundAt: z.string().optional(),
+    updatedAt: z.string(),
+  })),
+  pagination: z.object({
+    page: z.number(),
+    pageSize: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+  }),
+});
+
+const objectionsResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    code: z.string().optional(),
+    name: z.string(),
+    description: z.string().optional(),
+    suggestedResponse: z.string().optional(),
+    autoReplyAllowed: z.boolean(),
+    isActive: z.boolean(),
+    patterns: z.array(z.object({
+      id: z.number(),
+      text: z.string(),
+      type: z.string(),
+      priority: z.number(),
+      isActive: z.boolean(),
+    })),
+    createdAt: z.string(),
+  })),
+});
+
+const leadsResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    nameSnapshot: z.string(),
+    phoneSnapshot: z.string(),
+    status: z.string(),
+    campaign: z.object({ publicId: z.string(), name: z.string() }).optional(),
+    lastOutboundAt: z.string().optional(),
+    lastInboundAt: z.string().optional(),
+    respondedAt: z.string().optional(),
+    currentStep: z.number().optional(),
+    followUpCount: z.number().optional(),
+  })),
+  pagination: z.object({
+    page: z.number(),
+    pageSize: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+  }),
+});
+
 export function ProspectingModule({
   campaignPublicId,
   onOpen,
@@ -373,8 +446,8 @@ export function ProspectingModule({
         />
       )}
       {formOpen && (
-        <div className="form-backdrop" onClick={() => setFormOpen(false)}>
-          <div className="form-drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="prospecting-form-backdrop" onClick={() => setFormOpen(false)}>
+          <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
             <CampaignForm
               initial={undefined}
               onClose={() => setFormOpen(false)}

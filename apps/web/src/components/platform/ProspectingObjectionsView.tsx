@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { formatDate, PageHeader, ErrorState } from './PlatformUi.js';
 
@@ -23,6 +24,33 @@ interface Objection {
   createdAt: string;
 }
 
+const objectionsResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    code: z.string().optional(),
+    name: z.string(),
+    description: z.string().optional(),
+    suggestedResponse: z.string().optional(),
+    autoReplyAllowed: z.boolean(),
+    isActive: z.boolean(),
+    patterns: z.array(z.object({
+      id: z.number(),
+      text: z.string(),
+      type: z.string(),
+      priority: z.number(),
+      isActive: z.boolean(),
+    })),
+    createdAt: z.string(),
+  })),
+});
+
+const classifyPreviewSchema = z.object({
+  matched: z.boolean(),
+  objectionId: z.string().optional(),
+  objectionName: z.string().optional(),
+  confidence: z.number().optional(),
+});
+
 export function ProspectingObjectionsView() {
   const queryClient = useQueryClient();
   const [editingObjection, setEditingObjection] = useState<Objection | null>(null);
@@ -44,7 +72,7 @@ export function ProspectingObjectionsView() {
 
   const objections = useQuery({
     queryKey: ['prospecting', 'objections'],
-    queryFn: () => httpClient.request('/platform/prospecting/objections', { schema: null as any }),
+    queryFn: () => httpClient.request('/platform/prospecting/objections', { schema: objectionsResponseSchema }),
   });
 
   const previewResult = useQuery({
@@ -53,6 +81,7 @@ export function ProspectingObjectionsView() {
       httpClient.request('/platform/prospecting/objections/classify-preview', {
         method: 'POST',
         body: JSON.stringify({ text: previewText }),
+        schema: classifyPreviewSchema,
       }),
     enabled: showPreview && previewText.length > 0,
   });
@@ -172,8 +201,8 @@ export function ProspectingObjectionsView() {
       )}
 
       {showForm && (
-        <div className="form-backdrop" onClick={() => setShowForm(false)}>
-          <div className="form-drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="prospecting-form-backdrop" onClick={() => setShowForm(false)}>
+          <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
             <h2>{editingObjection ? 'Editar' : 'Nova'} Objeção</h2>
             <form
               onSubmit={(e) => {

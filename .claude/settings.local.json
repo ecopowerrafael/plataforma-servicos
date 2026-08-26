@@ -98,7 +98,9 @@
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\api\\\\prisma\\\\migrations\" | Sort-Object Name -Descending | Select-Object -First 3 | ForEach-Object { $_.Name })",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\api\\\\prisma\\\\migrations\\\\20260921000010_add_bot_cobra_debt_payment\" | ForEach-Object { Get-Content $_.FullName | Select-Object -First 20 })",
       "Bash(xargs grep -l \"PlatformPermissionCode\")",
-      "Bash(xargs grep -l \"PlatformPermissionCodeSchema\")"
+      "Bash(xargs grep -l \"PlatformPermissionCodeSchema\")",
+      "Bash(git commit -m 'PROSPECTING — Etapa 10.1: Document ETAPA 10 closure status and roadmap *)",
+      "Bash(xargs grep -l \"WHERE\")"
     ]
   }
 }

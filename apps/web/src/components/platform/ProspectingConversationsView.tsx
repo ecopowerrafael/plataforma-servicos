@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { formatDate, PageHeader, ErrorState } from './PlatformUi.js';
 
@@ -56,6 +57,62 @@ const MESSAGE_STATUSES: Record<string, string> = {
   CANCELED: 'Cancelado',
 };
 
+const conversationsResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    nameSnapshot: z.string(),
+    phoneSnapshot: z.string(),
+    status: z.string(),
+    campaign: z.object({ publicId: z.string(), name: z.string() }).optional(),
+    humanLockType: z.string().optional(),
+    lastInboundAt: z.string().optional(),
+    updatedAt: z.string(),
+  })),
+  pagination: z.object({
+    page: z.number(),
+    pageSize: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+  }),
+});
+
+const conversationDetailSchema = z.object({
+  publicId: z.string(),
+  nameSnapshot: z.string(),
+  phoneSnapshot: z.string(),
+  city: z.string().optional(),
+  status: z.string(),
+  currentStep: z.number().optional(),
+  followUpCount: z.number().optional(),
+  lastOutboundAt: z.string().optional(),
+  lastInboundAt: z.string().optional(),
+  respondedAt: z.string().optional(),
+  nextActionAt: z.string().optional(),
+  humanLockType: z.string().optional(),
+  humanLockUntil: z.string().optional(),
+  humanLockReason: z.string().optional(),
+});
+
+const messagesResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    body: z.string(),
+    direction: z.string(),
+    status: z.string(),
+    purpose: z.string().optional(),
+    createdAt: z.string(),
+    sentAt: z.string().optional(),
+    deliveredAt: z.string().optional(),
+    readAt: z.string().optional(),
+  })),
+  pagination: z.object({
+    page: z.number(),
+    pageSize: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+  }),
+});
+
 export function ProspectingConversationsView() {
   const queryClient = useQueryClient();
   const [selectedLead, setSelectedLead] = useState<Conversation | null>(null);
@@ -70,7 +127,7 @@ export function ProspectingConversationsView() {
       if (search) params.set('search', search);
       return httpClient.request(
         `/platform/prospecting/conversations?${params.toString()}`,
-        { schema: null as any }
+        { schema: conversationsResponseSchema }
       );
     },
   });
@@ -81,7 +138,7 @@ export function ProspectingConversationsView() {
       if (!selectedLead) return null;
       const lead = await httpClient.request(
         `/platform/prospecting/campaigns/${selectedLead.campaign?.publicId}/leads/${selectedLead.publicId}`,
-        { schema: null as any }
+        { schema: conversationDetailSchema }
       );
       return lead;
     },
@@ -93,7 +150,7 @@ export function ProspectingConversationsView() {
     queryFn: () =>
       httpClient.request(
         `/platform/prospecting/conversations/${selectedLead?.publicId}/messages?pageSize=100`,
-        { schema: null as any }
+        { schema: messagesResponseSchema }
       ),
     enabled: selectedLead !== null,
   });

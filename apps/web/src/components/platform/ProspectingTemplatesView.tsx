@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { formatDate, PageHeader, ErrorState } from './PlatformUi.js';
 
@@ -13,6 +14,18 @@ interface Template {
   updatedAt: string;
 }
 
+const templatesResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    name: z.string(),
+    stepNumber: z.number(),
+    body: z.string(),
+    isDefault: z.boolean(),
+    variants: z.array(z.object({ variantIndex: z.number(), body: z.string() })),
+    updatedAt: z.string(),
+  })),
+});
+
 export function ProspectingTemplatesView() {
   const queryClient = useQueryClient();
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
@@ -22,7 +35,7 @@ export function ProspectingTemplatesView() {
 
   const templates = useQuery({
     queryKey: ['prospecting', 'templates'],
-    queryFn: () => httpClient.request('/platform/prospecting/templates', { schema: null as any }),
+    queryFn: () => httpClient.request('/platform/prospecting/templates', { schema: templatesResponseSchema }),
   });
 
   const createMutation = useMutation({
@@ -91,8 +104,8 @@ export function ProspectingTemplatesView() {
       </div>
 
       {showForm && (
-        <div className="form-backdrop" onClick={() => setShowForm(false)}>
-          <div className="form-drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="prospecting-form-backdrop" onClick={() => setShowForm(false)}>
+          <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
             <h2>{editingTemplate ? 'Editar' : 'Novo'} Template</h2>
             <form
               onSubmit={(e) => {

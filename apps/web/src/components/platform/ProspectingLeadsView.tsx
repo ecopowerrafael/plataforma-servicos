@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import {
   ErrorState,
@@ -32,6 +33,44 @@ interface LeadsResponse {
     totalPages: number;
   };
 }
+
+const leadsResponseSchema = z.object({
+  items: z.array(z.object({
+    publicId: z.string(),
+    nameSnapshot: z.string(),
+    phoneSnapshot: z.string(),
+    status: z.string(),
+    campaign: z.object({ publicId: z.string(), name: z.string() }).optional(),
+    lastOutboundAt: z.string().optional(),
+    lastInboundAt: z.string().optional(),
+    respondedAt: z.string().optional(),
+    currentStep: z.number().optional(),
+    followUpCount: z.number().optional(),
+  })),
+  pagination: z.object({
+    page: z.number(),
+    pageSize: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+  }),
+});
+
+const leadDetailSchema = z.object({
+  publicId: z.string(),
+  nameSnapshot: z.string(),
+  phoneSnapshot: z.string(),
+  city: z.string().optional(),
+  status: z.string(),
+  currentStep: z.number().optional(),
+  followUpCount: z.number().optional(),
+  lastOutboundAt: z.string().optional(),
+  lastInboundAt: z.string().optional(),
+  respondedAt: z.string().optional(),
+  nextActionAt: z.string().optional(),
+  humanLockType: z.string().optional(),
+  humanLockUntil: z.string().optional(),
+  humanLockReason: z.string().optional(),
+});
 
 const STATUS_LABELS: Record<string, { label: string; tone: string }> = {
   PENDING: { label: 'Pendente', tone: 'muted' },
@@ -95,7 +134,7 @@ export function ProspectingLeadsView({
 
       return httpClient.request(
         `/platform/prospecting/campaigns/${campaignId}/leads?${params.toString()}`,
-        { schema: null as any }
+        { schema: leadsResponseSchema }
       );
     },
   });
@@ -105,7 +144,7 @@ export function ProspectingLeadsView({
     queryFn: () =>
       httpClient.request(
         `/platform/prospecting/campaigns/${campaignId}/leads/${selectedLead?.publicId ?? ''}`,
-        { schema: null as any }
+        { schema: leadDetailSchema }
       ),
     enabled: selectedLead !== null && campaignId !== 'all',
   });
@@ -307,8 +346,8 @@ function LeadDetailDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="form-backdrop" onClick={onClose}>
-      <div className="form-drawer detail-drawer" onClick={(e) => e.stopPropagation()}>
+    <div className="prospecting-form-backdrop" onClick={onClose}>
+      <div className="prospecting-form-drawer detail-drawer" onClick={(e) => e.stopPropagation()}>
         <button
           className="drawer-close"
           onClick={onClose}

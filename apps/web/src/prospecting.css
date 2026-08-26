@@ -573,6 +573,55 @@ legend {
   }
 }
 
+/* Portal-specific styles for Prospecting (not scoped under .prospecting-module since portals render outside) */
+
+.prospecting-form-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  z-index: 1000;
+}
+
+.prospecting-form-drawer {
+  background: var(--ds-background-primary);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 8px 8px 0 0;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.prospecting-form-drawer h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.prospecting-form-drawer form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .prospecting-form-drawer {
+    max-width: 100%;
+    border-radius: 8px;
+  }
+
+  .prospecting-form-backdrop {
+    align-items: center;
+    padding: 1rem;
+  }
+}
+
 /* Materialize Result */
 
 .materialize-result {

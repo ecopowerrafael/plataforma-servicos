@@ -10,6 +10,7 @@ import {
   Pagination,
 } from './PlatformUi.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
+import { CampaignForm } from './CampaignForm.js';
 
 interface ProspectingStats {
   leads: number;
@@ -69,6 +70,11 @@ export function ProspectingModule({
   );
   const [filterCampaign, setFilterCampaign] = useState<string>('all');
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [materializeResult, setMaterializeResult] = useState<{
+    created: number;
+    ignored: number;
+  } | null>(null);
   const queryClient = useQueryClient();
 
   const stats = useQuery({
@@ -132,6 +138,18 @@ export function ProspectingModule({
     },
   });
 
+  const materializeMutation = useMutation({
+    mutationFn: (id: string) =>
+      httpClient.request(`/platform/prospecting/campaigns/${id}/materialize`, {
+        method: 'POST',
+        body: JSON.stringify({})
+      }) as Promise<{ materialized: number }>,
+    onSuccess: (data) => {
+      setMaterializeResult({ created: data.materialized, ignored: 0 });
+      void queryClient.invalidateQueries({ queryKey: ['prospecting'] });
+    },
+  });
+
   const handleCancel = (id: string) => {
     setConfirmation({
       title: 'Cancelar campanha?',
@@ -166,6 +184,7 @@ export function ProspectingModule({
             onOpen?.(id);
           }}
           onViewDashboard={() => setView('dashboard')}
+          onNewCampaign={() => setFormOpen(true)}
         />
       ) : (
         <DetailView
@@ -173,12 +192,17 @@ export function ProspectingModule({
           isLoading={detail.isPending}
           error={detail.error instanceof Error ? detail.error.message : null}
           onBack={() => setView('campaigns')}
+          onEdit={() => setFormOpen(true)}
           onStart={() => void startMutation.mutateAsync(selectedCampaign!)}
           onPause={() => void pauseMutation.mutateAsync(selectedCampaign!)}
           onCancel={() => handleCancel(selectedCampaign!)}
+          onMaterialize={() => void materializeMutation.mutateAsync(selectedCampaign!)}
           startLoading={startMutation.isPending}
           pauseLoading={pauseMutation.isPending}
           cancelLoading={cancelMutation.isPending}
+          materializeLoading={materializeMutation.isPending}
+          materializeResult={materializeResult}
+          onClearResult={() => setMaterializeResult(null)}
         />
       )}
       {confirmation && (
@@ -189,6 +213,20 @@ export function ProspectingModule({
           onConfirm={confirmation.onConfirm}
           onCancel={() => setConfirmation(null)}
         />
+      )}
+      {formOpen && (
+        <div className="form-backdrop" onClick={() => setFormOpen(false)}>
+          <div className="form-drawer" onClick={(e) => e.stopPropagation()}>
+            <CampaignForm
+              initial={undefined}
+              onClose={() => setFormOpen(false)}
+              onSuccess={() => {
+                void detail.refetch();
+                setFormOpen(false);
+              }}
+            />
+          </div>
+        </div>
       )}
     </>
   );
@@ -336,15 +374,15 @@ function CampaignsView({
   error,
   onDetail,
   onViewDashboard,
+  onNewCampaign,
 }: {
   campaigns: Campaign[];
   isLoading: boolean;
   error?: string | null;
   onDetail: (id: string) => void;
   onViewDashboard: () => void;
+  onNewCampaign?: () => void;
 }) {
-  const [creating, setCreating] = useState(false);
-
   if (isLoading) {
     return (
       <section>
@@ -352,7 +390,7 @@ function CampaignsView({
           title="Campanhas"
           description="Gerencie campanhas de prospecção."
           action={
-            <button className="primary-button" onClick={() => setCreating(true)} type="button">
+            <button className="primary-button" onClick={onNewCampaign} type="button">
               Nova campanha
             </button>
           }
@@ -396,7 +434,7 @@ function CampaignsView({
         title="Campanhas"
         description="Gerencie campanhas de prospecção."
         action={
-          <button className="primary-button" onClick={() => setCreating(true)} type="button">
+          <button className="primary-button" onClick={onNewCampaign} type="button">
             Nova campanha
           </button>
         }
@@ -455,9 +493,14 @@ function DetailView({
   onStart,
   onPause,
   onCancel,
+  onEdit,
+  onMaterialize,
   startLoading,
   pauseLoading,
   cancelLoading,
+  materializeLoading,
+  materializeResult,
+  onClearResult,
 }: {
   campaign?: CampaignDetail;
   isLoading: boolean;
@@ -466,9 +509,14 @@ function DetailView({
   onStart: () => void;
   onPause: () => void;
   onCancel: () => void;
+  onEdit?: () => void;
+  onMaterialize?: () => void;
   startLoading: boolean;
   pauseLoading: boolean;
   cancelLoading: boolean;
+  materializeLoading?: boolean;
+  materializeResult?: { created: number; ignored: number } | null;
+  onClearResult?: () => void;
 }) {
   if (isLoading) {
     return (
@@ -507,6 +555,25 @@ function DetailView({
           <StatusBadge value={campaign.status} campaignStatus={true} />
         </div>
         <div className="campaign-actions">
+          {onEdit && (
+            <button
+              className="secondary-button"
+              onClick={onEdit}
+              type="button"
+            >
+              Editar
+            </button>
+          )}
+          {campaign.status === 'DRAFT' && onMaterialize && (
+            <button
+              className="secondary-button"
+              onClick={onMaterialize}
+              disabled={materializeLoading}
+              type="button"
+            >
+              {materializeLoading ? 'Preparando...' : 'Preparar Leads'}
+            </button>
+          )}
           {canStart && (
             <button
               className="primary-button"
@@ -539,6 +606,23 @@ function DetailView({
           )}
         </div>
       </div>
+
+      {materializeResult && (
+        <div className="materialize-result">
+          <p>✓ Operação concluída!</p>
+          <p>{materializeResult.created} leads adicionados</p>
+          {materializeResult.ignored > 0 && (
+            <p>{materializeResult.ignored} ignorados</p>
+          )}
+          <button
+            className="secondary-button"
+            onClick={onClearResult}
+            type="button"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
 
       <div className="campaign-config-sections">
         <section className="config-section">

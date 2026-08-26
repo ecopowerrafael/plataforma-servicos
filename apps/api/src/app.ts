@@ -60,6 +60,7 @@ import { notificationRoutes } from './modules/notifications/notification.routes.
 import { appointmentReminderConfigRoutes } from './modules/notifications/appointment-reminder-config.routes.js';
 import { pushSubscriptionRoutes } from './modules/notifications/push-subscription.routes.js';
 import { registerProspectingRoutes } from './modules/prospecting/prospecting.routes.js';
+import { registerProspectingOperationalRoutes } from './modules/prospecting/prospecting-operational.routes.js';
 import { cashRegisterRoutes } from './modules/payments/cash-register.routes.js';
 import { commissionRoutes } from './modules/payments/commission.routes.js';
 import { couponRoutes } from './modules/payments/coupon.routes.js';
@@ -767,6 +768,13 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.prospecting !== undefined)
     await app.register(registerProspectingRoutes, {
       service: options.database.prospecting,
+      platformService: options.database.platform!,
+      authService: authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.prospecting !== undefined)
+    await app.register(registerProspectingOperationalRoutes, {
       platformService: options.database.platform!,
       authService: authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,

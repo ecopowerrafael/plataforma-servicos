@@ -190,7 +190,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   app.post(
     '/platform/prospecting/worker/run-once',
     async (request) => {
-      allow(request, 'platform.dashboard.read');
+      allow(request, 'platform.worker.execute');
       if (!options.worker) {
         throw new Error('Worker not configured');
       }

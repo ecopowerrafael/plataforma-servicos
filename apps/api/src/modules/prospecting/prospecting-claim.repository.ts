@@ -104,4 +104,37 @@ export class ProspectingClaimRepository {
     // Está bloqueado por outro worker com lock ativo
     return true;
   }
+
+  /**
+   * Tenta reservar atomicamente o próximo slot de envio da campanha.
+   * Apenas um worker consegue reservar por vez.
+   * Retorna true se conseguiu reservar, false se campanha já tem slot reservado.
+   */
+  public async claimCampaignSendSlot(
+    campaignId: bigint,
+    reservedUntil: Date,
+    now: Date = new Date(),
+  ): Promise<boolean> {
+    const result = await this.client.prospectingCampaign.updateMany({
+      where: {
+        id: campaignId,
+        OR: [{ nextSendAt: null }, { nextSendAt: { lte: now } }],
+      },
+      data: { nextSendAt: reservedUntil },
+    });
+
+    return result.count > 0;
+  }
+
+  /**
+   * Libera o slot de envio da campanha (anula a reserva).
+   */
+  public async releaseCampaignSendSlot(campaignId: bigint): Promise<boolean> {
+    const result = await this.client.prospectingCampaign.updateMany({
+      where: { id: campaignId },
+      data: { nextSendAt: null },
+    });
+
+    return result.count > 0;
+  }
 }

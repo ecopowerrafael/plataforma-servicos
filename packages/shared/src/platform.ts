@@ -22,6 +22,7 @@ export const PlatformPermissionCodeSchema = z.enum([
   'platform.metrics.read',
   'platform.commercial_policy.read',
   'platform.commercial_policy.manage',
+  'platform.worker.execute',
 ]);
 
 export const PlatformAdministratorStatusSchema = z.enum(['ACTIVE', 'SUSPENDED', 'INACTIVE']);

@@ -3768,3 +3768,20 @@ model PlatformWapiConfig {
   @@map("platform_wapi_configs")
 }
 
+model ProspectingWhatsAppConfig {
+  id                      BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String       @unique @map("public_id") @db.Char(36)
+  instanceId              String       @map("instance_id") @db.VarChar(100)
+  tokenCiphertext         String       @map("token_ciphertext") @db.Text
+  phoneNumber             String?      @map("phone_number") @db.VarChar(20)
+  instanceName            String?      @map("instance_name") @db.VarChar(120)
+  isActive                Boolean      @default(true) @map("is_active")
+  lastConnectionStatus    String?      @map("last_connection_status") @db.VarChar(50)
+  lastCheckedAt           DateTime?    @map("last_checked_at") @db.DateTime(3)
+  createdAt               DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@unique([instanceId])
+  @@map("prospecting_whatsapp_configs")
+}
+

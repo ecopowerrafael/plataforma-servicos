@@ -73,7 +73,27 @@
       "Bash(xargs grep -l \"CreateServiceRequestSchema\")",
       "Bash(grep -E \"\\\\.ts$\")",
       "Bash(rm /c/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api/prisma/migrations/create_platform_wapi_config.sql)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(mysql -h 127.0.0.1 -u plataforma_app_20260804 -p\"WYa8ENl2UxDrjjt_UtW6S2KUbzSViCN5QZjzQ7yTb3g9a\" plataforma_audit -e \"SELECT publicId, name, publicName, email, userId, active, tenantId FROM professional WHERE name LIKE '%Gih%' OR email LIKE '%novaesgisele%' LIMIT 1\\\\G\")",
+      "Bash(mysql -h localhost -P 3307 -u plataforma_app_20260804 -p\"WYa8ENl2UxDrjjt_UtW6S2KUbzSViCN5QZjzQ7yTb3g9a\" plataforma_audit -e \"SELECT publicId, name, email, userId FROM professional WHERE email LIKE '%novaesgisele%' LIMIT 1;\")",
+      "Bash(node --eval ' *)",
+      "Bash(timeout 10)",
+      "Bash(mysql -h 127.0.0.1 -P 3307 -u plataforma_app_20260804 -p'pass' plataforma_audit -e \"SHOW TABLES LIKE 'professional%';\")",
+      "Bash(npm exec *)",
+      "Bash(timeout 20 npm exec -- tsx --eval ' *)",
+      "Bash(wait %1)",
+      "PowerShell(Test-NetConnection -ComputerName 127.0.0.1 -Port 3307 -InformationLevel Quiet)",
+      "Bash(mysql -h 127.0.0.1 -P 3307 -u plataforma_app_20260804 -p'WYa8ENl2UxDrjjt_UtW6S2KUbzSViCN5QZjzQ7yTb3g9a' plataforma_audit -e \"SELECT id, publicId, tenantId, name, publicName, email, userId, active FROM professional WHERE email = 'novaesgisele63@gmail.com' LIMIT 1;\")",
+      "PowerShell($mysql = Get-Command mysql -ErrorAction SilentlyContinue; if \\($mysql\\) { \"MySQL found at $\\($mysql.Source\\)\" } else { \"MySQL not found in PATH\" })",
+      "Bash(curl -s http://localhost:3333/debug/professional/novaesgisele63@gmail.com)",
+      "Bash(curl -s http://localhost:3000/debug/professional/novaesgisele63@gmail.com)",
+      "Bash(curl -s http://localhost:3000/debug/professional/test@example.com)",
+      "Bash(curl -s http://localhost:3000/debug/professional-count)",
+      "Bash(curl -X POST http://localhost:3000/repair/professional-emails)",
+      "Bash(curl -s \"http://localhost:3000/debug/professional-count\")",
+      "Bash(curl -s \"http://localhost:3000/verify/professional/Gih\")",
+      "Bash(curl -s \"http://localhost:3000/verify/professional/3\")",
+      "Bash(curl -s \"http://localhost:3000/verify/professionals-with-userid\")"
     ]
   }
 }

@@ -1,6 +1,7 @@
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { ProspectingService } from './prospecting.service.js';
+import { ProspectingObjectionEngine } from './prospecting-objection-engine.js';
 import { type PlatformService } from '../platform/platform.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { platformAuthenticationPlugin } from '../platform/platform-auth.plugin.js';
@@ -857,7 +858,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     },
   );
 
-  // Classify preview: test patterns without persistence
+  // Classify preview: test patterns without persistence (reutiliza ProspectingObjectionEngine)
   app.post(
     '/platform/prospecting/objections/classify-preview',
     {
@@ -871,7 +872,6 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     async (request) => {
       allow(request, 'platform.tenant.read');
 
-      const textLower = request.body.text.toLowerCase();
       let exclusionObjectionIds: bigint[] = [];
 
       if (request.body.campaignPublicId) {
@@ -890,37 +890,10 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         }
       }
 
-      const objections = await options.client.prospectingObjection.findMany({
-        where: { isActive: true, id: { notIn: exclusionObjectionIds } },
-        include: { patterns: true },
-      });
+      const engine = new ProspectingObjectionEngine(options.client);
+      const result = await engine.classifyPreview(request.body.text, exclusionObjectionIds);
 
-      for (const objection of objections) {
-        for (const pattern of objection.patterns) {
-          const patternLower = pattern.pattern.toLowerCase();
-
-          const matched =
-            pattern.patternType === 'EXACT'
-              ? textLower === patternLower
-              : pattern.patternType === 'STARTS_WITH'
-                ? textLower.startsWith(patternLower)
-                : pattern.patternType === 'ENDS_WITH'
-                  ? textLower.endsWith(patternLower)
-                  : textLower.includes(patternLower);
-
-          if (matched) {
-            return {
-              matched: true,
-              code: objection.code,
-              name: objection.name,
-              suggestedResponse: objection.suggestedResponse,
-              autoReplyAllowed: objection.autoReplyAllowed,
-            };
-          }
-        }
-      }
-
-      return { matched: false };
+      return result;
     },
   );
 

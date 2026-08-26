@@ -96,7 +96,9 @@
       "Bash(curl -s \"http://localhost:3000/verify/professionals-with-userid\")",
       "Bash(xargs grep -l \"platform\\\\.\")",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\api\\\\prisma\\\\migrations\" | Sort-Object Name -Descending | Select-Object -First 3 | ForEach-Object { $_.Name })",
-      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\api\\\\prisma\\\\migrations\\\\20260921000010_add_bot_cobra_debt_payment\" | ForEach-Object { Get-Content $_.FullName | Select-Object -First 20 })"
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\api\\\\prisma\\\\migrations\\\\20260921000010_add_bot_cobra_debt_payment\" | ForEach-Object { Get-Content $_.FullName | Select-Object -First 20 })",
+      "Bash(xargs grep -l \"PlatformPermissionCode\")",
+      "Bash(xargs grep -l \"PlatformPermissionCodeSchema\")"
     ]
   }
 }

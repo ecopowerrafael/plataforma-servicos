@@ -269,6 +269,9 @@ const platformPermissions = [
   ['platform.metrics.read', 'Consultar métricas globais.'],
   ['platform.commercial_policy.read', 'Consultar a política comercial global.'],
   ['platform.commercial_policy.manage', 'Gerenciar a política comercial global.'],
+  ['platform.prospecting.read', 'Consultar configuração de prospecção.'],
+  ['platform.prospecting.update', 'Gerenciar templates, objections e padrões de prospecção.'],
+  ['platform.worker.execute', 'Executar workers manualmente.'],
 ] as const;
 
 async function bootstrap(): Promise<void> {

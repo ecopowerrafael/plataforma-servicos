@@ -354,6 +354,56 @@ export class ProspectingObjectionEngine {
   }
 
   /**
+   * Classifica texto sem persistência (preview/simulação).
+   * Reutiliza o mesmo matching logic do classify().
+   */
+  public async classifyPreview(
+    text: string,
+    excludedObjectionIds: bigint[] = [],
+  ): Promise<{ matched: boolean; objectionCode?: string | undefined; suggestedResponse?: string | undefined }> {
+    if (!this.client) {
+      return { matched: false, objectionCode: undefined, suggestedResponse: undefined };
+    }
+
+    const normalized = this.normalizeText(text);
+
+    const patterns = await this.client.prospectingObjectionPattern.findMany({
+      where: {
+        objection: {
+          isActive: true,
+          id: { notIn: excludedObjectionIds },
+        },
+      },
+      select: {
+        objectionId: true,
+        objection: {
+          select: {
+            publicId: true,
+            code: true,
+            suggestedResponse: true,
+          },
+        },
+        patternType: true,
+        pattern: true,
+        priority: true,
+      },
+      orderBy: [{ priority: 'desc' }],
+    });
+
+    const matches = this.findMatches(normalized, patterns);
+    if (matches.length === 0) {
+      return { matched: false };
+    }
+
+    const bestMatch = matches[0]!;
+    return {
+      matched: true,
+      objectionCode: bestMatch.objectionCode ?? undefined,
+      suggestedResponse: bestMatch.suggestedResponse ?? undefined,
+    };
+  }
+
+  /**
    * Normalizar texto para matching.
    * Reutiliza lógica de ETAPA 4.
    */

@@ -1,5 +1,4 @@
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
 import { type PlatformService } from '../platform/platform.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { platformAuthenticationPlugin } from '../platform/platform-auth.plugin.js';
@@ -74,7 +73,6 @@ export const registerProspectingOperationalRoutes: FastifyPluginAsyncZod<Prospec
         failedMessages,
         uncertainMessages,
         needsReviewLeads,
-        pendingAutoReplies,
         pendingManualMessages,
       ] = await Promise.all([
         options.client.prospectingCampaign.count({ where: { status: 'RUNNING' } }),
@@ -91,9 +89,6 @@ export const registerProspectingOperationalRoutes: FastifyPluginAsyncZod<Prospec
           where: { status: 'DELIVERY_UNCERTAIN', direction: 'OUTBOUND' },
         }),
         options.client.prospectingLead.count({ where: { status: 'NEEDS_REVIEW' } }),
-        options.client.prospectingAutoReply.count({
-          where: { status: 'PENDING' },
-        }),
         options.client.prospectingMessage.count({
           where: { status: 'PENDING', direction: 'OUTBOUND', purpose: 'MANUAL' },
         }),
@@ -111,7 +106,6 @@ export const registerProspectingOperationalRoutes: FastifyPluginAsyncZod<Prospec
           needsReview: needsReviewLeads,
         },
         queue: {
-          autoReplies: pendingAutoReplies,
           manual: pendingManualMessages,
         },
       };
@@ -177,6 +171,7 @@ export const registerProspectingOperationalRoutes: FastifyPluginAsyncZod<Prospec
 
       const campaigns = await options.client.prospectingCampaign.findMany({
         select: {
+          id: true,
           publicId: true,
           name: true,
           status: true,
@@ -249,21 +244,30 @@ export const registerProspectingOperationalRoutes: FastifyPluginAsyncZod<Prospec
 
       const objections = await options.client.prospectingObjection.findMany({
         select: {
+          id: true,
           code: true,
           name: true,
-          _count: { select: { messages: true } },
         },
-        orderBy: { _count: { messages: 'desc' } },
       });
 
-      const total = objections.reduce((sum, obj) => sum + obj._count.messages, 0);
+      const objectionsWithCounts = await Promise.all(
+        objections.map(async (obj) => ({
+          ...obj,
+          count: await options.client.prospectingMessage.count({
+            where: { objectionId: obj.id },
+          }),
+        }))
+      );
+
+      const sorted = objectionsWithCounts.sort((a, b) => b.count - a.count);
+      const total = sorted.reduce((sum, obj) => sum + obj.count, 0);
 
       return {
-        objections: objections.map((obj) => ({
+        objections: sorted.map((obj) => ({
           code: obj.code,
           name: obj.name,
-          count: obj._count.messages,
-          percentage: total > 0 ? Math.round((obj._count.messages / total) * 10000) / 100 : 0,
+          count: obj.count,
+          percentage: total > 0 ? Math.round((obj.count / total) * 10000) / 100 : 0,
         })),
         total,
       };
@@ -275,6 +279,7 @@ export const registerProspectingOperationalRoutes: FastifyPluginAsyncZod<Prospec
 
       const campaigns = await options.client.prospectingCampaign.findMany({
         select: {
+          id: true,
           publicId: true,
           name: true,
           _count: { select: { leads: true } },

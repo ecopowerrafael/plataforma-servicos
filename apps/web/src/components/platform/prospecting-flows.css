@@ -1,0 +1,240 @@
+.prospecting-flows-container {
+  padding: 1rem;
+}
+
+.prospecting-flows-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.prospecting-flow-card {
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 4px;
+  padding: 1rem;
+  background: var(--ds-background-secondary);
+}
+
+.flow-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.flow-card-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.flow-card-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.flow-badge-default {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--ds-background-tertiary);
+  color: var(--ds-text-secondary);
+  font-size: 0.75rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.flow-badge-status {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.flow-badge-status.active {
+  background: var(--ds-background-positive-subtle);
+  color: var(--ds-text-positive);
+}
+
+.flow-badge-status.inactive {
+  background: var(--ds-background-neutral-subtle);
+  color: var(--ds-text-secondary);
+}
+
+.flow-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.flow-card-description {
+  margin: 0.5rem 0 0 0;
+  color: var(--ds-text-secondary);
+  font-size: 0.9rem;
+}
+
+.flow-card-meta {
+  margin: 0.5rem 0 0 0;
+  color: var(--ds-text-tertiary);
+  font-size: 0.85rem;
+}
+
+.prospecting-feedback {
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.prospecting-feedback.success {
+  background: var(--ds-background-positive-subtle);
+  color: var(--ds-text-positive);
+  border: 1px solid var(--ds-border-positive);
+}
+
+.prospecting-feedback.error {
+  background: var(--ds-background-negative-subtle);
+  color: var(--ds-text-negative);
+  border: 1px solid var(--ds-border-negative);
+}
+
+.prospecting-empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: var(--ds-text-tertiary);
+}
+
+.prospecting-form-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.prospecting-form-drawer {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 4px;
+  padding: 1.5rem;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.prospecting-form-drawer h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  color: var(--ds-text-primary);
+}
+
+.prospecting-form-drawer .meta-text {
+  color: var(--ds-text-tertiary);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.drawer-close {
+  background: none;
+  border: none;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.drawer-close:hover {
+  color: var(--ds-text-primary);
+}
+
+.form-input {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 3px;
+  font-size: 0.9rem;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--ds-border-focus);
+  box-shadow: 0 0 0 2px var(--ds-background-focus-subtle);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  justify-content: flex-end;
+}
+
+.step-card {
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 3px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--ds-background-primary);
+}
+
+.step-title {
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.step-badge-start {
+  font-size: 0.7rem;
+  background: var(--ds-background-tertiary);
+  color: var(--ds-text-secondary);
+  padding: 0.2rem 0.4rem;
+  border-radius: 2px;
+}
+
+.step-type {
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.step-meta {
+  font-size: 0.8rem;
+  color: var(--ds-text-tertiary);
+}
+
+@media (max-width: 768px) {
+  .flow-card-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .flow-card-header {
+    flex-direction: column;
+  }
+
+  .prospecting-form-drawer {
+    max-width: 100%;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+}

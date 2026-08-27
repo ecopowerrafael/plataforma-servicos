@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { ErrorState } from './PlatformUi.js';
+import { stepTypeNames, actionTypeNames, patternTypeNames, shouldShowNextStep } from './prospecting-helpers.js';
 import './prospecting-flows.css';
 
 const stepTypeSchema = z.enum(['MESSAGE_OPTIONS', 'WAIT_TEXT', 'WAIT_LINK', 'MESSAGE_ONLY', 'MANUAL', 'END']);
@@ -56,20 +57,6 @@ const flowListItemSchema = z.object({
   updatedAt: z.string(),
 });
 
-const stepTypeNames: Record<string, string> = {
-  MESSAGE_OPTIONS: 'Mensagem com respostas',
-  WAIT_TEXT: 'Aguardar texto',
-  WAIT_LINK: 'Aguardar link',
-  MESSAGE_ONLY: 'Mensagem simples',
-  MANUAL: 'Atendimento manual',
-  END: 'Encerramento',
-};
-
-const actionTypeNames: Record<string, string> = {
-  NEXT_STEP: 'Ir para outra etapa',
-  END: 'Encerrar fluxo',
-  MANUAL: 'Atendimento manual',
-};
 
 const variables = [
   { key: '{{estabelecimento}}', label: 'Estabelecimento' },
@@ -264,6 +251,10 @@ const FlowEditor = ({
 }) => {
   const queryClient = useQueryClient();
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [editingOptionStepId, setEditingOptionStepId] = useState<string | null>(null);
+  const [showAddStep, setShowAddStep] = useState(false);
+  const [newStepName, setNewStepName] = useState('');
+  const [newStepType, setNewStepType] = useState('MESSAGE_ONLY');
   const [flowName, setFlowName] = useState('');
   const [flowDesc, setFlowDesc] = useState('');
   const [flowActive, setFlowActive] = useState(true);
@@ -339,36 +330,40 @@ const FlowEditor = ({
                   flowId={flowId}
                   index={idx}
                   onEdit={() => setEditingStepId(step.publicId)}
-                  onOptionEdit={() => {/* TODO: implement options editor */}}
+                  onOptionEdit={() => setEditingOptionStepId(step.publicId)}
                   onFeedback={onFeedback}
                 />
               ))}
             </div>
           )}
-          <button
-            className="secondary-button"
-            style={{ marginTop: '1rem' }}
-            onClick={() => {
-              const name = prompt('Nome da etapa');
-              if (name && flow) {
-                const type = prompt('Tipo (MESSAGE_OPTIONS, WAIT_TEXT, etc)') || 'MESSAGE_ONLY';
-                const pos = flow.steps.length;
-                httpClient
-                  .request(`/platform/prospecting/flows/${flowId}/steps`, {
-                    method: 'POST',
-                    body: JSON.stringify({ name, stepType: type, message: '', position: pos, isStart: pos === 0 }),
-                    schema: flowStepSchema,
-                  })
-                  .then(() => {
-                    queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-                    onFeedback({ type: 'success', message: 'Etapa adicionada' });
-                  })
-                  .catch(() => onFeedback({ type: 'error', message: 'Erro ao adicionar etapa' }));
-              }
-            }}
-          >
+          <button className="secondary-button" style={{ marginTop: '1rem' }} onClick={() => setShowAddStep(true)}>
             + Adicionar etapa
           </button>
+
+          {showAddStep && (
+            <AddStepModal
+              flowId={flowId}
+              flow={flow}
+              onClose={() => {
+                setShowAddStep(false);
+                setNewStepName('');
+                setNewStepType('MESSAGE_ONLY');
+              }}
+              onSuccess={() => {
+                queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+                setShowAddStep(false);
+                setNewStepName('');
+                setNewStepType('MESSAGE_ONLY');
+                onFeedback({ type: 'success', message: 'Etapa adicionada' });
+              }}
+              onError={() => onFeedback({ type: 'error', message: 'Erro ao adicionar etapa' })}
+            />
+              stepName={newStepName}
+              stepType={newStepType}
+              onNameChange={setNewStepName}
+              onTypeChange={setNewStepType}
+            />
+          )}
         </div>
 
         {editingStepId && (
@@ -380,6 +375,94 @@ const FlowEditor = ({
             onFeedback={onFeedback}
           />
         )}
+
+        {editingOptionStepId && flow && (
+          <OptionListEditor
+            step={flow.steps.find((s: any) => s.publicId === editingOptionStepId)}
+            flowId={flowId}
+            onClose={() => setEditingOptionStepId(null)}
+            onFeedback={onFeedback}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const OptionListEditor = ({
+  step,
+  flowId,
+  onClose,
+  onFeedback,
+}: {
+  step: z.infer<typeof flowStepSchema> | undefined;
+  flowId: string;
+  onClose: () => void;
+  onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
+}) => {
+  const queryClient = useQueryClient();
+  const [newLabel, setNewLabel] = useState('');
+  const [newAction, setNewAction] = useState('NEXT_STEP');
+
+  if (!step) return null;
+
+  const addOptionMutation = useMutation({
+    mutationFn: async () => {
+      return httpClient.request(`/platform/prospecting/flows/${flowId}/steps/${step.publicId}/options`, {
+        method: 'POST',
+        body: JSON.stringify({ label: newLabel, actionType: newAction, position: step.options.length, nextStepPublicId: null }),
+        schema: flowOptionSchema,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      setNewLabel('');
+      setNewAction('NEXT_STEP');
+      onFeedback({ type: 'success', message: 'Resposta adicionada' });
+    },
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao adicionar resposta' }),
+  });
+
+  return (
+    <div className="prospecting-form-backdrop" onClick={onClose}>
+      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="drawer-close">← Voltar</button>
+        <h2>Respostas: {step.name}</h2>
+
+        {step.options.length === 0 ? (
+          <div className="empty-state">Nenhuma resposta configurada</div>
+        ) : (
+          <div style={{ marginBottom: '1rem' }}>
+            {step.options.map((opt: any) => (
+              <div key={opt.publicId} className="option-card" style={{ marginBottom: '0.5rem' }}>
+                <div className="option-label">{opt.label}</div>
+                <div className="option-action">{actionTypeNames[opt.actionType]}</div>
+                <button onClick={() => {
+                  httpClient.request(`/platform/prospecting/flows/${flowId}/options/${opt.publicId}`, {
+                    method: 'DELETE',
+                    schema: z.any(),
+                  }).then(() => {
+                    queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+                    onFeedback({ type: 'success', message: 'Resposta removida' });
+                  }).catch(() => onFeedback({ type: 'error', message: 'Erro' }));
+                }} className="danger-button" style={{ fontSize: '0.8rem', padding: '0.2rem 0.4rem' }}>Excluir</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop: '1rem' }}>
+          <label>Nova resposta</label>
+          <input type="text" placeholder="Texto da resposta" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} className="form-input" />
+          <select value={newAction} onChange={(e) => setNewAction(e.target.value)} className="form-input">
+            {Object.entries(actionTypeNames).map(([key, name]) => (
+              <option key={key} value={key}>{name}</option>
+            ))}
+          </select>
+          <button onClick={() => addOptionMutation.mutate()} className="primary-button" disabled={!newLabel} style={{ width: '100%' }}>
+            Adicionar
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -471,6 +554,60 @@ const StepCard = ({
 
       {step.stepType === 'END' && <div className="end-badge">Encerramento do fluxo</div>}
       {step.stepType === 'MANUAL' && <div className="manual-badge">A partir daqui, assumir manualmente</div>}
+    </div>
+  );
+};
+
+const AddStepModal = ({
+  flowId,
+  flow,
+  onClose,
+  onSuccess,
+  onError,
+  stepName,
+  stepType,
+  onNameChange,
+  onTypeChange,
+}: {
+  flowId: string;
+  flow: z.infer<typeof flowDetailSchema> | null;
+  onClose: () => void;
+  onSuccess: () => void;
+  onError: () => void;
+  stepName: string;
+  stepType: string;
+  onNameChange: (name: string) => void;
+  onTypeChange: (type: string) => void;
+}) => {
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const pos = flow?.steps?.length || 0;
+      return httpClient.request(`/platform/prospecting/flows/${flowId}/steps`, {
+        method: 'POST',
+        body: JSON.stringify({ name: stepName, stepType, message: '', position: pos, isStart: pos === 0 }),
+        schema: flowStepSchema,
+      });
+    },
+    onSuccess,
+    onError,
+  });
+
+  return (
+    <div className="prospecting-form-backdrop" onClick={onClose}>
+      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="drawer-close">← Voltar</button>
+        <h2>Adicionar Etapa</h2>
+        <input type="text" placeholder="Nome" value={stepName} onChange={(e) => onNameChange(e.target.value)} className="form-input" />
+        <select value={stepType} onChange={(e) => onTypeChange(e.target.value)} className="form-input">
+          {Object.entries(stepTypeNames).map(([key, name]) => (
+            <option key={key} value={key}>{name}</option>
+          ))}
+        </select>
+        <div className="modal-actions">
+          <button onClick={onClose} className="secondary-button">Cancelar</button>
+          <button onClick={() => createMutation.mutate()} className="primary-button" disabled={!stepName}>Criar</button>
+        </div>
+      </div>
     </div>
   );
 };

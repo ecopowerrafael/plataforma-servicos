@@ -90,7 +90,7 @@ CREATE TABLE `prospecting_flow_executions` (
   UNIQUE KEY `uq_prospecting_flow_executions_public_id` (`public_id`),
   UNIQUE KEY `uq_prospecting_flow_executions_campaign_lead_flow` (`campaign_id`, `lead_id`, `flow_id`),
   FOREIGN KEY `fk_prospecting_flow_executions_campaign_id` (`campaign_id`) REFERENCES `prospecting_campaigns`(`id`) ON DELETE RESTRICT,
-  FOREIGN KEY `fk_prospecting_flow_executions_lead_id` (`lead_id`) REFERENCES `prospecting_leads`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY `fk_prospecting_flow_executions_lead_id` (`lead_id`) REFERENCES `prospecting_leads`(`id`) ON DELETE RESTRICT,
   FOREIGN KEY `fk_prospecting_flow_executions_flow_id` (`flow_id`) REFERENCES `prospecting_flows`(`id`) ON DELETE RESTRICT,
   FOREIGN KEY `fk_prospecting_flow_executions_current_step_id` (`current_step_id`) REFERENCES `prospecting_flow_steps`(`id`),
   INDEX `idx_prospecting_flow_executions_campaign_id` (`campaign_id`),

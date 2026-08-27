@@ -1107,5 +1107,242 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       return result;
     },
   );
+
+  // Flows: CRUD
+  app.get(
+    '/platform/prospecting/flows',
+    { schema: { querystring: z.object({ isActive: z.enum(['true', 'false']).optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const isActive = request.query.isActive === 'true' ? true : request.query.isActive === 'false' ? false : undefined;
+      const flows = await options.client.prospectingFlow.findMany({
+        where: isActive !== undefined ? { isActive } : {},
+        orderBy: { createdAt: 'desc' },
+      });
+      const withCounts = await Promise.all(flows.map(async f => {
+        const stepsCount = await options.client.prospectingFlowStep.count({ where: { flowId: f.id } });
+        return { publicId: f.publicId, code: f.code, name: f.name, description: f.description, isActive: f.isActive, stepsCount, createdAt: f.createdAt.toISOString(), updatedAt: f.updatedAt.toISOString() };
+      }));
+      return { items: withCounts };
+    },
+  );
+
+  app.post(
+    '/platform/prospecting/flows',
+    { schema: { body: z.object({ name: z.string().min(1), description: z.string().optional(), isActive: z.boolean().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.create({
+        data: { publicId: randomUUID(), name: request.body.name, description: request.body.description ?? null, isActive: request.body.isActive ?? true },
+      });
+      return { publicId: flow.publicId, code: flow.code, name: flow.name, description: flow.description, isActive: flow.isActive, createdAt: flow.createdAt.toISOString(), updatedAt: flow.updatedAt.toISOString() };
+    },
+  );
+
+  app.get(
+    '/platform/prospecting/flows/:publicId',
+    { schema: { params: z.object({ publicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.publicId }, include: { steps: { orderBy: { position: 'asc' }, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } } } });
+      if (!flow) throw new Error('Flow not found');
+      return { publicId: flow.publicId, code: flow.code, name: flow.name, description: flow.description, isActive: flow.isActive, steps: flow.steps.map(s => ({ publicId: s.publicId, name: s.name, message: s.message, stepType: s.stepType, position: s.position, isStart: s.isStart, nextStepPublicId: s.nextStepId ? 'null' : null, options: s.options.map(o => ({ publicId: o.publicId, label: o.label, actionType: o.actionType, position: o.position, nextStepPublicId: o.nextStepId ? 'null' : null, patterns: o.patterns.map(p => ({ id: p.id.toString(), pattern: p.pattern, patternType: p.patternType, priority: p.priority })) })) })) };
+    },
+  );
+
+  app.put(
+    '/platform/prospecting/flows/:publicId',
+    { schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ name: z.string().optional(), description: z.string().optional(), isActive: z.boolean().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const data: any = {};
+      if (request.body.name) data.name = request.body.name;
+      if (request.body.description !== undefined) data.description = request.body.description;
+      if (request.body.isActive !== undefined) data.isActive = request.body.isActive;
+      const flow = await options.client.prospectingFlow.update({ where: { publicId: request.params.publicId }, data });
+      return { publicId: flow.publicId, code: flow.code, name: flow.name, isActive: flow.isActive };
+    },
+  );
+
+  app.delete(
+    '/platform/prospecting/flows/:publicId',
+    { schema: { params: z.object({ publicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.publicId }, select: { id: true, code: true } });
+      if (!flow) throw new Error('Flow not found');
+      if (flow.code === 'DIRECTORY_PUBLICATION') throw new Error('Cannot delete default flow');
+      const campaigns = await options.client.prospectingCampaign.count({ where: { flowId: flow.id } });
+      const executions = await options.client.prospectingFlowExecution.count({ where: { flowId: flow.id } });
+      if (campaigns > 0 || executions > 0) throw new Error('Flow has associated data');
+      await options.client.prospectingFlow.delete({ where: { publicId: request.params.publicId } });
+      return { success: true };
+    },
+  );
+
+  // Steps: CRUD
+  app.post(
+    '/platform/prospecting/flows/:flowPublicId/steps',
+    { schema: { params: z.object({ flowPublicId: z.uuid() }), body: z.object({ name: z.string().min(1), message: z.string().min(1), stepType: z.enum(['MESSAGE_OPTIONS', 'WAIT_TEXT', 'WAIT_LINK', 'MESSAGE_ONLY', 'MANUAL', 'END']), position: z.number().int(), isStart: z.boolean().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      if (request.body.isStart) await options.client.prospectingFlowStep.updateMany({ where: { flowId: flow.id }, data: { isStart: false } });
+      const step = await options.client.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: request.body.name, message: request.body.message, stepType: request.body.stepType, position: request.body.position, isStart: request.body.isStart ?? false } });
+      return { publicId: step.publicId, name: step.name, stepType: step.stepType, position: step.position, isStart: step.isStart };
+    },
+  );
+
+  app.put(
+    '/platform/prospecting/flows/:flowPublicId/steps/:stepPublicId',
+    { schema: { params: z.object({ flowPublicId: z.uuid(), stepPublicId: z.uuid() }), body: z.object({ name: z.string().optional(), message: z.string().optional(), stepType: z.enum(['MESSAGE_OPTIONS', 'WAIT_TEXT', 'WAIT_LINK', 'MESSAGE_ONLY', 'MANUAL', 'END']).optional(), position: z.number().int().optional(), nextStepPublicId: z.uuid().optional(), isStart: z.boolean().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      const step = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.params.stepPublicId }, select: { id: true, flowId: true } });
+      if (!step || step.flowId !== flow.id) throw new Error('Step not found in this flow');
+      if (request.body.nextStepPublicId) {
+        const nextStep = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.body.nextStepPublicId }, select: { id: true, flowId: true } });
+        if (!nextStep || nextStep.flowId !== flow.id) throw new Error('Next step not in same flow');
+      }
+      if (request.body.isStart) await options.client.prospectingFlowStep.updateMany({ where: { flowId: flow.id, id: { not: step.id } }, data: { isStart: false } });
+      const data: any = {};
+      if (request.body.name) data.name = request.body.name;
+      if (request.body.message) data.message = request.body.message;
+      if (request.body.stepType) data.stepType = request.body.stepType;
+      if (request.body.position !== undefined) data.position = request.body.position;
+      if (request.body.isStart !== undefined) data.isStart = request.body.isStart;
+      const updated = await options.client.prospectingFlowStep.update({ where: { publicId: request.params.stepPublicId }, data });
+      return { publicId: updated.publicId, isStart: updated.isStart };
+    },
+  );
+
+  app.delete(
+    '/platform/prospecting/flows/:flowPublicId/steps/:stepPublicId',
+    { schema: { params: z.object({ flowPublicId: z.uuid(), stepPublicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      const step = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.params.stepPublicId }, select: { id: true, flowId: true, isStart: true } });
+      if (!step || step.flowId !== flow.id) throw new Error('Step not in this flow');
+      if (step.isStart) throw new Error('Cannot delete start step');
+      const usedAsNext = await options.client.prospectingFlowStep.count({ where: { nextStepId: step.id } });
+      if (usedAsNext > 0) throw new Error('Step is used as next step');
+      const executions = await options.client.prospectingFlowExecution.count({ where: { currentStepId: step.id } });
+      if (executions > 0) throw new Error('Step has executions');
+      await options.client.prospectingFlowStep.delete({ where: { publicId: request.params.stepPublicId } });
+      return { success: true };
+    },
+  );
+
+  // Options: CRUD
+  app.post(
+    '/platform/prospecting/flows/:flowPublicId/steps/:stepPublicId/options',
+    { schema: { params: z.object({ flowPublicId: z.uuid(), stepPublicId: z.uuid() }), body: z.object({ label: z.string().min(1), actionType: z.enum(['NEXT_STEP', 'END', 'MANUAL']), position: z.number().int(), nextStepPublicId: z.uuid().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      const step = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.params.stepPublicId }, select: { id: true, flowId: true } });
+      if (!step || step.flowId !== flow.id) throw new Error('Step not in this flow');
+      let nextStepId: bigint | null = null;
+      if (request.body.nextStepPublicId) {
+        const nextStep = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.body.nextStepPublicId }, select: { id: true, flowId: true } });
+        if (!nextStep || nextStep.flowId !== flow.id) throw new Error('Next step not in same flow');
+        nextStepId = nextStep.id;
+      }
+      const option = await options.client.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: step.id, label: request.body.label, actionType: request.body.actionType, position: request.body.position, nextStepId } });
+      return { publicId: option.publicId, label: option.label, actionType: option.actionType, position: option.position };
+    },
+  );
+
+  app.put(
+    '/platform/prospecting/flows/:flowPublicId/options/:optionPublicId',
+    { schema: { params: z.object({ flowPublicId: z.uuid(), optionPublicId: z.uuid() }), body: z.object({ label: z.string().optional(), actionType: z.enum(['NEXT_STEP', 'END', 'MANUAL']).optional(), position: z.number().int().optional(), nextStepPublicId: z.uuid().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      const option = await options.client.prospectingFlowOption.findUnique({ where: { publicId: request.params.optionPublicId }, include: { step: true } });
+      if (!option || option.step.flowId !== flow.id) throw new Error('Option not in this flow');
+      let nextStepId: bigint | null | undefined = undefined;
+      if (request.body.nextStepPublicId) {
+        const nextStep = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.body.nextStepPublicId }, select: { id: true, flowId: true } });
+        if (!nextStep || nextStep.flowId !== flow.id) throw new Error('Next step not in same flow');
+        nextStepId = nextStep.id;
+      }
+      const data: any = {};
+      if (request.body.label) data.label = request.body.label;
+      if (request.body.actionType) data.actionType = request.body.actionType;
+      if (request.body.position !== undefined) data.position = request.body.position;
+      if (nextStepId !== undefined) data.nextStepId = nextStepId;
+      await options.client.prospectingFlowOption.update({ where: { publicId: request.params.optionPublicId }, data });
+      return { success: true };
+    },
+  );
+
+  app.delete(
+    '/platform/prospecting/flows/:flowPublicId/options/:optionPublicId',
+    { schema: { params: z.object({ flowPublicId: z.uuid(), optionPublicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      const option = await options.client.prospectingFlowOption.findUnique({ where: { publicId: request.params.optionPublicId }, include: { step: true } });
+      if (!option || option.step.flowId !== flow.id) throw new Error('Option not in this flow');
+      await options.client.prospectingFlowOption.delete({ where: { publicId: request.params.optionPublicId } });
+      return { success: true };
+    },
+  );
+
+  // Patterns: CRUD
+  app.post(
+    '/platform/prospecting/flows/:flowPublicId/options/:optionPublicId/patterns',
+    { schema: { params: z.object({ flowPublicId: z.uuid(), optionPublicId: z.uuid() }), body: z.object({ pattern: z.string().min(1), patternType: z.enum(['EXACT', 'STARTS_WITH', 'ENDS_WITH', 'CONTAINS']), priority: z.number().int().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      const option = await options.client.prospectingFlowOption.findUnique({ where: { publicId: request.params.optionPublicId }, include: { step: true } });
+      if (!option || option.step.flowId !== flow.id) throw new Error('Option not in this flow');
+      const pattern = await options.client.prospectingFlowOptionPattern.create({ data: { optionId: option.id, pattern: request.body.pattern, patternType: request.body.patternType, priority: request.body.priority ?? 0 } });
+      return { id: pattern.id.toString(), pattern: pattern.pattern, patternType: pattern.patternType, priority: pattern.priority };
+    },
+  );
+
+  app.put(
+    '/platform/prospecting/flows/:flowPublicId/options/:optionPublicId/patterns/:patternId',
+    { schema: { params: z.object({ flowPublicId: z.uuid(), optionPublicId: z.uuid(), patternId: z.string().regex(/^\d+$/) }), body: z.object({ pattern: z.string().optional(), patternType: z.enum(['EXACT', 'STARTS_WITH', 'ENDS_WITH', 'CONTAINS']).optional(), priority: z.number().int().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      const pattern = await options.client.prospectingFlowOptionPattern.findUnique({ where: { id: BigInt(request.params.patternId) }, include: { option: { include: { step: true } } } });
+      if (!pattern || pattern.option.step.flowId !== flow.id) throw new Error('Pattern not in this flow');
+      const data: any = {};
+      if (request.body.pattern) data.pattern = request.body.pattern;
+      if (request.body.patternType) data.patternType = request.body.patternType;
+      if (request.body.priority !== undefined) data.priority = request.body.priority;
+      await options.client.prospectingFlowOptionPattern.update({ where: { id: BigInt(request.params.patternId) }, data });
+      return { success: true };
+    },
+  );
+
+  app.delete(
+    '/platform/prospecting/flows/:flowPublicId/options/:optionPublicId/patterns/:patternId',
+    { schema: { params: z.object({ flowPublicId: z.uuid(), optionPublicId: z.uuid(), patternId: z.string().regex(/^\d+$/) }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
+      if (!flow) throw new Error('Flow not found');
+      const pattern = await options.client.prospectingFlowOptionPattern.findUnique({ where: { id: BigInt(request.params.patternId) }, include: { option: { include: { step: true } } } });
+      if (!pattern || pattern.option.step.flowId !== flow.id) throw new Error('Pattern not in this flow');
+      await options.client.prospectingFlowOptionPattern.delete({ where: { id: BigInt(request.params.patternId) } });
+      return { success: true };
+    },
+  );
 };
 

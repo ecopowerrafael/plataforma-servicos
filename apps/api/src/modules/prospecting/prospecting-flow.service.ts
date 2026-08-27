@@ -121,6 +121,31 @@ export class ProspectingFlowService {
     publicId: string,
     data: Partial<CreateFlowStepInput>,
   ): Promise<ProspectingFlowStep> {
+    const step = await this.client.prospectingFlowStep.findUnique({
+      where: { publicId },
+      select: { flowId: true, id: true },
+    });
+    if (!step) throw new Error('Step not found');
+
+    // Validar nextStep pertence ao mesmo flow
+    if (data.nextStepId) {
+      const nextStep = await this.client.prospectingFlowStep.findUnique({
+        where: { id: data.nextStepId },
+        select: { flowId: true },
+      });
+      if (!nextStep || nextStep.flowId !== step.flowId) {
+        throw new Error('Next step must belong to the same flow');
+      }
+    }
+
+    // Se marcando como start, remover start de outros steps do flow
+    if (data.isStart === true) {
+      await this.client.prospectingFlowStep.updateMany({
+        where: { flowId: step.flowId, id: { not: step.id } },
+        data: { isStart: false },
+      });
+    }
+
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.message !== undefined) updateData.message = data.message;

@@ -357,7 +357,6 @@ const FlowEditor = ({
                 onFeedback({ type: 'success', message: 'Etapa adicionada' });
               }}
               onError={() => onFeedback({ type: 'error', message: 'Erro ao adicionar etapa' })}
-            />
               stepName={newStepName}
               stepType={newStepType}
               onNameChange={setNewStepName}
@@ -731,6 +730,116 @@ const StepEditor = ({
           </button>
           <button onClick={() => updateMutation.mutate()} className="primary-button">
             Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+const OptionEditor = ({
+  option,
+  steps,
+  flowId,
+  onClose,
+  onSuccess,
+}: {
+  option: z.infer<typeof flowOptionSchema>;
+  steps: z.infer<typeof flowStepSchema>[];
+  flowId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const [label, setLabel] = useState(option.label);
+  const [action, setAction] = useState(option.actionType);
+  const [nextStep, setNextStep] = useState(option.nextStepPublicId || '');
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const body: Record<string, any> = { label, actionType: action, position: option.position };
+      if (action === 'NEXT_STEP' && nextStep) body.nextStepPublicId = nextStep;
+      return httpClient.request(`/platform/prospecting/flows/${flowId}/options/${option.publicId}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+        schema: flowOptionSchema,
+      });
+    },
+    onSuccess,
+  });
+
+  return (
+    <div className="prospecting-form-backdrop" onClick={onClose}>
+      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="drawer-close">← Voltar</button>
+        <h2>Editar Resposta</h2>
+        <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className="form-input" />
+        <select value={action} onChange={(e) => setAction(e.target.value)} className="form-input">
+          {Object.entries(actionTypeNames).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        {action === 'NEXT_STEP' && (
+          <select value={nextStep} onChange={(e) => setNextStep(e.target.value)} className="form-input">
+            <option value="">Nenhuma</option>
+            {steps.map((s) => <option key={s.publicId} value={s.publicId}>{s.name}</option>)}
+          </select>
+        )}
+        <div className="modal-actions">
+          <button onClick={onClose} className="secondary-button">Cancelar</button>
+          <button onClick={() => updateMutation.mutate()} className="primary-button">Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PatternListEditor = ({
+  option,
+  flowId,
+  onClose,
+  onSuccess,
+}: {
+  option: z.infer<typeof flowOptionSchema>;
+  flowId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const [pattern, setPattern] = useState('');
+  const [type, setType] = useState('EXACT');
+
+  const addMutation = useMutation({
+    mutationFn: async () => {
+      return httpClient.request(`/platform/prospecting/flows/${flowId}/options/${option.publicId}/patterns`, {
+        method: 'POST',
+        body: JSON.stringify({ pattern, patternType: type, priority: 0 }),
+        schema: flowPatternSchema,
+      });
+    },
+    onSuccess: () => {
+      onSuccess();
+      setPattern('');
+    },
+  });
+
+  return (
+    <div className="prospecting-form-backdrop" onClick={onClose}>
+      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="drawer-close">← Voltar</button>
+        <h2>Padrões: {option.label}</h2>
+        {option.patterns.length > 0 && (
+          <div style={{ marginBottom: '1rem' }}>
+            {option.patterns.map((p) => (
+              <div key={p.id} className="option-card" style={{ marginBottom: '0.5rem' }}>
+                <div>{p.pattern}</div>
+                <div className="option-action">{patternTypeNames[p.patternType]}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div>
+          <input type="text" placeholder="Padrão" value={pattern} onChange={(e) => setPattern(e.target.value)} className="form-input" />
+          <select value={type} onChange={(e) => setType(e.target.value)} className="form-input">
+            {Object.entries(patternTypeNames).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <button onClick={() => addMutation.mutate()} className="primary-button" disabled={!pattern} style={{ width: '100%' }}>
+            Adicionar Padrão
           </button>
         </div>
       </div>

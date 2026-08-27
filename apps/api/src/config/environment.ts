@@ -111,6 +111,10 @@ const environmentSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+    PROSPECTING_FLOW_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     PROSPECTING_WORKER_ENABLED: z
       .enum(['true', 'false'])
       .default('false')

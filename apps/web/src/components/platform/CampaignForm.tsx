@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { useState } from 'react';
 import { httpClient } from '../../lib/http.js';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 const CampaignFormSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -15,6 +15,7 @@ const CampaignFormSchema = z.object({
   followUpAfterHours: z.number().int().positive().optional(),
   maxFollowUps: z.number().int().min(0).optional(),
   autoReplyEnabled: z.boolean().optional().default(false),
+  flowId: z.bigint().optional(),
 });
 
 type CampaignFormData = z.infer<typeof CampaignFormSchema>;
@@ -42,6 +43,14 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
   const queryClient = useQueryClient();
   const isEditing = !!initial?.publicId;
 
+  const { data: flowsData } = useQuery({
+    queryKey: ['prospecting-flows'],
+    queryFn: async () => {
+      const response = await httpClient.request('/platform/prospecting/flows');
+      return (response as any).items || [];
+    },
+  });
+
   const [formData, setFormData] = useState<CampaignFormData>({
     name: initial?.name ?? '',
     dailyLimit: initial?.dailyLimit ?? 100,
@@ -54,6 +63,7 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
     followUpAfterHours: initial?.followUpAfterHours ?? 24,
     maxFollowUps: initial?.maxFollowUps ?? 2,
     autoReplyEnabled: initial?.autoReplyEnabled ?? false,
+    flowId: (initial as any)?.flowId ? BigInt((initial as any).flowId) : undefined,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -156,6 +166,27 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
               disabled={isLoading}
             />
             {errors.name && <span className="field-error">{errors.name}</span>}
+          </label>
+
+          <label>
+            Fluxo de Prospecção
+            <select
+              value={formData.flowId ? String(formData.flowId) : ''}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  flowId: e.target.value ? BigInt(e.target.value) : undefined,
+                })
+              }
+              disabled={isLoading}
+            >
+              <option value="">Nenhum — Sistema padrão</option>
+              {flowsData?.map((flow: any) => (
+                <option key={flow.id} value={String(flow.id)}>
+                  {flow.name}
+                </option>
+              ))}
+            </select>
           </label>
         </section>
 

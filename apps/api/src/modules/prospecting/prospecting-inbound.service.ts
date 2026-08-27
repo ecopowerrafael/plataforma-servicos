@@ -2,6 +2,7 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { type ProspectingWhatsAppConfigService } from './prospecting-whatsapp-config.service.js';
 import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
 import { ProspectingObjectionEngine } from './prospecting-objection-engine.js';
+import { ProspectingFlowEngine } from './prospecting-flow-engine.service.js';
 
 interface ProspectingInboundPayload {
   instanceId: string | null;
@@ -136,7 +137,7 @@ export class ProspectingInboundService {
       },
     });
 
-    // Verificar opt-out (tem prioridade sobre objection engine)
+    // Verificar opt-out (tem prioridade sobre objection engine e flow engine)
     const isOptOut = this.detectOptOut(payload.body as string);
     if (isOptOut) {
       await this.handleOptOut(leadData.id, leadData.campaignId, normalizedPhone);
@@ -147,19 +148,65 @@ export class ProspectingInboundService {
       };
     }
 
-    // Classificar via Objection Engine (async, não bloqueia resposta de webhook)
-    try {
-      const engine = new ProspectingObjectionEngine(this.client);
-      await engine.classify({
-        campaignId: leadData.campaignId,
-        leadId: leadData.id,
-        messageId: message.id,
-        inboundMessageId: message.id,
-        text: payload.body as string,
+    // Flow Engine (se feature flag ativa e campaign possui flow)
+    const flowEnabled = process.env.PROSPECTING_FLOW_ENABLED === 'true';
+    if (flowEnabled && campaign?.flowId) {
+      const execution = await this.client.prospectingFlowExecution.findUnique({
+        where: {
+          campaignId_leadId_flowId: {
+            campaignId: campaign.id,
+            leadId: leadData.id,
+            flowId: campaign.flowId,
+          },
+        },
+        include: { currentStep: { include: { options: true } } },
       });
-    } catch (error) {
-      // Log but don't fail webhook
-      console.error('[ProspectingInbound] Classification error:', error);
+
+      if (execution && execution.status === 'WAITING') {
+        const flowEngine = new ProspectingFlowEngine(this.client);
+        const flowResult = await flowEngine.processStepResponse({
+          execution,
+          step: execution.currentStep,
+          inboundMessage: message,
+        });
+
+        // Se flow avançou para ACTIVE: retornar lead para fila do worker
+        if (flowResult.executionAdvanced && execution.currentStep.stepType === 'MESSAGE_ONLY') {
+          // Limpar humanLock INBOUND_REPLY para permitir próximo outbound
+          await this.client.prospectingLead.update({
+            where: { id: leadData.id },
+            data: {
+              humanLockUntil: null,
+              humanLockType: null,
+              humanLockReason: null,
+            },
+          });
+        }
+
+        return {
+          handled: true,
+          leadPublicId: leadData.publicId,
+          campaignPublicId: campaign?.publicId || '',
+        };
+      }
+    }
+
+    // Classificar via Objection Engine (async, não bloqueia resposta de webhook)
+    // Somente se sem flow
+    if (!flowEnabled || !campaign?.flowId) {
+      try {
+        const engine = new ProspectingObjectionEngine(this.client);
+        await engine.classify({
+          campaignId: leadData.campaignId,
+          leadId: leadData.id,
+          messageId: message.id,
+          inboundMessageId: message.id,
+          text: payload.body as string,
+        });
+      } catch (error) {
+        // Log but don't fail webhook
+        console.error('[ProspectingInbound] Classification error:', error);
+      }
     }
 
     return {

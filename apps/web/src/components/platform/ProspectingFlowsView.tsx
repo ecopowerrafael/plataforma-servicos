@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
-import { ErrorState, PageHeader } from './PlatformUi.js';
+import { ErrorState } from './PlatformUi.js';
 import './prospecting-flows.css';
 
 const flowListItemSchema = z.object({
@@ -17,7 +17,6 @@ const flowListItemSchema = z.object({
 });
 
 const flowsResponseSchema = z.object({ items: z.array(flowListItemSchema) });
-type FlowListItem = z.infer<typeof flowListItemSchema>;
 
 const stepTypeNames: Record<string, string> = {
   MESSAGE_OPTIONS: 'Mensagem com respostas',
@@ -69,7 +68,7 @@ export const ProspectingFlowsView = () => {
 
   const deleteFlowMutation = useMutation({
     mutationFn: (publicId: string) =>
-      httpClient.request(`/platform/prospecting/flows/${publicId}`, { method: 'DELETE' }),
+      httpClient.request(`/platform/prospecting/flows/${publicId}`, { method: 'DELETE', schema: z.object({ success: z.boolean() }) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospecting-flows'] });
       setFeedback({ type: 'success', message: 'Fluxo removido' });
@@ -80,16 +79,17 @@ export const ProspectingFlowsView = () => {
     },
   });
 
-  if (error) return <ErrorState error={error instanceof Error ? error.message : 'Erro ao carregar fluxos'} />;
-  if (isLoading) return <PageHeader title="Carregando..." />;
+  if (error) return <ErrorState message={error instanceof Error ? error.message : 'Erro ao carregar fluxos'} />;
+  if (isLoading) return <div className="prospecting-flows-container">Carregando...</div>;
 
   return (
     <div className="prospecting-flows-container">
-      <PageHeader title="Fluxos de Prospecção">
+      <div className="page-header">
+        <h1>Fluxos de Prospecção</h1>
         <button className="primary-button" onClick={() => setShowNewModal(true)}>
           + Novo Fluxo
         </button>
-      </PageHeader>
+      </div>
 
       {feedback && (
         <div className={`prospecting-feedback ${feedback.type}`}>

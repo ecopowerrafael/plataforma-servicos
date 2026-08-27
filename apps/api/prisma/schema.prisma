@@ -3608,6 +3608,7 @@ model ProspectingCampaign {
   pauseOnReply          Boolean                     @default(true) @map("pause_on_reply")
   pauseOnInterest       Boolean                     @default(true) @map("pause_on_interest")
   autoReplyEnabled      Boolean                     @default(false) @map("auto_reply_enabled")
+  flowId                BigInt?                     @map("flow_id") @db.UnsignedBigInt
   startedAt             DateTime?                   @map("started_at") @db.DateTime(3)
   pausedAt              DateTime?                   @map("paused_at") @db.DateTime(3)
   completedAt           DateTime?                   @map("completed_at") @db.DateTime(3)
@@ -3615,11 +3616,13 @@ model ProspectingCampaign {
   createdAt             DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   category              DirectoryCategory?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  flow                  ProspectingFlow?            @relation(fields: [flowId], references: [id], onDelete: SetNull)
   leads                 ProspectingLead[]
   messages              ProspectingMessage[]
   templates             ProspectingTemplate[]
   suppressions          ProspectingSuppression[]
   objectionExclusions   ProspectingObjectionExclusion[]
+  flowExecutions        ProspectingFlowExecution[]
 
   @@index([status, startedAt])
   @@index([categoryId, state, city])
@@ -3658,6 +3661,7 @@ model ProspectingLead {
   campaign                ProspectingCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   directoryBusiness       DirectoryBusiness       @relation(fields: [directoryBusinessId], references: [id], onDelete: Restrict)
   messages                ProspectingMessage[]
+  flowExecutions          ProspectingFlowExecution[]
 
   @@unique([campaignId, directoryBusinessId], map: "upld_campaign_business")
   @@index([campaignId, status, nextActionAt])
@@ -3839,5 +3843,152 @@ model ProspectingWhatsAppConfig {
 
   @@unique([instanceId])
   @@map("prospecting_whatsapp_configs")
+}
+
+enum ProspectingFlowStepType {
+  MESSAGE_OPTIONS
+  WAIT_TEXT
+  WAIT_LINK
+  MESSAGE_ONLY
+  MANUAL
+  END
+
+  @@map("prospecting_flow_step_type")
+}
+
+enum ProspectingFlowExecutionStatus {
+  ACTIVE
+  WAITING
+  MANUAL
+  COMPLETED
+  CANCELED
+
+  @@map("prospecting_flow_execution_status")
+}
+
+enum ProspectingFlowOptionActionType {
+  NEXT_STEP
+  END
+  MANUAL
+
+  @@map("prospecting_flow_option_action_type")
+}
+
+model ProspectingFlow {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String    @unique @map("public_id") @db.Char(36)
+  name                String    @map("name") @db.VarChar(180)
+  description         String?   @map("description") @db.Text
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  steps               ProspectingFlowStep[]
+  executions          ProspectingFlowExecution[]
+  campaigns           ProspectingCampaign[]
+
+  @@map("prospecting_flows")
+}
+
+model ProspectingFlowStep {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String    @unique @map("public_id") @db.Char(36)
+  flowId              BigInt    @map("flow_id") @db.UnsignedBigInt
+  name                String    @map("name") @db.VarChar(180)
+  message             String    @map("message") @db.Text
+  stepType            ProspectingFlowStepType @map("step_type")
+  position            Int       @map("position")
+  nextStepId          BigInt?   @map("next_step_id") @db.UnsignedBigInt
+  isStart             Boolean   @default(false) @map("is_start")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  flow                ProspectingFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  options             ProspectingFlowOption[]
+  executions          ProspectingFlowExecution[]
+  responses           ProspectingFlowResponse[]
+
+  @@index([flowId])
+  @@index([nextStepId])
+  @@map("prospecting_flow_steps")
+}
+
+model ProspectingFlowOption {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String    @unique @map("public_id") @db.Char(36)
+  stepId              BigInt    @map("step_id") @db.UnsignedBigInt
+  label               String    @map("label") @db.VarChar(180)
+  nextStepId          BigInt?   @map("next_step_id") @db.UnsignedBigInt
+  actionType          ProspectingFlowOptionActionType @map("action_type")
+  position            Int       @map("position")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  step                ProspectingFlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  patterns            ProspectingFlowOptionPattern[]
+  responses           ProspectingFlowResponse[]
+
+  @@index([stepId])
+  @@index([nextStepId])
+  @@map("prospecting_flow_options")
+}
+
+model ProspectingFlowOptionPattern {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  optionId            BigInt    @map("option_id") @db.UnsignedBigInt
+  pattern             String    @map("pattern") @db.VarChar(500)
+  patternType         String    @map("pattern_type") @db.VarChar(20)
+  priority            Int       @default(0) @map("priority")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  option              ProspectingFlowOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@index([optionId])
+  @@map("prospecting_flow_option_patterns")
+}
+
+model ProspectingFlowExecution {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String    @unique @map("public_id") @db.Char(36)
+  campaignId          BigInt    @map("campaign_id") @db.UnsignedBigInt
+  leadId              BigInt    @map("lead_id") @db.UnsignedBigInt
+  flowId              BigInt    @map("flow_id") @db.UnsignedBigInt
+  currentStepId       BigInt    @map("current_step_id") @db.UnsignedBigInt
+  status              ProspectingFlowExecutionStatus @map("status")
+  startedAt           DateTime  @default(now()) @map("started_at") @db.DateTime(3)
+  completedAt         DateTime? @map("completed_at") @db.DateTime(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  campaign            ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead                ProspectingLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  flow                ProspectingFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  currentStep         ProspectingFlowStep @relation(fields: [currentStepId], references: [id])
+  responses           ProspectingFlowResponse[]
+
+  @@unique([campaignId, leadId, flowId])
+  @@index([campaignId])
+  @@index([leadId])
+  @@index([flowId])
+  @@index([status])
+  @@map("prospecting_flow_executions")
+}
+
+model ProspectingFlowResponse {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  executionId         BigInt    @map("execution_id") @db.UnsignedBigInt
+  stepId              BigInt    @map("step_id") @db.UnsignedBigInt
+  inboundMessageId    BigInt?   @map("inbound_message_id") @db.UnsignedBigInt
+  responseText        String    @map("response_text") @db.Text
+  matchedOptionId     BigInt?   @map("matched_option_id") @db.UnsignedBigInt
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  execution           ProspectingFlowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  step                ProspectingFlowStep @relation(fields: [stepId], references: [id])
+  matchedOption       ProspectingFlowOption? @relation(fields: [matchedOptionId], references: [id])
+
+  @@index([executionId])
+  @@index([stepId])
+  @@map("prospecting_flow_responses")
 }
 

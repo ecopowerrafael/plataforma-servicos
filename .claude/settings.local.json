@@ -106,7 +106,9 @@
       "PowerShell(cd C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos; npm run build:api 2>&1; echo \"API_EXIT=$LASTEXITCODE\")",
       "PowerShell(cd C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos; npm run build:api 2>&1; echo \"API_BUILD=$LASTEXITCODE\")",
       "PowerShell(cd C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\api; npx tsc -p tsconfig.build.json 2>&1; echo \"TS_COMPILE_EXIT=$LASTEXITCODE\")",
-      "Read(//c/Users/Code/AppData/Local/Temp/claude/C--Users-Code-OneDrive-Documentos-plataforma-servicos/fc82a210-2a47-41e6-b574-c05ae0b080b1/scratchpad/**)"
+      "Read(//c/Users/Code/AppData/Local/Temp/claude/C--Users-Code-OneDrive-Documentos-plataforma-servicos/fc82a210-2a47-41e6-b574-c05ae0b080b1/scratchpad/**)",
+      "Bash(xargs head -20)",
+      "Bash(xargs grep -l \"beforeAll\")"
     ]
   }
 }

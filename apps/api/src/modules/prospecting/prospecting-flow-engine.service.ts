@@ -1,5 +1,4 @@
 import { type PrismaClient } from '../../database-client/client.js';
-import { randomUUID } from 'node:crypto';
 
 interface ProcessStepResponseInput {
   execution: any;
@@ -63,10 +62,9 @@ export class ProspectingFlowEngine {
   ): Promise<any> {
     const matchedOption = this.findMatchingOption(normalizedText, step);
 
-    // Persistir response sempre
+    // Persistir response sempre (sem publicId)
     await tx.prospectingFlowResponse.create({
       data: {
-        publicId: randomUUID(),
         executionId: execution.id,
         stepId: step.id,
         inboundMessageId: inboundMessage.id,
@@ -91,10 +89,9 @@ export class ProspectingFlowEngine {
     step: any,
     inboundMessage: any,
   ): Promise<any> {
-    // Persistir response
+    // Persistir response (sem publicId)
     await tx.prospectingFlowResponse.create({
       data: {
-        publicId: randomUUID(),
         executionId: execution.id,
         stepId: step.id,
         inboundMessageId: inboundMessage.id,
@@ -140,10 +137,9 @@ export class ProspectingFlowEngine {
   ): Promise<any> {
     const url = this.extractUrlFromText(inboundMessage.body);
 
-    // Persistir response
+    // Persistir response (sem publicId)
     await tx.prospectingFlowResponse.create({
       data: {
-        publicId: randomUUID(),
         executionId: execution.id,
         stepId: step.id,
         inboundMessageId: inboundMessage.id,
@@ -187,15 +183,16 @@ export class ProspectingFlowEngine {
   private async applyOptionAction(tx: any, execution: any, _step: any, option: any): Promise<any> {
     switch (option.actionType) {
       case 'NEXT_STEP':
-        if (!option.nextStepPublicId) {
+        if (!option.nextStepId) {
           return { executionAdvanced: false, reason: 'NEXT_STEP_MISSING_DESTINATION' };
         }
 
-        const nextStep = await tx.prospectingFlowStep.findFirst({
-          where: { publicId: option.nextStepPublicId, flowId: execution.flowId },
+        // Validar que nextStep pertence ao mesmo flow
+        const nextStep = await tx.prospectingFlowStep.findUnique({
+          where: { id: option.nextStepId },
         });
 
-        if (!nextStep) {
+        if (!nextStep || nextStep.flowId !== execution.flowId) {
           return { executionAdvanced: false, reason: 'NEXT_STEP_NOT_FOUND' };
         }
 

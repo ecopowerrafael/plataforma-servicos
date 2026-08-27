@@ -15,7 +15,7 @@ const CampaignFormSchema = z.object({
   followUpAfterHours: z.number().int().positive().optional(),
   maxFollowUps: z.number().int().min(0).optional(),
   autoReplyEnabled: z.boolean().optional().default(false),
-  flowId: z.bigint().optional(),
+  flowPublicId: z.string().uuid().nullable().optional(),
 });
 
 type CampaignFormData = z.infer<typeof CampaignFormSchema>;
@@ -63,7 +63,7 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
     followUpAfterHours: initial?.followUpAfterHours ?? 24,
     maxFollowUps: initial?.maxFollowUps ?? 2,
     autoReplyEnabled: initial?.autoReplyEnabled ?? false,
-    flowId: (initial as any)?.flowId ? BigInt((initial as any).flowId) : undefined,
+    flowPublicId: (initial as any)?.flowPublicId || null,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -171,18 +171,18 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
           <label>
             Fluxo de Prospecção
             <select
-              value={formData.flowId ? String(formData.flowId) : ''}
+              value={formData.flowPublicId || ''}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  flowId: e.target.value ? BigInt(e.target.value) : undefined,
+                  flowPublicId: e.target.value || null,
                 })
               }
               disabled={isLoading}
             >
               <option value="">Nenhum — Sistema padrão</option>
               {flowsData?.map((flow: any) => (
-                <option key={flow.id} value={String(flow.id)}>
+                <option key={flow.publicId} value={flow.publicId}>
                   {flow.name}
                 </option>
               ))}

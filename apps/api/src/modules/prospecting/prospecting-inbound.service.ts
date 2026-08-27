@@ -1,4 +1,5 @@
 import { type PrismaClient } from '../../database-client/client.js';
+import { type Environment } from '../../config/environment.js';
 import { type ProspectingWhatsAppConfigService } from './prospecting-whatsapp-config.service.js';
 import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
 import { ProspectingObjectionEngine } from './prospecting-objection-engine.js';
@@ -29,6 +30,7 @@ export class ProspectingInboundService {
   public constructor(
     private readonly client?: PrismaClient | null,
     private readonly configService?: ProspectingWhatsAppConfigService | null,
+    private readonly environment?: Environment | null,
   ) {}
 
   /**
@@ -149,7 +151,7 @@ export class ProspectingInboundService {
     }
 
     // Flow Engine (se feature flag ativa e campaign possui flow)
-    const flowEnabled = process.env.PROSPECTING_FLOW_ENABLED === 'true';
+    const flowEnabled = this.environment?.PROSPECTING_FLOW_ENABLED === true;
     if (flowEnabled && campaign?.flowId) {
       const execution = await this.client.prospectingFlowExecution.findUnique({
         where: {
@@ -159,7 +161,17 @@ export class ProspectingInboundService {
             flowId: campaign.flowId,
           },
         },
-        include: { currentStep: { include: { options: true } } },
+        include: {
+          currentStep: {
+            include: {
+              options: {
+                include: {
+                  patterns: true,
+                },
+              },
+            },
+          },
+        },
       });
 
       if (execution && execution.status === 'WAITING') {
@@ -170,17 +182,36 @@ export class ProspectingInboundService {
           inboundMessage: message,
         });
 
-        // Se flow avançou para ACTIVE: retornar lead para fila do worker
-        if (flowResult.executionAdvanced && execution.currentStep.stepType === 'MESSAGE_ONLY') {
-          // Limpar humanLock INBOUND_REPLY para permitir próximo outbound
-          await this.client.prospectingLead.update({
-            where: { id: leadData.id },
-            data: {
-              humanLockUntil: null,
-              humanLockType: null,
-              humanLockReason: null,
-            },
-          });
+        // Recarregar execution para obter status final
+        const updatedExecution = await this.client.prospectingFlowExecution.findUnique({
+          where: { id: execution.id },
+        });
+
+        // Gerenciar humanLock baseado em status final
+        if (flowResult.executionAdvanced && updatedExecution) {
+          if (updatedExecution.status === 'ACTIVE') {
+            // Limpar INBOUND_REPLY para permitir próximo outbound
+            await this.client.prospectingLead.update({
+              where: { id: leadData.id },
+              data: {
+                humanLockUntil: null,
+                humanLockType: null,
+                humanLockReason: null,
+              },
+            });
+          } else if (updatedExecution.status === 'COMPLETED') {
+            // Completado: limpar lock e nextActionAt
+            await this.client.prospectingLead.update({
+              where: { id: leadData.id },
+              data: {
+                humanLockUntil: null,
+                humanLockType: null,
+                humanLockReason: null,
+                nextActionAt: null,
+              },
+            });
+          }
+          // Se MANUAL: NÃO limpar FLOW_MANUAL lock
         }
 
         return {

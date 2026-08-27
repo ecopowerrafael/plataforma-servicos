@@ -283,89 +283,251 @@ export class ProspectingWorkerService implements ProspectingWorker {
   }
 
   private async processLeadSend(lead: any, campaign: any): Promise<{ status: string }> {
+    const isFlowMode = campaign.flowId && this.environment.PROSPECTING_FLOW_ENABLED;
+    return isFlowMode ? this.processFlowLeadSend(lead, campaign) : this.processLegacyLeadSend(lead, campaign);
+  }
+
+  /**
+   * FLOW MODE: Envio baseado em currentStep.message do FlowExecution.
+   */
+  private async processFlowLeadSend(lead: any, campaign: any): Promise<{ status: string }> {
     try {
       const now = this.clock.now();
 
       // TRANSACTION 1: PREPARE
-      const { message, execution, flow } = await this.client.$transaction(async (tx) => {
-        // Reservar slot de envio
+      const prepareResult = await this.client.$transaction(async (tx) => {
         const reservedUntil = new Date(now.getTime() + this.getRandomInterval(campaign) * 1000);
         const slotReserved = await this.claimRepository.claimCampaignSendSlot(campaign.id, reservedUntil, now);
         if (!slotReserved) {
           throw new Error('CAMPAIGN_RATE_LIMITED');
         }
 
-        // Se flow: find/create execution
-        let flowExecution = null;
-        if (campaign.flowId) {
-          flowExecution = await tx.prospectingFlowExecution.findUnique({
-            where: {
-              campaignId_leadId_flowId: {
-                campaignId: campaign.id,
-                leadId: lead.id,
-                flowId: campaign.flowId,
-              },
-            },
-            include: { currentStep: { include: { options: true } } },
-          });
-
-          if (!flowExecution) {
-            // Primeira execução: criar com step inicial (isStart=true)
-            const startStep = await tx.prospectingFlowStep.findFirst({
-              where: { flowId: campaign.flowId, isStart: true },
-              include: { options: true },
-            });
-
-            if (!startStep) {
-              throw new Error('START_STEP_NOT_FOUND');
-            }
-
-            flowExecution = await tx.prospectingFlowExecution.create({
-              data: {
-                publicId: randomUUID(),
-                campaignId: campaign.id,
-                leadId: lead.id,
-                flowId: campaign.flowId,
-                currentStepId: startStep.id,
-                status: 'ACTIVE',
-              },
-              include: { currentStep: { include: { options: true } } },
-            });
-          }
-        }
-
-        // Buscar template
-        const template = await tx.prospectingTemplate.findFirst({
+        // Find/create execution
+        let execution = await tx.prospectingFlowExecution.findUnique({
           where: {
-            campaignId: campaign.id,
-            stepNumber: lead.currentStep,
+            campaignId_leadId_flowId: { campaignId: campaign.id, leadId: lead.id, flowId: campaign.flowId },
           },
-          include: {
-            variants: {
-              orderBy: { variantIndex: 'asc' },
-            },
-          },
+          include: { currentStep: true },
         });
 
-        if (!template) {
-          throw new Error('TEMPLATE_NOT_FOUND');
+        if (!execution) {
+          const startStep = await tx.prospectingFlowStep.findFirst({
+            where: { flowId: campaign.flowId, isStart: true },
+          });
+          if (!startStep) throw new Error('START_STEP_NOT_FOUND');
+
+          execution = await tx.prospectingFlowExecution.create({
+            data: {
+              publicId: randomUUID(),
+              campaignId: campaign.id,
+              leadId: lead.id,
+              flowId: campaign.flowId,
+              currentStepId: startStep.id,
+              status: 'ACTIVE',
+            },
+            include: { currentStep: true },
+          });
         }
 
-        const variantIndex = this.selectVariantDeterministic(lead.publicId, template.publicId, template.variants.length);
-        const variant = template.variants[variantIndex];
+        const step = execution.currentStep;
+        const messageBody = await this.resolvePlaceholders(step.message, lead);
+        const idempotencyKey = `flow:${execution.publicId}:step:${step.publicId}`;
 
-        if (!variant) {
-          throw new Error('VARIANT_NOT_FOUND');
-        }
-
-        const messageBody = await this.resolvePlaceholders(variant.body, lead);
-        const idempotencyKey = `${campaign.publicId}:${lead.publicId}:${lead.currentStep}`;
-
-        // Find/create message
+        // Find/create message (flow mode: templateId=null)
         let msg = await tx.prospectingMessage.findFirst({
           where: { idempotencyKey },
         });
 
+        let reconcile = false;
+        if (!msg) {
+          msg = await tx.prospectingMessage.create({
+            data: {
+              publicId: randomUUID(),
+              campaignId: campaign.id,
+              leadId: lead.id,
+              direction: 'OUTBOUND',
+              stepNumber: null,
+              templateId: null,
+              variantIndex: null,
+              idempotencyKey,
+              status: 'SENDING',
+              sendingStartedAt: now,
+              body: messageBody,
+              attemptNumber: 1,
+              purpose: 'FLOW',
+            },
+          });
+        } else if (msg.status === 'SENT' || msg.status === 'DRY_RUN') {
+          reconcile = true;
+        } else if (msg.status !== 'SENDING' && msg.status !== 'FAILED') {
+          throw new Error('MESSAGE_UNEXPECTED_STATUS');
+        }
+
+        if (msg.status === 'FAILED') {
+          const nextAttemptAt = msg.nextAttemptAt ? new Date(msg.nextAttemptAt.getTime() + this.calculateBackoffMs(msg.attemptNumber)) : now;
+          msg = await tx.prospectingMessage.update({
+            where: { id: msg.id },
+            data: {
+              status: 'SENDING',
+              attemptNumber: msg.attemptNumber + 1,
+              sendingStartedAt: now,
+              nextAttemptAt,
+              errorCode: null,
+              errorMessage: null,
+              failedAt: null,
+            },
+          });
+        }
+
+        return { message: msg, execution, reconcile };
+      }).catch(async (error) => {
+        const errorStr = String(error);
+        if (errorStr.includes('CAMPAIGN_RATE_LIMITED')) {
+          return { message: null, execution: null, reconcile: false };
+        }
+        console.error('[ProspectingWorker] Flow TX1 error:', error);
+        throw error;
+      });
+
+      const { message, execution, reconcile } = prepareResult;
+      if (!message || !execution) {
+        return { status: 'skipped' };
+      }
+
+      // DRY RUN: não chamar provider
+      if (this.environment.PROSPECTING_DRY_RUN) {
+        await this.client.$transaction(async (tx) => {
+          await tx.prospectingMessage.update({
+            where: { id: message.id },
+            data: { status: 'DRY_RUN' },
+          });
+          if (!reconcile) {
+            await this.applyStepTransition(tx, execution);
+          }
+        });
+        return { status: 'dry_run' };
+      }
+
+      // OUTSIDE TX: Call sender (se não reconcile)
+      let sendResult: any = null;
+      if (!reconcile) {
+        sendResult = await this.messageSender.sendText({
+          phone: lead.normalizedPhone,
+          body: message.body,
+        });
+      }
+
+      // TRANSACTION 2: RESULT + TRANSITION
+      await this.client.$transaction(async (tx) => {
+        if (reconcile) {
+          await this.applyStepTransition(tx, execution);
+          return;
+        }
+
+        if (!sendResult) throw new Error('SEND_RESULT_MISSING');
+
+        if (sendResult.success) {
+          await tx.prospectingMessage.update({
+            where: { id: message.id },
+            data: {
+              status: 'SENT',
+              externalMessageId: sendResult.externalMessageId || null,
+              sentAt: now,
+            },
+          });
+
+          await tx.prospectingLead.update({
+            where: { id: lead.id },
+            data: { status: 'SCHEDULED', lastOutboundAt: now, nextActionAt: now },
+          });
+
+          await this.applyStepTransition(tx, execution);
+        } else if (sendResult.retryable) {
+          const nextAttempt = message.attemptNumber;
+          if (nextAttempt >= this.environment.PROSPECTING_MAX_SEND_ATTEMPTS) {
+            await tx.prospectingMessage.update({
+              where: { id: message.id },
+              data: { status: 'FAILED', errorCode: sendResult.errorCode || null, errorMessage: sendResult.errorMessage || null, failedAt: now },
+            });
+            await tx.prospectingLead.update({
+              where: { id: lead.id },
+              data: { status: 'NEEDS_REVIEW' },
+            });
+          } else {
+            const backoffMs = this.calculateBackoffMs(nextAttempt);
+            const nextAttemptDate = new Date(now.getTime() + backoffMs);
+            await tx.prospectingMessage.update({
+              where: { id: message.id },
+              data: {
+                status: 'FAILED',
+                errorCode: sendResult.errorCode || null,
+                errorMessage: sendResult.errorMessage || null,
+                failedAt: now,
+                nextAttemptAt: nextAttemptDate,
+              },
+            });
+            await tx.prospectingLead.update({
+              where: { id: lead.id },
+              data: { status: 'SCHEDULED', nextActionAt: nextAttemptDate },
+            });
+          }
+        } else if (sendResult.errorCode === 'DELIVERY_UNCERTAIN') {
+          await tx.prospectingLead.update({
+            where: { id: lead.id },
+            data: { status: 'NEEDS_REVIEW' },
+          });
+        } else {
+          await tx.prospectingMessage.update({
+            where: { id: message.id },
+            data: { status: 'FAILED', errorCode: sendResult.errorCode || null, errorMessage: sendResult.errorMessage || null, failedAt: now },
+          });
+          await tx.prospectingLead.update({
+            where: { id: lead.id },
+            data: { status: 'NEEDS_REVIEW' },
+          });
+        }
+      });
+
+      if (this.environment.PROSPECTING_DRY_RUN) return { status: 'dry_run' };
+      if (reconcile || (sendResult && sendResult.success)) return { status: 'sent' };
+      if (sendResult && sendResult.retryable && message.attemptNumber < this.environment.PROSPECTING_MAX_SEND_ATTEMPTS) return { status: 'retried' };
+      return { status: 'failed' };
+    } catch (error) {
+      console.error(`[ProspectingWorker] Flow error:`, error);
+      return { status: 'failed' };
+    }
+  }
+
+  /**
+   * LEGACY MODE: Envio baseado em templates e variants.
+   */
+  private async processLegacyLeadSend(lead: any, campaign: any): Promise<{ status: string }> {
+    try {
+      const now = this.clock.now();
+
+      const prepareResult = await this.client.$transaction(async (tx) => {
+        const reservedUntil = new Date(now.getTime() + this.getRandomInterval(campaign) * 1000);
+        const slotReserved = await this.claimRepository.claimCampaignSendSlot(campaign.id, reservedUntil, now);
+        if (!slotReserved) throw new Error('CAMPAIGN_RATE_LIMITED');
+
+        const template = await tx.prospectingTemplate.findFirst({
+          where: { campaignId: campaign.id, stepNumber: lead.currentStep },
+          include: { variants: { orderBy: { variantIndex: 'asc' } } },
+        });
+        if (!template) throw new Error('TEMPLATE_NOT_FOUND');
+
+        const variantIndex = this.selectVariantDeterministic(lead.publicId, template.publicId, template.variants.length);
+        const variant = template.variants[variantIndex];
+        if (!variant) throw new Error('VARIANT_NOT_FOUND');
+
+        const messageBody = await this.resolvePlaceholders(variant.body, lead);
+        const idempotencyKey = `campaign:${campaign.publicId}:lead:${lead.publicId}:step:${lead.currentStep}`;
+
+        let msg = await tx.prospectingMessage.findFirst({
+          where: { idempotencyKey },
+        });
+
+        let reconcile = false;
         if (!msg) {
           msg = await tx.prospectingMessage.create({
             data: {
@@ -384,13 +546,11 @@ export class ProspectingWorkerService implements ProspectingWorker {
             },
           });
         } else if (msg.status === 'SENT') {
-          // Reconciliation: message já foi enviada, vai chamar applyStepTransition sem reenvio
-          return { message: msg, execution: flowExecution, flow: 'RECONCILE' };
+          reconcile = true;
         } else if (msg.status !== 'SENDING' && msg.status !== 'FAILED') {
           throw new Error('MESSAGE_UNEXPECTED_STATUS');
         }
 
-        // Se FAILED: reset para retry
         if (msg.status === 'FAILED') {
           msg = await tx.prospectingMessage.update({
             where: { id: msg.id },
@@ -405,205 +565,159 @@ export class ProspectingWorkerService implements ProspectingWorker {
           });
         }
 
-        return { message: msg, execution: flowExecution, flow: 'NEW' };
+        return { message: msg, reconcile };
       }).catch(async (error) => {
-        const errorStr = String(error);
-        if (errorStr.includes('CAMPAIGN_RATE_LIMITED')) {
-          return { message: null, execution: null, flow: 'RATE_LIMITED' };
+        if (String(error).includes('CAMPAIGN_RATE_LIMITED')) {
+          return { message: null, reconcile: false };
         }
-        console.error('[ProspectingWorker] TX1 error:', error);
-        await this.updateLeadFailed(lead.id, 'PREPARE_FAILED', errorStr);
         throw error;
       });
 
-      if (!message) {
-        if (flow === 'RATE_LIMITED') return { status: 'skipped' };
-        return { status: 'failed' };
-      }
+      const { message, reconcile } = prepareResult;
+      if (!message) return { status: 'skipped' };
 
-      // OUTSIDE TX: Call sender
       let sendResult: any = null;
-      if (flow !== 'RECONCILE') {
+      if (!reconcile && !this.environment.PROSPECTING_DRY_RUN) {
         sendResult = await this.messageSender.sendText({
           phone: lead.normalizedPhone,
           body: message.body,
         });
       }
 
-      // TRANSACTION 2: RESULT + TRANSITION
       await this.client.$transaction(async (tx) => {
-        // DRY RUN
         if (this.environment.PROSPECTING_DRY_RUN) {
           await tx.prospectingMessage.update({
             where: { id: message.id },
             data: { status: 'DRY_RUN' },
           });
-
-          // Se flow: chamar applyStepTransition (simula)
-          if (execution && flow !== 'RECONCILE') {
-            await this.applyStepTransition(tx, execution, message);
-          }
           return;
         }
 
-        // RECONCILE: se já SENT, chamar applyStepTransition sem reenvio
-        if (flow === 'RECONCILE') {
-          if (execution) {
-            await this.applyStepTransition(tx, execution, message);
-          }
+        if (reconcile) {
           return;
         }
 
-        if (!sendResult) {
-          throw new Error('SEND_RESULT_MISSING');
-        }
+        if (!sendResult) throw new Error('SEND_RESULT_MISSING');
 
         if (sendResult.success) {
-          // SENT
           await tx.prospectingMessage.update({
             where: { id: message.id },
-            data: {
-              status: 'SENT',
-              externalMessageId: sendResult.externalMessageId || null,
-              sentAt: now,
-            },
+            data: { status: 'SENT', externalMessageId: sendResult.externalMessageId || null, sentAt: now },
           });
-
-          const leadData: any = {
-            status: execution ? 'SCHEDULED' : 'WAITING_REPLY',
-            lastOutboundAt: now,
-            attemptCount: lead.attemptCount + 1,
-          };
-          if (execution) {
-            leadData.nextActionAt = now;
-          }
-
           await tx.prospectingLead.update({
             where: { id: lead.id },
-            data: leadData,
+            data: { status: 'WAITING_REPLY', lastOutboundAt: now, attemptCount: lead.attemptCount + 1 },
           });
-
-          // Se flow: chamar applyStepTransition
-          if (execution) {
-            await this.applyStepTransition(tx, execution, message);
-          }
         } else if (sendResult.retryable) {
-          // RETRYABLE
           const nextAttempt = message.attemptNumber;
           if (nextAttempt >= this.environment.PROSPECTING_MAX_SEND_ATTEMPTS) {
-            // Max attempts
             await tx.prospectingMessage.update({
               where: { id: message.id },
-              data: {
-                status: 'FAILED',
-                errorCode: sendResult.errorCode || null,
-                errorMessage: sendResult.errorMessage || null,
-                failedAt: now,
-              },
+              data: { status: 'FAILED', errorCode: sendResult.errorCode || null, errorMessage: sendResult.errorMessage || null, failedAt: now },
             });
-
             await tx.prospectingLead.update({
               where: { id: lead.id },
-              data: {
-                status: 'NEEDS_REVIEW',
-              },
+              data: { status: 'NEEDS_REVIEW' },
             });
           } else {
-            // Retry: message já tem attemptNumber+1 do PREPARE
             const backoffMs = this.calculateBackoffMs(nextAttempt);
             await tx.prospectingMessage.update({
               where: { id: message.id },
-              data: {
-                status: 'FAILED',
-                errorCode: sendResult.errorCode || null,
-                errorMessage: sendResult.errorMessage || null,
-                failedAt: now,
-              },
+              data: { status: 'FAILED', errorCode: sendResult.errorCode || null, errorMessage: sendResult.errorMessage || null, failedAt: now },
             });
-
             await tx.prospectingLead.update({
               where: { id: lead.id },
-              data: {
-                status: 'SCHEDULED',
-                nextActionAt: new Date(now.getTime() + backoffMs),
-              },
+              data: { status: 'SCHEDULED', nextActionAt: new Date(now.getTime() + backoffMs) },
             });
-
-            // Liberar slot para próxima tentativa
             await tx.prospectingCampaign.update({
               where: { id: campaign.id },
-              data: {
-                nextSendAt: new Date(now.getTime() + campaign.minIntervalSeconds * 1000),
-              },
+              data: { nextSendAt: new Date(now.getTime() + campaign.minIntervalSeconds * 1000) },
             });
           }
         } else {
-          // DEFINITIVE FAILURE
           await tx.prospectingMessage.update({
             where: { id: message.id },
-            data: {
-              status: 'FAILED',
-              errorCode: sendResult.errorCode || null,
-              errorMessage: sendResult.errorMessage || null,
-              failedAt: now,
-            },
+            data: { status: 'FAILED', errorCode: sendResult.errorCode || null, errorMessage: sendResult.errorMessage || null, failedAt: now },
           });
-
           await tx.prospectingLead.update({
             where: { id: lead.id },
-            data: {
-              status: 'NEEDS_REVIEW',
-            },
+            data: { status: 'NEEDS_REVIEW' },
           });
         }
       });
 
-      // Determinar resultado
-      if (this.environment.PROSPECTING_DRY_RUN) {
-        return { status: 'dry_run' };
-      }
-      if (flow === 'RECONCILE' || (sendResult && sendResult.success)) {
-        return { status: 'sent' };
-      }
-      if (sendResult && sendResult.retryable && message.attemptNumber < this.environment.PROSPECTING_MAX_SEND_ATTEMPTS) {
-        return { status: 'retried' };
-      }
+      if (this.environment.PROSPECTING_DRY_RUN) return { status: 'dry_run' };
+      if (reconcile || (sendResult && sendResult.success)) return { status: 'sent' };
+      if (sendResult && sendResult.retryable && message.attemptNumber < this.environment.PROSPECTING_MAX_SEND_ATTEMPTS) return { status: 'retried' };
       return { status: 'failed' };
     } catch (error) {
-      console.error(`[ProspectingWorker] Error sending message:`, error);
-      await this.updateLeadFailed(lead.id, 'INTERNAL_ERROR', String(error));
+      console.error(`[ProspectingWorker] Legacy error:`, error);
       return { status: 'failed' };
     }
   }
 
   /**
-   * Aplicar transição de step no fluxo após sucesso de envio.
+   * Aplicar transição de step no fluxo (todos os stepTypes).
    */
-  private async applyStepTransition(tx: any, execution: any, _message: any): Promise<void> {
+  private async applyStepTransition(tx: any, execution: any): Promise<void> {
     const step = execution.currentStep;
 
-    // Para MESSAGE_ONLY e mensagens enviadas: tentar avançar para próximo step
-    if (step.stepType === 'MESSAGE_ONLY') {
-      if (step.nextStepId) {
+    switch (step.stepType) {
+      case 'MESSAGE_OPTIONS':
+      case 'WAIT_TEXT':
+      case 'WAIT_LINK':
+        // Permanece em WAITING, lead fica WAITING_REPLY
+        break;
+
+      case 'MESSAGE_ONLY':
+        if (step.nextStepId) {
+          await tx.prospectingFlowExecution.update({
+            where: { id: execution.id },
+            data: { currentStepId: step.nextStepId, status: 'ACTIVE' },
+          });
+          await tx.prospectingLead.update({
+            where: { id: execution.leadId },
+            data: { status: 'SCHEDULED', nextActionAt: new Date() },
+          });
+        } else {
+          await tx.prospectingFlowExecution.update({
+            where: { id: execution.id },
+            data: { status: 'COMPLETED', completedAt: new Date() },
+          });
+          await tx.prospectingLead.update({
+            where: { id: execution.leadId },
+            data: { nextActionAt: null },
+          });
+        }
+        break;
+
+      case 'MANUAL':
         await tx.prospectingFlowExecution.update({
           where: { id: execution.id },
+          data: { status: 'MANUAL' },
+        });
+        await tx.prospectingLead.update({
+          where: { id: execution.leadId },
           data: {
-            currentStepId: step.nextStepId,
-            status: 'WAITING',
+            humanLockUntil: new Date(Date.now() + 30 * 24 * 3600_000),
+            humanLockType: 'FLOW_MANUAL',
+            humanLockReason: 'Flow step requires manual intervention',
+            nextActionAt: null,
           },
         });
-      } else {
-        // Sem próximo: completar
+        break;
+
+      case 'END':
         await tx.prospectingFlowExecution.update({
           where: { id: execution.id },
-          data: {
-            status: 'COMPLETED',
-            completedAt: new Date(),
-          },
+          data: { status: 'COMPLETED', completedAt: new Date() },
         });
-      }
+        await tx.prospectingLead.update({
+          where: { id: execution.leadId },
+          data: { nextActionAt: null },
+        });
+        break;
     }
-    // Para MESSAGE_OPTIONS: já trata resposta via FlowEngine no inbound, não avança aqui
   }
 
   private selectVariantDeterministic(leadPublicId: string, templatePublicId: string, variantCount: number): number {
@@ -643,16 +757,6 @@ export class ProspectingWorkerService implements ProspectingWorker {
     return baseMs[index]! + jitterMs;
   }
 
-  private async updateLeadFailed(_leadId: bigint, _errorCode?: string, _errorMessage?: string): Promise<void> {
-    // TODO: Persistir erro na lead se necessário
-    // Por enquanto apenas marcar como FAILED
-    // await this.client.prospectingLead.update({
-    //   where: { id: leadId },
-    //   data: {
-    //     status: 'FAILED',
-    //   },
-    // });
-  }
 
   /**
    * Processar AUTO_REPLY pendentes (prioridade máxima).

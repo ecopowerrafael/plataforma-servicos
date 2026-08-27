@@ -20,7 +20,7 @@ const CreateCampaignSchema = z.object({
   minIntervalSeconds: z.number().int().positive().optional(),
   maxIntervalSeconds: z.number().int().positive().optional(),
   allowedWeekdays: z.array(z.number().int().min(0).max(6)).optional(),
-  flowId: z.bigint().optional(),
+  flowPublicId: z.string().uuid().nullable().optional(),
 });
 
 const UpdateCampaignSchema = z.object({
@@ -34,7 +34,7 @@ const UpdateCampaignSchema = z.object({
   pauseOnReply: z.boolean().optional(),
   pauseOnInterest: z.boolean().optional(),
   autoReplyEnabled: z.boolean().optional(),
-  flowId: z.bigint().optional(),
+  flowPublicId: z.string().uuid().nullable().optional(),
 });
 
 const params = z.object({ publicId: z.uuid() });

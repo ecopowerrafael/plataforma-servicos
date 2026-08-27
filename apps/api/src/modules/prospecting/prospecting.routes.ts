@@ -894,17 +894,33 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     { schema: { params: z.object({ publicId: z.uuid(), patternId: z.string().regex(/^\d+$/) }), body: PatternSchema.partial() } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
+      const objection = await options.client.prospectingObjection.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!objection) throw new Error('Objection not found');
+
+      const pattern = await options.client.prospectingObjectionPattern.findUnique({
+        where: { id: BigInt(request.params.patternId) },
+        select: { objectionId: true },
+      });
+
+      if (!pattern || pattern.objectionId !== objection.id) {
+        throw new Error('Pattern does not belong to this objection');
+      }
+
       const data: Record<string, any> = {};
       if (request.body.pattern !== undefined) data.pattern = request.body.pattern;
       if (request.body.patternType !== undefined) data.patternType = request.body.patternType;
       if (request.body.priority !== undefined) data.priority = request.body.priority;
 
-      const pattern = await options.client.prospectingObjectionPattern.update({
+      const updatedPattern = await options.client.prospectingObjectionPattern.update({
         where: { id: BigInt(request.params.patternId) },
         data,
       });
 
-      return pattern;
+      return updatedPattern;
     },
   );
 
@@ -913,6 +929,22 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     { schema: { params: z.object({ publicId: z.uuid(), patternId: z.string().regex(/^\d+$/) }) } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
+      const objection = await options.client.prospectingObjection.findUnique({
+        where: { publicId: request.params.publicId },
+        select: { id: true },
+      });
+
+      if (!objection) throw new Error('Objection not found');
+
+      const pattern = await options.client.prospectingObjectionPattern.findUnique({
+        where: { id: BigInt(request.params.patternId) },
+        select: { objectionId: true },
+      });
+
+      if (!pattern || pattern.objectionId !== objection.id) {
+        throw new Error('Pattern does not belong to this objection');
+      }
+
       await options.client.prospectingObjectionPattern.delete({
         where: { id: BigInt(request.params.patternId) },
       });

@@ -60,6 +60,7 @@ export function ProspectingObjectionsView() {
   const queryClient = useQueryClient();
   const [editingObjection, setEditingObjection] = useState<Objection | null>(null);
   const [editingPattern, setEditingPattern] = useState<Pattern | null>(null);
+  const [editingPatternObjectionId, setEditingPatternObjectionId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showPatternForm, setShowPatternForm] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -131,7 +132,7 @@ export function ProspectingObjectionsView() {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
-      setNewPattern({ text: '', type: 'EXACT', priority: 0 });
+      setNewPattern({ pattern: '', patternType: 'EXACT', priority: 0 });
     },
   });
 
@@ -147,6 +148,7 @@ export function ProspectingObjectionsView() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
       setEditingPattern(null);
+      setEditingPatternObjectionId(null);
       setShowPatternForm(false);
       setNewPattern({ pattern: '', patternType: 'EXACT', priority: 0 });
     },
@@ -192,6 +194,7 @@ export function ProspectingObjectionsView() {
 
   const handleEditPattern = (objection: Objection, pattern: Pattern) => {
     setEditingPattern(pattern);
+    setEditingPatternObjectionId(objection.publicId);
     setNewPattern({
       pattern: pattern.pattern,
       patternType: pattern.type,
@@ -200,10 +203,10 @@ export function ProspectingObjectionsView() {
     setShowPatternForm(true);
   };
 
-  const handleSavePattern = (objectionPublicId: string) => {
-    if (!newPattern.pattern.trim() || !editingPattern) return;
+  const handleSavePattern = () => {
+    if (!newPattern.pattern.trim() || !editingPattern || !editingPatternObjectionId) return;
     void updatePatternMutation.mutateAsync({
-      objectionPublicId,
+      objectionPublicId: editingPatternObjectionId,
       patternId: editingPattern.id,
       pattern: {
         pattern: newPattern.pattern,
@@ -357,13 +360,18 @@ export function ProspectingObjectionsView() {
       )}
 
       {showPatternForm && editingPattern && (
-        <div className="prospecting-form-backdrop" onClick={() => setShowPatternForm(false)}>
+        <div className="prospecting-form-backdrop" onClick={() => {
+          setShowPatternForm(false);
+          setEditingPattern(null);
+          setEditingPatternObjectionId(null);
+          setNewPattern({ pattern: '', patternType: 'EXACT', priority: 0 });
+        }}>
           <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
             <h2>Editar Padrão</h2>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleSavePattern(editingObjection?.publicId ?? '');
+                handleSavePattern();
               }}
               className="campaign-form-container"
             >
@@ -408,7 +416,12 @@ export function ProspectingObjectionsView() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowPatternForm(false)}
+                  onClick={() => {
+                    setShowPatternForm(false);
+                    setEditingPattern(null);
+                    setEditingPatternObjectionId(null);
+                    setNewPattern({ pattern: '', patternType: 'EXACT', priority: 0 });
+                  }}
                   className="secondary-button"
                 >
                   Cancelar

@@ -264,24 +264,25 @@ const FlowEditor = ({
 }) => {
   const queryClient = useQueryClient();
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
-  const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
   const [flowName, setFlowName] = useState('');
   const [flowDesc, setFlowDesc] = useState('');
   const [flowActive, setFlowActive] = useState(true);
 
-  const { data: flow } = useQuery({
+  const { data: flow = null } = useQuery({
     queryKey: ['prospecting-flow', flowId],
     queryFn: async () => {
       return httpClient.request(`/platform/prospecting/flows/${flowId}`, { schema: flowDetailSchema });
     },
     onSuccess: (data) => {
-      setFlowName(data.name);
-      setFlowDesc(data.description || '');
-      setFlowActive(data.isActive);
+      if (data) {
+        setFlowName(data.name);
+        setFlowDesc(data.description || '');
+        setFlowActive(data.isActive);
+      }
     },
   });
 
-  const updateFlowMutation = useMutation({
+  const updateFlowMutation = useMutation<any, Error, { name?: string; description?: string; isActive?: boolean }>({
     mutationFn: async (data: { name?: string; description?: string; isActive?: boolean }) => {
       const body: Record<string, any> = {};
       if (data.name !== undefined) body.name = data.name;
@@ -327,18 +328,18 @@ const FlowEditor = ({
 
         <div className="flow-editor-section">
           <h2>Etapas</h2>
-          {flow.steps.length === 0 ? (
+          {!flow || flow.steps.length === 0 ? (
             <div className="empty-state">Nenhuma etapa criada ainda</div>
           ) : (
             <div className="steps-list">
-              {flow.steps.map((step, idx) => (
+              {flow && flow.steps.map((step: z.infer<typeof flowStepSchema>, idx: number) => (
                 <StepCard
                   key={step.publicId}
                   step={step}
                   flowId={flowId}
                   index={idx}
                   onEdit={() => setEditingStepId(step.publicId)}
-                  onOptionEdit={() => setEditingOptionId(step.publicId)}
+                  onOptionEdit={() => {/* TODO: implement options editor */}}
                   onFeedback={onFeedback}
                 />
               ))}
@@ -349,7 +350,7 @@ const FlowEditor = ({
             style={{ marginTop: '1rem' }}
             onClick={() => {
               const name = prompt('Nome da etapa');
-              if (name) {
+              if (name && flow) {
                 const type = prompt('Tipo (MESSAGE_OPTIONS, WAIT_TEXT, etc)') || 'MESSAGE_ONLY';
                 const pos = flow.steps.length;
                 httpClient

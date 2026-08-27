@@ -838,7 +838,17 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         },
       });
 
-      return objection;
+      return {
+        publicId: objection.publicId,
+        code: objection.code,
+        name: objection.name,
+        description: objection.description,
+        suggestedResponse: objection.suggestedResponse,
+        autoReplyAllowed: objection.autoReplyAllowed,
+        isActive: objection.isActive,
+        createdAt: objection.createdAt.toISOString(),
+        patterns: [],
+      };
     },
   );
 
@@ -859,7 +869,17 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         data,
       });
 
-      return objection;
+      return {
+        publicId: objection.publicId,
+        code: objection.code,
+        name: objection.name,
+        description: objection.description,
+        suggestedResponse: objection.suggestedResponse,
+        autoReplyAllowed: objection.autoReplyAllowed,
+        isActive: objection.isActive,
+        createdAt: objection.createdAt.toISOString(),
+        patterns: [],
+      };
     },
   );
 
@@ -885,7 +905,12 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         },
       });
 
-      return pattern;
+      return {
+        id: pattern.id.toString(),
+        pattern: pattern.pattern,
+        type: pattern.patternType,
+        priority: pattern.priority,
+      };
     },
   );
 
@@ -920,7 +945,12 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         data,
       });
 
-      return updatedPattern;
+      return {
+        id: updatedPattern.id.toString(),
+        pattern: updatedPattern.pattern,
+        type: updatedPattern.patternType,
+        priority: updatedPattern.priority,
+      };
     },
   );
 

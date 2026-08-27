@@ -61,10 +61,13 @@ export function ProspectingObjectionsView() {
   const [editingObjection, setEditingObjection] = useState<Objection | null>(null);
   const [editingPattern, setEditingPattern] = useState<Pattern | null>(null);
   const [editingPatternObjectionId, setEditingPatternObjectionId] = useState<string | null>(null);
+  const [addingPatternObjectionId, setAddingPatternObjectionId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showPatternForm, setShowPatternForm] = useState(false);
+  const [showAddPatternModal, setShowAddPatternModal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewText, setPreviewText] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -133,6 +136,15 @@ export function ProspectingObjectionsView() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
       setNewPattern({ pattern: '', patternType: 'EXACT', priority: 0 });
+      setShowAddPatternModal(false);
+      setAddingPatternObjectionId(null);
+      setFeedbackMessage({ type: 'success', text: 'Padrão adicionado com sucesso' });
+      setTimeout(() => setFeedbackMessage(null), 3000);
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Não foi possível adicionar o padrão';
+      setFeedbackMessage({ type: 'error', text: message });
+      console.error('Erro ao adicionar padrão:', error);
     },
   });
 
@@ -184,11 +196,15 @@ export function ProspectingObjectionsView() {
     setEditingObjection(null);
   };
 
-  const handleAddPattern = (objectionId: string) => {
-    if (!newPattern.pattern.trim()) return;
+  const handleAddPattern = () => {
+    if (!newPattern.pattern.trim() || !addingPatternObjectionId) return;
     void addPatternMutation.mutateAsync({
-      objectionId,
-      pattern: newPattern,
+      objectionId: addingPatternObjectionId,
+      pattern: {
+        pattern: newPattern.pattern,
+        patternType: newPattern.patternType,
+        priority: newPattern.priority,
+      },
     });
   };
 
@@ -432,6 +448,155 @@ export function ProspectingObjectionsView() {
         </div>
       )}
 
+      {showAddPatternModal && addingPatternObjectionId && (
+        <div className="prospecting-form-backdrop" onClick={() => {
+          setShowAddPatternModal(false);
+          setAddingPatternObjectionId(null);
+          setNewPattern({ pattern: '', patternType: 'EXACT', priority: 0 });
+        }}>
+          <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
+            <h2>Adicionar Padrão</h2>
+            <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: '#666' }}>
+              Texto que o cliente pode enviar para esta objeção
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddPattern();
+              }}
+              className="campaign-form-container"
+            >
+              <div className="form-section">
+                <label>
+                  Padrão
+                  <input
+                    type="text"
+                    value={newPattern.pattern}
+                    onChange={(e) => setNewPattern({ ...newPattern, pattern: e.target.value })}
+                    placeholder="ex: quanto custa"
+                    required
+                  />
+                </label>
+
+                <div style={{ marginTop: '1rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    Tipo de Correspondência
+                  </label>
+                  <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                    <input
+                      type="radio"
+                      name="pattern-type"
+                      value="EXACT"
+                      checked={newPattern.patternType === 'EXACT'}
+                      onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                    />
+                    <strong> Texto exato</strong>
+                    <div style={{ fontSize: '0.85rem', color: '#666', marginLeft: '1.5rem', marginTop: '0.25rem' }}>
+                      Somente quando a mensagem for exatamente "quanto custa"
+                    </div>
+                  </label>
+
+                  <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                    <input
+                      type="radio"
+                      name="pattern-type"
+                      value="CONTAINS"
+                      checked={newPattern.patternType === 'CONTAINS'}
+                      onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                    />
+                    <strong> Contém</strong>
+                    <div style={{ fontSize: '0.85rem', color: '#666', marginLeft: '1.5rem', marginTop: '0.25rem' }}>
+                      Também identifica "Oi, queria saber quanto custa"
+                    </div>
+                  </label>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      const more = document.getElementById('more-patterns-add-modal');
+                      if (more) more.style.display = more.style.display === 'none' ? 'block' : 'none';
+                    }}
+                    style={{ marginTop: '0.5rem' }}
+                  >
+                    Mais opções
+                  </button>
+
+                  <div id="more-patterns-add-modal" style={{ display: 'none', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #eee' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+                      <input
+                        type="radio"
+                        name="pattern-type"
+                        value="STARTS_WITH"
+                        checked={newPattern.patternType === 'STARTS_WITH'}
+                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                      />
+                      <strong> Começa com</strong>
+                    </label>
+                    <label style={{ display: 'block' }}>
+                      <input
+                        type="radio"
+                        name="pattern-type"
+                        value="ENDS_WITH"
+                        checked={newPattern.patternType === 'ENDS_WITH'}
+                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
+                      />
+                      <strong> Termina com</strong>
+                    </label>
+                  </div>
+                </div>
+
+                <label style={{ marginTop: '1rem' }}>
+                  Prioridade
+                  <input
+                    type="number"
+                    value={newPattern.priority}
+                    onChange={(e) => setNewPattern({ ...newPattern, priority: parseInt(e.target.value) })}
+                    min="0"
+                  />
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <button
+                  type="submit"
+                  disabled={addPatternMutation.isPending}
+                  className="primary-button"
+                >
+                  Adicionar padrão
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddPatternModal(false);
+                    setAddingPatternObjectionId(null);
+                    setNewPattern({ pattern: '', patternType: 'EXACT', priority: 0 });
+                  }}
+                  className="secondary-button"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {feedbackMessage && (
+        <div
+          style={{
+            padding: '1rem',
+            marginBottom: '1rem',
+            borderRadius: '0.5rem',
+            backgroundColor: feedbackMessage.type === 'success' ? '#d4edda' : '#f8d7da',
+            color: feedbackMessage.type === 'success' ? '#155724' : '#721c24',
+            border: `1px solid ${feedbackMessage.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`,
+          }}
+        >
+          {feedbackMessage.text}
+        </div>
+      )}
+
       {objections.isPending ? (
         <div className="skeleton-list">
           <i className="skeleton-item" />
@@ -503,77 +668,17 @@ export function ProspectingObjectionsView() {
                   </ul>
                 )}
 
-                  <div className="pattern-input">
-                  <input
-                    type="text"
-                    value={newPattern.pattern}
-                    onChange={(e) => setNewPattern({ ...newPattern, pattern: e.target.value })}
-                    placeholder="Novo padrão"
-                  />
-                  <div className="pattern-type-options">
-                    <label>
-                      <input
-                        type="radio"
-                        name={`pattern-type-${objection.publicId}`}
-                        value="EXACT"
-                        checked={newPattern.patternType === 'EXACT'}
-                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
-                      />
-                      <span>Exato</span>
-                      <small>Apenas mensagens exatamente iguais</small>
-                    </label>
-                    <label>
-                      <input
-                        type="radio"
-                        name={`pattern-type-${objection.publicId}`}
-                        value="CONTAINS"
-                        checked={newPattern.patternType === 'CONTAINS'}
-                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
-                      />
-                      <span>Contém</span>
-                      <small>Quando a expressão aparecer em qualquer parte</small>
-                    </label>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => {
-                        const more = document.getElementById(`more-patterns-${objection.publicId}`);
-                        if (more) more.style.display = more.style.display === 'none' ? 'block' : 'none';
-                      }}
-                    >
-                      Mais opções
-                    </button>
-                  </div>
-                  <div id={`more-patterns-${objection.publicId}`} style={{ display: 'none', marginTop: '0.5rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.25rem' }}>
-                      <input
-                        type="radio"
-                        name={`pattern-type-${objection.publicId}`}
-                        value="STARTS_WITH"
-                        checked={newPattern.patternType === 'STARTS_WITH'}
-                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
-                      />
-                      <span>Começa com</span>
-                    </label>
-                    <label>
-                      <input
-                        type="radio"
-                        name={`pattern-type-${objection.publicId}`}
-                        value="ENDS_WITH"
-                        checked={newPattern.patternType === 'ENDS_WITH'}
-                        onChange={(e) => setNewPattern({ ...newPattern, patternType: e.target.value as any })}
-                      />
-                      <span>Termina com</span>
-                    </label>
-                  </div>
-                  <button
-                    onClick={() => handleAddPattern(objection.publicId)}
-                    disabled={addPatternMutation.isPending || !newPattern.pattern.trim()}
-                    className="secondary-button"
-                  >
-                    Adicionar
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setAddingPatternObjectionId(objection.publicId);
+                    setNewPattern({ pattern: '', patternType: 'EXACT', priority: 10 });
+                    setShowAddPatternModal(true);
+                  }}
+                  className="secondary-button"
+                  style={{ marginTop: '0.5rem' }}
+                >
+                  + Adicionar padrão
+                </button>
               </div>
 
               <div className="card-footer">

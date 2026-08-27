@@ -3877,6 +3877,7 @@ enum ProspectingFlowOptionActionType {
 model ProspectingFlow {
   id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   publicId            String    @unique @map("public_id") @db.Char(36)
+  code                String?   @unique @map("code") @db.VarChar(100)
   name                String    @map("name") @db.VarChar(180)
   description         String?   @map("description") @db.Text
   isActive            Boolean   @default(true) @map("is_active")
@@ -3904,12 +3905,16 @@ model ProspectingFlowStep {
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
 
   flow                ProspectingFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  nextStep            ProspectingFlowStep? @relation("StepNextStep", fields: [nextStepId], references: [id])
+  previousSteps       ProspectingFlowStep[] @relation("StepNextStep")
+  optionsAsNextStep   ProspectingFlowOption[] @relation("OptionNextStep")
   options             ProspectingFlowOption[]
   executions          ProspectingFlowExecution[]
   responses           ProspectingFlowResponse[]
 
   @@index([flowId])
   @@index([nextStepId])
+  @@index([isStart])
   @@map("prospecting_flow_steps")
 }
 
@@ -3925,6 +3930,7 @@ model ProspectingFlowOption {
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
 
   step                ProspectingFlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  nextStep            ProspectingFlowStep? @relation("OptionNextStep", fields: [nextStepId], references: [id])
   patterns            ProspectingFlowOptionPattern[]
   responses           ProspectingFlowResponse[]
 

@@ -495,8 +495,8 @@ async function seedProspectingTemplates(
 async function seedProspectingFlows(
   transaction: any,
 ): Promise<void> {
-  const existing = await transaction.prospectingFlow.findFirst({
-    where: { name: 'Divulgação de Estabelecimento' },
+  const existing = await transaction.prospectingFlow.findUnique({
+    where: { code: 'DIRECTORY_PUBLICATION' },
     select: { id: true },
   });
 
@@ -507,6 +507,7 @@ async function seedProspectingFlows(
   const flow = await transaction.prospectingFlow.create({
     data: {
       publicId: randomUUID(),
+      code: 'DIRECTORY_PUBLICATION',
       name: 'Divulgação de Estabelecimento',
       description: 'Fluxo de autorização de divulgação e coleta de dados',
       isActive: true,
@@ -536,17 +537,6 @@ async function seedProspectingFlows(
     },
   });
 
-  const step3 = await transaction.prospectingFlowStep.create({
-    data: {
-      publicId: randomUUID(),
-      flowId: flow.id,
-      name: 'Aguardar link',
-      message: 'Perfeito! Pode me enviar o link por aqui.',
-      stepType: 'WAIT_LINK',
-      position: 3,
-    },
-  });
-
   const step4 = await transaction.prospectingFlowStep.create({
     data: {
       publicId: randomUUID(),
@@ -555,6 +545,18 @@ async function seedProspectingFlows(
       message: 'Entendi!\n\nEntão acredito que posso te mostrar algo interessante.\n\nO Agendei permite que seus clientes façam agendamentos pelo celular sem depender de resposta manual no WhatsApp.\n\nAlém disso, organiza sua agenda, envia lembretes, confirma atendimentos e ajuda no acompanhamento dos clientes.',
       stepType: 'MESSAGE_OPTIONS',
       position: 4,
+    },
+  });
+
+  const step3 = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Aguardar link',
+      message: 'Perfeito! Pode me enviar o link por aqui.',
+      stepType: 'WAIT_LINK',
+      position: 3,
+      nextStepId: step4.id,
     },
   });
 
@@ -645,16 +647,8 @@ async function seedProspectingFlows(
     ],
   });
 
-  await transaction.prospectingFlowOption.create({
-    data: {
-      publicId: randomUUID(),
-      stepId: step3.id,
-      label: 'Link recebido',
-      nextStepId: step4.id,
-      actionType: 'NEXT_STEP',
-      position: 1,
-    },
-  });
+  // Step 3 (WAIT_LINK) automatically continues to step4 via nextStepId
+  // No option needed for WAIT_LINK type
 
   await transaction.prospectingFlowOption.createMany({
     data: [

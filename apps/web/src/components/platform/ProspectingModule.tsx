@@ -16,6 +16,7 @@ import { ProspectingLeadsView } from './ProspectingLeadsView.js';
 import { ProspectingConversationsView } from './ProspectingConversationsView.js';
 import { ProspectingTemplatesView } from './ProspectingTemplatesView.js';
 import { ProspectingObjectionsView } from './ProspectingObjectionsView.js';
+import { ProspectingFlowsView } from './ProspectingFlowsView.js';
 
 interface ProspectingStats {
   leads: number;
@@ -205,7 +206,7 @@ export function ProspectingModule({
   campaignPublicId?: string;
   onOpen?: (id: string) => void;
 }) {
-  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'templates' | 'objections' | 'settings'>(
+  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'flows' | 'templates' | 'objections' | 'settings'>(
     campaignPublicId ? 'detail' : 'campaigns'
   );
   const [page, setPage] = useState(1);
@@ -336,6 +337,7 @@ export function ProspectingModule({
   const navItems = [
     { id: 'dashboard', label: 'Visão geral' },
     { id: 'campaigns', label: 'Campanhas' },
+    { id: 'flows', label: 'Fluxos' },
     { id: 'leads', label: 'Leads' },
     { id: 'conversations', label: 'Conversas' },
     { id: 'templates', label: 'Templates' },
@@ -395,6 +397,8 @@ export function ProspectingModule({
           onViewDashboard={() => setView('dashboard')}
           onNewCampaign={() => setFormOpen(true)}
         />
+      ) : view === 'flows' ? (
+        <ProspectingFlowsView />
       ) : view === 'leads' ? (
         <ProspectingLeadsView
           campaigns={campaigns.data?.items ?? []}

@@ -359,19 +359,40 @@ export class ProspectingWorkerService implements ProspectingWorker {
           });
         } else if (msg.status === 'SENT' || msg.status === 'DRY_RUN') {
           reconcile = true;
-        } else if (msg.status !== 'SENDING' && msg.status !== 'FAILED') {
+        } else if (msg.status === 'SENDING') {
+          // SENDING existente: check age
+          const age = now.getTime() - (msg.sendingStartedAt?.getTime() || now.getTime());
+          const staleMs = this.environment.PROSPECTING_SENDING_STALE_SECONDS * 1000;
+          if (age < staleMs) {
+            throw new Error('SENDING_IN_PROGRESS');
+          }
+          // Deixar para política global marcar DELIVERY_UNCERTAIN
+          throw new Error('SENDING_STALE');
+        } else if (msg.status === 'DELIVERY_UNCERTAIN') {
+          throw new Error('DELIVERY_UNCERTAIN_SKIP');
+        } else if (msg.status !== 'FAILED') {
           throw new Error('MESSAGE_UNEXPECTED_STATUS');
         }
 
         if (msg.status === 'FAILED') {
-          const nextAttemptAt = msg.nextAttemptAt ? new Date(msg.nextAttemptAt.getTime() + this.calculateBackoffMs(msg.attemptNumber)) : now;
+          // Respeitar nextAttemptAt se ainda no futuro
+          if (msg.nextAttemptAt && msg.nextAttemptAt > now) {
+            throw new Error('FAILED_BACKOFF_PENDING');
+          }
+
+          // Max attempts?
+          if (msg.attemptNumber >= this.environment.PROSPECTING_MAX_SEND_ATTEMPTS) {
+            throw new Error('FAILED_MAX_ATTEMPTS');
+          }
+
+          // Reset para SENDING
           msg = await tx.prospectingMessage.update({
             where: { id: msg.id },
             data: {
               status: 'SENDING',
               attemptNumber: msg.attemptNumber + 1,
               sendingStartedAt: now,
-              nextAttemptAt,
+              nextAttemptAt: null,
               errorCode: null,
               errorMessage: null,
               failedAt: null,
@@ -383,6 +404,11 @@ export class ProspectingWorkerService implements ProspectingWorker {
       }).catch(async (error) => {
         const errorStr = String(error);
         if (errorStr.includes('CAMPAIGN_RATE_LIMITED')) {
+          return { message: null, execution: null, reconcile: false };
+        }
+        if (errorStr.includes('SENDING_IN_PROGRESS') || errorStr.includes('SENDING_STALE') ||
+            errorStr.includes('FAILED_BACKOFF_PENDING') || errorStr.includes('FAILED_MAX_ATTEMPTS') ||
+            errorStr.includes('DELIVERY_UNCERTAIN_SKIP')) {
           return { message: null, execution: null, reconcile: false };
         }
         console.error('[ProspectingWorker] Flow TX1 error:', error);
@@ -666,7 +692,15 @@ export class ProspectingWorkerService implements ProspectingWorker {
       case 'MESSAGE_OPTIONS':
       case 'WAIT_TEXT':
       case 'WAIT_LINK':
-        // Permanece em WAITING, lead fica WAITING_REPLY
+        // Aguardar resposta: execution WAITING, lead WAITING_REPLY
+        await tx.prospectingFlowExecution.update({
+          where: { id: execution.id },
+          data: { status: 'WAITING' },
+        });
+        await tx.prospectingLead.update({
+          where: { id: execution.leadId },
+          data: { status: 'WAITING_REPLY', nextActionAt: null },
+        });
         break;
 
       case 'MESSAGE_ONLY':

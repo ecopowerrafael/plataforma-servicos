@@ -3,25 +3,25 @@ import { type PrismaClient } from '../../database-client/client.js';
 
 export class ProspectingService {
   private repository: ProspectingRepository;
+  public readonly client: PrismaClient;
 
   public constructor(client: PrismaClient) {
+    this.client = client;
     this.repository = new ProspectingRepository(client);
   }
 
   // Campaign management
-  public async createCampaign(input: {
-    name: string;
-    categoryId?: bigint;
-    state?: string;
-    city?: string;
-    dailyLimit?: number;
-    sendingStartMinutes?: number;
-    sendingEndMinutes?: number;
-    minIntervalSeconds?: number;
-    maxIntervalSeconds?: number;
-    allowedWeekdays?: number[];
-  }) {
-    return this.repository.createCampaign(input);
+  public async createCampaign(input: any) {
+    // Resolver flowPublicId → flowId se fornecido
+    const campaignInput = { ...input };
+    if (input.flowPublicId) {
+      campaignInput.flowId = await this.resolveFlowId(input.flowPublicId);
+      delete campaignInput.flowPublicId;
+    } else if (input.flowPublicId === null) {
+      campaignInput.flowId = null;
+      delete campaignInput.flowPublicId;
+    }
+    return this.repository.createCampaign(campaignInput);
   }
 
   public async getCampaign(publicId: string) {
@@ -32,11 +32,32 @@ export class ProspectingService {
     return this.repository.listCampaigns();
   }
 
-  public async updateCampaign(
-    publicId: string,
-    input: Record<string, unknown>,
-  ) {
-    return this.repository.updateCampaign(publicId, input);
+  public async updateCampaign(publicId: string, input: any) {
+    // Resolver flowPublicId → flowId se fornecido
+    const updateInput = { ...input };
+    if ('flowPublicId' in input) {
+      if (input.flowPublicId) {
+        updateInput.flowId = await this.resolveFlowId(input.flowPublicId);
+      } else {
+        updateInput.flowId = null;
+      }
+      delete updateInput.flowPublicId;
+    }
+    return this.repository.updateCampaign(publicId, updateInput);
+  }
+
+  private async resolveFlowId(flowPublicId: string | null | undefined): Promise<bigint | null> {
+    if (!flowPublicId) return null;
+
+    const flow = await this.client.prospectingFlow.findUnique({
+      where: { publicId: flowPublicId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!flow) throw new Error('FLOW_NOT_FOUND');
+    if (!flow.isActive) throw new Error('FLOW_NOT_ACTIVE');
+
+    return flow.id;
   }
 
   public async startCampaign(publicId: string) {

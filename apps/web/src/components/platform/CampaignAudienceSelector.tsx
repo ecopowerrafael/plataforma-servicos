@@ -37,9 +37,10 @@ export interface AudienceSelection {
   businessPublicIds?: string[];
   filters?: {
     categoryPublicIds?: string[];
+    states?: string[];
     cities?: string[];
     search?: string;
-    contactStatus?: 'all' | 'never' | 'contacted';
+    contactStatus?: 'all' | 'never' | 'sent' | 'responded';
   };
   excludedBusinessPublicIds?: string[];
 }
@@ -51,9 +52,10 @@ interface CampaignAudienceSelectorProps {
 
 export function CampaignAudienceSelector({ onSelectionChange, initialSelection }: CampaignAudienceSelectorProps) {
   const [categoryPublicIds, setCategoryPublicIds] = useState<string[]>(initialSelection?.filters?.categoryPublicIds || []);
+  const [states, setStates] = useState<string[]>(initialSelection?.filters?.states || []);
   const [cities, setCities] = useState<string[]>(initialSelection?.filters?.cities || []);
   const [search, setSearch] = useState(initialSelection?.filters?.search || '');
-  const [contactStatus, setContactStatus] = useState<'all' | 'never' | 'contacted'>(initialSelection?.filters?.contactStatus || 'all');
+  const [contactStatus, setContactStatus] = useState<'all' | 'never' | 'sent' | 'responded'>(initialSelection?.filters?.contactStatus || 'all');
   const [page, setPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState<'explicit' | 'allFiltered'>(initialSelection?.mode || 'explicit');
   const [selectedBusinessPublicIds, setSelectedBusinessPublicIds] = useState<Set<string>>(
@@ -84,11 +86,12 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
   const filtersString = useMemo(() => {
     const params = new URLSearchParams();
     if (categoryPublicIds.length > 0) params.append('categoryPublicIds', categoryPublicIds.join(','));
+    if (states.length > 0) params.append('states', states.join(','));
     if (cities.length > 0) params.append('cities', cities.join(','));
     if (search) params.append('search', search);
     if (contactStatus !== 'all') params.append('contactStatus', contactStatus);
     return params.toString();
-  }, [categoryPublicIds, cities, search, contactStatus]);
+  }, [categoryPublicIds, states, cities, search, contactStatus]);
 
   const countersQuery = useQuery({
     queryKey: ['prospecting-audience-preview-counters', filtersString],
@@ -119,6 +122,15 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
     setCategoryPublicIds((prev) =>
       prev.includes(categoryPublicId) ? prev.filter((c) => c !== categoryPublicId) : [...prev, categoryPublicId]
     );
+    setPage(1);
+  };
+
+  const handleStateToggle = (state: string) => {
+    setStates((prev) => (prev.includes(state) ? prev.filter((s) => s !== state) : [...prev, state]));
+    // Remove cities from this state when toggling state off
+    if (states.includes(state)) {
+      setCities((prev) => prev.filter((c) => !c.endsWith(`|${state}`)));
+    }
     setPage(1);
   };
 
@@ -170,6 +182,7 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
             mode: 'allFiltered',
             filters: {
               categoryPublicIds: categoryPublicIds.length > 0 ? categoryPublicIds : undefined,
+              states: states.length > 0 ? states : undefined,
               cities: cities.length > 0 ? cities : undefined,
               search: search || undefined,
               contactStatus,
@@ -259,7 +272,7 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
 
         <div className="filter-group">
           <label>
-            Status de contato
+            Status de envio
             <select
               value={contactStatus}
               onChange={(e) => {
@@ -268,8 +281,9 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
               }}
             >
               <option value="all">Todos</option>
-              <option value="never">Nunca contatados</option>
-              <option value="contacted">Já contatados</option>
+              <option value="never">Nunca enviados</option>
+              <option value="sent">Já enviados</option>
+              <option value="responded">Responderam</option>
             </select>
           </label>
         </div>

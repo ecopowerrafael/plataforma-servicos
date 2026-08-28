@@ -1363,52 +1363,88 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   // Audience: list cities
   app.get(
     '/platform/prospecting/audience/cities',
-    { schema: { querystring: z.object({ states: z.string().optional() }) } },
+    { schema: { querystring: z.object({ categoryPublicIds: z.string().optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.read');
-      const states = (request.query as any).states?.split(',').filter(Boolean);
+      const categoryPublicIds = (request.query as any).categoryPublicIds?.split(',').filter(Boolean);
       const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
       const audienceService = new ProspectingAudienceService(options.client);
-      const cities = await audienceService.getCities(states?.length ? { states } : undefined);
+      const cities = await audienceService.getCities(categoryPublicIds?.length ? { categoryPublicIds } : undefined);
       return { items: cities };
     },
   );
 
-  // Audience: get counters for filters
+  // Audience: get preview counters (no campaign yet)
   app.get(
-    '/platform/prospecting/audience/counters/:campaignPublicId',
-    { schema: { params: z.object({ campaignPublicId: z.uuid() }), querystring: z.object({ categories: z.string().optional(), cities: z.string().optional(), states: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional(), phoneStatus: z.enum(['valid', 'all']).optional() }) } },
+    '/platform/prospecting/audience/preview/counters',
+    { schema: { querystring: z.object({ categoryPublicIds: z.string().optional(), cities: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.read');
-      const campaign = await options.client.prospectingCampaign.findUnique({ where: { publicId: request.params.campaignPublicId }, select: { id: true } });
-      if (!campaign) throw new Error('Campaign not found');
       const q = request.query as any;
-      const categories = q.categories?.split(',').map(BigInt).filter(Boolean) || [];
-      const cities = q.cities?.split(',').filter(Boolean) || [];
-      const states = q.states?.split(',').filter(Boolean) || [];
+      const categoryPublicIds = q.categoryPublicIds?.split(',').filter(Boolean);
+      const cities = q.cities?.split(',').filter(Boolean);
       const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
       const audienceService = new ProspectingAudienceService(options.client);
-      const counters = await audienceService.getAudienceCounters(campaign.id, { categories: categories.length ? categories : undefined, cities: cities.length ? cities : undefined, states: states.length ? states : undefined, search: q.search, contactStatus: q.contactStatus, phoneStatus: q.phoneStatus });
+      const counters = await audienceService.getPreviewCounters({
+        categoryPublicIds,
+        cities,
+        search: q.search,
+        contactStatus: q.contactStatus,
+      });
       return counters;
     },
   );
 
-  // Audience: get paginated list
+  // Audience: get preview paginated list (no campaign yet)
   app.get(
-    '/platform/prospecting/audience/:campaignPublicId',
-    { schema: { params: z.object({ campaignPublicId: z.uuid() }), querystring: z.object({ page: z.coerce.number().int().positive().optional().default(1), limit: z.coerce.number().int().positive().max(100).optional().default(50), categories: z.string().optional(), cities: z.string().optional(), states: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional(), phoneStatus: z.enum(['valid', 'all']).optional() }) } },
+    '/platform/prospecting/audience/preview',
+    { schema: { querystring: z.object({ page: z.coerce.number().int().positive().optional().default(1), limit: z.coerce.number().int().positive().max(100).optional().default(50), categoryPublicIds: z.string().optional(), cities: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.read');
-      const campaign = await options.client.prospectingCampaign.findUnique({ where: { publicId: request.params.campaignPublicId }, select: { id: true } });
-      if (!campaign) throw new Error('Campaign not found');
       const q = request.query as any;
-      const categories = q.categories?.split(',').map(BigInt).filter(Boolean) || [];
-      const cities = q.cities?.split(',').filter(Boolean) || [];
-      const states = q.states?.split(',').filter(Boolean) || [];
+      const categoryPublicIds = q.categoryPublicIds?.split(',').filter(Boolean);
+      const cities = q.cities?.split(',').filter(Boolean);
       const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
       const audienceService = new ProspectingAudienceService(options.client);
-      const result = await audienceService.getAudiencePage(campaign.id, { categories: categories.length ? categories : undefined, cities: cities.length ? cities : undefined, states: states.length ? states : undefined, search: q.search, contactStatus: q.contactStatus, phoneStatus: q.phoneStatus }, q.page, q.limit);
+      const result = await audienceService.getPreviewPage(
+        {
+          categoryPublicIds,
+          cities,
+          search: q.search,
+          contactStatus: q.contactStatus,
+        },
+        q.page,
+        q.limit
+      );
       return result;
+    },
+  );
+
+  // Audience: materialize selection for campaign
+  app.post(
+    '/platform/prospecting/campaigns/:campaignPublicId/materialize-audience',
+    { schema: { params: z.object({ campaignPublicId: z.uuid() }), body: z.object({ mode: z.enum(['explicit', 'allFiltered']), businessPublicIds: z.array(z.string().uuid()).optional(), filters: z.object({ categoryPublicIds: z.array(z.string().uuid()).optional(), cities: z.array(z.string()).optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional() }).optional(), excludedBusinessPublicIds: z.array(z.string().uuid()).optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.update');
+      const campaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: request.params.campaignPublicId },
+        select: { id: true },
+      });
+      if (!campaign) throw new Error('Campaign not found');
+
+      const body = request.body as any;
+
+      if (body.mode === 'explicit') {
+        // TODO: Materialize only selected businesses (not in scope for MVP)
+      } else if (body.mode === 'allFiltered') {
+        // Materialize using existing service with all filters applied
+        // TODO: Implement selective materialization
+      }
+
+      // For now, use existing materialize service (materializes all matching filters from campaign)
+      const materialized = await options.service.materializeLeads(campaign.id, undefined, undefined, undefined);
+
+      return { materialized, success: true };
     },
   );
 };

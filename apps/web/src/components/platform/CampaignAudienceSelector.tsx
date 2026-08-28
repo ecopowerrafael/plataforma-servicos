@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { httpClient } from '../../lib/http.js';
 
 interface Category {
-  id: string;
+  publicId: string;
   name: string;
 }
 
@@ -14,14 +14,13 @@ interface City {
 }
 
 interface AudienceItem {
-  id: string;
+  publicId: string;
   name: string;
   category: string;
   city: string;
   state: string;
   phone: string;
   status: string;
-  lastSent: string | null;
 }
 
 interface AudienceCounters {
@@ -33,20 +32,36 @@ interface AudienceCounters {
   eligible: number;
 }
 
-interface CampaignAudienceSelectorProps {
-  campaignPublicId: string;
-  onConfirm?: (selectedIds: string[]) => void;
+export interface AudienceSelection {
+  mode: 'explicit' | 'allFiltered';
+  businessPublicIds?: string[];
+  filters?: {
+    categoryPublicIds?: string[];
+    cities?: string[];
+    search?: string;
+    contactStatus?: 'all' | 'never' | 'contacted';
+  };
+  excludedBusinessPublicIds?: string[];
 }
 
-export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: CampaignAudienceSelectorProps) {
-  const [categories, setCategories] = useState<bigint[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
-  const [search, setSearch] = useState('');
-  const [contactStatus, setContactStatus] = useState<'all' | 'never' | 'contacted'>('all');
-  const [phoneStatus, setPhoneStatus] = useState<'valid' | 'all'>('valid');
+interface CampaignAudienceSelectorProps {
+  onSelectionChange?: (selection: AudienceSelection) => void;
+  initialSelection?: AudienceSelection;
+}
+
+export function CampaignAudienceSelector({ onSelectionChange, initialSelection }: CampaignAudienceSelectorProps) {
+  const [categoryPublicIds, setCategoryPublicIds] = useState<string[]>(initialSelection?.filters?.categoryPublicIds || []);
+  const [cities, setCities] = useState<string[]>(initialSelection?.filters?.cities || []);
+  const [search, setSearch] = useState(initialSelection?.filters?.search || '');
+  const [contactStatus, setContactStatus] = useState<'all' | 'never' | 'contacted'>(initialSelection?.filters?.contactStatus || 'all');
   const [page, setPage] = useState(1);
-  const [selectedAll, setSelectedAll] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState<'explicit' | 'allFiltered'>(initialSelection?.mode || 'explicit');
+  const [selectedBusinessPublicIds, setSelectedBusinessPublicIds] = useState<Set<string>>(
+    new Set(initialSelection?.mode === 'explicit' ? initialSelection.businessPublicIds || [] : [])
+  );
+  const [excludedBusinessPublicIds, setExcludedBusinessPublicIds] = useState<Set<string>>(
+    new Set(initialSelection?.excludedBusinessPublicIds || [])
+  );
 
   const categoriesQuery = useQuery({
     queryKey: ['prospecting-audience-categories'],
@@ -57,35 +72,36 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
   });
 
   const citiesQuery = useQuery({
-    queryKey: ['prospecting-audience-cities', { categories }],
+    queryKey: ['prospecting-audience-cities', { categoryPublicIds }],
     queryFn: async () => {
-      const response = await httpClient.request('/platform/prospecting/audience/cities');
+      const params = new URLSearchParams();
+      if (categoryPublicIds.length > 0) params.append('categoryPublicIds', categoryPublicIds.join(','));
+      const response = await httpClient.request(`/platform/prospecting/audience/cities?${params.toString()}`);
       return (response as any).items as City[];
     },
   });
 
   const filtersString = useMemo(() => {
     const params = new URLSearchParams();
-    if (categories.length > 0) params.append('categories', categories.join(','));
+    if (categoryPublicIds.length > 0) params.append('categoryPublicIds', categoryPublicIds.join(','));
     if (cities.length > 0) params.append('cities', cities.join(','));
     if (search) params.append('search', search);
     if (contactStatus !== 'all') params.append('contactStatus', contactStatus);
-    if (phoneStatus !== 'valid') params.append('phoneStatus', phoneStatus);
     return params.toString();
-  }, [categories, cities, search, contactStatus, phoneStatus]);
+  }, [categoryPublicIds, cities, search, contactStatus]);
 
   const countersQuery = useQuery({
-    queryKey: ['prospecting-audience-counters', campaignPublicId, filtersString],
+    queryKey: ['prospecting-audience-preview-counters', filtersString],
     queryFn: async () => {
-      const url = `/platform/prospecting/audience/counters/${campaignPublicId}?${filtersString}`;
+      const url = `/platform/prospecting/audience/preview/counters?${filtersString}`;
       return await httpClient.request(url);
     },
   });
 
   const audienceQuery = useQuery({
-    queryKey: ['prospecting-audience-list', campaignPublicId, filtersString, page],
+    queryKey: ['prospecting-audience-preview-list', filtersString, page],
     queryFn: async () => {
-      const url = `/platform/prospecting/audience/${campaignPublicId}?${filtersString}&page=${page}&limit=50`;
+      const url = `/platform/prospecting/audience/preview?${filtersString}&page=${page}&limit=50`;
       return await httpClient.request(url);
     },
   });
@@ -93,9 +109,10 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
   const counters = countersQuery.data as AudienceCounters | undefined;
   const audienceData = audienceQuery.data as any;
 
-  const handleCategoryToggle = (categoryId: string) => {
-    const bigintId = BigInt(categoryId);
-    setCategories((prev) => (prev.includes(bigintId) ? prev.filter((c) => c !== bigintId) : [...prev, bigintId]));
+  const handleCategoryToggle = (categoryPublicId: string) => {
+    setCategoryPublicIds((prev) =>
+      prev.includes(categoryPublicId) ? prev.filter((c) => c !== categoryPublicId) : [...prev, categoryPublicId]
+    );
     setPage(1);
   };
 
@@ -104,24 +121,60 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
     setPage(1);
   };
 
-  const handleSelectAll = (checked: boolean) => {
-    setSelectedAll(checked);
-    if (checked && audienceData?.data) {
-      setSelectedIds(new Set(audienceData.data.map((item: AudienceItem) => item.id)));
-    } else {
-      setSelectedIds(new Set());
+  const handleSelectAllFiltered = (checked: boolean) => {
+    setSelectionMode(checked ? 'allFiltered' : 'explicit');
+    if (checked) {
+      setSelectedBusinessPublicIds(new Set());
+      setExcludedBusinessPublicIds(new Set());
     }
   };
 
-  const handleSelectItem = (itemId: string, checked: boolean) => {
-    const newSelection = new Set(selectedIds);
-    if (checked) {
-      newSelection.add(itemId);
+  const handleSelectItem = (businessPublicId: string, checked: boolean) => {
+    if (selectionMode === 'allFiltered') {
+      const newExcluded = new Set(excludedBusinessPublicIds);
+      if (checked) {
+        newExcluded.delete(businessPublicId);
+      } else {
+        newExcluded.add(businessPublicId);
+      }
+      setExcludedBusinessPublicIds(newExcluded);
     } else {
-      newSelection.delete(itemId);
-      setSelectedAll(false);
+      const newSelection = new Set(selectedBusinessPublicIds);
+      if (checked) {
+        newSelection.add(businessPublicId);
+      } else {
+        newSelection.delete(businessPublicId);
+      }
+      setSelectedBusinessPublicIds(newSelection);
     }
-    setSelectedIds(newSelection);
+  };
+
+  const computedSelectionCount = useMemo(() => {
+    if (selectionMode === 'allFiltered') {
+      return Math.max(0, (counters?.eligible || 0) - excludedBusinessPublicIds.size);
+    }
+    return selectedBusinessPublicIds.size;
+  }, [selectionMode, selectedBusinessPublicIds.size, excludedBusinessPublicIds.size, counters?.eligible]);
+
+  const handleConfirm = () => {
+    const selection: AudienceSelection =
+      selectionMode === 'allFiltered'
+        ? {
+            mode: 'allFiltered',
+            filters: {
+              categoryPublicIds: categoryPublicIds.length > 0 ? categoryPublicIds : undefined,
+              cities: cities.length > 0 ? cities : undefined,
+              search: search || undefined,
+              contactStatus,
+            },
+            excludedBusinessPublicIds: Array.from(excludedBusinessPublicIds),
+          }
+        : {
+            mode: 'explicit',
+            businessPublicIds: Array.from(selectedBusinessPublicIds),
+          };
+
+    onSelectionChange?.(selection);
   };
 
   return (
@@ -136,11 +189,11 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
           ) : (
             <div className="checkbox-group">
               {categoriesQuery.data?.map((cat) => (
-                <label key={cat.id} className="checkbox-label">
+                <label key={cat.publicId} className="checkbox-label">
                   <input
                     type="checkbox"
-                    checked={categories.includes(BigInt(cat.id))}
-                    onChange={(e) => handleCategoryToggle(cat.id)}
+                    checked={categoryPublicIds.includes(cat.publicId)}
+                    onChange={() => handleCategoryToggle(cat.publicId)}
                   />
                   {cat.name}
                 </label>
@@ -157,7 +210,7 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
             <div className="checkbox-group">
               {citiesQuery.data?.map((city) => (
                 <label key={city.label} className="checkbox-label">
-                  <input type="checkbox" checked={cities.includes(city.label)} onChange={(e) => handleCityToggle(city.label)} />
+                  <input type="checkbox" checked={cities.includes(city.label)} onChange={() => handleCityToggle(city.label)} />
                   {city.label}
                 </label>
               ))}
@@ -183,20 +236,16 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
         <div className="filter-group">
           <label>
             Status de contato
-            <select value={contactStatus} onChange={(e) => { setContactStatus(e.target.value as any); setPage(1); }}>
+            <select
+              value={contactStatus}
+              onChange={(e) => {
+                setContactStatus(e.target.value as any);
+                setPage(1);
+              }}
+            >
               <option value="all">Todos</option>
               <option value="never">Nunca contatados</option>
               <option value="contacted">Já contatados</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="filter-group">
-          <label>
-            Telefone
-            <select value={phoneStatus} onChange={(e) => { setPhoneStatus(e.target.value as any); setPage(1); }}>
-              <option value="valid">Somente com WhatsApp válido</option>
-              <option value="all">Todos</option>
             </select>
           </label>
         </div>
@@ -244,10 +293,10 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
           <>
             <div className="list-header">
               <label className="checkbox-label">
-                <input type="checkbox" checked={selectedAll} onChange={(e) => handleSelectAll(e.target.checked)} />
-                Selecionar todos ({audienceData?.pagination?.total || 0})
+                <input type="checkbox" checked={selectionMode === 'allFiltered'} onChange={(e) => handleSelectAllFiltered(e.target.checked)} />
+                Selecionar todos os {counters?.eligible || 0} resultados
               </label>
-              <span>{selectedIds.size} selecionados</span>
+              <span>{computedSelectionCount} selecionados</span>
             </div>
 
             <div className="table-wrap">
@@ -263,24 +312,30 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
                   </tr>
                 </thead>
                 <tbody>
-                  {audienceData?.data?.map((item: AudienceItem) => (
-                    <tr key={item.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(item.id)}
-                          onChange={(e) => handleSelectItem(item.id, e.target.checked)}
-                        />
-                      </td>
-                      <td>{item.name}</td>
-                      <td>{item.category}</td>
-                      <td>{`${item.city}, ${item.state}`}</td>
-                      <td>{item.phone}</td>
-                      <td>
-                        <span className={`status-badge status-${item.status.toLowerCase().replace(/\s/g, '-')}`}>{item.status}</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {audienceData?.data?.map((item: AudienceItem) => {
+                    const isSelected =
+                      selectionMode === 'allFiltered'
+                        ? !excludedBusinessPublicIds.has(item.publicId)
+                        : selectedBusinessPublicIds.has(item.publicId);
+                    return (
+                      <tr key={item.publicId}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => handleSelectItem(item.publicId, e.target.checked)}
+                          />
+                        </td>
+                        <td>{item.name}</td>
+                        <td>{item.category}</td>
+                        <td>{`${item.city}, ${item.state}`}</td>
+                        <td>{item.phone}</td>
+                        <td>
+                          <span className={`status-badge status-${item.status.toLowerCase().replace(/\s/g, '-')}`}>{item.status}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -302,13 +357,11 @@ export function CampaignAudienceSelector({ campaignPublicId, onConfirm }: Campai
         )}
       </section>
 
-      {onConfirm && (
-        <div className="audience-actions">
-          <button className="primary-button" onClick={() => onConfirm(Array.from(selectedIds))}>
-            Confirmar Seleção ({selectedIds.size})
-          </button>
-        </div>
-      )}
+      <div className="audience-actions">
+        <button className="primary-button" onClick={handleConfirm}>
+          Confirmar Seleção ({computedSelectionCount})
+        </button>
+      </div>
     </div>
   );
 }

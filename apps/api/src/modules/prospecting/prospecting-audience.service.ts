@@ -1,13 +1,11 @@
 import { type PrismaClient } from '../../database-client/client.js';
+import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
 
-export interface AudienceFilterRequest {
-  categories?: bigint[];
+export interface PreviewFilterRequest {
+  categoryPublicIds?: string[];
   cities?: string[];
-  states?: string[];
   search?: string;
   contactStatus?: 'all' | 'never' | 'contacted';
-  phoneStatus?: 'valid' | 'all';
-  suppressionCampaignId?: bigint;
 }
 
 export interface AudienceCounters {
@@ -24,29 +22,40 @@ export class ProspectingAudienceService {
 
   public async getCategories() {
     const categories = await this.client.directoryCategory.findMany({
+      where: { active: true },
       select: {
-        id: true,
+        publicId: true,
         name: true,
       },
       orderBy: {
-        name: 'asc',
+        sortOrder: 'asc',
       },
     });
 
-    return categories.map((c: { id: bigint; name: string }) => ({
-      id: c.id.toString(),
+    return categories.map((c) => ({
+      publicId: c.publicId,
       name: c.name,
     }));
   }
 
-  public async getCities(filters?: { states?: string[] }) {
+  public async getCities(filters?: { categoryPublicIds?: string[] }) {
+    const whereClause: any = {
+      active: true,
+      tenantId: null,
+    };
+
+    if (filters?.categoryPublicIds?.length) {
+      const categoryIds = await this.client.directoryCategory
+        .findMany({
+          where: { publicId: { in: filters.categoryPublicIds } },
+          select: { id: true },
+        })
+        .then((cats) => cats.map((c) => c.id));
+      whereClause.categoryId = { in: categoryIds };
+    }
+
     const cities = await this.client.directoryBusiness.findMany({
-      where: {
-        active: true,
-        whatsapp: { not: null },
-        tenantId: null,
-        ...(filters?.states?.length && { state: { in: filters.states } }),
-      },
+      where: whereClause,
       select: {
         city: true,
         state: true,
@@ -62,47 +71,32 @@ export class ProspectingAudienceService {
     }));
   }
 
-  public async getAudienceCounters(
-    campaignId: bigint,
-    filters: AudienceFilterRequest
-  ): Promise<AudienceCounters> {
-    // Query for all businesses matching filters
-    const whereClause = this.buildWhereClause(filters);
+  public async getPreviewCounters(filters: PreviewFilterRequest): Promise<AudienceCounters> {
+    const whereClause = await this.buildWhereClause(filters);
 
-    const total = await this.client.directoryBusiness.count({
-      where: whereClause,
-    });
+    // Get total
+    const total = await this.client.directoryBusiness.count({ where: whereClause });
 
+    // Get with valid phone
     const withPhone = await this.client.directoryBusiness.count({
-      where: {
-        ...whereClause,
-        whatsapp: { not: null },
-      },
+      where: { ...whereClause, whatsapp: { not: null } },
     });
 
-    // Count never contacted (no ProspectingLead with any campaign)
+    // Get never contacted
     const neverContacted = await this.client.directoryBusiness.count({
       where: {
         ...whereClause,
         whatsapp: { not: null },
-        prospectingLeads: {
-          none: {},
-        },
+        prospectingLeads: { none: {} },
       },
     });
 
-    // Count contacted (has ProspectingLead in ANY campaign)
+    // Get contacted
     const contacted = withPhone - neverContacted;
 
-    // Count suppressed for this campaign
-    const suppressed = await this.client.prospectingSuppression.count({
-      where: {
-        campaignId,
-      },
-    });
-
-    // Eligible = withPhone - suppressed
-    const eligible = Math.max(0, withPhone - suppressed);
+    // Suppressed doesn't apply to preview (no campaign yet)
+    const suppressed = 0;
+    const eligible = withPhone;
 
     return {
       total,
@@ -114,78 +108,57 @@ export class ProspectingAudienceService {
     };
   }
 
-  public async getAudiencePage(
-    campaignId: bigint,
-    filters: AudienceFilterRequest,
-    page: number = 1,
-    limit: number = 50
-  ) {
+  public async getPreviewPage(filters: PreviewFilterRequest, page: number = 1, limit: number = 50) {
     const offset = (page - 1) * limit;
-    const whereClause = this.buildWhereClause(filters);
+    const whereClause = await this.buildWhereClause(filters);
 
-    // Get suppressed phones for this campaign
-    const suppressedPhones = await this.client.prospectingSuppression.findMany({
-      where: { campaignId },
-      select: { normalizedPhone: true },
-    });
-    const suppressedSet = new Set(suppressedPhones.map((s) => s.normalizedPhone));
-
-    // Get businesses
     const businesses = await this.client.directoryBusiness.findMany({
       where: whereClause,
       include: {
         prospectingLeads: {
           select: {
-            id: true,
-            lastOutboundAt: true,
             respondedAt: true,
           },
-          orderBy: {
-            lastOutboundAt: 'desc' as const,
-          },
           take: 1,
+          orderBy: { createdAt: 'desc' as const },
+        },
+        prospectingMessages: {
+          where: { direction: 'OUTBOUND' },
+          select: { id: true },
+          take: 1,
+          orderBy: { createdAt: 'desc' as const },
         },
         category: {
-          select: {
-            name: true,
-          },
+          select: { name: true },
         },
       },
-      orderBy: {
-        name: 'asc',
-      },
+      orderBy: { name: 'asc' },
       take: limit,
       skip: offset,
     });
 
-    const total = await this.client.directoryBusiness.count({
-      where: whereClause,
-    });
+    const total = await this.client.directoryBusiness.count({ where: whereClause });
 
     return {
-      data: businesses.map((b) => {
-        const lastLead = b.prospectingLeads[0];
-        const normalizedPhone = b.whatsapp?.replace(/\D/g, '') || '';
-        const isSupressed = suppressedSet.has(normalizedPhone);
+      data: businesses.map((b: any) => {
+        const lastLead = b.prospectingLeads?.[0];
+        const hasOutbound = (b.prospectingMessages?.length ?? 0) > 0;
 
         let status = 'Nunca enviado';
-        if (isSupressed) {
-          status = 'Suprimido';
-        } else if (lastLead?.respondedAt) {
+        if (lastLead?.respondedAt) {
           status = 'Respondeu';
-        } else if (lastLead?.lastOutboundAt) {
+        } else if (hasOutbound) {
           status = 'Já enviado';
         }
 
         return {
-          id: b.publicId,
+          publicId: b.publicId,
           name: b.name,
           category: b.category?.name || '',
           city: b.city,
           state: b.state,
           phone: b.whatsapp ? this.formatPhone(b.whatsapp) : '',
           status,
-          lastSent: lastLead?.lastOutboundAt || null,
         };
       }),
       pagination: {
@@ -197,18 +170,41 @@ export class ProspectingAudienceService {
     };
   }
 
-  private buildWhereClause(filters: AudienceFilterRequest) {
+  public async getCountersForSelection(
+    filters: PreviewFilterRequest,
+    selectionMode: 'explicit' | 'allFiltered',
+    businessPublicIds?: string[],
+    excludedBusinessPublicIds?: string[]
+  ): Promise<{ selected: number; total: number }> {
+    if (selectionMode === 'explicit') {
+      return {
+        selected: businessPublicIds?.length || 0,
+        total: businessPublicIds?.length || 0,
+      };
+    }
+
+    const whereClause = await this.buildWhereClause(filters);
+    const total = await this.client.directoryBusiness.count({ where: whereClause });
+    const selected = Math.max(0, total - (excludedBusinessPublicIds?.length || 0));
+
+    return { selected, total };
+  }
+
+  private async buildWhereClause(filters: PreviewFilterRequest) {
     const where: any = {
       active: true,
       tenantId: null,
+      whatsapp: { not: null },
     };
 
-    if (filters.phoneStatus === 'valid') {
-      where.whatsapp = { not: null };
-    }
-
-    if (filters.categories?.length) {
-      where.categoryId = { in: filters.categories };
+    if (filters.categoryPublicIds && filters.categoryPublicIds.length > 0) {
+      const categoryIds = await this.client.directoryCategory
+        .findMany({
+          where: { publicId: { in: filters.categoryPublicIds } },
+          select: { id: true },
+        })
+        .then((cats) => cats.map((c) => c.id));
+      where.categoryId = { in: categoryIds };
     }
 
     if (filters.cities?.length) {
@@ -234,11 +230,15 @@ export class ProspectingAudienceService {
   }
 
   private formatPhone(phone: string): string {
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length >= 10) {
-      const ddd = cleaned.slice(0, 2);
-      const part1 = cleaned.slice(2, 7);
-      const part2 = cleaned.slice(7);
+    const normalized = normalizeWhatsAppPhone(phone);
+    if (!normalized) return '';
+
+    // Remove country code if present
+    const digits = normalized.replace(/^55/, '');
+    if (digits.length >= 10) {
+      const ddd = digits.slice(0, 2);
+      const part1 = digits.slice(2, 7);
+      const part2 = digits.slice(7, 11);
       return `(${ddd}) ${part1}-${part2}`;
     }
     return phone;

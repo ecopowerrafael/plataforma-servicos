@@ -290,4 +290,27 @@ describe('ProspectingRepository - materializeLeadsSelective', () => {
     expect(result.suppressed).toBe(0);
     expect(result.duplicates).toBe(0);
   });
+
+  it('14. grava nameSnapshot com nome real do estabelecimento', async () => {
+    const campaignId = BigInt(1);
+    const businessPublicIds = ['id-1'];
+
+    mockClient.directoryBusiness.findMany.mockResolvedValue([
+      { id: BigInt(1), publicId: 'id-1', name: 'Negócio Real', whatsapp: '11999999999' },
+    ]);
+    mockClient.prospectingSuppression.findMany.mockResolvedValue([]);
+    mockClient.prospectingLead.findMany.mockResolvedValue([]);
+
+    let capturedLeads: any[] = [];
+    mockClient.prospectingLead.createMany.mockImplementation((opts: any) => {
+      capturedLeads = opts.data;
+      return Promise.resolve({ count: 1 });
+    });
+
+    await repository.materializeLeadsSelective(campaignId, businessPublicIds);
+
+    expect(capturedLeads).toHaveLength(1);
+    expect(capturedLeads[0].nameSnapshot).toBe('Negócio Real');
+    expect(capturedLeads[0].nameSnapshot).not.toBe('');
+  });
 });

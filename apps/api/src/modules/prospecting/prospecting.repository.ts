@@ -198,6 +198,7 @@ export class ProspectingRepository {
       select: {
         id: true,
         publicId: true,
+        name: true,
         whatsapp: true,
       },
     });
@@ -247,7 +248,7 @@ export class ProspectingRepository {
         directoryBusinessId: business.id,
         phoneSnapshot: business.whatsapp ?? '',
         normalizedPhone: normalized,
-        nameSnapshot: '', // Will be populated from directory if needed
+        nameSnapshot: business.name,
       });
     }
 

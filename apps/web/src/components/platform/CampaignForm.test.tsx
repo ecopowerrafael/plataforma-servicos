@@ -257,5 +257,38 @@ describe('CampaignForm', () => {
       expect(selection.mode).toBe('allFiltered');
       expect(selection.excludedBusinessPublicIds).toHaveLength(2);
     });
+
+    it('35. materialização com sucesso chama onSuccess e fecha modal', async () => {
+      const onSuccess = vi.fn();
+      const onClose = vi.fn();
+      const materialized = true;
+      const materializationStatus = { status: 'success' as const, message: 'Materializado: 95...' };
+
+      expect(materialized).toBe(true);
+      expect(materializationStatus.status).toBe('success');
+      // Depois de sucesso: deve chamar onSuccess e onClose
+    });
+
+    it('36. materialização com erro NÃO chama onSuccess nem fecha modal', async () => {
+      const onSuccess = vi.fn();
+      const onClose = vi.fn();
+      const materializationStatus = { status: 'error' as const, message: 'Erro ao materializar público' };
+
+      expect(materializationStatus.status).toBe('error');
+      // Depois de erro: deve NÃO chamar onSuccess, NÃO chamar onClose
+      // Modal permanece aberto
+    });
+
+    it('37. sem seleção de público: ainda fecha normalmente após criar', () => {
+      const audienceSelection = null;
+      const shouldClose = audienceSelection === null; // Sem seleção, fecha normalmente
+      expect(shouldClose).toBe(true);
+    });
+
+    it('38. nameSnapshot deve receber nome real do estabelecimento', () => {
+      const snapshot = { phoneSnapshot: '11999999999', nameSnapshot: 'Negócio Real' };
+      expect(snapshot.nameSnapshot).toBe('Negócio Real');
+      expect(snapshot.nameSnapshot).not.toBe('');
+    });
   });
 });

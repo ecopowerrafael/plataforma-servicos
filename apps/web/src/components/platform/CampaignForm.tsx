@@ -97,17 +97,21 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
             status: 'success',
             message: `Materializado: ${(result as any).materialized} contatos (${(result as any).invalidPhone} telefone inválido, ${(result as any).suppressed} suprimidos, ${(result as any).duplicates} duplicatas)`,
           });
+
+          void queryClient.invalidateQueries({ queryKey: ['prospecting', 'campaigns'] });
+          onSuccess?.();
+          setTimeout(() => onClose(), 1500);
         } catch (err) {
           setMaterializationStatus({
             status: 'error',
             message: err instanceof Error ? err.message : 'Erro ao materializar público',
           });
         }
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ['prospecting', 'campaigns'] });
+        onSuccess?.();
+        setTimeout(() => onClose(), 1500);
       }
-
-      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'campaigns'] });
-      onSuccess?.();
-      setTimeout(() => onClose(), 1500);
     },
   });
 

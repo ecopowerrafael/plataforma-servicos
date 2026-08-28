@@ -72,7 +72,9 @@ export class ProspectingAudienceService {
   }
 
   public async getPreviewCounters(filters: PreviewFilterRequest): Promise<AudienceCounters> {
-    const whereClause = await this.buildWhereClause(filters);
+    // Build base filters WITHOUT contactStatus to show metrics on full universe
+    const { contactStatus: _ignore, ...baseFilters } = filters;
+    const whereClause = await this.buildWhereClause(baseFilters);
 
     // Get total
     const total = await this.client.directoryBusiness.count({ where: whereClause });
@@ -95,7 +97,7 @@ export class ProspectingAudienceService {
       },
     });
 
-    // Get sent (has outbound, may or may not have response)
+    // Get sent (has outbound)
     const sent = await this.client.directoryBusiness.count({
       where: {
         ...whereClause,
@@ -253,13 +255,11 @@ export class ProspectingAudienceService {
       where.categoryId = { in: categoryIds };
     }
 
-    // Geographic filters: state + city
-    const geoConditions: any[] = [];
+    // Geographic filters: state + city as single OR clause
+    const geographicOr: any[] = [];
 
     if (filters.states?.length) {
-      geoConditions.push({
-        OR: filters.states.map((state) => ({ state })),
-      });
+      geographicOr.push(...filters.states.map((state) => ({ state })));
     }
 
     if (filters.cities?.length) {
@@ -269,16 +269,11 @@ export class ProspectingAudienceService {
           return city && state ? { city, state } : null;
         })
         .filter(Boolean);
-
-      if (cityFilters.length > 0) {
-        geoConditions.push({
-          OR: cityFilters,
-        });
-      }
+      geographicOr.push(...cityFilters);
     }
 
-    if (geoConditions.length > 0) {
-      where.AND = geoConditions;
+    if (geographicOr.length > 0) {
+      where.AND = where.AND ? [...(Array.isArray(where.AND) ? where.AND : [where.AND]), { OR: geographicOr }] : [{ OR: geographicOr }];
     }
 
     if (filters.search) {
@@ -296,7 +291,6 @@ export class ProspectingAudienceService {
       where.prospectingLeads = {
         some: {
           lastOutboundAt: { not: null },
-          respondedAt: null,
         },
       };
     } else if (filters.contactStatus === 'responded') {

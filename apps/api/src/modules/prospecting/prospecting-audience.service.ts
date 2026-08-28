@@ -145,7 +145,7 @@ export class ProspectingAudienceService {
         select: {
           directoryBusinessId: true,
           respondedAt: true,
-          messages: {
+          prospectingMessages: {
             where: { direction: 'OUTBOUND' },
             select: { id: true },
             take: 1,
@@ -159,7 +159,7 @@ export class ProspectingAudienceService {
       const statusMap = new Map<bigint, { respondedAt: boolean; hasOutbound: boolean }>();
       for (const lead of leads) {
         if (!statusMap.has(lead.directoryBusinessId)) {
-          const msgs = lead.messages as any[] | undefined;
+          const msgs = lead.prospectingMessages as any[] | undefined;
           statusMap.set(lead.directoryBusinessId, {
             respondedAt: !!lead.respondedAt,
             hasOutbound: (msgs?.length ?? 0) > 0,

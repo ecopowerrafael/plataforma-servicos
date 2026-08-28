@@ -240,7 +240,7 @@ export function ProspectingLeadsView({
           message={leads.error.message}
           retry={() => void leads.refetch()}
         />
-      ) : !leads.data || leads.data.items.length === 0 ? (
+      ) : !leads.data?.items || leads.data.items.length === 0 ? (
         <div className="platform-empty">
           <h3>Nenhum lead encontrado</h3>
           <p>
@@ -266,7 +266,7 @@ export function ProspectingLeadsView({
                 </tr>
               </thead>
               <tbody>
-                {leads.data.items.map((lead) => {
+                {(leads.data?.items || []).map((lead) => {
                   const statusInfo = STATUS_LABELS[lead.status] || {
                     label: lead.status,
                     tone: 'neutral',
@@ -307,7 +307,7 @@ export function ProspectingLeadsView({
             </table>
           </div>
 
-          {leads.data.pagination.totalPages > 1 && (
+          {leads.data?.pagination?.totalPages > 1 && leads.data?.pagination && (
             <Pagination
               page={leads.data.pagination.page}
               totalPages={leads.data.pagination.totalPages}

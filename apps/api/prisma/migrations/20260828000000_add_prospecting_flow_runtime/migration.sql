@@ -1,6 +1,3 @@
--- CreateEnum
-CREATE TYPE "prospecting_flow_execution_status" AS ENUM ('ACTIVE', 'WAITING', 'MANUAL', 'COMPLETED', 'CANCELED');
-
 -- CreateTable
 CREATE TABLE `prospecting_flow_executions` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -9,11 +6,11 @@ CREATE TABLE `prospecting_flow_executions` (
     `lead_id` BIGINT UNSIGNED NOT NULL,
     `flow_id` BIGINT UNSIGNED NOT NULL,
     `current_step_id` BIGINT UNSIGNED NOT NULL,
-    `status` `prospecting_flow_execution_status` NOT NULL,
+    `status` ENUM('ACTIVE', 'WAITING', 'MANUAL', 'COMPLETED', 'CANCELED') NOT NULL,
     `started_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `completed_at` DATETIME(3) NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
 
     UNIQUE INDEX `prospecting_flow_executions_public_id_key`(`public_id`),
     UNIQUE INDEX `prospecting_flow_executions_campaign_id_lead_id_flow_id_key`(`campaign_id`, `lead_id`, `flow_id`),

@@ -55,6 +55,7 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
   const [states, setStates] = useState<string[]>(initialSelection?.filters?.states || []);
   const [cities, setCities] = useState<string[]>(initialSelection?.filters?.cities || []);
   const [search, setSearch] = useState(initialSelection?.filters?.search || '');
+  const [citySearch, setCitySearch] = useState('');
   const [contactStatus, setContactStatus] = useState<'all' | 'never' | 'sent' | 'responded'>(initialSelection?.filters?.contactStatus || 'all');
   const [page, setPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState<'explicit' | 'allFiltered'>(initialSelection?.mode || 'explicit');
@@ -118,6 +119,47 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
   const counters = countersQuery.data as AudienceCounters | undefined;
   const audienceData = audienceQuery.data as any;
 
+  // Derive cities grouped by state and available states
+  const citiesByState = useMemo(() => {
+    const grouped: Record<string, City[]> = {};
+    citiesQuery.data?.forEach((city) => {
+      if (!grouped[city.state]) {
+        grouped[city.state] = [];
+      }
+      grouped[city.state].push(city);
+    });
+    Object.values(grouped).forEach((cityList) => {
+      cityList.sort((a, b) => a.city.localeCompare(b.city));
+    });
+    return grouped;
+  }, [citiesQuery.data]);
+
+  const availableStates = useMemo(
+    () => Object.keys(citiesByState).sort(),
+    [citiesByState]
+  );
+
+  // Filter cities by search term
+  const filteredCitiesByState = useMemo(() => {
+    if (!citySearch.trim()) return citiesByState;
+
+    const searchLower = citySearch.toLowerCase();
+    const filtered: Record<string, City[]> = {};
+
+    Object.entries(citiesByState).forEach(([state, cities]) => {
+      const matches = cities.filter(
+        (c) =>
+          c.city.toLowerCase().includes(searchLower) ||
+          state.toLowerCase().includes(searchLower) ||
+          c.label.toLowerCase().includes(searchLower)
+      );
+      if (matches.length > 0) {
+        filtered[state] = matches;
+      }
+    });
+    return filtered;
+  }, [citiesByState, citySearch]);
+
   const handleCategoryToggle = (categoryPublicId: string) => {
     setCategoryPublicIds((prev) =>
       prev.includes(categoryPublicId) ? prev.filter((c) => c !== categoryPublicId) : [...prev, categoryPublicId]
@@ -126,16 +168,30 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
   };
 
   const handleStateToggle = (state: string) => {
-    setStates((prev) => (prev.includes(state) ? prev.filter((s) => s !== state) : [...prev, state]));
-    // Remove cities from this state when toggling state off
-    if (states.includes(state)) {
-      setCities((prev) => prev.filter((c) => !c.endsWith(`|${state}`)));
-    }
+    setStates((prev) => {
+      const isSelected = prev.includes(state);
+
+      if (isSelected) {
+        // Unselect state
+        return prev.filter((s) => s !== state);
+      }
+
+      // Select state: remove cities from this state first
+      setCities((current) => current.filter((cityId) => !cityId.endsWith(`|${state}`)));
+      return [...prev, state];
+    });
     setPage(1);
   };
 
   const handleCityToggle = (cityObj: City) => {
     const cityId = `${cityObj.city}|${cityObj.state}`;
+    const isSelected = cities.includes(cityId);
+
+    // If adding city: remove state if it exists (switch from "all" to specific)
+    if (!isSelected) {
+      setStates((prev) => prev.filter((s) => s !== cityObj.state));
+    }
+
     setCities((prev) => (prev.includes(cityId) ? prev.filter((c) => c !== cityId) : [...prev, cityId]));
     setPage(1);
   };

@@ -41,7 +41,6 @@ export class ProspectingAudienceService {
   public async getCities(filters?: { categoryPublicIds?: string[] }) {
     const whereClause: any = {
       active: true,
-      tenantId: null,
     };
 
     if (filters?.categoryPublicIds?.length) {
@@ -193,8 +192,6 @@ export class ProspectingAudienceService {
   private async buildWhereClause(filters: PreviewFilterRequest) {
     const where: any = {
       active: true,
-      tenantId: null,
-      whatsapp: { not: null },
     };
 
     if (filters.categoryPublicIds && filters.categoryPublicIds.length > 0) {

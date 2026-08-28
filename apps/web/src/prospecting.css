@@ -381,7 +381,7 @@
 /* Campaign Form Styles */
 
 .campaign-form-container {
-  background: transparent;
+  background: inherit;
   border-radius: 0;
   padding: 0;
   /* Remove max-width and margin when in portal drawer context */
@@ -537,6 +537,303 @@ legend {
   }
 }
 
+/* Audience Selector Styles */
+
+.audience-selector-container {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 2rem;
+  padding: 2rem;
+  background: var(--ds-background-primary);
+}
+
+.audience-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-right: 1rem;
+  border-right: 1px solid var(--ds-border-neutral);
+}
+
+.audience-filters h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.filter-group label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ds-text-primary);
+}
+
+.filter-group input[type='text'],
+.filter-group select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: var(--ds-background-secondary);
+  color: var(--ds-text-primary);
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.checkbox-group .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.checkbox-group input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.audience-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.audience-summary h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.counters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--ds-background-secondary);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.counter strong {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ds-text-primary);
+}
+
+.counter span {
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+}
+
+.counter.highlight {
+  background: var(--ds-background-positive-subtle);
+}
+
+.counter.highlight strong {
+  color: var(--ds-text-positive);
+}
+
+.audience-list {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--ds-border-neutral);
+}
+
+.audience-list h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--ds-border-neutral);
+}
+
+.list-header .checkbox-label {
+  margin: 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.audience-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.audience-table thead {
+  background: var(--ds-background-secondary);
+  border-bottom: 2px solid var(--ds-border-neutral);
+}
+
+.audience-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--ds-text-secondary);
+}
+
+.audience-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--ds-border-neutral);
+  color: var(--ds-text-primary);
+}
+
+.audience-table tbody tr:hover {
+  background: var(--ds-background-secondary);
+}
+
+.audience-table input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-badge.status-nunca-enviado {
+  background: #dbeafe;
+  color: #0c2340;
+}
+
+.status-badge.status-já-enviado {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.status-respondeu {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.status-suprimido {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ds-border-neutral);
+}
+
+.pagination button {
+  padding: 0.5rem 1rem;
+  background: var(--ds-background-secondary);
+  color: var(--ds-text-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--ds-background-tertiary);
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.audience-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ds-border-neutral);
+}
+
+@media (max-width: 1024px) {
+  .audience-selector-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .audience-filters {
+    border-right: none;
+    border-bottom: 1px solid var(--ds-border-neutral);
+    padding-right: 0;
+    padding-bottom: 1rem;
+  }
+
+  .counters-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .audience-selector-container {
+    padding: 1rem;
+  }
+
+  .counters-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .audience-table {
+    font-size: 0.85rem;
+  }
+
+  .audience-table th,
+  .audience-table td {
+    padding: 0.75rem;
+  }
+
+  .pagination {
+    flex-direction: column;
+  }
+
+  .pagination button,
+  .audience-actions .primary-button {
+    width: 100%;
+  }
+}
+
 /* Form Backdrop and Drawer */
 
 .form-backdrop {
@@ -573,57 +870,9 @@ legend {
   }
 }
 
-/* Portal-specific styles for Prospecting (not scoped under .prospecting-module since portals render outside) */
-
-.prospecting-form-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: flex-end;
-  z-index: 1000;
-}
-
-.prospecting-form-drawer {
-  background: var(--ds-background-primary, #ffffff);
-  color: var(--ds-text-primary, #172033);
-  width: 100%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-  border-radius: 8px 8px 0 0;
-  margin: 0 auto;
-  padding: 2rem;
-  box-sizing: border-box;
-  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
-}
-
-.prospecting-form-drawer h2 {
-  margin: 0 0 1.5rem 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.prospecting-form-drawer form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-@media (max-width: 768px) {
-  .prospecting-form-drawer {
-    max-width: 100%;
-    border-radius: 8px;
-  }
-
-  .prospecting-form-backdrop {
-    align-items: center;
-    padding: 1rem;
-  }
-}
+/* Note: Portal-specific .prospecting-form-backdrop and .prospecting-form-drawer
+   styles are consolidated in prospecting-flows.css to avoid duplication.
+   All Prospecting modals share the same backdrop/drawer styling. */
 
 /* Materialize Result */
 

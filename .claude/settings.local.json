@@ -111,7 +111,11 @@
       "Bash(xargs grep -l \"beforeAll\")",
       "Bash(xargs grep -l \"prospectingFlow\\\\|ProspectingFlow\")",
       "Bash(git commit -m 'FIX MIGRATION — compatibilidade MariaDB Prospecting Flow *)",
-      "Bash(git commit -m 'FIX MIGRATION — recuperar Prospecting Flow parcial *)"
+      "Bash(git commit -m 'FIX MIGRATION — recuperar Prospecting Flow parcial *)",
+      "Bash(git commit -m 'DOC/SQL — adicionar script recuperação Prospecting Flow *)",
+      "Bash(xargs grep -l \"prospecting-form-backdrop\\\\|prospecting-form-drawer\")",
+      "Bash(grep -n \"router\\\\\\\\.get\\\\|router\\\\\\\\.post\" C:/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api/src/modules/prospecting/prospecting.routes.ts)",
+      "Bash(git commit -m 'PROSPECTING — corrigir modais e adicionar seleção de público da campanha *)"
     ]
   }
 }

@@ -137,13 +137,15 @@
 .prospecting-form-drawer {
   background: var(--ds-background-primary);
   border: 1px solid var(--ds-border-neutral);
-  border-radius: 4px;
-  padding: 1.5rem;
-  max-width: 500px;
+  border-radius: 8px 8px 0 0;
+  padding: 2rem;
+  max-width: 600px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
+  box-sizing: border-box;
+  color: var(--ds-text-primary);
 }
 
 .prospecting-form-drawer h2 {

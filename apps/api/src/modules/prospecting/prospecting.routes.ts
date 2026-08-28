@@ -1346,5 +1346,70 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       return { success: true };
     },
   );
+
+  // Audience: list categories
+  app.get(
+    '/platform/prospecting/audience/categories',
+    { schema: {} },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
+      const audienceService = new ProspectingAudienceService(options.client);
+      const categories = await audienceService.getCategories();
+      return { items: categories };
+    },
+  );
+
+  // Audience: list cities
+  app.get(
+    '/platform/prospecting/audience/cities',
+    { schema: { querystring: z.object({ states: z.string().optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const states = (request.query as any).states?.split(',').filter(Boolean);
+      const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
+      const audienceService = new ProspectingAudienceService(options.client);
+      const cities = await audienceService.getCities(states?.length ? { states } : undefined);
+      return { items: cities };
+    },
+  );
+
+  // Audience: get counters for filters
+  app.get(
+    '/platform/prospecting/audience/counters/:campaignPublicId',
+    { schema: { params: z.object({ campaignPublicId: z.uuid() }), querystring: z.object({ categories: z.string().optional(), cities: z.string().optional(), states: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional(), phoneStatus: z.enum(['valid', 'all']).optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const campaign = await options.client.prospectingCampaign.findUnique({ where: { publicId: request.params.campaignPublicId }, select: { id: true } });
+      if (!campaign) throw new Error('Campaign not found');
+      const q = request.query as any;
+      const categories = q.categories?.split(',').map(BigInt).filter(Boolean) || [];
+      const cities = q.cities?.split(',').filter(Boolean) || [];
+      const states = q.states?.split(',').filter(Boolean) || [];
+      const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
+      const audienceService = new ProspectingAudienceService(options.client);
+      const counters = await audienceService.getAudienceCounters(campaign.id, { categories: categories.length ? categories : undefined, cities: cities.length ? cities : undefined, states: states.length ? states : undefined, search: q.search, contactStatus: q.contactStatus, phoneStatus: q.phoneStatus });
+      return counters;
+    },
+  );
+
+  // Audience: get paginated list
+  app.get(
+    '/platform/prospecting/audience/:campaignPublicId',
+    { schema: { params: z.object({ campaignPublicId: z.uuid() }), querystring: z.object({ page: z.coerce.number().int().positive().optional().default(1), limit: z.coerce.number().int().positive().max(100).optional().default(50), categories: z.string().optional(), cities: z.string().optional(), states: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional(), phoneStatus: z.enum(['valid', 'all']).optional() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const campaign = await options.client.prospectingCampaign.findUnique({ where: { publicId: request.params.campaignPublicId }, select: { id: true } });
+      if (!campaign) throw new Error('Campaign not found');
+      const q = request.query as any;
+      const categories = q.categories?.split(',').map(BigInt).filter(Boolean) || [];
+      const cities = q.cities?.split(',').filter(Boolean) || [];
+      const states = q.states?.split(',').filter(Boolean) || [];
+      const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
+      const audienceService = new ProspectingAudienceService(options.client);
+      const result = await audienceService.getAudiencePage(campaign.id, { categories: categories.length ? categories : undefined, cities: cities.length ? cities : undefined, states: states.length ? states : undefined, search: q.search, contactStatus: q.contactStatus, phoneStatus: q.phoneStatus }, q.page, q.limit);
+      return result;
+    },
+  );
 };
 

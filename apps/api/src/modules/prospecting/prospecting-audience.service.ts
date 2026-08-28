@@ -229,6 +229,27 @@ export class ProspectingAudienceService {
     return where;
   }
 
+  public async resolveFilteredBusinessPublicIds(
+    filters: PreviewFilterRequest,
+    excludedPublicIds?: string[]
+  ): Promise<string[]> {
+    const whereClause = await this.buildWhereClause(filters);
+
+    const businesses = await this.client.directoryBusiness.findMany({
+      where: whereClause,
+      select: { publicId: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const publicIds = businesses.map((b) => b.publicId);
+    if (excludedPublicIds?.length) {
+      const excludedSet = new Set(excludedPublicIds);
+      return publicIds.filter((id) => !excludedSet.has(id));
+    }
+
+    return publicIds;
+  }
+
   private formatPhone(phone: string): string {
     const normalized = normalizeWhatsAppPhone(phone);
     if (!normalized) return '';

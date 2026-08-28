@@ -8,6 +8,8 @@ import { type AuthService } from '../auth/auth.service.js';
 import { platformAuthenticationPlugin } from '../platform/platform-auth.plugin.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type ProspectingWorker } from './prospecting-worker.js';
+import { ProspectingAudienceService } from './prospecting-audience.service.js';
+import { ProspectingRepository } from './prospecting.repository.js';
 
 const CreateCampaignSchema = z.object({
   name: z.string().min(1).max(180),
@@ -85,6 +87,8 @@ interface ProspectingRoutesOptions {
   cookieName: string;
   client: PrismaClient;
   worker?: ProspectingWorker;
+  audienceService: ProspectingAudienceService;
+  repository: ProspectingRepository;
 }
 
 export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesOptions> = async (
@@ -1432,19 +1436,27 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       });
       if (!campaign) throw new Error('Campaign not found');
 
-      const body = request.body as any;
+      const body = request.body as { mode: 'explicit' | 'allFiltered'; businessPublicIds?: string[]; filters?: { categoryPublicIds?: string[]; cities?: string[]; search?: string; contactStatus?: 'all' | 'never' | 'contacted' }; excludedBusinessPublicIds?: string[] };
+
+      let businessPublicIds: string[];
 
       if (body.mode === 'explicit') {
-        // TODO: Materialize only selected businesses (not in scope for MVP)
-      } else if (body.mode === 'allFiltered') {
-        // Materialize using existing service with all filters applied
-        // TODO: Implement selective materialization
+        businessPublicIds = body.businessPublicIds || [];
+      } else {
+        // allFiltered: resolve from filters server-side
+        businessPublicIds = await options.audienceService.resolveFilteredBusinessPublicIds(
+          body.filters || {},
+          body.excludedBusinessPublicIds
+        );
       }
 
-      // For now, use existing materialize service (materializes all matching filters from campaign)
-      const materialized = await options.service.materializeLeads(campaign.id, undefined, undefined, undefined);
+      const result = await options.repository.materializeLeadsSelective(campaign.id, businessPublicIds);
 
-      return { materialized, success: true };
+      return {
+        success: true,
+        selected: businessPublicIds.length,
+        ...result,
+      };
     },
   );
 };

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { useState } from 'react';
 import { httpClient } from '../../lib/http.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CampaignAudienceSelector, type AudienceSelection } from './CampaignAudienceSelector.js';
 
 const CampaignFormSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -67,17 +68,46 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [audienceSelection, setAudienceSelection] = useState<AudienceSelection | null>(null);
+  const [materializationStatus, setMaterializationStatus] = useState<{ status: 'pending' | 'success' | 'error'; message?: string }>({ status: 'pending' });
+  const [showAudienceSelector, setShowAudienceSelector] = useState(!isEditing);
 
   const createMutation = useMutation({
-    mutationFn: (data: CampaignFormData) =>
-      httpClient.request('/platform/prospecting/campaigns', {
+    mutationFn: async (data: CampaignFormData) => {
+      const response = await httpClient.request('/platform/prospecting/campaigns', {
         method: 'POST',
         body: JSON.stringify(data),
-      }),
-    onSuccess: () => {
+      });
+      return response as any;
+    },
+    onSuccess: async (response) => {
+      const campaignPublicId = response.publicId;
+
+      if (audienceSelection) {
+        try {
+          setMaterializationStatus({ status: 'pending' });
+          const result = await httpClient.request(
+            `/platform/prospecting/campaigns/${campaignPublicId}/materialize-audience`,
+            {
+              method: 'POST',
+              body: JSON.stringify(audienceSelection),
+            }
+          );
+          setMaterializationStatus({
+            status: 'success',
+            message: `Materializado: ${(result as any).materialized} contatos (${(result as any).invalidPhone} telefone inválido, ${(result as any).suppressed} suprimidos, ${(result as any).duplicates} duplicatas)`,
+          });
+        } catch (err) {
+          setMaterializationStatus({
+            status: 'error',
+            message: err instanceof Error ? err.message : 'Erro ao materializar público',
+          });
+        }
+      }
+
       void queryClient.invalidateQueries({ queryKey: ['prospecting', 'campaigns'] });
       onSuccess?.();
-      onClose();
+      setTimeout(() => onClose(), 1500);
     },
   });
 
@@ -120,6 +150,13 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
       if (formData.followUpEnabled && !formData.followUpAfterHours) {
         setErrors({
           followUpAfterHours: 'Horas é obrigatório quando follow-up está ativado',
+        });
+        return;
+      }
+
+      if (!isEditing && !audienceSelection) {
+        setErrors({
+          audience: 'Selecione um público antes de criar a campanha',
         });
         return;
       }
@@ -377,6 +414,27 @@ export function CampaignForm({ initial, onClose, onSuccess }: CampaignFormProps)
             Resposta Automática Ativada
           </label>
         </section>
+
+        {/* Público */}
+        {!isEditing && showAudienceSelector && (
+          <section className="form-section">
+            <h3>Seleção de Público</h3>
+            <CampaignAudienceSelector
+              onSelectionChange={(selection) => setAudienceSelection(selection)}
+              initialSelection={audienceSelection}
+            />
+            {materializationStatus.status === 'success' && (
+              <div className="form-success">
+                ✓ {materializationStatus.message}
+              </div>
+            )}
+            {materializationStatus.status === 'error' && (
+              <div className="form-error">
+                ✗ {materializationStatus.message}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Actions */}
         <div className="form-actions">

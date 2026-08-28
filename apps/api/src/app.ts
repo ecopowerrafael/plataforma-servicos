@@ -772,6 +772,8 @@ export async function buildApp(options: BuildAppOptions) {
       authService: authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
+      audienceService: options.database.prospectingAudience!,
+      repository: options.database.prospectingRepository!,
     });
   if (options.database.prospecting !== undefined)
     await app.register(registerProspectingOperationalRoutes, {

@@ -108,6 +108,8 @@ import { PrismaProfessionalRepository } from '../modules/professionals/professio
 import { ProfessionalService } from '../modules/professionals/professional.service.js';
 import { ProspectingService } from '../modules/prospecting/prospecting.service.js';
 import { ProspectingWhatsAppConfigService } from '../modules/prospecting/prospecting-whatsapp-config.service.js';
+import { ProspectingAudienceService } from '../modules/prospecting/prospecting-audience.service.js';
+import { ProspectingRepository } from '../modules/prospecting/prospecting.repository.js';
 import { PrismaComboRepository } from '../modules/services/combo.repository.js';
 import { ComboService } from '../modules/services/combo.service.js';
 import { PrismaServiceCategoryRepository } from '../modules/services/service-category.repository.js';
@@ -181,6 +183,8 @@ export interface DatabaseConnection {
   readonly notificationTemplates?: NotificationTemplateService;
   readonly notificationCampaigns?: NotificationCampaignService;
   readonly prospecting?: ProspectingService;
+  readonly prospectingAudience?: ProspectingAudienceService;
+  readonly prospectingRepository?: ProspectingRepository;
   readonly whatsappProvisioning?: WhatsAppProvisioningService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
@@ -553,6 +557,8 @@ export function createDatabaseConnection(
     notificationTemplates: notificationTemplates,
     notificationCampaigns: notificationCampaigns,
     prospecting: new ProspectingService(client),
+    prospectingAudience: new ProspectingAudienceService(client),
+    prospectingRepository: new ProspectingRepository(client),
     whatsappProvisioning,
     appointmentNotifications: appointmentNotifications,
     treatmentPlanNotifications,

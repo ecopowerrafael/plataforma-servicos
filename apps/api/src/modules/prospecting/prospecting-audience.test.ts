@@ -122,7 +122,7 @@ describe('ProspectingAudienceService', () => {
         {
           directoryBusinessId: BigInt(1),
           respondedAt: null,
-          prospectingMessages: [],
+          messages: [],
         },
       ]);
 
@@ -167,9 +167,9 @@ describe('ProspectingAudienceService', () => {
       ]);
       mockClient.directoryBusiness.count.mockResolvedValue(3);
       mockClient.prospectingLead.findMany.mockResolvedValue([
-        { directoryBusinessId: BigInt(1), respondedAt: null, prospectingMessages: [] },
-        { directoryBusinessId: BigInt(2), respondedAt: null, prospectingMessages: [{ id: 1 }] },
-        { directoryBusinessId: BigInt(3), respondedAt: new Date(), prospectingMessages: [{ id: 2 }] },
+        { directoryBusinessId: BigInt(1), respondedAt: null, messages: [] },
+        { directoryBusinessId: BigInt(2), respondedAt: null, messages: [{ id: 1 }] },
+        { directoryBusinessId: BigInt(3), respondedAt: new Date(), messages: [{ id: 2 }] },
       ]);
 
       const result = await service.getPreviewPage({}, 1, 50);

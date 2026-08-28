@@ -22,18 +22,22 @@ interface RequestOptions<T> {
   tenantPublicId?: string;
 }
 
-async function request<T>(path: string, options: RequestOptions<T>): Promise<T> {
+// Overloads for request function
+async function request<T>(path: string, options: RequestOptions<T>): Promise<T>;
+async function request(path: string): Promise<any>;
+
+async function request<T>(path: string, options?: RequestOptions<T>): Promise<T | any> {
   const response = await fetch(`${environment.apiUrl}${path}`, {
-    method: options.method ?? 'GET',
+    method: options?.method ?? 'GET',
     headers: {
       Accept: 'application/json',
-      ...(options.body === undefined || options.body instanceof FormData
+      ...(options?.body === undefined || options?.body instanceof FormData
         ? {}
         : { 'Content-Type': 'application/json' }),
-      ...(options.tenantPublicId === undefined ? {} : { 'X-Tenant-Id': options.tenantPublicId }),
+      ...(options?.tenantPublicId === undefined ? {} : { 'X-Tenant-Id': options.tenantPublicId }),
     },
     credentials: 'include',
-    ...(options.body === undefined
+    ...(options?.body === undefined
       ? {}
       : { body: options.body instanceof FormData ? options.body : JSON.stringify(options.body) }),
     signal: AbortSignal.timeout(10_000),
@@ -54,7 +58,11 @@ async function request<T>(path: string, options: RequestOptions<T>): Promise<T> 
     );
   }
 
-  return options.schema.parse(await response.json());
+  const jsonResponse = await response.json();
+  if (options?.schema) {
+    return options.schema.parse(jsonResponse);
+  }
+  return jsonResponse;
 }
 
 export const httpClient = Object.freeze({ request });

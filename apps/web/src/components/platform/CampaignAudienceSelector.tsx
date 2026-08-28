@@ -96,6 +96,9 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
       const url = `/platform/prospecting/audience/preview/counters?${filtersString}`;
       return await httpClient.request(url);
     },
+    retry: 1,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const audienceQuery = useQuery({
@@ -104,6 +107,9 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
       const url = `/platform/prospecting/audience/preview?${filtersString}&page=${page}&limit=50`;
       return await httpClient.request(url);
     },
+    retry: 1,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const counters = countersQuery.data as AudienceCounters | undefined;
@@ -186,6 +192,13 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
           <label>Categorias</label>
           {categoriesQuery.isLoading ? (
             <p>Carregando...</p>
+          ) : categoriesQuery.isError ? (
+            <div className="form-error">
+              ✗ Erro ao carregar categorias
+              <button onClick={() => void categoriesQuery.refetch()} style={{ marginLeft: '1rem', cursor: 'pointer' }}>
+                Tentar novamente
+              </button>
+            </div>
           ) : (
             <div className="checkbox-group">
               {categoriesQuery.data?.map((cat) => (
@@ -206,6 +219,13 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
           <label>Cidades</label>
           {citiesQuery.isLoading ? (
             <p>Carregando...</p>
+          ) : citiesQuery.isError ? (
+            <div className="form-error">
+              ✗ Erro ao carregar cidades
+              <button onClick={() => void citiesQuery.refetch()} style={{ marginLeft: '1rem', cursor: 'pointer' }}>
+                Tentar novamente
+              </button>
+            </div>
           ) : (
             <div className="checkbox-group">
               {citiesQuery.data?.map((city) => (
@@ -255,6 +275,13 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
         <h3>Resumo do Público</h3>
         {countersQuery.isLoading ? (
           <p>Carregando...</p>
+        ) : countersQuery.isError ? (
+          <div className="form-error">
+            ✗ Erro ao carregar contadores
+            <button onClick={() => void countersQuery.refetch()} style={{ marginLeft: '1rem', cursor: 'pointer' }}>
+              Tentar novamente
+            </button>
+          </div>
         ) : (
           <div className="counters-grid">
             <div className="counter">

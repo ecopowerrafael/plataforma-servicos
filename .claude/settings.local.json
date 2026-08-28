@@ -116,7 +116,8 @@
       "Bash(xargs grep -l \"prospecting-form-backdrop\\\\|prospecting-form-drawer\")",
       "Bash(grep -n \"router\\\\\\\\.get\\\\|router\\\\\\\\.post\" C:/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api/src/modules/prospecting/prospecting.routes.ts)",
       "Bash(git commit -m 'PROSPECTING — corrigir modais e adicionar seleção de público da campanha *)",
-      "Bash(git commit -m 'PROSPECTING — integrar público e materialização da campanha *)"
+      "Bash(git commit -m 'PROSPECTING — integrar público e materialização da campanha *)",
+      "Bash(git commit -m 'PROSPECTING — concluir público e materialização seletiva \\(FASE 2\\) *)"
     ]
   }
 }

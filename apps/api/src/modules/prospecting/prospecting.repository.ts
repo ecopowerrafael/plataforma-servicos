@@ -181,6 +181,87 @@ export class ProspectingRepository {
     });
   }
 
+  public async materializeLeadsSelective(
+    campaignId: bigint,
+    businessPublicIds: string[],
+  ): Promise<{ materialized: number; invalidPhone: number; suppressed: number; duplicates: number }> {
+    if (businessPublicIds.length === 0) return { materialized: 0, invalidPhone: 0, suppressed: 0, duplicates: 0 };
+
+    const { normalizeWhatsAppPhone } = await import('../integrations/whatsapp-phone.js');
+
+    // Get businesses by public IDs
+    const businesses = await this.client.directoryBusiness.findMany({
+      where: {
+        active: true,
+        publicId: { in: businessPublicIds },
+      },
+      select: {
+        id: true,
+        publicId: true,
+        whatsapp: true,
+      },
+    });
+
+    // Get suppressed phones for this campaign
+    const suppressedPhones = await this.client.prospectingSuppression.findMany({
+      where: { campaignId },
+      select: { normalizedPhone: true },
+    });
+    const suppressedSet = new Set(suppressedPhones.map((s) => s.normalizedPhone));
+
+    // Get existing leads for this campaign
+    const existingLeads = await this.client.prospectingLead.findMany({
+      where: { campaignId },
+      select: { directoryBusinessId: true },
+    });
+    const existingIds = new Set(existingLeads.map((l) => l.directoryBusinessId));
+
+    let materialized = 0;
+    let invalidPhone = 0;
+    let suppressed = 0;
+    let duplicates = 0;
+
+    const leadsToCreate: Prisma.ProspectingLeadCreateManyInput[] = [];
+
+    for (const business of businesses) {
+      if (existingIds.has(business.id)) {
+        duplicates++;
+        continue;
+      }
+
+      // Validate phone using official normalizer
+      const normalized = normalizeWhatsAppPhone(business.whatsapp ?? '');
+      if (!normalized) {
+        invalidPhone++;
+        continue;
+      }
+
+      if (suppressedSet.has(normalized)) {
+        suppressed++;
+        continue;
+      }
+
+      leadsToCreate.push({
+        publicId: randomUUID(),
+        campaignId,
+        directoryBusinessId: business.id,
+        phoneSnapshot: business.whatsapp ?? '',
+        normalizedPhone: normalized,
+        nameSnapshot: '', // Will be populated from directory if needed
+      });
+    }
+
+    if (leadsToCreate.length > 0) {
+      const result = await this.client.prospectingLead.createMany({
+        data: leadsToCreate,
+        skipDuplicates: true,
+      });
+      materialized = result.count;
+    }
+
+    return { materialized, invalidPhone, suppressed, duplicates };
+  }
+
   // Utilities
   private normalizePhone(phone: string): string {
     return phone.replace(/\D/g, '');

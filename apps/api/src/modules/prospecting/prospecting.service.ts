@@ -51,11 +51,40 @@ export class ProspectingService {
 
     const flow = await this.client.prospectingFlow.findUnique({
       where: { publicId: flowPublicId },
-      select: { id: true, isActive: true },
+      select: {
+        id: true,
+        isActive: true,
+        steps: { where: { isStart: true }, select: { id: true } },
+      },
     });
 
     if (!flow) throw new Error('FLOW_NOT_FOUND');
     if (!flow.isActive) throw new Error('FLOW_NOT_ACTIVE');
+    if (flow.steps.length !== 1) throw new Error('FLOW_INVALID_START_STEPS');
+
+    // Validar NEXT_STEP options
+    const invalidOptions = await this.client.prospectingFlowOption.findMany({
+      where: {
+        step: { flowId: flow.id },
+        actionType: 'NEXT_STEP',
+        OR: [
+          { nextStepId: null },
+        ],
+      },
+    });
+
+    if (invalidOptions.length > 0) throw new Error('FLOW_INVALID_NEXT_STEP');
+
+    // Validar destinos pertencem ao mesmo flow
+    const externalDestinations = await this.client.prospectingFlowOption.findMany({
+      where: {
+        step: { flowId: flow.id },
+        actionType: 'NEXT_STEP',
+        nextStep: { flowId: { not: flow.id } },
+      },
+    });
+
+    if (externalDestinations.length > 0) throw new Error('FLOW_INVALID_DESTINATION_FLOW');
 
     return flow.id;
   }

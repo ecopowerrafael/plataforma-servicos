@@ -100,7 +100,7 @@ export class IntegrationService {
     private readonly collectionAttemptExecution?: CollectionAttemptExecutionService,
     client?: any, // PrismaClient
     prospectingConfigService?: ProspectingWhatsAppConfigService,
-    private readonly _environment?: Environment | null,
+    private readonly environment?: Environment | null,
   ) {
     this.assistant = new WhatsAppAssistantService(
       repository,
@@ -116,7 +116,7 @@ export class IntegrationService {
     );
 
     this.prospectingInbound = client && prospectingConfigService
-      ? new ProspectingInboundService(client, prospectingConfigService, environment)
+      ? new ProspectingInboundService(client, prospectingConfigService, this.environment)
       : new ProspectingInboundService();
   }
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {

@@ -16,6 +16,7 @@ import {
 } from './whatsapp-message-status.js';
 import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
 import { type Prisma } from '../../database-client/client.js';
+import { type Environment } from '../../config/environment.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
@@ -99,6 +100,7 @@ export class IntegrationService {
     private readonly collectionAttemptExecution?: CollectionAttemptExecutionService,
     client?: any, // PrismaClient
     prospectingConfigService?: ProspectingWhatsAppConfigService,
+    private readonly _environment?: Environment | null,
   ) {
     this.assistant = new WhatsAppAssistantService(
       repository,
@@ -114,7 +116,7 @@ export class IntegrationService {
     );
 
     this.prospectingInbound = client && prospectingConfigService
-      ? new ProspectingInboundService(client, prospectingConfigService)
+      ? new ProspectingInboundService(client, prospectingConfigService, environment)
       : new ProspectingInboundService();
   }
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {

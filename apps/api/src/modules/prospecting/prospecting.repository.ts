@@ -16,6 +16,7 @@ export class ProspectingRepository {
     minIntervalSeconds?: number;
     maxIntervalSeconds?: number;
     allowedWeekdays?: number[];
+    flowId?: bigint | null;
   }) {
     const createData: Prisma.ProspectingCampaignUncheckedCreateInput = {
       publicId: randomUUID(),
@@ -31,30 +32,46 @@ export class ProspectingRepository {
     if (data.categoryId !== undefined) createData.categoryId = data.categoryId;
     if (data.state !== undefined) createData.state = data.state;
     if (data.city !== undefined) createData.city = data.city;
+    if (data.flowId !== undefined) createData.flowId = data.flowId;
 
     return this.client.prospectingCampaign.create({ data: createData });
   }
 
-  public getCampaign(publicId: string) {
-    return this.client.prospectingCampaign.findUnique({
+  public async getCampaign(publicId: string) {
+    const campaign = await this.client.prospectingCampaign.findUnique({
       where: { publicId },
+      include: { flow: { select: { publicId: true, name: true } } },
     });
+    return campaign ? this.mapCampaignDto(campaign) : null;
   }
 
-  public listCampaigns() {
-    return this.client.prospectingCampaign.findMany({
+  public async listCampaigns() {
+    const campaigns = await this.client.prospectingCampaign.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { flow: { select: { publicId: true, name: true } } },
     });
+    return campaigns.map((c) => this.mapCampaignDto(c));
   }
 
-  public updateCampaign(
+  private mapCampaignDto(campaign: any) {
+    const { id, flowId, flow, ...rest } = campaign;
+    return {
+      ...rest,
+      flowPublicId: flow?.publicId ?? null,
+      flowName: flow?.name ?? null,
+    };
+  }
+
+  public async updateCampaign(
     publicId: string,
     data: Prisma.ProspectingCampaignUpdateInput,
   ) {
-    return this.client.prospectingCampaign.update({
+    const campaign = await this.client.prospectingCampaign.update({
       where: { publicId },
       data,
+      include: { flow: { select: { publicId: true, name: true } } },
     });
+    return this.mapCampaignDto(campaign);
   }
 
   // Lead materialization

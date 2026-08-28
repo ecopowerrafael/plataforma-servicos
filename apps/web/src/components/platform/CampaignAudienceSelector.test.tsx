@@ -169,30 +169,71 @@ describe('CampaignAudienceSelector', () => {
     });
   });
 
-  it('removes state when specific city is selected', async () => {
+  it('removes state when specific city is selected without manual unselect', async () => {
     renderComponent();
 
     // First select the entire state
+    let allCitiesSPCheckbox: HTMLInputElement;
+    await waitFor(() => {
+      allCitiesSPCheckbox = screen.getByRole('checkbox', { name: /Todas as cidades de SP/ }) as HTMLInputElement;
+      fireEvent.click(allCitiesSPCheckbox);
+    });
+
+    // Verify state is selected
+    await waitFor(() => {
+      expect(allCitiesSPCheckbox).toBeChecked();
+    });
+
+    // Now select a specific city WITHOUT manually unchecking state first
+    const spGroup = screen.getByText('SP (3)').closest('details') as HTMLDetailsElement;
+    const cityCheckboxes = within(spGroup!).getAllByRole('checkbox');
+    const campinasCheckbox = cityCheckboxes[1]; // First individual city (Campinas)
+
+    fireEvent.click(campinasCheckbox);
+
+    // Verify that state checkbox automatically became unchecked
+    await waitFor(() => {
+      expect(allCitiesSPCheckbox).not.toBeChecked();
+      expect(campinasCheckbox).toBeChecked();
+    });
+  });
+
+  it('removes only selected state when selecting city from multi-state selection', async () => {
+    renderComponent();
+
+    // First select entire SP
     await waitFor(() => {
       const allCitiesSPCheckbox = screen.getByRole('checkbox', { name: /Todas as cidades de SP/ });
       fireEvent.click(allCitiesSPCheckbox);
     });
 
-    // Unselect state to enable cities
-    const allCitiesSPCheckbox = screen.getByRole('checkbox', { name: /Todas as cidades de SP/ });
-    fireEvent.click(allCitiesSPCheckbox);
-
-    // Now select a specific city
+    // Then select entire RJ
     await waitFor(() => {
-      const spGroup = screen.getByText('SP (3)').closest('details') as HTMLDetailsElement;
-      const cityCheckboxes = within(spGroup!).getAllByRole('checkbox');
-      // Select first individual city
-      fireEvent.click(cityCheckboxes[1]);
+      const allCitiesRJCheckbox = screen.getByRole('checkbox', { name: /Todas as cidades de RJ/ });
+      fireEvent.click(allCitiesRJCheckbox);
     });
 
+    // Verify both states are selected
+    const allCitiesSPCheckbox = screen.getByRole('checkbox', { name: /Todas as cidades de SP/ }) as HTMLInputElement;
+    const allCitiesRJCheckbox = screen.getByRole('checkbox', { name: /Todas as cidades de RJ/ }) as HTMLInputElement;
+
     await waitFor(() => {
-      // State checkbox should be unchecked
+      expect(allCitiesSPCheckbox).toBeChecked();
+      expect(allCitiesRJCheckbox).toBeChecked();
+    });
+
+    // Now select a specific city from SP (Campinas)
+    const spGroup = screen.getByText('SP (3)').closest('details') as HTMLDetailsElement;
+    const cityCheckboxes = within(spGroup!).getAllByRole('checkbox');
+    const campinasCheckbox = cityCheckboxes[1];
+
+    fireEvent.click(campinasCheckbox);
+
+    // Verify that ONLY SP was removed, RJ remains
+    await waitFor(() => {
       expect(allCitiesSPCheckbox).not.toBeChecked();
+      expect(allCitiesRJCheckbox).toBeChecked();
+      expect(campinasCheckbox).toBeChecked();
     });
   });
 
@@ -275,6 +316,47 @@ describe('CampaignAudienceSelector', () => {
       expect(screen.getByText(/Filtros ativos:/)).toBeInTheDocument();
       expect(screen.getByText(/1 estado\(s\)/)).toBeInTheDocument();
       expect(screen.getByText(/Já enviados/)).toBeInTheDocument();
+    });
+  });
+
+  it('switches from state to cities on confirm when city selected after state', async () => {
+    const onSelectionChange = vi.fn();
+    renderComponent({ onSelectionChange });
+
+    await waitFor(() => {
+      expect(screen.getByText('SP (3)')).toBeInTheDocument();
+    });
+
+    // Select entire state SP
+    const allCitiesSPCheckbox = screen.getByRole('checkbox', { name: /Todas as cidades de SP/ });
+    fireEvent.click(allCitiesSPCheckbox);
+
+    // Now select specific city (Campinas) which should remove SP
+    const spGroup = screen.getByText('SP (3)').closest('details') as HTMLDetailsElement;
+    const cityCheckboxes = within(spGroup!).getAllByRole('checkbox');
+    const campinasCheckbox = cityCheckboxes[1];
+    fireEvent.click(campinasCheckbox);
+
+    // Switch to allFiltered mode
+    const selectAllCheckbox = screen.getByRole('checkbox', {
+      name: /Selecionar todos/,
+    });
+    fireEvent.click(selectAllCheckbox);
+
+    // Confirm
+    const confirmButton = screen.getByRole('button', { name: /Confirmar Seleção/ });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(onSelectionChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'allFiltered',
+          filters: expect.objectContaining({
+            states: undefined,
+            cities: expect.arrayContaining(['Campinas|SP']),
+          }),
+        })
+      );
     });
   });
 

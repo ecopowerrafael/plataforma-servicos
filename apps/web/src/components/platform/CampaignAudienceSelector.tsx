@@ -390,14 +390,12 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
                     </label>
                     {statesCities.map((city) => {
                       const cityId = `${city.city}|${city.state}`;
-                      const isStateSelected = states.includes(state);
                       return (
                         <label key={city.label} className="checkbox-label" style={{ marginLeft: '1.5rem' }}>
                           <input
                             type="checkbox"
                             checked={cities.includes(cityId)}
                             onChange={() => handleCityToggle(city)}
-                            disabled={isStateSelected}
                           />
                           {city.city}
                         </label>

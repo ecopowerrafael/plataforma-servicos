@@ -1381,16 +1381,18 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   // Audience: get preview counters (no campaign yet)
   app.get(
     '/platform/prospecting/audience/preview/counters',
-    { schema: { querystring: z.object({ categoryPublicIds: z.string().optional(), cities: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional() }) } },
+    { schema: { querystring: z.object({ categoryPublicIds: z.string().optional(), states: z.string().optional(), cities: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'sent', 'responded']).optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.read');
       const q = request.query as any;
       const categoryPublicIds = q.categoryPublicIds?.split(',').filter(Boolean);
+      const states = q.states?.split(',').filter(Boolean);
       const cities = q.cities?.split(',').filter(Boolean);
       const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
       const audienceService = new ProspectingAudienceService(options.client);
       const counters = await audienceService.getPreviewCounters({
         categoryPublicIds,
+        states,
         cities,
         search: q.search,
         contactStatus: q.contactStatus,
@@ -1402,18 +1404,20 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   // Audience: get preview paginated list (no campaign yet)
   app.get(
     '/platform/prospecting/audience/preview',
-    { schema: { querystring: z.object({ page: z.coerce.number().int().positive().optional().default(1), limit: z.coerce.number().int().positive().max(100).optional().default(50), categoryPublicIds: z.string().optional(), cities: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional() }) } },
+    { schema: { querystring: z.object({ page: z.coerce.number().int().positive().optional().default(1), limit: z.coerce.number().int().positive().max(100).optional().default(50), categoryPublicIds: z.string().optional(), states: z.string().optional(), cities: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'sent', 'responded']).optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.read');
       try {
         const q = request.query as any;
         const categoryPublicIds = q.categoryPublicIds?.split(',').filter(Boolean);
+        const states = q.states?.split(',').filter(Boolean);
         const cities = q.cities?.split(',').filter(Boolean);
         const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
         const audienceService = new ProspectingAudienceService(options.client);
         const result = await audienceService.getPreviewPage(
           {
             categoryPublicIds,
+            states,
             cities,
             search: q.search,
             contactStatus: q.contactStatus,
@@ -1467,7 +1471,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   // Audience: materialize selection for campaign
   app.post(
     '/platform/prospecting/campaigns/:campaignPublicId/materialize-audience',
-    { schema: { params: z.object({ campaignPublicId: z.uuid() }), body: z.object({ mode: z.enum(['explicit', 'allFiltered']), businessPublicIds: z.array(z.string().uuid()).optional(), filters: z.object({ categoryPublicIds: z.array(z.string().uuid()).optional(), cities: z.array(z.string()).optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional() }).optional(), excludedBusinessPublicIds: z.array(z.string().uuid()).optional() }) } },
+    { schema: { params: z.object({ campaignPublicId: z.uuid() }), body: z.object({ mode: z.enum(['explicit', 'allFiltered']), businessPublicIds: z.array(z.string().uuid()).optional(), filters: z.object({ categoryPublicIds: z.array(z.string().uuid()).optional(), states: z.array(z.string()).optional(), cities: z.array(z.string()).optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'sent', 'responded']).optional() }).optional(), excludedBusinessPublicIds: z.array(z.string().uuid()).optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
       const campaign = await options.client.prospectingCampaign.findUnique({
@@ -1476,7 +1480,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       });
       if (!campaign) throw new Error('Campaign not found');
 
-      const body = request.body as { mode: 'explicit' | 'allFiltered'; businessPublicIds?: string[]; filters?: { categoryPublicIds?: string[]; cities?: string[]; search?: string; contactStatus?: 'all' | 'never' | 'contacted' }; excludedBusinessPublicIds?: string[] };
+      const body = request.body as { mode: 'explicit' | 'allFiltered'; businessPublicIds?: string[]; filters?: { categoryPublicIds?: string[]; states?: string[]; cities?: string[]; search?: string; contactStatus?: 'all' | 'never' | 'sent' | 'responded' }; excludedBusinessPublicIds?: string[] };
 
       let businessPublicIds: string[];
 

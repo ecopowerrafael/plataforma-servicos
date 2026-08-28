@@ -123,7 +123,11 @@
       "Bash(sed -i \"s/it\\('12\\\\. respeita suppression/it\\('14. respeita suppression/g\" apps/api/src/modules/prospecting/prospecting-audience.test.ts)",
       "Bash(sed -i \"s/it\\('13\\\\. retorna vazio/it\\('15. retorna vazio/g\" apps/api/src/modules/prospecting/prospecting-audience.test.ts)",
       "Bash(sed -i \"s/it\\('14\\\\. grava nameSnapshot/it\\('16. grava nameSnapshot/g\" apps/api/src/modules/prospecting/prospecting-audience.test.ts)",
-      "Bash(grep -n \"it\\('[789]\\\\\\\\.\" \"C:/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api/src/modules/prospecting/prospecting-audience.test.ts\")"
+      "Bash(grep -n \"it\\('[789]\\\\\\\\.\" \"C:/Users/Code/OneDrive/Documentos/plataforma-servicos/apps/api/src/modules/prospecting/prospecting-audience.test.ts\")",
+      "Bash(git revert *)",
+      "Bash(xargs grep -l \"httpClient\")",
+      "Bash(tar --exclude=node_modules --exclude=.git --exclude=dist --exclude=build --exclude=.agents --exclude=.ohmyagent --exclude=.verdent --exclude=.dbg --exclude=\"*.log\" --exclude=\".env*\" --exclude=deploy_vps.ps1 --exclude=debug-*.md --exclude=.cache --exclude=.eslintcache --exclude=\"*.tar.gz\" -czf duo-vet-source-clean.tar.gz .)",
+      "Bash(tar -tzf duo-vet-source-clean.tar.gz)"
     ]
   }
 }

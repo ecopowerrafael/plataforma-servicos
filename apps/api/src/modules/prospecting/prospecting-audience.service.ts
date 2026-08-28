@@ -3,9 +3,10 @@ import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
 
 export interface PreviewFilterRequest {
   categoryPublicIds?: string[];
+  states?: string[];
   cities?: string[];
   search?: string;
-  contactStatus?: 'all' | 'never' | 'contacted';
+  contactStatus?: 'all' | 'never' | 'sent' | 'responded';
 }
 
 export interface AudienceCounters {
@@ -81,17 +82,31 @@ export class ProspectingAudienceService {
       where: { ...whereClause, whatsapp: { not: null } },
     });
 
-    // Get never contacted
+    // Get never sent (no outbound message history)
     const neverContacted = await this.client.directoryBusiness.count({
       where: {
         ...whereClause,
         whatsapp: { not: null },
-        prospectingLeads: { none: {} },
+        prospectingLeads: {
+          none: {
+            lastOutboundAt: { not: null },
+          },
+        },
       },
     });
 
-    // Get contacted
-    const contacted = withPhone - neverContacted;
+    // Get sent (has outbound, may or may not have response)
+    const sent = await this.client.directoryBusiness.count({
+      where: {
+        ...whereClause,
+        whatsapp: { not: null },
+        prospectingLeads: {
+          some: {
+            lastOutboundAt: { not: null },
+          },
+        },
+      },
+    });
 
     // Suppressed doesn't apply to preview (no campaign yet)
     const suppressed = 0;
@@ -101,7 +116,7 @@ export class ProspectingAudienceService {
       total,
       withPhone,
       neverContacted,
-      contacted,
+      contacted: sent,
       suppressed,
       eligible,
     };
@@ -238,23 +253,58 @@ export class ProspectingAudienceService {
       where.categoryId = { in: categoryIds };
     }
 
+    // Geographic filters: state + city
+    const geoConditions: any[] = [];
+
+    if (filters.states?.length) {
+      geoConditions.push({
+        OR: filters.states.map((state) => ({ state })),
+      });
+    }
+
     if (filters.cities?.length) {
-      where.OR = filters.cities
+      const cityFilters = filters.cities
         .map((cityState) => {
           const [city, state] = cityState.split('|');
           return city && state ? { city, state } : null;
         })
         .filter(Boolean);
+
+      if (cityFilters.length > 0) {
+        geoConditions.push({
+          OR: cityFilters,
+        });
+      }
+    }
+
+    if (geoConditions.length > 0) {
+      where.AND = geoConditions;
     }
 
     if (filters.search) {
       where.name = { contains: filters.search };
     }
 
+    // Contact status based on actual ProspectingLead history fields
     if (filters.contactStatus === 'never') {
-      where.prospectingLeads = { none: {} };
-    } else if (filters.contactStatus === 'contacted') {
-      where.prospectingLeads = { some: {} };
+      where.prospectingLeads = {
+        none: {
+          lastOutboundAt: { not: null },
+        },
+      };
+    } else if (filters.contactStatus === 'sent') {
+      where.prospectingLeads = {
+        some: {
+          lastOutboundAt: { not: null },
+          respondedAt: null,
+        },
+      };
+    } else if (filters.contactStatus === 'responded') {
+      where.prospectingLeads = {
+        some: {
+          respondedAt: { not: null },
+        },
+      };
     }
 
     return where;

@@ -1405,22 +1405,51 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     { schema: { querystring: z.object({ page: z.coerce.number().int().positive().optional().default(1), limit: z.coerce.number().int().positive().max(100).optional().default(50), categoryPublicIds: z.string().optional(), cities: z.string().optional(), search: z.string().optional(), contactStatus: z.enum(['all', 'never', 'contacted']).optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.read');
-      const q = request.query as any;
-      const categoryPublicIds = q.categoryPublicIds?.split(',').filter(Boolean);
-      const cities = q.cities?.split(',').filter(Boolean);
-      const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
-      const audienceService = new ProspectingAudienceService(options.client);
-      const result = await audienceService.getPreviewPage(
-        {
-          categoryPublicIds,
-          cities,
-          search: q.search,
-          contactStatus: q.contactStatus,
-        },
-        q.page,
-        q.limit
-      );
-      return result;
+      try {
+        const q = request.query as any;
+        const categoryPublicIds = q.categoryPublicIds?.split(',').filter(Boolean);
+        const cities = q.cities?.split(',').filter(Boolean);
+        const { ProspectingAudienceService } = await import('./prospecting-audience.service.js');
+        const audienceService = new ProspectingAudienceService(options.client);
+        const result = await audienceService.getPreviewPage(
+          {
+            categoryPublicIds,
+            cities,
+            search: q.search,
+            contactStatus: q.contactStatus,
+          },
+          q.page,
+          q.limit
+        );
+
+        // Diagnostic: test serialization
+        try {
+          JSON.stringify(result);
+        } catch (serializeError) {
+          request.log.error({
+            route: '/platform/prospecting/audience/preview',
+            requestId: request.id,
+            stage: 'serialize',
+            errorName: (serializeError as any)?.name,
+            errorMessage: (serializeError as any)?.message,
+          }, 'Prospecting audience preview serialization failed');
+          throw serializeError;
+        }
+
+        return result;
+      } catch (error) {
+        request.log.error({
+          route: '/platform/prospecting/audience/preview',
+          requestId: request.id,
+          errorName: (error as any)?.name,
+          errorMessage: (error as any)?.message,
+          errorCode: (error as any)?.code,
+          errorMeta: (error as any)?.meta,
+          diagnosticStage: (error as any)?.diagnosticStage,
+          stack: (error as any)?.stack,
+        }, 'Prospecting audience preview failed');
+        throw error;
+      }
     },
   );
 

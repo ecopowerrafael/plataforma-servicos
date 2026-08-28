@@ -108,86 +108,99 @@ export class ProspectingAudienceService {
   }
 
   public async getPreviewPage(filters: PreviewFilterRequest, page: number = 1, limit: number = 50) {
-    const offset = (page - 1) * limit;
-    const whereClause = await this.buildWhereClause(filters);
+    let stage = 'start';
+    try {
+      const offset = (page - 1) * limit;
+      stage = 'buildWhereClause';
+      const whereClause = await this.buildWhereClause(filters);
 
-    const businesses = await this.client.directoryBusiness.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        publicId: true,
-        name: true,
-        city: true,
-        state: true,
-        whatsapp: true,
-        category: {
-          select: { name: true },
+      stage = 'findMany:DirectoryBusiness';
+      const businesses = await this.client.directoryBusiness.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          publicId: true,
+          name: true,
+          city: true,
+          state: true,
+          whatsapp: true,
+          category: {
+            select: { name: true },
+          },
         },
-      },
-      orderBy: { name: 'asc' },
-      take: limit,
-      skip: offset,
-    });
+        orderBy: { name: 'asc' },
+        take: limit,
+        skip: offset,
+      });
 
-    const total = await this.client.directoryBusiness.count({ where: whereClause });
+      stage = 'count:DirectoryBusiness';
+      const total = await this.client.directoryBusiness.count({ where: whereClause });
 
-    // Get status for each business by checking ProspectingLead and ProspectingMessage
-    const businessIds = businesses.map((b) => b.id);
-    const leads = await this.client.prospectingLead.findMany({
-      where: {
-        directoryBusinessId: { in: businessIds },
-      },
-      select: {
-        directoryBusinessId: true,
-        respondedAt: true,
-        prospectingMessages: {
-          where: { direction: 'OUTBOUND' },
-          select: { id: true },
-          take: 1,
+      stage = 'findMany:ProspectingLead';
+      const businessIds = businesses.map((b) => b.id);
+      const leads = await this.client.prospectingLead.findMany({
+        where: {
+          directoryBusinessId: { in: businessIds },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['directoryBusinessId'],
-    });
+        select: {
+          directoryBusinessId: true,
+          respondedAt: true,
+          prospectingMessages: {
+            where: { direction: 'OUTBOUND' },
+            select: { id: true },
+            take: 1,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        distinct: ['directoryBusinessId'],
+      });
 
-    const statusMap = new Map<bigint, { respondedAt: boolean; hasOutbound: boolean }>();
-    for (const lead of leads) {
-      if (!statusMap.has(lead.directoryBusinessId)) {
-        const msgs = lead.prospectingMessages as any[] | undefined;
-        statusMap.set(lead.directoryBusinessId, {
-          respondedAt: !!lead.respondedAt,
-          hasOutbound: (msgs?.length ?? 0) > 0,
-        });
-      }
-    }
-
-    return {
-      data: businesses.map((b: any) => {
-        const status = statusMap.get(b.id);
-        let statusLabel = 'Nunca enviado';
-        if (status?.respondedAt) {
-          statusLabel = 'Respondeu';
-        } else if (status?.hasOutbound) {
-          statusLabel = 'Já enviado';
+      stage = 'buildStatusMap';
+      const statusMap = new Map<bigint, { respondedAt: boolean; hasOutbound: boolean }>();
+      for (const lead of leads) {
+        if (!statusMap.has(lead.directoryBusinessId)) {
+          const msgs = lead.prospectingMessages as any[] | undefined;
+          statusMap.set(lead.directoryBusinessId, {
+            respondedAt: !!lead.respondedAt,
+            hasOutbound: (msgs?.length ?? 0) > 0,
+          });
         }
+      }
 
-        return {
-          publicId: b.publicId,
-          name: b.name,
-          category: b.category?.name || '',
-          city: b.city,
-          state: b.state,
-          phone: b.whatsapp ? this.formatPhone(b.whatsapp) : '',
-          status: statusLabel,
-        };
-      }),
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    };
+      stage = 'mapBusinessesForResponse';
+      const result = {
+        data: businesses.map((b: any) => {
+          const status = statusMap.get(b.id);
+          let statusLabel = 'Nunca enviado';
+          if (status?.respondedAt) {
+            statusLabel = 'Respondeu';
+          } else if (status?.hasOutbound) {
+            statusLabel = 'Já enviado';
+          }
+
+          return {
+            publicId: b.publicId,
+            name: b.name,
+            category: b.category?.name || '',
+            city: b.city,
+            state: b.state,
+            phone: b.whatsapp ? this.formatPhone(b.whatsapp) : '',
+            status: statusLabel,
+          };
+        }),
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      };
+
+      stage = 'return';
+      return result;
+    } catch (error) {
+      throw Object.assign(error as any, { diagnosticStage: stage });
+    }
   }
 
   public async getCountersForSelection(

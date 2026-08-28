@@ -201,6 +201,106 @@ describe('ProspectingAudienceService', () => {
       expect(result1.pagination.pages).toBe(3);
       expect(result2.pagination.page).toBe(2);
     });
+
+    it('11. filtra por uma cidade corretamente', async () => {
+      mockClient.directoryBusiness.findMany.mockResolvedValue([
+        {
+          id: BigInt(1),
+          publicId: 'id-1',
+          name: 'Negócio 1',
+          whatsapp: '11999999999',
+          city: 'Rio Branco',
+          state: 'AC',
+          category: { name: 'Cat 1' },
+        },
+      ]);
+      mockClient.directoryBusiness.count.mockResolvedValue(1);
+      mockClient.prospectingLead.findMany.mockResolvedValue([]);
+
+      const result = await service.getPreviewPage({ cities: ['Rio Branco|AC'] }, 1, 50);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].city).toBe('Rio Branco');
+      expect(mockClient.directoryBusiness.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [{ city: 'Rio Branco', state: 'AC' }],
+          }),
+        })
+      );
+    });
+
+    it('12. filtra por múltiplas cidades com OR', async () => {
+      mockClient.directoryBusiness.findMany.mockResolvedValue([
+        {
+          id: BigInt(1),
+          publicId: 'id-1',
+          name: 'Negócio 1',
+          whatsapp: '11999999999',
+          city: 'Rio Branco',
+          state: 'AC',
+          category: { name: 'Cat 1' },
+        },
+        {
+          id: BigInt(2),
+          publicId: 'id-2',
+          name: 'Negócio 2',
+          whatsapp: '11999999998',
+          city: 'Arapiraca',
+          state: 'AL',
+          category: { name: 'Cat 1' },
+        },
+      ]);
+      mockClient.directoryBusiness.count.mockResolvedValue(2);
+      mockClient.prospectingLead.findMany.mockResolvedValue([]);
+
+      const result = await service.getPreviewPage({ cities: ['Rio Branco|AC', 'Arapiraca|AL'] }, 1, 50);
+
+      expect(result.data).toHaveLength(2);
+      expect(mockClient.directoryBusiness.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [
+              { city: 'Rio Branco', state: 'AC' },
+              { city: 'Arapiraca', state: 'AL' },
+            ],
+          }),
+        })
+      );
+    });
+
+    it('13. combina filtro de categoria com cidade corretamente', async () => {
+      mockClient.directoryCategory.findMany.mockResolvedValue([{ id: BigInt(1) }]);
+      mockClient.directoryBusiness.findMany.mockResolvedValue([
+        {
+          id: BigInt(1),
+          publicId: 'id-1',
+          name: 'Barbearia 1',
+          whatsapp: '11999999999',
+          city: 'Rio Branco',
+          state: 'AC',
+          category: { name: 'Barbearia' },
+        },
+      ]);
+      mockClient.directoryBusiness.count.mockResolvedValue(1);
+      mockClient.prospectingLead.findMany.mockResolvedValue([]);
+
+      const result = await service.getPreviewPage(
+        { categoryPublicIds: ['cat-uuid'], cities: ['Rio Branco|AC'] },
+        1,
+        50
+      );
+
+      expect(result.data).toHaveLength(1);
+      expect(mockClient.directoryBusiness.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            categoryId: { in: [BigInt(1)] },
+            OR: [{ city: 'Rio Branco', state: 'AC' }],
+          }),
+        })
+      );
+    });
   });
 });
 

@@ -122,8 +122,9 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
     setPage(1);
   };
 
-  const handleCityToggle = (city: string) => {
-    setCities((prev) => (prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]));
+  const handleCityToggle = (cityObj: City) => {
+    const cityId = `${cityObj.city}|${cityObj.state}`;
+    setCities((prev) => (prev.includes(cityId) ? prev.filter((c) => c !== cityId) : [...prev, cityId]));
     setPage(1);
   };
 
@@ -228,12 +229,15 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
             </div>
           ) : (
             <div className="checkbox-group">
-              {citiesQuery.data?.map((city) => (
-                <label key={city.label} className="checkbox-label">
-                  <input type="checkbox" checked={cities.includes(city.label)} onChange={() => handleCityToggle(city.label)} />
-                  {city.label}
-                </label>
-              ))}
+              {citiesQuery.data?.map((city) => {
+                const cityId = `${city.city}|${city.state}`;
+                return (
+                  <label key={city.label} className="checkbox-label">
+                    <input type="checkbox" checked={cities.includes(cityId)} onChange={() => handleCityToggle(city)} />
+                    {city.label}
+                  </label>
+                );
+              })}
             </div>
           )}
         </div>

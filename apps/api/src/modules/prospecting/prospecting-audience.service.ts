@@ -241,7 +241,7 @@ export class ProspectingAudienceService {
     if (filters.cities?.length) {
       where.OR = filters.cities
         .map((cityState) => {
-          const [city, state] = cityState.split(',').map((s) => s.trim());
+          const [city, state] = cityState.split('|');
           return city && state ? { city, state } : null;
         })
         .filter(Boolean);

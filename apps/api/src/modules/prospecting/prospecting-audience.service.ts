@@ -113,20 +113,13 @@ export class ProspectingAudienceService {
 
     const businesses = await this.client.directoryBusiness.findMany({
       where: whereClause,
-      include: {
-        prospectingLeads: {
-          select: {
-            respondedAt: true,
-          },
-          take: 1,
-          orderBy: { createdAt: 'desc' as const },
-        },
-        prospectingMessages: {
-          where: { direction: 'OUTBOUND' },
-          select: { id: true },
-          take: 1,
-          orderBy: { createdAt: 'desc' as const },
-        },
+      select: {
+        id: true,
+        publicId: true,
+        name: true,
+        city: true,
+        state: true,
+        whatsapp: true,
         category: {
           select: { name: true },
         },
@@ -138,16 +131,44 @@ export class ProspectingAudienceService {
 
     const total = await this.client.directoryBusiness.count({ where: whereClause });
 
+    // Get status for each business by checking ProspectingLead and ProspectingMessage
+    const businessIds = businesses.map((b) => b.id);
+    const leads = await this.client.prospectingLead.findMany({
+      where: {
+        directoryBusinessId: { in: businessIds },
+      },
+      select: {
+        directoryBusinessId: true,
+        respondedAt: true,
+        prospectingMessages: {
+          where: { direction: 'OUTBOUND' },
+          select: { id: true },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['directoryBusinessId'],
+    });
+
+    const statusMap = new Map<bigint, { respondedAt: boolean; hasOutbound: boolean }>();
+    for (const lead of leads) {
+      if (!statusMap.has(lead.directoryBusinessId)) {
+        const msgs = lead.prospectingMessages as any[] | undefined;
+        statusMap.set(lead.directoryBusinessId, {
+          respondedAt: !!lead.respondedAt,
+          hasOutbound: (msgs?.length ?? 0) > 0,
+        });
+      }
+    }
+
     return {
       data: businesses.map((b: any) => {
-        const lastLead = b.prospectingLeads?.[0];
-        const hasOutbound = (b.prospectingMessages?.length ?? 0) > 0;
-
-        let status = 'Nunca enviado';
-        if (lastLead?.respondedAt) {
-          status = 'Respondeu';
-        } else if (hasOutbound) {
-          status = 'Já enviado';
+        const status = statusMap.get(b.id);
+        let statusLabel = 'Nunca enviado';
+        if (status?.respondedAt) {
+          statusLabel = 'Respondeu';
+        } else if (status?.hasOutbound) {
+          statusLabel = 'Já enviado';
         }
 
         return {
@@ -157,7 +178,7 @@ export class ProspectingAudienceService {
           city: b.city,
           state: b.state,
           phone: b.whatsapp ? this.formatPhone(b.whatsapp) : '',
-          status,
+          status: statusLabel,
         };
       }),
       pagination: {

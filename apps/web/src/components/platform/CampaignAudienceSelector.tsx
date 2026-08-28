@@ -289,6 +289,13 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
         <h3>Lista de Estabelecimentos</h3>
         {audienceQuery.isLoading ? (
           <p>Carregando...</p>
+        ) : audienceQuery.isError ? (
+          <div className="form-error">
+            ✗ Erro ao carregar estabelecimentos
+            <button onClick={() => void audienceQuery.refetch()} style={{ marginLeft: '1rem', cursor: 'pointer' }}>
+              Tentar novamente
+            </button>
+          </div>
         ) : (
           <>
             <div className="list-header">

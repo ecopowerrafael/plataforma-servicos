@@ -16,7 +16,7 @@ describe('ProspectingAudienceService', () => {
       directoryCategory: {
         findMany: vi.fn(),
       },
-      prospectingLeads: {
+      prospectingLead: {
         findMany: vi.fn(),
       },
       prospectingSuppression: {
@@ -105,40 +105,72 @@ describe('ProspectingAudienceService', () => {
   });
 
   describe('getPreviewPage', () => {
-    it('7. retorna status correto baseado em OUTBOUND messages', async () => {
+    it('7. executa query SEM erro com relação correta ProspectingLead → ProspectingMessage', async () => {
       mockClient.directoryBusiness.findMany.mockResolvedValue([
         {
+          id: BigInt(1),
           publicId: 'id-1',
           name: 'Negócio 1',
           whatsapp: '11999999999',
           city: 'São Paulo',
           state: 'SP',
-          prospectingLeads: [],
-          prospectingMessages: [], // Sem OUTBOUND
+          category: { name: 'Cat 1' },
+        },
+      ]);
+      mockClient.directoryBusiness.count.mockResolvedValue(1);
+      mockClient.prospectingLead.findMany.mockResolvedValue([
+        {
+          directoryBusinessId: BigInt(1),
+          respondedAt: null,
+          prospectingMessages: [],
+        },
+      ]);
+
+      // Não deve lançar erro sobre relação inexistente
+      const result = await service.getPreviewPage({}, 1, 50);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].status).toBe('Nunca enviado');
+      expect(mockClient.directoryBusiness.findMany).toHaveBeenCalled();
+      expect(mockClient.prospectingLead.findMany).toHaveBeenCalled();
+    });
+
+    it('8. retorna status correto baseado em histórico de OUTBOUND messages', async () => {
+      mockClient.directoryBusiness.findMany.mockResolvedValue([
+        {
+          id: BigInt(1),
+          publicId: 'id-1',
+          name: 'Negócio 1',
+          whatsapp: '11999999999',
+          city: 'São Paulo',
+          state: 'SP',
           category: { name: 'Cat 1' },
         },
         {
+          id: BigInt(2),
           publicId: 'id-2',
           name: 'Negócio 2',
           whatsapp: '11999999998',
           city: 'São Paulo',
           state: 'SP',
-          prospectingLeads: [],
-          prospectingMessages: [{ id: 1 }], // Com OUTBOUND
           category: { name: 'Cat 1' },
         },
         {
+          id: BigInt(3),
           publicId: 'id-3',
           name: 'Negócio 3',
           whatsapp: '11999999997',
           city: 'São Paulo',
           state: 'SP',
-          prospectingLeads: [{ respondedAt: new Date() }], // Respondeu
-          prospectingMessages: [{ id: 2 }],
           category: { name: 'Cat 1' },
         },
       ]);
       mockClient.directoryBusiness.count.mockResolvedValue(3);
+      mockClient.prospectingLead.findMany.mockResolvedValue([
+        { directoryBusinessId: BigInt(1), respondedAt: null, prospectingMessages: [] },
+        { directoryBusinessId: BigInt(2), respondedAt: null, prospectingMessages: [{ id: 1 }] },
+        { directoryBusinessId: BigInt(3), respondedAt: new Date(), prospectingMessages: [{ id: 2 }] },
+      ]);
 
       const result = await service.getPreviewPage({}, 1, 50);
 
@@ -147,20 +179,20 @@ describe('ProspectingAudienceService', () => {
       expect(result.data[2].status).toBe('Respondeu');
     });
 
-    it('8. paginação funciona corretamente', async () => {
+    it('10. paginação funciona corretamente', async () => {
       mockClient.directoryBusiness.findMany.mockResolvedValue(
         Array.from({ length: 50 }, (_, i) => ({
+          id: BigInt(i + 1),
           publicId: `id-${i}`,
           name: `Negócio ${i}`,
           whatsapp: '11999999999',
           city: 'São Paulo',
           state: 'SP',
-          prospectingLeads: [],
-          prospectingMessages: [],
           category: { name: 'Cat 1' },
         }))
       );
       mockClient.directoryBusiness.count.mockResolvedValue(150);
+      mockClient.prospectingLead.findMany.mockResolvedValue([]);
 
       const result1 = await service.getPreviewPage({}, 1, 50);
       const result2 = await service.getPreviewPage({}, 2, 50);
@@ -202,7 +234,7 @@ describe('ProspectingRepository - materializeLeadsSelective', () => {
     repository = new ProspectingRepository(mockClient);
   });
 
-  it('9. materializa somente negócios explicitamente selecionados', async () => {
+  it('11. materializa somente negócios explicitamente selecionados', async () => {
     const campaignId = BigInt(1);
     const businessPublicIds = ['id-1', 'id-2'];
 
@@ -222,7 +254,7 @@ describe('ProspectingRepository - materializeLeadsSelective', () => {
     expect(result.duplicates).toBe(0);
   });
 
-  it('10. retorna contadores corretos para telefone inválido', async () => {
+  it('12. retorna contadores corretos para telefone inválido', async () => {
     const campaignId = BigInt(1);
     const businessPublicIds = ['id-1', 'id-2'];
 
@@ -240,7 +272,7 @@ describe('ProspectingRepository - materializeLeadsSelective', () => {
     expect(result.invalidPhone).toBe(1);
   });
 
-  it('11. detecta duplicatas existentes', async () => {
+  it('13. detecta duplicatas existentes', async () => {
     const campaignId = BigInt(1);
     const businessPublicIds = ['id-1', 'id-2'];
 
@@ -260,7 +292,7 @@ describe('ProspectingRepository - materializeLeadsSelective', () => {
     expect(result.duplicates).toBe(1);
   });
 
-  it('12. respeita suppression', async () => {
+  it('14. respeita suppression', async () => {
     const campaignId = BigInt(1);
     const businessPublicIds = ['id-1', 'id-2'];
 
@@ -280,7 +312,7 @@ describe('ProspectingRepository - materializeLeadsSelective', () => {
     expect(result.suppressed).toBe(1);
   });
 
-  it('13. retorna vazio quando nenhum businessPublicId fornecido', async () => {
+  it('15. retorna vazio quando nenhum businessPublicId fornecido', async () => {
     const campaignId = BigInt(1);
 
     const result = await repository.materializeLeadsSelective(campaignId, []);
@@ -291,7 +323,7 @@ describe('ProspectingRepository - materializeLeadsSelective', () => {
     expect(result.duplicates).toBe(0);
   });
 
-  it('14. grava nameSnapshot com nome real do estabelecimento', async () => {
+  it('16. grava nameSnapshot com nome real do estabelecimento', async () => {
     const campaignId = BigInt(1);
     const businessPublicIds = ['id-1'];
 

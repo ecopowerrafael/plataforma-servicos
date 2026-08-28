@@ -1438,16 +1438,27 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
 
         return result;
       } catch (error) {
-        request.log.error({
-          route: '/platform/prospecting/audience/preview',
-          requestId: request.id,
-          errorName: (error as any)?.name,
-          errorMessage: (error as any)?.message,
-          errorCode: (error as any)?.code,
-          errorMeta: (error as any)?.meta,
-          diagnosticStage: (error as any)?.diagnosticStage,
-          stack: (error as any)?.stack,
-        }, 'Prospecting audience preview failed');
+        let meta = '';
+        try {
+          const metaObj = (error as any)?.meta;
+          if (metaObj) {
+            meta = JSON.stringify(metaObj);
+          }
+        } catch {
+          meta = '[unserializable]';
+        }
+
+        const diagnostic = [
+          '[PROSPECTING_AUDIENCE_PREVIEW_ERROR]',
+          `requestId=${request.id}`,
+          `stage=${(error as any)?.diagnosticStage ?? 'unknown'}`,
+          `name=${error instanceof Error ? error.name : 'unknown'}`,
+          `code=${(error as any)?.code ?? 'none'}`,
+          `message=${error instanceof Error ? error.message : String(error)}`,
+          meta ? `meta=${meta}` : '',
+        ].filter(Boolean).join(' | ');
+
+        request.log.error(diagnostic);
         throw error;
       }
     },

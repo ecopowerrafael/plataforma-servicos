@@ -231,6 +231,43 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
     return selectedBusinessPublicIds.size;
   }, [selectionMode, selectedBusinessPublicIds.size, excludedBusinessPublicIds.size, counters?.eligible]);
 
+  const handleClearFilters = () => {
+    setCategoryPublicIds([]);
+    setStates([]);
+    setCities([]);
+    setSearch('');
+    setCitySearch('');
+    setContactStatus('all');
+    setPage(1);
+  };
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (categoryPublicIds.length > 0) count++;
+    if (states.length > 0) count++;
+    if (cities.length > 0) count++;
+    if (search) count++;
+    if (contactStatus !== 'all') count++;
+    return count;
+  }, [categoryPublicIds, states, cities, search, contactStatus]);
+
+  const getActiveFiltersSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (categoryPublicIds.length > 0) parts.push(`${categoryPublicIds.length} categoria(s)`);
+    if (states.length > 0) parts.push(`${states.length} estado(s)`);
+    if (cities.length > 0) parts.push(`${cities.length} cidade(s)`);
+    if (search) parts.push(`Busca: "${search}"`);
+    if (contactStatus !== 'all') {
+      const statusLabels: Record<string, string> = {
+        never: 'Nunca enviados',
+        sent: 'Já enviados',
+        responded: 'Responderam',
+      };
+      parts.push(statusLabels[contactStatus]);
+    }
+    return parts.join(' • ');
+  }, [categoryPublicIds, states, cities, search, contactStatus]);
+
   const handleConfirm = () => {
     const selection: AudienceSelection =
       selectionMode === 'allFiltered'
@@ -286,7 +323,46 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
         </div>
 
         <div className="filter-group">
-          <label>Cidades</label>
+          <label>Estados</label>
+          {citiesQuery.isLoading ? (
+            <p>Carregando...</p>
+          ) : citiesQuery.isError ? (
+            <div className="form-error">
+              ✗ Erro ao carregar estados
+              <button onClick={() => void citiesQuery.refetch()} style={{ marginLeft: '1rem', cursor: 'pointer' }}>
+                Tentar novamente
+              </button>
+            </div>
+          ) : (
+            <div className="checkbox-group">
+              {availableStates.map((state) => (
+                <label key={state} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={states.includes(state)}
+                    onChange={() => handleStateToggle(state)}
+                  />
+                  {state}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="filter-group">
+          <label>
+            Buscar cidade
+            <input
+              type="text"
+              value={citySearch}
+              onChange={(e) => setCitySearch(e.target.value)}
+              placeholder="Digite cidade ou UF"
+            />
+          </label>
+        </div>
+
+        <div className="filter-group">
+          <label>Cidades por Estado</label>
           {citiesQuery.isLoading ? (
             <p>Carregando...</p>
           ) : citiesQuery.isError ? (
@@ -297,16 +373,39 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
               </button>
             </div>
           ) : (
-            <div className="checkbox-group">
-              {citiesQuery.data?.map((city) => {
-                const cityId = `${city.city}|${city.state}`;
-                return (
-                  <label key={city.label} className="checkbox-label">
-                    <input type="checkbox" checked={cities.includes(cityId)} onChange={() => handleCityToggle(city)} />
-                    {city.label}
-                  </label>
-                );
-              })}
+            <div className="states-container">
+              {Object.entries(filteredCitiesByState).map(([state, statesCities]) => (
+                <details key={state} className="state-group">
+                  <summary>
+                    {state} ({statesCities.length})
+                  </summary>
+                  <div className="checkbox-group">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={states.includes(state)}
+                        onChange={() => handleStateToggle(state)}
+                      />
+                      Todas as cidades de {state}
+                    </label>
+                    {statesCities.map((city) => {
+                      const cityId = `${city.city}|${city.state}`;
+                      const isStateSelected = states.includes(state);
+                      return (
+                        <label key={city.label} className="checkbox-label" style={{ marginLeft: '1.5rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={cities.includes(cityId)}
+                            onChange={() => handleCityToggle(city)}
+                            disabled={isStateSelected}
+                          />
+                          {city.city}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </details>
+              ))}
             </div>
           )}
         </div>
@@ -346,7 +445,29 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
       </section>
 
       <section className="audience-summary">
-        <h3>Resumo do Público</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ margin: 0 }}>Resumo do Público</h3>
+          {activeFiltersCount > 0 && (
+            <button
+              onClick={handleClearFilters}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#f0f0f0',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+              }}
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+        {activeFiltersCount > 0 && (
+          <p style={{ fontSize: '0.875rem', color: '#666', marginBottom: '1rem' }}>
+            Filtros ativos: {getActiveFiltersSummary}
+          </p>
+        )}
         {countersQuery.isLoading ? (
           <p>Carregando...</p>
         ) : countersQuery.isError ? (
@@ -368,11 +489,11 @@ export function CampaignAudienceSelector({ onSelectionChange, initialSelection }
             </div>
             <div className="counter">
               <strong>{counters?.neverContacted || 0}</strong>
-              <span>Nunca contatados</span>
+              <span>Nunca enviados</span>
             </div>
             <div className="counter">
               <strong>{counters?.contacted || 0}</strong>
-              <span>Já contatados</span>
+              <span>Já enviados</span>
             </div>
             <div className="counter">
               <strong>{counters?.suppressed || 0}</strong>

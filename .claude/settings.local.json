@@ -127,7 +127,8 @@
       "Bash(git revert *)",
       "Bash(xargs grep -l \"httpClient\")",
       "Bash(tar --exclude=node_modules --exclude=.git --exclude=dist --exclude=build --exclude=.agents --exclude=.ohmyagent --exclude=.verdent --exclude=.dbg --exclude=\"*.log\" --exclude=\".env*\" --exclude=deploy_vps.ps1 --exclude=debug-*.md --exclude=.cache --exclude=.eslintcache --exclude=\"*.tar.gz\" -czf duo-vet-source-clean.tar.gz .)",
-      "Bash(tar -tzf duo-vet-source-clean.tar.gz)"
+      "Bash(tar -tzf duo-vet-source-clean.tar.gz)",
+      "Bash(git commit -m 'FEAT PROSPECTING — renderizar seletor completo de estados e cidades *)"
     ]
   }
 }

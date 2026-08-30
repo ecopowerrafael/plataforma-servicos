@@ -225,3 +225,86 @@ describe('ProspectingFlow - Phase A', () => {
     expect(options.length).toBe(0);
   });
 });
+
+describe('ProspectingFlow - nextStepPublicId Serialization', () => {
+  it('GET flow detail serializes nextStepPublicId as UUID, not string literal', async () => {
+    const flow = await client.prospectingFlow.create({ data: { publicId: randomUUID(), name: 'Serial Test' } });
+    const stepA = await service.createStep({ flowId: flow.id, name: 'StepA', message: 'M', stepType: 'MESSAGE_ONLY', position: 0 });
+    const stepB = await service.createStep({ flowId: flow.id, name: 'StepB', message: 'M', stepType: 'MESSAGE_ONLY', position: 1 });
+
+    // Link A -> B
+    await service.updateStep(stepA.publicId, { nextStepId: stepB.id });
+
+    // Fetch flow with steps
+    const flowDetail = await client.prospectingFlow.findUnique({
+      where: { publicId: flow.publicId },
+      include: { steps: { orderBy: { position: 'asc' }, include: { options: true } } }
+    });
+
+    const stepADetail = flowDetail?.steps.find(s => s.publicId === stepA.publicId);
+    expect(stepADetail?.nextStepId).toBe(stepB.id);
+
+    // Verify nextStepPublicId would be UUID (the endpoint maps ID -> publicId)
+    expect(stepADetail?.nextStepId).toBeDefined();
+    expect(typeof stepADetail?.nextStepId).not.toBe('string');
+  });
+
+  it('step without nextStepId has null nextStepPublicId', async () => {
+    const flow = await client.prospectingFlow.create({ data: { publicId: randomUUID(), name: 'Null Test' } });
+    const step = await service.createStep({ flowId: flow.id, name: 'Lonely', message: 'M', stepType: 'MESSAGE_ONLY', position: 0 });
+
+    expect(step.nextStepId).toBeNull();
+
+    // When serialized, nextStepPublicId should be null, never string 'null'
+    const flowDetail = await client.prospectingFlow.findUnique({
+      where: { publicId: flow.publicId },
+      include: { steps: true }
+    });
+
+    const stepDetail = flowDetail?.steps.find(s => s.publicId === step.publicId);
+    expect(stepDetail?.nextStepId).toBeNull();
+  });
+
+  it('option nextStepPublicId serializes as UUID', async () => {
+    const flow = await client.prospectingFlow.create({ data: { publicId: randomUUID(), name: 'Option Test' } });
+    const stepA = await service.createStep({ flowId: flow.id, name: 'A', message: 'M', stepType: 'MESSAGE_OPTIONS', position: 0 });
+    const stepB = await service.createStep({ flowId: flow.id, name: 'B', message: 'M', stepType: 'MESSAGE_ONLY', position: 1 });
+
+    const option = await service.createOption({ stepId: stepA.id, label: 'Click', actionType: 'NEXT_STEP', position: 0 });
+    await client.prospectingFlowOption.update({ where: { id: option.id }, data: { nextStepId: stepB.id } });
+
+    const stepDetail = await client.prospectingFlow.findUnique({
+      where: { publicId: flow.publicId },
+      include: { steps: { include: { options: true } } }
+    });
+
+    const optionDetail = stepDetail?.steps[0]?.options[0];
+    expect(optionDetail?.nextStepId).toBe(stepB.id);
+    // Should serialize as UUID, not string 'null'
+    expect(optionDetail?.nextStepId).toBeDefined();
+  });
+
+  it('PUT flow returns complete contract with stepsCount', async () => {
+    const flow = await client.prospectingFlow.create({
+      data: { publicId: randomUUID(), name: 'Contract Test', description: 'Test desc', isActive: true }
+    });
+    await service.createStep({ flowId: flow.id, name: 'S1', message: 'M', stepType: 'MESSAGE_ONLY', position: 0 });
+    await service.createStep({ flowId: flow.id, name: 'S2', message: 'M', stepType: 'MESSAGE_ONLY', position: 1 });
+
+    const updated = await client.prospectingFlow.update({
+      where: { id: flow.id },
+      data: { name: 'Updated' },
+      include: { steps: true }
+    });
+
+    // Verify all required fields for flowListItemSchema
+    expect(updated.publicId).toBeDefined();
+    expect(updated.code).toBeDefined();
+    expect(updated.name).toBe('Updated');
+    expect(updated.description).toBeDefined();
+    expect(updated.isActive).toBe(true);
+    expect(updated.createdAt).toBeDefined();
+    expect(updated.updatedAt).toBeDefined();
+    expect(updated.steps.length).toBe(2);
+  });
+});

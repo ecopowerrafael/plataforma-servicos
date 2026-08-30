@@ -263,7 +263,7 @@ const FlowEditor = ({
   const [flowDesc, setFlowDesc] = useState('');
   const [flowActive, setFlowActive] = useState(true);
 
-  const { data: flowData, isLoading: isLoadingFlow, error: flowError } = useQuery<z.infer<typeof flowDetailSchema>, Error, z.infer<typeof flowDetailSchema>, string[]>({
+  const { data: flowData, isLoading: isLoadingFlow, error: flowError, refetch: refetchFlow } = useQuery<z.infer<typeof flowDetailSchema>, Error, z.infer<typeof flowDetailSchema>, string[]>({
     queryKey: ['prospecting-flow', flowId],
     queryFn: async () => {
       return httpClient.request(`/platform/prospecting/flows/${flowId}`, { schema: flowDetailSchema });
@@ -325,7 +325,7 @@ const FlowEditor = ({
           </button>
           <div className="flow-editor-error">
             <p>Não foi possível carregar o fluxo.</p>
-            <button className="primary-button" onClick={() => window.location.reload()}>
+            <button className="primary-button" onClick={() => void refetchFlow()}>
               Tentar novamente
             </button>
             <button className="secondary-button" onClick={onClose}>

@@ -155,7 +155,8 @@
       "Bash(git commit -m 'FIX DIRECTORY — Implementar fallback Geoapify geocoding \\(bloqueador #8\\) *)",
       "Bash(git commit -m 'FIX DIRECTORY — Melhorar matching de cidades com acentuação \\(bloqueador #9\\) *)",
       "Bash(git commit -m 'FIX DIRECTORY — Segurança: tratamento seguro de erros em location-test \\(bloqueador #10\\) *)",
-      "Bash(git commit -m 'FIX DIRECTORY — Validação de UX do /encontre \\(bloqueador #11\\) *)"
+      "Bash(git commit -m 'FIX DIRECTORY — Validação de UX do /encontre \\(bloqueador #11\\) *)",
+      "Bash(git commit -m 'FIX DIRECTORY — Adicionar suite de testes \\(bloqueador #12\\) *)"
     ]
   }
 }

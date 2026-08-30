@@ -29,7 +29,9 @@ export class DirectoryLocationService {
     const location = await this.resolveCep(cep);
     const category = await this.client.directoryCategory.findFirst({ where: { slug: categorySlug, active: true } });
     if (category === null) throw new AppError({ code: 'DIRECTORY_CATEGORY_NOT_FOUND', message: 'Categoria não encontrada.', statusCode: 404 });
-    const local = await this.client.directoryBusiness.findMany({ where: { categoryId: category.id, city: location.city, state: location.state, active: true }, orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }], take: 10 });
+    // Normalizar cidade: remover acentos para matching mais flexível
+    const cityNorm = norm(location.city);
+    const local = await this.client.directoryBusiness.findMany({ where: { categoryId: category.id, state: location.state, active: true }, orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }], take: 50 }).then((results) => results.filter((item) => norm(item.city) === cityNorm).slice(0, 10));
     const localResults: DirectorySearchResult[] = local.map((item) => ({ source: 'DIRECTORY', publicId: item.publicId, name: item.name, address: item.rawAddress, city: item.city, state: item.state, neighborhood: item.neighborhood, phone: item.phone, whatsapp: item.whatsapp, website: item.websiteUrl, latitude: null, longitude: null, distanceMeters: null }));
     const minimum = this.options.localMinResults ?? 5;
     const external = localResults.length >= minimum ? [] : await this.geoapify(category.id, category.geoapifyCategories, category.externalSearchTerms, location);

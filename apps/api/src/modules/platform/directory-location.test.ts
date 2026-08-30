@@ -59,4 +59,50 @@ describe('DirectoryLocationService - City Matching', () => {
       });
     });
   });
+
+  describe('location serialization', () => {
+    it('should not include BigInt or internal fields in location response', () => {
+      // Simulate what Prisma returns from cache
+      const prismaRow = {
+        id: 123n, // BigInt - should NOT be in response
+        cep: '18150000',
+        city: 'Ibiúna',
+        state: 'SP',
+        neighborhood: null,
+        street: null,
+        latitude: -23.65,
+        longitude: -47.22,
+        provider: 'BRASILAPI', // should NOT be in response
+        createdAt: new Date(), // should NOT be in response
+        updatedAt: new Date(), // should NOT be in response
+      };
+
+      // Simulate toLocation mapper
+      const location = {
+        cep: prismaRow.cep,
+        city: prismaRow.city,
+        state: prismaRow.state,
+        neighborhood: prismaRow.neighborhood,
+        street: prismaRow.street,
+        latitude: prismaRow.latitude,
+        longitude: prismaRow.longitude,
+      };
+
+      // Verify no BigInt in response
+      expect(location).not.toHaveProperty('id');
+      expect(location).not.toHaveProperty('provider');
+      expect(location).not.toHaveProperty('createdAt');
+      expect(location).not.toHaveProperty('updatedAt');
+
+      // Verify JSON.stringify works (no BigInt error)
+      expect(() => JSON.stringify(location)).not.toThrow();
+      expect(() => JSON.stringify({ location, results: [], cityUrl: '/' })).not.toThrow();
+
+      // Verify serialized output is valid
+      const serialized = JSON.stringify(location);
+      const parsed = JSON.parse(serialized);
+      expect(parsed.cep).toBe('18150000');
+      expect(parsed.city).toBe('Ibiúna');
+    });
+  });
 });

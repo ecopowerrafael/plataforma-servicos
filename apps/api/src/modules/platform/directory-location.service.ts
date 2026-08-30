@@ -41,7 +41,9 @@ export class DirectoryLocationService {
 
   private async resolveCep(cep: string): Promise<Location> {
     const cached = await this.client.directoryPostalCodeCache.findUnique({ where: { cep } });
-    if (cached !== null && cached.updatedAt > new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)) return cached;
+    if (cached !== null && cached.updatedAt > new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)) {
+      return this.toLocation(cached);
+    }
     const fromBrasilApi = await this.fromBrasilApi(cep);
     let location = fromBrasilApi ?? await this.fromViaCep(cep);
     if (location === null) throw new AppError({ code: 'DIRECTORY_CEP_NOT_FOUND', message: 'Não encontramos esse CEP. Confira os números e tente novamente.', statusCode: 404 });
@@ -53,7 +55,19 @@ export class DirectoryLocationService {
       }
     }
     const saved = await this.client.directoryPostalCodeCache.upsert({ where: { cep }, update: { ...location, provider: fromBrasilApi === null ? 'VIACEP' : 'BRASILAPI' }, create: { ...location, cep, provider: fromBrasilApi === null ? 'VIACEP' : 'BRASILAPI' } });
-    return saved;
+    return this.toLocation(saved);
+  }
+
+  private toLocation(row: any): Location {
+    return {
+      cep: row.cep,
+      city: row.city,
+      state: row.state,
+      neighborhood: row.neighborhood,
+      street: row.street,
+      latitude: row.latitude,
+      longitude: row.longitude,
+    };
   }
 
   private async fromBrasilApi(cep: string): Promise<Location | null> {

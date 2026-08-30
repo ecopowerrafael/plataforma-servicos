@@ -26,6 +26,8 @@ interface ProspectingFlow {
 interface ProspectingCampaignReviewProps {
   audienceSelection: AudienceSelection | null;
   formData: CampaignFormData;
+  createdCampaignId: string | null;
+  onCampaignCreated: (id: string) => void;
   onBack: () => void;
   onClose: () => void;
   onSuccess?: () => void;
@@ -40,12 +42,13 @@ function minutesToTime(minutes: number): string {
 export function ProspectingCampaignReview({
   audienceSelection,
   formData,
+  createdCampaignId,
+  onCampaignCreated,
   onBack,
   onClose,
   onSuccess,
 }: ProspectingCampaignReviewProps) {
   const queryClient = useQueryClient();
-  const [createdCampaignId, setCreatedCampaignId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
 
@@ -102,15 +105,13 @@ export function ProspectingCampaignReview({
     setError(null);
 
     let campaignPublicId = createdCampaignId;
-    let campaignWasCreatedThisAttempt = false;
 
     try {
       // Step 1: Create campaign only if not already created
       if (!campaignPublicId) {
         try {
           campaignPublicId = await createCampaignMutation.mutateAsync();
-          campaignWasCreatedThisAttempt = true;
-          setCreatedCampaignId(campaignPublicId);
+          onCampaignCreated(campaignPublicId);
         } catch (createErr: any) {
           // Campaign creation failed
           setError(createErr.message || 'Não foi possível criar a campanha.');

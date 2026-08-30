@@ -46,6 +46,22 @@ export function ProspectingCampaignCreatePage({ onClose, onSuccess }: Prospectin
     flowPublicId: null,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [createdCampaignId, setCreatedCampaignId] = useState<string | null>(null);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+
+  const handleClose = () => {
+    // If campaign was created but not fully materialized, warn user
+    if (createdCampaignId !== null) {
+      setShowConfirmClose(true);
+      return;
+    }
+    onClose();
+  };
+
+  const handleConfirmClose = () => {
+    setShowConfirmClose(false);
+    onClose();
+  };
 
   const selectedCount = useMemo(() => {
     if (!audienceSelection) return 0;
@@ -93,6 +109,10 @@ export function ProspectingCampaignCreatePage({ onClose, onSuccess }: Prospectin
   };
 
   const handleBack = () => {
+    // Prevent going back if campaign was already created
+    if (createdCampaignId !== null) {
+      return;
+    }
     if (step > 1) {
       setStep((prev) => (prev === 1 ? 1 : (prev - 1) as any));
     }
@@ -102,7 +122,7 @@ export function ProspectingCampaignCreatePage({ onClose, onSuccess }: Prospectin
     <div className="prospecting-create-page">
       <header className="prospecting-create-header">
         <div className="prospecting-create-breadcrumb">
-          <button onClick={onClose} className="breadcrumb-back">
+          <button onClick={handleClose} className="breadcrumb-back">
             ← Voltar para campanhas
           </button>
           <p>Prospecção / Campanhas / Nova campanha</p>
@@ -151,13 +171,36 @@ export function ProspectingCampaignCreatePage({ onClose, onSuccess }: Prospectin
         )}
 
         {step === 4 && (
-          <ProspectingCampaignReview
-            audienceSelection={audienceSelection}
-            formData={formData}
-            onBack={handleBack}
-            onClose={onClose}
-            onSuccess={onSuccess}
-          />
+          <>
+            <ProspectingCampaignReview
+              audienceSelection={audienceSelection}
+              formData={formData}
+              createdCampaignId={createdCampaignId}
+              onCampaignCreated={setCreatedCampaignId}
+              onBack={handleBack}
+              onClose={handleClose}
+              onSuccess={onSuccess}
+            />
+            {showConfirmClose && (
+              <div className="confirmation-overlay">
+                <div className="confirmation-dialog">
+                  <h3>Confirmar saída</h3>
+                  <p>
+                    A campanha já foi criada, mas o público ainda não foi adicionado. Se sair agora,
+                    você poderá precisar concluir essa configuração depois.
+                  </p>
+                  <div className="confirmation-actions">
+                    <button onClick={() => setShowConfirmClose(false)} className="secondary-button">
+                      Continuar configurando
+                    </button>
+                    <button onClick={handleConfirmClose} className="primary-button">
+                      Sair mesmo assim
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

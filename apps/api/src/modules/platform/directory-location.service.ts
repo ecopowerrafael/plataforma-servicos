@@ -41,8 +41,15 @@ export class DirectoryLocationService {
     const cached = await this.client.directoryPostalCodeCache.findUnique({ where: { cep } });
     if (cached !== null && cached.updatedAt > new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)) return cached;
     const fromBrasilApi = await this.fromBrasilApi(cep);
-    const location = fromBrasilApi ?? await this.fromViaCep(cep);
+    let location = fromBrasilApi ?? await this.fromViaCep(cep);
     if (location === null) throw new AppError({ code: 'DIRECTORY_CEP_NOT_FOUND', message: 'Não encontramos esse CEP. Confira os números e tente novamente.', statusCode: 404 });
+    // Fallback: se não temos coordenadas, tenta geocodificar com Geoapify
+    if (location.latitude === null || location.longitude === null) {
+      const geocoded = await this.geoapifyGeocode(location);
+      if (geocoded !== null) {
+        location = geocoded;
+      }
+    }
     const saved = await this.client.directoryPostalCodeCache.upsert({ where: { cep }, update: { ...location, provider: fromBrasilApi === null ? 'VIACEP' : 'BRASILAPI' }, create: { ...location, cep, provider: fromBrasilApi === null ? 'VIACEP' : 'BRASILAPI' } });
     return saved;
   }
@@ -87,6 +94,29 @@ export class DirectoryLocationService {
       }
     }
     return [];
+  }
+
+  private async geoapifyGeocode(location: Location): Promise<Location | null> {
+    const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
+    if (geoapifyApiKey === undefined) return null;
+    try {
+      const query = [location.street, location.neighborhood, location.city, location.state].filter((x): x is string => x !== null).join(', ');
+      const url = new URL('https://api.geoapify.com/v1/geocode/search');
+      url.searchParams.set('text', query);
+      url.searchParams.set('apiKey', geoapifyApiKey);
+      const response = await timeoutFetch(url.toString(), 4_000);
+      if (!response.ok) return null;
+      const data = await response.json() as { features?: GeoFeature[] };
+      const feature = data.features?.[0];
+      if (!feature) return null;
+      const coordinates = Array.isArray(feature.geometry?.coordinates) ? feature.geometry!.coordinates : [];
+      const latitude = number(coordinates[1]);
+      const longitude = number(coordinates[0]);
+      if (latitude === null || longitude === null) return null;
+      return { ...location, latitude, longitude };
+    } catch {
+      return null;
+    }
   }
 
   private geoResult(feature: GeoFeature, location: Location): DirectorySearchResult | null { const props = feature.properties ?? {}; const coordinates = Array.isArray(feature.geometry?.coordinates) ? feature.geometry!.coordinates : []; const longitude = number(coordinates[0]); const latitude = number(coordinates[1]); const name = text(props.name); if (name === null) return null; const phone = text(props.contact_phone) ?? text(props.phone); return { source: 'GEOAPIFY', publicId: null, name, address: text(props.formatted) ?? [text(props.address_line1), text(props.address_line2)].filter((value): value is string => value !== null).join(', '), city: text(props.city) ?? location.city, state: text(props.state_code)?.toUpperCase() ?? location.state, neighborhood: text(props.suburb), phone, whatsapp: null, website: text(props.website), latitude, longitude, distanceMeters: number(props.distance) }; }

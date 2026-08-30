@@ -614,6 +614,11 @@ const StepEditor = ({
   );
 };
 
+type PatternView =
+  | { type: 'list' }
+  | { type: 'create' }
+  | { type: 'edit'; patternId: string };
+
 const ResponseEditorPage = ({
   step,
   option,
@@ -635,6 +640,10 @@ const ResponseEditorPage = ({
   const [label, setLabel] = useState(option.label);
   const [actionType, setActionType] = useState(option.actionType);
   const [nextStepId, setNextStepId] = useState(option.nextStepPublicId || '');
+  const [patternView, setPatternView] = useState<PatternView>({ type: 'list' });
+  const [patternText, setPatternText] = useState('');
+  const [patternType, setPatternType] = useState('EXACT');
+  const [priority, setPriority] = useState(0);
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -656,6 +665,62 @@ const ResponseEditorPage = ({
       onClose();
     },
     onError: () => onFeedback({ type: 'error', message: 'Erro ao atualizar resposta' }),
+  });
+
+  const addPatternMutation = useMutation({
+    mutationFn: async () => {
+      return httpClient.request(
+        `/platform/prospecting/flows/${flowId}/options/${option.publicId}/patterns`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ pattern: patternText, patternType, priority }),
+          schema: flowPatternSchema,
+        }
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      setPatternText('');
+      setPatternType('EXACT');
+      setPriority(0);
+      setPatternView({ type: 'list' });
+      onFeedback({ type: 'success', message: 'Padrão adicionado' });
+    },
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao adicionar padrão' }),
+  });
+
+  const deletePatternMutation = useMutation({
+    mutationFn: (patternId: string) =>
+      httpClient.request(
+        `/platform/prospecting/flows/${flowId}/options/${option.publicId}/patterns/${patternId}`,
+        { method: 'DELETE', schema: z.any() }
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      onFeedback({ type: 'success', message: 'Padrão removido' });
+    },
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao remover padrão' }),
+  });
+
+  const editPatternMutation = useMutation({
+    mutationFn: (patternId: string) =>
+      httpClient.request(
+        `/platform/prospecting/flows/${flowId}/options/${option.publicId}/patterns/${patternId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ pattern: patternText, patternType, priority }),
+          schema: flowPatternSchema,
+        }
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      setPatternText('');
+      setPatternType('EXACT');
+      setPriority(0);
+      setPatternView({ type: 'list' });
+      onFeedback({ type: 'success', message: 'Padrão atualizado' });
+    },
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao atualizar padrão' }),
   });
 
   return (
@@ -719,6 +784,129 @@ const ResponseEditorPage = ({
             </p>
           </div>
         )}
+
+        <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--ds-border-neutral)' }}>
+          <h3 style={{ marginBottom: '0.5rem', fontSize: '1rem', fontWeight: 600, color: 'var(--ds-text-primary)' }}>
+            Padrões de reconhecimento
+          </h3>
+          <p style={{ marginBottom: '1.5rem', fontSize: '0.9rem', color: 'var(--ds-text-secondary)' }}>
+            Defina quais mensagens do lead correspondem a esta resposta.
+          </p>
+
+          {patternView.type === 'list' ? (
+            <>
+              {option.patterns.length === 0 ? (
+                <div style={{ padding: '1rem', backgroundColor: 'var(--ds-background-secondary)', borderRadius: '6px', marginBottom: '1rem', color: 'var(--ds-text-tertiary)' }}>
+                  Nenhum padrão configurado
+                </div>
+              ) : (
+                <div style={{ marginBottom: '1rem' }}>
+                  {option.patterns.map((p) => (
+                    <div key={p.id} style={{ padding: '0.75rem', marginBottom: '0.75rem', border: '1px solid var(--ds-border-neutral)', borderRadius: '6px', backgroundColor: 'var(--ds-background-secondary)' }}>
+                      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <span style={{ display: 'inline-block', padding: '0.25rem 0.5rem', backgroundColor: 'var(--ds-background-tertiary)', borderRadius: '3px', fontSize: '0.75rem', fontWeight: 500 }}>
+                          {patternTypeNames[p.patternType] || p.patternType}
+                        </span>
+                        <span style={{ fontWeight: 500, color: 'var(--ds-text-primary)' }}>{p.pattern}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--ds-text-tertiary)' }}>Prioridade {p.priority}</span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            className="secondary-button"
+                            onClick={() => {
+                              setPatternText(p.pattern);
+                              setPatternType(p.patternType);
+                              setPriority(p.priority);
+                              setPatternView({ type: 'edit', patternId: p.id });
+                            }}
+                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            className="danger-button"
+                            onClick={() => {
+                              if (confirm('Remover padrão?')) {
+                                deletePatternMutation.mutate(p.id);
+                              }
+                            }}
+                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  setPatternText('');
+                  setPatternType('EXACT');
+                  setPriority(0);
+                  setPatternView({ type: 'create' });
+                }}
+                style={{ width: '100%' }}
+              >
+                + Adicionar padrão
+              </button>
+            </>
+          ) : patternView.type === 'create' || patternView.type === 'edit' ? (
+            <>
+              <div className="form-group">
+                <label>Texto do padrão</label>
+                <input
+                  type="text"
+                  value={patternText}
+                  onChange={(e) => setPatternText(e.target.value)}
+                  className="form-input"
+                  placeholder="ex: sim"
+                />
+              </div>
+              <div className="form-group">
+                <label>Tipo</label>
+                <select value={patternType} onChange={(e) => setPatternType(e.target.value)} className="form-input">
+                  <option value="EXACT">Exato</option>
+                  <option value="CONTAINS">Contém</option>
+                  <option value="STARTS_WITH">Começa com</option>
+                  <option value="ENDS_WITH">Termina com</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Prioridade</label>
+                <input
+                  type="number"
+                  value={priority}
+                  onChange={(e) => setPriority(Number(e.target.value))}
+                  className="form-input"
+                  min="0"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button className="secondary-button" onClick={() => setPatternView({ type: 'list' })} style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button
+                  className="primary-button"
+                  onClick={() => {
+                    if (patternView.type === 'create') {
+                      addPatternMutation.mutate();
+                    } else if (patternView.type === 'edit') {
+                      editPatternMutation.mutate(patternView.patternId);
+                    }
+                  }}
+                  disabled={!patternText || addPatternMutation.isPending || editPatternMutation.isPending}
+                  style={{ flex: 1 }}
+                >
+                  {patternView.type === 'create' ? 'Adicionar padrão' : 'Salvar'}
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
 
         <div className="flow-form-actions">
           <button onClick={onClose} className="secondary-button">
@@ -970,375 +1158,6 @@ const OptionListPage = ({
           >
             + Adicionar Resposta
           </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const OptionListEditor = ({
-  step,
-  flowId,
-  onClose,
-  onFeedback,
-}: {
-  step: z.infer<typeof flowStepSchema> | undefined;
-  flowId: string;
-  onClose: () => void;
-  onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
-}) => {
-  const queryClient = useQueryClient();
-  const { data: flowData } = useQuery<z.infer<typeof flowDetailSchema>, Error, z.infer<typeof flowDetailSchema>, string[]>({
-    queryKey: ['prospecting-flow', flowId],
-    queryFn: async () => {
-      return httpClient.request(`/platform/prospecting/flows/${flowId}`, { schema: flowDetailSchema });
-    },
-  });
-  const flow = flowData;
-  const [newLabel, setNewLabel] = useState('');
-  const [newAction, setNewAction] = useState('NEXT_STEP');
-  const [editingOptionId, setEditingOptionId] = useState<string | null>(null);
-  const [patternsOptionId, setPatternsOptionId] = useState<string | null>(null);
-
-  if (!step) return null;
-
-  const addOptionMutation = useMutation<z.infer<typeof flowOptionSchema>, Error>({
-    mutationFn: async () => {
-      return httpClient.request(`/platform/prospecting/flows/${flowId}/steps/${step.publicId}/options`, {
-        method: 'POST',
-        body: JSON.stringify({ label: newLabel, actionType: newAction, position: step.options.length, nextStepPublicId: null }),
-        schema: flowOptionSchema,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-      setNewLabel('');
-      setNewAction('NEXT_STEP');
-      onFeedback({ type: 'success', message: 'Resposta adicionada' });
-    },
-    onError: () => onFeedback({ type: 'error', message: 'Erro ao adicionar resposta' }),
-  });
-
-  const deleteOptionMutation = useMutation<unknown, Error, string>({
-    mutationFn: (optionId: string) =>
-      httpClient.request(`/platform/prospecting/flows/${flowId}/options/${optionId}`, {
-        method: 'DELETE',
-        schema: z.any(),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-      onFeedback({ type: 'success', message: 'Resposta removida' });
-    },
-    onError: () => onFeedback({ type: 'error', message: 'Erro ao remover resposta' }),
-  });
-
-  const editingOption = step.options.find(o => o.publicId === editingOptionId);
-
-  return (
-    <div className="prospecting-form-backdrop" onClick={onClose}>
-      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="drawer-close">← Voltar</button>
-        <h2>Respostas: {step.name}</h2>
-
-        {step.options.length === 0 ? (
-          <div className="empty-state">Nenhuma resposta configurada</div>
-        ) : (
-          <div style={{ marginBottom: '1rem' }}>
-            {step.options.map((opt) => (
-              <div key={opt.publicId} className="option-card" style={{ marginBottom: '0.75rem', padding: '0.75rem', border: '1px solid var(--ds-border-neutral)', borderRadius: '3px' }}>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <div className="option-label">{opt.label}</div>
-                  <div className="option-action" style={{ fontSize: '0.85rem', color: 'var(--ds-text-secondary)', marginTop: '0.25rem' }}>{actionTypeNames[opt.actionType]}</div>
-                </div>
-                {opt.patterns.length > 0 && (
-                  <div style={{ fontSize: '0.8rem', color: 'var(--ds-text-tertiary)', marginBottom: '0.5rem' }}>
-                    {opt.patterns.length} padrão(ões) configurado(s)
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <button className="secondary-button" style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }} onClick={() => setEditingOptionId(opt.publicId)}>
-                    Editar
-                  </button>
-                  <button className="secondary-button" style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }} onClick={() => setPatternsOptionId(opt.publicId)}>
-                    Padrões
-                  </button>
-                  <button className="danger-button" style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }} onClick={() => deleteOptionMutation.mutate(opt.publicId)}>
-                    Excluir
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--ds-border-neutral)' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Nova resposta</label>
-          <input type="text" placeholder="Texto da resposta" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} className="form-input" />
-          <select value={newAction} onChange={(e) => setNewAction(e.target.value)} className="form-input">
-            {Object.entries(actionTypeNames).map(([key, name]) => (
-              <option key={key} value={key}>{name}</option>
-            ))}
-          </select>
-          <button onClick={() => addOptionMutation.mutate()} className="primary-button" disabled={!newLabel} style={{ width: '100%' }}>
-            Adicionar
-          </button>
-        </div>
-      </div>
-
-      {editingOption && flow && (
-        <OptionEditor
-          option={editingOption}
-          steps={flow.steps}
-          flowId={flowId}
-          onClose={() => setEditingOptionId(null)}
-          onSuccess={() => {
-            setEditingOptionId(null);
-            queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-            onFeedback({ type: 'success', message: 'Resposta atualizada' });
-          }}
-        />
-      )}
-
-      {patternsOptionId && step.options.find(o => o.publicId === patternsOptionId) && (
-        <PatternListEditor
-          option={step.options.find(o => o.publicId === patternsOptionId)!}
-          flowId={flowId}
-          onClose={() => setPatternsOptionId(null)}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-            onFeedback({ type: 'success', message: 'Padrão adicionado' });
-          }}
-        />
-      )}
-    </div>
-  );
-};
-
-const OptionEditor = ({
-  option,
-  steps,
-  flowId,
-  onClose,
-  onSuccess,
-}: {
-  option: z.infer<typeof flowOptionSchema>;
-  steps: z.infer<typeof flowStepSchema>[];
-  flowId: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) => {
-  const [label, setLabel] = useState<string>(option.label);
-  const [action, setAction] = useState<string>(option.actionType);
-  const [nextStep, setNextStep] = useState<string>(option.nextStepPublicId || '');
-
-  const updateMutation = useMutation<z.infer<typeof flowOptionSchema>, Error>({
-    mutationFn: async () => {
-      const body: Record<string, unknown> = { label, actionType: action, position: option.position };
-      if (action === 'NEXT_STEP') {
-        body.nextStepPublicId = nextStep || null;
-      } else {
-        body.nextStepPublicId = null;
-      }
-      return httpClient.request(`/platform/prospecting/flows/${flowId}/options/${option.publicId}`, {
-        method: 'PUT',
-        body: JSON.stringify(body),
-        schema: flowOptionSchema,
-      });
-    },
-    onSuccess,
-  });
-
-  return (
-    <div className="prospecting-form-backdrop" onClick={onClose}>
-      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="drawer-close">← Voltar</button>
-        <h2>Editar Resposta</h2>
-        <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className="form-input" />
-        <select value={action} onChange={(e) => {
-          setAction(e.target.value);
-          if (e.target.value !== 'NEXT_STEP') setNextStep('');
-        }} className="form-input">
-          {Object.entries(actionTypeNames).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        {action === 'NEXT_STEP' && (
-          <select value={nextStep} onChange={(e) => setNextStep(e.target.value)} className="form-input">
-            <option value="">Nenhuma</option>
-            {steps.map((s) => <option key={s.publicId} value={s.publicId}>{s.name}</option>)}
-          </select>
-        )}
-        <div className="modal-actions">
-          <button onClick={onClose} className="secondary-button">Cancelar</button>
-          <button onClick={() => updateMutation.mutate()} className="primary-button">Salvar</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const PatternListEditor = ({
-  option,
-  flowId,
-  onClose,
-  onSuccess,
-}: {
-  option: z.infer<typeof flowOptionSchema>;
-  flowId: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) => {
-  const queryClient = useQueryClient();
-  const [pattern, setPattern] = useState('');
-  const [type, setType] = useState('EXACT');
-  const [priority, setPriority] = useState(10);
-  const [editingPatternId, setEditingPatternId] = useState<string | null>(null);
-
-  const addMutation = useMutation<z.infer<typeof flowPatternSchema>, Error>({
-    mutationFn: async () => {
-      return httpClient.request(`/platform/prospecting/flows/${flowId}/options/${option.publicId}/patterns`, {
-        method: 'POST',
-        body: JSON.stringify({ pattern, patternType: type, priority }),
-        schema: flowPatternSchema,
-      });
-    },
-    onSuccess: () => {
-      onSuccess();
-      setPattern('');
-      setPriority(10);
-    },
-  });
-
-  const deletePatternMutation = useMutation<unknown, Error, string>({
-    mutationFn: (patternId: string) =>
-      httpClient.request(`/platform/prospecting/flows/${flowId}/options/${option.publicId}/patterns/${patternId}`, {
-        method: 'DELETE',
-        schema: z.any(),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-      onSuccess();
-    },
-  });
-
-  const editingPattern = option.patterns.find(p => p.id === editingPatternId);
-
-  return (
-    <div className="prospecting-form-backdrop" onClick={onClose}>
-      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="drawer-close">← Voltar</button>
-        <h2>Padrões: {option.label}</h2>
-
-        {option.patterns.length === 0 ? (
-          <div className="empty-state" style={{ marginBottom: '1rem' }}>Nenhuma forma de reconhecimento configurada</div>
-        ) : (
-          <div style={{ marginBottom: '1rem' }}>
-            {option.patterns.map((p) => (
-              <div key={p.id} className="option-card" style={{ marginBottom: '0.75rem', padding: '0.75rem', border: '1px solid var(--ds-border-neutral)', borderRadius: '3px' }}>
-                <div style={{ marginBottom: '0.25rem' }}>
-                  <strong>{p.pattern}</strong>
-                </div>
-                <div className="option-action" style={{ fontSize: '0.85rem', color: 'var(--ds-text-secondary)' }}>{patternTypeNames[p.patternType]}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--ds-text-tertiary)', marginTop: '0.25rem' }}>Prioridade: {p.priority}</div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button className="secondary-button" style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }} onClick={() => setEditingPatternId(p.id)}>
-                    Editar
-                  </button>
-                  <button className="danger-button" style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem' }} onClick={() => {
-                    if (confirm('Remover padrão?')) deletePatternMutation.mutate(p.id);
-                  }}>
-                    Excluir
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--ds-border-neutral)' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>Novo padrão</label>
-          <input type="text" placeholder="Texto do padrão" value={pattern} onChange={(e) => setPattern(e.target.value)} className="form-input" />
-          <select value={type} onChange={(e) => setType(e.target.value)} className="form-input">
-            {Object.entries(patternTypeNames).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-          <div className="form-group">
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Prioridade (maior = mais importante)</label>
-            <input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="form-input" />
-          </div>
-          <button onClick={() => addMutation.mutate()} className="primary-button" disabled={!pattern} style={{ width: '100%' }}>
-            Adicionar Padrão
-          </button>
-        </div>
-      </div>
-
-      {editingPattern && (
-        <PatternEditor
-          pattern={editingPattern}
-          flowId={flowId}
-          optionPublicId={option.publicId}
-          onClose={() => setEditingPatternId(null)}
-          onSuccess={() => {
-            setEditingPatternId(null);
-            queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-            onSuccess();
-          }}
-        />
-      )}
-    </div>
-  );
-};
-
-const PatternEditor = ({
-  pattern,
-  flowId,
-  optionPublicId,
-  onClose,
-  onSuccess,
-}: {
-  pattern: z.infer<typeof flowPatternSchema>;
-  flowId: string;
-  optionPublicId: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) => {
-  const [patternText, setPatternText] = useState<string>(pattern.pattern);
-  const [patternType, setPatternType] = useState<string>(pattern.patternType);
-  const [priority, setPriority] = useState<number>(pattern.priority);
-
-  const updateMutation = useMutation<z.infer<typeof flowPatternSchema>, Error>({
-    mutationFn: async () => {
-      return httpClient.request(
-        `/platform/prospecting/flows/${flowId}/options/${optionPublicId}/patterns/${pattern.id}`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({ pattern: patternText, patternType, priority }),
-          schema: flowPatternSchema,
-        }
-      );
-    },
-    onSuccess,
-  });
-
-  return (
-    <div className="prospecting-form-backdrop" onClick={onClose}>
-      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="drawer-close">← Voltar</button>
-        <h2>Editar Padrão</h2>
-        <input
-          type="text"
-          value={patternText}
-          onChange={(e) => setPatternText(e.target.value)}
-          className="form-input"
-          placeholder="Texto do padrão"
-        />
-        <select value={patternType} onChange={(e) => setPatternType(e.target.value)} className="form-input">
-          {Object.entries(patternTypeNames).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <div className="form-group">
-          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Prioridade</label>
-          <input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="form-input" />
-        </div>
-        <div className="modal-actions">
-          <button onClick={onClose} className="secondary-button">Cancelar</button>
-          <button onClick={() => updateMutation.mutate()} className="primary-button">Salvar</button>
         </div>
       </div>
     </div>

@@ -301,15 +301,17 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
           request.body.categorySlug,
           request.body.cep,
         );
-        const category = await options.service.categories()
-          .then((cats) => cats.find((c) => c.slug === request.body.categorySlug));
+        const categoryConfig = await options.service.getLocationCategoryConfig(
+          request.body.categorySlug,
+        );
+        const apiConfigured = result.location.latitude !== null && result.location.longitude !== null;
         return {
           success: true,
           location: {
             cep: result.location.cep,
             city: result.location.city,
             state: result.location.state,
-            coordinates: result.location.latitude !== null && result.location.longitude !== null
+            coordinates: apiConfigured
               ? { lat: result.location.latitude, lng: result.location.longitude }
               : null,
           },
@@ -319,9 +321,11 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
             total: result.results.length,
           },
           geoapify: {
-            configured: ((category as any)?.geoapifyCategories?.length ?? 0) > 0,
-            categories: (category as any)?.geoapifyCategories ?? [],
-            hasCoordinates: result.location.latitude !== null && result.location.longitude !== null,
+            apiConfigured: true,
+            categoryConfigured: ((categoryConfig?.geoapifyCategories?.length ?? 0) > 0),
+            categories: categoryConfig?.geoapifyCategories ?? [],
+            externalSearchTerms: categoryConfig?.externalSearchTerms ?? [],
+            hasCoordinates: apiConfigured,
           },
         };
       } catch (error) {

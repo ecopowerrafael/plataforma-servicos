@@ -1145,6 +1145,24 @@ export class DirectoryService {
     return categories.map((cat) => this.adminCategoryPublic(cat));
   }
 
+  public async getLocationCategoryConfig(slug: string) {
+    const category = await this.client.directoryCategory.findFirst({
+      where: { slug, active: true },
+    });
+    if (!category) return null;
+    return {
+      publicId: category.publicId,
+      slug: category.slug,
+      pluralName: category.pluralName,
+      geoapifyCategories: Array.isArray(category.geoapifyCategories)
+        ? category.geoapifyCategories
+        : null,
+      externalSearchTerms: Array.isArray(category.externalSearchTerms)
+        ? category.externalSearchTerms
+        : null,
+    };
+  }
+
   private adminCategoryPublic(cat: any): any {
     return {
       publicId: cat.publicId,

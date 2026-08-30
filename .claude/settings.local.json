@@ -159,7 +159,8 @@
       "Bash(git commit -m 'FIX DIRECTORY — Adicionar suite de testes \\(bloqueador #12\\) *)",
       "Bash(git commit -m 'FIX DIRECTORY — impedir erro 500 na busca por CEP *)",
       "Bash(git commit -m 'FIX DIRECTORY — remover BigInt da resposta pública de CEP *)",
-      "Bash(git commit -m 'FIX DIRECTORY — configurar Geoapify por categoria e corrigir fallback público *)"
+      "Bash(git commit -m 'FIX DIRECTORY — configurar Geoapify por categoria e corrigir fallback público *)",
+      "Bash(git commit -m 'FIX DIRECTORY — corrigir diagnóstico e editor Geoapify por categoria *)"
     ]
   }
 }

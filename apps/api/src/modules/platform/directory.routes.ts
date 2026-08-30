@@ -260,7 +260,8 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
   );
   app.get('/platform/directory/location-config', {}, async (request) => {
     allow(request, 'platform.tenant.read');
-    const status = await request.server.directoryLocationConfigService?.getStatus() ?? {
+    const service = (request.server as any).directoryLocationConfigService as any;
+    const status = await service?.getStatus() ?? {
       geoapifyConfigured: false,
       geoapifyMaskedKey: null,
       source: 'NONE' as const,
@@ -272,10 +273,9 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
     { schema: { body: z.object({ geoapifyApiKey: z.string().min(1).max(256).nullable() }) } },
     async (request) => {
       allow(request, 'platform.tenant.update');
+      const service = (request.server as any).directoryLocationConfigService as any;
       const status =
-        await request.server.directoryLocationConfigService?.saveGeoapifyApiKey(
-          request.body.geoapifyApiKey,
-        ) ?? {
+        await service?.saveGeoapifyApiKey(request.body.geoapifyApiKey) ?? {
           geoapifyConfigured: false,
           geoapifyMaskedKey: null,
           source: 'NONE' as const,

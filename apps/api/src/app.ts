@@ -927,6 +927,7 @@ export async function buildApp(options: BuildAppOptions) {
       const directoryLocationConfigService = new DirectoryLocationConfigService(
         options.database.client,
         options.environment.GEOAPIFY_API_KEY,
+        options.environment.PAYMENT_GATEWAY_ENCRYPTION_KEY,
       );
       app.decorate('directoryLocationConfigService', directoryLocationConfigService);
 

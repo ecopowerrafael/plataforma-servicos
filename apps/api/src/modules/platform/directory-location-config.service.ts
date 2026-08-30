@@ -1,10 +1,16 @@
 import { PrismaClient } from '../../database-client/client.js';
+import { GeoapifyKeyCipher } from './geoapify-key-cipher.js';
 
 export class DirectoryLocationConfigService {
+  private readonly cipher: GeoapifyKeyCipher | undefined;
+
   public constructor(
     private readonly client: PrismaClient,
     private readonly envGeoapifyApiKey?: string,
-  ) {}
+    encryptionKey?: string,
+  ) {
+    this.cipher = encryptionKey ? new GeoapifyKeyCipher(encryptionKey) : undefined;
+  }
 
   public async getGeoapifyApiKey(): Promise<string | undefined> {
     // Always check DB first, fallback to ENV
@@ -12,8 +18,12 @@ export class DirectoryLocationConfigService {
       where: { id: 1 },
     });
     if (config?.geoapifyApiKeyEncrypted) {
-      // TODO: Decrypt using existing encryption service
-      return config.geoapifyApiKeyEncrypted;
+      if (!this.cipher) return undefined;
+      try {
+        return this.cipher.decrypt(config.geoapifyApiKeyEncrypted);
+      } catch {
+        return undefined;
+      }
     }
     return this.envGeoapifyApiKey;
   }
@@ -28,12 +38,27 @@ export class DirectoryLocationConfigService {
     });
 
     if (config?.geoapifyApiKeyEncrypted) {
-      const key = config.geoapifyApiKeyEncrypted;
-      return {
-        geoapifyConfigured: true,
-        geoapifyMaskedKey: this.maskKey(key),
-        source: 'DATABASE',
-      };
+      if (!this.cipher) {
+        return {
+          geoapifyConfigured: false,
+          geoapifyMaskedKey: null,
+          source: 'NONE',
+        };
+      }
+      try {
+        const decrypted = this.cipher.decrypt(config.geoapifyApiKeyEncrypted);
+        return {
+          geoapifyConfigured: true,
+          geoapifyMaskedKey: this.maskKey(decrypted),
+          source: 'DATABASE',
+        };
+      } catch {
+        return {
+          geoapifyConfigured: false,
+          geoapifyMaskedKey: null,
+          source: 'NONE',
+        };
+      }
     }
 
     if (this.envGeoapifyApiKey) {
@@ -62,11 +87,14 @@ export class DirectoryLocationConfigService {
         data: { geoapifyApiKeyEncrypted: null },
       });
     } else {
-      // TODO: Encrypt before saving
+      if (!this.cipher) {
+        throw new Error('Encryption key not configured. Cannot save Geoapify API key.');
+      }
+      const encrypted = this.cipher.encrypt(apiKey);
       await this.client.directoryLocationConfig.upsert({
         where: { id: 1 },
-        update: { geoapifyApiKeyEncrypted: apiKey },
-        create: { id: 1, geoapifyApiKeyEncrypted: apiKey },
+        update: { geoapifyApiKeyEncrypted: encrypted },
+        create: { id: 1, geoapifyApiKeyEncrypted: encrypted },
       });
     }
 

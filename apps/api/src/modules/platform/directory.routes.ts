@@ -1,6 +1,7 @@
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
+import { AppError } from '../../errors/AppError.js';
 import {
   DirectoryService,
   DIRECTORY_SITEMAP_PAGE_SIZE,
@@ -317,9 +318,13 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
           },
         };
       } catch (error) {
+        // Retornar apenas erros esperados (AppError); outras exceções retornam msg genérica
+        const message = error instanceof AppError
+          ? error.message
+          : 'Erro ao testar localização. Tente novamente.';
         return {
           success: false,
-          error: (error as any)?.message || 'Erro ao testar localização',
+          error: message,
         };
       }
     },

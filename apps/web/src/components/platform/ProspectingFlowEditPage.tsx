@@ -158,7 +158,6 @@ export const ProspectingFlowEditPage = ({
         flowName={flow.name}
         flow={flow}
         onClose={() => setEditorView({ type: 'overview' })}
-        onBack={onBack}
         onFeedback={setFeedback}
       />
     );
@@ -439,7 +438,6 @@ const StepEditor = ({
   flowName,
   flow,
   onClose,
-  onBack,
   onFeedback,
 }: {
   stepId: string;
@@ -447,7 +445,6 @@ const StepEditor = ({
   flowName: string;
   flow: z.infer<typeof flowDetailSchema>;
   onClose: () => void;
-  onBack: () => void;
   onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
 }) => {
   const step = flow.steps.find((s) => s.publicId === stepId);
@@ -474,11 +471,11 @@ const StepEditor = ({
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-      setFeedback({ type: 'success', message: 'Etapa atualizada' });
+      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      onFeedback({ type: 'success', message: 'Etapa atualizada' });
       onClose();
     },
-    onError: () => setFeedback({ type: 'error', message: 'Erro ao atualizar' }),
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao atualizar' }),
   });
 
   const insertVariable = (varKey: string) => {

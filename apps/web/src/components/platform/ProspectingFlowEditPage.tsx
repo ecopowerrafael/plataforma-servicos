@@ -150,6 +150,20 @@ export const ProspectingFlowEditPage = ({
     );
   }
 
+  if (editorView.type === 'edit-step') {
+    return (
+      <StepEditor
+        stepId={editorView.stepId}
+        flowId={flowId}
+        flowName={flow.name}
+        flow={flow}
+        onClose={() => setEditorView({ type: 'overview' })}
+        onBack={onBack}
+        onFeedback={setFeedback}
+      />
+    );
+  }
+
   return (
     <div className="flow-editor-page">
       <div className="flow-editor-header">
@@ -272,16 +286,6 @@ export const ProspectingFlowEditPage = ({
           />
         )}
       </div>
-
-      {editorView.type === 'edit-step' && flow && (
-        <StepEditor
-          stepId={editorView.stepId}
-          flowId={flowId}
-          flow={flow}
-          onClose={() => setEditorView({ type: 'overview' })}
-          onFeedback={setFeedback}
-        />
-      )}
 
       {editorView.type === 'responses' && flow && (
         <OptionListEditor
@@ -432,14 +436,18 @@ const AddStepModal = ({
 const StepEditor = ({
   stepId,
   flowId,
+  flowName,
   flow,
   onClose,
+  onBack,
   onFeedback,
 }: {
   stepId: string;
   flowId: string;
+  flowName: string;
   flow: z.infer<typeof flowDetailSchema>;
   onClose: () => void;
+  onBack: () => void;
   onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
 }) => {
   const step = flow.steps.find((s) => s.publicId === stepId);
@@ -467,10 +475,10 @@ const StepEditor = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-      onFeedback({ type: 'success', message: 'Etapa atualizada' });
+      setFeedback({ type: 'success', message: 'Etapa atualizada' });
       onClose();
     },
-    onError: () => onFeedback({ type: 'error', message: 'Erro ao atualizar' }),
+    onError: () => setFeedback({ type: 'error', message: 'Erro ao atualizar' }),
   });
 
   const insertVariable = (varKey: string) => {
@@ -487,11 +495,18 @@ const StepEditor = ({
   };
 
   return (
-    <div className="flow-step-editor">
-      <button onClick={onClose} className="back-button">
-        ← Voltar ao fluxo
-      </button>
-      <h2>Editar Etapa: {step.name}</h2>
+    <div className="flow-editor-page">
+      <div className="flow-editor-header">
+        <button onClick={onClose} className="back-button">
+          ← Voltar ao fluxo
+        </button>
+        <div className="flow-editor-breadcrumb">
+          Prospecção / Fluxos / {flowName} / Editar etapa
+        </div>
+      </div>
+
+      <div className="flow-step-editor">
+      <h2>Editar Etapa</h2>
 
       <div className="form-group">
         <label>Nome</label>
@@ -548,9 +563,10 @@ const StepEditor = ({
         <button onClick={onClose} className="secondary-button">
           Cancelar
         </button>
-        <button onClick={() => updateMutation.mutate()} className="primary-button">
+        <button onClick={() => updateMutation.mutate()} className="primary-button" disabled={updateMutation.isPending}>
           Salvar alterações
         </button>
+      </div>
       </div>
     </div>
   );

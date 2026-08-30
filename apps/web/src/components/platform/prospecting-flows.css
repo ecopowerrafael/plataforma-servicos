@@ -479,7 +479,7 @@
   font-size: 0.95rem;
 }
 
-/* ===== FLOW STEP EDITOR (INLINE) ===== */
+/* ===== FLOW STEP EDITOR (SUBPAGE) ===== */
 
 .flow-step-editor {
   background: var(--ds-background-primary);
@@ -496,40 +496,24 @@
   color: var(--ds-text-primary);
 }
 
-.flow-step-editor .back-button {
-  display: block;
-  margin-bottom: 1.5rem;
-  padding: 0.5rem 1rem;
-  background: none;
-  border: none;
-  color: var(--ds-text-secondary);
-  cursor: pointer;
-  font-weight: 500;
-  transition: color 0.2s ease;
-}
-
-.flow-step-editor .back-button:hover {
-  color: var(--ds-text-primary);
-}
-
-.variables-section {
+.flow-step-editor .variables-section {
   margin-top: 1rem;
 }
 
-.variables-section small {
+.flow-step-editor .variables-section small {
   display: block;
   margin-bottom: 0.75rem;
   color: var(--ds-text-secondary);
   font-size: 0.85rem;
 }
 
-.variables-chips {
+.flow-step-editor .variables-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.variable-chip {
+.flow-step-editor .variable-chip {
   padding: 0.4rem 0.75rem;
   background: var(--ds-background-secondary);
   border: 1px solid var(--ds-border-neutral);
@@ -541,12 +525,12 @@
   font-weight: 500;
 }
 
-.variable-chip:hover {
+.flow-step-editor .variable-chip:hover {
   background: var(--ds-background-tertiary);
   border-color: var(--ds-border-focus);
 }
 
-.form-value {
+.flow-step-editor .form-value {
   padding: 0.75rem;
   background: var(--ds-background-secondary);
   border-radius: 4px;

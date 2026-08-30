@@ -247,12 +247,76 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
           active: z.boolean().optional(),
           indexable: z.boolean().optional(),
           sortOrder: z.number().int().min(0).max(10000).optional(),
+          geoapifyCategories: z.array(z.string()).nullable().optional(),
+          externalSearchTerms: z.array(z.string()).nullable().optional(),
         }),
       },
     },
     (request) => {
       allow(request, 'platform.tenant.update');
       return options.service.updateCategory(request.params.publicId, request.body);
+    },
+  );
+  app.get('/platform/directory/location-config', {}, (request) => {
+    allow(request, 'platform.tenant.read');
+    const configured = request.server.directoryLocationConfigService?.isConfigured() ?? false;
+    const maskedKey = configured ? request.server.directoryLocationConfigService?.getMaskedKey() : null;
+    const source = request.server.directoryLocationConfigService?.getSource() ?? 'NONE';
+    return { geoapifyConfigured: configured, geoapifyMaskedKey: maskedKey, source };
+  });
+  app.put(
+    '/platform/directory/location-config',
+    { schema: { body: z.object({ geoapifyApiKey: z.string().min(1).max(256).nullable() }) } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      if (request.server.directoryLocationConfigService) {
+        await request.server.directoryLocationConfigService.saveGeoapifyApiKey(request.body.geoapifyApiKey);
+      }
+      const configured = request.server.directoryLocationConfigService?.isConfigured() ?? false;
+      const maskedKey = configured ? request.server.directoryLocationConfigService?.getMaskedKey() : null;
+      const source = request.server.directoryLocationConfigService?.getSource() ?? 'NONE';
+      return { geoapifyConfigured: configured, geoapifyMaskedKey: maskedKey, source };
+    },
+  );
+  app.post(
+    '/platform/directory/location-test',
+    {
+      schema: {
+        body: z.object({
+          cep: z.string().min(8).max(9),
+          categorySlug: z.string().min(1).max(120),
+        }),
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.tenant.read');
+      try {
+        const result = await options.locationService.search(
+          request.body.categorySlug,
+          request.body.cep,
+        );
+        return {
+          success: true,
+          location: {
+            cep: result.location.cep,
+            city: result.location.city,
+            state: result.location.state,
+            coordinates: result.location.latitude !== null && result.location.longitude !== null
+              ? { lat: result.location.latitude, lng: result.location.longitude }
+              : null,
+          },
+          results: {
+            directory: result.results.filter((r) => r.source === 'DIRECTORY').length,
+            geoapify: result.results.filter((r) => r.source === 'GEOAPIFY').length,
+            total: result.results.length,
+          },
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: (error as any)?.message || 'Erro ao testar localização',
+        };
+      }
     },
   );
   app.get('/platform/directory/businesses', { schema: { querystring: pagination } }, (request) => {

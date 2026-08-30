@@ -20,11 +20,42 @@ function WhatsApp({ business }: { business: z.infer<typeof Business> }) { if (bu
 function Card({ business }: { business: z.infer<typeof Business> }) { const category = business.category?.slug; return <article className="directory-card">{business.imageUrl ? <img src={business.imageUrl} alt="" /> : null}<h2><Link to={`/encontre/${category ?? ''}/${business.citySlug}/${business.slug}`}>{business.name}</Link></h2><p>{business.neighborhood ? `${business.neighborhood} · ` : ''}{business.city}/{business.state}</p><p>{business.rawAddress}</p><WhatsApp business={business} /></article>; }
 
 export function DirectoryHomePage() { usePageMetadata({ title: 'Encontre serviços perto de você | Agendei', description: 'Encontre estabelecimentos de serviços e entre em contato para agendar.', path: '/encontre' }); const query = useQuery({ queryKey: ['directory', 'categories'], queryFn: () => httpClient.request('/public/directory/categories', { schema: Categories }) }); return <MarketingShell><section className="marketing-page-hero"><div className="marketing-container"><p className="marketing-kicker">ENCONTRE</p><h1>Encontre serviços perto de você</h1><p>Consulte estabelecimentos, endereço e contatos para solicitar seu agendamento.</p><div className="directory-grid">{query.data?.categories.map((category) => <Link className="directory-category-card" key={category.slug} to={`/encontre/${category.slug}`}><strong>{category.icon ?? '•'} {category.pluralName}</strong><span>{category._count?.businesses ?? 0} estabelecimentos</span></Link>)}</div></div></section></MarketingShell>; }
+const DirectoryLocationSearchResult = z.object({
+  source: z.enum(['DIRECTORY', 'GEOAPIFY']),
+  publicId: z.string().nullable(),
+  name: z.string(),
+  address: z.string(),
+  city: z.string(),
+  state: z.string(),
+  neighborhood: z.string().nullable(),
+  phone: z.string().nullable(),
+  whatsapp: z.string().nullable(),
+  website: z.string().nullable(),
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
+  distanceMeters: z.number().nullable(),
+});
+
+const DirectoryLocationSearch = z.object({
+  location: z.object({
+    cep: z.string(),
+    city: z.string(),
+    state: z.string(),
+    neighborhood: z.string().nullable(),
+    street: z.string().nullable(),
+    latitude: z.number().nullable(),
+    longitude: z.number().nullable(),
+  }),
+  results: z.array(DirectoryLocationSearchResult),
+  cityUrl: z.string(),
+});
+
 export function DirectoryCategoryPage() {
   const { categorySlug = '' } = useParams();
   const [cepInput, setCepInput] = useState('');
   const [cepError, setCepError] = useState('');
   const [cepLoading, setCepLoading] = useState(false);
+  const [cepResult, setCepResult] = useState<z.infer<typeof DirectoryLocationSearch> | null>(null);
 
   const query = useQuery({ queryKey: ['directory', 'cities', categorySlug], queryFn: () => httpClient.request(`/public/directory/categories/${categorySlug}/cities`, { schema: Cities }) });
   const category = query.data?.category;
@@ -45,13 +76,22 @@ export function DirectoryCategoryPage() {
     }
     setCepLoading(true);
     setCepError('');
+    setCepResult(null);
     try {
       const result = await httpClient.request(`/public/directory/location/by-cep/${cepInput.replace('-', '')}?category=${categorySlug}`, {
-        schema: z.object({ city: z.string(), state: z.string() })
+        schema: DirectoryLocationSearch
       });
-      window.location.href = `/encontre/${categorySlug}/${result.city.toLowerCase().replace(/\s+/g, '-')}-${result.state.toLowerCase()}`;
-    } catch {
-      setCepError('Não encontramos resultados para este CEP');
+      setCepResult(result);
+      setCepLoading(false);
+    } catch (err) {
+      const errorCode = (err as any)?.code;
+      if (errorCode === 'DIRECTORY_INVALID_CEP') {
+        setCepError('Digite um CEP válido.');
+      } else if (errorCode === 'DIRECTORY_CEP_NOT_FOUND') {
+        setCepError('Não encontramos esse CEP. Confira os números e tente novamente.');
+      } else {
+        setCepError('Erro ao buscar CEP. Tente novamente.');
+      }
       setCepLoading(false);
     }
   };
@@ -73,9 +113,39 @@ export function DirectoryCategoryPage() {
           <button onClick={handleCepSearch} disabled={cepLoading}>{cepLoading ? 'Buscando...' : 'Buscar'}</button>
           {cepError && <p className="error">{cepError}</p>}
         </div> : null}
-        <div className="directory-grid">
-          {query.data?.cities.map((city) => <Link className="directory-category-card" key={city.citySlug} to={`/encontre/${categorySlug}/${city.citySlug}`}>{plural} em {city.city}, {city.state}<span>{city.count} encontrados</span></Link>)}
-        </div>
+        {cepResult && (
+          <section>
+            <h2>Encontramos opções próximas de {cepResult.location.neighborhood || cepResult.location.city}</h2>
+            {cepResult.results.length > 0 ? (
+              <div className="directory-list">
+                {cepResult.results.map((business, idx) => (
+                  <article key={`${business.source}-${idx}`} className="directory-card">
+                    <h3>{business.name}</h3>
+                    <p>{business.neighborhood ? `${business.neighborhood} · ` : ''}{business.city}/{business.state}</p>
+                    <p>{business.address}</p>
+                    {business.phone && <p>{business.phone}</p>}
+                    {business.source === 'DIRECTORY' && business.publicId ? (
+                      <Link className="marketing-button" to={`/encontre/${categorySlug}/${cepResult.location.city.toLowerCase().replace(/\s+/g, '-')}-${cepResult.location.state.toLowerCase()}/${business.name.toLowerCase().replace(/\s+/g, '-')}`}>Ver detalhes</Link>
+                    ) : business.whatsapp ? (
+                      <a className="marketing-button" target="_blank" rel="noreferrer" href={`https://wa.me/${business.whatsapp}?text=${encodeURIComponent(`Olá, vim do Agendei e gostaria de agendar um serviço.`)}`}>Agendar pelo WhatsApp</a>
+                    ) : business.website ? (
+                      <a className="marketing-button" target="_blank" rel="noreferrer" href={business.website}>Visitar website</a>
+                    ) : null}
+                    {business.source === 'GEOAPIFY' && <small>Resultado próximo</small>}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p>Não encontramos estabelecimentos próximos deste CEP. <Link to={cepResult.cityUrl}>Ver todos em {cepResult.location.city}</Link></p>
+            )}
+            <p><Link to={cepResult.cityUrl}>Ver todos os {plural.toLowerCase()} em {cepResult.location.city}</Link></p>
+          </section>
+        )}
+        {!cepResult && (
+          <div className="directory-grid">
+            {query.data?.cities.map((city) => <Link className="directory-category-card" key={city.citySlug} to={`/encontre/${categorySlug}/${city.citySlug}`}>{plural} em {city.city}, {city.state}<span>{city.count} encontrados</span></Link>)}
+          </div>
+        )}
       </div>
     </section>
   </MarketingShell>;

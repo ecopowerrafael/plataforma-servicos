@@ -15,7 +15,13 @@ const number = (value: unknown) => typeof value === 'number' && Number.isFinite(
 const norm = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLowerCase().replace(/[^a-z0-9]/gu, '');
 
 export class DirectoryLocationService {
-  public constructor(private readonly client: PrismaClient, private readonly options: { geoapifyApiKey?: string; localMinResults?: number } = {}) {}
+  public constructor(
+    private readonly client: PrismaClient,
+    private readonly options: {
+      geoapifyApiKeyProvider?: () => Promise<string | undefined>;
+      localMinResults?: number;
+    } = {},
+  ) {}
 
   public async search(categorySlug: string, rawCep: string) {
     const cep = cepValue(rawCep);
@@ -50,8 +56,36 @@ export class DirectoryLocationService {
   }
 
   private async geoapify(categoryId: bigint, categoriesValue: Prisma.JsonValue | null, termsValue: Prisma.JsonValue | null, location: Location): Promise<DirectorySearchResult[]> {
-    const categories = jsonStrings(categoriesValue); const terms = jsonStrings(termsValue).map(norm); if (this.options.geoapifyApiKey === undefined || location.latitude === null || location.longitude === null || categories.length === 0) return [];
-    for (const radius of [5_000, 10_000]) { const cached = await this.externalCache(categoryId, location.cep, radius); if (cached !== null) { if (cached.length > 0 || radius === 10_000) return cached; continue; } const url = new URL('https://api.geoapify.com/v2/places'); url.searchParams.set('categories', categories.join(',')); url.searchParams.set('filter', `circle:${location.longitude},${location.latitude},${radius}`); url.searchParams.set('bias', `proximity:${location.longitude},${location.latitude}`); url.searchParams.set('limit', '20'); url.searchParams.set('apiKey', this.options.geoapifyApiKey); try { const response = await timeoutFetch(url.toString(), 5_000); if (!response.ok) return []; const data = await response.json() as { features?: GeoFeature[] }; const results = (data.features ?? []).map((feature) => this.geoResult(feature, location)).filter((item): item is DirectorySearchResult => item !== null).filter((item) => terms.length === 0 || terms.some((term) => norm(item.name).includes(term))); await this.saveExternalCache(categoryId, location.cep, radius, results); if (results.length > 0 || radius === 10_000) return results; } catch { return []; } }
+    const categories = jsonStrings(categoriesValue);
+    const terms = jsonStrings(termsValue).map(norm);
+    const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
+    if (geoapifyApiKey === undefined || location.latitude === null || location.longitude === null || categories.length === 0) return [];
+    for (const radius of [5_000, 10_000]) {
+      const cached = await this.externalCache(categoryId, location.cep, radius);
+      if (cached !== null) {
+        if (cached.length > 0 || radius === 10_000) return cached;
+        continue;
+      }
+      const url = new URL('https://api.geoapify.com/v2/places');
+      url.searchParams.set('categories', categories.join(','));
+      url.searchParams.set('filter', `circle:${location.longitude},${location.latitude},${radius}`);
+      url.searchParams.set('bias', `proximity:${location.longitude},${location.latitude}`);
+      url.searchParams.set('limit', '20');
+      url.searchParams.set('apiKey', geoapifyApiKey);
+      try {
+        const response = await timeoutFetch(url.toString(), 5_000);
+        if (!response.ok) return [];
+        const data = await response.json() as { features?: GeoFeature[] };
+        const results = (data.features ?? [])
+          .map((feature) => this.geoResult(feature, location))
+          .filter((item): item is DirectorySearchResult => item !== null)
+          .filter((item) => terms.length === 0 || terms.some((term) => norm(item.name).includes(term)));
+        await this.saveExternalCache(categoryId, location.cep, radius, results);
+        if (results.length > 0 || radius === 10_000) return results;
+      } catch {
+        return [];
+      }
+    }
     return [];
   }
 

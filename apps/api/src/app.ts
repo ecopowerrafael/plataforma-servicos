@@ -85,6 +85,7 @@ import { wapiConfigRoutes } from './modules/platform/wapi-config.routes.js';
 import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
 import { directoryRoutes, publicDirectoryRoutes } from './modules/platform/directory.routes.js';
 import { DirectoryLocationService } from './modules/platform/directory-location.service.js';
+import { DirectoryLocationConfigService } from './modules/platform/directory-location-config.service.js';
 import { productSaleRoutes } from './modules/products/product-sale.routes.js';
 import { productRoutes } from './modules/products/product.routes.js';
 import { stockMovementRoutes } from './modules/products/stock-movement.routes.js';
@@ -923,16 +924,22 @@ export async function buildApp(options: BuildAppOptions) {
   });
   if (options.database.platform !== undefined) {
     if (options.database.directory !== undefined) {
+      const directoryLocationConfigService = new DirectoryLocationConfigService(
+        options.database.client,
+        options.environment.GEOAPIFY_API_KEY,
+      );
+      app.decorate('directoryLocationConfigService', directoryLocationConfigService);
+
+      const locationService =
+        options.database.directoryLocation ??
+        new DirectoryLocationService(options.database.client, {
+          geoapifyApiKeyProvider: () => directoryLocationConfigService.getGeoapifyApiKey(),
+          localMinResults: options.environment.DIRECTORY_LOCAL_MIN_RESULTS,
+        });
+
       await app.register(publicDirectoryRoutes, {
         service: options.database.directory,
-        locationService:
-          options.database.directoryLocation ??
-          new DirectoryLocationService(options.database.client, {
-            ...(options.environment.GEOAPIFY_API_KEY === undefined
-              ? {}
-              : { geoapifyApiKey: options.environment.GEOAPIFY_API_KEY }),
-            localMinResults: options.environment.DIRECTORY_LOCAL_MIN_RESULTS,
-          }),
+        locationService,
         ...(options.environment.INDEXNOW_KEY === undefined
           ? {}
           : { indexNowKey: options.environment.INDEXNOW_KEY }),

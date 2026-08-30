@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { formatDate, PageHeader, ErrorState } from './PlatformUi.js';
+import { ProspectingObjectionEditPage } from './ProspectingObjectionEditPage.js';
 
 interface Pattern {
   id: string;
@@ -56,8 +57,11 @@ const patternTypeLabels: Record<string, string> = {
   CONTAINS: 'Contém',
 };
 
+type ObjectionView = { type: 'list' } | { type: 'edit'; objectionId: string } | { type: 'create' };
+
 export function ProspectingObjectionsView() {
   const queryClient = useQueryClient();
+  const [view, setView] = useState<ObjectionView>({ type: 'list' });
   const [editingObjection, setEditingObjection] = useState<Objection | null>(null);
   const [editingPattern, setEditingPattern] = useState<Pattern | null>(null);
   const [editingPatternObjectionId, setEditingPatternObjectionId] = useState<string | null>(null);
@@ -231,6 +235,19 @@ export function ProspectingObjectionsView() {
       },
     });
   };
+
+  if (view.type === 'edit') {
+    return (
+      <ProspectingObjectionEditPage
+        objectionId={view.objectionId}
+        onBack={() => {
+          setView({ type: 'list' });
+          queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
+        }}
+        onFeedback={setFeedbackMessage}
+      />
+    );
+  }
 
   return (
     <section>
@@ -686,15 +703,7 @@ export function ProspectingObjectionsView() {
                 <div className="card-actions">
                   <button
                     onClick={() => {
-                      setEditingObjection(objection);
-                      setFormData({
-                        name: objection.name,
-                        description: objection.description ?? '',
-                        suggestedResponse: objection.suggestedResponse ?? '',
-                        autoReplyAllowed: objection.autoReplyAllowed,
-                        isActive: objection.isActive,
-                      });
-                      setShowForm(true);
+                      setView({ type: 'edit', objectionId: objection.publicId });
                     }}
                     className="secondary-button"
                   >

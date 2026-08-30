@@ -183,6 +183,40 @@ export const ProspectingFlowEditPage = ({
     }
   }
 
+  if (editorView.type === 'edit-response') {
+    const step = flow.steps.find((s) => s.publicId === editorView.stepId);
+    const option = step?.options.find((o) => o.publicId === editorView.optionId);
+    if (step && option) {
+      return (
+        <ResponseEditorPage
+          step={step}
+          option={option}
+          flowId={flowId}
+          flowName={flow.name}
+          flow={flow}
+          onClose={() => setEditorView({ type: 'responses', stepId: step.publicId })}
+          onFeedback={setFeedback}
+        />
+      );
+    }
+  }
+
+  if (editorView.type === 'create-response') {
+    const step = flow.steps.find((s) => s.publicId === editorView.stepId);
+    if (step) {
+      return (
+        <ResponseCreatePage
+          step={step}
+          flowId={flowId}
+          flowName={flow.name}
+          flow={flow}
+          onClose={() => setEditorView({ type: 'responses', stepId: step.publicId })}
+          onFeedback={setFeedback}
+        />
+      );
+    }
+  }
+
   return (
     <div className="flow-editor-page">
       <div className="flow-editor-header">
@@ -581,6 +615,240 @@ const StepEditor = ({
   );
 };
 
+const ResponseEditorPage = ({
+  step,
+  option,
+  flowId,
+  flowName,
+  flow,
+  onClose,
+  onFeedback,
+}: {
+  step: z.infer<typeof flowStepSchema>;
+  option: z.infer<typeof flowOptionSchema>;
+  flowId: string;
+  flowName: string;
+  flow: z.infer<typeof flowDetailSchema>;
+  onClose: () => void;
+  onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
+}) => {
+  const queryClient = useQueryClient();
+  const [label, setLabel] = useState(option.label);
+  const [actionType, setActionType] = useState(option.actionType);
+  const [nextStepId, setNextStepId] = useState(option.nextStepPublicId || '');
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const body: Record<string, any> = { label, actionType, position: option.position };
+      if (actionType === 'NEXT_STEP') {
+        body.nextStepPublicId = nextStepId || null;
+      } else {
+        body.nextStepPublicId = null;
+      }
+      return httpClient.request(`/platform/prospecting/flows/${flowId}/options/${option.publicId}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+        schema: flowOptionSchema,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      onFeedback({ type: 'success', message: 'Resposta atualizada' });
+      onClose();
+    },
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao atualizar resposta' }),
+  });
+
+  return (
+    <div className="flow-editor-page">
+      <div className="flow-editor-header">
+        <button onClick={onClose} className="back-button">
+          ← Voltar para respostas
+        </button>
+        <div className="flow-editor-breadcrumb">
+          Prospecção / Fluxos / {flowName} / {step.name} / Editar resposta
+        </div>
+      </div>
+
+      <div className="flow-step-editor">
+        <h2>Editar Resposta</h2>
+
+        <div className="form-group">
+          <label>Texto da resposta</label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            className="form-input"
+            placeholder="ex: Tenho interesse"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Ação</label>
+          <select
+            value={actionType}
+            onChange={(e) => {
+              setActionType(e.target.value);
+              if (e.target.value !== 'NEXT_STEP') setNextStepId('');
+            }}
+            className="form-input"
+          >
+            {Object.entries(actionTypeNames).map(([key, name]) => (
+              <option key={key} value={key}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {actionType === 'NEXT_STEP' && (
+          <div className="form-group">
+            <label>Próxima etapa</label>
+            <select value={nextStepId} onChange={(e) => setNextStepId(e.target.value)} className="form-input">
+              <option value="">Nenhuma</option>
+              {flow.steps
+                .filter((s) => s.publicId !== step.publicId)
+                .map((s) => (
+                  <option key={s.publicId} value={s.publicId}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        <div className="modal-actions">
+          <button onClick={onClose} className="secondary-button">
+            Cancelar
+          </button>
+          <button onClick={() => updateMutation.mutate()} className="primary-button" disabled={updateMutation.isPending}>
+            Salvar alterações
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ResponseCreatePage = ({
+  step,
+  flowId,
+  flowName,
+  flow,
+  onClose,
+  onFeedback,
+}: {
+  step: z.infer<typeof flowStepSchema>;
+  flowId: string;
+  flowName: string;
+  flow: z.infer<typeof flowDetailSchema>;
+  onClose: () => void;
+  onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
+}) => {
+  const queryClient = useQueryClient();
+  const [label, setLabel] = useState('');
+  const [actionType, setActionType] = useState('NEXT_STEP');
+  const [nextStepId, setNextStepId] = useState('');
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const body: Record<string, any> = {
+        label,
+        actionType,
+        position: step.options.length,
+      };
+      if (actionType === 'NEXT_STEP') {
+        body.nextStepPublicId = nextStepId || null;
+      } else {
+        body.nextStepPublicId = null;
+      }
+      return httpClient.request(`/platform/prospecting/flows/${flowId}/steps/${step.publicId}/options`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        schema: flowOptionSchema,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      onFeedback({ type: 'success', message: 'Resposta adicionada' });
+      onClose();
+    },
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao adicionar resposta' }),
+  });
+
+  return (
+    <div className="flow-editor-page">
+      <div className="flow-editor-header">
+        <button onClick={onClose} className="back-button">
+          ← Voltar para respostas
+        </button>
+        <div className="flow-editor-breadcrumb">
+          Prospecção / Fluxos / {flowName} / {step.name} / Nova resposta
+        </div>
+      </div>
+
+      <div className="flow-step-editor">
+        <h2>Adicionar Resposta</h2>
+
+        <div className="form-group">
+          <label>Texto da resposta</label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            className="form-input"
+            placeholder="ex: Tenho interesse"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Ação</label>
+          <select
+            value={actionType}
+            onChange={(e) => {
+              setActionType(e.target.value);
+              if (e.target.value !== 'NEXT_STEP') setNextStepId('');
+            }}
+            className="form-input"
+          >
+            {Object.entries(actionTypeNames).map(([key, name]) => (
+              <option key={key} value={key}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {actionType === 'NEXT_STEP' && (
+          <div className="form-group">
+            <label>Próxima etapa</label>
+            <select value={nextStepId} onChange={(e) => setNextStepId(e.target.value)} className="form-input">
+              <option value="">Nenhuma</option>
+              {flow.steps
+                .filter((s) => s.publicId !== step.publicId)
+                .map((s) => (
+                  <option key={s.publicId} value={s.publicId}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        <div className="modal-actions">
+          <button onClick={onClose} className="secondary-button">
+            Cancelar
+          </button>
+          <button onClick={() => createMutation.mutate()} className="primary-button" disabled={!label || createMutation.isPending}>
+            Adicionar Resposta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const OptionListPage = ({
   step,
   flowId,
@@ -601,30 +869,6 @@ const OptionListPage = ({
   onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
 }) => {
   const queryClient = useQueryClient();
-  const [newLabel, setNewLabel] = useState('');
-  const [newAction, setNewAction] = useState('NEXT_STEP');
-
-  const addOptionMutation = useMutation<z.infer<typeof flowOptionSchema>, Error>({
-    mutationFn: async () => {
-      return httpClient.request(`/platform/prospecting/flows/${flowId}/steps/${step.publicId}/options`, {
-        method: 'POST',
-        body: JSON.stringify({
-          label: newLabel,
-          actionType: newAction,
-          position: step.options.length,
-          nextStepPublicId: null,
-        }),
-        schema: flowOptionSchema,
-      });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-      setNewLabel('');
-      setNewAction('NEXT_STEP');
-      onFeedback({ type: 'success', message: 'Resposta adicionada' });
-    },
-    onError: () => onFeedback({ type: 'error', message: 'Erro ao adicionar resposta' }),
-  });
 
   const deleteOptionMutation = useMutation<unknown, Error, string>({
     mutationFn: (optionId: string) =>
@@ -709,33 +953,11 @@ const OptionListPage = ({
         )}
 
         <div style={{ paddingTop: '1.5rem', borderTop: '1px solid var(--ds-border-neutral)', marginTop: '1.5rem' }}>
-          <h3 style={{ marginBottom: '1rem', color: 'var(--ds-text-primary)' }}>Adicionar Resposta</h3>
-          <div className="form-group">
-            <label>Texto da resposta</label>
-            <input
-              type="text"
-              placeholder="ex: Tenho interesse"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              className="form-input"
-            />
-          </div>
-          <div className="form-group">
-            <label>Ação</label>
-            <select value={newAction} onChange={(e) => setNewAction(e.target.value)} className="form-input">
-              {Object.entries(actionTypeNames).map(([key, name]) => (
-                <option key={key} value={key}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
           <button
-            onClick={() => addOptionMutation.mutate()}
+            onClick={() => setEditorView({ type: 'create-response', stepId: step.publicId })}
             className="primary-button"
-            disabled={!newLabel || addOptionMutation.isPending}
           >
-            {addOptionMutation.isPending ? 'Adicionando...' : 'Adicionar Resposta'}
+            + Adicionar Resposta
           </button>
         </div>
       </div>

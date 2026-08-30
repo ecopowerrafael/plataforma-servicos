@@ -1,3 +1,206 @@
+/* ===== OBJECTIONS PAGE (MAIN LISTING) ===== */
+
+.prospecting-objections-page {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.objections-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.objections-page-title h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--ds-text-primary);
+}
+
+.objections-page-title p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--ds-text-secondary);
+}
+
+.objections-page-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* ===== PREVIEW CARD ===== */
+
+.objections-preview-card {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.objections-preview-card h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.objections-preview-hint {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: var(--ds-text-secondary);
+}
+
+/* ===== SUMMARY CARDS ===== */
+
+.objections-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.objections-summary-card {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.summary-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ds-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.summary-label {
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+  font-weight: 500;
+}
+
+/* ===== DESKTOP TABLE ===== */
+
+.objections-table-container {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.objections-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.objections-table thead {
+  background: var(--ds-background-secondary);
+  border-bottom: 1px solid var(--ds-border-neutral);
+}
+
+.objections-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ds-text-primary);
+}
+
+.objections-table tbody tr {
+  border-bottom: 1px solid var(--ds-border-neutral);
+  transition: background 0.2s ease;
+}
+
+.objections-table tbody tr:hover {
+  background: var(--ds-background-secondary);
+}
+
+.objections-table td {
+  padding: 1rem;
+  font-size: 0.9rem;
+  color: var(--ds-text-primary);
+}
+
+.objection-name-cell {
+  max-width: 300px;
+}
+
+.objection-name {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.objection-description-cell {
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+  margin-top: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.objection-status-badge {
+  display: inline-block;
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.objection-status-badge.active {
+  background: var(--ds-background-positive-subtle);
+  color: var(--ds-text-positive);
+}
+
+.objection-status-badge.inactive {
+  background: var(--ds-background-tertiary);
+  color: var(--ds-text-secondary);
+}
+
+.objection-auto-badge {
+  display: inline-block;
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.objection-auto-badge.enabled {
+  background: var(--ds-background-positive-subtle);
+  color: var(--ds-text-positive);
+}
+
+.objection-auto-badge.disabled {
+  background: var(--ds-background-tertiary);
+  color: var(--ds-text-secondary);
+}
+
+/* ===== MOBILE LIST ===== */
+
+.objections-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.objection-mobile-card {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
 /* ===== OBJECTION EDITOR PAGE ===== */
 
 .objection-editor-page {

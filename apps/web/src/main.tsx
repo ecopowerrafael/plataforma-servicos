@@ -18,6 +18,8 @@ import './customer-recovery.css';
 import './finance-overview.css';
 import './financial-operations.css';
 import './prospecting.css';
+import './components/platform/prospecting-flows.css';
+import './components/platform/prospecting-objections.css';
 
 const rootElement = document.getElementById('root');
 

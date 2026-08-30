@@ -162,31 +162,8 @@
   flex-wrap: wrap;
 }
 
-.badge {
-  display: inline-block;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-
-.badge-default {
-  background: var(--ds-background-tertiary);
-  color: var(--ds-text-secondary);
-}
-
-.badge-active {
-  background: var(--ds-background-positive-subtle);
-  color: var(--ds-text-positive);
-}
-
-.badge-inactive {
-  background: var(--ds-background-neutral-subtle);
-  color: var(--ds-text-secondary);
-}
-
-.badge-start {
+/* Badges: using global design system - no override */
+.flow-editor-status .badge-start {
   background: var(--ds-background-tertiary);
   color: var(--ds-text-secondary);
   font-size: 0.65rem;
@@ -395,18 +372,10 @@
   justify-content: flex-end;
 }
 
-.empty-state {
-  padding: 2rem;
-  text-align: center;
-  color: var(--ds-text-tertiary);
-  background: var(--ds-background-secondary);
-  border-radius: 6px;
-  border: 1px dashed var(--ds-border-neutral);
-}
+/* ===== MODALS (namespaced to avoid global conflict) ===== */
 
-/* ===== MODALS ===== */
-
-.prospecting-form-backdrop {
+.flow-editor-page .prospecting-form-backdrop,
+.prospecting-flows-container .prospecting-form-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
@@ -417,7 +386,8 @@
   padding: 1rem;
 }
 
-.prospecting-form-drawer {
+.flow-editor-page .prospecting-form-drawer,
+.prospecting-flows-container .prospecting-form-drawer {
   background: var(--ds-background-primary);
   border: 1px solid var(--ds-border-neutral);
   border-radius: 8px;
@@ -430,14 +400,16 @@
   color: var(--ds-text-primary);
 }
 
-.prospecting-form-drawer h2 {
+.flow-editor-page .prospecting-form-drawer h2,
+.prospecting-flows-container .prospecting-form-drawer h2 {
   margin: 0 0 1.5rem 0;
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--ds-text-primary);
 }
 
-.drawer-close {
+.flow-editor-page .drawer-close,
+.prospecting-flows-container .drawer-close {
   background: none;
   border: none;
   color: var(--ds-text-secondary);
@@ -449,11 +421,13 @@
   transition: color 0.2s ease;
 }
 
-.drawer-close:hover {
+.flow-editor-page .drawer-close:hover,
+.prospecting-flows-container .drawer-close:hover {
   color: var(--ds-text-primary);
 }
 
-.modal-actions {
+.flow-editor-page .modal-actions,
+.prospecting-flows-container .modal-actions {
   display: flex;
   gap: 0.75rem;
   margin-top: 2rem;
@@ -461,7 +435,8 @@
   flex-wrap: wrap;
 }
 
-.form-checkbox {
+.flow-editor-page .form-checkbox,
+.prospecting-flows-container .form-checkbox {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -469,8 +444,21 @@
   cursor: pointer;
 }
 
-.form-checkbox input[type="checkbox"] {
+.flow-editor-page .form-checkbox input[type="checkbox"],
+.prospecting-flows-container .form-checkbox input[type="checkbox"] {
   cursor: pointer;
+}
+
+/* ===== EMPTY STATE (namespaced) ===== */
+
+.flow-editor-page .empty-state,
+.prospecting-flows-container .empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: var(--ds-text-tertiary);
+  background: var(--ds-background-secondary);
+  border-radius: 6px;
+  border: 1px dashed var(--ds-border-neutral);
 }
 
 .flow-editor-loading {

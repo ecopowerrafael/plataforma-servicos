@@ -139,7 +139,10 @@
       "PowerShell(Move-Item \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\web\\\\src\\\\components\\\\platform\\\\ProspectingFlowsView_new.tsx\" \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\web\\\\src\\\\components\\\\platform\\\\ProspectingFlowsView.tsx\")",
       "Bash(git commit -m 'UX PROSPECTING — profissionalizar interface de fluxos *)",
       "Bash(git commit -m 'UX PROSPECTING — CSS profissional para objeções *)",
-      "Bash(git commit -m 'FIX UI — isolar CSS de prospecção e restaurar layout global *)"
+      "Bash(git commit -m 'FIX UI — isolar CSS de prospecção e restaurar layout global *)",
+      "PowerShell($cssFile = \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\web\\\\dist\\\\assets\\\\index-DQAZ1GsU.css\"; if \\(Test-Path $cssFile\\) { $content = Get-Content $cssFile -Raw; if \\($content -match \"\\\\.flow-editor-page\"\\) { \"✓ .flow-editor-page found \\(new flows CSS\\)\" } else { \"✗ .flow-editor-page NOT found\" }; if \\($content -match \"\\\\.objection-editor-page\"\\) { \"✓ .objection-editor-page found \\(new objections CSS\\)\" } else { \"✗ .objection-editor-page NOT found\" }; if \\($content -match \"\\\\.platform-app\"\\) { \"✓ .platform-app found \\(shell CSS\\)\" } else { \"✗ .platform-app NOT found\" }; \\(Get-Item $cssFile\\).Length | ForEach-Object { \"Bundle size: $_ bytes\" } } else { \"CSS file NOT found in dist\" })",
+      "PowerShell($cssFile = \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\web\\\\dist\\\\assets\\\\index-DZoYKQsR.css\"; $content = Get-Content $cssFile -Raw; if \\($content -match \"\\\\.flow-editor-page\"\\) { \"✓ .flow-editor-page found\" } else { \"✗ .flow-editor-page NOT found\" }; if \\($content -match \"\\\\.objection-editor-page\"\\) { \"✓ .objection-editor-page found\" } else { \"✗ .objection-editor-page NOT found\" }; if \\($content -match \"\\\\.platform-app\"\\) { \"✓ .platform-app found \\(global shell\\)\" } else { \"✗ .platform-app NOT found\" }; \"Total size: $\\(Get-Item $cssFile | ForEach-Object { [math]::Round\\($_.Length / 1KB, 2\\) }\\) KB\")",
+      "Bash(git commit -m 'FIX UI — eliminar colisões CSS restantes e incluir bundle CSS de produção *)"
     ]
   }
 }

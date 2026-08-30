@@ -103,14 +103,15 @@
   min-height: 100px;
 }
 
-.form-hint {
+/* Form hints and info: namespaced only */
+.objection-settings-card .form-hint {
   display: block;
   margin: 0.5rem 0 0 0;
   font-size: 0.85rem;
   color: var(--ds-text-tertiary);
 }
 
-.form-info {
+.objection-settings-card .form-info {
   margin: 0.75rem 0 0 0;
   padding: 0.75rem;
   background: var(--ds-background-positive-subtle);
@@ -151,14 +152,16 @@
   color: var(--ds-text-primary);
 }
 
-.patterns-list {
+/* ===== PATTERNS (all namespaced) ===== */
+
+.objection-patterns-card .patterns-list {
   margin: 1.5rem 0;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.pattern-row {
+.objection-patterns-card .pattern-row {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -169,7 +172,7 @@
   font-size: 0.9rem;
 }
 
-.pattern-type-badge {
+.objection-patterns-card .pattern-type-badge {
   flex-shrink: 0;
   display: inline-block;
   padding: 0.375rem 0.75rem;
@@ -181,41 +184,41 @@
   white-space: nowrap;
 }
 
-.pattern-text {
+.objection-patterns-card .pattern-text {
   flex: 1;
   color: var(--ds-text-primary);
   font-weight: 500;
   word-break: break-word;
 }
 
-.pattern-priority {
+.objection-patterns-card .pattern-priority {
   flex-shrink: 0;
   font-size: 0.85rem;
   color: var(--ds-text-secondary);
   white-space: nowrap;
 }
 
-.pattern-actions {
+.objection-patterns-card .pattern-actions {
   flex-shrink: 0;
   display: flex;
   gap: 0.5rem;
 }
 
-.pattern-actions button {
+.objection-patterns-card .pattern-actions button {
   padding: 0.5rem 1rem;
   font-size: 0.8rem;
 }
 
-/* ===== PATTERN TYPE OPTIONS ===== */
+/* ===== PATTERN TYPE OPTIONS (namespaced) ===== */
 
-.pattern-type-options {
+.objection-editor-page .pattern-type-options {
   display: flex;
   flex-direction: column;
   gap: 1rem;
   margin: 1rem 0;
 }
 
-.pattern-type-option {
+.objection-editor-page .pattern-type-option {
   display: flex;
   align-items: flex-start;
   gap: 1rem;
@@ -227,12 +230,12 @@
   transition: all 0.2s ease;
 }
 
-.pattern-type-option:hover {
+.objection-editor-page .pattern-type-option:hover {
   background: var(--ds-background-primary);
   border-color: var(--ds-border-focus);
 }
 
-.pattern-type-option input[type="radio"] {
+.objection-editor-page .pattern-type-option input[type="radio"] {
   flex-shrink: 0;
   cursor: pointer;
   width: 18px;
@@ -240,25 +243,25 @@
   margin-top: 0.125rem;
 }
 
-.pattern-type-option div {
+.objection-editor-page .pattern-type-option div {
   flex: 1;
 }
 
-.pattern-type-option strong {
+.objection-editor-page .pattern-type-option strong {
   display: block;
   margin-bottom: 0.25rem;
   color: var(--ds-text-primary);
 }
 
-.pattern-type-option p {
+.objection-editor-page .pattern-type-option p {
   margin: 0;
   font-size: 0.85rem;
   color: var(--ds-text-secondary);
 }
 
-/* ===== MODALS ===== */
+/* ===== MODALS (namespaced to avoid global conflict) ===== */
 
-.prospecting-form-backdrop {
+.objection-editor-page .prospecting-form-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
@@ -269,7 +272,7 @@
   padding: 1rem;
 }
 
-.prospecting-form-drawer {
+.objection-editor-page .prospecting-form-drawer {
   background: var(--ds-background-primary);
   border: 1px solid var(--ds-border-neutral);
   border-radius: 8px;
@@ -282,14 +285,14 @@
   color: var(--ds-text-primary);
 }
 
-.prospecting-form-drawer h2 {
+.objection-editor-page .prospecting-form-drawer h2 {
   margin: 0 0 1.5rem 0;
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--ds-text-primary);
 }
 
-.drawer-close {
+.objection-editor-page .drawer-close {
   background: none;
   border: none;
   color: var(--ds-text-secondary);
@@ -301,11 +304,11 @@
   transition: color 0.2s ease;
 }
 
-.drawer-close:hover {
+.objection-editor-page .drawer-close:hover {
   color: var(--ds-text-primary);
 }
 
-.modal-actions {
+.objection-editor-page .modal-actions {
   display: flex;
   gap: 0.75rem;
   margin-top: 2rem;
@@ -313,9 +316,9 @@
   flex-wrap: wrap;
 }
 
-/* ===== EMPTY STATE ===== */
+/* ===== EMPTY STATE (namespaced) ===== */
 
-.empty-state {
+.objection-editor-page .empty-state {
   padding: 2rem;
   text-align: center;
   color: var(--ds-text-tertiary);
@@ -324,7 +327,7 @@
   border: 1px dashed var(--ds-border-neutral);
 }
 
-.loading {
+.objection-editor-page .loading {
   padding: 3rem 2rem;
   text-align: center;
   color: var(--ds-text-secondary);

@@ -263,7 +263,7 @@ const FlowEditor = ({
   const [flowDesc, setFlowDesc] = useState('');
   const [flowActive, setFlowActive] = useState(true);
 
-  const { data: flowData } = useQuery<z.infer<typeof flowDetailSchema>, Error, z.infer<typeof flowDetailSchema>, string[]>({
+  const { data: flowData, isLoading: isLoadingFlow, error: flowError } = useQuery<z.infer<typeof flowDetailSchema>, Error, z.infer<typeof flowDetailSchema>, string[]>({
     queryKey: ['prospecting-flow', flowId],
     queryFn: async () => {
       return httpClient.request(`/platform/prospecting/flows/${flowId}`, { schema: flowDetailSchema });
@@ -303,7 +303,39 @@ const FlowEditor = ({
     onError: () => onFeedback({ type: 'error', message: 'Erro ao atualizar' }),
   });
 
-  if (!flow) return null;
+  if (isLoadingFlow) {
+    return (
+      <div className="prospecting-form-backdrop" onClick={onClose}>
+        <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+          <button onClick={onClose} className="drawer-close">
+            ← Voltar
+          </button>
+          <div className="flow-editor-loading">Carregando fluxo...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (flowError || !flow) {
+    return (
+      <div className="prospecting-form-backdrop" onClick={onClose}>
+        <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+          <button onClick={onClose} className="drawer-close">
+            ← Voltar
+          </button>
+          <div className="flow-editor-error">
+            <p>Não foi possível carregar o fluxo.</p>
+            <button className="primary-button" onClick={() => window.location.reload()}>
+              Tentar novamente
+            </button>
+            <button className="secondary-button" onClick={onClose}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="prospecting-form-backdrop" onClick={onClose}>

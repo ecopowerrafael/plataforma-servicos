@@ -133,7 +133,8 @@
       "Bash(git commit -m 'UX PROSPECTING — transformar criação de campanha em página guiada *)",
       "Bash(git commit -m 'FIX PROSPECTING — impedir campanha duplicada no retry de materialização *)",
       "Bash(git commit -m 'FIX PROSPECTING — corrigir estados de erro e sucesso na criação *)",
-      "Bash(git commit -m 'FIX PROSPECTING — preservar campanha criada durante navegação do wizard *)"
+      "Bash(git commit -m 'FIX PROSPECTING — preservar campanha criada durante navegação do wizard *)",
+      "Bash(git commit -m 'FIX PROSPECTING — corrigir abertura e edição de fluxos *)"
     ]
   }
 }

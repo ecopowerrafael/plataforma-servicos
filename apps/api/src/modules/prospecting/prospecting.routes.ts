@@ -1150,9 +1150,44 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     { schema: { params: z.object({ publicId: z.uuid() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.read');
-      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.publicId }, include: { steps: { orderBy: { position: 'asc' }, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } } } });
+      const flow = await options.client.prospectingFlow.findUnique({
+        where: { publicId: request.params.publicId },
+        include: { steps: { orderBy: { position: 'asc' }, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } } }
+      });
       if (!flow) throw new Error('Flow not found');
-      return { publicId: flow.publicId, code: flow.code, name: flow.name, description: flow.description, isActive: flow.isActive, steps: flow.steps.map(s => ({ publicId: s.publicId, name: s.name, message: s.message, stepType: s.stepType, position: s.position, isStart: s.isStart, nextStepPublicId: s.nextStepId ? 'null' : null, options: s.options.map(o => ({ publicId: o.publicId, label: o.label, actionType: o.actionType, position: o.position, nextStepPublicId: o.nextStepId ? 'null' : null, patterns: o.patterns.map(p => ({ id: p.id.toString(), pattern: p.pattern, patternType: p.patternType, priority: p.priority })) })) })) };
+
+      // Create map of step ID to public ID for resolving nextStep references
+      const stepPublicIdById = new Map(flow.steps.map(s => [s.id.toString(), s.publicId]));
+
+      return {
+        publicId: flow.publicId,
+        code: flow.code,
+        name: flow.name,
+        description: flow.description,
+        isActive: flow.isActive,
+        steps: flow.steps.map(s => ({
+          publicId: s.publicId,
+          name: s.name,
+          message: s.message,
+          stepType: s.stepType,
+          position: s.position,
+          isStart: s.isStart,
+          nextStepPublicId: s.nextStepId ? (stepPublicIdById.get(s.nextStepId.toString()) ?? null) : null,
+          options: s.options.map(o => ({
+            publicId: o.publicId,
+            label: o.label,
+            actionType: o.actionType,
+            position: o.position,
+            nextStepPublicId: o.nextStepId ? (stepPublicIdById.get(o.nextStepId.toString()) ?? null) : null,
+            patterns: o.patterns.map(p => ({
+              id: p.id.toString(),
+              pattern: p.pattern,
+              patternType: p.patternType,
+              priority: p.priority
+            }))
+          }))
+        }))
+      };
     },
   );
 
@@ -1165,8 +1200,22 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       if (request.body.name) data.name = request.body.name;
       if (request.body.description !== undefined) data.description = request.body.description;
       if (request.body.isActive !== undefined) data.isActive = request.body.isActive;
-      const flow = await options.client.prospectingFlow.update({ where: { publicId: request.params.publicId }, data });
-      return { publicId: flow.publicId, code: flow.code, name: flow.name, isActive: flow.isActive };
+      const flow = await options.client.prospectingFlow.update({
+        where: { publicId: request.params.publicId },
+        data,
+        include: { steps: true }
+      });
+      const stepsCount = flow.steps.length;
+      return {
+        publicId: flow.publicId,
+        code: flow.code,
+        name: flow.name,
+        description: flow.description,
+        isActive: flow.isActive,
+        stepsCount,
+        createdAt: flow.createdAt.toISOString(),
+        updatedAt: flow.updatedAt.toISOString()
+      };
     },
   );
 

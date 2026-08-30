@@ -130,7 +130,8 @@
       "Bash(tar -tzf duo-vet-source-clean.tar.gz)",
       "Bash(git commit -m 'FEAT PROSPECTING — renderizar seletor completo de estados e cidades *)",
       "Bash(git commit -m 'FIX PROSPECTING — permitir trocar estado inteiro por cidade específica *)",
-      "Bash(git commit -m 'UX PROSPECTING — transformar criação de campanha em página guiada *)"
+      "Bash(git commit -m 'UX PROSPECTING — transformar criação de campanha em página guiada *)",
+      "Bash(git commit -m 'FIX PROSPECTING — impedir campanha duplicada no retry de materialização *)"
     ]
   }
 }

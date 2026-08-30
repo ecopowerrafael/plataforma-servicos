@@ -58,9 +58,8 @@ export function ProspectingCampaignReview({
     enabled: !!formData.flowPublicId,
   });
 
-  const createMutation = useMutation({
+  const createCampaignMutation = useMutation({
     mutationFn: async () => {
-      // Create campaign
       const campaignResponse = await httpClient.request('/platform/prospecting/campaigns', {
         method: 'POST',
         body: JSON.stringify({
@@ -78,37 +77,56 @@ export function ProspectingCampaignReview({
           flowPublicId: formData.flowPublicId,
         }),
       });
+      return (campaignResponse as any).publicId;
+    },
+  });
 
-      const campaignPublicId = (campaignResponse as any).publicId;
-      setCreatedCampaignId(campaignPublicId);
-
-      // Materialize audience if selected
-      if (audienceSelection) {
-        const materializeResponse = await httpClient.request(
-          `/platform/prospecting/campaigns/${campaignPublicId}/materialize-audience`,
-          {
-            method: 'POST',
-            body: JSON.stringify(audienceSelection),
-          }
-        );
-        return { campaignPublicId, materialized: (materializeResponse as any) };
+  const materializeAudienceMutation = useMutation({
+    mutationFn: async (campaignPublicId: string) => {
+      if (!audienceSelection) {
+        return null;
       }
-
-      return { campaignPublicId };
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'campaigns'] });
-      onSuccess?.();
-      setTimeout(() => onClose(), 1500);
-    },
-    onError: (err: any) => {
-      setError(err.message || 'Erro ao criar campanha');
+      const materializeResponse = await httpClient.request(
+        `/platform/prospecting/campaigns/${campaignPublicId}/materialize-audience`,
+        {
+          method: 'POST',
+          body: JSON.stringify(audienceSelection),
+        }
+      );
+      return materializeResponse as any;
     },
   });
 
   const handleCreate = async () => {
     setError(null);
-    await createMutation.mutateAsync();
+
+    try {
+      let campaignPublicId = createdCampaignId;
+
+      // Step 1: Create campaign only if not already created
+      if (!campaignPublicId) {
+        campaignPublicId = await createCampaignMutation.mutateAsync();
+        setCreatedCampaignId(campaignPublicId);
+      }
+
+      // Step 2: Materialize audience if selected
+      if (audienceSelection && campaignPublicId) {
+        await materializeAudienceMutation.mutateAsync(campaignPublicId);
+      }
+
+      // Success: invalidate and close
+      void queryClient.invalidateQueries({ queryKey: ['prospecting', 'campaigns'] });
+      onSuccess?.();
+      onClose();
+    } catch (err: any) {
+      if (!createdCampaignId) {
+        // Campaign creation failed
+        setError(err.message || 'Não foi possível criar a campanha.');
+      } else {
+        // Campaign created but materialization failed
+        setError('Campanha criada, mas não foi possível adicionar o público. Tente novamente.');
+      }
+    }
   };
 
   const weekdayNames = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
@@ -129,17 +147,20 @@ export function ProspectingCampaignReview({
           </div>
         )}
 
-        {createMutation.isPending && (
-          <div className="loading-message">Criando campanha...</div>
-        )}
-
-        {createMutation.isSuccess && (
-          <div className="success-message">
-            ✓ Campanha criada com sucesso! Redirecionando...
+        {(createCampaignMutation.isPending || materializeAudienceMutation.isPending) && (
+          <div className="loading-message">
+            {createCampaignMutation.isPending && 'Criando campanha...'}
+            {!createCampaignMutation.isPending && materializeAudienceMutation.isPending && 'Adicionando público...'}
           </div>
         )}
 
-        {!createMutation.isPending && !createMutation.isSuccess && (
+        {!createCampaignMutation.isPending && !materializeAudienceMutation.isPending && createdCampaignId && (
+          <div className="success-message">
+            ✓ Campanha criada com sucesso!
+          </div>
+        )}
+
+        {!createCampaignMutation.isPending && !materializeAudienceMutation.isPending && (
           <>
             <div className="review-section">
               <h3>Campanha</h3>
@@ -226,7 +247,7 @@ export function ProspectingCampaignReview({
             type="button"
             onClick={onBack}
             className="secondary-button"
-            disabled={createMutation.isPending}
+            disabled={createCampaignMutation.isPending || materializeAudienceMutation.isPending || createdCampaignId !== null}
           >
             Voltar
           </button>
@@ -234,9 +255,15 @@ export function ProspectingCampaignReview({
             type="button"
             onClick={handleCreate}
             className="primary-button"
-            disabled={createMutation.isPending || createMutation.isSuccess}
+            disabled={createCampaignMutation.isPending || materializeAudienceMutation.isPending}
           >
-            {createMutation.isPending ? 'Criando...' : 'Criar campanha'}
+            {createCampaignMutation.isPending && 'Criando campanha...'}
+            {!createCampaignMutation.isPending && materializeAudienceMutation.isPending && 'Adicionando público...'}
+            {!createCampaignMutation.isPending && !materializeAudienceMutation.isPending && createdCampaignId ? (
+              'Campanha criada'
+            ) : (
+              'Criar campanha'
+            )}
           </button>
         </div>
       </div>

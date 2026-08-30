@@ -1154,6 +1154,8 @@ export class DirectoryService {
       active?: boolean | undefined;
       indexable?: boolean | undefined;
       sortOrder?: number | undefined;
+      geoapifyCategories?: string[] | null | undefined;
+      externalSearchTerms?: string[] | null | undefined;
     },
   ) {
     // Check if active or indexable will change

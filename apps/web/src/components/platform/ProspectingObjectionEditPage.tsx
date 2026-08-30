@@ -76,19 +76,22 @@ const objectionsSchema = z.object({
   })),
 });
 
+type PatternView =
+  | { type: 'list' }
+  | { type: 'create' }
+  | { type: 'edit'; patternId: string };
+
 export const ProspectingObjectionEditPage = ({
   objectionId,
   onBack,
-  onFeedback,
 }: {
   objectionId: string;
   onBack: () => void;
-  onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
 }) => {
   const queryClient = useQueryClient();
   const [objection, setObjection] = useState<Objection | null>(null);
-  const [editingPatternId, setEditingPatternId] = useState<string | null>(null);
-  const [showAddPattern, setShowAddPattern] = useState(false);
+  const [patternView, setPatternView] = useState<PatternView>({ type: 'list' });
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -119,6 +122,13 @@ export const ProspectingObjectionEditPage = ({
     }
   }, [objections, objectionId]);
 
+  useEffect(() => {
+    if (feedback) {
+      const timer = setTimeout(() => setFeedback(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [feedback]);
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       return httpClient.request(`/platform/prospecting/objections/${objectionId}`, {
@@ -137,10 +147,9 @@ export const ProspectingObjectionEditPage = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
-      onFeedback({ type: 'success', message: 'Objeção atualizada' });
-      setTimeout(() => onFeedback({ type: 'error', message: '' }), 3000);
+      setFeedback({ type: 'success', message: 'Objeção atualizada' });
     },
-    onError: () => onFeedback({ type: 'error', message: 'Erro ao atualizar objeção' }),
+    onError: () => setFeedback({ type: 'error', message: 'Erro ao atualizar objeção' }),
   });
 
   if (isLoading) {
@@ -174,6 +183,12 @@ export const ProspectingObjectionEditPage = ({
           {objection.isActive ? 'Ativa' : 'Inativa'}
         </span>
       </div>
+
+      {feedback && (
+        <div className="objection-feedback-message" data-type={feedback.type}>
+          {feedback.message}
+        </div>
+      )}
 
       <div className="objection-editor-container">
         {/* Settings Column */}
@@ -244,7 +259,6 @@ export const ProspectingObjectionEditPage = ({
               className="primary-button"
               onClick={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}
-              style={{ width: '100%' }}
             >
               Salvar Alterações
             </button>
@@ -253,62 +267,59 @@ export const ProspectingObjectionEditPage = ({
 
         {/* Patterns Column */}
         <div className="objection-editor-patterns">
-          <div className="objection-patterns-card">
-            <h3>Padrões de Reconhecimento</h3>
-            <p className="form-hint">Configure como o sistema reconhece respostas que levam a essa objeção</p>
+          {patternView.type === 'list' ? (
+            <div className="objection-patterns-card">
+              <h3>Padrões de Reconhecimento</h3>
+              <p className="form-hint">Configure como o sistema reconhece respostas que levam a essa objeção</p>
 
-            {objection.patterns.length === 0 ? (
-              <div className="empty-state">Nenhum padrão configurado</div>
-            ) : (
-              <div className="patterns-list">
-                {objection.patterns.map((p) => (
-                  <PatternRow
-                    key={p.id}
-                    pattern={p}
-                    objectionId={objectionId}
-                    onEdit={() => setEditingPatternId(p.id)}
-                    onFeedback={onFeedback}
-                  />
-                ))}
-              </div>
-            )}
+              {objection.patterns.length === 0 ? (
+                <div className="empty-state">Nenhum padrão configurado</div>
+              ) : (
+                <div className="patterns-list">
+                  {objection.patterns.map((p) => (
+                    <PatternRow
+                      key={p.id}
+                      pattern={p}
+                      objectionId={objectionId}
+                      onEdit={() => setPatternView({ type: 'edit', patternId: p.id })}
+                      onDelete={(msg) => setFeedback({ type: 'success', message: msg })}
+                    />
+                  ))}
+                </div>
+              )}
 
-            <button
-              className="secondary-button"
-              onClick={() => setShowAddPattern(true)}
-              style={{ width: '100%', marginTop: '1rem' }}
-            >
-              + Adicionar Padrão
-            </button>
-
-            {showAddPattern && (
-              <AddPatternModal
-                objectionId={objectionId}
-                onClose={() => setShowAddPattern(false)}
-                onSuccess={() => {
-                  queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
-                  setShowAddPattern(false);
-                  onFeedback({ type: 'success', message: 'Padrão adicionado' });
-                }}
-                onError={() => onFeedback({ type: 'error', message: 'Erro ao adicionar padrão' })}
-              />
-            )}
-
-            {editingPatternId && objection && (
-              <EditPatternModal
-                patternId={editingPatternId}
-                objectionId={objectionId}
-                pattern={objection.patterns.find((p) => p.id === editingPatternId)}
-                onClose={() => setEditingPatternId(null)}
-                onSuccess={() => {
-                  queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
-                  setEditingPatternId(null);
-                  onFeedback({ type: 'success', message: 'Padrão atualizado' });
-                }}
-                onError={() => onFeedback({ type: 'error', message: 'Erro ao atualizar padrão' })}
-              />
-            )}
-          </div>
+              <button
+                className="secondary-button"
+                onClick={() => setPatternView({ type: 'create' })}
+              >
+                + Adicionar Padrão
+              </button>
+            </div>
+          ) : patternView.type === 'create' ? (
+            <AddPatternForm
+              objectionId={objectionId}
+              onClose={() => setPatternView({ type: 'list' })}
+              onSuccess={() => {
+                queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
+                setPatternView({ type: 'list' });
+                setFeedback({ type: 'success', message: 'Padrão adicionado' });
+              }}
+              onError={(msg) => setFeedback({ type: 'error', message: msg })}
+            />
+          ) : patternView.type === 'edit' ? (
+            <EditPatternForm
+              patternId={patternView.patternId}
+              objectionId={objectionId}
+              pattern={objection.patterns.find((p) => p.id === patternView.patternId)}
+              onClose={() => setPatternView({ type: 'list' })}
+              onSuccess={() => {
+                queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
+                setPatternView({ type: 'list' });
+                setFeedback({ type: 'success', message: 'Padrão atualizado' });
+              }}
+              onError={(msg) => setFeedback({ type: 'error', message: msg })}
+            />
+          ) : null}
         </div>
       </div>
     </div>
@@ -319,12 +330,12 @@ const PatternRow = ({
   pattern,
   objectionId,
   onEdit,
-  onFeedback,
+  onDelete,
 }: {
   pattern: Pattern;
   objectionId: string;
   onEdit: () => void;
-  onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
+  onDelete: (msg: string) => void;
 }) => {
   const queryClient = useQueryClient();
 
@@ -336,9 +347,9 @@ const PatternRow = ({
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospecting', 'objections'] });
-      onFeedback({ type: 'success', message: 'Padrão removido' });
+      onDelete('Padrão removido');
     },
-    onError: () => onFeedback({ type: 'error', message: 'Erro ao remover padrão' }),
+    onError: () => onDelete('Erro ao remover padrão'),
   });
 
   return (
@@ -365,7 +376,7 @@ const PatternRow = ({
   );
 };
 
-const AddPatternModal = ({
+const AddPatternForm = ({
   objectionId,
   onClose,
   onSuccess,
@@ -374,7 +385,7 @@ const AddPatternModal = ({
   objectionId: string;
   onClose: () => void;
   onSuccess: () => void;
-  onError: () => void;
+  onError: (msg: string) => void;
 }) => {
   const [pattern, setPattern] = useState('');
   const [patternType, setPatternType] = useState('EXACT');
@@ -389,111 +400,108 @@ const AddPatternModal = ({
       });
     },
     onSuccess,
-    onError,
+    onError: () => onError('Erro ao adicionar padrão'),
   });
 
   return (
-    <div className="prospecting-form-backdrop" onClick={onClose}>
-      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="drawer-close">← Voltar</button>
-        <h2>Adicionar Padrão</h2>
+    <div className="objection-patterns-card">
+      <h3>Novo Padrão</h3>
 
-        <div className="form-group">
-          <label>Padrão</label>
-          <input
-            type="text"
-            value={pattern}
-            onChange={(e) => setPattern(e.target.value)}
-            className="form-input"
-            placeholder="ex: contato errado"
-          />
+      <div className="form-group">
+        <label>Padrão</label>
+        <input
+          type="text"
+          value={pattern}
+          onChange={(e) => setPattern(e.target.value)}
+          className="form-input"
+          placeholder="ex: contato errado"
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Tipo de Correspondência</label>
+        <div className="pattern-type-options">
+          <label className="pattern-type-option">
+            <input
+              type="radio"
+              name="type"
+              value="EXACT"
+              checked={patternType === 'EXACT'}
+              onChange={(e) => setPatternType(e.target.value)}
+            />
+            <div>
+              <strong>Exato</strong>
+              <p>A mensagem precisa ser exatamente igual</p>
+            </div>
+          </label>
+
+          <label className="pattern-type-option">
+            <input
+              type="radio"
+              name="type"
+              value="CONTAINS"
+              checked={patternType === 'CONTAINS'}
+              onChange={(e) => setPatternType(e.target.value)}
+            />
+            <div>
+              <strong>Contém</strong>
+              <p>Identifica quando o texto aparece em qualquer parte</p>
+            </div>
+          </label>
+
+          <label className="pattern-type-option">
+            <input
+              type="radio"
+              name="type"
+              value="STARTS_WITH"
+              checked={patternType === 'STARTS_WITH'}
+              onChange={(e) => setPatternType(e.target.value)}
+            />
+            <div>
+              <strong>Começa com</strong>
+              <p>Começa exatamente com este texto</p>
+            </div>
+          </label>
+
+          <label className="pattern-type-option">
+            <input
+              type="radio"
+              name="type"
+              value="ENDS_WITH"
+              checked={patternType === 'ENDS_WITH'}
+              onChange={(e) => setPatternType(e.target.value)}
+            />
+            <div>
+              <strong>Termina com</strong>
+              <p>Termina exatamente com este texto</p>
+            </div>
+          </label>
         </div>
+      </div>
 
-        <div className="form-group">
-          <label>Tipo de Correspondência</label>
-          <div className="pattern-type-options">
-            <label className="pattern-type-option">
-              <input
-                type="radio"
-                name="type"
-                value="EXACT"
-                checked={patternType === 'EXACT'}
-                onChange={(e) => setPatternType(e.target.value)}
-              />
-              <div>
-                <strong>Exato</strong>
-                <p>A mensagem precisa ser exatamente igual</p>
-              </div>
-            </label>
+      <div className="form-group">
+        <label>Prioridade</label>
+        <input
+          type="number"
+          value={priority}
+          onChange={(e) => setPriority(Number(e.target.value))}
+          className="form-input"
+          min="0"
+        />
+        <p className="form-hint">Maior número = maior prioridade</p>
+      </div>
 
-            <label className="pattern-type-option">
-              <input
-                type="radio"
-                name="type"
-                value="CONTAINS"
-                checked={patternType === 'CONTAINS'}
-                onChange={(e) => setPatternType(e.target.value)}
-              />
-              <div>
-                <strong>Contém</strong>
-                <p>Identifica quando o texto aparece em qualquer parte</p>
-              </div>
-            </label>
-
-            <label className="pattern-type-option">
-              <input
-                type="radio"
-                name="type"
-                value="STARTS_WITH"
-                checked={patternType === 'STARTS_WITH'}
-                onChange={(e) => setPatternType(e.target.value)}
-              />
-              <div>
-                <strong>Começa com</strong>
-                <p>Começa exatamente com este texto</p>
-              </div>
-            </label>
-
-            <label className="pattern-type-option">
-              <input
-                type="radio"
-                name="type"
-                value="ENDS_WITH"
-                checked={patternType === 'ENDS_WITH'}
-                onChange={(e) => setPatternType(e.target.value)}
-              />
-              <div>
-                <strong>Termina com</strong>
-                <p>Termina exatamente com este texto</p>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label>Prioridade</label>
-          <input
-            type="number"
-            value={priority}
-            onChange={(e) => setPriority(Number(e.target.value))}
-            className="form-input"
-            min="0"
-          />
-          <p className="form-hint">Maior número = maior prioridade</p>
-        </div>
-
-        <div className="modal-actions">
-          <button onClick={onClose} className="secondary-button">Cancelar</button>
-          <button onClick={() => createMutation.mutate()} className="primary-button" disabled={!pattern || createMutation.isPending}>
-            Adicionar
-          </button>
-        </div>
+      <div className="modal-actions">
+        <button onClick={onClose} className="secondary-button">Cancelar</button>
+        <button onClick={() => createMutation.mutate()} className="primary-button" disabled={!pattern || createMutation.isPending}>
+          Adicionar
+        </button>
       </div>
     </div>
   );
 };
 
-const EditPatternModal = ({
+const EditPatternForm = ({
   patternId,
   objectionId,
   pattern,
@@ -506,7 +514,7 @@ const EditPatternModal = ({
   pattern: Pattern | undefined;
   onClose: () => void;
   onSuccess: () => void;
-  onError: () => void;
+  onError: (msg: string) => void;
 }) => {
   const [patternText, setPatternText] = useState(pattern?.pattern || '');
   const [patternType, setPatternType] = useState(pattern?.type || 'EXACT');
@@ -521,53 +529,50 @@ const EditPatternModal = ({
       });
     },
     onSuccess,
-    onError,
+    onError: () => onError('Erro ao atualizar padrão'),
   });
 
   if (!pattern) return null;
 
   return (
-    <div className="prospecting-form-backdrop" onClick={onClose}>
-      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="drawer-close">← Voltar</button>
-        <h2>Editar Padrão</h2>
+    <div className="objection-patterns-card">
+      <h3>Editar Padrão</h3>
 
-        <div className="form-group">
-          <label>Padrão</label>
-          <input
-            type="text"
-            value={patternText}
-            onChange={(e) => setPatternText(e.target.value)}
-            className="form-input"
-          />
-        </div>
+      <div className="form-group">
+        <label>Padrão</label>
+        <input
+          type="text"
+          value={patternText}
+          onChange={(e) => setPatternText(e.target.value)}
+          className="form-input"
+        />
+      </div>
 
-        <div className="form-group">
-          <label>Tipo de Correspondência</label>
-          <select value={patternType} onChange={(e) => setPatternType(e.target.value)} className="form-input">
-            {Object.entries(patternTypeLabels).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
+      <div className="form-group">
+        <label>Tipo de Correspondência</label>
+        <select value={patternType} onChange={(e) => setPatternType(e.target.value)} className="form-input">
+          {Object.entries(patternTypeLabels).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+      </div>
 
-        <div className="form-group">
-          <label>Prioridade</label>
-          <input
-            type="number"
-            value={priority}
-            onChange={(e) => setPriority(Number(e.target.value))}
-            className="form-input"
-            min="0"
-          />
-        </div>
+      <div className="form-group">
+        <label>Prioridade</label>
+        <input
+          type="number"
+          value={priority}
+          onChange={(e) => setPriority(Number(e.target.value))}
+          className="form-input"
+          min="0"
+        />
+      </div>
 
-        <div className="modal-actions">
-          <button onClick={onClose} className="secondary-button">Cancelar</button>
-          <button onClick={() => updateMutation.mutate()} className="primary-button" disabled={updateMutation.isPending}>
-            Salvar
-          </button>
-        </div>
+      <div className="modal-actions">
+        <button onClick={onClose} className="secondary-button">Cancelar</button>
+        <button onClick={() => updateMutation.mutate()} className="primary-button" disabled={updateMutation.isPending}>
+          Salvar
+        </button>
       </div>
     </div>
   );

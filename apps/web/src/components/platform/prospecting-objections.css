@@ -189,7 +189,7 @@
 /* ===== MOBILE LIST ===== */
 
 .objections-mobile-list {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 1rem;
 }
@@ -201,12 +201,141 @@
   padding: 1.5rem;
 }
 
+.objection-mobile-header {
+  margin-bottom: 1rem;
+}
+
+.objection-mobile-header h3 {
+  margin: 0 0 0.25rem 0;
+  color: var(--ds-text-primary);
+  font-weight: 600;
+}
+
+.objection-mobile-header p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+}
+
+.objection-mobile-meta {
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+  margin-bottom: 1rem;
+}
+
+/* ===== PREVIEW CARD ===== */
+
+.objections-preview-card {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.objections-preview-card h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.objections-preview-hint {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: var(--ds-text-secondary);
+}
+
+.objections-preview-result {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ds-border-neutral);
+}
+
+.objections-preview-label {
+  font-size: 0.85rem;
+  color: var(--ds-text-tertiary);
+  margin-bottom: 0.5rem;
+}
+
+.objections-preview-result-box {
+  padding: 1rem;
+  background: var(--ds-background-secondary);
+  border-radius: 6px;
+  border-left: 3px solid var(--ds-border-focus);
+  color: var(--ds-text-primary);
+}
+
+.objections-table-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.objection-delete-action {
+  background: none;
+  border: none;
+  color: var(--ds-text-negative);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.objection-delete-action:hover {
+  color: var(--ds-text-negative);
+  opacity: 0.8;
+}
+
+/* ===== RESPONSIVE ===== */
+
+@media (max-width: 899px) {
+  .objections-table-container {
+    display: none;
+  }
+
+  .objections-mobile-list {
+    display: flex;
+  }
+
+  .objections-page-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .objections-page-actions button {
+    width: 100%;
+  }
+
+  .objections-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* ===== OBJECTION EDITOR PAGE ===== */
 
 .objection-editor-page {
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
+}
+
+.objection-feedback-message {
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.objection-feedback-message[data-type="success"] {
+  background: var(--ds-background-positive-subtle);
+  color: var(--ds-text-positive);
+  border: 1px solid var(--ds-border-positive);
+}
+
+.objection-feedback-message[data-type="error"] {
+  background: var(--ds-background-negative-subtle);
+  color: var(--ds-text-negative);
+  border: 1px solid var(--ds-border-negative);
 }
 
 .objection-editor-header {

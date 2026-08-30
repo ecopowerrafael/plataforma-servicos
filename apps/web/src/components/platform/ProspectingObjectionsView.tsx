@@ -120,8 +120,6 @@ export function ProspectingObjectionsView() {
   const autoReplyObjections = objections.data?.items?.filter((item: Objection) => item.autoReplyAllowed).length || 0;
   const totalPatterns = objections.data?.items?.reduce((total: number, item: Objection) => total + item.patterns.length, 0) || 0;
 
-  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 900;
-
   return (
     <section className="prospecting-objections-page">
       <div className="objections-page-header">
@@ -160,27 +158,21 @@ export function ProspectingObjectionsView() {
             onClick={() => setSubmittedPreview(previewInput)}
             disabled={!previewInput.trim()}
             className="primary-button"
-            style={{ marginTop: '1rem' }}
           >
             Analisar mensagem
           </button>
 
           {submittedPreview && (
-            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--ds-border-neutral)' }}>
+            <div className="objections-preview-result">
               {previewResult.isPending ? (
-                <p style={{ color: 'var(--ds-text-secondary)' }}>Analisando...</p>
+                <p>Analisando...</p>
               ) : previewResult.error ? (
-                <p style={{ color: 'var(--ds-text-negative)' }}>Erro na classificação</p>
+                <p>Erro na classificação</p>
               ) : previewResult.data ? (
                 <div>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--ds-text-tertiary)', marginBottom: '0.5rem' }}>Resultado:</p>
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--ds-background-secondary)',
-                    borderRadius: '6px',
-                    borderLeft: '3px solid var(--ds-border-focus)',
-                  }}>
-                    <strong style={{ color: 'var(--ds-text-primary)' }}>
+                  <p className="objections-preview-label">Resultado:</p>
+                  <div className="objections-preview-result-box">
+                    <strong>
                       {previewResult.data.objectionName || 'Nenhuma objeção identificada'}
                     </strong>
                   </div>
@@ -226,107 +218,92 @@ export function ProspectingObjectionsView() {
             </div>
           </div>
 
-          {isDesktop ? (
-            <div className="objections-table-container">
-              <table className="objections-table">
-                <thead>
-                  <tr>
-                    <th>Objeção</th>
-                    <th>Status</th>
-                    <th>Resposta Automática</th>
-                    <th>Padrões</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {objections.data.items.map((objection: Objection) => (
-                    <tr key={objection.publicId}>
-                      <td className="objection-name-cell">
-                        <div className="objection-name">{objection.name}</div>
-                        {objection.description && (
-                          <div className="objection-description-cell">{objection.description}</div>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`objection-status-badge ${objection.isActive ? 'active' : 'inactive'}`}>
-                          {objection.isActive ? 'Ativa' : 'Inativa'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`objection-auto-badge ${objection.autoReplyAllowed ? 'enabled' : 'disabled'}`}>
-                          {objection.autoReplyAllowed ? 'Ativada' : 'Desativada'}
-                        </span>
-                      </td>
-                      <td>{objection.patterns.length}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="objections-table-container">
+            <table className="objections-table">
+              <thead>
+                <tr>
+                  <th>Objeção</th>
+                  <th>Status</th>
+                  <th>Resposta Automática</th>
+                  <th>Padrões</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {objections.data.items.map((objection: Objection) => (
+                  <tr key={objection.publicId}>
+                    <td className="objection-name-cell">
+                      <div className="objection-name">{objection.name}</div>
+                      {objection.description && (
+                        <div className="objection-description-cell">{objection.description}</div>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`objection-status-badge ${objection.isActive ? 'active' : 'inactive'}`}>
+                        {objection.isActive ? 'Ativa' : 'Inativa'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`objection-auto-badge ${objection.autoReplyAllowed ? 'enabled' : 'disabled'}`}>
+                        {objection.autoReplyAllowed ? 'Ativada' : 'Desativada'}
+                      </span>
+                    </td>
+                    <td>{objection.patterns.length}</td>
+                    <td>
+                      <div className="objections-table-actions">
+                        <button
+                          onClick={() => setView({ type: 'edit', objectionId: objection.publicId })}
+                          className="secondary-button"
+                        >
+                          Editar
+                        </button>
+                        {!objection.code && (
                           <button
-                            onClick={() => setView({ type: 'edit', objectionId: objection.publicId })}
-                            className="secondary-button"
-                            style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+                            onClick={() => void deleteObjectionMutation.mutateAsync(objection.publicId)}
+                            disabled={deleteObjectionMutation.isPending}
+                            className="objection-delete-action"
                           >
-                            Editar
+                            Excluir
                           </button>
-                          {!objection.code && (
-                            <button
-                              onClick={() => void deleteObjectionMutation.mutateAsync(objection.publicId)}
-                              disabled={deleteObjectionMutation.isPending}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--ds-text-negative)',
-                                cursor: 'pointer',
-                                fontSize: '0.85rem',
-                                textDecoration: 'underline',
-                              }}
-                            >
-                              Excluir
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="objections-mobile-list">
-              {objections.data.items.map((objection: Objection) => (
-                <div key={objection.publicId} className="objection-mobile-card">
-                  <div style={{ marginBottom: '1rem' }}>
-                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--ds-text-primary)', fontWeight: 600 }}>
-                      {objection.name}
-                    </h3>
-                    {objection.description && (
-                      <p style={{ margin: '0', fontSize: '0.85rem', color: 'var(--ds-text-secondary)' }}>
-                        {objection.description}
-                      </p>
-                    )}
-                  </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-                  <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                    <span className={`objection-status-badge ${objection.isActive ? 'active' : 'inactive'}`}>
-                      {objection.isActive ? 'Ativa' : 'Inativa'}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: '0.85rem', color: 'var(--ds-text-secondary)', marginBottom: '1rem' }}>
-                    <div>{objection.patterns.length} padrões</div>
-                    <div>Resposta automática: {objection.autoReplyAllowed ? 'Ativada' : 'Desativada'}</div>
-                  </div>
-
-                  <button
-                    onClick={() => setView({ type: 'edit', objectionId: objection.publicId })}
-                    className="primary-button"
-                    style={{ width: '100%' }}
-                  >
-                    Editar
-                  </button>
+          <div className="objections-mobile-list">
+            {objections.data.items.map((objection: Objection) => (
+              <div key={objection.publicId} className="objection-mobile-card">
+                <div className="objection-mobile-header">
+                  <h3>{objection.name}</h3>
+                  {objection.description && (
+                    <p>{objection.description}</p>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+
+                <div>
+                  <span className={`objection-status-badge ${objection.isActive ? 'active' : 'inactive'}`}>
+                    {objection.isActive ? 'Ativa' : 'Inativa'}
+                  </span>
+                </div>
+
+                <div className="objection-mobile-meta">
+                  <div>{objection.patterns.length} padrões</div>
+                  <div>Resposta automática: {objection.autoReplyAllowed ? 'Ativada' : 'Desativada'}</div>
+                </div>
+
+                <button
+                  onClick={() => setView({ type: 'edit', objectionId: objection.publicId })}
+                  className="primary-button"
+                >
+                  Editar
+                </button>
+              </div>
+            ))}
+          </div>
         </>
       )}
     </section>

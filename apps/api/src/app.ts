@@ -946,6 +946,7 @@ export async function buildApp(options: BuildAppOptions) {
       });
       await app.register(directoryRoutes, {
         service: options.database.directory,
+        locationService,
         platformService: options.database.platform,
         authService,
         cookieName: options.environment.AUTH_COOKIE_NAME,

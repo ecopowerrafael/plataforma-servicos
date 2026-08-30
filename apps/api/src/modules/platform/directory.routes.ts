@@ -75,6 +75,7 @@ function queriesInput(query: z.infer<typeof seoQuery>) {
 
 interface DirectoryRoutesOptions {
   service: DirectoryService;
+  locationService: DirectoryLocationService;
   seo?: DirectorySeoService;
   platformService: PlatformService;
   authService: AuthService;
@@ -257,25 +258,29 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
       return options.service.updateCategory(request.params.publicId, request.body);
     },
   );
-  app.get('/platform/directory/location-config', {}, (request) => {
+  app.get('/platform/directory/location-config', {}, async (request) => {
     allow(request, 'platform.tenant.read');
-    const configured = request.server.directoryLocationConfigService?.isConfigured() ?? false;
-    const maskedKey = configured ? request.server.directoryLocationConfigService?.getMaskedKey() : null;
-    const source = request.server.directoryLocationConfigService?.getSource() ?? 'NONE';
-    return { geoapifyConfigured: configured, geoapifyMaskedKey: maskedKey, source };
+    const status = await request.server.directoryLocationConfigService?.getStatus() ?? {
+      geoapifyConfigured: false,
+      geoapifyMaskedKey: null,
+      source: 'NONE' as const,
+    };
+    return status;
   });
   app.put(
     '/platform/directory/location-config',
     { schema: { body: z.object({ geoapifyApiKey: z.string().min(1).max(256).nullable() }) } },
     async (request) => {
       allow(request, 'platform.tenant.update');
-      if (request.server.directoryLocationConfigService) {
-        await request.server.directoryLocationConfigService.saveGeoapifyApiKey(request.body.geoapifyApiKey);
-      }
-      const configured = request.server.directoryLocationConfigService?.isConfigured() ?? false;
-      const maskedKey = configured ? request.server.directoryLocationConfigService?.getMaskedKey() : null;
-      const source = request.server.directoryLocationConfigService?.getSource() ?? 'NONE';
-      return { geoapifyConfigured: configured, geoapifyMaskedKey: maskedKey, source };
+      const status =
+        await request.server.directoryLocationConfigService?.saveGeoapifyApiKey(
+          request.body.geoapifyApiKey,
+        ) ?? {
+          geoapifyConfigured: false,
+          geoapifyMaskedKey: null,
+          source: 'NONE' as const,
+        };
+      return status;
     },
   );
   app.post(

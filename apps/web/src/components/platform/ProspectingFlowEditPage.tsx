@@ -58,7 +58,9 @@ const flowListItemSchema = z.object({
 type FlowEditorView =
   | { type: 'overview' }
   | { type: 'edit-step'; stepId: string }
-  | { type: 'responses'; stepId: string };
+  | { type: 'responses'; stepId: string }
+  | { type: 'edit-response'; stepId: string; optionId: string }
+  | { type: 'create-response'; stepId: string };
 
 export const ProspectingFlowEditPage = ({
   flowId,
@@ -161,6 +163,24 @@ export const ProspectingFlowEditPage = ({
         onFeedback={setFeedback}
       />
     );
+  }
+
+  if (editorView.type === 'responses') {
+    const step = flow.steps.find((s) => s.publicId === editorView.stepId);
+    if (step) {
+      return (
+        <OptionListPage
+          step={step}
+          flowId={flowId}
+          flowName={flow.name}
+          flow={flow}
+          editorView={editorView}
+          setEditorView={setEditorView}
+          onClose={() => setEditorView({ type: 'overview' })}
+          onFeedback={setFeedback}
+        />
+      );
+    }
   }
 
   return (
@@ -286,14 +306,6 @@ export const ProspectingFlowEditPage = ({
         )}
       </div>
 
-      {editorView.type === 'responses' && flow && (
-        <OptionListEditor
-          step={flow.steps.find((s) => s.publicId === editorView.stepId)}
-          flowId={flowId}
-          onClose={() => setEditorView({ type: 'overview' })}
-          onFeedback={setFeedback}
-        />
-      )}
     </div>
   );
 };
@@ -564,6 +576,168 @@ const StepEditor = ({
           Salvar alterações
         </button>
       </div>
+      </div>
+    </div>
+  );
+};
+
+const OptionListPage = ({
+  step,
+  flowId,
+  flowName,
+  flow,
+  editorView,
+  setEditorView,
+  onClose,
+  onFeedback,
+}: {
+  step: z.infer<typeof flowStepSchema>;
+  flowId: string;
+  flowName: string;
+  flow: z.infer<typeof flowDetailSchema>;
+  editorView: FlowEditorView;
+  setEditorView: (view: FlowEditorView) => void;
+  onClose: () => void;
+  onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
+}) => {
+  const queryClient = useQueryClient();
+  const [newLabel, setNewLabel] = useState('');
+  const [newAction, setNewAction] = useState('NEXT_STEP');
+
+  const addOptionMutation = useMutation<z.infer<typeof flowOptionSchema>, Error>({
+    mutationFn: async () => {
+      return httpClient.request(`/platform/prospecting/flows/${flowId}/steps/${step.publicId}/options`, {
+        method: 'POST',
+        body: JSON.stringify({
+          label: newLabel,
+          actionType: newAction,
+          position: step.options.length,
+          nextStepPublicId: null,
+        }),
+        schema: flowOptionSchema,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      setNewLabel('');
+      setNewAction('NEXT_STEP');
+      onFeedback({ type: 'success', message: 'Resposta adicionada' });
+    },
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao adicionar resposta' }),
+  });
+
+  const deleteOptionMutation = useMutation<unknown, Error, string>({
+    mutationFn: (optionId: string) =>
+      httpClient.request(`/platform/prospecting/flows/${flowId}/options/${optionId}`, {
+        method: 'DELETE',
+        schema: z.any(),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
+      onFeedback({ type: 'success', message: 'Resposta removida' });
+    },
+    onError: () => onFeedback({ type: 'error', message: 'Erro ao remover resposta' }),
+  });
+
+  return (
+    <div className="flow-editor-page">
+      <div className="flow-editor-header">
+        <button onClick={onClose} className="back-button">
+          ← Voltar ao fluxo
+        </button>
+        <div className="flow-editor-breadcrumb">
+          Prospecção / Fluxos / {flowName} / {step.name} / Respostas
+        </div>
+      </div>
+
+      <div className="flow-step-editor">
+        <h2>Respostas da Etapa</h2>
+        <p style={{ marginBottom: '1.5rem', color: 'var(--ds-text-secondary)' }}>
+          Configure as opções que o lead pode escolher nesta etapa.
+        </p>
+
+        {step.options.length === 0 ? (
+          <div className="empty-state">Nenhuma resposta configurada</div>
+        ) : (
+          <div style={{ marginBottom: '2rem' }}>
+            {step.options.map((opt) => (
+              <div
+                key={opt.publicId}
+                style={{
+                  marginBottom: '1rem',
+                  padding: '1rem',
+                  border: '1px solid var(--ds-border-neutral)',
+                  borderRadius: '6px',
+                  backgroundColor: 'var(--ds-background-secondary)',
+                }}
+              >
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--ds-text-primary)' }}>
+                    {opt.label}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--ds-text-secondary)', marginTop: '0.25rem' }}>
+                    → {actionTypeNames[opt.actionType]}
+                    {opt.nextStepPublicId && ` (${flow.steps.find((s) => s.publicId === opt.nextStepPublicId)?.name || 'Etapa'})`}
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--ds-text-tertiary)', marginBottom: '0.75rem' }}>
+                  {opt.patterns.length} padrão(ões)
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className="secondary-button"
+                    onClick={() => setEditorView({ type: 'edit-response', stepId: step.publicId, optionId: opt.publicId })}
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    className="danger-button"
+                    onClick={() => {
+                      if (confirm('Remover resposta? Esta ação não pode ser desfeita.')) {
+                        deleteOptionMutation.mutate(opt.publicId);
+                      }
+                    }}
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ paddingTop: '1.5rem', borderTop: '1px solid var(--ds-border-neutral)', marginTop: '1.5rem' }}>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--ds-text-primary)' }}>Adicionar Resposta</h3>
+          <div className="form-group">
+            <label>Texto da resposta</label>
+            <input
+              type="text"
+              placeholder="ex: Tenho interesse"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              className="form-input"
+            />
+          </div>
+          <div className="form-group">
+            <label>Ação</label>
+            <select value={newAction} onChange={(e) => setNewAction(e.target.value)} className="form-input">
+              {Object.entries(actionTypeNames).map(([key, name]) => (
+                <option key={key} value={key}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={() => addOptionMutation.mutate()}
+            className="primary-button"
+            disabled={!newLabel || addOptionMutation.isPending}
+          >
+            {addOptionMutation.isPending ? 'Adicionando...' : 'Adicionar Resposta'}
+          </button>
+        </div>
       </div>
     </div>
   );

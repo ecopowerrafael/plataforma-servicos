@@ -147,7 +147,8 @@
       "Bash(git commit -m 'UX PROSPECTING — concluir editor inline de padrões e responsividade *)",
       "Bash(git commit -m 'FIX PROSPECTING — corrigir useRef e edição de etapa do fluxo *)",
       "Bash(git commit -m 'UX PROSPECTING — transformar edição de etapa em subpágina real *)",
-      "Bash(git commit -m 'FIX PROSPECTING — corrigir feedback da subpágina de etapa *)"
+      "Bash(git commit -m 'FIX PROSPECTING — corrigir feedback da subpágina de etapa *)",
+      "Bash(git commit -m 'UX PROSPECTING — transformar respostas do fluxo em subpágina *)"
     ]
   }
 }

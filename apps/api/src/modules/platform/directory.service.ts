@@ -1198,6 +1198,13 @@ export class DirectoryService {
       });
     }
 
+    // If Geoapify categories/terms changed, invalidate cache to reflect new config immediately
+    if (input.geoapifyCategories !== undefined || input.externalSearchTerms !== undefined) {
+      await this.client.directoryExternalSearchCache.deleteMany({
+        where: { categoryId: category.id },
+      });
+    }
+
     return this.adminCategoryPublic(category);
   }
   public async adminBusinesses(page: number, limit: number) {

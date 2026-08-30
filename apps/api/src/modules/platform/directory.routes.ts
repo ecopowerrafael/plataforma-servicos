@@ -301,6 +301,8 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
           request.body.categorySlug,
           request.body.cep,
         );
+        const category = await options.service.categories()
+          .then((cats) => cats.find((c) => c.slug === request.body.categorySlug));
         return {
           success: true,
           location: {
@@ -315,6 +317,11 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
             directory: result.results.filter((r) => r.source === 'DIRECTORY').length,
             geoapify: result.results.filter((r) => r.source === 'GEOAPIFY').length,
             total: result.results.length,
+          },
+          geoapify: {
+            configured: ((category as any)?.geoapifyCategories?.length ?? 0) > 0,
+            categories: (category as any)?.geoapifyCategories ?? [],
+            hasCoordinates: result.location.latitude !== null && result.location.longitude !== null,
           },
         };
       } catch (error) {

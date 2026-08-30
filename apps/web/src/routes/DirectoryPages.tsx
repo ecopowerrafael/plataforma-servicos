@@ -136,9 +136,18 @@ export function DirectoryCategoryPage() {
                 ))}
               </div>
             ) : (
-              <p>Não encontramos estabelecimentos próximos deste CEP. <Link to={cepResult.cityUrl}>Ver todos em {cepResult.location.city}</Link></p>
+              <p>Ainda não encontramos opções próximas deste CEP. <Link to={`/encontre/${categorySlug}`}>Ver outras {plural.toLowerCase()}</Link></p>
             )}
-            <p><Link to={cepResult.cityUrl}>Ver todos os {plural.toLowerCase()} em {cepResult.location.city}</Link></p>
+            {(() => {
+              const cityExists = query.data?.cities.some(
+                (c) => c.city.toLowerCase() === cepResult.location.city.toLowerCase() && c.state === cepResult.location.state
+              ) ?? false;
+              const ctaUrl = cityExists ? cepResult.cityUrl : `/encontre/${categorySlug}`;
+              const ctaText = cityExists
+                ? `Ver todos os ${plural.toLowerCase()} em ${cepResult.location.city}`
+                : `Ver outras ${plural.toLowerCase()}`;
+              return <p><Link to={ctaUrl}>{ctaText}</Link></p>;
+            })()}
           </section>
         )}
         {!cepResult && (

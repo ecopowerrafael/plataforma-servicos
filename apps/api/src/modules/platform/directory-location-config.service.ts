@@ -13,17 +13,22 @@ export class DirectoryLocationConfigService {
   }
 
   public async getGeoapifyApiKey(): Promise<string | undefined> {
-    // Always check DB first, fallback to ENV
-    const config = await this.client.directoryLocationConfig.findFirst({
-      where: { id: 1 },
-    });
-    if (config?.geoapifyApiKeyEncrypted) {
-      if (!this.cipher) return undefined;
-      try {
-        return this.cipher.decrypt(config.geoapifyApiKeyEncrypted);
-      } catch {
-        return undefined;
+    // Try to check DB first, but fail gracefully if table doesn't exist
+    try {
+      const config = await this.client.directoryLocationConfig.findFirst({
+        where: { id: 1 },
+      });
+      if (config?.geoapifyApiKeyEncrypted) {
+        if (!this.cipher) return this.envGeoapifyApiKey;
+        try {
+          return this.cipher.decrypt(config.geoapifyApiKeyEncrypted);
+        } catch {
+          return this.envGeoapifyApiKey;
+        }
       }
+    } catch {
+      // Table doesn't exist or query failed - fall back to ENV
+      // This allows CEP search to continue even if config table is missing
     }
     return this.envGeoapifyApiKey;
   }
@@ -33,32 +38,52 @@ export class DirectoryLocationConfigService {
     geoapifyMaskedKey: string | null;
     source: 'DATABASE' | 'ENV' | 'NONE';
   }> {
-    const config = await this.client.directoryLocationConfig.findFirst({
-      where: { id: 1 },
-    });
+    try {
+      const config = await this.client.directoryLocationConfig.findFirst({
+        where: { id: 1 },
+      });
 
-    if (config?.geoapifyApiKeyEncrypted) {
-      if (!this.cipher) {
-        return {
-          geoapifyConfigured: false,
-          geoapifyMaskedKey: null,
-          source: 'NONE',
-        };
+      if (config?.geoapifyApiKeyEncrypted) {
+        if (!this.cipher) {
+          // Fall back to ENV if cipher not available
+          if (this.envGeoapifyApiKey) {
+            return {
+              geoapifyConfigured: true,
+              geoapifyMaskedKey: this.maskKey(this.envGeoapifyApiKey),
+              source: 'ENV',
+            };
+          }
+          return {
+            geoapifyConfigured: false,
+            geoapifyMaskedKey: null,
+            source: 'NONE',
+          };
+        }
+        try {
+          const decrypted = this.cipher.decrypt(config.geoapifyApiKeyEncrypted);
+          return {
+            geoapifyConfigured: true,
+            geoapifyMaskedKey: this.maskKey(decrypted),
+            source: 'DATABASE',
+          };
+        } catch {
+          // Decryption failed, fall back to ENV
+          if (this.envGeoapifyApiKey) {
+            return {
+              geoapifyConfigured: true,
+              geoapifyMaskedKey: this.maskKey(this.envGeoapifyApiKey),
+              source: 'ENV',
+            };
+          }
+          return {
+            geoapifyConfigured: false,
+            geoapifyMaskedKey: null,
+            source: 'NONE',
+          };
+        }
       }
-      try {
-        const decrypted = this.cipher.decrypt(config.geoapifyApiKeyEncrypted);
-        return {
-          geoapifyConfigured: true,
-          geoapifyMaskedKey: this.maskKey(decrypted),
-          source: 'DATABASE',
-        };
-      } catch {
-        return {
-          geoapifyConfigured: false,
-          geoapifyMaskedKey: null,
-          source: 'NONE',
-        };
-      }
+    } catch {
+      // Table doesn't exist or query failed - fall back to ENV
     }
 
     if (this.envGeoapifyApiKey) {

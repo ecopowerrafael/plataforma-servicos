@@ -1138,10 +1138,29 @@ export class DirectoryService {
     return categories.map((category) => this.categoryPublic(category));
   }
   public async adminCategories() {
-    return this.client.directoryCategory.findMany({
+    const categories = await this.client.directoryCategory.findMany({
       orderBy: [{ sortOrder: 'asc' }, { pluralName: 'asc' }],
       include: { _count: { select: { businesses: true } } },
     });
+    return categories.map((cat) => this.adminCategoryPublic(cat));
+  }
+
+  private adminCategoryPublic(cat: any): any {
+    return {
+      publicId: cat.publicId,
+      name: cat.name,
+      singularName: cat.singularName,
+      pluralName: cat.pluralName,
+      slug: cat.slug,
+      description: cat.description,
+      icon: cat.icon,
+      active: cat.active,
+      indexable: cat.indexable,
+      sortOrder: cat.sortOrder,
+      geoapifyCategories: Array.isArray(cat.geoapifyCategories) ? cat.geoapifyCategories : null,
+      externalSearchTerms: Array.isArray(cat.externalSearchTerms) ? cat.externalSearchTerms : null,
+      _count: cat._count,
+    };
   }
   public async updateCategory(
     publicId: string,
@@ -1168,6 +1187,7 @@ export class DirectoryService {
     const category = await this.client.directoryCategory.update({
       where: { publicId },
       data: Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
+      include: { _count: { select: { businesses: true } } },
     });
 
     // If active or indexable changed, mark all businesses for SEO recalculation
@@ -1178,7 +1198,7 @@ export class DirectoryService {
       });
     }
 
-    return category;
+    return this.adminCategoryPublic(category);
   }
   public async adminBusinesses(page: number, limit: number) {
     const [total, items] = await Promise.all([
@@ -1190,7 +1210,25 @@ export class DirectoryService {
         include: { category: true },
       }),
     ]);
-    return { items, page, limit, total, totalPages: Math.ceil(total / limit) };
+    return {
+      items: items.map((item) => this.adminBusinessPublic(item)),
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  private adminBusinessPublic(item: any): any {
+    return {
+      publicId: item.publicId,
+      name: item.name,
+      city: item.city,
+      state: item.state,
+      active: item.active,
+      indexable: item.indexable,
+      category: item.category ? this.adminCategoryPublic(item.category) : null,
+    };
   }
   public async updateBusiness(
     publicId: string,

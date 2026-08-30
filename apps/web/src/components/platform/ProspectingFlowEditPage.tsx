@@ -174,7 +174,6 @@ export const ProspectingFlowEditPage = ({
           flowId={flowId}
           flowName={flow.name}
           flow={flow}
-          editorView={editorView}
           setEditorView={setEditorView}
           onClose={() => setEditorView({ type: 'overview' })}
           onFeedback={setFeedback}
@@ -704,9 +703,9 @@ const ResponseEditorPage = ({
 
         {actionType === 'NEXT_STEP' && (
           <div className="form-group">
-            <label>Próxima etapa</label>
+            <label>Próxima etapa *</label>
             <select value={nextStepId} onChange={(e) => setNextStepId(e.target.value)} className="form-input">
-              <option value="">Nenhuma</option>
+              <option value="">Escolha uma etapa</option>
               {flow.steps
                 .filter((s) => s.publicId !== step.publicId)
                 .map((s) => (
@@ -715,14 +714,21 @@ const ResponseEditorPage = ({
                   </option>
                 ))}
             </select>
+            <p style={{ fontSize: '0.8rem', color: 'var(--ds-text-secondary)', marginTop: '0.5rem' }}>
+              Escolha para qual etapa o fluxo seguirá.
+            </p>
           </div>
         )}
 
-        <div className="modal-actions">
+        <div className="flow-form-actions">
           <button onClick={onClose} className="secondary-button">
             Cancelar
           </button>
-          <button onClick={() => updateMutation.mutate()} className="primary-button" disabled={updateMutation.isPending}>
+          <button
+            onClick={() => updateMutation.mutate()}
+            className="primary-button"
+            disabled={updateMutation.isPending || (actionType === 'NEXT_STEP' && !nextStepId)}
+          >
             Salvar alterações
           </button>
         </div>
@@ -822,9 +828,9 @@ const ResponseCreatePage = ({
 
         {actionType === 'NEXT_STEP' && (
           <div className="form-group">
-            <label>Próxima etapa</label>
+            <label>Próxima etapa *</label>
             <select value={nextStepId} onChange={(e) => setNextStepId(e.target.value)} className="form-input">
-              <option value="">Nenhuma</option>
+              <option value="">Escolha uma etapa</option>
               {flow.steps
                 .filter((s) => s.publicId !== step.publicId)
                 .map((s) => (
@@ -833,14 +839,21 @@ const ResponseCreatePage = ({
                   </option>
                 ))}
             </select>
+            <p style={{ fontSize: '0.8rem', color: 'var(--ds-text-secondary)', marginTop: '0.5rem' }}>
+              Escolha para qual etapa o fluxo seguirá.
+            </p>
           </div>
         )}
 
-        <div className="modal-actions">
+        <div className="flow-form-actions">
           <button onClick={onClose} className="secondary-button">
             Cancelar
           </button>
-          <button onClick={() => createMutation.mutate()} className="primary-button" disabled={!label || createMutation.isPending}>
+          <button
+            onClick={() => createMutation.mutate()}
+            className="primary-button"
+            disabled={!label || createMutation.isPending || (actionType === 'NEXT_STEP' && !nextStepId)}
+          >
             Adicionar Resposta
           </button>
         </div>
@@ -854,7 +867,6 @@ const OptionListPage = ({
   flowId,
   flowName,
   flow,
-  editorView,
   setEditorView,
   onClose,
   onFeedback,
@@ -863,7 +875,6 @@ const OptionListPage = ({
   flowId: string;
   flowName: string;
   flow: z.infer<typeof flowDetailSchema>;
-  editorView: FlowEditorView;
   setEditorView: (view: FlowEditorView) => void;
   onClose: () => void;
   onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;

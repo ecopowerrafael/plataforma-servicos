@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
@@ -55,6 +55,11 @@ const flowListItemSchema = z.object({
   updatedAt: z.string(),
 });
 
+type FlowEditorView =
+  | { type: 'overview' }
+  | { type: 'edit-step'; stepId: string }
+  | { type: 'responses'; stepId: string };
+
 export const ProspectingFlowEditPage = ({
   flowId,
   onBack,
@@ -64,11 +69,10 @@ export const ProspectingFlowEditPage = ({
 }) => {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [editorView, setEditorView] = useState<FlowEditorView>({ type: 'overview' });
   const [flowName, setFlowName] = useState('');
   const [flowDesc, setFlowDesc] = useState('');
   const [flowActive, setFlowActive] = useState(true);
-  const [editingStepId, setEditingStepId] = useState<string | null>(null);
-  const [editingOptionStepId, setEditingOptionStepId] = useState<string | null>(null);
   const [showAddStep, setShowAddStep] = useState(false);
   const [newStepName, setNewStepName] = useState('');
   const [newStepType, setNewStepType] = useState('MESSAGE_ONLY');
@@ -227,8 +231,8 @@ export const ProspectingFlowEditPage = ({
                 step={step}
                 index={idx}
                 flowId={flowId}
-                onEdit={() => setEditingStepId(step.publicId)}
-                onEditOptions={() => setEditingOptionStepId(step.publicId)}
+                onEdit={() => setEditorView({ type: 'edit-step', stepId: step.publicId })}
+                onEditOptions={() => setEditorView({ type: 'responses', stepId: step.publicId })}
                 onFeedback={setFeedback}
               />
             ))}
@@ -269,21 +273,21 @@ export const ProspectingFlowEditPage = ({
         )}
       </div>
 
-      {editingStepId && flow && (
+      {editorView.type === 'edit-step' && flow && (
         <StepEditor
-          stepId={editingStepId}
+          stepId={editorView.stepId}
           flowId={flowId}
           flow={flow}
-          onClose={() => setEditingStepId(null)}
+          onClose={() => setEditorView({ type: 'overview' })}
           onFeedback={setFeedback}
         />
       )}
 
-      {editingOptionStepId && flow && (
+      {editorView.type === 'responses' && flow && (
         <OptionListEditor
-          step={flow.steps.find((s) => s.publicId === editingOptionStepId)}
+          step={flow.steps.find((s) => s.publicId === editorView.stepId)}
           flowId={flowId}
-          onClose={() => setEditingOptionStepId(null)}
+          onClose={() => setEditorView({ type: 'overview' })}
           onFeedback={setFeedback}
         />
       )}
@@ -483,69 +487,70 @@ const StepEditor = ({
   };
 
   return (
-    <div className="prospecting-form-backdrop" onClick={onClose}>
-      <div className="prospecting-form-drawer" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="drawer-close">
-          ← Voltar
-        </button>
-        <h2>Editar Etapa: {step.name}</h2>
+    <div className="flow-step-editor">
+      <button onClick={onClose} className="back-button">
+        ← Voltar ao fluxo
+      </button>
+      <h2>Editar Etapa: {step.name}</h2>
 
+      <div className="form-group">
+        <label>Nome</label>
         <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="form-input" placeholder="Nome" />
+      </div>
 
-        <div className="form-group">
-          <label>Tipo</label>
-          <div className="form-value">{stepTypeNames[step.stepType]}</div>
+      <div className="form-group">
+        <label>Tipo</label>
+        <div className="form-value">{stepTypeNames[step.stepType]}</div>
+      </div>
+
+      <div className="form-group">
+        <label>Mensagem</label>
+        <textarea ref={textareaRef} value={message} onChange={(e) => setMessage(e.target.value)} className="form-input" rows={4} />
+        <div className="variables-section">
+          <small>As variáveis serão substituídas pelos dados do lead durante o envio:</small>
+          <div className="variables-chips">
+            {variables.map((v) => (
+              <button
+                key={v.key}
+                className="variable-chip"
+                onClick={() => insertVariable(v.key)}
+                type="button"
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
 
+      {showsNextStep && (
         <div className="form-group">
-          <label>Mensagem</label>
-          <textarea ref={textareaRef} value={message} onChange={(e) => setMessage(e.target.value)} className="form-input" rows={4} />
-          <div className="variables-section">
-            <small>As variáveis serão substituídas pelos dados do lead durante o envio:</small>
-            <div className="variables-chips">
-              {variables.map((v) => (
-                <button
-                  key={v.key}
-                  className="variable-chip"
-                  onClick={() => insertVariable(v.key)}
-                  type="button"
-                >
-                  {v.label}
-                </button>
+          <label>Próxima etapa automática</label>
+          <select value={nextStepId} onChange={(e) => setNextStepId(e.target.value)} className="form-input">
+            <option value="">Nenhuma</option>
+            {flow.steps
+              .filter((s) => s.publicId !== stepId)
+              .map((s) => (
+                <option key={s.publicId} value={s.publicId}>
+                  {s.name}
+                </option>
               ))}
-            </div>
-          </div>
+          </select>
         </div>
+      )}
 
-        {showsNextStep && (
-          <div className="form-group">
-            <label>Próxima etapa automática</label>
-            <select value={nextStepId} onChange={(e) => setNextStepId(e.target.value)} className="form-input">
-              <option value="">Nenhuma</option>
-              {flow.steps
-                .filter((s) => s.publicId !== stepId)
-                .map((s) => (
-                  <option key={s.publicId} value={s.publicId}>
-                    {s.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
+      <label className="form-checkbox">
+        <input type="checkbox" checked={isStart} onChange={(e) => setIsStart(e.target.checked)} />
+        Esta é a etapa inicial
+      </label>
 
-        <label className="form-checkbox">
-          <input type="checkbox" checked={isStart} onChange={(e) => setIsStart(e.target.checked)} />
-          Esta é a etapa inicial
-        </label>
-
-        <div className="modal-actions">
-          <button onClick={onClose} className="secondary-button">
-            Cancelar
-          </button>
-          <button onClick={() => updateMutation.mutate()} className="primary-button">
-            Salvar
-          </button>
-        </div>
+      <div className="modal-actions">
+        <button onClick={onClose} className="secondary-button">
+          Cancelar
+        </button>
+        <button onClick={() => updateMutation.mutate()} className="primary-button">
+          Salvar alterações
+        </button>
       </div>
     </div>
   );

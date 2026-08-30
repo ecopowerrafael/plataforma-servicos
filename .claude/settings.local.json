@@ -144,7 +144,8 @@
       "PowerShell($cssFile = \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\web\\\\dist\\\\assets\\\\index-DZoYKQsR.css\"; $content = Get-Content $cssFile -Raw; if \\($content -match \"\\\\.flow-editor-page\"\\) { \"✓ .flow-editor-page found\" } else { \"✗ .flow-editor-page NOT found\" }; if \\($content -match \"\\\\.objection-editor-page\"\\) { \"✓ .objection-editor-page found\" } else { \"✗ .objection-editor-page NOT found\" }; if \\($content -match \"\\\\.platform-app\"\\) { \"✓ .platform-app found \\(global shell\\)\" } else { \"✗ .platform-app NOT found\" }; \"Total size: $\\(Get-Item $cssFile | ForEach-Object { [math]::Round\\($_.Length / 1KB, 2\\) }\\) KB\")",
       "Bash(git commit -m 'FIX UI — eliminar colisões CSS restantes e incluir bundle CSS de produção *)",
       "Bash(git commit -m 'UX PROSPECTING — reconstruir listagem profissional de objeções *)",
-      "Bash(git commit -m 'UX PROSPECTING — concluir editor inline de padrões e responsividade *)"
+      "Bash(git commit -m 'UX PROSPECTING — concluir editor inline de padrões e responsividade *)",
+      "Bash(git commit -m 'FIX PROSPECTING — corrigir useRef e edição de etapa do fluxo *)"
     ]
   }
 }

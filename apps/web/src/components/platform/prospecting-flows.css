@@ -479,6 +479,81 @@
   font-size: 0.95rem;
 }
 
+/* ===== FLOW STEP EDITOR (INLINE) ===== */
+
+.flow-step-editor {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-top: 2rem;
+}
+
+.flow-step-editor h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.flow-step-editor .back-button {
+  display: block;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.flow-step-editor .back-button:hover {
+  color: var(--ds-text-primary);
+}
+
+.variables-section {
+  margin-top: 1rem;
+}
+
+.variables-section small {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: var(--ds-text-secondary);
+  font-size: 0.85rem;
+}
+
+.variables-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.variable-chip {
+  padding: 0.4rem 0.75rem;
+  background: var(--ds-background-secondary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--ds-text-primary);
+  font-weight: 500;
+}
+
+.variable-chip:hover {
+  background: var(--ds-background-tertiary);
+  border-color: var(--ds-border-focus);
+}
+
+.form-value {
+  padding: 0.75rem;
+  background: var(--ds-background-secondary);
+  border-radius: 4px;
+  color: var(--ds-text-primary);
+  font-size: 0.9rem;
+}
+
 /* ===== RESPONSIVE ===== */
 
 @media (max-width: 768px) {

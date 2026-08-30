@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { ErrorState } from './PlatformUi.js';
+import './prospecting-objections.css';
 
 const patternTypeLabels: Record<string, string> = {
   EXACT: 'Exato',

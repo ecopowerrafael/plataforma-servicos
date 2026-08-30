@@ -137,7 +137,8 @@
       "Bash(git commit -m 'FIX PROSPECTING — corrigir abertura e edição de fluxos *)",
       "Bash(git commit -m 'TEST PROSPECTING — cobrir editor de fluxos e melhorar retry *)",
       "PowerShell(Move-Item \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\web\\\\src\\\\components\\\\platform\\\\ProspectingFlowsView_new.tsx\" \"C:\\\\Users\\\\Code\\\\OneDrive\\\\Documentos\\\\plataforma-servicos\\\\apps\\\\web\\\\src\\\\components\\\\platform\\\\ProspectingFlowsView.tsx\")",
-      "Bash(git commit -m 'UX PROSPECTING — profissionalizar interface de fluxos *)"
+      "Bash(git commit -m 'UX PROSPECTING — profissionalizar interface de fluxos *)",
+      "Bash(git commit -m 'UX PROSPECTING — CSS profissional para objeções *)"
     ]
   }
 }

@@ -12,6 +12,7 @@ import {
 } from './PlatformUi.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { CampaignForm } from './CampaignForm.js';
+import { ProspectingCampaignCreatePage } from './ProspectingCampaignCreatePage.js';
 import { ProspectingLeadsView } from './ProspectingLeadsView.js';
 import { ProspectingConversationsView } from './ProspectingConversationsView.js';
 import { ProspectingTemplatesView } from './ProspectingTemplatesView.js';
@@ -206,7 +207,7 @@ export function ProspectingModule({
   campaignPublicId?: string;
   onOpen?: (id: string) => void;
 }) {
-  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'flows' | 'templates' | 'objections' | 'settings'>(
+  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'flows' | 'templates' | 'objections' | 'settings' | 'create'>(
     campaignPublicId ? 'detail' : 'campaigns'
   );
   const [page, setPage] = useState(1);
@@ -395,7 +396,7 @@ export function ProspectingModule({
             onOpen?.(id);
           }}
           onViewDashboard={() => setView('dashboard')}
-          onNewCampaign={() => setFormOpen(true)}
+          onNewCampaign={() => setView('create')}
         />
       ) : view === 'flows' ? (
         <ProspectingFlowsView />
@@ -409,7 +410,7 @@ export function ProspectingModule({
       ) : view === 'templates' ? (
         <ProspectingTemplatesView
           campaigns={campaigns.data?.items ?? []}
-          onNewCampaign={() => setFormOpen(true)}
+          onNewCampaign={() => setView('create')}
         />
       ) : view === 'objections' ? (
         <ProspectingObjectionsView />
@@ -423,6 +424,14 @@ export function ProspectingModule({
           onUpdateConfig={updateConfigMutation.mutateAsync}
           onTestConnection={() => testConnectionMutation.mutateAsync()}
           onNavigate={setView}
+        />
+      ) : view === 'create' ? (
+        <ProspectingCampaignCreatePage
+          onClose={() => setView('campaigns')}
+          onSuccess={() => {
+            void campaigns.refetch();
+            void detail.refetch();
+          }}
         />
       ) : (
         <DetailView

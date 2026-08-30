@@ -1,0 +1,494 @@
+.prospecting-create-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.prospecting-create-header {
+  background-color: white;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.prospecting-create-breadcrumb {
+  margin-bottom: 1rem;
+}
+
+.breadcrumb-back {
+  background: none;
+  border: none;
+  color: #0066cc;
+  cursor: pointer;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.breadcrumb-back:hover {
+  color: #0052a3;
+}
+
+.prospecting-create-breadcrumb p {
+  font-size: 0.875rem;
+  color: #666;
+  margin: 0;
+}
+
+.prospecting-create-header h1 {
+  font-size: 2rem;
+  margin: 0.5rem 0 0;
+  color: #333;
+}
+
+.prospecting-create-subtitle {
+  color: #666;
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0;
+}
+
+.prospecting-create-stepper {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+  background-color: white;
+  margin-bottom: 2rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stepper-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.stepper-item.completed .stepper-circle {
+  background-color: #4caf50;
+  color: white;
+}
+
+.stepper-item.active .stepper-circle {
+  background-color: #0066cc;
+  color: white;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.stepper-item.pending .stepper-circle {
+  background-color: #e0e0e0;
+  color: #999;
+}
+
+.stepper-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+
+.stepper-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: center;
+  color: #333;
+}
+
+@media (min-width: 768px) {
+  .stepper-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    width: 40px;
+    height: 2px;
+    background-color: #e0e0e0;
+    left: 100%;
+    top: 20px;
+    margin-left: 2rem;
+  }
+
+  .stepper-item.completed:not(:last-child)::after {
+    background-color: #4caf50;
+  }
+}
+
+.prospecting-create-content {
+  flex: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 1rem 2rem;
+}
+
+.prospecting-create-step {
+  background-color: white;
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.step-section {
+  max-width: 100%;
+}
+
+.step-section h2 {
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem;
+  color: #333;
+}
+
+.step-description {
+  color: #666;
+  margin: 0 0 2rem;
+  font-size: 0.95rem;
+}
+
+.prospecting-campaign-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group input[type='text'],
+.form-group input[type='number'],
+.form-group input[type='time'],
+.form-group input[type='date'],
+.form-group select,
+.form-group textarea {
+  padding: 0.75rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+.form-group input.error {
+  border-color: #d32f2f;
+}
+
+.form-error {
+  font-size: 0.875rem;
+  color: #d32f2f;
+}
+
+.form-error-box {
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+  border-radius: 4px;
+  padding: 1rem;
+  color: #c62828;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-error-box button {
+  background-color: #c62828;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.weekday-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  gap: 0.5rem;
+}
+
+.weekday-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: normal;
+  cursor: pointer;
+  padding: 0.5rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  text-align: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.weekday-checkbox input[type='checkbox'] {
+  cursor: pointer;
+}
+
+.weekday-checkbox input[type='checkbox']:checked {
+  accent-color: #0066cc;
+}
+
+.weekday-checkbox:has(input[type='checkbox']:checked) {
+  background-color: #e3f2fd;
+  border-color: #0066cc;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.checkbox-label input[type='checkbox'] {
+  cursor: pointer;
+  accent-color: #0066cc;
+}
+
+.form-section-divider {
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 1rem 0;
+}
+
+.prospecting-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.flow-card {
+  cursor: pointer;
+}
+
+.flow-card-content {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+  background-color: white;
+}
+
+.flow-card-content:hover {
+  border-color: #0066cc;
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.15);
+}
+
+.flow-card-content.selected {
+  border-color: #0066cc;
+  background-color: #e3f2fd;
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.25);
+}
+
+.flow-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 0.5rem;
+}
+
+.flow-card-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.flow-step-count {
+  background-color: #f0f0f0;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: #666;
+  white-space: nowrap;
+}
+
+.flow-description {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.review-section {
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.review-section h3 {
+  margin: 0 0 1rem;
+  color: #333;
+  font-size: 1.1rem;
+  border-bottom: 2px solid #0066cc;
+  padding-bottom: 0.5rem;
+}
+
+.review-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.review-item:last-child {
+  border-bottom: none;
+}
+
+.review-label {
+  font-weight: 500;
+  color: #666;
+  min-width: 150px;
+}
+
+.review-value {
+  color: #333;
+  text-align: right;
+  flex: 1;
+}
+
+.prospecting-create-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.primary-button,
+.secondary-button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.primary-button {
+  background-color: #0066cc;
+  color: white;
+}
+
+.primary-button:hover:not(:disabled) {
+  background-color: #0052a3;
+}
+
+.primary-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.secondary-button {
+  background-color: white;
+  color: #0066cc;
+  border: 1px solid #0066cc;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background-color: #f0f0f0;
+}
+
+.secondary-button:disabled {
+  color: #ccc;
+  border-color: #ccc;
+  cursor: not-allowed;
+}
+
+.loading-message {
+  background-color: #e3f2fd;
+  border: 1px solid #bbdefb;
+  border-radius: 4px;
+  padding: 1rem;
+  color: #0066cc;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.success-message {
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  border-radius: 4px;
+  padding: 1rem;
+  color: #2e7d32;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+}
+
+@media (max-width: 768px) {
+  .prospecting-create-header {
+    padding: 1.5rem;
+  }
+
+  .prospecting-create-stepper {
+    gap: 1rem;
+    padding: 1.5rem;
+  }
+
+  .stepper-circle {
+    width: 35px;
+    height: 35px;
+    font-size: 0.875rem;
+  }
+
+  .stepper-label {
+    font-size: 0.75rem;
+  }
+
+  .prospecting-create-step {
+    padding: 1.5rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .prospecting-create-footer {
+    flex-direction: column;
+  }
+
+  .primary-button,
+  .secondary-button {
+    width: 100%;
+  }
+}

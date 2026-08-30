@@ -150,7 +150,8 @@
       "Bash(git commit -m 'FIX PROSPECTING — corrigir feedback da subpágina de etapa *)",
       "Bash(git commit -m 'UX PROSPECTING — transformar respostas do fluxo em subpágina *)",
       "Bash(git commit -m 'UX PROSPECTING — concluir criação e edição de respostas sem modais *)",
-      "Bash(xargs grep -l \"declare\")"
+      "Bash(xargs grep -l \"declare\")",
+      "Bash(git commit -m 'FIX DIRECTORY — Adicionar indicador de status Geoapify por categoria \\(bloqueador #7\\) *)"
     ]
   }
 }

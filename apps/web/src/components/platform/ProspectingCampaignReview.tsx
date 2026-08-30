@@ -47,6 +47,7 @@ export function ProspectingCampaignReview({
   const queryClient = useQueryClient();
   const [createdCampaignId, setCreatedCampaignId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [completed, setCompleted] = useState(false);
 
   const { data: flow } = useQuery({
     queryKey: ['prospecting-flow', formData.flowPublicId],
@@ -100,32 +101,42 @@ export function ProspectingCampaignReview({
   const handleCreate = async () => {
     setError(null);
 
-    try {
-      let campaignPublicId = createdCampaignId;
+    let campaignPublicId = createdCampaignId;
+    let campaignWasCreatedThisAttempt = false;
 
+    try {
       // Step 1: Create campaign only if not already created
       if (!campaignPublicId) {
-        campaignPublicId = await createCampaignMutation.mutateAsync();
-        setCreatedCampaignId(campaignPublicId);
+        try {
+          campaignPublicId = await createCampaignMutation.mutateAsync();
+          campaignWasCreatedThisAttempt = true;
+          setCreatedCampaignId(campaignPublicId);
+        } catch (createErr: any) {
+          // Campaign creation failed
+          setError(createErr.message || 'Não foi possível criar a campanha.');
+          return;
+        }
       }
 
       // Step 2: Materialize audience if selected
       if (audienceSelection && campaignPublicId) {
-        await materializeAudienceMutation.mutateAsync(campaignPublicId);
+        try {
+          await materializeAudienceMutation.mutateAsync(campaignPublicId);
+        } catch (materializeErr: any) {
+          // Materialize failed, but campaign exists
+          setError('Campanha criada, mas não foi possível adicionar o público. Tente novamente.');
+          return;
+        }
       }
 
-      // Success: invalidate and close
+      // Success: both create and materialize completed
+      setCompleted(true);
       void queryClient.invalidateQueries({ queryKey: ['prospecting', 'campaigns'] });
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      if (!createdCampaignId) {
-        // Campaign creation failed
-        setError(err.message || 'Não foi possível criar a campanha.');
-      } else {
-        // Campaign created but materialization failed
-        setError('Campanha criada, mas não foi possível adicionar o público. Tente novamente.');
-      }
+      // Fallback for unexpected errors
+      setError(err.message || 'Erro inesperado.');
     }
   };
 
@@ -154,9 +165,15 @@ export function ProspectingCampaignReview({
           </div>
         )}
 
-        {!createCampaignMutation.isPending && !materializeAudienceMutation.isPending && createdCampaignId && (
+        {completed && (
           <div className="success-message">
             ✓ Campanha criada com sucesso!
+          </div>
+        )}
+
+        {createdCampaignId && !completed && error && error.includes('público') && (
+          <div className="info-message">
+            ℹ Campanha criada. Falta adicionar o público.
           </div>
         )}
 
@@ -247,7 +264,7 @@ export function ProspectingCampaignReview({
             type="button"
             onClick={onBack}
             className="secondary-button"
-            disabled={createCampaignMutation.isPending || materializeAudienceMutation.isPending || createdCampaignId !== null}
+            disabled={createCampaignMutation.isPending || materializeAudienceMutation.isPending || completed}
           >
             Voltar
           </button>
@@ -255,15 +272,21 @@ export function ProspectingCampaignReview({
             type="button"
             onClick={handleCreate}
             className="primary-button"
-            disabled={createCampaignMutation.isPending || materializeAudienceMutation.isPending}
+            disabled={createCampaignMutation.isPending || materializeAudienceMutation.isPending || completed}
           >
             {createCampaignMutation.isPending && 'Criando campanha...'}
             {!createCampaignMutation.isPending && materializeAudienceMutation.isPending && 'Adicionando público...'}
-            {!createCampaignMutation.isPending && !materializeAudienceMutation.isPending && createdCampaignId ? (
-              'Campanha criada'
-            ) : (
-              'Criar campanha'
-            )}
+            {completed && 'Campanha criada'}
+            {!createCampaignMutation.isPending &&
+              !materializeAudienceMutation.isPending &&
+              createdCampaignId &&
+              !completed &&
+              error?.includes('público') &&
+              'Tentar adicionar público novamente'}
+            {!createCampaignMutation.isPending &&
+              !materializeAudienceMutation.isPending &&
+              !createdCampaignId &&
+              'Criar campanha'}
           </button>
         </div>
       </div>

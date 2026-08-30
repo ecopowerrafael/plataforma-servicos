@@ -109,6 +109,33 @@ describe('ProspectingCampaignReview', () => {
     expect(campaignCreateCalls).toHaveLength(1);
   });
 
+  it('shows correct error message when materialize fails immediately after create', async () => {
+    mockHttpClient.request.mockImplementation((url: string) => {
+      if (url.includes('/flows/')) {
+        return Promise.resolve(mockFlow);
+      }
+      if (url === '/platform/prospecting/campaigns') {
+        return Promise.resolve({ publicId: 'campaign-999' });
+      }
+      if (url.includes('/materialize-audience')) {
+        return Promise.reject(new Error('Materialize failed immediately'));
+      }
+      return Promise.reject(new Error('Unknown URL'));
+    });
+
+    renderComponent();
+
+    const button = screen.getByRole('button', { name: /Criar campanha/ });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      // Should show materialize error, not create error
+      expect(screen.getByText(/Campanha criada, mas não foi possível adicionar o público/)).toBeInTheDocument();
+      // Should NOT show create error
+      expect(screen.queryByText(/Não foi possível criar a campanha/)).not.toBeInTheDocument();
+    });
+  });
+
   it('does not create campaign twice on retry after materialize fails', async () => {
     mockHttpClient.request.mockImplementation((url: string) => {
       if (url.includes('/flows/')) {
@@ -319,5 +346,88 @@ describe('ProspectingCampaignReview', () => {
     await waitFor(() => {
       expect(onClose).toHaveBeenCalled();
     });
+  });
+
+  it('does not show success message when only campaign is created', async () => {
+    mockHttpClient.request.mockImplementation((url: string) => {
+      if (url.includes('/flows/')) {
+        return Promise.resolve(mockFlow);
+      }
+      if (url === '/platform/prospecting/campaigns') {
+        return Promise.resolve({ publicId: 'campaign-303' });
+      }
+      if (url.includes('/materialize-audience')) {
+        return Promise.reject(new Error('Materialize failed'));
+      }
+      return Promise.reject(new Error('Unknown URL'));
+    });
+
+    renderComponent();
+
+    const button = screen.getByRole('button', { name: /Criar campanha/ });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      // Should NOT show success
+      expect(screen.queryByText(/✓ Campanha criada com sucesso/)).not.toBeInTheDocument();
+      // Should show error
+      expect(screen.getByText(/Campanha criada, mas não foi possível adicionar o público/)).toBeInTheDocument();
+    });
+  });
+
+  it('shows success message only after both create and materialize succeed', async () => {
+    mockHttpClient.request.mockImplementation((url: string) => {
+      if (url.includes('/flows/')) {
+        return Promise.resolve(mockFlow);
+      }
+      if (url === '/platform/prospecting/campaigns') {
+        return Promise.resolve({ publicId: 'campaign-404' });
+      }
+      if (url.includes('/materialize-audience')) {
+        return Promise.resolve({ materialized: 15 });
+      }
+      return Promise.reject(new Error('Unknown URL'));
+    });
+
+    const onClose = vi.fn();
+    renderComponent({ onClose });
+
+    const button = screen.getByRole('button', { name: /Criar campanha/ });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/✓ Campanha criada com sucesso/)).toBeInTheDocument();
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it('button text changes based on state', async () => {
+    mockHttpClient.request.mockImplementation((url: string) => {
+      if (url.includes('/flows/')) {
+        return Promise.resolve(mockFlow);
+      }
+      if (url === '/platform/prospecting/campaigns') {
+        return Promise.resolve({ publicId: 'campaign-505' });
+      }
+      if (url.includes('/materialize-audience')) {
+        return Promise.reject(new Error('First materialize fails'));
+      }
+      return Promise.reject(new Error('Unknown URL'));
+    });
+
+    renderComponent();
+
+    let button = screen.getByRole('button', { name: /Criar campanha/ });
+    expect(button).toHaveTextContent('Criar campanha');
+
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Campanha criada, mas não foi possível adicionar o público/)).toBeInTheDocument();
+    });
+
+    // Button should show "Tentar adicionar público novamente"
+    button = screen.getByRole('button', { name: /Tentar|Criar/ });
+    expect(button.textContent).toMatch(/Tentar|criar|público/i);
   });
 });

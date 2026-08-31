@@ -183,6 +183,7 @@ export interface DatabaseConnection {
   readonly prospecting?: ProspectingService;
   readonly prospectingAudience?: ProspectingAudienceService;
   readonly prospectingRepository?: ProspectingRepository;
+  readonly prospectingWhatsAppConfig?: ProspectingWhatsAppConfigService;
   readonly whatsappProvisioning?: WhatsAppProvisioningService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
@@ -556,6 +557,7 @@ export function createDatabaseConnection(
     prospecting: new ProspectingService(client),
     prospectingAudience: new ProspectingAudienceService(client),
     prospectingRepository: new ProspectingRepository(client),
+    ...(credentialsCipher ? { prospectingWhatsAppConfig: new ProspectingWhatsAppConfigService(client, credentialsCipher) } : {}),
     whatsappProvisioning,
     appointmentNotifications: appointmentNotifications,
     treatmentPlanNotifications,

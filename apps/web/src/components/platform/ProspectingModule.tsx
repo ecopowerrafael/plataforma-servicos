@@ -288,7 +288,7 @@ export function ProspectingModule({
     mutationFn: (id: string) =>
       httpClient.request(`/platform/prospecting/campaigns/${id}/materialize`, {
         method: 'POST',
-        body: JSON.stringify({})
+        body: {}
       }) as Promise<{ materialized: number }>,
     onSuccess: (data) => {
       setMaterializeResult({ created: data.materialized, ignored: 0 });
@@ -309,7 +309,7 @@ export function ProspectingModule({
       httpClient.request('/platform/prospecting/whatsapp', {
         method: 'PUT',
         schema: prospectingConfigSchema,
-        body: JSON.stringify(data),
+        body: data,
       }),
     onSuccess: () => {
       void config.refetch();

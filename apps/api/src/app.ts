@@ -61,6 +61,7 @@ import { appointmentReminderConfigRoutes } from './modules/notifications/appoint
 import { pushSubscriptionRoutes } from './modules/notifications/push-subscription.routes.js';
 import { registerProspectingRoutes } from './modules/prospecting/prospecting.routes.js';
 import { registerProspectingOperationalRoutes } from './modules/prospecting/prospecting-operational.routes.js';
+import { prospectingWhatsAppConfigRoutes } from './modules/prospecting/prospecting-whatsapp-config.routes.js';
 import { cashRegisterRoutes } from './modules/payments/cash-register.routes.js';
 import { commissionRoutes } from './modules/payments/commission.routes.js';
 import { couponRoutes } from './modules/payments/coupon.routes.js';
@@ -782,6 +783,10 @@ export async function buildApp(options: BuildAppOptions) {
       authService: authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
+    });
+  if (options.database.prospectingWhatsAppConfig !== undefined)
+    await app.register(prospectingWhatsAppConfigRoutes, {
+      service: options.database.prospectingWhatsAppConfig,
     });
   if (options.database.customerRecovery !== undefined)
     await app.register(customerRecoveryRoutes, {

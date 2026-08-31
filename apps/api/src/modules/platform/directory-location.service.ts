@@ -5,7 +5,7 @@ import { AppError } from '../../errors/AppError.js';
 
 export interface DirectorySearchResult { source: 'DIRECTORY' | 'GEOAPIFY'; publicId: string | null; name: string; address: string; city: string; state: string; neighborhood: string | null; phone: string | null; whatsapp: string | null; website: string | null; latitude: number | null; longitude: number | null; distanceMeters: number | null; }
 export interface DirectoryGeocodeMetrics { attempted: boolean; success: boolean; source: 'CACHE' | 'BRASILAPI' | 'VIACEP' | 'GEOAPIFY' | null; httpStatus?: number; featuresReceived?: number; apiKeyAvailable?: boolean; requestAttempted?: boolean; requestUrlHost?: string | null; errorType?: string; errorCode?: string; errorMessage?: string; durationMs?: number; }
-export interface DirectoryPlacesMetrics { attempted: boolean; httpStatus?: number; featuresReceived?: number; acceptedResults?: number; categoriesSent?: string[]; radius?: number; errorType?: string; errorMessage?: string; samples?: Array<{ name: string; score: number; accepted: boolean; reasons: string[] }>; }
+export interface DirectoryPlacesMetrics { attempted: boolean; httpStatus?: number; featuresReceived?: number; acceptedResults?: number; categoriesSent?: string[]; radius?: number; errorType?: string; errorMessage?: string; samples?: Array<{ name: string; score: number; accepted: boolean; reasons: string[]; categories?: string[]; rawClassification?: Record<string, unknown>; radius?: number; }>; }
 export interface DirectorySearchDiagnostics { geocoding: DirectoryGeocodeMetrics; places: DirectoryPlacesMetrics; }
 export interface DirectorySearchResultWithDiagnostics { location: { cep: string; city: string; state: string; latitude: number | null; longitude: number | null }; results: DirectorySearchResult[]; cityUrl: string; diagnostics: DirectorySearchDiagnostics; }
 type Location = { cep: string; city: string; state: string; neighborhood: string | null; street: string | null; latitude: number | null; longitude: number | null };
@@ -190,12 +190,36 @@ export class DirectoryLocationService {
           metrics.acceptedResults = results.length;
           if (!metrics.samples) metrics.samples = [];
           const featureName = (f: GeoFeature) => text(f.properties?.name) ?? '(sem nome)';
-          metrics.samples.push(...scored.slice(0, 5).map(({ feature, scoreResult }) => ({
-            name: featureName(feature),
-            score: scoreResult.score,
-            accepted: scoreResult.accepted,
-            reasons: scoreResult.reasons,
-          })));
+          const extractRawClassification = (f: GeoFeature) => {
+            const datasource = typeof f.properties?.datasource === 'object' && f.properties.datasource !== null
+              ? (f.properties.datasource as Record<string, unknown>)
+              : {};
+            const raw = typeof datasource.raw === 'string' ? datasource.raw : '';
+            if (!raw) return undefined;
+            const fields = ['shop', 'amenity', 'craft', 'healthcare', 'office', 'leisure', 'tourism', 'name'];
+            const result: Record<string, unknown> = {};
+            for (const field of fields) {
+              const regex = new RegExp(`${field}=([^,|]+)`, 'i');
+              const match = raw.match(regex);
+              if (match?.[1]) result[field] = match[1];
+            }
+            return Object.keys(result).length > 0 ? result : undefined;
+          };
+          const categories = (f: GeoFeature) => Array.isArray(f.properties?.categories) ? (f.properties.categories as string[]) : [];
+          metrics.samples.push(...scored.slice(0, 20).map(({ feature, scoreResult }) => {
+            const sample: typeof metrics.samples[0] = {
+              name: featureName(feature),
+              score: scoreResult.score,
+              accepted: scoreResult.accepted,
+              reasons: scoreResult.reasons,
+            };
+            const cats = categories(feature);
+            if (cats.length > 0) sample.categories = cats;
+            const raw = extractRawClassification(feature);
+            if (raw) sample.rawClassification = raw;
+            sample.radius = radius;
+            return sample;
+          }));
         }
 
         if (persistCache) {

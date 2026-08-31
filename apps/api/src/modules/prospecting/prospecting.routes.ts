@@ -406,6 +406,14 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         throw new Error('Campaign not found');
       }
 
+      // Use ProspectingClock to get timezone-aware day boundaries
+      const clock = new (require('./prospecting-time.js').ProspectingClock)(
+        process.env.PROSPECTING_TIMEZONE || 'America/Sao_Paulo',
+      );
+      const now = clock.now();
+      const startOfDay = clock.startOfDay(now);
+      const endOfDay = clock.endOfDay(now);
+
       const [leads, messages, config] = await Promise.all([
         options.client.prospectingLead.groupBy({
           by: ['status'],
@@ -414,7 +422,10 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         }),
         options.client.prospectingMessage.groupBy({
           by: ['status'],
-          where: { campaignId: campaign.id },
+          where: {
+            campaignId: campaign.id,
+            sentAt: { gte: startOfDay, lte: endOfDay },
+          },
           _count: true,
         }),
         options.client.prospectingWhatsAppConfig.findFirst({
@@ -427,7 +438,10 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         leads.map((l) => [l.status, l._count]),
       );
       const totalLeads = leads.reduce((sum, l) => sum + l._count, 0);
-      const processed = (leadsByStatus.SENT || 0) + (leadsByStatus.DELIVERED || 0) + (leadsByStatus.READ || 0) + (leadsByStatus.RESPONDED || 0) + (leadsByStatus.FAILED || 0) + (leadsByStatus.SUPPRESSED || 0) + (leadsByStatus.COMPLETED || 0);
+
+      // Processed leads = not in PENDING/SCHEDULED/FOLLOW_UP
+      const pendingLeads = (leadsByStatus.PENDING || 0) + (leadsByStatus.SCHEDULED || 0) + (leadsByStatus.FOLLOW_UP || 0);
+      const processed = totalLeads - pendingLeads;
       const progressPercent = totalLeads > 0 ? Math.round((processed / totalLeads) * 100) : 0;
 
       const messagesByStatus = Object.fromEntries(
@@ -443,6 +457,10 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
           waitReason = 'DRY_RUN';
         } else if (!config?.isActive) {
           waitReason = 'WHATSAPP_NOT_CONFIGURED';
+        } else if (!clock.isWithinSendingWindow(campaign.sendingStartMinutes, campaign.sendingEndMinutes)) {
+          waitReason = 'OUTSIDE_WINDOW';
+        } else if (!clock.isAllowedWeekday(Array.isArray(campaign.allowedWeekdays) ? campaign.allowedWeekdays : JSON.parse(String(campaign.allowedWeekdays)))) {
+          waitReason = 'WEEKDAY_NOT_ALLOWED';
         } else if (dailySent >= campaign.dailyLimit) {
           waitReason = 'DAILY_LIMIT_REACHED';
         } else if (!leadsByStatus.PENDING && !leadsByStatus.SCHEDULED && !leadsByStatus.FOLLOW_UP) {
@@ -454,12 +472,14 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         totalLeads,
         pending: leadsByStatus.PENDING || 0,
         scheduled: leadsByStatus.SCHEDULED || 0,
+        contacted: leadsByStatus.CONTACTED || 0,
+        responded: leadsByStatus.RESPONDED || 0,
+        interested: leadsByStatus.INTERESTED || 0,
+        failed: leadsByStatus.FAILED || 0,
+        suppressed: leadsByStatus.SUPPRESSED || 0,
         sent: (messagesByStatus.SENT || 0),
         delivered: (messagesByStatus.DELIVERED || 0),
         read: (messagesByStatus.READ || 0),
-        responded: (messagesByStatus.RESPONDED || 0),
-        failed: (messagesByStatus.FAILED || 0),
-        suppressed: (messagesByStatus.SUPPRESSED || 0),
         dailySent,
         dailyLimit: campaign.dailyLimit,
         progressPercent,

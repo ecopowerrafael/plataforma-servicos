@@ -5,7 +5,7 @@ export class ProspectingRepository {
   public constructor(private readonly client: PrismaClient) {}
 
   // Campaign CRUD
-  public createCampaign(data: {
+  public async createCampaign(data: {
     name: string;
     categoryId?: bigint;
     state?: string;
@@ -42,7 +42,11 @@ export class ProspectingRepository {
     if (data.autoReplyEnabled !== undefined) createData.autoReplyEnabled = data.autoReplyEnabled;
     if (data.flowId !== undefined) createData.flowId = data.flowId;
 
-    return this.client.prospectingCampaign.create({ data: createData });
+    const campaign = await this.client.prospectingCampaign.create({
+      data: createData,
+      include: { flow: { select: { publicId: true, name: true } } },
+    });
+    return this.mapCampaignDto(campaign);
   }
 
   public async getCampaign(publicId: string) {

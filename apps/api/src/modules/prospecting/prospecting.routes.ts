@@ -22,6 +22,10 @@ const CreateCampaignSchema = z.object({
   minIntervalSeconds: z.number().int().positive().optional(),
   maxIntervalSeconds: z.number().int().positive().optional(),
   allowedWeekdays: z.array(z.number().int().min(0).max(6)).optional(),
+  followUpEnabled: z.boolean().optional(),
+  followUpAfterHours: z.number().int().positive().optional(),
+  maxFollowUps: z.number().int().min(0).optional(),
+  autoReplyEnabled: z.boolean().optional(),
   flowPublicId: z.string().uuid().nullable().optional(),
 });
 

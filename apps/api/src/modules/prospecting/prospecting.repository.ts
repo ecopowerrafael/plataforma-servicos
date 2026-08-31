@@ -16,6 +16,10 @@ export class ProspectingRepository {
     minIntervalSeconds?: number;
     maxIntervalSeconds?: number;
     allowedWeekdays?: number[];
+    followUpEnabled?: boolean;
+    followUpAfterHours?: number;
+    maxFollowUps?: number;
+    autoReplyEnabled?: boolean;
     flowId?: bigint | null;
   }) {
     const createData: Prisma.ProspectingCampaignUncheckedCreateInput = {
@@ -32,6 +36,10 @@ export class ProspectingRepository {
     if (data.categoryId !== undefined) createData.categoryId = data.categoryId;
     if (data.state !== undefined) createData.state = data.state;
     if (data.city !== undefined) createData.city = data.city;
+    if (data.followUpEnabled !== undefined) createData.followUpEnabled = data.followUpEnabled;
+    if (data.followUpAfterHours !== undefined) createData.followUpAfterHours = data.followUpAfterHours;
+    if (data.maxFollowUps !== undefined) createData.maxFollowUps = data.maxFollowUps;
+    if (data.autoReplyEnabled !== undefined) createData.autoReplyEnabled = data.autoReplyEnabled;
     if (data.flowId !== undefined) createData.flowId = data.flowId;
 
     return this.client.prospectingCampaign.create({ data: createData });

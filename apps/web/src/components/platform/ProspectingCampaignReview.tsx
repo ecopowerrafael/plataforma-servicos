@@ -66,7 +66,7 @@ export function ProspectingCampaignReview({
     mutationFn: async () => {
       const campaignResponse = await httpClient.request('/platform/prospecting/campaigns', {
         method: 'POST',
-        body: JSON.stringify({
+        body: {
           name: formData.name,
           dailyLimit: formData.dailyLimit,
           sendingStartMinutes: formData.sendingStartMinutes,
@@ -79,7 +79,7 @@ export function ProspectingCampaignReview({
           maxFollowUps: formData.maxFollowUps,
           autoReplyEnabled: formData.autoReplyEnabled,
           flowPublicId: formData.flowPublicId,
-        }),
+        },
       });
       return (campaignResponse as any).publicId;
     },
@@ -94,7 +94,7 @@ export function ProspectingCampaignReview({
         `/platform/prospecting/campaigns/${campaignPublicId}/materialize-audience`,
         {
           method: 'POST',
-          body: JSON.stringify(audienceSelection),
+          body: audienceSelection,
         }
       );
       return materializeResponse as any;

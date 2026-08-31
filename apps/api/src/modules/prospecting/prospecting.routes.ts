@@ -373,6 +373,101 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     },
   );
 
+  app.delete(
+    '/platform/prospecting/campaigns/:publicId',
+    { schema: { params } },
+    async (request) => {
+      allow(request, 'platform.tenant.update');
+      const campaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: request.params.publicId },
+      });
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+      if (!['DRAFT', 'CANCELED'].includes(campaign.status)) {
+        throw new Error(`Cannot delete campaign with status ${campaign.status}`);
+      }
+      await options.client.prospectingCampaign.delete({
+        where: { publicId: request.params.publicId },
+      });
+      return { success: true };
+    },
+  );
+
+  app.get(
+    '/platform/prospecting/campaigns/:publicId/progress',
+    { schema: { params } },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const campaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: request.params.publicId },
+      });
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
+      const [leads, messages, config] = await Promise.all([
+        options.client.prospectingLead.groupBy({
+          by: ['status'],
+          where: { campaignId: campaign.id },
+          _count: true,
+        }),
+        options.client.prospectingMessage.groupBy({
+          by: ['status'],
+          where: { campaignId: campaign.id },
+          _count: true,
+        }),
+        options.client.prospectingWhatsAppConfig.findFirst({
+          where: { isActive: true },
+          select: { isActive: true },
+        }),
+      ]);
+
+      const leadsByStatus = Object.fromEntries(
+        leads.map((l) => [l.status, l._count]),
+      );
+      const totalLeads = leads.reduce((sum, l) => sum + l._count, 0);
+      const processed = (leadsByStatus.SENT || 0) + (leadsByStatus.DELIVERED || 0) + (leadsByStatus.READ || 0) + (leadsByStatus.RESPONDED || 0) + (leadsByStatus.FAILED || 0) + (leadsByStatus.SUPPRESSED || 0) + (leadsByStatus.COMPLETED || 0);
+      const progressPercent = totalLeads > 0 ? Math.round((processed / totalLeads) * 100) : 0;
+
+      const messagesByStatus = Object.fromEntries(
+        messages.map((m) => [m.status, m._count]),
+      );
+      const dailySent = (messagesByStatus.SENT || 0) + (messagesByStatus.DELIVERED || 0) + (messagesByStatus.READ || 0);
+
+      let waitReason: string | null = null;
+      if (campaign.status === 'RUNNING') {
+        if (process.env.PROSPECTING_WORKER_ENABLED !== 'true') {
+          waitReason = 'WORKER_DISABLED';
+        } else if (process.env.PROSPECTING_DRY_RUN === 'true') {
+          waitReason = 'DRY_RUN';
+        } else if (!config?.isActive) {
+          waitReason = 'WHATSAPP_NOT_CONFIGURED';
+        } else if (dailySent >= campaign.dailyLimit) {
+          waitReason = 'DAILY_LIMIT_REACHED';
+        } else if (!leadsByStatus.PENDING && !leadsByStatus.SCHEDULED && !leadsByStatus.FOLLOW_UP) {
+          waitReason = 'NO_ELIGIBLE_LEADS';
+        }
+      }
+
+      return {
+        totalLeads,
+        pending: leadsByStatus.PENDING || 0,
+        scheduled: leadsByStatus.SCHEDULED || 0,
+        sent: (messagesByStatus.SENT || 0),
+        delivered: (messagesByStatus.DELIVERED || 0),
+        read: (messagesByStatus.READ || 0),
+        responded: (messagesByStatus.RESPONDED || 0),
+        failed: (messagesByStatus.FAILED || 0),
+        suppressed: (messagesByStatus.SUPPRESSED || 0),
+        dailySent,
+        dailyLimit: campaign.dailyLimit,
+        progressPercent,
+        waitReason,
+      };
+    },
+  );
+
   app.get(
     '/platform/prospecting/campaigns/:publicId/leads',
     { schema: { params, querystring: leadsQuerySchema } },

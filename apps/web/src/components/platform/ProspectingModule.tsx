@@ -194,6 +194,28 @@ const leadsResponseSchema = z.object({
   }),
 });
 
+const progressSchema = z.object({
+  totalLeads: z.number(),
+  pending: z.number(),
+  scheduled: z.number(),
+  contacted: z.number(),
+  responded: z.number(),
+  interested: z.number(),
+  failed: z.number(),
+  suppressed: z.number(),
+  sent: z.number(),
+  delivered: z.number(),
+  read: z.number(),
+  dailySent: z.number(),
+  dailyLimit: z.number(),
+  progressPercent: z.number(),
+  waitReason: z.string().nullable(),
+});
+
+const deleteResponseSchema = z.object({
+  success: z.boolean(),
+});
+
 export function ProspectingModule({
   campaignPublicId,
 }: {
@@ -251,6 +273,19 @@ export function ProspectingModule({
     enabled: selectedCampaign !== null,
   });
 
+  const progress = useQuery({
+    queryKey: ['prospecting', 'campaign-progress', selectedCampaign],
+    queryFn: () =>
+      httpClient.request(`/platform/prospecting/campaigns/${selectedCampaign ?? ''}/progress`, {
+        schema: progressSchema,
+      }),
+    enabled: selectedCampaign !== null,
+    refetchInterval: (data) => {
+      if (data?.status === 'RUNNING') return 10000;
+      return false;
+    },
+  });
+
   const startMutation = useMutation({
     mutationFn: (id: string) =>
       httpClient.request(`/platform/prospecting/campaigns/${id}/start`, { method: 'POST' }),
@@ -272,6 +307,20 @@ export function ProspectingModule({
       httpClient.request(`/platform/prospecting/campaigns/${id}/cancel`, { method: 'POST' }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['prospecting'] });
+      setConfirmation(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      httpClient.request(`/platform/prospecting/campaigns/${id}`, {
+        method: 'DELETE',
+        schema: deleteResponseSchema,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting'] });
+      setSelectedCampaign(null);
+      setView('campaigns');
       setConfirmation(null);
     },
   });
@@ -325,6 +374,19 @@ export function ProspectingModule({
       variant: 'danger',
       onConfirm: async () => {
         await cancelMutation.mutateAsync(id);
+      },
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    setConfirmation({
+      title: 'Excluir campanha?',
+      description: 'Esta ação excluirá permanentemente a campanha e seus dados relacionados.',
+      confirmLabel: 'Excluir definitivamente',
+      requiresReason: false,
+      variant: 'danger',
+      onConfirm: async () => {
+        await deleteMutation.mutateAsync(id);
       },
     });
   };
@@ -429,17 +491,22 @@ export function ProspectingModule({
       ) : (
         <DetailView
           campaign={detail.data as CampaignDetail | undefined}
-          isLoading={detail.isPending}
+          progress={progress.data}
+          status={status.data}
+          isLoading={detail.isPending || progress.isPending}
+          progressError={progress.error instanceof Error ? progress.error.message : null}
           error={detail.error instanceof Error ? detail.error.message : null}
           onBack={() => setView('campaigns')}
           onEdit={() => setFormOpen(true)}
           onStart={() => void startMutation.mutateAsync(selectedCampaign!)}
           onPause={() => void pauseMutation.mutateAsync(selectedCampaign!)}
           onCancel={() => handleCancel(selectedCampaign!)}
+          onDelete={() => handleDelete(selectedCampaign!)}
           onMaterialize={() => void materializeMutation.mutateAsync(selectedCampaign!)}
           startLoading={startMutation.isPending}
           pauseLoading={pauseMutation.isPending}
           cancelLoading={cancelMutation.isPending}
+          deleteLoading={deleteMutation.isPending}
           materializeLoading={materializeMutation.isPending}
           materializeResult={materializeResult}
           onClearResult={() => setMaterializeResult(null)}
@@ -726,35 +793,65 @@ function CampaignsView({
   );
 }
 
+const minutesToTime = (minutes: number) => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+};
+
+const translateWaitReason = (reason: string | null): string => {
+  const translations: Record<string, string> = {
+    WORKER_DISABLED: 'Worker de prospecção desativado.',
+    DRY_RUN: 'Modo de teste ativo. Nenhuma mensagem real será enviada.',
+    WHATSAPP_NOT_CONFIGURED: 'WhatsApp da prospecção não está configurado ou ativo.',
+    OUTSIDE_WINDOW: 'Fora da janela de envio.',
+    WEEKDAY_NOT_ALLOWED: 'Hoje não é um dia permitido para esta campanha.',
+    DAILY_LIMIT_REACHED: 'Limite diário de envios atingido.',
+    NO_ELIGIBLE_LEADS: 'Não há leads elegíveis para envio.',
+  };
+  if (!reason) return 'Aguardando próximo ciclo do worker.';
+  return translations[reason] || reason;
+};
+
 function DetailView({
   campaign,
+  progress,
+  status,
   isLoading,
+  progressError,
   error,
   onBack,
   onStart,
   onPause,
   onCancel,
+  onDelete,
   onEdit,
   onMaterialize,
   startLoading,
   pauseLoading,
   cancelLoading,
+  deleteLoading,
   materializeLoading,
   materializeResult,
   onClearResult,
 }: {
   campaign?: CampaignDetail;
+  progress?: z.infer<typeof progressSchema>;
+  status?: ProspectingStatus;
   isLoading: boolean;
+  progressError?: string | null;
   error?: string | null;
   onBack: () => void;
   onStart: () => void;
   onPause: () => void;
   onCancel: () => void;
+  onDelete?: () => void;
   onEdit?: () => void;
   onMaterialize?: () => void;
   startLoading: boolean;
   pauseLoading: boolean;
   cancelLoading: boolean;
+  deleteLoading?: boolean;
   materializeLoading?: boolean;
   materializeResult?: { created: number; ignored: number } | null;
   onClearResult?: () => void;
@@ -784,6 +881,7 @@ function DetailView({
   const canStart = campaign.status === 'DRAFT';
   const canPause = campaign.status === 'RUNNING';
   const canCancel = ['DRAFT', 'RUNNING', 'PAUSED'].includes(campaign.status);
+  const canDelete = ['DRAFT', 'CANCELED'].includes(campaign.status);
 
   return (
     <section>
@@ -855,6 +953,16 @@ function DetailView({
               {cancelLoading ? 'Cancelando...' : 'Cancelar'}
             </button>
           )}
+          {canDelete && onDelete && (
+            <button
+              className="danger-button"
+              onClick={onDelete}
+              disabled={deleteLoading}
+              type="button"
+            >
+              {deleteLoading ? 'Excluindo...' : 'Excluir campanha'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -875,6 +983,102 @@ function DetailView({
         </div>
       )}
 
+      {status && campaign.status === 'RUNNING' && (
+        <div className="platform-status-bar">
+          <div>
+            <strong>Worker:</strong>{' '}
+            <span className={status.workerEnabled ? 'badge-success' : 'badge-muted'}>
+              {status.workerEnabled ? 'Ativo' : 'Desativado'}
+            </span>
+          </div>
+          <div>
+            <strong>Dry-run:</strong>{' '}
+            <span className={status.dryRun ? 'badge-warning' : 'badge-muted'}>
+              {status.dryRun ? 'Ativo' : 'Desativado'}
+            </span>
+          </div>
+          <div>
+            <strong>WhatsApp:</strong>{' '}
+            <span className={status.whatsappConfigured ? 'badge-success' : 'badge-danger'}>
+              {status.whatsappConfigured ? 'Configurado' : 'Não configurado'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {progress && (
+        <article className="platform-panel">
+          <h2>Progresso da campanha</h2>
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span>{progress.progressPercent}%</span>
+            </div>
+            <div style={{
+              width: '100%',
+              height: '24px',
+              backgroundColor: 'var(--ds-background-tertiary)',
+              borderRadius: '4px',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: `${Math.min(progress.progressPercent, 100)}%`,
+                height: '100%',
+                backgroundColor: 'var(--ds-text-success)',
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+          </div>
+
+          <div className="platform-metrics-grid">
+            <MetricCard label="Total" value={progress.totalLeads.toString()} />
+            <MetricCard label="Pendentes" value={progress.pending.toString()} />
+            <MetricCard label="Agendados" value={progress.scheduled.toString()} />
+            <MetricCard label="Contatados" value={progress.contacted.toString()} />
+            <MetricCard label="Respondidos" value={progress.responded.toString()} />
+            <MetricCard label="Interessados" value={progress.interested.toString()} />
+            <MetricCard label="Falhas" value={progress.failed.toString()} />
+            <MetricCard label="Suprimidos" value={progress.suppressed.toString()} />
+          </div>
+
+          <div style={{ marginTop: '1rem' }}>
+            <strong>Mensagens:</strong>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
+              <div>
+                <p style={{ fontSize: '0.9rem', color: 'var(--ds-text-secondary)' }}>Enviadas</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{progress.sent}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: '0.9rem', color: 'var(--ds-text-secondary)' }}>Entregues</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{progress.delivered}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: '0.9rem', color: 'var(--ds-text-secondary)' }}>Lidas</p>
+                <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{progress.read}</p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--ds-background-tertiary)', borderRadius: '4px' }}>
+            <strong>Envios hoje:</strong> <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{progress.dailySent} / {progress.dailyLimit}</span>
+            {progress.dailySent >= progress.dailyLimit && (
+              <p style={{ marginTop: '0.5rem', color: 'var(--ds-text-danger)' }}>⚠ Limite diário atingido</p>
+            )}
+          </div>
+
+          {campaign.status === 'RUNNING' && progress.waitReason && (
+            <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--ds-background-secondary)', borderRadius: '4px', borderLeft: '4px solid var(--ds-text-warning)' }}>
+              <p style={{ margin: 0 }}>{translateWaitReason(progress.waitReason)}</p>
+            </div>
+          )}
+        </article>
+      )}
+
+      {progressError && (
+        <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--ds-background-danger)', borderRadius: '4px', color: 'var(--ds-text-danger)' }}>
+          Não foi possível carregar o progresso da campanha.
+        </div>
+      )}
+
       <div className="campaign-config-sections">
         <section className="config-section">
           <h2>Envio</h2>
@@ -885,11 +1089,11 @@ function DetailView({
             </div>
             <div>
               <dt>Horário de início</dt>
-              <dd>{String(campaign.sendingStartMinutes).padStart(2, '0')}:00</dd>
+              <dd>{minutesToTime(campaign.sendingStartMinutes)}</dd>
             </div>
             <div>
               <dt>Horário de fim</dt>
-              <dd>{String(campaign.sendingEndMinutes).padStart(2, '0')}:00</dd>
+              <dd>{minutesToTime(campaign.sendingEndMinutes)}</dd>
             </div>
           </dl>
         </section>

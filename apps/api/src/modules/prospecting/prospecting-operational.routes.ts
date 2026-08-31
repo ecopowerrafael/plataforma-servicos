@@ -312,28 +312,4 @@ export const registerProspectingOperationalRoutes: FastifyPluginAsyncZod<Prospec
       };
     });
 
-    // Test W-API connection
-    app.post('/platform/prospecting/whatsapp/test', async (request) => {
-      allow(request, 'platform.prospecting.update');
-
-      const config = await options.client.prospectingWhatsAppConfig.findFirst({
-        where: { isActive: true },
-      });
-
-      if (!config) {
-        return { success: false, error: 'WhatsApp não configurado' };
-      }
-
-      // Simulated test (actual integration would call W-API)
-      try {
-        await options.client.prospectingWhatsAppConfig.update({
-          where: { id: config.id },
-          data: { lastTestedAt: new Date() },
-        });
-
-        return { success: true, message: 'Conexão OK' };
-      } catch {
-        return { success: false, error: 'Falha ao conectar' };
-      }
-    });
   };

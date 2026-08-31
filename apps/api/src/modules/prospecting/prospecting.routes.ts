@@ -227,6 +227,16 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         input as Parameters<typeof options.service.createCampaign>[0],
       );
 
+      // Resolve internal campaign ID for template creation
+      const internalCampaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: campaign.publicId },
+        select: { id: true },
+      });
+
+      if (!internalCampaign) {
+        throw new Error(`Campanha criada mas não encontrada: ${campaign.publicId}`);
+      }
+
       // Create default templates for new campaign
       const defaultTemplates = [
         {
@@ -253,7 +263,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         await options.client.prospectingTemplate.create({
           data: {
             publicId: randomUUID(),
-            campaignId: campaign.id,
+            campaignId: internalCampaign.id,
             stepNumber: template.stepNumber,
             name: template.name,
             body: template.body,
@@ -302,8 +312,18 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         throw new Error('Campaign not found');
       }
 
+      // Resolve internal campaign ID for materializeLeads
+      const internalCampaign = await options.client.prospectingCampaign.findUnique({
+        where: { publicId: campaign.publicId },
+        select: { id: true },
+      });
+
+      if (!internalCampaign) {
+        throw new Error(`Campaign not found in database: ${campaign.publicId}`);
+      }
+
       const count = await options.service.materializeLeads(
-        campaign.id,
+        internalCampaign.id,
         request.body.categoryId,
         request.body.state,
         request.body.city,

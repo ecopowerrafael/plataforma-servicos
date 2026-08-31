@@ -1244,8 +1244,18 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
       if (!flow) throw new Error('Flow not found');
       if (request.body.isStart) await options.client.prospectingFlowStep.updateMany({ where: { flowId: flow.id }, data: { isStart: false } });
-      const step = await options.client.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: request.body.name, message: request.body.message, stepType: request.body.stepType, position: request.body.position, isStart: request.body.isStart ?? false } });
-      return { publicId: step.publicId, name: step.name, stepType: step.stepType, position: step.position, isStart: step.isStart };
+      const step = await options.client.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: request.body.name, message: request.body.message, stepType: request.body.stepType, position: request.body.position, isStart: request.body.isStart ?? false }, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } });
+      return {
+        publicId: step.publicId,
+        name: step.name,
+        message: step.message,
+        stepType: step.stepType,
+        position: step.position,
+        isStart: step.isStart,
+        nextStepPublicId: null,
+        optionsCount: 0,
+        options: []
+      };
     },
   );
 
@@ -1268,9 +1278,38 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       if (request.body.message) data.message = request.body.message;
       if (request.body.stepType) data.stepType = request.body.stepType;
       if (request.body.position !== undefined) data.position = request.body.position;
+      if (request.body.nextStepPublicId !== undefined) data.nextStepId = request.body.nextStepPublicId ? (await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.body.nextStepPublicId }, select: { id: true } }))?.id : null;
       if (request.body.isStart !== undefined) data.isStart = request.body.isStart;
-      const updated = await options.client.prospectingFlowStep.update({ where: { publicId: request.params.stepPublicId }, data });
-      return { publicId: updated.publicId, isStart: updated.isStart };
+      const updated = await options.client.prospectingFlowStep.update({ where: { publicId: request.params.stepPublicId }, data, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } });
+      const stepPublicIdById = new Map();
+      stepPublicIdById.set(updated.id.toString(), updated.publicId);
+      if (updated.nextStepId) {
+        const nextStep = await options.client.prospectingFlowStep.findUnique({ where: { id: updated.nextStepId }, select: { publicId: true } });
+        if (nextStep) stepPublicIdById.set(updated.nextStepId.toString(), nextStep.publicId);
+      }
+      return {
+        publicId: updated.publicId,
+        name: updated.name,
+        message: updated.message,
+        stepType: updated.stepType,
+        position: updated.position,
+        isStart: updated.isStart,
+        nextStepPublicId: updated.nextStepId ? (await options.client.prospectingFlowStep.findUnique({ where: { id: updated.nextStepId }, select: { publicId: true } }))?.publicId ?? null : null,
+        optionsCount: updated.options.length,
+        options: updated.options.map(o => ({
+          publicId: o.publicId,
+          label: o.label,
+          actionType: o.actionType,
+          position: o.position,
+          nextStepPublicId: o.nextStepId ? null : null,
+          patterns: o.patterns.map(p => ({
+            id: p.id.toString(),
+            pattern: p.pattern,
+            patternType: p.patternType,
+            priority: p.priority
+          }))
+        }))
+      };
     },
   );
 

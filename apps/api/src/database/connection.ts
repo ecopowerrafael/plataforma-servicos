@@ -86,7 +86,6 @@ import { ReceiptService } from '../modules/payments/receipt.service.js';
 import { PlatformBillingService } from '../modules/platform/platform-billing.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
 import { DirectoryService } from '../modules/platform/directory.service.js';
-import { DirectoryLocationService } from '../modules/platform/directory-location.service.js';
 import { DirectorySeoService } from '../modules/platform/directory-seo.service.js';
 import { TenantCommercialPolicyService } from '../modules/platform/tenant-commercial-policy.service.js';
 import { TenantCommercialSweepService } from '../modules/platform/tenant-commercial-sweep.service.js';
@@ -150,7 +149,6 @@ export interface DatabaseConnection {
   readonly treatmentPlans?: TreatmentPlanService;
   readonly platform?: PlatformService;
   readonly directory?: DirectoryService;
-  readonly directoryLocation?: DirectoryLocationService;
   readonly directorySeo?: DirectorySeoService;
   readonly platformBilling?: PlatformBillingService;
   readonly commercialPolicy?: TenantCommercialPolicyService;
@@ -498,7 +496,6 @@ export function createDatabaseConnection(
     platform: new PlatformService(client),
     directorySeo,
     directory: new DirectoryService(client, directorySeo),
-    directoryLocation: new DirectoryLocationService(client, { ...(process.env.GEOAPIFY_API_KEY === undefined ? {} : { geoapifyApiKey: process.env.GEOAPIFY_API_KEY }), localMinResults: Number(process.env.DIRECTORY_LOCAL_MIN_RESULTS ?? 5) }),
     platformBilling,
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client),

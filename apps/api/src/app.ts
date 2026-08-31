@@ -931,12 +931,10 @@ export async function buildApp(options: BuildAppOptions) {
       );
       app.decorate('directoryLocationConfigService', directoryLocationConfigService);
 
-      const locationService =
-        options.database.directoryLocation ??
-        new DirectoryLocationService(options.database.client, {
-          geoapifyApiKeyProvider: () => directoryLocationConfigService.getGeoapifyApiKey(),
-          localMinResults: options.environment.DIRECTORY_LOCAL_MIN_RESULTS,
-        });
+      const locationService = new DirectoryLocationService(options.database.client, {
+        geoapifyApiKeyProvider: () => directoryLocationConfigService.getGeoapifyApiKey(),
+        localMinResults: options.environment.DIRECTORY_LOCAL_MIN_RESULTS,
+      });
 
       await app.register(publicDirectoryRoutes, {
         service: options.database.directory,

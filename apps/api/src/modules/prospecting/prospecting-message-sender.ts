@@ -3,6 +3,12 @@ export interface ProspectingMessageSendInput {
   body: string;
 }
 
+export interface ProspectingMessageSendButtonsInput {
+  phone: string;
+  body: string;
+  buttons: Array<{ label: string }>;
+}
+
 export interface ProspectingMessageSendResult {
   success: boolean;
   provider: 'WAPI' | 'DRY_RUN';
@@ -14,4 +20,5 @@ export interface ProspectingMessageSendResult {
 
 export interface ProspectingMessageSender {
   sendText(input: ProspectingMessageSendInput): Promise<ProspectingMessageSendResult>;
+  sendButtons(input: ProspectingMessageSendButtonsInput): Promise<ProspectingMessageSendResult>;
 }

@@ -319,10 +319,12 @@ export function ProspectingModule({
   const handleCancel = (id: string) => {
     setConfirmation({
       title: 'Cancelar campanha?',
-      message: 'Esta ação interromperá novos envios. Não é possível desfazer.',
-      confirm: 'Cancelar',
-      onConfirm: () => {
-        void cancelMutation.mutateAsync(id);
+      description: 'Esta ação interromperá novos envios. A campanha poderá ser excluída posteriormente.',
+      confirmLabel: 'Cancelar campanha',
+      requiresReason: false,
+      variant: 'danger',
+      onConfirm: async () => {
+        await cancelMutation.mutateAsync(id);
       },
     });
   };

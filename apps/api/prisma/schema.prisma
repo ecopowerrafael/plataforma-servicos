@@ -634,6 +634,7 @@ model DirectoryCategory {
   indexable    Boolean  @default(true)
   sortOrder    Int      @default(0) @map("sort_order")
   externalSearchTerms Json? @map("external_search_terms")
+  externalNegativeTerms Json? @map("external_negative_terms")
   geoapifyCategories Json? @map("geoapify_categories")
   createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)

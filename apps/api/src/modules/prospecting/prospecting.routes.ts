@@ -10,6 +10,7 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { type ProspectingWorker } from './prospecting-worker.js';
 import { ProspectingAudienceService } from './prospecting-audience.service.js';
 import { ProspectingRepository } from './prospecting.repository.js';
+import { ProspectingClock } from './prospecting-time.js';
 
 const CreateCampaignSchema = z.object({
   name: z.string().min(1).max(180),
@@ -406,16 +407,20 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         throw new Error('Campaign not found');
       }
 
-      // Use ProspectingClock to get timezone-aware day boundaries
-      const clock = new (require('./prospecting-time.js').ProspectingClock)(
+      const clock = new ProspectingClock(
         process.env.PROSPECTING_TIMEZONE || 'America/Sao_Paulo',
       );
       const now = clock.now();
       const startOfDay = clock.startOfDay(now);
       const endOfDay = clock.endOfDay(now);
 
-      const [leads, messages, config] = await Promise.all([
+      const [leads, messagesAll, messagesToday, config] = await Promise.all([
         options.client.prospectingLead.groupBy({
+          by: ['status'],
+          where: { campaignId: campaign.id },
+          _count: true,
+        }),
+        options.client.prospectingMessage.groupBy({
           by: ['status'],
           where: { campaignId: campaign.id },
           _count: true,
@@ -424,6 +429,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
           by: ['status'],
           where: {
             campaignId: campaign.id,
+            direction: 'OUTBOUND',
             sentAt: { gte: startOfDay, lte: endOfDay },
           },
           _count: true,
@@ -439,15 +445,20 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       );
       const totalLeads = leads.reduce((sum, l) => sum + l._count, 0);
 
-      // Processed leads = not in PENDING/SCHEDULED/FOLLOW_UP
       const pendingLeads = (leadsByStatus.PENDING || 0) + (leadsByStatus.SCHEDULED || 0) + (leadsByStatus.FOLLOW_UP || 0);
       const processed = totalLeads - pendingLeads;
       const progressPercent = totalLeads > 0 ? Math.round((processed / totalLeads) * 100) : 0;
 
-      const messagesByStatus = Object.fromEntries(
-        messages.map((m) => [m.status, m._count]),
+      // Accumulated metrics from all messages
+      const messagesByStatusAll = Object.fromEntries(
+        messagesAll.map((m) => [m.status, m._count]),
       );
-      const dailySent = (messagesByStatus.SENT || 0) + (messagesByStatus.DELIVERED || 0) + (messagesByStatus.READ || 0);
+
+      // Today's outbound messages only
+      const messagesByStatusToday = Object.fromEntries(
+        messagesToday.map((m) => [m.status, m._count]),
+      );
+      const dailySent = (messagesByStatusToday.SENT || 0) + (messagesByStatusToday.DELIVERED || 0) + (messagesByStatusToday.READ || 0);
 
       let waitReason: string | null = null;
       if (campaign.status === 'RUNNING') {
@@ -477,9 +488,9 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         interested: leadsByStatus.INTERESTED || 0,
         failed: leadsByStatus.FAILED || 0,
         suppressed: leadsByStatus.SUPPRESSED || 0,
-        sent: (messagesByStatus.SENT || 0),
-        delivered: (messagesByStatus.DELIVERED || 0),
-        read: (messagesByStatus.READ || 0),
+        sent: (messagesByStatusAll.SENT || 0),
+        delivered: (messagesByStatusAll.DELIVERED || 0),
+        read: (messagesByStatusAll.READ || 0),
         dailySent,
         dailyLimit: campaign.dailyLimit,
         progressPercent,

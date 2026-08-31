@@ -40,6 +40,39 @@ interface IndexInfo {
   NON_UNIQUE: number;
 }
 
+async function verifyNegativeTermsColumn(client: PrismaClient, dbName: string): Promise<'exists' | 'missing' | 'error'> {
+  try {
+    if (!dbName) return 'error';
+
+    const columns = await client.$queryRaw<ColumnInfo[]>`
+      SELECT COLUMN_NAME, COLUMN_TYPE
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = ${dbName}
+      AND TABLE_NAME = 'directory_categories'
+      AND COLUMN_NAME = 'external_negative_terms'
+    `;
+
+    if (columns.length === 0) {
+      console.log('[directory negative terms recovery] Coluna external_negative_terms: não encontrada');
+      return 'missing';
+    }
+
+    const column = columns[0];
+    if (!column || !column.COLUMN_TYPE || !column.COLUMN_TYPE.includes('json')) {
+      console.warn('[directory negative terms recovery] Coluna existe mas tipo está errado (esperado json)');
+      return 'error';
+    }
+
+    console.log('[directory negative terms recovery] Coluna external_negative_terms: existe e correta ✓');
+    return 'exists';
+  } catch (error) {
+    console.warn(
+      `[directory negative terms recovery] Erro ao verificar coluna: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return 'error';
+  }
+}
+
 async function verifyDirectoryMigrationSchema(client: PrismaClient, dbName: string): Promise<boolean> {
   try {
     if (!dbName) {
@@ -163,6 +196,64 @@ async function main(): Promise<void> {
     const dbName = process.env.DB_NAME || 'plataforma_audit';
 
     for (const migration of failed) {
+      // Tratamento especial para 20260831000012_add_directory_category_external_negative_terms
+      if (migration.migration_name === '20260831000012_add_directory_category_external_negative_terms') {
+        console.warn('[directory negative terms recovery] Migration detectada: 20260831000012_add_directory_category_external_negative_terms');
+
+        const currentState = await client.$queryRaw<
+          { migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }[]
+        >`
+          SELECT migration_name, finished_at, rolled_back_at
+          FROM _prisma_migrations
+          WHERE migration_name = '20260831000012_add_directory_category_external_negative_terms'
+        `;
+
+        const state = currentState[0];
+        if (state?.finished_at) {
+          console.warn('[directory negative terms recovery] Migration já estava applied; skipping.');
+          continue;
+        }
+
+        const columnStatus = await verifyNegativeTermsColumn(client, dbName);
+
+        if (columnStatus === 'exists') {
+          console.warn('[directory negative terms recovery] Coluna já existe em produção; marcando como aplicada.');
+          const result = spawnSync(
+            'npx',
+            ['prisma', 'migrate', 'resolve', '--applied', migration.migration_name],
+            {
+              stdio: 'inherit',
+              env: { ...process.env, DATABASE_URL: url },
+              shell: process.platform === 'win32',
+              cwd: resolve(import.meta.dirname, '../../'),
+            },
+          );
+          if (result.status !== 0)
+            throw new Error(`Não foi possível marcar a migration ${migration.migration_name} como aplicada.`);
+          console.warn('[directory negative terms recovery] Migration marcada como applied: ✓');
+          continue;
+        } else if (columnStatus === 'missing') {
+          console.warn('[directory negative terms recovery] Coluna não existe; marcando como rolled-back para segura reaplicação.');
+          const result = spawnSync(
+            'npx',
+            ['prisma', 'migrate', 'resolve', '--rolled-back', migration.migration_name],
+            {
+              stdio: 'inherit',
+              env: { ...process.env, DATABASE_URL: url },
+              shell: process.platform === 'win32',
+              cwd: resolve(import.meta.dirname, '../../'),
+            },
+          );
+          if (result.status !== 0)
+            throw new Error(`Não foi possível marcar a migration ${migration.migration_name} como rolled-back.`);
+          console.warn('[directory negative terms recovery] Migration marcada como rolled-back para reaplicação: ✓');
+          continue;
+        } else {
+          console.warn('[directory negative terms recovery] Schema divergente ou erro na inspeção; abortando recovery.');
+          throw new Error('Schema validation error for 20260831000012: não foi possível determinar estado da coluna.');
+        }
+      }
+
       // Tratamento especial para 20260914100000_add_directory_location_cache
       if (migration.migration_name === '20260914100000_add_directory_location_cache') {
         console.warn('[directory migration recovery] Migration detectada: 20260914100000_add_directory_location_cache');

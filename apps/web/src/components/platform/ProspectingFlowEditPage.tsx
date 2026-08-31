@@ -108,7 +108,7 @@ export const ProspectingFlowEditPage = ({
       if (data.isActive !== undefined) body.isActive = data.isActive;
       return httpClient.request(`/platform/prospecting/flows/${flowId}`, {
         method: 'PUT',
-        body: JSON.stringify(body),
+        body,
         schema: flowListItemSchema,
       });
     },
@@ -449,7 +449,7 @@ const AddStepModal = ({
       const pos = flow?.steps?.length || 0;
       return httpClient.request(`/platform/prospecting/flows/${flowId}/steps`, {
         method: 'POST',
-        body: JSON.stringify({ name: stepName, stepType, message: '', position: pos, isStart: pos === 0 }),
+        body: { name: stepName, stepType, message: '', position: pos, isStart: pos === 0 },
         schema: flowStepSchema,
       });
     },
@@ -492,35 +492,38 @@ const StepEditor = ({
   onClose: () => void;
   onFeedback: (fb: { type: 'success' | 'error'; message: string }) => void;
 }) => {
+  const [localFeedback, setLocalFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const step = flow.steps.find((s) => s.publicId === stepId);
-  if (!step) return null;
-
-  const [name, setName] = useState(step.name);
-  const [message, setMessage] = useState(step.message);
-  const [isStart, setIsStart] = useState(step.isStart);
-  const [nextStepId, setNextStepId] = useState(step.nextStepPublicId || '');
+  const [name, setName] = useState(() => step?.name ?? '');
+  const [message, setMessage] = useState(() => step?.message ?? '');
+  const [isStart, setIsStart] = useState(() => step?.isStart ?? false);
+  const [nextStepId, setNextStepId] = useState(() => step?.nextStepPublicId || '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  if (!step) return null;
 
   const showsNextStep = ['WAIT_TEXT', 'WAIT_LINK', 'MESSAGE_ONLY'].includes(step.stepType);
   const queryClient = useQueryClient();
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      const body: Record<string, any> = { name, message };
+      const body: Record<string, any> = { name, message, isStart };
       if (showsNextStep) body.nextStepId = nextStepId || undefined;
-      if (isStart) body.isStart = true;
       return httpClient.request(`/platform/prospecting/flows/${flowId}/steps/${stepId}`, {
         method: 'PUT',
-        body: JSON.stringify(body),
+        body,
         schema: flowStepSchema,
       });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['prospecting-flow', flowId] });
-      onFeedback({ type: 'success', message: 'Etapa atualizada' });
-      onClose();
+      setLocalFeedback({ type: 'success', message: 'Etapa atualizada com sucesso' });
+      setTimeout(() => onClose(), 1500);
     },
-    onError: () => onFeedback({ type: 'error', message: 'Erro ao atualizar' }),
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Erro ao atualizar etapa';
+      setLocalFeedback({ type: 'error', message });
+    },
   });
 
   const insertVariable = (varKey: string) => {
@@ -609,6 +612,19 @@ const StepEditor = ({
           Salvar alterações
         </button>
       </div>
+
+      {localFeedback && (
+        <div style={{
+          marginTop: '1rem',
+          padding: '0.75rem 1rem',
+          backgroundColor: localFeedback.type === 'success' ? 'var(--ds-background-positive-subtle)' : 'var(--ds-background-negative-subtle)',
+          color: localFeedback.type === 'success' ? 'var(--ds-text-positive)' : 'var(--ds-text-negative)',
+          borderRadius: '4px',
+          fontSize: '0.9rem'
+        }}>
+          {localFeedback.type === 'success' ? '✓' : '✗'} {localFeedback.message}
+        </div>
+      )}
       </div>
     </div>
   );
@@ -655,7 +671,7 @@ const ResponseEditorPage = ({
       }
       return httpClient.request(`/platform/prospecting/flows/${flowId}/options/${option.publicId}`, {
         method: 'PUT',
-        body: JSON.stringify(body),
+        body,
         schema: flowOptionSchema,
       });
     },
@@ -673,7 +689,7 @@ const ResponseEditorPage = ({
         `/platform/prospecting/flows/${flowId}/options/${option.publicId}/patterns`,
         {
           method: 'POST',
-          body: JSON.stringify({ pattern: patternText, patternType, priority }),
+          body: { pattern: patternText, patternType, priority },
           schema: flowPatternSchema,
         }
       );
@@ -708,7 +724,7 @@ const ResponseEditorPage = ({
         `/platform/prospecting/flows/${flowId}/options/${option.publicId}/patterns/${patternId}`,
         {
           method: 'PUT',
-          body: JSON.stringify({ pattern: patternText, patternType, priority }),
+          body: { pattern: patternText, patternType, priority },
           schema: flowPatternSchema,
         }
       ),
@@ -959,7 +975,7 @@ const ResponseCreatePage = ({
       }
       return httpClient.request(`/platform/prospecting/flows/${flowId}/steps/${step.publicId}/options`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body,
         schema: flowOptionSchema,
       });
     },

@@ -21,18 +21,19 @@ export interface WapiSendButtonsClientResult {
 }
 
 export class WapiSendButtonsClient {
-  public async send(input: WapiSendButtonsClientInput): Promise<WapiSendButtonsClientResult> {
+  public constructor(private readonly fetcher: typeof fetch = fetch) {}
+
+  public async send(input: Omit<WapiSendButtonsClientInput, 'fetcher'>): Promise<WapiSendButtonsClientResult> {
     const {
       instanceId,
       token,
       phone,
       message,
       buttons,
-      fetcher = fetch,
     } = input;
 
     try {
-      const response = await fetcher(
+      const response = await this.fetcher(
         `https://api.w-api.app/v1/message/send-button-actions?instanceId=${encodeURIComponent(instanceId)}`,
         {
           method: 'POST',

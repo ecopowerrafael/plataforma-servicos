@@ -20,7 +20,7 @@ export class WApiProspectingMessageSender implements ProspectingMessageSender {
     fetcher: typeof fetch = fetch,
   ) {
     this.wapiClient = new WapiSendTextClient(fetcher);
-    this.wapiButtonsClient = new WapiSendButtonsClient();
+    this.wapiButtonsClient = new WapiSendButtonsClient(fetcher);
   }
 
   async sendText(input: ProspectingMessageSendInput): Promise<ProspectingMessageSendResult> {
@@ -179,7 +179,7 @@ export class WApiProspectingMessageSender implements ProspectingMessageSender {
       phone: normalizedPhone,
       message: input.body,
       buttons: input.buttons,
-    });
+    } as any);
 
     return {
       success: result.ok,

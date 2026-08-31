@@ -325,12 +325,38 @@ export class ProspectingWorkerService implements ProspectingWorker {
               currentStepId: startStep.id,
               status: 'ACTIVE',
             },
-            include: { currentStep: true },
+            include: {
+              currentStep: {
+                include: {
+                  options: {
+                    orderBy: { position: 'asc' }
+                  }
+                }
+              }
+            },
           });
         }
 
-        const step = execution.currentStep;
-        const messageBody = await this.resolvePlaceholders(step.message, lead);
+        const step: any = execution.currentStep;
+        const { resolved: messageBody, unresolved } = await this.resolvePlaceholders(step.message, lead);
+
+        if (unresolved.length > 0) {
+          await tx.prospectingLead.update({
+            where: { id: lead.id },
+            data: { status: 'NEEDS_REVIEW' },
+          });
+          throw new Error(`UNRESOLVED_PLACEHOLDER: ${unresolved.join(', ')}`);
+        }
+
+        // Validar MESSAGE_OPTIONS tem options
+        if (step.stepType === 'MESSAGE_OPTIONS' && (!step.options || step.options.length === 0)) {
+          await tx.prospectingLead.update({
+            where: { id: lead.id },
+            data: { status: 'NEEDS_REVIEW' },
+          });
+          throw new Error('MESSAGE_OPTIONS_WITHOUT_OPTIONS');
+        }
+
         const idempotencyKey = `flow:${execution.publicId}:step:${step.publicId}`;
 
         // Find/create message (flow mode: templateId=null)
@@ -437,10 +463,19 @@ export class ProspectingWorkerService implements ProspectingWorker {
       // OUTSIDE TX: Call sender (se não reconcile)
       let sendResult: any = null;
       if (!reconcile) {
-        sendResult = await this.messageSender.sendText({
-          phone: lead.normalizedPhone,
-          body: message.body,
-        });
+        const step: any = execution.currentStep;
+        if (step.stepType === 'MESSAGE_OPTIONS') {
+          sendResult = await this.messageSender.sendButtons({
+            phone: lead.normalizedPhone,
+            body: message.body,
+            buttons: step.options.map((option: any) => ({ label: option.label })),
+          });
+        } else {
+          sendResult = await this.messageSender.sendText({
+            phone: lead.normalizedPhone,
+            body: message.body,
+          });
+        }
       }
 
       // TRANSACTION 2: RESULT + TRANSITION
@@ -546,7 +581,15 @@ export class ProspectingWorkerService implements ProspectingWorker {
         const variant = template.variants[variantIndex];
         if (!variant) throw new Error('VARIANT_NOT_FOUND');
 
-        const messageBody = await this.resolvePlaceholders(variant.body, lead);
+        const { resolved: messageBody, unresolved } = await this.resolvePlaceholders(variant.body, lead);
+        if (unresolved.length > 0) {
+          await tx.prospectingLead.update({
+            where: { id: lead.id },
+            data: { status: 'NEEDS_REVIEW' },
+          });
+          throw new Error(`UNRESOLVED_PLACEHOLDER: ${unresolved.join(', ')}`);
+        }
+
         const idempotencyKey = `campaign:${campaign.publicId}:lead:${lead.publicId}:step:${lead.currentStep}`;
 
         let msg = await tx.prospectingMessage.findFirst({
@@ -761,21 +804,30 @@ export class ProspectingWorkerService implements ProspectingWorker {
     return hash % variantCount;
   }
 
-  private async resolvePlaceholders(body: string, lead: any): Promise<string> {
+  private async resolvePlaceholders(body: string, lead: any): Promise<{ resolved: string; unresolved: string[] }> {
     let resolved = body;
 
-    // Buscar business para dados adicionais
     const business = await this.client.directoryBusiness.findUnique({
       where: { id: lead.directoryBusinessId },
-      select: { name: true, city: true, state: true },
+      select: { name: true, rawAddress: true, city: true, state: true },
     });
 
     resolved = resolved.replace(/\{\{nome\}\}/g, lead.nameSnapshot || '');
     resolved = resolved.replace(/\{\{empresa\}\}/g, business?.name || '');
+    resolved = resolved.replace(/\{\{estabelecimento\}\}/g, business?.name || '');
+    resolved = resolved.replace(/\{\{endereco\}\}/g, business?.rawAddress || '');
     resolved = resolved.replace(/\{\{cidade\}\}/g, business?.city || '');
     resolved = resolved.replace(/\{\{estado\}\}/g, business?.state || '');
 
-    return resolved;
+    // Detectar placeholders não resolvidos
+    const placeholderPattern = /\{\{([^}]+)\}\}/g;
+    const unresolved: string[] = [];
+    let match;
+    while ((match = placeholderPattern.exec(resolved)) !== null) {
+      unresolved.push(match[1]!);
+    }
+
+    return { resolved, unresolved };
   }
 
   private getRandomInterval(campaign: any): number {

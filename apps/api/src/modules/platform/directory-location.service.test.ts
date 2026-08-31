@@ -22,7 +22,7 @@ describe('Directory CEP search', () => {
   it('uses the cached CEP and does not call BrasilAPI or Geoapify when local results meet the minimum', async () => {
     const database = client({ cached: location, businesses: Array.from({ length: 10 }, (_, index) => business(index)) });
     const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
-    const result = await new DirectoryLocationService(database, { geoapifyApiKey: 'key', localMinResults: 5 }).search('barbearias', '18150-000');
+    const result = await new DirectoryLocationService(database, { geoapifyApiKeyProvider: async () => 'key', localMinResults: 5 }).search('barbearias', '18150-000');
     expect(result.results).toHaveLength(10);
     expect(result.results.every((item) => item.source === 'DIRECTORY')).toBe(true);
     expect(fetcher).not.toHaveBeenCalled();
@@ -38,7 +38,7 @@ describe('Directory CEP search', () => {
   it('uses Geoapify only to complement a short local list and deduplicates it', async () => {
     const database = client({ cached: location, businesses: [business(1), business(2)] });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ features: [{ properties: { name: 'Barbearia 1', formatted: 'Rua 1', city: 'Ibiúna', state_code: 'sp' }, geometry: { coordinates: [-47.22, -23.65] } }, { properties: { name: 'Barber Externa', formatted: 'Rua Nova', city: 'Ibiúna', state_code: 'sp', contact_phone: '11999999999' }, geometry: { coordinates: [-47.21, -23.64] } }] }) }));
-    const result = await new DirectoryLocationService(database, { geoapifyApiKey: 'key' }).search('barbearias', '18150000');
+    const result = await new DirectoryLocationService(database, { geoapifyApiKeyProvider: async () => 'key' }).search('barbearias', '18150000');
     expect(result.results.filter((item) => item.name === 'Barbearia 1')).toHaveLength(1);
     expect(result.results.some((item) => item.source === 'GEOAPIFY')).toBe(true);
   });

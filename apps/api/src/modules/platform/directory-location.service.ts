@@ -17,21 +17,12 @@ const timeoutFetch = async (url: string, timeoutMs: number) => fetch(url, { sign
 const text = (value: unknown) => typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const norm = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLowerCase().replace(/[^a-z0-9]/gu, '');
-const matchesExternalCategory = (feature: GeoFeature, positiveTerms: string[], negativeTerms: string[]): boolean => {
-  const props = feature.properties ?? {};
-  const featureName = text(props.name) ?? '';
-  const featureCategories = Array.isArray(props.categories) ? (props.categories as string[]) : [];
-  const normName = norm(featureName);
-  const normCategories = featureCategories.map(norm);
-  for (const negTerm of negativeTerms) {
-    if (normName.includes(norm(negTerm)) || normCategories.some((cat) => cat.includes(norm(negTerm)))) return false;
-  }
-  if (positiveTerms.length === 0) return false;
-  for (const posTerm of positiveTerms) {
-    if (normName.includes(norm(posTerm)) || normCategories.some((cat) => cat.includes(norm(posTerm)))) return true;
-  }
-  return false;
-};
+
+interface ScoreResult {
+  accepted: boolean;
+  score: number;
+  reasons: string[];
+}
 
 export class DirectoryLocationService {
   public constructor(
@@ -41,6 +32,180 @@ export class DirectoryLocationService {
       localMinResults?: number;
     } = {},
   ) {}
+
+  private scoreExternalFeature(feature: GeoFeature, positiveTerms: string[], negativeTerms: string[]): ScoreResult {
+    const props = feature.properties ?? {};
+    const featureName = text(props.name) ?? '';
+    const featureCategories = Array.isArray(props.categories) ? (props.categories as string[]) : [];
+    const datasource = typeof props.datasource === 'object' && props.datasource !== null ? (props.datasource as Record<string, unknown>) : {};
+    const datasourceRaw = text(datasource.raw) ?? '';
+
+    const normName = norm(featureName);
+    const normDatasource = norm(datasourceRaw);
+    const normCategories = featureCategories.map(norm);
+    const reasons: string[] = [];
+
+    // Verificar negativeTerms primeiro
+    for (const negTerm of negativeTerms) {
+      const normNegTerm = norm(negTerm);
+      if (normName.includes(normNegTerm) || normDatasource.includes(normNegTerm) || normCategories.some((cat) => cat.includes(normNegTerm))) {
+        return { accepted: false, score: -100, reasons: [`Contém termo negativo: ${negTerm}`] };
+      }
+    }
+
+    // Se positiveTerms vazio, rejeita
+    if (positiveTerms.length === 0) {
+      return { accepted: false, score: 0, reasons: ['Sem termos positivos para busca'] };
+    }
+
+    let score = 0;
+
+    // Buscar em nome (100 pontos)
+    for (const posTerm of positiveTerms) {
+      const normPosTerm = norm(posTerm);
+      if (normName.includes(normPosTerm)) {
+        score = Math.max(score, 100);
+        reasons.push(`Nome contém termo positivo: ${posTerm}`);
+        break;
+      }
+    }
+
+    // Se não achou no nome, buscar em datasource.raw (80 pontos)
+    if (score < 80) {
+      for (const posTerm of positiveTerms) {
+        const normPosTerm = norm(posTerm);
+        if (normDatasource.includes(normPosTerm)) {
+          score = Math.max(score, 80);
+          reasons.push(`Datasource contém termo positivo: ${posTerm}`);
+          break;
+        }
+      }
+    }
+
+    // Se não achou ainda, buscar em categories (60 pontos)
+    if (score < 60) {
+      for (const posTerm of positiveTerms) {
+        const normPosTerm = norm(posTerm);
+        if (normCategories.some((cat) => cat.includes(normPosTerm))) {
+          score = Math.max(score, 60);
+          reasons.push(`Categoria contém termo positivo: ${posTerm}`);
+          break;
+        }
+      }
+    }
+
+    const accepted = score >= 60;
+    return { accepted, score, reasons };
+  }
+
+  private async searchGeoapifyPlaces(
+    categoryId: bigint,
+    categoriesValue: Prisma.JsonValue | null,
+    positiveTermsValue: Prisma.JsonValue | null,
+    negativeTermsValue: Prisma.JsonValue | null,
+    location: Location,
+    persistCache: boolean,
+    metrics?: DirectoryPlacesMetrics,
+  ): Promise<DirectorySearchResult[]> {
+    const categories = jsonStrings(categoriesValue);
+    const positiveTerms = jsonStrings(positiveTermsValue);
+    const negativeTerms = jsonStrings(negativeTermsValue);
+    const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
+
+    if (geoapifyApiKey === undefined || location.latitude === null || location.longitude === null || categories.length === 0) return [];
+
+    if (metrics) {
+      metrics.attempted = true;
+      metrics.categoriesSent = categories;
+    }
+
+    for (const radius of [5_000, 10_000]) {
+      if (metrics) {
+        metrics.radius = radius;
+      }
+
+      // Verificar cache
+      const cached = persistCache ? await this.externalCache(categoryId, location.cep, radius) : null;
+      if (cached !== null) {
+        if (cached.length > 0 || radius === 10_000) {
+          if (metrics) {
+            metrics.featuresReceived = cached.length;
+            metrics.acceptedResults = cached.length;
+          }
+          return cached;
+        }
+        continue;
+      }
+
+      // Buscar na API
+      const url = new URL('https://api.geoapify.com/v2/places');
+      url.searchParams.set('categories', categories.join(','));
+      url.searchParams.set('filter', `circle:${location.longitude},${location.latitude},${radius}`);
+      url.searchParams.set('bias', `proximity:${location.longitude},${location.latitude}`);
+      url.searchParams.set('limit', '20');
+      url.searchParams.set('apiKey', geoapifyApiKey);
+
+      try {
+        const response = await timeoutFetch(url.toString(), 5_000);
+
+        if (metrics) {
+          metrics.httpStatus = response.status;
+        }
+
+        if (!response.ok) {
+          let errorBody = '';
+          try {
+            errorBody = await response.text();
+            if (errorBody.length > 500) errorBody = errorBody.slice(0, 500) + '...';
+          } catch {}
+
+          if (metrics) {
+            metrics.errorType = 'HTTP_ERROR';
+            metrics.errorMessage = `HTTP ${response.status}: ${errorBody}`;
+          }
+
+          if (radius === 10_000) return [];
+          continue;
+        }
+
+        const data = await response.json() as { features?: GeoFeature[] };
+        const features = data.features ?? [];
+
+        if (metrics) {
+          metrics.featuresReceived = features.length;
+        }
+
+        // Aplicar scoring determinístico com negativeTerms
+        const results = features
+          .map((feature) => {
+            const scoreResult = this.scoreExternalFeature(feature, positiveTerms, negativeTerms);
+            return { feature, scoreResult };
+          })
+          .filter(({ scoreResult }) => scoreResult.accepted)
+          .map(({ feature }) => this.geoResult(feature, location))
+          .filter((item): item is DirectorySearchResult => item !== null);
+
+        if (metrics) {
+          metrics.acceptedResults = results.length;
+        }
+
+        if (persistCache) {
+          await this.saveExternalCache(categoryId, location.cep, radius, results);
+        }
+
+        if (results.length > 0 || radius === 10_000) return results;
+      } catch (error) {
+        if (metrics && error instanceof Error) {
+          metrics.errorType = error.name;
+          metrics.errorMessage = error.message;
+        }
+
+        if (radius === 10_000) return [];
+      }
+    }
+
+    return [];
+  }
 
   public async search(categorySlug: string, rawCep: string) {
     const cep = cepValue(rawCep);
@@ -52,7 +217,7 @@ export class DirectoryLocationService {
     const local = await this.client.directoryBusiness.findMany({ where: { categoryId: category.id, state: location.state, active: true }, orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }], take: 50 }).then((results) => results.filter((item) => norm(item.city) === cityNorm).slice(0, 10));
     const localResults: DirectorySearchResult[] = local.map((item) => ({ source: 'DIRECTORY', publicId: item.publicId, name: item.name, address: item.rawAddress, city: item.city, state: item.state, neighborhood: item.neighborhood, phone: item.phone, whatsapp: item.whatsapp, website: item.websiteUrl, latitude: null, longitude: null, distanceMeters: null }));
     const minimum = this.options.localMinResults ?? 5;
-    const external = localResults.length >= minimum ? [] : await this.geoapify(category.id, category.geoapifyCategories, category.externalSearchTerms, location);
+    const external = localResults.length >= minimum ? [] : await this.searchGeoapifyPlaces(category.id, category.geoapifyCategories, category.externalSearchTerms, null, location, true);
     const results = this.dedupe([...localResults, ...external]).slice(0, 10);
     return { location, results, cityUrl: `/encontre/${category.slug}/${this.slug(`${location.city}-${location.state}`)}` };
   }
@@ -71,7 +236,7 @@ export class DirectoryLocationService {
     const local = await this.client.directoryBusiness.findMany({ where: { categoryId: category.id, state: location.state, active: true }, orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }], take: 50 }).then((results) => results.filter((item) => norm(item.city) === cityNorm).slice(0, 10));
     const localResults: DirectorySearchResult[] = local.map((item) => ({ source: 'DIRECTORY', publicId: item.publicId, name: item.name, address: item.rawAddress, city: item.city, state: item.state, neighborhood: item.neighborhood, phone: item.phone, whatsapp: item.whatsapp, website: item.websiteUrl, latitude: null, longitude: null, distanceMeters: null }));
     const minimum = this.options.localMinResults ?? 5;
-    const external = localResults.length >= minimum ? [] : await this.geoapifyWithDiagnostics(category.id, category.geoapifyCategories, category.externalSearchTerms, location, diagnostics.places, { persistCache: false });
+    const external = localResults.length >= minimum ? [] : await this.searchGeoapifyPlaces(category.id, category.geoapifyCategories, category.externalSearchTerms, null, location, false, diagnostics.places);
     const results = this.dedupe([...localResults, ...external]).slice(0, 10);
     return {
       location: {
@@ -235,39 +400,6 @@ export class DirectoryLocationService {
     }
   }
 
-  private async geoapify(categoryId: bigint, categoriesValue: Prisma.JsonValue | null, termsValue: Prisma.JsonValue | null, location: Location): Promise<DirectorySearchResult[]> {
-    const categories = jsonStrings(categoriesValue);
-    const terms = jsonStrings(termsValue).map(norm);
-    const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
-    if (geoapifyApiKey === undefined || location.latitude === null || location.longitude === null || categories.length === 0) return [];
-    for (const radius of [5_000, 10_000]) {
-      const cached = await this.externalCache(categoryId, location.cep, radius);
-      if (cached !== null) {
-        if (cached.length > 0 || radius === 10_000) return cached;
-        continue;
-      }
-      const url = new URL('https://api.geoapify.com/v2/places');
-      url.searchParams.set('categories', categories.join(','));
-      url.searchParams.set('filter', `circle:${location.longitude},${location.latitude},${radius}`);
-      url.searchParams.set('bias', `proximity:${location.longitude},${location.latitude}`);
-      url.searchParams.set('limit', '20');
-      url.searchParams.set('apiKey', geoapifyApiKey);
-      try {
-        const response = await timeoutFetch(url.toString(), 5_000);
-        if (!response.ok) return [];
-        const data = await response.json() as { features?: GeoFeature[] };
-        const results = (data.features ?? [])
-          .map((feature) => this.geoResult(feature, location))
-          .filter((item): item is DirectorySearchResult => item !== null)
-          .filter((item) => terms.length === 0 || terms.some((term) => norm(item.name).includes(term)));
-        await this.saveExternalCache(categoryId, location.cep, radius, results);
-        if (results.length > 0 || radius === 10_000) return results;
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  }
 
   private async geoapifyGeocode(location: Location): Promise<Location | null> {
     const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
@@ -296,65 +428,6 @@ export class DirectoryLocationService {
     }
   }
 
-  private async geoapifyWithDiagnostics(categoryId: bigint, categoriesValue: Prisma.JsonValue | null, termsValue: Prisma.JsonValue | null, location: Location, metrics: DirectoryPlacesMetrics, options?: { persistCache?: boolean }): Promise<DirectorySearchResult[]> {
-    const categories = jsonStrings(categoriesValue);
-    const positiveTerms = jsonStrings(termsValue);
-    const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
-    if (geoapifyApiKey === undefined || location.latitude === null || location.longitude === null || categories.length === 0) return [];
-    metrics.attempted = true;
-    metrics.categoriesSent = categories;
-    const shouldPersist = options?.persistCache !== false;
-    for (const radius of [5_000, 10_000]) {
-      metrics.radius = radius;
-      const cached = shouldPersist ? await this.externalCache(categoryId, location.cep, radius) : null;
-      if (cached !== null) {
-        if (cached.length > 0 || radius === 10_000) {
-          metrics.featuresReceived = cached.length;
-          metrics.acceptedResults = cached.length;
-          return cached;
-        }
-        continue;
-      }
-      const url = new URL('https://api.geoapify.com/v2/places');
-      url.searchParams.set('categories', categories.join(','));
-      url.searchParams.set('filter', `circle:${location.longitude},${location.latitude},${radius}`);
-      url.searchParams.set('bias', `proximity:${location.longitude},${location.latitude}`);
-      url.searchParams.set('limit', '20');
-      url.searchParams.set('apiKey', geoapifyApiKey);
-      try {
-        const response = await timeoutFetch(url.toString(), 5_000);
-        metrics.httpStatus = response.status;
-        if (!response.ok) {
-          let errorBody = '';
-          try {
-            errorBody = await response.text();
-            if (errorBody.length > 500) errorBody = errorBody.slice(0, 500) + '...';
-          } catch {}
-          metrics.errorType = 'HTTP_ERROR';
-          metrics.errorMessage = `HTTP ${response.status}: ${errorBody}`;
-          if (radius === 10_000) return [];
-          continue;
-        }
-        const data = await response.json() as { features?: GeoFeature[] };
-        const features = data.features ?? [];
-        metrics.featuresReceived = features.length;
-        const results = features
-          .filter((feature) => matchesExternalCategory(feature, positiveTerms, []))
-          .map((feature) => this.geoResult(feature, location))
-          .filter((item): item is DirectorySearchResult => item !== null);
-        metrics.acceptedResults = results.length;
-        if (shouldPersist) await this.saveExternalCache(categoryId, location.cep, radius, results);
-        if (results.length > 0 || radius === 10_000) return results;
-      } catch (error) {
-        if (error instanceof Error) {
-          metrics.errorType = error.name;
-          metrics.errorMessage = error.message;
-        }
-        if (radius === 10_000) return [];
-      }
-    }
-    return [];
-  }
 
   private geoResult(feature: GeoFeature, location: Location): DirectorySearchResult | null { const props = feature.properties ?? {}; const coordinates = Array.isArray(feature.geometry?.coordinates) ? feature.geometry!.coordinates : []; const longitude = number(coordinates[0]); const latitude = number(coordinates[1]); const name = text(props.name); if (name === null) return null; const phone = text(props.contact_phone) ?? text(props.phone); return { source: 'GEOAPIFY', publicId: null, name, address: text(props.formatted) ?? [text(props.address_line1), text(props.address_line2)].filter((value): value is string => value !== null).join(', '), city: text(props.city) ?? location.city, state: text(props.state_code)?.toUpperCase() ?? location.state, neighborhood: text(props.suburb), phone, whatsapp: null, website: text(props.website), latitude, longitude, distanceMeters: number(props.distance) }; }
   private cacheKey(categoryId: bigint, cep: string, radius: number) { return createHash('sha256').update(`${categoryId}:${cep}:${radius}`).digest('hex'); }

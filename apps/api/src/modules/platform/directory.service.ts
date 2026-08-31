@@ -1177,6 +1177,7 @@ export class DirectoryService {
       sortOrder: cat.sortOrder,
       geoapifyCategories: Array.isArray(cat.geoapifyCategories) ? cat.geoapifyCategories : null,
       externalSearchTerms: Array.isArray(cat.externalSearchTerms) ? cat.externalSearchTerms : null,
+      externalNegativeTerms: Array.isArray(cat.externalNegativeTerms) ? cat.externalNegativeTerms : null,
       _count: cat._count,
     };
   }
@@ -1193,6 +1194,7 @@ export class DirectoryService {
       sortOrder?: number | undefined;
       geoapifyCategories?: string[] | null | undefined;
       externalSearchTerms?: string[] | null | undefined;
+      externalNegativeTerms?: string[] | null | undefined;
     },
   ) {
     // Check if active or indexable will change
@@ -1217,7 +1219,7 @@ export class DirectoryService {
     }
 
     // If Geoapify categories/terms changed, invalidate cache to reflect new config immediately
-    if (input.geoapifyCategories !== undefined || input.externalSearchTerms !== undefined) {
+    if (input.geoapifyCategories !== undefined || input.externalSearchTerms !== undefined || input.externalNegativeTerms !== undefined) {
       await this.client.directoryExternalSearchCache.deleteMany({
         where: { categoryId: category.id },
       });

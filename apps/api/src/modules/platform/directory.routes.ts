@@ -251,6 +251,7 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
           sortOrder: z.number().int().min(0).max(10000).optional(),
           geoapifyCategories: z.array(z.string()).nullable().optional(),
           externalSearchTerms: z.array(z.string()).nullable().optional(),
+          externalNegativeTerms: z.array(z.string()).nullable().optional(),
         }),
       },
     },

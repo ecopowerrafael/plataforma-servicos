@@ -5,7 +5,7 @@ import { AppError } from '../../errors/AppError.js';
 
 export interface DirectorySearchResult { source: 'DIRECTORY' | 'GEOAPIFY'; publicId: string | null; name: string; address: string; city: string; state: string; neighborhood: string | null; phone: string | null; whatsapp: string | null; website: string | null; latitude: number | null; longitude: number | null; distanceMeters: number | null; }
 export interface DirectoryGeocodeMetrics { attempted: boolean; success: boolean; source: 'CACHE' | 'BRASILAPI' | 'VIACEP' | 'GEOAPIFY' | null; httpStatus?: number; featuresReceived?: number; apiKeyAvailable?: boolean; requestAttempted?: boolean; requestUrlHost?: string | null; errorType?: string; errorCode?: string; errorMessage?: string; durationMs?: number; }
-export interface DirectoryPlacesMetrics { attempted: boolean; httpStatus?: number; featuresReceived?: number; acceptedResults?: number; }
+export interface DirectoryPlacesMetrics { attempted: boolean; httpStatus?: number; featuresReceived?: number; acceptedResults?: number; categoriesSent?: string[]; radius?: number; errorType?: string; errorMessage?: string; }
 export interface DirectorySearchDiagnostics { geocoding: DirectoryGeocodeMetrics; places: DirectoryPlacesMetrics; }
 export interface DirectorySearchResultWithDiagnostics { location: { cep: string; city: string; state: string; latitude: number | null; longitude: number | null }; results: DirectorySearchResult[]; cityUrl: string; diagnostics: DirectorySearchDiagnostics; }
 type Location = { cep: string; city: string; state: string; neighborhood: string | null; street: string | null; latitude: number | null; longitude: number | null };
@@ -287,7 +287,9 @@ export class DirectoryLocationService {
     const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
     if (geoapifyApiKey === undefined || location.latitude === null || location.longitude === null || categories.length === 0) return [];
     metrics.attempted = true;
+    metrics.categoriesSent = categories;
     for (const radius of [5_000, 10_000]) {
+      metrics.radius = radius;
       const cached = await this.externalCache(categoryId, location.cep, radius);
       if (cached !== null) {
         if (cached.length > 0 || radius === 10_000) {
@@ -306,7 +308,17 @@ export class DirectoryLocationService {
       try {
         const response = await timeoutFetch(url.toString(), 5_000);
         metrics.httpStatus = response.status;
-        if (!response.ok) return [];
+        if (!response.ok) {
+          let errorBody = '';
+          try {
+            errorBody = await response.text();
+            if (errorBody.length > 500) errorBody = errorBody.slice(0, 500) + '...';
+          } catch {}
+          metrics.errorType = 'HTTP_ERROR';
+          metrics.errorMessage = `HTTP ${response.status}: ${errorBody}`;
+          if (radius === 10_000) return [];
+          continue;
+        }
         const data = await response.json() as { features?: GeoFeature[] };
         const features = data.features ?? [];
         metrics.featuresReceived = features.length;
@@ -317,8 +329,12 @@ export class DirectoryLocationService {
         metrics.acceptedResults = results.length;
         await this.saveExternalCache(categoryId, location.cep, radius, results);
         if (results.length > 0 || radius === 10_000) return results;
-      } catch {
-        return [];
+      } catch (error) {
+        if (error instanceof Error) {
+          metrics.errorType = error.name;
+          metrics.errorMessage = error.message;
+        }
+        if (radius === 10_000) return [];
       }
     }
     return [];

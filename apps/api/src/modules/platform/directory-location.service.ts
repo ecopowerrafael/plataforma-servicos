@@ -4,7 +4,7 @@ import { PrismaClient, type Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
 export interface DirectorySearchResult { source: 'DIRECTORY' | 'GEOAPIFY'; publicId: string | null; name: string; address: string; city: string; state: string; neighborhood: string | null; phone: string | null; whatsapp: string | null; website: string | null; latitude: number | null; longitude: number | null; distanceMeters: number | null; }
-export interface DirectoryGeocodeMetrics { attempted: boolean; success: boolean; source: 'CACHE' | 'BRASILAPI' | 'VIACEP' | 'GEOAPIFY' | null; httpStatus?: number; featuresReceived?: number; }
+export interface DirectoryGeocodeMetrics { attempted: boolean; success: boolean; source: 'CACHE' | 'BRASILAPI' | 'VIACEP' | 'GEOAPIFY' | null; httpStatus?: number; featuresReceived?: number; apiKeyAvailable?: boolean; requestAttempted?: boolean; requestUrlHost?: string | null; errorType?: string; errorCode?: string; errorMessage?: string; durationMs?: number; }
 export interface DirectoryPlacesMetrics { attempted: boolean; httpStatus?: number; featuresReceived?: number; acceptedResults?: number; }
 export interface DirectorySearchDiagnostics { geocoding: DirectoryGeocodeMetrics; places: DirectoryPlacesMetrics; }
 export interface DirectorySearchResultWithDiagnostics { location: { cep: string; city: string; state: string; latitude: number | null; longitude: number | null }; results: DirectorySearchResult[]; cityUrl: string; diagnostics: DirectorySearchDiagnostics; }
@@ -154,9 +154,14 @@ export class DirectoryLocationService {
   }
 
   private async geoapifyGeocodeWithDiagnostics(location: Location, parentMetrics: DirectoryGeocodeMetrics): Promise<Location | null> {
-    const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
-    if (geoapifyApiKey === undefined) return null;
+    const startedAt = Date.now();
     try {
+      const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
+      parentMetrics.apiKeyAvailable = geoapifyApiKey !== undefined;
+      if (!geoapifyApiKey) {
+        parentMetrics.errorType = 'NO_API_KEY';
+        return null;
+      }
       const parts = [location.cep.slice(0, 5) + '-' + location.cep.slice(5)];
       if (location.street) parts.push(location.street);
       if (location.neighborhood) parts.push(location.neighborhood);
@@ -165,20 +170,52 @@ export class DirectoryLocationService {
       const url = new URL('https://api.geoapify.com/v1/geocode/search');
       url.searchParams.set('text', query);
       url.searchParams.set('apiKey', geoapifyApiKey);
+      parentMetrics.requestAttempted = true;
+      parentMetrics.requestUrlHost = 'api.geoapify.com';
       const response = await timeoutFetch(url.toString(), 4_000);
+      parentMetrics.durationMs = Date.now() - startedAt;
       parentMetrics.httpStatus = response.status;
-      if (!response.ok) return null;
+      if (!response.ok) {
+        let errorBody = '';
+        try {
+          errorBody = await response.text();
+          if (errorBody.length > 500) errorBody = errorBody.slice(0, 500) + '...';
+        } catch {}
+        parentMetrics.errorType = 'HTTP_ERROR';
+        parentMetrics.errorMessage = `HTTP ${response.status}: ${errorBody}`;
+        return null;
+      }
       const data = await response.json() as { features?: GeoFeature[] };
       parentMetrics.featuresReceived = (data.features ?? []).length;
       const feature = data.features?.[0];
-      if (!feature) return null;
+      if (!feature) {
+        parentMetrics.errorType = 'NO_FEATURES';
+        parentMetrics.errorMessage = 'Geoapify retornou 200 mas sem features';
+        return null;
+      }
       const coordinates = Array.isArray(feature.geometry?.coordinates) ? feature.geometry!.coordinates : [];
       const latitude = number(coordinates[1]);
       const longitude = number(coordinates[0]);
-      if (latitude === null || longitude === null) return null;
+      if (latitude === null || longitude === null) {
+        parentMetrics.errorType = 'INVALID_COORDINATES';
+        parentMetrics.errorMessage = `Coordenadas inválidas: [${coordinates[0]}, ${coordinates[1]}]`;
+        return null;
+      }
       parentMetrics.source = 'GEOAPIFY';
+      parentMetrics.durationMs = Date.now() - startedAt;
       return { ...location, latitude, longitude };
-    } catch {
+    } catch (error) {
+      parentMetrics.durationMs = Date.now() - startedAt;
+      if (error instanceof Error) {
+        parentMetrics.errorType = error.name;
+        parentMetrics.errorMessage = error.message;
+        if ((error as any).cause?.code) {
+          parentMetrics.errorCode = String((error as any).cause.code);
+        }
+      } else {
+        parentMetrics.errorType = 'UNKNOWN_ERROR';
+        parentMetrics.errorMessage = String(error);
+      }
       return null;
     }
   }

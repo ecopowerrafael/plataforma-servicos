@@ -17,6 +17,21 @@ const timeoutFetch = async (url: string, timeoutMs: number) => fetch(url, { sign
 const text = (value: unknown) => typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const norm = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLowerCase().replace(/[^a-z0-9]/gu, '');
+const matchesExternalCategory = (feature: GeoFeature, positiveTerms: string[], negativeTerms: string[]): boolean => {
+  const props = feature.properties ?? {};
+  const featureName = text(props.name) ?? '';
+  const featureCategories = Array.isArray(props.categories) ? (props.categories as string[]) : [];
+  const normName = norm(featureName);
+  const normCategories = featureCategories.map(norm);
+  for (const negTerm of negativeTerms) {
+    if (normName.includes(norm(negTerm)) || normCategories.some((cat) => cat.includes(norm(negTerm)))) return false;
+  }
+  if (positiveTerms.length === 0) return false;
+  for (const posTerm of positiveTerms) {
+    if (normName.includes(norm(posTerm)) || normCategories.some((cat) => cat.includes(norm(posTerm)))) return true;
+  }
+  return false;
+};
 
 export class DirectoryLocationService {
   public constructor(
@@ -56,7 +71,7 @@ export class DirectoryLocationService {
     const local = await this.client.directoryBusiness.findMany({ where: { categoryId: category.id, state: location.state, active: true }, orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }], take: 50 }).then((results) => results.filter((item) => norm(item.city) === cityNorm).slice(0, 10));
     const localResults: DirectorySearchResult[] = local.map((item) => ({ source: 'DIRECTORY', publicId: item.publicId, name: item.name, address: item.rawAddress, city: item.city, state: item.state, neighborhood: item.neighborhood, phone: item.phone, whatsapp: item.whatsapp, website: item.websiteUrl, latitude: null, longitude: null, distanceMeters: null }));
     const minimum = this.options.localMinResults ?? 5;
-    const external = localResults.length >= minimum ? [] : await this.geoapifyWithDiagnostics(category.id, category.geoapifyCategories, category.externalSearchTerms, location, diagnostics.places);
+    const external = localResults.length >= minimum ? [] : await this.geoapifyWithDiagnostics(category.id, category.geoapifyCategories, category.externalSearchTerms, location, diagnostics.places, { persistCache: false });
     const results = this.dedupe([...localResults, ...external]).slice(0, 10);
     return {
       location: {
@@ -281,16 +296,17 @@ export class DirectoryLocationService {
     }
   }
 
-  private async geoapifyWithDiagnostics(categoryId: bigint, categoriesValue: Prisma.JsonValue | null, termsValue: Prisma.JsonValue | null, location: Location, metrics: DirectoryPlacesMetrics): Promise<DirectorySearchResult[]> {
+  private async geoapifyWithDiagnostics(categoryId: bigint, categoriesValue: Prisma.JsonValue | null, termsValue: Prisma.JsonValue | null, location: Location, metrics: DirectoryPlacesMetrics, options?: { persistCache?: boolean }): Promise<DirectorySearchResult[]> {
     const categories = jsonStrings(categoriesValue);
-    const terms = jsonStrings(termsValue).map(norm);
+    const positiveTerms = jsonStrings(termsValue);
     const geoapifyApiKey = this.options.geoapifyApiKeyProvider ? await this.options.geoapifyApiKeyProvider() : undefined;
     if (geoapifyApiKey === undefined || location.latitude === null || location.longitude === null || categories.length === 0) return [];
     metrics.attempted = true;
     metrics.categoriesSent = categories;
+    const shouldPersist = options?.persistCache !== false;
     for (const radius of [5_000, 10_000]) {
       metrics.radius = radius;
-      const cached = await this.externalCache(categoryId, location.cep, radius);
+      const cached = shouldPersist ? await this.externalCache(categoryId, location.cep, radius) : null;
       if (cached !== null) {
         if (cached.length > 0 || radius === 10_000) {
           metrics.featuresReceived = cached.length;
@@ -323,11 +339,11 @@ export class DirectoryLocationService {
         const features = data.features ?? [];
         metrics.featuresReceived = features.length;
         const results = features
+          .filter((feature) => matchesExternalCategory(feature, positiveTerms, []))
           .map((feature) => this.geoResult(feature, location))
-          .filter((item): item is DirectorySearchResult => item !== null)
-          .filter((item) => terms.length === 0 || terms.some((term) => norm(item.name).includes(term)));
+          .filter((item): item is DirectorySearchResult => item !== null);
         metrics.acceptedResults = results.length;
-        await this.saveExternalCache(categoryId, location.cep, radius, results);
+        if (shouldPersist) await this.saveExternalCache(categoryId, location.cep, radius, results);
         if (results.length > 0 || radius === 10_000) return results;
       } catch (error) {
         if (error instanceof Error) {

@@ -297,7 +297,7 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
     async (request) => {
       allow(request, 'platform.tenant.read');
       try {
-        const result = await options.locationService.search(
+        const result = await options.locationService.searchWithDiagnostics(
           request.body.categorySlug,
           request.body.cep,
         );
@@ -327,9 +327,9 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
             externalSearchTerms: categoryConfig?.externalSearchTerms ?? [],
             hasCoordinates: apiConfigured,
           },
+          diagnostics: result.diagnostics,
         };
       } catch (error) {
-        // Retornar apenas erros esperados (AppError); outras exceções retornam msg genérica
         const message = error instanceof AppError
           ? error.message
           : 'Erro ao testar localização. Tente novamente.';

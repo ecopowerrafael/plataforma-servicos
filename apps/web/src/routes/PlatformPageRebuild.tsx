@@ -110,12 +110,7 @@ export function PlatformPageRebuild() {
       ) : section === 'directory' ? (
         <DirectoryModule />
       ) : section === 'prospecting' ? (
-        <ProspectingModule
-          campaignPublicId={params.resourceId}
-          onOpen={(id) => {
-            void navigate(`/platform/prospecting/${id}`);
-          }}
-        />
+        <ProspectingModule campaignPublicId={params.resourceId} />
       ) : section === 'settings' ? (
         <WapiConfigModule />
       ) : (

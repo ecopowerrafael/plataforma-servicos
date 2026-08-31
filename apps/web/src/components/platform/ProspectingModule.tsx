@@ -196,10 +196,8 @@ const leadsResponseSchema = z.object({
 
 export function ProspectingModule({
   campaignPublicId,
-  onOpen,
 }: {
   campaignPublicId?: string;
-  onOpen?: (id: string) => void;
 }) {
   const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'flows' | 'templates' | 'objections' | 'settings' | 'create'>(
     campaignPublicId ? 'detail' : 'campaigns'
@@ -387,7 +385,6 @@ export function ProspectingModule({
           onDetail={(id) => {
             setSelectedCampaign(id);
             setView('detail');
-            onOpen?.(id);
           }}
           onViewDashboard={() => setView('dashboard')}
           onNewCampaign={() => setView('create')}

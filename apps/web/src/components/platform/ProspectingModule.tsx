@@ -280,10 +280,7 @@ export function ProspectingModule({
         schema: progressSchema,
       }),
     enabled: selectedCampaign !== null,
-    refetchInterval: (data) => {
-      if (data?.status === 'RUNNING') return 10000;
-      return false;
-    },
+    refetchInterval: detail.data?.status === 'RUNNING' ? 10_000 : false,
   });
 
   const startMutation = useMutation({

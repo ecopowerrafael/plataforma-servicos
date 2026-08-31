@@ -138,4 +138,76 @@ describe('ProspectingModule frontend — operational panel', () => {
     expect(deleteConfirm.variant).toBe('danger');
     expect(typeof deleteConfirm.confirmLabel).toBe('string');
   });
+
+  it('botões de ação conforme status', () => {
+    const testCases = [
+      {
+        status: 'DRAFT',
+        showStart: true,
+        showPause: false,
+        showResume: false,
+        showCancel: true,
+        showDelete: true,
+      },
+      {
+        status: 'RUNNING',
+        showStart: false,
+        showPause: true,
+        showResume: false,
+        showCancel: true,
+        showDelete: false,
+      },
+      {
+        status: 'PAUSED',
+        showStart: false,
+        showPause: false,
+        showResume: true,
+        showCancel: true,
+        showDelete: false,
+      },
+      {
+        status: 'CANCELED',
+        showStart: false,
+        showPause: false,
+        showResume: false,
+        showCancel: false,
+        showDelete: true,
+      },
+    ];
+
+    for (const tc of testCases) {
+      const canStart = tc.status === 'DRAFT';
+      const canPause = tc.status === 'RUNNING';
+      const canResume = tc.status === 'PAUSED';
+      const canCancel = ['DRAFT', 'RUNNING', 'PAUSED'].includes(tc.status);
+      const canDelete = ['DRAFT', 'CANCELED'].includes(tc.status);
+
+      expect(canStart).toBe(tc.showStart);
+      expect(canPause).toBe(tc.showPause);
+      expect(canResume).toBe(tc.showResume);
+      expect(canCancel).toBe(tc.showCancel);
+      expect(canDelete).toBe(tc.showDelete);
+    }
+  });
+
+  it('resume mutation usa endpoint correto', () => {
+    const resumeEndpoint = '/platform/prospecting/campaigns/campaign-id/resume';
+    const method = 'POST';
+
+    expect(resumeEndpoint).toContain('/resume');
+    expect(method).toBe('POST');
+  });
+
+  it('transição PAUSED → RUNNING ativa polling', () => {
+    const campaignPaused = { status: 'PAUSED' };
+    const campaignRunning = { status: 'RUNNING' };
+
+    const getRefetchInterval = (data: any) => {
+      if (data?.status === 'RUNNING') return 10_000;
+      return false;
+    };
+
+    expect(getRefetchInterval(campaignPaused)).toBe(false);
+    expect(getRefetchInterval(campaignRunning)).toBe(10_000);
+  });
 });

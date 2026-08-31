@@ -299,6 +299,14 @@ export function ProspectingModule({
     },
   });
 
+  const resumeMutation = useMutation({
+    mutationFn: (id: string) =>
+      httpClient.request(`/platform/prospecting/campaigns/${id}/resume`, { method: 'POST' }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['prospecting'] });
+    },
+  });
+
   const cancelMutation = useMutation({
     mutationFn: (id: string) =>
       httpClient.request(`/platform/prospecting/campaigns/${id}/cancel`, { method: 'POST' }),
@@ -497,11 +505,13 @@ export function ProspectingModule({
           onEdit={() => setFormOpen(true)}
           onStart={() => void startMutation.mutateAsync(selectedCampaign!)}
           onPause={() => void pauseMutation.mutateAsync(selectedCampaign!)}
+          onResume={() => void resumeMutation.mutateAsync(selectedCampaign!)}
           onCancel={() => handleCancel(selectedCampaign!)}
           onDelete={() => handleDelete(selectedCampaign!)}
           onMaterialize={() => void materializeMutation.mutateAsync(selectedCampaign!)}
           startLoading={startMutation.isPending}
           pauseLoading={pauseMutation.isPending}
+          resumeLoading={resumeMutation.isPending}
           cancelLoading={cancelMutation.isPending}
           deleteLoading={deleteMutation.isPending}
           materializeLoading={materializeMutation.isPending}
@@ -820,12 +830,14 @@ function DetailView({
   onBack,
   onStart,
   onPause,
+  onResume,
   onCancel,
   onDelete,
   onEdit,
   onMaterialize,
   startLoading,
   pauseLoading,
+  resumeLoading,
   cancelLoading,
   deleteLoading,
   materializeLoading,
@@ -841,12 +853,14 @@ function DetailView({
   onBack: () => void;
   onStart: () => void;
   onPause: () => void;
+  onResume?: () => void;
   onCancel: () => void;
   onDelete?: () => void;
   onEdit?: () => void;
   onMaterialize?: () => void;
   startLoading: boolean;
   pauseLoading: boolean;
+  resumeLoading?: boolean;
   cancelLoading: boolean;
   deleteLoading?: boolean;
   materializeLoading?: boolean;
@@ -877,6 +891,7 @@ function DetailView({
 
   const canStart = campaign.status === 'DRAFT';
   const canPause = campaign.status === 'RUNNING';
+  const canResume = campaign.status === 'PAUSED';
   const canCancel = ['DRAFT', 'RUNNING', 'PAUSED'].includes(campaign.status);
   const canDelete = ['DRAFT', 'CANCELED'].includes(campaign.status);
 
@@ -938,6 +953,16 @@ function DetailView({
               type="button"
             >
               {pauseLoading ? 'Pausando...' : 'Pausar'}
+            </button>
+          )}
+          {canResume && onResume && (
+            <button
+              className="primary-button"
+              onClick={onResume}
+              disabled={resumeLoading}
+              type="button"
+            >
+              {resumeLoading ? 'Continuando...' : 'Continuar'}
             </button>
           )}
           {canCancel && (

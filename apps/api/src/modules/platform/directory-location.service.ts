@@ -5,7 +5,7 @@ import { AppError } from '../../errors/AppError.js';
 
 export interface DirectorySearchResult { source: 'DIRECTORY' | 'GEOAPIFY'; publicId: string | null; name: string; address: string; city: string; state: string; neighborhood: string | null; phone: string | null; whatsapp: string | null; website: string | null; latitude: number | null; longitude: number | null; distanceMeters: number | null; }
 export interface DirectoryGeocodeMetrics { attempted: boolean; success: boolean; source: 'CACHE' | 'BRASILAPI' | 'VIACEP' | 'GEOAPIFY' | null; httpStatus?: number; featuresReceived?: number; apiKeyAvailable?: boolean; requestAttempted?: boolean; requestUrlHost?: string | null; errorType?: string; errorCode?: string; errorMessage?: string; durationMs?: number; }
-export interface DirectoryPlacesMetrics { attempted: boolean; httpStatus?: number; featuresReceived?: number; acceptedResults?: number; categoriesSent?: string[]; radius?: number; errorType?: string; errorMessage?: string; }
+export interface DirectoryPlacesMetrics { attempted: boolean; httpStatus?: number; featuresReceived?: number; acceptedResults?: number; categoriesSent?: string[]; radius?: number; errorType?: string; errorMessage?: string; samples?: Array<{ name: string; score: number; accepted: boolean; reasons: string[] }>; }
 export interface DirectorySearchDiagnostics { geocoding: DirectoryGeocodeMetrics; places: DirectoryPlacesMetrics; }
 export interface DirectorySearchResultWithDiagnostics { location: { cep: string; city: string; state: string; latitude: number | null; longitude: number | null }; results: DirectorySearchResult[]; cityUrl: string; diagnostics: DirectorySearchDiagnostics; }
 type Location = { cep: string; city: string; state: string; neighborhood: string | null; street: string | null; latitude: number | null; longitude: number | null };
@@ -176,17 +176,26 @@ export class DirectoryLocationService {
         }
 
         // Aplicar scoring determinístico com negativeTerms
-        const results = features
-          .map((feature) => {
-            const scoreResult = this.scoreExternalFeature(feature, positiveTerms, negativeTerms);
-            return { feature, scoreResult };
-          })
+        const scored = features.map((feature) => {
+          const scoreResult = this.scoreExternalFeature(feature, positiveTerms, negativeTerms);
+          return { feature, scoreResult };
+        });
+
+        const results = scored
           .filter(({ scoreResult }) => scoreResult.accepted)
           .map(({ feature }) => this.geoResult(feature, location))
           .filter((item): item is DirectorySearchResult => item !== null);
 
         if (metrics) {
           metrics.acceptedResults = results.length;
+          if (!metrics.samples) metrics.samples = [];
+          const featureName = (f: GeoFeature) => text(f.properties?.name) ?? '(sem nome)';
+          metrics.samples.push(...scored.slice(0, 5).map(({ feature, scoreResult }) => ({
+            name: featureName(feature),
+            score: scoreResult.score,
+            accepted: scoreResult.accepted,
+            reasons: scoreResult.reasons,
+          })));
         }
 
         if (persistCache) {
@@ -217,7 +226,7 @@ export class DirectoryLocationService {
     const local = await this.client.directoryBusiness.findMany({ where: { categoryId: category.id, state: location.state, active: true }, orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }], take: 50 }).then((results) => results.filter((item) => norm(item.city) === cityNorm).slice(0, 10));
     const localResults: DirectorySearchResult[] = local.map((item) => ({ source: 'DIRECTORY', publicId: item.publicId, name: item.name, address: item.rawAddress, city: item.city, state: item.state, neighborhood: item.neighborhood, phone: item.phone, whatsapp: item.whatsapp, website: item.websiteUrl, latitude: null, longitude: null, distanceMeters: null }));
     const minimum = this.options.localMinResults ?? 5;
-    const external = localResults.length >= minimum ? [] : await this.searchGeoapifyPlaces(category.id, category.geoapifyCategories, category.externalSearchTerms, null, location, true);
+    const external = localResults.length >= minimum ? [] : await this.searchGeoapifyPlaces(category.id, category.geoapifyCategories, category.externalSearchTerms, jsonStrings(category.externalNegativeTerms), location, true);
     const results = this.dedupe([...localResults, ...external]).slice(0, 10);
     return { location, results, cityUrl: `/encontre/${category.slug}/${this.slug(`${location.city}-${location.state}`)}` };
   }
@@ -236,7 +245,7 @@ export class DirectoryLocationService {
     const local = await this.client.directoryBusiness.findMany({ where: { categoryId: category.id, state: location.state, active: true }, orderBy: [{ relevanceScore: 'desc' }, { name: 'asc' }], take: 50 }).then((results) => results.filter((item) => norm(item.city) === cityNorm).slice(0, 10));
     const localResults: DirectorySearchResult[] = local.map((item) => ({ source: 'DIRECTORY', publicId: item.publicId, name: item.name, address: item.rawAddress, city: item.city, state: item.state, neighborhood: item.neighborhood, phone: item.phone, whatsapp: item.whatsapp, website: item.websiteUrl, latitude: null, longitude: null, distanceMeters: null }));
     const minimum = this.options.localMinResults ?? 5;
-    const external = localResults.length >= minimum ? [] : await this.searchGeoapifyPlaces(category.id, category.geoapifyCategories, category.externalSearchTerms, null, location, false, diagnostics.places);
+    const external = localResults.length >= minimum ? [] : await this.searchGeoapifyPlaces(category.id, category.geoapifyCategories, category.externalSearchTerms, jsonStrings(category.externalNegativeTerms), location, false, diagnostics.places);
     const results = this.dedupe([...localResults, ...external]).slice(0, 10);
     return {
       location: {

@@ -4,7 +4,7 @@ import { DirectoryLocationService } from './directory-location.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 
 const location = { cep: '18150000', city: 'Ibiúna', state: 'SP', neighborhood: null, street: null, latitude: -23.65, longitude: -47.22, provider: 'BRASILAPI', updatedAt: new Date() };
-const category = { id: 1n, slug: 'barbearias', active: true, geoapifyCategories: ['service.beauty.hairdresser'], externalSearchTerms: ['barber'] };
+const category = { id: 1n, slug: 'barbearias', active: true, geoapifyCategories: ['service.beauty.hairdresser'], externalSearchTerms: ['barber'], externalNegativeTerms: ['policia'] };
 const business = (index: number) => ({ publicId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`, name: `Barbearia ${index}`, rawAddress: `Rua ${index}`, city: 'Ibiúna', state: 'SP', neighborhood: null, phone: null, whatsapp: null, websiteUrl: null, relevanceScore: 10 - index });
 
 function client(input: { cached?: typeof location | null; businesses?: ReturnType<typeof business>[]; cachedExternal?: unknown }) {
@@ -49,5 +49,41 @@ describe('Directory CEP search', () => {
     const result = await new DirectoryLocationService(database).search('barbearias', '18150000');
     expect(result.results).toHaveLength(2);
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('rejects Geoapify results containing negative terms', async () => {
+    const database = client({ cached: location, businesses: [] });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        features: [
+          { properties: { name: 'Barber House', formatted: 'Rua Nova', city: 'Ibiúna', state_code: 'sp', contact_phone: '11999999999' }, geometry: { coordinates: [-47.21, -23.64] } },
+          { properties: { name: 'Barber Policia Militar', formatted: 'Rua Central', city: 'Ibiúna', state_code: 'sp', contact_phone: '11988888888' }, geometry: { coordinates: [-47.22, -23.65] } },
+        ],
+      }),
+    }));
+    const result = await new DirectoryLocationService(database, { geoapifyApiKeyProvider: async () => 'key' }).search('barbearias', '18150000');
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].name).toBe('Barber House');
+  });
+
+  it('returns identical rejected results in both search() and searchWithDiagnostics()', async () => {
+    const database = client({ cached: location, businesses: [] });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        features: [
+          { properties: { name: 'Barber Policia', formatted: 'Rua A', city: 'Ibiúna', state_code: 'sp' }, geometry: { coordinates: [-47.21, -23.64] } },
+          { properties: { name: 'Barber House', formatted: 'Rua B', city: 'Ibiúna', state_code: 'sp' }, geometry: { coordinates: [-47.22, -23.65] } },
+        ],
+      }),
+    }));
+    const service = new DirectoryLocationService(database, { geoapifyApiKeyProvider: async () => 'key' });
+    const pubResult = await service.search('barbearias', '18150000');
+    const diagResult = await service.searchWithDiagnostics('barbearias', '18150000');
+    expect(pubResult.results).toHaveLength(1);
+    expect(diagResult.results).toHaveLength(1);
+    expect(pubResult.results[0].name).toBe(diagResult.results[0].name);
+    expect(diagResult.diagnostics.places.samples?.some((s) => s.accepted === false && s.reasons.some((r) => r.includes('policia')))).toBe(true);
   });
 });

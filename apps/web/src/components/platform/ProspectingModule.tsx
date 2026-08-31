@@ -42,7 +42,6 @@ interface ProspectingStatus {
 }
 
 interface Campaign {
-  id: string;
   publicId: string;
   name: string;
   status: string;
@@ -50,8 +49,6 @@ interface Campaign {
   sendingStartMinutes: number;
   sendingEndMinutes: number;
   createdAt: string;
-  leads?: { id: string }[];
-  _count?: { leads: number };
 }
 
 interface CampaignDetail extends Campaign {
@@ -84,7 +81,6 @@ const statusSchema = z.object({
 });
 
 const campaignSchema = z.object({
-  id: z.string(),
   publicId: z.string(),
   name: z.string(),
   status: z.string(),
@@ -92,8 +88,6 @@ const campaignSchema = z.object({
   sendingStartMinutes: z.number(),
   sendingEndMinutes: z.number(),
   createdAt: z.string(),
-  leads: z.array(z.object({ id: z.string() })).optional(),
-  _count: z.object({ leads: z.number() }).optional(),
 });
 
 const campaignDetailSchema = campaignSchema.extend({
@@ -710,7 +704,7 @@ function CampaignsView({
                 <td>
                   <StatusBadge value={campaign.status} campaignStatus={true} />
                 </td>
-                <td>{campaign._count?.leads ?? 0}</td>
+                <td>—</td>
                 <td>—</td>
                 <td>—</td>
                 <td>{campaign.dailyLimit}</td>

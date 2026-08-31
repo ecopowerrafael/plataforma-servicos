@@ -10,6 +10,8 @@ import {
 import { createDatabaseConnection, type DatabaseConnection } from './database/connection.js';
 import { PasswordService } from './modules/auth/password.service.js';
 import { startNotificationWorker } from './modules/notifications/notification-worker.js';
+import { ProspectingWorkerService } from './modules/prospecting/prospecting-worker.service.js';
+import { WApiProspectingMessageSender } from './modules/prospecting/prospecting-message-sender.service.js';
 
 const bootstrapLogger = pino({
   level: 'info',
@@ -30,7 +32,7 @@ async function start(environment: Environment, startedAt: number): Promise<void>
   bootstrapLogger.info({ elapsed: since() }, 'Aplicação construída');
   let shuttingDown = false;
 
-  const startWorker = () =>
+  const startNotificationWorkerInstance = () =>
     database.appointmentReminders !== undefined && database.notifications !== undefined
       ? startNotificationWorker(
           {
@@ -61,7 +63,11 @@ async function start(environment: Environment, startedAt: number): Promise<void>
           { intervalMs: 60_000, logger: app.log },
         )
       : undefined;
-  const worker: { stop: (() => void) | undefined } = { stop: undefined };
+
+  const workers: { notification: (() => void) | undefined; prospecting: (() => Promise<void>) | undefined } = {
+    notification: undefined,
+    prospecting: undefined,
+  };
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) {
@@ -70,7 +76,8 @@ async function start(environment: Environment, startedAt: number): Promise<void>
 
     shuttingDown = true;
     app.log.info({ signal }, 'Encerramento iniciado');
-    worker.stop?.();
+    workers.notification?.();
+    await workers.prospecting?.();
 
     try {
       await app.close();
@@ -98,7 +105,39 @@ async function start(environment: Environment, startedAt: number): Promise<void>
 
   // Tarefas auxiliares só depois que o HTTP já responde.
   void runPostStartTasks(environment, database, app);
-  worker.stop = startWorker();
+  workers.notification = startNotificationWorkerInstance();
+
+  // Iniciar ProspectingWorker se habilitado
+  if (
+    environment.PROSPECTING_WORKER_ENABLED &&
+    database.prospectingWhatsAppConfig !== undefined
+  ) {
+    const messageSender = new WApiProspectingMessageSender(
+      database.prospectingWhatsAppConfig,
+      environment,
+    );
+    const prospectingWorker = new ProspectingWorkerService(
+      database.client,
+      environment,
+      messageSender,
+      database.prospectingWhatsAppConfig,
+    );
+    prospectingWorker.start();
+    workers.prospecting = () => prospectingWorker.stop();
+    app.log.info(
+      {
+        interval: environment.PROSPECTING_WORKER_INTERVAL_SECONDS,
+        timezone: environment.PROSPECTING_TIMEZONE,
+        dryRun: environment.PROSPECTING_DRY_RUN,
+      },
+      'Prospecting worker iniciado',
+    );
+  } else if (environment.PROSPECTING_WORKER_ENABLED) {
+    app.log.warn('Prospecting worker desativado: dependências não disponíveis');
+  } else {
+    app.log.info('Prospecting worker desativado por configuração');
+  }
+
   app.log.info({ elapsed: since() }, 'Tarefas pós-início disparadas');
 }
 

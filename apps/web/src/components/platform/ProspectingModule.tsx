@@ -521,11 +521,8 @@ export function ProspectingModule({
       )}
       {confirmation && (
         <ConfirmationDialog
-          title={confirmation.title}
-          message={confirmation.message}
-          confirm={confirmation.confirm}
-          onConfirm={confirmation.onConfirm}
-          onCancel={() => setConfirmation(null)}
+          request={confirmation}
+          onClose={() => setConfirmation(null)}
         />
       )}
       {formOpen && (

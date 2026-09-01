@@ -497,23 +497,60 @@ async function seedProspectingFlows(
 ): Promise<void> {
   const existing = await transaction.prospectingFlow.findUnique({
     where: { code: 'DIRECTORY_PUBLICATION' },
-    select: { id: true },
+    select: { id: true, description: true },
   });
 
-  if (existing) {
+  // Detectar versão atual via description marker
+  const isV2 = existing?.description?.includes('[v2]');
+
+  // Se existe e já é v2, não fazer nada
+  if (existing && isV2) {
     return;
   }
 
+  // Se existe mas é v1 (antigo), migrar para v2
+  if (existing && !isV2) {
+    const flowId = existing.id;
+
+    // Deletar steps antigos (CASCADE vai apagar options/patterns)
+    await transaction.prospectingFlowStep.deleteMany({
+      where: { flowId },
+    });
+
+    // Atualizar descrição para marcar v2
+    await transaction.prospectingFlow.update({
+      where: { id: flowId },
+      data: {
+        description: 'Fluxo profissional de prospecção com autorização, descoberta e apresentação [v2]',
+      },
+    });
+
+    // Usar o ID existente, não criar novo flow
+    const flow = { id: flowId };
+
+    // Recrear todo o fluxo com v2
+    await createProspectingFlowV2(transaction, flow);
+    return;
+  }
+
+  // Se não existe, criar novo
   const flow = await transaction.prospectingFlow.create({
     data: {
       publicId: randomUUID(),
       code: 'DIRECTORY_PUBLICATION',
       name: 'Divulgação de Estabelecimento',
-      description: 'Fluxo profissional de prospecção com autorização, descoberta e apresentação',
+      description: 'Fluxo profissional de prospecção com autorização, descoberta e apresentação [v2]',
       isActive: true,
     },
   });
 
+  await createProspectingFlowV2(transaction, flow);
+}
+
+async function createProspectingFlowV2(
+  transaction: any,
+  flow: any,
+): Promise<void> {
   // STEP 1: Abertura - Pedido de autorização
   const step1 = await transaction.prospectingFlowStep.create({
     data: {
@@ -717,6 +754,43 @@ async function seedProspectingFlows(
     },
   });
 
+  // Respostas para os CTAs
+  const stepTestar = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'CTA - Quero Testar',
+      message: 'Ótimo! 🎉\n\nVocê pode criar uma conta de teste direto em nosso site:\n\nwww.agendei.app\n\nOu se preferir, posso mandar um contato para quem cuida de novos clientes aqui no time.\n\nQualquer dúvida, é só chamar!',
+      stepType: 'MESSAGE_ONLY',
+      position: 14,
+      nextStepId: null,
+    },
+  });
+
+  const stepPreco = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'CTA - Quanto Custa',
+      message: '💰 Ótima pergunta!\n\nO Agendei tem planos a partir de uma taxa por agendamento confirmado.\n\nNão é assinatura fixa, você só paga quando a ferramenta gera resultado para você.\n\nPara detalhes específicos do seu caso, um especialista no time pode conversar com você. Quer que eu arranjo isso?',
+      stepType: 'MESSAGE_ONLY',
+      position: 15,
+      nextStepId: null,
+    },
+  });
+
+  const stepWhatsApp = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'CTA - Ver WhatsApp',
+      message: '📱 Perfeito!\n\nA automação do WhatsApp é mesmo um dos grandes diferenciais.\n\nVocê consegue:\n\n✅ responder automaticamente\n✅ confirmar agendamentos\n✅ enviar lembretes\n✅ reagendar\n✅ cancelar\n✅ recuperar clientes inativos\n\nTudo integrado com a sua agenda.\n\nQuer que someone do time faça uma demonstração focada nisso?',
+      stepType: 'MESSAGE_ONLY',
+      position: 16,
+      nextStepId: null,
+    },
+  });
+
   // APRESENTAÇÃO: Instagram e CTA
   const stepFinalizacao = await transaction.prospectingFlowStep.create({
     data: {
@@ -725,7 +799,7 @@ async function seedProspectingFlows(
       name: 'Apresentação - Finalização',
       message: '📲 E se quiser ver exemplos visuais de várias funções, temos bastante conteúdo no Instagram:\n\ninstagram.com/app.agendei\n\nLá você encontra vídeos mostrando:\n\n• atendimento pelo WhatsApp\n• lembretes\n• recuperação de clientes\n• horários cancelados\n• cobranças\n• agenda\n• gestão\n• automações\n\n---\n\nA ideia do Agendei é simples:\n\nEnquanto você trabalha atendendo seus clientes, o sistema trabalha nos bastidores cuidando da agenda e do relacionamento. 🤝\n\nEm vez de depender da memória ou de alguém executar cada tarefa manualmente, você configura as regras e deixa o sistema trabalhar.',
       stepType: 'MESSAGE_OPTIONS',
-      position: 17,
+      position: 19,
     },
   });
 
@@ -737,7 +811,7 @@ async function seedProspectingFlows(
       name: 'Encerramento',
       message: 'Obrigado pelo tempo! 😊\n\nQualquer dúvida, estou à disposição.',
       stepType: 'END',
-      position: 18,
+      position: 21,
     },
   });
 
@@ -986,24 +1060,24 @@ async function seedProspectingFlows(
         publicId: randomUUID(),
         stepId: stepFinalizacao.id,
         label: '🚀 Quero testar',
-        nextStepId: null,
-        actionType: 'MANUAL',
+        nextStepId: stepTestar.id,
+        actionType: 'NEXT_STEP',
         position: 1,
       },
       {
         publicId: randomUUID(),
         stepId: stepFinalizacao.id,
         label: '💰 Quanto custa?',
-        nextStepId: null,
-        actionType: 'MANUAL',
+        nextStepId: stepPreco.id,
+        actionType: 'NEXT_STEP',
         position: 2,
       },
       {
         publicId: randomUUID(),
         stepId: stepFinalizacao.id,
         label: '📲 Quero ver o WhatsApp',
-        nextStepId: null,
-        actionType: 'MANUAL',
+        nextStepId: stepWhatsApp.id,
+        actionType: 'NEXT_STEP',
         position: 3,
       },
       {
@@ -1049,6 +1123,20 @@ async function seedProspectingFlows(
   await transaction.prospectingFlowStep.update({
     where: { id: stepPersonalizacao.id },
     data: { nextStepId: stepFinalizacao.id },
+  });
+
+  // Chain CTA response steps to end
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepTestar.id },
+    data: { nextStepId: stepEnd.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepPreco.id },
+    data: { nextStepId: stepEnd.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepWhatsApp.id },
+    data: { nextStepId: stepEnd.id },
   });
 }
 

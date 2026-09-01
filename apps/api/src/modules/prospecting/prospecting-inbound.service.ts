@@ -339,9 +339,11 @@ export class ProspectingInboundService {
       result: 'LEAD_FOUND_PROCEEDING'
     });
 
-    // Flow Engine (se feature flag ativa e campaign possui flow)
+    // ROTEAMENTO POR eventType (não por existência de flow)
     const flowEnabled = this.environment?.PROSPECTING_FLOW_ENABLED === true;
-    if (flowEnabled && campaign?.flowId) {
+
+    // A) MESSAGE_ACTION (BUTTON_REPLY) → FlowEngine
+    if (payload.eventType === 'MESSAGE_ACTION' && flowEnabled && campaign?.flowId) {
       const execution = await this.client.prospectingFlowExecution.findUnique({
         where: {
           campaignId_leadId_flowId: {
@@ -366,9 +368,9 @@ export class ProspectingInboundService {
       if (execution && execution.status === 'WAITING') {
         const flowEngine = new ProspectingFlowEngine(this.client);
 
-        // OPÇÃO 2: Tentar resolver por index primeiro (MESSAGE_ACTION)
+        // Resolver opção por index (OPÇÃO 2)
         let selectedOptionPublicId: string | undefined;
-        if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex !== null && payload.selectedIndex !== undefined) {
+        if (payload.referencedMessageId && payload.selectedIndex !== null && payload.selectedIndex !== undefined) {
           const indexResolution = await this.findMatchingOptionByIndex(
             payload.referencedMessageId,
             payload.selectedIndex,
@@ -428,11 +430,17 @@ export class ProspectingInboundService {
           campaignPublicId: campaign?.publicId || '',
         };
       }
+      // MESSAGE_ACTION sem execution WAITING não segue adiante (não cai em ObjectionEngine)
+      return {
+        handled: true,
+        leadPublicId: leadData.publicId,
+        campaignPublicId: campaign?.publicId || '',
+      };
     }
 
-    // Classificar via Objection Engine (async, não bloqueia resposta de webhook)
-    // Somente se sem flow
-    if (!flowEnabled || !campaign?.flowId) {
+    // B) MESSAGE_RECEIVED (texto normal) → ObjectionEngine SEMPRE
+    // Nota: campanha com flow NÃO desativa ObjectionEngine
+    if (payload.eventType === 'MESSAGE_RECEIVED') {
       try {
         const engine = new ProspectingObjectionEngine(this.client);
         await engine.classify({

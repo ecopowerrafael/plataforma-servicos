@@ -223,6 +223,31 @@ export function mapSubscription(subscription: {
   });
 }
 
+// All platform audit actions — used for filtering audit logs without collation conflicts
+const PLATFORM_AUDIT_ACTIONS = [
+  'platform.admin.created',
+  'platform.admin.provisioned',
+  'platform.commercial_policy.updated',
+  'platform.dev_fixture.ready',
+  'platform.plan.benefit.created',
+  'platform.plan.benefit.deleted',
+  'platform.plan.benefit.updated',
+  'platform.plan.created',
+  'platform.plan.deleted',
+  'platform.plan.updated',
+  'platform.subscription.created',
+  'platform.subscription.period_adjusted',
+  'platform.subscription.plan_changed',
+  'platform.subscription.trial_extended',
+  'platform.tenant.branding.updated',
+  'platform.tenant.created',
+  'platform.tenant.custom_field.created',
+  'platform.tenant.custom_field.updated',
+  'platform.tenant.features.updated',
+  'platform.tenant.terminology.updated',
+  'platform.tenant.updated',
+];
+
 export class PlatformService {
   private readonly experienceResolver: TenantExperienceResolver;
   private readonly featuresResolver: TenantFeaturesResolver;
@@ -2436,39 +2461,30 @@ export class PlatformService {
     to?: string | undefined;
     direction: 'asc' | 'desc';
   }) {
-    try {
-      console.log('AUDIT_COUNT_START');
-
-      const where: Prisma.AuditLogWhereInput = {
-        action: query.action ?? { startsWith: 'platform.' },
-        ...(query.userPublicId === undefined ? {} : { user: { publicId: query.userPublicId } }),
-        ...(query.tenantPublicId === undefined ? {} : { tenant: { publicId: query.tenantPublicId } }),
-        ...(query.targetType === undefined ? {} : { targetType: query.targetType }),
-        ...(query.from === undefined && query.to === undefined
-          ? {}
-          : {
-              createdAt: {
-                ...(query.from === undefined ? {} : { gte: new Date(query.from) }),
-                ...(query.to === undefined ? {} : { lte: new Date(query.to) }),
-              },
-            }),
-      };
-
-      const total = await this.client.auditLog.count({ where });
-      console.log('AUDIT_COUNT_OK', { total });
-
-      console.log('AUDIT_FIND_START');
-      const items = await this.client.auditLog.findMany({
-        where,
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
-        orderBy: { createdAt: query.direction },
-        include: { tenant: true, user: true },
-      });
-      console.log('AUDIT_FIND_OK', { itemsCount: items.length });
-
-      console.log('AUDIT_MAP_START');
-      const mapped = items.map((item) => ({
+    const where: Prisma.AuditLogWhereInput = {
+      action: query.action ?? { in: PLATFORM_AUDIT_ACTIONS },
+      ...(query.userPublicId === undefined ? {} : { user: { publicId: query.userPublicId } }),
+      ...(query.tenantPublicId === undefined ? {} : { tenant: { publicId: query.tenantPublicId } }),
+      ...(query.targetType === undefined ? {} : { targetType: query.targetType }),
+      ...(query.from === undefined && query.to === undefined
+        ? {}
+        : {
+            createdAt: {
+              ...(query.from === undefined ? {} : { gte: new Date(query.from) }),
+              ...(query.to === undefined ? {} : { lte: new Date(query.to) }),
+            },
+          }),
+    };
+    const total = await this.client.auditLog.count({ where });
+    const items = await this.client.auditLog.findMany({
+      where,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+      orderBy: { createdAt: query.direction },
+      include: { tenant: true, user: true },
+    });
+    return PlatformAuditResponseSchema.parse({
+      items: items.map((item) => ({
         publicId: item.publicId,
         action: item.action,
         targetType: item.targetType,
@@ -2480,26 +2496,8 @@ export class PlatformService {
             : { publicId: item.user.publicId, email: item.user.email, status: item.user.status },
         createdAt: item.createdAt.toISOString(),
         ...auditReadDetails(item.metadata),
-      }));
-      console.log('AUDIT_MAP_OK', { mappedCount: mapped.length });
-
-      const response = {
-        items: mapped,
-        page: pageMeta(total, query),
-      };
-
-      console.log('AUDIT_RESPONSE_PARSE_START');
-      const parsed = PlatformAuditResponseSchema.parse(response);
-      console.log('AUDIT_RESPONSE_PARSE_OK');
-
-      return parsed;
-    } catch (error) {
-      const errorName = error instanceof Error ? error.name : 'Unknown';
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorCode = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : null;
-
-      console.error('AUDIT_ERROR', { errorName, errorMessage, errorCode });
-      throw error;
-    }
+      })),
+      page: pageMeta(total, query),
+    });
   }
 }

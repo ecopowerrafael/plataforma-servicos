@@ -503,37 +503,48 @@ async function seedProspectingFlows(
   // Detectar versão atual via description marker
   const isV2 = existing?.description?.includes('[v2]');
 
-  // Se existe e já é v2, não fazer nada
+  // Se existe e já é v2, não fazer nada (idempotente)
   if (existing && isV2) {
     return;
   }
 
-  // Se existe mas é v1 (antigo), migrar para v2
+  // Se existe mas é v1 (antigo), migrar para v2 de forma não-destrutiva
   if (existing && !isV2) {
     const flowId = existing.id;
 
-    // Deletar steps antigos (CASCADE vai apagar options/patterns)
-    await transaction.prospectingFlowStep.deleteMany({
+    // NÃO DELETAR steps antigos para preservar histórico de responses/executions
+    // Em vez disso: desligar os antigos (isStart=false, nextStepId=null)
+    // e criar novos steps v2 que serão operacionais.
+    // Isso preserva:
+    // - prospecting_flow_responses apontando para options antigas
+    // - prospecting_flow_executions que referenceiam steps antigos
+    // - dados históricos completos
+
+    // Desligar steps v1 (deixá-los órfãos mas preservados para histórico)
+    await transaction.prospectingFlowStep.updateMany({
       where: { flowId },
+      data: { isStart: false, nextStepId: null },
     });
 
-    // Atualizar descrição para marcar v2
+    // Usar o ID existente, não criar novo flow
+    const flow = { id: flowId };
+
+    // Criar todo o fluxo v2 com novos steps
+    // (note: posições serão maiores que os v1 para separação clara)
+    await createProspectingFlowV2(transaction, flow);
+
+    // IMPORTANTE: Marcar como v2 APENAS APÓS sucesso de toda migração
+    // Isso garante que se houver erro no meio, próxima execução tenta novamente
     await transaction.prospectingFlow.update({
       where: { id: flowId },
       data: {
         description: 'Fluxo profissional de prospecção com autorização, descoberta e apresentação [v2]',
       },
     });
-
-    // Usar o ID existente, não criar novo flow
-    const flow = { id: flowId };
-
-    // Recrear todo o fluxo com v2
-    await createProspectingFlowV2(transaction, flow);
     return;
   }
 
-  // Se não existe, criar novo
+  // Se não existe, criar novo com v2 logo
   const flow = await transaction.prospectingFlow.create({
     data: {
       publicId: randomUUID(),
@@ -760,7 +771,7 @@ async function createProspectingFlowV2(
       publicId: randomUUID(),
       flowId: flow.id,
       name: 'CTA - Quero Testar',
-      message: 'Ótimo! 🎉\n\nVocê pode criar uma conta de teste direto em nosso site:\n\nwww.agendei.app\n\nOu se preferir, posso mandar um contato para quem cuida de novos clientes aqui no time.\n\nQualquer dúvida, é só chamar!',
+      message: 'Perfeito! 🚀\n\nVocê pode conhecer o Agendei e testar o funcionamento na prática.\n\nNo sistema você consegue configurar:\n\n✅ serviços\n✅ preços\n✅ profissionais\n✅ horários\n✅ formas de pagamento\n✅ identidade visual\n\nE testar o agendamento e as automações.\n\nAcesse: https://agendei.site',
       stepType: 'MESSAGE_ONLY',
       position: 14,
       nextStepId: null,
@@ -772,7 +783,7 @@ async function createProspectingFlowV2(
       publicId: randomUUID(),
       flowId: flow.id,
       name: 'CTA - Quanto Custa',
-      message: '💰 Ótima pergunta!\n\nO Agendei tem planos a partir de uma taxa por agendamento confirmado.\n\nNão é assinatura fixa, você só paga quando a ferramenta gera resultado para você.\n\nPara detalhes específicos do seu caso, um especialista no time pode conversar com você. Quer que eu arranjo isso?',
+      message: '💰 Ótima pergunta!\n\nO Agendei reúne várias tarefas que normalmente precisam ser feitas manualmente:\n\n📲 atendimento\n📅 agenda\n🔔 lembretes\n🔄 recuperação de clientes\n🚨 preenchimento de vagas canceladas\n💰 cobranças\n📊 gestão\n\nTudo dentro de uma única plataforma.\n\nO plano começa em R$ 59,90 por mês. 😊\n\nVocê pode conhecer e testar o sistema antes de decidir continuar.',
       stepType: 'MESSAGE_ONLY',
       position: 15,
       nextStepId: null,
@@ -784,7 +795,7 @@ async function createProspectingFlowV2(
       publicId: randomUUID(),
       flowId: flow.id,
       name: 'CTA - Ver WhatsApp',
-      message: '📱 Perfeito!\n\nA automação do WhatsApp é mesmo um dos grandes diferenciais.\n\nVocê consegue:\n\n✅ responder automaticamente\n✅ confirmar agendamentos\n✅ enviar lembretes\n✅ reagendar\n✅ cancelar\n✅ recuperar clientes inativos\n\nTudo integrado com a sua agenda.\n\nQuer que someone do time faça uma demonstração focada nisso?',
+      message: '📱 Claro!\n\nUm dos principais diferenciais do Agendei é justamente o atendimento automatizado pelo WhatsApp.\n\nO sistema pode ajudar com:\n\n✅ disponibilidade\n✅ agendamento\n✅ cancelamento\n✅ reagendamento\n✅ confirmação\n✅ lembretes\n✅ respostas automáticas configuradas\n\nE tudo continua integrado à agenda e ao painel.\n\nTambém temos vários exemplos em:\n\ninstagram.com/app.agendei',
       stepType: 'MESSAGE_ONLY',
       position: 16,
       nextStepId: null,
@@ -1092,6 +1103,17 @@ async function createProspectingFlowV2(
   });
 
   // Chain MESSAGE_ONLY steps together
+  // Intro → Assistente (entrada para a apresentação principal)
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepIntro.id },
+    data: { nextStepId: stepAssistente.id },
+  });
+  // Ramo C2 → Lembretes (continuar na apresentação principal após ramo)
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepRamoC2.id },
+    data: { nextStepId: stepLembretes.id },
+  });
+  // Cadeia principal de apresentação
   await transaction.prospectingFlowStep.update({
     where: { id: stepAssistente.id },
     data: { nextStepId: stepLembretes.id },

@@ -5,6 +5,7 @@ interface ProcessStepResponseInput {
   step: any;
   inboundMessage: any;
   tx?: PrismaClient;
+  selectedOptionPublicId?: string | undefined;
 }
 
 interface MatchedOption {
@@ -28,7 +29,7 @@ export class ProspectingFlowEngine {
     newStepId?: bigint;
     reason?: string;
   }> {
-    const { execution, step, inboundMessage } = input;
+    const { execution, step, inboundMessage, selectedOptionPublicId } = input;
     const tx = input.tx || this.client;
 
     if (execution.status !== 'WAITING') {
@@ -40,7 +41,7 @@ export class ProspectingFlowEngine {
     // Processar conforme tipo de step
     switch (step.stepType) {
       case 'MESSAGE_OPTIONS':
-        return await this.handleMessageOptions(tx, execution, step, normalizedText, inboundMessage);
+        return await this.handleMessageOptions(tx, execution, step, normalizedText, inboundMessage, selectedOptionPublicId);
 
       case 'WAIT_TEXT':
         return await this.handleWaitText(tx, execution, step, inboundMessage);
@@ -59,10 +60,29 @@ export class ProspectingFlowEngine {
     step: any,
     normalizedText: string,
     inboundMessage: any,
+    selectedOptionPublicId?: string,
   ): Promise<any> {
-    const matchedOption = this.findMatchingOption(normalizedText, step);
+    let matchedOption: MatchedOption | null = null;
 
-    // Persistir response sempre (sem publicId)
+    // PRIORIDADE 1: Usar selectedOptionPublicId (resolvido deterministicamente via index)
+    if (selectedOptionPublicId) {
+      const option = step.options.find((opt: any) => opt.publicId === selectedOptionPublicId);
+      if (option) {
+        matchedOption = {
+          option,
+          pattern: null,
+          matchedVia: 'EXACT',
+        };
+        console.log('[FlowEngine] Resolved option by index', { optionPublicId: selectedOptionPublicId });
+      }
+    }
+
+    // PRIORIDADE 2: Fallback para text matching (compatibilidade legada)
+    if (!matchedOption) {
+      matchedOption = this.findMatchingOption(normalizedText, step);
+    }
+
+    // Persistir response sempre
     await tx.prospectingFlowResponse.create({
       data: {
         executionId: execution.id,

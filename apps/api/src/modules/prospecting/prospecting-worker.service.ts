@@ -462,13 +462,22 @@ export class ProspectingWorkerService implements ProspectingWorker {
 
       // OUTSIDE TX: Call sender (se não reconcile)
       let sendResult: any = null;
+      let optionIds: string[] | null = null;
       if (!reconcile) {
         const step: any = execution.currentStep;
         if (step.stepType === 'MESSAGE_OPTIONS') {
+          // Ensure options are ordered by position
+          const orderedOptions = [...step.options].sort((a: any, b: any) =>
+            (a.position ?? 0) - (b.position ?? 0)
+          );
+
+          // Capture optionIds and buttons from same ordered list
+          optionIds = orderedOptions.map((option: any) => option.publicId);
+
           sendResult = await this.messageSender.sendButtons({
             phone: lead.normalizedPhone,
             body: message.body,
-            buttons: step.options.map((option: any) => ({ label: option.label })),
+            buttons: orderedOptions.map((option: any) => ({ label: option.label })),
           });
         } else {
           sendResult = await this.messageSender.sendText({
@@ -494,6 +503,7 @@ export class ProspectingWorkerService implements ProspectingWorker {
               status: 'SENT',
               externalMessageId: sendResult.externalMessageId || null,
               sentAt: now,
+              optionIds: optionIds ? (optionIds as any) : null,
             },
           });
 

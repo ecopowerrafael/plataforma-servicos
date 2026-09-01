@@ -15,6 +15,7 @@ interface ProspectingInboundPayload {
   timestamp: Date | null | undefined;
   eventType: string | null;
   referencedMessageId?: string | null;
+  selectedIndex?: number | null;
 }
 
 interface ProspectingInboundResult {
@@ -364,10 +365,29 @@ export class ProspectingInboundService {
 
       if (execution && execution.status === 'WAITING') {
         const flowEngine = new ProspectingFlowEngine(this.client);
+
+        // OPÇÃO 2: Tentar resolver por index primeiro (MESSAGE_ACTION)
+        let selectedOptionPublicId: string | undefined;
+        if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex !== null && payload.selectedIndex !== undefined) {
+          const indexResolution = await this.findMatchingOptionByIndex(
+            payload.referencedMessageId,
+            payload.selectedIndex,
+            execution
+          );
+          if (indexResolution.optionPublicId) {
+            selectedOptionPublicId = indexResolution.optionPublicId;
+            console.log('[IndexResolution] Resolved via index', {
+              optionPublicId: selectedOptionPublicId,
+              selectedIndex: payload.selectedIndex,
+            });
+          }
+        }
+
         const flowResult = await flowEngine.processStepResponse({
           execution,
           step: execution.currentStep,
           inboundMessage: message,
+          selectedOptionPublicId,
         });
 
         // Recarregar execution para obter status final
@@ -433,6 +453,97 @@ export class ProspectingInboundService {
       leadPublicId: leadData.publicId,
       campaignPublicId: campaign?.publicId || '',
     };
+  }
+
+  /**
+   * Resolver opção por índice usando snapshot do outbound.
+   * Implementa padrão TENANT: index-based resolution.
+   */
+  private async findMatchingOptionByIndex(
+    referencedMessageId: string,
+    selectedIndex: number | null | undefined,
+    execution: any
+  ): Promise<{ optionPublicId: string | null; reason: string }> {
+    // Validações básicas
+    if (!referencedMessageId) {
+      return { optionPublicId: null, reason: 'NO_REFERENCED_MESSAGE' };
+    }
+
+    if (selectedIndex === null || selectedIndex === undefined || !Number.isInteger(selectedIndex) || selectedIndex < 0) {
+      return { optionPublicId: null, reason: 'INVALID_SELECTED_INDEX' };
+    }
+
+    if (!this.client) {
+      return { optionPublicId: null, reason: 'SERVICE_NOT_CONFIGURED' };
+    }
+
+    // Encontrar outbound message com ID da mensagem original
+    let outbound;
+    try {
+      outbound = await this.client!.prospectingMessage.findFirst({
+        where: {
+          externalMessageId: referencedMessageId,
+          direction: 'OUTBOUND',
+          campaignId: execution.campaignId,
+          status: 'SENT',
+        },
+      });
+    } catch (error) {
+      console.error('[findMatchingOptionByIndex] Error fetching outbound:', error);
+      return { optionPublicId: null, reason: 'OUTBOUND_FETCH_ERROR' };
+    }
+
+    if (!outbound) {
+      return { optionPublicId: null, reason: 'OUTBOUND_NOT_FOUND' };
+    }
+
+    // Validar que optionIds está presente
+    if (!outbound.optionIds || !Array.isArray(outbound.optionIds)) {
+      return { optionPublicId: null, reason: 'OUTBOUND_NO_OPTION_IDS' };
+    }
+
+    // Validar índice está dentro dos limites
+    if (selectedIndex >= outbound.optionIds.length) {
+      return { optionPublicId: null, reason: 'SELECTED_INDEX_OUT_OF_BOUNDS' };
+    }
+
+    const optionPublicId = outbound.optionIds[selectedIndex];
+    if (typeof optionPublicId !== 'string') {
+      return { optionPublicId: null, reason: 'OPTION_ID_INVALID_TYPE' };
+    }
+
+    // Encontrar option pelo publicId
+    let option;
+    try {
+      option = await this.client!.prospectingFlowOption.findUnique({
+        where: { publicId: optionPublicId },
+      });
+    } catch (error) {
+      console.error('[findMatchingOptionByIndex] Error fetching option:', error);
+      return { optionPublicId: null, reason: 'OPTION_FETCH_ERROR' };
+    }
+
+    if (!option) {
+      return { optionPublicId: null, reason: 'OPTION_NOT_FOUND' };
+    }
+
+    // CRÍTICO: Validar que opção pertence ao step ATUAL
+    // Impede executar opção antiga se fluxo avançou
+    if (option.stepId !== execution.currentStepId) {
+      console.warn('[findMatchingOptionByIndex] Stale option response', {
+        optionStepId: String(option.stepId),
+        currentStepId: String(execution.currentStepId),
+      });
+      return { optionPublicId: null, reason: 'STALE_OPTION_RESPONSE' };
+    }
+
+    console.log('[findMatchingOptionByIndex] Success', {
+      optionPublicId,
+      selectedIndex,
+      outboundId: String(outbound.id),
+    });
+
+    return { optionPublicId, reason: 'SUCCESS' };
   }
 
   /**

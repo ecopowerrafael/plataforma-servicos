@@ -384,6 +384,7 @@ export class IntegrationService {
           timestamp: event.timestamp || undefined,
           eventType: event.eventType || null,
           referencedMessageId: event.referencedMessageId ?? null,
+          selectedIndex: event.selectedIndex ?? null,
         });
 
         // Se foi processado por Prospecting, retornar resultado

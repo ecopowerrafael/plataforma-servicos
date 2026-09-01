@@ -3716,6 +3716,7 @@ model ProspectingMessage {
   objection         ProspectingObjection?       @relation(fields: [objectionId], references: [id], onDelete: SetNull)
   replyToMessage    ProspectingMessage?         @relation("repliesTo", fields: [replyToMessageId], references: [id], onDelete: SetNull)
   replies           ProspectingMessage[]        @relation("repliesTo")
+  optionIds         Json?                       @map("option_ids")
 
   @@index([campaignId, status])
   @@index([leadId, direction, createdAt])

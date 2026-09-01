@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type Environment } from '../../config/environment.js';
 import { type ProspectingWhatsAppConfigService } from './prospecting-whatsapp-config.service.js';
@@ -179,7 +180,7 @@ export class ProspectingInboundService {
 
       message = await this.client.prospectingMessage.create({
         data: {
-          publicId: require('node:crypto').randomUUID(),
+          publicId: randomUUID(),
           campaignId: leadData.campaignId,
           leadId: leadData.id,
           direction: 'INBOUND',
@@ -706,7 +707,7 @@ export class ProspectingInboundService {
     try {
       await this.client.prospectingSuppression.create({
         data: {
-          publicId: require('node:crypto').randomUUID(),
+          publicId: randomUUID(),
           campaignId,
           normalizedPhone,
           reason: 'OPT_OUT',

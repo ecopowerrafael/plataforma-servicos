@@ -749,10 +749,7 @@ export class DirectoryService {
         message: 'Importação não encontrada.',
         statusCode: 404,
       });
-    if (
-      directoryImport.processedCount > 0 ||
-      ['PROCESSING', 'PAUSED', 'COMPLETED'].includes(directoryImport.status)
-    )
+    if (directoryImport.status !== 'ANALYZED' || directoryImport.processedCount > 0)
       throw new AppError({
         code: 'DIRECTORY_IMPORT_ALREADY_STARTED',
         message: 'A importação já foi iniciada e não pode ser reconfigurada.',

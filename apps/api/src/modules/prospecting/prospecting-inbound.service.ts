@@ -478,6 +478,7 @@ export class ProspectingInboundService {
     }
 
     // Encontrar outbound message com ID da mensagem original
+    // Não filtrar por status: MESSAGE_READ pode acontecer antes do BUTTON_REPLY
     let outbound;
     try {
       outbound = await this.client!.prospectingMessage.findFirst({
@@ -485,7 +486,6 @@ export class ProspectingInboundService {
           externalMessageId: referencedMessageId,
           direction: 'OUTBOUND',
           campaignId: execution.campaignId,
-          status: 'SENT',
         },
       });
     } catch (error) {

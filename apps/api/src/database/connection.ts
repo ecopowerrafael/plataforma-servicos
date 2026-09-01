@@ -255,6 +255,7 @@ export interface CustomerAuthOptions {
 export function createDatabaseConnection(
   databaseUrl: string,
   customerAuthOptions?: CustomerAuthOptions,
+  environment?: any,
 ): DatabaseConnection {
   let activeClient = createPrismaClient(databaseUrl);
   let recovery: Promise<void> | undefined;
@@ -599,6 +600,7 @@ export function createDatabaseConnection(
       collectionAttemptExecution,
       client,
       credentialsCipher ? new ProspectingWhatsAppConfigService(client, credentialsCipher) : undefined,
+      environment,
     ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,

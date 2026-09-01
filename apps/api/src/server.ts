@@ -26,6 +26,7 @@ async function start(environment: Environment, startedAt: number): Promise<void>
   const database = createDatabaseConnection(
     environment.DATABASE_URL,
     databaseOptionsFromEnvironment(environment),
+    environment,
   );
   bootstrapLogger.info({ elapsed: since() }, 'Conexão de banco criada');
   const app = await buildApp({ environment, database });

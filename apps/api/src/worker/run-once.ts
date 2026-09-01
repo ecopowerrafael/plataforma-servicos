@@ -39,6 +39,7 @@ async function runOnce(): Promise<void> {
   const database = createDatabaseConnection(
     environment.DATABASE_URL,
     databaseOptionsFromEnvironment(environment),
+    environment,
   );
 
   try {

@@ -380,7 +380,62 @@
   font-size: 0.9rem;
 }
 
-@media (max-width: 680px) {
+/* Mobile Cards */
+.membership-mobile-cards {
+  display: none;
+}
+
+.membership-subscriber-card {
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: 14px;
+  background: var(--ds-background-primary);
+  padding: 1rem;
+}
+
+.membership-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.membership-card-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.membership-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.membership-card-label {
+  color: var(--ds-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.membership-card-value {
+  color: var(--ds-text-primary);
+  font-weight: 500;
+  text-align: right;
+}
+
+.membership-table-container {
+  overflow-x: auto;
+}
+
+@media (max-width: 1024px) {
+  .membership-table-container {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 768px) {
   .membership-overview-grid,
   .membership-plan-grid,
   .membership-plan-fields,
@@ -412,18 +467,18 @@
   }
 
   .membership-subscribers-table {
-    font-size: 0.8rem;
+    display: none;
   }
 
-  .membership-subscribers-table th,
-  .membership-subscribers-table td {
-    padding: 0.65rem 0.8rem;
+  .membership-mobile-cards {
+    display: grid;
+    gap: 1rem;
   }
 
   .membership-customer-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 0.8rem;
+    width: 40px;
+    height: 40px;
+    font-size: 0.9rem;
   }
 
   .membership-pagination {

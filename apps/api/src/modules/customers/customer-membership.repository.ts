@@ -39,7 +39,8 @@ export class CustomerMembershipRepository {
     }
 
     if (options.status) {
-      where.status = options.status as any;
+      // Status is validated by Zod schema in routes before reaching here
+      where.status = { equals: options.status } as any;
     }
 
     const [items, total] = await Promise.all([

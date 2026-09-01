@@ -363,32 +363,48 @@ export class IntegrationService {
 
     // ROTEAMENTO PROSPECTING: checar instância de Prospecting PRIMEIRO
     if (this.prospectingInbound) {
+      // Verificar se instância pertence à Prospecção
+      const prosConfig = await this.prospectingInbound.getConfig?.();
+      const isProspectingInstance = prosConfig && prosConfig.instanceId === event.instanceId;
+
       console.log('[WebhookRoute]', {
         toProspecting: true,
         normalizedEventType: event.eventType,
         instanceId: event.instanceId,
+        isProspectingInstance,
       });
 
-      const prospectingResult = await this.prospectingInbound.processInbound({
-        instanceId: event.instanceId || null,
-        externalMessageId: event.externalMessageId || null,
-        fromPhone: event.phone || null,
-        body: event.text || undefined,
-        fromMe: event.fromMe,
-        timestamp: event.timestamp || undefined,
-        eventType: event.eventType || null,
-      });
+      if (isProspectingInstance) {
+        const prospectingResult = await this.prospectingInbound.processInbound({
+          instanceId: event.instanceId || null,
+          externalMessageId: event.externalMessageId || null,
+          fromPhone: event.phone || null,
+          body: event.text ?? event.selectedDisplayText ?? undefined,
+          fromMe: event.fromMe,
+          timestamp: event.timestamp || undefined,
+          eventType: event.eventType || null,
+          referencedMessageId: event.referencedMessageId ?? null,
+        });
 
-      // Se foi processado por Prospecting, retornar resultado
-      if (prospectingResult.handled) {
-        return { accepted: true, prospectingHandled: true, ...prospectingResult } as const;
+        // Se foi processado por Prospecting, retornar resultado
+        if (prospectingResult.handled) {
+          return { accepted: true, prospectingHandled: true, ...prospectingResult } as const;
+        }
+
+        // ⚠️ É instância de Prospecting mas não foi processado (LEAD_NOT_FOUND, etc)
+        // NÃO continua para tenant flow — pertence à Prospecção
+        console.log('[WebhookRoute]', {
+          prospectingInstance: true,
+          handled: false,
+          prospectingReason: prospectingResult.reason,
+        });
+
+        return {
+          accepted: true,
+          prospectingHandled: false,
+          prospectingReason: prospectingResult.reason,
+        } as const;
       }
-
-      // Se retornou handled=false, continuar para fluxo tenant normal
-      console.log('[WebhookRoute]', {
-        prospectingHandled: false,
-        prospectingReason: prospectingResult.reason,
-      });
     }
 
     // FLUXO TENANT: continuar com comportamento anterior

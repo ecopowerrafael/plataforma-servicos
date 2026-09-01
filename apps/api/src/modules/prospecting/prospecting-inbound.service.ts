@@ -13,6 +13,7 @@ interface ProspectingInboundPayload {
   fromMe?: boolean;
   timestamp: Date | null | undefined;
   eventType: string | null;
+  referencedMessageId?: string | null;
 }
 
 interface ProspectingInboundResult {
@@ -32,6 +33,13 @@ export class ProspectingInboundService {
     private readonly configService?: ProspectingWhatsAppConfigService | null,
     private readonly environment?: Environment | null,
   ) {}
+
+  /**
+   * Obtém configuração de instância Prospecting.
+   */
+  public async getConfig() {
+    return this.configService?.getConfig?.();
+  }
 
   /**
    * Processa inbound recebido do webhook global.
@@ -63,8 +71,13 @@ export class ProspectingInboundService {
       return { handled: false, reason: 'NOT_MESSAGE_EVENT' };
     }
 
-    // Corpo vazio ou sem texto
+    // Para MESSAGE_RECEIVED: obrigatório body
+    // Para MESSAGE_ACTION: usa selectedDisplayText que já foi normalizado para body
     if (!payload.body || (typeof payload.body === 'string' && payload.body.trim() === '')) {
+      if (payload.eventType === 'MESSAGE_ACTION') {
+        console.log('[ProspectingInboundTrace]', { ...trace, result: 'MESSAGE_ACTION_MISSING_BUTTON_TEXT' });
+        return { handled: false, reason: 'MESSAGE_ACTION_MISSING_BUTTON_TEXT' };
+      }
       console.log('[ProspectingInboundTrace]', { ...trace, result: 'EMPTY_BODY' });
       return { handled: false, reason: 'EMPTY_BODY' };
     }

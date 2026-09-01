@@ -169,10 +169,11 @@ export class ProspectingInboundService {
     // Criar mensagem INBOUND
     let message;
     try {
-      console.log('[STAGE] INBOUND_MESSAGE_CREATE_START', {
-        leadId: leadData.id,
-        campaignId: leadData.campaignId,
-        externalMessageId: payload.externalMessageId,
+      console.log('[STAGE] INBOUND_MESSAGE_CREATE_START');
+      console.log('[STAGE_DATA]', {
+        leadId: String(leadData.id),
+        campaignId: String(leadData.campaignId),
+        externalMessageId: payload.externalMessageId ?? null,
         bodyLength: payload.body ? (payload.body as string).length : 0,
       });
 
@@ -192,14 +193,13 @@ export class ProspectingInboundService {
         messagePublicId: message.publicId,
       });
     } catch (error: any) {
-      console.error('[STAGE] INBOUND_MESSAGE_CREATE_FAILED', {
-        stage: 'prospectingMessage.create',
-        errorName: error?.name,
-        errorCode: error?.code,
-        errorMessage: error?.message,
-        prismaMeta: error?.meta ? JSON.stringify(error.meta) : undefined,
+      console.error('[STAGE] INBOUND_MESSAGE_CREATE_FAILED');
+      console.error('[STAGE_ERROR]', {
+        errorName: String(error?.name ?? ''),
+        errorCode: String(error?.code ?? ''),
+        errorMessage: String(error?.message ?? ''),
         leadPublicId: leadData.publicId,
-        campaignId: leadData.campaignId,
+        campaignId: String(leadData.campaignId),
       });
       throw error;
     }
@@ -207,7 +207,8 @@ export class ProspectingInboundService {
     // Atualizar Lead
     const now = new Date();
     try {
-      console.log('[STAGE] LEAD_RESPONDED_UPDATE_START', { leadId: leadData.id });
+      console.log('[STAGE] LEAD_RESPONDED_UPDATE_START');
+      console.log('[STAGE_DATA]', { leadId: String(leadData.id) });
 
       await this.client.prospectingLead.update({
         where: { id: leadData.id },
@@ -220,11 +221,11 @@ export class ProspectingInboundService {
 
       console.log('[STAGE] LEAD_RESPONDED_UPDATE_OK');
     } catch (error: any) {
-      console.error('[STAGE] LEAD_RESPONDED_UPDATE_FAILED', {
-        stage: 'prospectingLead.update(RESPONDED)',
-        errorName: error?.name,
-        errorCode: error?.code,
-        errorMessage: error?.message,
+      console.error('[STAGE] LEAD_RESPONDED_UPDATE_FAILED');
+      console.error('[STAGE_ERROR]', {
+        errorName: String(error?.name ?? ''),
+        errorCode: String(error?.code ?? ''),
+        errorMessage: String(error?.message ?? ''),
         leadPublicId: leadData.publicId,
       });
       throw error;
@@ -233,7 +234,8 @@ export class ProspectingInboundService {
     // Verificar pauseOnReply
     let campaign;
     try {
-      console.log('[STAGE] CAMPAIGN_FETCH_START', { campaignId: leadData.campaignId });
+      console.log('[STAGE] CAMPAIGN_FETCH_START');
+      console.log('[STAGE_DATA]', { campaignId: String(leadData.campaignId) });
 
       campaign = await this.client.prospectingCampaign.findUnique({
         where: { id: leadData.campaignId },
@@ -244,10 +246,10 @@ export class ProspectingInboundService {
         pauseOnReply: campaign?.pauseOnReply,
       });
     } catch (error: any) {
-      console.error('[STAGE] CAMPAIGN_FETCH_FAILED', {
-        stage: 'prospectingCampaign.findUnique',
-        errorName: error?.name,
-        campaignId: leadData.campaignId,
+      console.error('[STAGE] CAMPAIGN_FETCH_FAILED');
+      console.error('[STAGE_ERROR]', {
+        errorName: String(error?.name ?? ''),
+        campaignId: String(leadData.campaignId),
       });
       throw error;
     }
@@ -264,9 +266,9 @@ export class ProspectingInboundService {
 
       console.log('[STAGE] PAUSE_ON_REPLY_OK');
     } catch (error: any) {
-      console.error('[STAGE] PAUSE_ON_REPLY_FAILED', {
-        stage: 'prospectingLead.update(pauseOnReply)',
-        errorName: error?.name,
+      console.error('[STAGE] PAUSE_ON_REPLY_FAILED');
+      console.error('[STAGE_ERROR]', {
+        errorName: String(error?.name ?? ''),
         leadPublicId: leadData.publicId,
       });
       throw error;
@@ -288,9 +290,9 @@ export class ProspectingInboundService {
 
       console.log('[STAGE] HUMAN_LOCK_OK');
     } catch (error: any) {
-      console.error('[STAGE] HUMAN_LOCK_FAILED', {
-        stage: 'prospectingLead.update(humanLock)',
-        errorName: error?.name,
+      console.error('[STAGE] HUMAN_LOCK_FAILED');
+      console.error('[STAGE_ERROR]', {
+        errorName: String(error?.name ?? ''),
         leadPublicId: leadData.publicId,
       });
       throw error;
@@ -299,16 +301,17 @@ export class ProspectingInboundService {
     // Verificar opt-out (tem prioridade sobre objection engine e flow engine)
     let isOptOut = false;
     try {
-      console.log('[STAGE] OPT_OUT_CHECK_START', { body: (payload.body as string).slice(0, 50) });
+      console.log('[STAGE] OPT_OUT_CHECK_START');
+      console.log('[STAGE_DATA]', { body: (payload.body as string).slice(0, 50) });
 
       isOptOut = this.detectOptOut(payload.body as string);
 
       console.log('[STAGE] OPT_OUT_CHECK_OK', { isOptOut });
     } catch (error: any) {
-      console.error('[STAGE] OPT_OUT_CHECK_FAILED', {
-        stage: 'detectOptOut',
-        errorName: error?.name,
-        errorMessage: error?.message,
+      console.error('[STAGE] OPT_OUT_CHECK_FAILED');
+      console.error('[STAGE_ERROR]', {
+        errorName: String(error?.name ?? ''),
+        errorMessage: String(error?.message ?? ''),
       });
       throw error;
     }

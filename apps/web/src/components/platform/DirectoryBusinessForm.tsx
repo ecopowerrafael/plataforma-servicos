@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 
@@ -67,29 +67,28 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
   });
 
   // Load form when detail fetched
-  if (isEdit && businessDetail.data) {
+  useEffect(() => {
+    if (!isEdit || !businessDetail.data) return;
+
     const data = businessDetail.data;
-    if (form.name !== data.name) {
-      setForm((f) => ({
-        ...f,
-        categoryPublicId: data.categoryId,
-        name: data.name,
-        rawAddress: data.rawAddress,
-        street: data.street || '',
-        number: data.number || '',
-        complement: data.complement || '',
-        neighborhood: data.neighborhood || '',
-        city: data.city,
-        state: data.state,
-        postalCode: data.postalCode || '',
-        phone: data.phone || '',
-        whatsapp: data.whatsapp || '',
-        websiteUrl: data.websiteUrl || '',
-        active: data.active,
-        indexable: data.indexable,
-      }));
-    }
-  }
+    setForm({
+      categoryPublicId: data.categoryId,
+      name: data.name,
+      rawAddress: data.rawAddress,
+      street: data.street || '',
+      number: data.number || '',
+      complement: data.complement || '',
+      neighborhood: data.neighborhood || '',
+      city: data.city,
+      state: data.state,
+      postalCode: data.postalCode || '',
+      phone: data.phone || '',
+      whatsapp: data.whatsapp || '',
+      websiteUrl: data.websiteUrl || '',
+      active: data.active,
+      indexable: data.indexable,
+    });
+  }, [isEdit, businessPublicId, businessDetail.data]);
 
   const createMutation = useMutation({
     mutationFn: (input: any) =>
@@ -148,8 +147,27 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
+  // Validation helpers
+  const isCategoryValid = form.categoryPublicId.trim().length > 0;
+  const isNameValid = form.name.trim().length > 0;
+  const isAddressValid = form.rawAddress.trim().length > 0;
+  const isCityValid = form.city.trim().length > 0;
+  const isStateValid = form.state.trim().length === 2;
+
+  const isCreateValid = isCategoryValid && isNameValid && isAddressValid && isCityValid && isStateValid;
+  const isEditValid = isNameValid && isAddressValid && isCityValid && isStateValid;
+  const isFormValid = isEdit ? isEditValid : isCreateValid;
+
   const handleSubmit = () => {
     setError('');
+
+    if (!isFormValid) {
+      setError('Preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    const normalizeCep = (cep: string) => cep.replace(/\D/g, '');
+
     const payload = isEdit
       ? {
           name: form.name,
@@ -160,14 +178,30 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
           neighborhood: form.neighborhood || null,
           city: form.city,
           state: form.state,
-          postalCode: form.postalCode || null,
+          postalCode: form.postalCode ? normalizeCep(form.postalCode) : null,
           phone: form.phone || null,
           whatsapp: form.whatsapp || null,
           websiteUrl: form.websiteUrl || null,
           active: form.active,
           indexable: form.indexable,
         }
-      : form;
+      : {
+          categoryPublicId: form.categoryPublicId,
+          name: form.name,
+          rawAddress: form.rawAddress,
+          street: form.street || undefined,
+          number: form.number || undefined,
+          complement: form.complement || undefined,
+          neighborhood: form.neighborhood || undefined,
+          city: form.city,
+          state: form.state,
+          postalCode: form.postalCode ? normalizeCep(form.postalCode) : undefined,
+          phone: form.phone || undefined,
+          whatsapp: form.whatsapp || undefined,
+          websiteUrl: form.websiteUrl || undefined,
+          active: form.active,
+          indexable: form.indexable,
+        };
 
     if (isEdit) {
       updateMutation.mutate(payload);
@@ -187,7 +221,7 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
           {!isEdit && (
             <>
               <label>
-                Categoria *
+                Categoria * {!isCategoryValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatória</span>}
                 <select value={form.categoryPublicId} onChange={(e) => setForm({ ...form, categoryPublicId: e.target.value })} disabled={isEdit} style={{ width: '100%', padding: '0.5rem' }}>
                   <option value="">Selecione</option>
                   {categories.data?.map((cat) => (
@@ -201,12 +235,12 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
           )}
 
           <label>
-            Nome *
+            Nome * {!isNameValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatório</span>}
             <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nome do estabelecimento" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
           </label>
 
           <label>
-            Endereço Completo *
+            Endereço Completo * {!isAddressValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatório</span>}
             <input type="text" value={form.rawAddress} onChange={(e) => setForm({ ...form, rawAddress: e.target.value })} placeholder="Rua, número, complemento" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
           </label>
 
@@ -233,18 +267,18 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
 
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
             <label>
-              Cidade *
+              Cidade * {!isCityValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatória</span>}
               <input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
             </label>
             <label>
-              Estado *
+              Estado * {!isStateValid && <span style={{ color: 'var(--ds-text-negative)' }}>2 chars</span>}
               <input type="text" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value.toUpperCase().slice(0, 2) })} maxLength={2} style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
             </label>
           </div>
 
           <label>
             CEP
-            <input type="text" value={form.postalCode} onChange={(e) => setForm({ ...form, postalCode: e.target.value })} placeholder="12345678" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            <input type="text" value={form.postalCode} onChange={(e) => setForm({ ...form, postalCode: e.target.value })} placeholder="12345-678" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
           </label>
 
           <label>
@@ -275,7 +309,7 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
             <button onClick={onClose} disabled={isLoading} style={{ flex: 1, padding: '0.75rem' }}>
               Cancelar
             </button>
-            <button onClick={handleSubmit} disabled={isLoading || (isEdit ? businessDetail.isLoading : !form.categoryPublicId)} style={{ flex: 1, padding: '0.75rem', backgroundColor: isLoading ? 'var(--ds-background-tertiary)' : 'var(--ds-background-positive-subtle)' }}>
+            <button onClick={handleSubmit} disabled={isLoading || !isFormValid || (isEdit && businessDetail.isLoading)} style={{ flex: 1, padding: '0.75rem', backgroundColor: isFormValid ? 'var(--ds-background-positive-subtle)' : 'var(--ds-background-tertiary)', cursor: isFormValid ? 'pointer' : 'not-allowed' }}>
               {isLoading ? 'Salvando...' : isEdit ? 'Atualizar' : 'Criar'}
             </button>
           </div>

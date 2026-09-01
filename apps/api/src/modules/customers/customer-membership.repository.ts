@@ -19,7 +19,11 @@ export class CustomerMembershipRepository {
 
   public findByCustomer(tenantId: bigint, customerId: bigint) {
     return this.client.customerMembership.findFirst({
-      where: { tenantId, customerId },
+      where: {
+        tenantId,
+        customerId,
+        status: { in: ['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED'] },
+      },
       include: { plan: true, charges: true },
     });
   }
@@ -33,8 +37,12 @@ export class CustomerMembershipRepository {
 
   public findPlan(tenantId: bigint, planPublicId: string) {
     return this.client.customerMembershipPlan.findFirst({
-      where: { tenantId, publicId: planPublicId },
-      include: { benefits: true },
+      where: { tenantId, publicId: planPublicId, active: true },
+      include: {
+        benefits: {
+          include: { service: { select: { publicId: true } } },
+        },
+      },
     });
   }
 

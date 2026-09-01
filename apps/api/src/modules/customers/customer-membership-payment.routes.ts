@@ -19,11 +19,15 @@ export const customerMembershipPaymentRoutes: FastifyPluginAsyncZod<Options> = a
 ) => {
   const service = new CustomerMembershipPaymentService(options.client);
 
-  app.post<{ Params: z.infer<typeof ChargeParamSchema>; Body: z.infer<typeof CreatePaymentSchema> }>(
+  app.post<{
+    Params: z.infer<typeof ChargeParamSchema>;
+    Body: z.infer<typeof CreatePaymentSchema>;
+  }>(
     '/tenant/customer-membership-charges/:chargePublicId/payments',
     { schema: { params: ChargeParamSchema, body: CreatePaymentSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'payment.manage');
+      options.authService.requireCapability(request.tenant, 'memberships.checkout');
 
       // Resolve payment method
       const paymentMethod = await options.client.paymentMethod.findFirst({

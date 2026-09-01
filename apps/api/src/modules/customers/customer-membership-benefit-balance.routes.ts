@@ -24,6 +24,8 @@ export const customerMembershipBenefitBalanceRoutes: FastifyPluginAsyncZod<Optio
     '/tenant/customers/:customerPublicId/membership/benefits',
     { schema: { params: CustomerParamSchema } },
     async (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.read');
+      options.authService.requireCapability(request.tenant, 'memberships.benefits');
       const customer = await options.client.customer.findFirst({
         where: {
           tenantId: request.tenant.id,
@@ -41,10 +43,7 @@ export const customerMembershipBenefitBalanceRoutes: FastifyPluginAsyncZod<Optio
       }
 
       // Find active membership
-      const membership = await membershipRepository.findByCustomer(
-        request.tenant.id,
-        customer.id,
-      );
+      const membership = await membershipRepository.findByCustomer(request.tenant.id, customer.id);
 
       if (!membership) {
         return {
@@ -82,9 +81,10 @@ export const customerMembershipBenefitBalanceRoutes: FastifyPluginAsyncZod<Optio
       }
 
       // Parse snapshot
-      const snapshot = typeof charge.planSnapshot === 'string'
-        ? JSON.parse(charge.planSnapshot)
-        : charge.planSnapshot;
+      const snapshot =
+        typeof charge.planSnapshot === 'string'
+          ? JSON.parse(charge.planSnapshot)
+          : charge.planSnapshot;
 
       if (!snapshot || !Array.isArray(snapshot.benefits)) {
         return {

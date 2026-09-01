@@ -2,11 +2,14 @@ import {
   AuthMeResponseSchema,
   AuthSessionsResponseSchema,
   BusinessProfileCatalog,
+  OperatingModelSchema,
   SuccessResponseSchema,
   TenantExperienceResponseSchema,
   TenantSubscriptionResponseSchema,
   TenantWhiteLabelResponseSchema,
   type PlanLimitKey,
+  type OperatingModel,
+  hasCapability,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
@@ -51,6 +54,10 @@ const CustomerModule = load(import('../components/customers/CustomerModule.js'),
 const CustomerProfile = load(
   import('../components/customers/CustomerProfile.js'),
   'CustomerProfile',
+);
+const CustomerMembershipPlansModule = load(
+  import('../components/customers/CustomerMembershipPlansModule.js'),
+  'CustomerMembershipPlansModule',
 );
 const MyAgendaModule = load(
   import('../components/professionals/MyAgendaModule.js'),
@@ -101,10 +108,7 @@ const FinanceOverviewModule = load(
   import('../components/tenants/FinanceOverviewModule.js'),
   'FinanceOverviewModule',
 );
-const BotCobraModule = load(
-  import('../components/bot-cobra/BotCobraModule.js'),
-  'BotCobraModule',
-);
+const BotCobraModule = load(import('../components/bot-cobra/BotCobraModule.js'), 'BotCobraModule');
 const DelinquencyModule = load(
   import('../components/tenants/DelinquencyModule.js'),
   'DelinquencyModule',
@@ -165,10 +169,7 @@ const TenantDomainModule = load(
   import('../components/tenants/TenantDomainModule.js'),
   'TenantDomainModule',
 );
-const TenantPwaModule = load(
-  import('../components/tenants/TenantPwaModule.js'),
-  'TenantPwaModule',
-);
+const TenantPwaModule = load(import('../components/tenants/TenantPwaModule.js'), 'TenantPwaModule');
 const TenantSettingsModule = load(
   import('../components/tenants/TenantSettingsModule.js'),
   'TenantSettingsModule',
@@ -182,10 +183,7 @@ const WhiteLabelModule = load(
   import('../components/tenants/WhiteLabelModule.js'),
   'WhiteLabelModule',
 );
-const WhatsAppPage = load(
-  import('../components/tenants/WhatsAppPage.js'),
-  'WhatsAppPage',
-);
+const WhatsAppPage = load(import('../components/tenants/WhatsAppPage.js'), 'WhatsAppPage');
 const EmailTemplateModule = load(
   import('../components/tenants/EmailTemplateModule.js'),
   'EmailTemplateModule',
@@ -195,6 +193,7 @@ const OnboardingResponseSchema = z.object({
   onboardingStep: z.string(),
   onboardingCompletedAt: z.string().nullable(),
   onboardingChecklistHiddenAt: z.string().nullable(),
+  operatingModel: OperatingModelSchema,
 });
 const OnboardingChecklistSchema = z.object({
   hidden: z.boolean(),
@@ -264,6 +263,8 @@ export function HomePage() {
   const selectedTenant = readSelectedTenant();
   const [profile, setProfile] = useState('GENERIC');
   const [customBusinessType, setCustomBusinessType] = useState('');
+  const [selectedOperatingModel, setSelectedOperatingModel] =
+    useState<OperatingModel>('SERVICE_PRICING');
   const [publicThemeOverride, setPublicTheme] = useState<BrandThemeCode | null>(null);
   const [primaryColorOverride, setPrimaryColor] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState('');
@@ -339,6 +340,7 @@ export function HomePage() {
     enabled: selectedTenant !== undefined && onboarding.data?.onboardingCompletedAt === null,
     retry: false,
   });
+  const onboardingOperatingModel = onboarding.data?.operatingModel ?? selectedOperatingModel;
   const publicTheme = publicThemeOverride ?? onboardingBrand.data?.site.theme ?? 'MODERN';
   const primaryColor =
     primaryColorOverride ?? onboardingBrand.data?.branding.primaryColor ?? '#2563EB';
@@ -495,15 +497,17 @@ export function HomePage() {
       body.set('file', file, file.name);
       const localUrl = URL.createObjectURL(file);
       setLocalAssetPreviews((prev) => ({ ...prev, [kind]: localUrl }));
-      return httpClient.request(`/tenant/media/${kind}`, {
-        method: 'POST',
-        tenantPublicId: selectedTenant,
-        body,
-        schema: z.unknown(),
-      }).catch((error) => {
-        URL.revokeObjectURL(localUrl);
-        throw error;
-      });
+      return httpClient
+        .request(`/tenant/media/${kind}`, {
+          method: 'POST',
+          tenantPublicId: selectedTenant,
+          body,
+          schema: z.unknown(),
+        })
+        .catch((error) => {
+          URL.revokeObjectURL(localUrl);
+          throw error;
+        });
     },
     onSuccess: () => {
       onboardingBrand.refetch();
@@ -627,6 +631,14 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('service.read') ?? false;
   const canReadProfessionals =
     me.data?.currentTenant?.membership.permissions.includes('professional.read') ?? false;
+  const operatingModel = me.data?.currentTenant?.tenant.operatingModel ?? 'SERVICE_PRICING';
+  const canViewCustomerMemberships =
+    hasCapability(operatingModel, 'memberships.manage') &&
+    (me.data?.currentTenant?.membership.permissions.includes('tenant.read') ?? false);
+  const canManageCustomerMemberships =
+    canViewCustomerMemberships &&
+    me.data?.currentTenant?.membership.roleCode === 'OWNER' &&
+    (me.data?.currentTenant?.membership.permissions.includes('tenant.update') ?? false);
   const planFeatureEnabled = (key: PlanLimitKey) =>
     planAccess.data?.limits.find((limit) => limit.key === key)?.booleanValue !== false;
   const menuGroups: AppMenuGroup[] = [
@@ -661,6 +673,20 @@ export function HomePage() {
           to: '/app/clientes/cupons',
           visible: canReadCoupons && planFeatureEnabled('coupons.enabled'),
         },
+      ],
+    },
+    {
+      label: 'Assinaturas',
+      path: '/app/assinaturas',
+      items: [
+        { label: 'Visão geral', to: '/app/assinaturas', visible: canViewCustomerMemberships },
+        { label: 'Planos', to: '/app/assinaturas/planos', visible: canViewCustomerMemberships },
+        {
+          label: 'Assinantes',
+          to: '/app/assinaturas/assinantes',
+          visible: canViewCustomerMemberships,
+        },
+        { label: 'Consumo', to: '/app/assinaturas/consumo', visible: canViewCustomerMemberships },
       ],
     },
     {
@@ -722,8 +748,16 @@ export function HomePage() {
             { label: 'Nova cobrança', to: '/app/bot-cobra/nova', visible: canManageCollections },
             { label: 'Campanhas', to: '/app/bot-cobra/campanhas', visible: canReadCollections },
             { label: 'Promessas', to: '/app/bot-cobra/promessas', visible: canReadCollections },
-            { label: 'Atendimento humano', to: '/app/bot-cobra/atendimento', visible: canReadCollections },
-            { label: 'Configurações', to: '/app/bot-cobra/configuracoes', visible: canManageCollections },
+            {
+              label: 'Atendimento humano',
+              to: '/app/bot-cobra/atendimento',
+              visible: canReadCollections,
+            },
+            {
+              label: 'Configurações',
+              to: '/app/bot-cobra/configuracoes',
+              visible: canManageCollections,
+            },
           ],
         },
       ],
@@ -812,7 +846,9 @@ export function HomePage() {
     {
       label: 'WhatsApp',
       path: '/app/whatsapp',
-      items: [{ label: 'WhatsApp', to: '/app/whatsapp', visible: planFeatureEnabled('whatsapp.enabled') }],
+      items: [
+        { label: 'WhatsApp', to: '/app/whatsapp', visible: planFeatureEnabled('whatsapp.enabled') },
+      ],
     },
     {
       label: 'Configurações',
@@ -820,7 +856,11 @@ export function HomePage() {
       items: [
         { label: 'Preferências', to: '/app/configuracoes', visible: canUpdateTenantSettings },
         { label: 'Sessões', to: '/app/configuracoes/sessoes', visible: true },
-        { label: 'E-mails automáticos', to: '/app/configuracoes/emails', visible: canViewNotifications },
+        {
+          label: 'E-mails automáticos',
+          to: '/app/configuracoes/emails',
+          visible: canViewNotifications,
+        },
       ],
     },
   ]
@@ -893,7 +933,12 @@ export function HomePage() {
         </button>
       )}
       {guidedActive && !guidedPaused && (
-        <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="Início guiado">
+        <div
+          className="onboarding-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Início guiado"
+        >
           <section className="onboarding-welcome" aria-label="Primeiros passos">
             <header className="onboarding-topbar">
               {previousStep === null ? (
@@ -909,7 +954,10 @@ export function HomePage() {
                   ←
                 </button>
               )}
-              <span className="onboarding-progress" aria-label={`Etapa ${String(guidedStepIndex + 1)} de ${String(GUIDED_STEPS.length)}`}>
+              <span
+                className="onboarding-progress"
+                aria-label={`Etapa ${String(guidedStepIndex + 1)} de ${String(GUIDED_STEPS.length)}`}
+              >
                 {GUIDED_STEPS.map((id, position) => (
                   <i key={id} className={position <= guidedStepIndex ? 'is-done' : ''} />
                 ))}
@@ -925,368 +973,395 @@ export function HomePage() {
               </button>
             </header>
             <div className="onboarding-body">
-            {guidedStep === 'WELCOME' && (
-              <>
-                <h2>Vamos criar sua empresa?</h2>
-                <p>
-                  Em poucos passos vamos preparar sua página de agendamentos e deixar a Agendei com
-                  a identidade do seu negócio.
-                </p>
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    updateOnboarding.mutate({ step: 'BUSINESS_TYPE' });
-                  }}
-                >
-                  Começar
-                </button>
-              </>
-            )}
-            {guidedStep === 'BUSINESS_TYPE' && (
-              <>
-                <h2>Qual é o tipo do seu negócio?</h2>
-                <label>
-                  Tipo de negócio
-                  <select
-                    value={profile}
-                    onChange={(event) => {
-                      setProfile(event.target.value);
+              {guidedStep === 'WELCOME' && (
+                <>
+                  <h2>Vamos criar sua empresa?</h2>
+                  <p>
+                    Em poucos passos vamos preparar sua página de agendamentos e deixar a Agendei
+                    com a identidade do seu negócio.
+                  </p>
+                  <button
+                    className="primary-button"
+                    onClick={() => {
+                      updateOnboarding.mutate({ step: 'BUSINESS_TYPE' });
                     }}
                   >
-                    {Object.values(BusinessProfileCatalog).map((item) => (
-                      <option key={item.code} value={item.code}>
-                        {item.publicName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {profile === 'GENERIC' && (
+                    Começar
+                  </button>
+                </>
+              )}
+              {guidedStep === 'BUSINESS_TYPE' && (
+                <>
+                  <h2>Qual é o tipo do seu negócio?</h2>
                   <label>
-                    Conte um pouco sobre o seu negócio
-                    <input
-                      value={customBusinessType}
+                    Tipo de negócio
+                    <select
+                      value={profile}
                       onChange={(event) => {
-                        setCustomBusinessType(event.target.value);
+                        setProfile(event.target.value);
                       }}
-                      placeholder="Ex.: Clínica veterinária"
+                    >
+                      {Object.values(BusinessProfileCatalog).map((item) => (
+                        <option key={item.code} value={item.code}>
+                          {item.publicName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {profile === 'GENERIC' && (
+                    <label>
+                      Conte um pouco sobre o seu negócio
+                      <input
+                        value={customBusinessType}
+                        onChange={(event) => {
+                          setCustomBusinessType(event.target.value);
+                        }}
+                        placeholder="Ex.: Clínica veterinária"
+                      />
+                    </label>
+                  )}
+                  <label>
+                    Como seu negócio trabalha?
+                    <select
+                      value={onboardingOperatingModel}
+                      onChange={(event) => {
+                        setSelectedOperatingModel(event.target.value as OperatingModel);
+                      }}
+                    >
+                      <option value="SERVICE_PRICING">Cobrança por serviço</option>
+                      <option value="MEMBERSHIP">Clube / assinatura mensal</option>
+                    </select>
+                    <small>
+                      Essa escolha define o modelo operacional inicial e não vira um simples botão
+                      de troca depois do onboarding.
+                    </small>
+                  </label>
+                  <button
+                    className="primary-button"
+                    disabled={profile === 'GENERIC' && customBusinessType.trim().length < 2}
+                    onClick={() => {
+                      updateOnboarding.mutate({
+                        step: 'STARTER_CONTENT',
+                        businessProfile: profile,
+                        operatingModel: onboardingOperatingModel,
+                        ...(profile === 'GENERIC'
+                          ? { businessTypeCustom: customBusinessType.trim() }
+                          : { businessTypeCustom: null }),
+                      });
+                    }}
+                  >
+                    Continuar
+                  </button>
+                </>
+              )}
+              {guidedStep === 'STARTER_CONTENT' && (
+                <>
+                  <h2>Preparamos seu espaço para você começar mais rápido.</h2>
+                  <p>
+                    Adicionamos alguns serviços, um profissional, horários e conteúdo de exemplo com
+                    base no seu tipo de negócio. Você pode editar ou excluir tudo e criar seus
+                    próprios dados quando quiser.
+                  </p>
+                  <ul className="onboarding-checklist-preview">
+                    <li>3 serviços com ícones</li>
+                    <li>1 combo</li>
+                    <li>1 profissional</li>
+                    <li>agenda de segunda a sábado, das 09:00 às 18:00</li>
+                    <li>visual inicial do aplicativo</li>
+                  </ul>
+                  <button
+                    className="primary-button"
+                    onClick={() => {
+                      updateOnboarding.mutate({ step: 'BUSINESS_IDENTITY' });
+                    }}
+                  >
+                    Continuar
+                  </button>
+                </>
+              )}
+              {guidedStep === 'BUSINESS_IDENTITY' && (
+                <>
+                  <h2>Como seus clientes conhecem sua empresa?</h2>
+                  <p>
+                    Este é o nome que seus clientes verão no aplicativo e na página de agendamento.
+                  </p>
+                  <label>
+                    Nome a ser exibido
+                    <input
+                      value={businessName}
+                      onChange={(event) => {
+                        setBusinessName(event.target.value);
+                      }}
+                      placeholder={me.data.currentTenant?.tenant.displayName ?? ''}
                     />
                   </label>
-                )}
-                <button
-                  className="primary-button"
-                  disabled={profile === 'GENERIC' && customBusinessType.trim().length < 2}
-                  onClick={() => {
-                    updateOnboarding.mutate({
-                      step: 'STARTER_CONTENT',
-                      businessProfile: profile,
-                      ...(profile === 'GENERIC'
-                        ? { businessTypeCustom: customBusinessType.trim() }
-                        : { businessTypeCustom: null }),
-                    });
-                  }}
-                >
-                  Continuar
-                </button>
-              </>
-            )}
-            {guidedStep === 'STARTER_CONTENT' && (
-              <>
-                <h2>Preparamos seu espaço para você começar mais rápido.</h2>
-                <p>
-                  Adicionamos alguns serviços, um profissional, horários e conteúdo de exemplo com
-                  base no seu tipo de negócio. Você pode editar ou excluir tudo e criar seus
-                  próprios dados quando quiser.
-                </p>
-                <ul className="onboarding-checklist-preview">
-                  <li>3 serviços com ícones</li>
-                  <li>1 combo</li>
-                  <li>1 profissional</li>
-                  <li>agenda de segunda a sábado, das 09:00 às 18:00</li>
-                  <li>visual inicial do aplicativo</li>
-                </ul>
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    updateOnboarding.mutate({ step: 'BUSINESS_IDENTITY' });
-                  }}
-                >
-                  Continuar
-                </button>
-              </>
-            )}
-            {guidedStep === 'BUSINESS_IDENTITY' && (
-              <>
-                <h2>Como seus clientes conhecem sua empresa?</h2>
-                <p>
-                  Este é o nome que seus clientes verão no aplicativo e na página de agendamento.
-                </p>
-                <label>
-                  Nome a ser exibido
-                  <input
-                    value={businessName}
-                    onChange={(event) => {
-                      setBusinessName(event.target.value);
+                  <button
+                    className="primary-button"
+                    disabled={businessName.trim().length < 2}
+                    onClick={() => {
+                      updateOnboarding.mutate({
+                        step: 'BUSINESS_ADDRESS',
+                        displayName: businessName.trim(),
+                      });
                     }}
-                    placeholder={me.data.currentTenant?.tenant.displayName ?? ''}
+                  >
+                    Continuar
+                  </button>
+                </>
+              )}
+              {guidedStep === 'BUSINESS_ADDRESS' && (
+                <>
+                  <h2>Escolha o endereço do seu aplicativo</h2>
+                  <p>
+                    Escolha com atenção. Por segurança e consistência dos seus links, o endereço
+                    poderá ser alterado somente uma vez.
+                  </p>
+                  <label>
+                    Endereço público
+                    <input value={suggestedSlug} readOnly aria-describedby="slug-help" />
+                    <small id="slug-help">
+                      {suggestedSlug.length < 2
+                        ? 'Volte e informe o nome para gerar o endereço.'
+                        : slugAvailability.isPending
+                          ? 'Verificando disponibilidade…'
+                          : slugAvailability.data?.available
+                            ? `Disponível: ${window.location.origin}/public/${suggestedSlug}`
+                            : 'Este endereço já está em uso. Volte e ajuste o nome.'}
+                    </small>
+                  </label>
+                  <button
+                    className="primary-button"
+                    disabled={!slugAvailability.data?.available}
+                    onClick={() => {
+                      updateOnboarding.mutate({ step: 'CUSTOMIZE', slug: suggestedSlug });
+                    }}
+                  >
+                    Confirmar endereço
+                  </button>
+                </>
+              )}
+              {guidedStep === 'CUSTOMIZE' && (
+                <>
+                  <h2>Agora vamos colocar sua marca</h2>
+                  <BrandAssetDropzone
+                    title="Logo da empresa"
+                    description="Envie um logo em PNG, JPG ou WebP."
+                    previewUrl={localAssetPreviews.LOGO ?? onboardingLogoUrl}
+                    busy={uploadBrandAsset.isPending}
+                    onUpload={(file) => {
+                      uploadBrandAsset.mutate({ kind: 'LOGO', file });
+                    }}
                   />
-                </label>
-                <button
-                  className="primary-button"
-                  disabled={businessName.trim().length < 2}
-                  onClick={() => {
-                    updateOnboarding.mutate({
-                      step: 'BUSINESS_ADDRESS',
-                      displayName: businessName.trim(),
-                    });
-                  }}
-                >
-                  Continuar
-                </button>
-              </>
-            )}
-            {guidedStep === 'BUSINESS_ADDRESS' && (
-              <>
-                <h2>Escolha o endereço do seu aplicativo</h2>
-                <p>
-                  Escolha com atenção. Por segurança e consistência dos seus links, o endereço
-                  poderá ser alterado somente uma vez.
-                </p>
-                <label>
-                  Endereço público
-                  <input value={suggestedSlug} readOnly aria-describedby="slug-help" />
-                  <small id="slug-help">
-                    {suggestedSlug.length < 2
-                      ? 'Volte e informe o nome para gerar o endereço.'
-                      : slugAvailability.isPending
-                        ? 'Verificando disponibilidade…'
-                        : slugAvailability.data?.available
-                          ? `Disponível: ${window.location.origin}/public/${suggestedSlug}`
-                          : 'Este endereço já está em uso. Volte e ajuste o nome.'}
-                  </small>
-                </label>
-                <button
-                  className="primary-button"
-                  disabled={!slugAvailability.data?.available}
-                  onClick={() => {
-                    updateOnboarding.mutate({ step: 'CUSTOMIZE', slug: suggestedSlug });
-                  }}
-                >
-                  Confirmar endereço
-                </button>
-              </>
-            )}
-            {guidedStep === 'CUSTOMIZE' && (
-              <>
-                <h2>Agora vamos colocar sua marca</h2>
-                <BrandAssetDropzone
-                  title="Logo da empresa"
-                  description="Envie um logo em PNG, JPG ou WebP."
-                  previewUrl={localAssetPreviews.LOGO ?? onboardingLogoUrl}
-                  busy={uploadBrandAsset.isPending}
-                  onUpload={(file) => {
-                    uploadBrandAsset.mutate({ kind: 'LOGO', file });
-                  }}
-                />
-                {uploadBrandAsset.error instanceof Error && (
-                  <p className="form-error">{uploadBrandAsset.error.message}</p>
-                )}
-                <div className="button-row">
+                  {uploadBrandAsset.error instanceof Error && (
+                    <p className="form-error">{uploadBrandAsset.error.message}</p>
+                  )}
+                  <div className="button-row">
+                    <button
+                      className="primary-button"
+                      disabled={uploadBrandAsset.isPending}
+                      onClick={() => {
+                        updateOnboarding.mutate({ step: 'LAYOUT' });
+                      }}
+                    >
+                      Continuar
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={uploadBrandAsset.isPending}
+                      onClick={() => {
+                        updateOnboarding.mutate({ step: 'LAYOUT' });
+                      }}
+                    >
+                      Continuar sem logo
+                    </button>
+                  </div>
+                </>
+              )}
+              {guidedStep === 'LAYOUT' && (
+                <>
+                  <h2>Como você quer apresentar seu negócio?</h2>
+                  <p>Escolha um tema real da sua página pública.</p>
+                  <BrandThemePicker
+                    value={publicTheme}
+                    onChange={(value) => {
+                      setPublicTheme(value);
+                      // Escolher o tema já traz a cor principal do preset dele.
+                      setPrimaryColor(themeDefaultPalette(value, primaryColor).primaryColor);
+                    }}
+                  />
                   <button
                     className="primary-button"
-                    disabled={uploadBrandAsset.isPending}
+                    disabled={savePublicTheme.isPending || updateOnboarding.isPending}
                     onClick={() => {
-                      updateOnboarding.mutate({ step: 'LAYOUT' });
+                      void persistLayoutAndAdvance({
+                        theme: publicTheme,
+                        persistTheme: (theme) => savePublicTheme.mutateAsync(theme),
+                        advance: (step) => updateOnboarding.mutateAsync({ step }),
+                      }).catch(() => undefined);
                     }}
                   >
                     Continuar
                   </button>
-                  <button
-                    className="secondary-button"
-                    disabled={uploadBrandAsset.isPending}
-                    onClick={() => {
-                      updateOnboarding.mutate({ step: 'LAYOUT' });
-                    }}
-                  >
-                    Continuar sem logo
-                  </button>
-                </div>
-              </>
-            )}
-            {guidedStep === 'LAYOUT' && (
-              <>
-                <h2>Como você quer apresentar seu negócio?</h2>
-                <p>Escolha um tema real da sua página pública.</p>
-                <BrandThemePicker
-                  value={publicTheme}
-                  onChange={(value) => {
-                    setPublicTheme(value);
-                    // Escolher o tema já traz a cor principal do preset dele.
-                    setPrimaryColor(themeDefaultPalette(value, primaryColor).primaryColor);
-                  }}
-                />
-                <button
-                  className="primary-button"
-                  disabled={savePublicTheme.isPending || updateOnboarding.isPending}
-                  onClick={() => {
-                    void persistLayoutAndAdvance({
-                      theme: publicTheme,
-                      persistTheme: (theme) => savePublicTheme.mutateAsync(theme),
-                      advance: (step) => updateOnboarding.mutateAsync({ step }),
-                    }).catch(() => undefined);
-                  }}
-                >
-                  Continuar
-                </button>
-              </>
-            )}
-            {guidedStep === 'COLORS' && (
-              <>
-                <h2>Escolha as cores da sua empresa</h2>
-                <BrandColorPicker value={primaryColor} onChange={setPrimaryColor} />
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    saveBranding.mutate(deriveBrandPalette(primaryColor, publicTheme), {
-                      onSuccess: () => {
-                        updateOnboarding.mutate({ step: 'SPLASH' });
-                      },
-                    });
-                  }}
-                >
-                  Continuar
-                </button>
-              </>
-            )}
-            {guidedStep === 'SPLASH' && (
-              <>
-                <h2>Como seu aplicativo deve aparecer ao abrir?</h2>
-                <BrandAssetDropzone
-                  title="Tela de abertura"
-                  description="Use uma imagem vertical; sem envio, o logo será usado."
-                  previewUrl={localAssetPreviews.SPLASH ?? onboardingBrand.data?.assets.find((a) => a.kind === 'SPLASH')?.url ? `${environment.apiUrl}${onboardingBrand.data?.assets.find((a) => a.kind === 'SPLASH')?.url}` : undefined}
-                  busy={uploadBrandAsset.isPending}
-                  onUpload={(file) => {
-                    uploadBrandAsset.mutate({ kind: 'SPLASH', file });
-                  }}
-                />
-                {uploadBrandAsset.error instanceof Error && (
-                  <p className="form-error">{uploadBrandAsset.error.message}</p>
-                )}
-                <div className="button-row">
-                  <button
-                    className="primary-button"
-                    disabled={uploadBrandAsset.isPending}
-                    onClick={() => {
-                      updateOnboarding.mutate({ step: 'APP_ICON' });
-                    }}
-                  >
-                    Continuar
-                  </button>
-                  <button
-                    className="secondary-button"
-                    disabled={uploadBrandAsset.isPending}
-                    onClick={() => {
-                      updateOnboarding.mutate({ step: 'APP_ICON' });
-                    }}
-                  >
-                    Fazer depois
-                  </button>
-                </div>
-              </>
-            )}
-            {guidedStep === 'APP_ICON' && (
-              <>
-                <h2>Escolha o ícone do seu aplicativo</h2>
-                <BrandAssetDropzone
-                  title="Ícone do aplicativo"
-                  description="Use uma imagem quadrada para a tela inicial."
-                  previewUrl={localAssetPreviews.APP_ICON ?? onboardingBrand.data?.assets.find((a) => a.kind === 'APP_ICON')?.url ? `${environment.apiUrl}${onboardingBrand.data?.assets.find((a) => a.kind === 'APP_ICON')?.url}` : undefined}
-                  busy={uploadBrandAsset.isPending}
-                  square
-                  onUpload={(file) => {
-                    uploadBrandAsset.mutate({ kind: 'APP_ICON', file });
-                  }}
-                />
-                {uploadBrandAsset.error instanceof Error && (
-                  <p className="form-error">{uploadBrandAsset.error.message}</p>
-                )}
-                <div className="button-row">
-                  <button
-                    className="primary-button"
-                    disabled={uploadBrandAsset.isPending}
-                    onClick={() => {
-                      updateOnboarding.mutate({ step: 'READY' });
-                    }}
-                  >
-                    Continuar
-                  </button>
-                  <button
-                    className="secondary-button"
-                    disabled={uploadBrandAsset.isPending}
-                    onClick={() => {
-                      updateOnboarding.mutate({ step: 'READY' });
-                    }}
-                  >
-                    Fazer depois
-                  </button>
-                </div>
-              </>
-            )}
-            {guidedStep === 'READY' && (
-              <>
-                <h2>Seu espaço está ficando com a sua cara.</h2>
-                <BrandPreview
-                  displayName={effectiveBusinessName}
-                  theme={publicTheme}
-                  color={primaryColor}
-                  logoUrl={onboardingLogoUrl}
-                  mode="mobile"
-                  tenantSlug={onboardingBrand.data?.slug}
-                />
-                <p>
-                  Seu aplicativo já tem serviços, profissional e horários. Veja como ficou ou vá
-                  direto para o painel.
-                </p>
-                <div className="onboarding-final-actions">
+                </>
+              )}
+              {guidedStep === 'COLORS' && (
+                <>
+                  <h2>Escolha as cores da sua empresa</h2>
+                  <BrandColorPicker value={primaryColor} onChange={setPrimaryColor} />
                   <button
                     className="primary-button"
                     onClick={() => {
-                      updateOnboarding.mutate(
-                        { step: 'COMPLETE', completed: true },
-                        {
-                          onSuccess: () => {
-                            pauseGuided(false);
-                            if (onboardingBrand.data !== undefined)
-                              window.open(`/public/${onboardingBrand.data.slug}`, '_blank');
-                          },
+                      saveBranding.mutate(deriveBrandPalette(primaryColor, publicTheme), {
+                        onSuccess: () => {
+                          updateOnboarding.mutate({ step: 'SPLASH' });
                         },
-                      );
+                      });
                     }}
                   >
-                    Ver meu aplicativo
+                    Continuar
                   </button>
-                  <button
-                    className="secondary-button"
-                    onClick={() => {
-                      updateOnboarding.mutate(
-                        { step: 'COMPLETE', completed: true },
-                        {
-                          onSuccess: () => {
-                            pauseGuided(false);
-                            void navigate('/app');
+                </>
+              )}
+              {guidedStep === 'SPLASH' && (
+                <>
+                  <h2>Como seu aplicativo deve aparecer ao abrir?</h2>
+                  <BrandAssetDropzone
+                    title="Tela de abertura"
+                    description="Use uma imagem vertical; sem envio, o logo será usado."
+                    previewUrl={
+                      (localAssetPreviews.SPLASH ??
+                      onboardingBrand.data?.assets.find((a) => a.kind === 'SPLASH')?.url)
+                        ? `${environment.apiUrl}${onboardingBrand.data?.assets.find((a) => a.kind === 'SPLASH')?.url}`
+                        : undefined
+                    }
+                    busy={uploadBrandAsset.isPending}
+                    onUpload={(file) => {
+                      uploadBrandAsset.mutate({ kind: 'SPLASH', file });
+                    }}
+                  />
+                  {uploadBrandAsset.error instanceof Error && (
+                    <p className="form-error">{uploadBrandAsset.error.message}</p>
+                  )}
+                  <div className="button-row">
+                    <button
+                      className="primary-button"
+                      disabled={uploadBrandAsset.isPending}
+                      onClick={() => {
+                        updateOnboarding.mutate({ step: 'APP_ICON' });
+                      }}
+                    >
+                      Continuar
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={uploadBrandAsset.isPending}
+                      onClick={() => {
+                        updateOnboarding.mutate({ step: 'APP_ICON' });
+                      }}
+                    >
+                      Fazer depois
+                    </button>
+                  </div>
+                </>
+              )}
+              {guidedStep === 'APP_ICON' && (
+                <>
+                  <h2>Escolha o ícone do seu aplicativo</h2>
+                  <BrandAssetDropzone
+                    title="Ícone do aplicativo"
+                    description="Use uma imagem quadrada para a tela inicial."
+                    previewUrl={
+                      (localAssetPreviews.APP_ICON ??
+                      onboardingBrand.data?.assets.find((a) => a.kind === 'APP_ICON')?.url)
+                        ? `${environment.apiUrl}${onboardingBrand.data?.assets.find((a) => a.kind === 'APP_ICON')?.url}`
+                        : undefined
+                    }
+                    busy={uploadBrandAsset.isPending}
+                    square
+                    onUpload={(file) => {
+                      uploadBrandAsset.mutate({ kind: 'APP_ICON', file });
+                    }}
+                  />
+                  {uploadBrandAsset.error instanceof Error && (
+                    <p className="form-error">{uploadBrandAsset.error.message}</p>
+                  )}
+                  <div className="button-row">
+                    <button
+                      className="primary-button"
+                      disabled={uploadBrandAsset.isPending}
+                      onClick={() => {
+                        updateOnboarding.mutate({ step: 'READY' });
+                      }}
+                    >
+                      Continuar
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={uploadBrandAsset.isPending}
+                      onClick={() => {
+                        updateOnboarding.mutate({ step: 'READY' });
+                      }}
+                    >
+                      Fazer depois
+                    </button>
+                  </div>
+                </>
+              )}
+              {guidedStep === 'READY' && (
+                <>
+                  <h2>Seu espaço está ficando com a sua cara.</h2>
+                  <BrandPreview
+                    displayName={effectiveBusinessName}
+                    theme={publicTheme}
+                    color={primaryColor}
+                    logoUrl={onboardingLogoUrl}
+                    mode="mobile"
+                    tenantSlug={onboardingBrand.data?.slug}
+                  />
+                  <p>
+                    Seu aplicativo já tem serviços, profissional e horários. Veja como ficou ou vá
+                    direto para o painel.
+                  </p>
+                  <div className="onboarding-final-actions">
+                    <button
+                      className="primary-button"
+                      onClick={() => {
+                        updateOnboarding.mutate(
+                          { step: 'COMPLETE', completed: true },
+                          {
+                            onSuccess: () => {
+                              pauseGuided(false);
+                              if (onboardingBrand.data !== undefined)
+                                window.open(`/public/${onboardingBrand.data.slug}`, '_blank');
+                            },
                           },
-                        },
-                      );
-                    }}
-                  >
-                    Ir para o painel
-                  </button>
-                </div>
-              </>
-            )}
-            {onboardingActionError !== undefined && (
-              <p className="form-error">{onboardingActionError.message}</p>
-            )}
+                        );
+                      }}
+                    >
+                      Ver meu aplicativo
+                    </button>
+                    <button
+                      className="secondary-button"
+                      onClick={() => {
+                        updateOnboarding.mutate(
+                          { step: 'COMPLETE', completed: true },
+                          {
+                            onSuccess: () => {
+                              pauseGuided(false);
+                              void navigate('/app');
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      Ir para o painel
+                    </button>
+                  </div>
+                </>
+              )}
+              {onboardingActionError !== undefined && (
+                <p className="form-error">{onboardingActionError.message}</p>
+              )}
             </div>
           </section>
         </div>
@@ -1318,7 +1393,9 @@ export function HomePage() {
                     return (
                       <details
                         key={item.to}
-                        open={expandedGroups[itemExpandKey] ?? location.pathname.startsWith(item.to)}
+                        open={
+                          expandedGroups[itemExpandKey] ?? location.pathname.startsWith(item.to)
+                        }
                         onToggle={(event) => {
                           const open = event.currentTarget.open;
                           setExpandedGroups((current) => ({ ...current, [itemExpandKey]: open }));
@@ -1583,24 +1660,26 @@ export function HomePage() {
               planFeatureEnabled('loyalty.enabled') && (
                 <LoyaltyModule tenantPublicId={selectedTenant} canManage={canManageLoyalty} />
               )}
-            {isRoute('/app/produtos') && canReadProducts && !planFeatureEnabled('products.enabled') && (
-              <section className="sessions-panel">
-                <PageHeader
-                  eyebrow="Catálogo"
-                  title="Produtos"
-                  description="Controle de produtos e estoque não está incluído no seu plano atual."
-                  actions={
-                    <button
-                      className="primary-button"
-                      type="button"
-                      onClick={() => void navigate('/app/plano')}
-                    >
-                      Ver planos
-                    </button>
-                  }
-                />
-              </section>
-            )}
+            {isRoute('/app/produtos') &&
+              canReadProducts &&
+              !planFeatureEnabled('products.enabled') && (
+                <section className="sessions-panel">
+                  <PageHeader
+                    eyebrow="Catálogo"
+                    title="Produtos"
+                    description="Controle de produtos e estoque não está incluído no seu plano atual."
+                    actions={
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={() => void navigate('/app/plano')}
+                      >
+                        Ver planos
+                      </button>
+                    }
+                  />
+                </section>
+              )}
             {isRoute('/app/produtos') &&
               canReadProducts &&
               planFeatureEnabled('products.enabled') && (
@@ -1613,10 +1692,7 @@ export function HomePage() {
             {isRoute('/app/produtos/estoque') &&
               canReadProducts &&
               planFeatureEnabled('products.enabled') && (
-                <ProductStockModule
-                  tenantPublicId={selectedTenant}
-                  canManage={canManageProducts}
-                />
+                <ProductStockModule tenantPublicId={selectedTenant} canManage={canManageProducts} />
               )}
             {isRoute('/app/produtos/movimentacoes') &&
               canReadProducts &&
@@ -1765,6 +1841,21 @@ export function HomePage() {
                 canCreateAppointments={canCreateAppointments}
               />
             )}
+            {location.pathname.startsWith('/app/assinaturas') && canViewCustomerMemberships && (
+              <CustomerMembershipPlansModule
+                tenantPublicId={selectedTenant}
+                canManage={canManageCustomerMemberships}
+                section={
+                  isRoute('/app/assinaturas/planos')
+                    ? 'plans'
+                    : isRoute('/app/assinaturas/assinantes')
+                      ? 'subscribers'
+                      : isRoute('/app/assinaturas/consumo')
+                        ? 'usage'
+                        : 'overview'
+                }
+              />
+            )}
             {location.pathname.startsWith('/app/clientes/') &&
               !isRoute(
                 '/app/clientes/recuperacao',
@@ -1900,7 +1991,10 @@ export function HomePage() {
       {isRoute('/app/configuracoes/emails') && canViewNotifications && (
         <ErrorBoundary key={selectedTenant}>
           <Suspense fallback={<p>Carregando E-mails automáticos…</p>}>
-            <EmailTemplateModule tenantPublicId={selectedTenant} canManage={canManageNotifications} />
+            <EmailTemplateModule
+              tenantPublicId={selectedTenant}
+              canManage={canManageNotifications}
+            />
           </Suspense>
         </ErrorBoundary>
       )}

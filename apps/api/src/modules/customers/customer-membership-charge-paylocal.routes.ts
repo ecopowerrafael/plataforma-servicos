@@ -25,6 +25,7 @@ export const customerMembershipChargePayLocalRoutes: FastifyPluginAsyncZod<Optio
     { schema: { params: ChargeParamSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'payment.manage');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
 
       const charge = await repository.find(request.tenant.id, request.params.chargePublicId);
       if (charge === null) {

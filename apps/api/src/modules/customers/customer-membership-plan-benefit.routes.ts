@@ -30,6 +30,7 @@ export const customerMembershipPlanBenefitRoutes: FastifyPluginAsyncZod<Options>
     { schema: { params: PlanParamSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.read');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       return service.list(request.tenant.id, request.params.planPublicId);
     },
   );
@@ -39,19 +40,20 @@ export const customerMembershipPlanBenefitRoutes: FastifyPluginAsyncZod<Options>
     { schema: { params: UuidParamSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.read');
-      return service.get(
-        request.tenant.id,
-        request.params.planPublicId,
-        request.params.publicId,
-      );
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
+      return service.get(request.tenant.id, request.params.planPublicId, request.params.publicId);
     },
   );
 
-  app.post<{ Params: z.infer<typeof PlanParamSchema>; Body: z.infer<typeof CreateCustomerMembershipBenefitRequestSchema> }>(
+  app.post<{
+    Params: z.infer<typeof PlanParamSchema>;
+    Body: z.infer<typeof CreateCustomerMembershipBenefitRequestSchema>;
+  }>(
     '/tenant/customer-membership-plans/:planPublicId/benefits',
     { schema: { params: PlanParamSchema, body: CreateCustomerMembershipBenefitRequestSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       if (!request.tenant.membership.isOwner)
         throw new AppError({
           code: 'PERMISSION_DENIED',
@@ -65,11 +67,15 @@ export const customerMembershipPlanBenefitRoutes: FastifyPluginAsyncZod<Options>
     },
   );
 
-  app.patch<{ Params: z.infer<typeof UuidParamSchema>; Body: z.infer<typeof UpdateCustomerMembershipBenefitRequestSchema> }>(
+  app.patch<{
+    Params: z.infer<typeof UuidParamSchema>;
+    Body: z.infer<typeof UpdateCustomerMembershipBenefitRequestSchema>;
+  }>(
     '/tenant/customer-membership-plans/:planPublicId/benefits/:publicId',
     { schema: { params: UuidParamSchema, body: UpdateCustomerMembershipBenefitRequestSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       if (!request.tenant.membership.isOwner)
         throw new AppError({
           code: 'PERMISSION_DENIED',
@@ -94,6 +100,7 @@ export const customerMembershipPlanBenefitRoutes: FastifyPluginAsyncZod<Options>
     { schema: { params: UuidParamSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       if (!request.tenant.membership.isOwner)
         throw new AppError({
           code: 'PERMISSION_DENIED',

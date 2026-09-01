@@ -28,6 +28,7 @@ export const customerMembershipPlanRoutes: FastifyPluginAsyncZod<Options> = asyn
     '/tenant/customer-membership-plans',
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.read');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       return service.list(request.tenant.id);
     },
   );
@@ -37,6 +38,7 @@ export const customerMembershipPlanRoutes: FastifyPluginAsyncZod<Options> = asyn
     { schema: { params: UuidParamSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.read');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       return service.get(request.tenant.id, request.params.publicId);
     },
   );
@@ -46,6 +48,7 @@ export const customerMembershipPlanRoutes: FastifyPluginAsyncZod<Options> = asyn
     { schema: { body: CreateCustomerMembershipPlanRequestSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       if (!request.tenant.membership.isOwner)
         throw new AppError({
           code: 'PERMISSION_DENIED',
@@ -59,11 +62,15 @@ export const customerMembershipPlanRoutes: FastifyPluginAsyncZod<Options> = asyn
     },
   );
 
-  app.patch<{ Params: z.infer<typeof UuidParamSchema>; Body: z.infer<typeof UpdateCustomerMembershipPlanRequestSchema> }>(
+  app.patch<{
+    Params: z.infer<typeof UuidParamSchema>;
+    Body: z.infer<typeof UpdateCustomerMembershipPlanRequestSchema>;
+  }>(
     '/tenant/customer-membership-plans/:publicId',
     { schema: { params: UuidParamSchema, body: UpdateCustomerMembershipPlanRequestSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       if (!request.tenant.membership.isOwner)
         throw new AppError({
           code: 'PERMISSION_DENIED',
@@ -76,5 +83,4 @@ export const customerMembershipPlanRoutes: FastifyPluginAsyncZod<Options> = asyn
       });
     },
   );
-
 };

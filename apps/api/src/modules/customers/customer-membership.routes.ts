@@ -16,10 +16,7 @@ interface Options {
 const UuidParamSchema = z.object({ publicId: z.uuid() }).strict();
 const CreateMembershipSchema = z.object({ planPublicId: z.uuid() }).strict();
 
-export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (
-  app,
-  options,
-) => {
+export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (app, options) => {
   const repository = new CustomerMembershipRepository(options.client);
   const chargeRepository = new CustomerMembershipChargeRepository(options.client);
   const chargeService = new CustomerMembershipChargeService(chargeRepository);
@@ -30,20 +27,15 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (
     { schema: { params: UuidParamSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.read');
-      const customer = await repository.findCustomer(
-        request.tenant.id,
-        request.params.publicId,
-      );
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
+      const customer = await repository.findCustomer(request.tenant.id, request.params.publicId);
       if (customer === null)
         throw new AppError({
           code: 'CUSTOMER_NOT_FOUND',
           message: 'Cliente não encontrado.',
           statusCode: 404,
         });
-      const membership = await repository.findByCustomer(
-        request.tenant.id,
-        customer.id,
-      );
+      const membership = await repository.findByCustomer(request.tenant.id, customer.id);
       if (membership === null)
         throw new AppError({
           code: 'CUSTOMER_MEMBERSHIP_NOT_FOUND',
@@ -67,11 +59,15 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (
     },
   );
 
-  app.post<{ Params: z.infer<typeof UuidParamSchema>; Body: z.infer<typeof CreateMembershipSchema> }>(
+  app.post<{
+    Params: z.infer<typeof UuidParamSchema>;
+    Body: z.infer<typeof CreateMembershipSchema>;
+  }>(
     '/tenant/customers/:publicId/membership',
     { schema: { params: UuidParamSchema, body: CreateMembershipSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       const membership = await service.create(
         request.tenant.id,
         request.params.publicId,
@@ -97,5 +93,4 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (
       };
     },
   );
-
 };

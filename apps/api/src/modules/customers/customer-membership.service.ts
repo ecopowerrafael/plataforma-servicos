@@ -47,12 +47,7 @@ export class CustomerMembershipService {
     private readonly chargeService?: CustomerMembershipChargeService,
   ) {}
 
-  public async create(
-    tenantId: bigint,
-    customerId: string,
-    planPublicId: string,
-    actor: Actor,
-  ) {
+  public async create(tenantId: bigint, customerId: string, planPublicId: string, actor: Actor) {
     const plan = await this.repository.findPlan(tenantId, planPublicId);
     if (plan === null) throw planNotFound();
 
@@ -84,15 +79,15 @@ export class CustomerMembershipService {
         const now = new Date();
         const periodEnd = this.calculatePeriodEnd(now, plan);
 
-        // Capture plan snapshot with immutable plan configuration
-        // Note: servicePublicId populated later via service lookup if needed
+        // Capture immutable plan configuration for this charge/cycle. BigInt
+        // identifiers are serialized as decimal strings to avoid precision loss.
         const planSnapshot = {
           planPublicId: plan.publicId,
           planName: plan.name,
           priceCents: Number(plan.priceCents),
           billingInterval: plan.billingInterval,
           benefits: plan.benefits.map((b) => ({
-            serviceId: Number(b.serviceId),
+            serviceId: b.serviceId.toString(),
             type: b.type,
             quantityPerCycle: b.quantityPerCycle,
             discountPercent: b.discountPercent,
@@ -153,7 +148,6 @@ export class CustomerMembershipService {
     await this.repository.audit(publicId, tenantId, actor.userId, actor.sessionId, 'activate');
     return updated;
   }
-
 
   private calculatePeriodEnd(start: Date, plan: { billingInterval?: string }): Date {
     const end = new Date(start);

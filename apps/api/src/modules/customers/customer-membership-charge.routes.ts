@@ -33,6 +33,7 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
     { schema: { params: UuidParamSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.read');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       const charges = await service.list(request.tenant.id, request.params.membershipPublicId);
       return {
         items: charges.map((c) => ({
@@ -55,6 +56,7 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
     { schema: { params: ChargeUuidParamSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.read');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       const charge = await service.get(request.tenant.id, request.params.publicId);
       return {
         publicId: charge.publicId,
@@ -78,6 +80,7 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
     { schema: { params: ChargeUuidParamSchema, body: ConfirmPaymentSchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'payment.manage');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
       const charge = await service.get(request.tenant.id, request.params.publicId);
 
       if (charge.status === 'PAID') {

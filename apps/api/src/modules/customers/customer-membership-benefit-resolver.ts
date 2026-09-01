@@ -64,11 +64,7 @@ export class CustomerMembershipBenefitResolver {
 
     // Find paid charge for current cycle
     const now = new Date();
-    const charge = await this.chargeRepository.findCurrentPaid(
-      tenantId,
-      membership.id,
-      now,
-    );
+    const charge = await this.chargeRepository.findCurrentPaid(tenantId, membership.id, now);
 
     if (!charge) {
       return {
@@ -81,9 +77,10 @@ export class CustomerMembershipBenefitResolver {
     }
 
     // Parse snapshot
-    const snapshot = typeof charge.planSnapshot === 'string'
-      ? JSON.parse(charge.planSnapshot)
-      : charge.planSnapshot;
+    const snapshot =
+      typeof charge.planSnapshot === 'string'
+        ? JSON.parse(charge.planSnapshot)
+        : charge.planSnapshot;
 
     if (!snapshot || !Array.isArray(snapshot.benefits)) {
       return {
@@ -97,7 +94,7 @@ export class CustomerMembershipBenefitResolver {
 
     // Find benefit for this service in snapshot
     const benefit = snapshot.benefits.find(
-      (b: any) => Number(b.serviceId) === Number(serviceId),
+      (b: any) => b.serviceId !== undefined && BigInt(String(b.serviceId)) === serviceId,
     );
 
     if (!benefit) {
@@ -146,10 +143,7 @@ export class CustomerMembershipBenefitResolver {
     // Handle QUANTITY
     if (benefitType === BenefitType.QUANTITY) {
       const limit = benefit.quantityPerCycle ?? 0;
-      const usage = await this.usageRepository.countByChargeAndService(
-        charge.id,
-        serviceId,
-      );
+      const usage = await this.usageRepository.countByChargeAndService(charge.id, serviceId);
 
       const consumed = usage.consumed;
       const reserved = usage.reserved;

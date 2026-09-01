@@ -17,25 +17,70 @@ export const CustomerMembershipBenefitPublicSchema = z.object({
   servicePublicId: z.string().uuid(),
   serviceName: z.string(),
   type: MembershipBenefitTypeSchema,
-  quantityPerCycle: z.number().int().nonnegative().nullable(),
-  discountPercent: z.number().int().min(0).max(100).nullable(),
+  quantityPerCycle: z.number().int().positive().nullable(),
+  discountPercent: z.number().int().min(1).max(100).nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
-export type CustomerMembershipBenefitPublic = z.infer<
-  typeof CustomerMembershipBenefitPublicSchema
->;
+export type CustomerMembershipBenefitPublic = z.infer<typeof CustomerMembershipBenefitPublicSchema>;
 
 export const CustomerMembershipBenefitListResponseSchema = z.object({
   items: z.array(CustomerMembershipBenefitPublicSchema),
 });
 
-export const CreateCustomerMembershipBenefitRequestSchema = z.object({
-  servicePublicId: z.string().uuid(),
-  type: MembershipBenefitTypeSchema,
-  quantityPerCycle: z.number().int().nonnegative().nullable().optional(),
-  discountPercent: z.number().int().min(0).max(100).nullable().optional(),
-});
+export const CreateCustomerMembershipBenefitRequestSchema = z
+  .object({
+    servicePublicId: z.string().uuid(),
+    type: MembershipBenefitTypeSchema,
+    quantityPerCycle: z.number().int().positive().nullable().optional(),
+    discountPercent: z.number().int().min(1).max(100).nullable().optional(),
+  })
+  .superRefine((benefit, context) => {
+    if (benefit.type === 'QUANTITY') {
+      if (benefit.quantityPerCycle === null || benefit.quantityPerCycle === undefined)
+        context.addIssue({
+          code: 'custom',
+          path: ['quantityPerCycle'],
+          message: 'Informe uma quantidade maior que zero.',
+        });
+      if (benefit.discountPercent !== null && benefit.discountPercent !== undefined)
+        context.addIssue({
+          code: 'custom',
+          path: ['discountPercent'],
+          message: 'Benefício por quantidade não aceita desconto.',
+        });
+    }
+
+    if (benefit.type === 'UNLIMITED') {
+      if (benefit.quantityPerCycle !== null && benefit.quantityPerCycle !== undefined)
+        context.addIssue({
+          code: 'custom',
+          path: ['quantityPerCycle'],
+          message: 'Benefício ilimitado não aceita quantidade.',
+        });
+      if (benefit.discountPercent !== null && benefit.discountPercent !== undefined)
+        context.addIssue({
+          code: 'custom',
+          path: ['discountPercent'],
+          message: 'Benefício ilimitado não aceita desconto.',
+        });
+    }
+
+    if (benefit.type === 'DISCOUNT') {
+      if (benefit.discountPercent === null || benefit.discountPercent === undefined)
+        context.addIssue({
+          code: 'custom',
+          path: ['discountPercent'],
+          message: 'Informe um desconto entre 1% e 100%.',
+        });
+      if (benefit.quantityPerCycle !== null && benefit.quantityPerCycle !== undefined)
+        context.addIssue({
+          code: 'custom',
+          path: ['quantityPerCycle'],
+          message: 'Benefício com desconto não aceita quantidade.',
+        });
+    }
+  });
 export type CreateCustomerMembershipBenefitRequest = z.infer<
   typeof CreateCustomerMembershipBenefitRequestSchema
 >;
@@ -112,19 +157,11 @@ export type CustomerMembershipPublic = z.infer<typeof CustomerMembershipPublicSc
 export const CreateCustomerMembershipRequestSchema = z.object({
   planPublicId: z.string().uuid(),
 });
-export type CreateCustomerMembershipRequest = z.infer<
-  typeof CreateCustomerMembershipRequestSchema
->;
+export type CreateCustomerMembershipRequest = z.infer<typeof CreateCustomerMembershipRequestSchema>;
 
 // Charge
-export const CustomerMembershipChargeStatusSchema = z.enum([
-  'PENDING',
-  'PAID',
-  'FAILED',
-]);
-export type CustomerMembershipChargeStatus = z.infer<
-  typeof CustomerMembershipChargeStatusSchema
->;
+export const CustomerMembershipChargeStatusSchema = z.enum(['PENDING', 'PAID', 'FAILED']);
+export type CustomerMembershipChargeStatus = z.infer<typeof CustomerMembershipChargeStatusSchema>;
 
 export const CustomerMembershipChargePublicSchema = z.object({
   publicId: z.string().uuid(),
@@ -137,9 +174,7 @@ export const CustomerMembershipChargePublicSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
-export type CustomerMembershipChargePublic = z.infer<
-  typeof CustomerMembershipChargePublicSchema
->;
+export type CustomerMembershipChargePublic = z.infer<typeof CustomerMembershipChargePublicSchema>;
 
 export const CustomerMembershipChargeListResponseSchema = z.object({
   items: z.array(CustomerMembershipChargePublicSchema),

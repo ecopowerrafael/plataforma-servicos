@@ -16,8 +16,12 @@ const ForgotPasswordPage = lazy(async () => ({
   default: (await import('./routes/ForgotPasswordPage.js')).ForgotPasswordPage,
 }));
 const HomePage = lazy(async () => ({ default: (await import('./routes/HomePage.js')).HomePage }));
-const LoginPage = lazy(async () => ({ default: (await import('./routes/LoginPage.js')).LoginPage }));
-const NotFoundPage = lazy(async () => ({ default: (await import('./routes/NotFoundPage.js')).NotFoundPage }));
+const LoginPage = lazy(async () => ({
+  default: (await import('./routes/LoginPage.js')).LoginPage,
+}));
+const NotFoundPage = lazy(async () => ({
+  default: (await import('./routes/NotFoundPage.js')).NotFoundPage,
+}));
 const PlatformPageRebuild = lazy(async () => ({
   default: (await import('./routes/PlatformPageRebuild.js')).PlatformPageRebuild,
 }));
@@ -70,42 +74,135 @@ const ProfessionalPage = lazy(async () => {
   const module = await import('./routes/ProfessionalPage.js');
   return { default: module.ProfessionalPage };
 });
-const SchedulingSystemPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SchedulingSystemPage }));
-const AISchedulingPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AISchedulingPage }));
-const SalonSystemPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SalonSystemPage }));
-const SalonCRMPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SalonCRMPage }));
-const BookingAppPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BookingAppPage }));
-const WhatsAppBookingPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).WhatsAppBookingPage }));
-const WhatsAppChatbotPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).WhatsAppChatbotPage }));
-const VirtualAssistantPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).VirtualAssistantPage }));
-const OnlineAgendaPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).OnlineAgendaPage }));
-const OnlineSchedulingSystemPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).OnlineSchedulingSystemPage }));
-const WhatsAppReminderPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).WhatsAppReminderPage }));
-const SalonAppPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SalonAppPage }));
-const SalonOnlineAgendaPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SalonOnlineAgendaPage }));
-const HairdresserAppPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).HairdresserAppPage }));
-const HairdresserSystemPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).HairdresserSystemPage }));
-const SalonCommissionPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SalonCommissionPage }));
-const SalonFinancePage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SalonFinancePage }));
-const SalonLoyaltyPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SalonLoyaltyPage }));
-const SalonVirtualReceptionistPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).SalonVirtualReceptionistPage }));
-const ReduceNoShowsPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).ReduceNoShowsPage }));
-const RecoverClientsPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).RecoverClientsPage }));
-const FillCancelledSlotsPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).FillCancelledSlotsPage }));
-const OrganizeSalonAgendaPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).OrganizeSalonAgendaPage }));
-const ControlHairdresserCommissionPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).ControlHairdresserCommissionPage }));
-const AutomateWhatsAppBookingPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AutomateWhatsAppBookingPage }));
-const ClientRecoverySystemPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).ClientRecoverySystemPage }));
-const FillCancelledSlotsSystemPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).FillCancelledSlotsSystemPage }));
-const BarberSystemPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BarberSystemPage }));
-const BarberAppPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BarberAppPage }));
-const BarberCRMPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BarberCRMPage }));
-const BarberAgendaPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BarberAgendaPage }));
-const BarberAIPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BarberAIPage }));
-const BarberWhatsAppPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BarberWhatsAppPage }));
-const BarberFinancePage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BarberFinancePage }));
-const BarberLoyaltyPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).BarberLoyaltyPage }));
-const AestheticClinicSystemPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AestheticClinicSystemPage })); const AestheticCRMPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AestheticCRMPage })); const AestheticBookingPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AestheticBookingPage })); const AestheticAppPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AestheticAppPage })); const AestheticTreatmentsPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AestheticTreatmentsPage })); const AestheticSessionsPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AestheticSessionsPage })); const AestheticQuotePage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AestheticQuotePage })); const AestheticReturnPage = lazy(async () => ({ default: (await import('./routes/SeoLandingPages.js')).AestheticReturnPage }));
+const SchedulingSystemPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SchedulingSystemPage,
+}));
+const AISchedulingPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AISchedulingPage,
+}));
+const SalonSystemPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SalonSystemPage,
+}));
+const SalonCRMPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SalonCRMPage,
+}));
+const BookingAppPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BookingAppPage,
+}));
+const WhatsAppBookingPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).WhatsAppBookingPage,
+}));
+const WhatsAppChatbotPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).WhatsAppChatbotPage,
+}));
+const VirtualAssistantPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).VirtualAssistantPage,
+}));
+const OnlineAgendaPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).OnlineAgendaPage,
+}));
+const OnlineSchedulingSystemPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).OnlineSchedulingSystemPage,
+}));
+const WhatsAppReminderPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).WhatsAppReminderPage,
+}));
+const SalonAppPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SalonAppPage,
+}));
+const SalonOnlineAgendaPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SalonOnlineAgendaPage,
+}));
+const HairdresserAppPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).HairdresserAppPage,
+}));
+const HairdresserSystemPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).HairdresserSystemPage,
+}));
+const SalonCommissionPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SalonCommissionPage,
+}));
+const SalonFinancePage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SalonFinancePage,
+}));
+const SalonLoyaltyPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SalonLoyaltyPage,
+}));
+const SalonVirtualReceptionistPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).SalonVirtualReceptionistPage,
+}));
+const ReduceNoShowsPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).ReduceNoShowsPage,
+}));
+const RecoverClientsPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).RecoverClientsPage,
+}));
+const FillCancelledSlotsPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).FillCancelledSlotsPage,
+}));
+const OrganizeSalonAgendaPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).OrganizeSalonAgendaPage,
+}));
+const ControlHairdresserCommissionPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).ControlHairdresserCommissionPage,
+}));
+const AutomateWhatsAppBookingPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AutomateWhatsAppBookingPage,
+}));
+const ClientRecoverySystemPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).ClientRecoverySystemPage,
+}));
+const FillCancelledSlotsSystemPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).FillCancelledSlotsSystemPage,
+}));
+const BarberSystemPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BarberSystemPage,
+}));
+const BarberAppPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BarberAppPage,
+}));
+const BarberCRMPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BarberCRMPage,
+}));
+const BarberAgendaPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BarberAgendaPage,
+}));
+const BarberAIPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BarberAIPage,
+}));
+const BarberWhatsAppPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BarberWhatsAppPage,
+}));
+const BarberFinancePage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BarberFinancePage,
+}));
+const BarberLoyaltyPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).BarberLoyaltyPage,
+}));
+const AestheticClinicSystemPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AestheticClinicSystemPage,
+}));
+const AestheticCRMPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AestheticCRMPage,
+}));
+const AestheticBookingPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AestheticBookingPage,
+}));
+const AestheticAppPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AestheticAppPage,
+}));
+const AestheticTreatmentsPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AestheticTreatmentsPage,
+}));
+const AestheticSessionsPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AestheticSessionsPage,
+}));
+const AestheticQuotePage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AestheticQuotePage,
+}));
+const AestheticReturnPage = lazy(async () => ({
+  default: (await import('./routes/SeoLandingPages.js')).AestheticReturnPage,
+}));
 
 function MarketingPageFallback() {
   return (
@@ -137,7 +234,10 @@ export const router = createBrowserRouter([
   { path: '/encontre', element: lazyPage(DirectoryHomePage) },
   { path: '/encontre/:categorySlug', element: lazyPage(DirectoryCategoryPage) },
   { path: '/encontre/:categorySlug/:citySlug', element: lazyPage(DirectoryCityPage) },
-  { path: '/encontre/:categorySlug/:citySlug/:businessSlug', element: lazyPage(DirectoryBusinessPage) },
+  {
+    path: '/encontre/:categorySlug/:citySlug/:businessSlug',
+    element: lazyPage(DirectoryBusinessPage),
+  },
   { path: '/sistema-de-agendamento', element: lazyPage(SchedulingSystemPage) },
   { path: '/ia-para-agendamento', element: lazyPage(AISchedulingPage) },
   { path: '/sistema-para-salao-de-beleza', element: lazyPage(SalonSystemPage) },
@@ -156,24 +256,56 @@ export const router = createBrowserRouter([
   { path: '/sistema-de-comissao-para-salao', element: lazyPage(SalonCommissionPage) },
   { path: '/controle-financeiro-para-salao-de-beleza', element: lazyPage(SalonFinancePage) },
   { path: '/programa-de-fidelidade-para-salao-de-beleza', element: lazyPage(SalonLoyaltyPage) },
-  { path: '/recepcionista-virtual-para-salao-de-beleza', element: lazyPage(SalonVirtualReceptionistPage) },
+  {
+    path: '/recepcionista-virtual-para-salao-de-beleza',
+    element: lazyPage(SalonVirtualReceptionistPage),
+  },
   { path: '/como-reduzir-faltas-no-salao', element: lazyPage(ReduceNoShowsPage) },
   { path: '/como-recuperar-clientes-de-salao', element: lazyPage(RecoverClientsPage) },
   { path: '/como-preencher-horarios-cancelados', element: lazyPage(FillCancelledSlotsPage) },
   { path: '/como-organizar-agenda-de-salao', element: lazyPage(OrganizeSalonAgendaPage) },
-  { path: '/como-controlar-comissao-de-cabeleireiro', element: lazyPage(ControlHairdresserCommissionPage) },
-  { path: '/como-automatizar-agendamento-pelo-whatsapp', element: lazyPage(AutomateWhatsAppBookingPage) },
+  {
+    path: '/como-controlar-comissao-de-cabeleireiro',
+    element: lazyPage(ControlHairdresserCommissionPage),
+  },
+  {
+    path: '/como-automatizar-agendamento-pelo-whatsapp',
+    element: lazyPage(AutomateWhatsAppBookingPage),
+  },
   { path: '/sistema-para-recuperar-clientes', element: lazyPage(ClientRecoverySystemPage) },
-  { path: '/sistema-para-preencher-horarios-cancelados', element: lazyPage(FillCancelledSlotsSystemPage) },
-  { path: '/sistema-para-barbearia', element: lazyPage(BarberSystemPage) }, { path: '/aplicativo-para-barbearia', element: lazyPage(BarberAppPage) }, { path: '/crm-para-barbearia', element: lazyPage(BarberCRMPage) }, { path: '/agenda-online-para-barbearia', element: lazyPage(BarberAgendaPage) }, { path: '/ia-para-barbearia', element: lazyPage(BarberAIPage) }, { path: '/whatsapp-para-barbearia', element: lazyPage(BarberWhatsAppPage) }, { path: '/controle-financeiro-para-barbearia', element: lazyPage(BarberFinancePage) }, { path: '/programa-de-fidelidade-para-barbearia', element: lazyPage(BarberLoyaltyPage) },
-  { path: '/sistema-para-clinica-de-estetica', element: lazyPage(AestheticClinicSystemPage) }, { path: '/crm-para-clinica-de-estetica', element: lazyPage(AestheticCRMPage) }, { path: '/agendamento-para-estetica', element: lazyPage(AestheticBookingPage) }, { path: '/aplicativo-para-estetica', element: lazyPage(AestheticAppPage) }, { path: '/sistema-para-tratamentos-esteticos', element: lazyPage(AestheticTreatmentsPage) }, { path: '/sistema-para-sessoes-de-estetica', element: lazyPage(AestheticSessionsPage) }, { path: '/orcamento-para-clinica-de-estetica', element: lazyPage(AestheticQuotePage) }, { path: '/controle-de-retorno-de-clientes', element: lazyPage(AestheticReturnPage) },
+  {
+    path: '/sistema-para-preencher-horarios-cancelados',
+    element: lazyPage(FillCancelledSlotsSystemPage),
+  },
+  { path: '/sistema-para-barbearia', element: lazyPage(BarberSystemPage) },
+  { path: '/aplicativo-para-barbearia', element: lazyPage(BarberAppPage) },
+  { path: '/crm-para-barbearia', element: lazyPage(BarberCRMPage) },
+  { path: '/agenda-online-para-barbearia', element: lazyPage(BarberAgendaPage) },
+  { path: '/ia-para-barbearia', element: lazyPage(BarberAIPage) },
+  { path: '/whatsapp-para-barbearia', element: lazyPage(BarberWhatsAppPage) },
+  { path: '/controle-financeiro-para-barbearia', element: lazyPage(BarberFinancePage) },
+  { path: '/programa-de-fidelidade-para-barbearia', element: lazyPage(BarberLoyaltyPage) },
+  { path: '/sistema-para-clinica-de-estetica', element: lazyPage(AestheticClinicSystemPage) },
+  { path: '/crm-para-clinica-de-estetica', element: lazyPage(AestheticCRMPage) },
+  { path: '/agendamento-para-estetica', element: lazyPage(AestheticBookingPage) },
+  { path: '/aplicativo-para-estetica', element: lazyPage(AestheticAppPage) },
+  { path: '/sistema-para-tratamentos-esteticos', element: lazyPage(AestheticTreatmentsPage) },
+  { path: '/sistema-para-sessoes-de-estetica', element: lazyPage(AestheticSessionsPage) },
+  { path: '/orcamento-para-clinica-de-estetica', element: lazyPage(AestheticQuotePage) },
+  { path: '/controle-de-retorno-de-clientes', element: lazyPage(AestheticReturnPage) },
   { path: '/login', element: lazyPage(LoginPage) },
   { path: '/cadastro', element: lazyPage(RegisterPage) },
   { path: '/app', element: lazyPage(HomePage) },
   { path: '/public/:slug/profissional/login', element: lazyPage(ProfessionalTenantLoginPage) },
   { path: '/public/:slug/profissional', element: lazyPage(ProfessionalAppPage) },
-  { path: '/public/:slug/profissional/comissoes', element: lazyPage(() => <ProfessionalAppPage section="commissions" />) },
-  { path: '/public/:slug/profissional/perfil', element: lazyPage(() => <ProfessionalAppPage section="profile" />) },
+  {
+    path: '/public/:slug/profissional/comissoes',
+    element: lazyPage(() => <ProfessionalAppPage section="commissions" />),
+  },
+  {
+    path: '/public/:slug/profissional/perfil',
+    element: lazyPage(() => <ProfessionalAppPage section="profile" />),
+  },
   { path: '/app/agenda', element: lazyPage(HomePage) },
   { path: '/app/agenda/minha', element: lazyPage(HomePage) },
   { path: '/app/agenda/agendamentos', element: lazyPage(HomePage) },
@@ -184,6 +316,10 @@ export const router = createBrowserRouter([
   { path: '/app/clientes/recuperacao', element: lazyPage(HomePage) },
   { path: '/app/clientes/fidelidade', element: lazyPage(HomePage) },
   { path: '/app/clientes/cupons', element: lazyPage(HomePage) },
+  { path: '/app/assinaturas', element: lazyPage(HomePage) },
+  { path: '/app/assinaturas/planos', element: lazyPage(HomePage) },
+  { path: '/app/assinaturas/assinantes', element: lazyPage(HomePage) },
+  { path: '/app/assinaturas/consumo', element: lazyPage(HomePage) },
   { path: '/app/servicos', element: lazyPage(HomePage) },
   { path: '/app/servicos/novo', element: lazyPage(HomePage) },
   { path: '/app/servicos/:id', element: lazyPage(HomePage) },

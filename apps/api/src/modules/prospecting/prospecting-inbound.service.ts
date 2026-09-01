@@ -333,7 +333,7 @@ export class ProspectingInboundService {
       normalizedPhone,
       leadPublicId: leadData.publicId,
       campaignPublicId: campaign?.publicId,
-      flowId: campaign?.flowId,
+      flowId: campaign?.flowId != null ? String(campaign.flowId) : null,
       campaignStatus: campaign?.status,
       result: 'LEAD_FOUND_PROCEEDING'
     });

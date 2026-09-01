@@ -1,9 +1,4 @@
-/**
- * DirectoryCityAggregate refresh function.
- *
- * Aggregates business data per city/category combination.
- * Called after business CREATE/UPDATE operations.
- */
+import { type PrismaClient } from '../../database-client/client.js';
 
 export interface CityAggregateData {
   businessCount: number;
@@ -14,7 +9,7 @@ export interface CityAggregateData {
 }
 
 export async function refreshDirectoryCityAggregate(
-  prisma: any,
+  prisma: PrismaClient,
   categoryId: bigint,
   citySlug: string
 ): Promise<void> {
@@ -35,20 +30,20 @@ export async function refreshDirectoryCityAggregate(
 
   // Calculate aggregates
   const businessCount = businesses.length;
-  const seoEligibleBusinessCount = businesses.filter((b: any) => b.seoEligible).length;
-  const whatsappCount = businesses.filter((b: any) => b.whatsapp).length;
+  const seoEligibleBusinessCount = businesses.filter((b) => b.seoEligible).length;
+  const whatsappCount = businesses.filter((b) => b.whatsapp).length;
 
   // Extract top neighborhoods (top 12)
   const neighborhoodCounts: Record<string, number> = {};
-  businesses.forEach((b: any) => {
+  businesses.forEach((b) => {
     if (b.neighborhood) {
       neighborhoodCounts[b.neighborhood] = (neighborhoodCounts[b.neighborhood] || 0) + 1;
     }
   });
 
   const topNeighborhoods = Object.entries(neighborhoodCounts)
-    .map(([name, count]: [string, number]) => ({ name, count }))
-    .sort((a: any, b: any) => b.count - a.count)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
     .slice(0, 12);
 
   // Determine if city aggregate is SEO eligible (>= 3 seo_eligible businesses)
@@ -58,7 +53,7 @@ export async function refreshDirectoryCityAggregate(
   const lastBusinessUpdatedAt =
     businesses.length > 0
       ? businesses.reduce(
-          (latest: any, b: any) => (b.updatedAt > latest ? b.updatedAt : latest),
+          (latest, b) => (b.updatedAt > latest ? b.updatedAt : latest),
           businesses[0]!.updatedAt,
         )
       : null;
@@ -66,7 +61,7 @@ export async function refreshDirectoryCityAggregate(
   // Upsert into DirectoryCityAggregate
   await prisma.directoryCityAggregate.upsert({
     where: {
-      udca_category_city: {
+      categoryId_citySlug: {
         categoryId,
         citySlug,
       },

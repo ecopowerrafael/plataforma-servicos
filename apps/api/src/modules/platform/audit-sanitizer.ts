@@ -21,7 +21,7 @@ export function sanitizeAuditValue(value: Prisma.JsonValue): Prisma.JsonValue {
 
 export function auditReadDetails(metadata: Prisma.JsonValue | null) {
   if (metadata === null || Array.isArray(metadata) || typeof metadata !== 'object') {
-    return { reason: null, metadata: metadata === null ? null : sanitizeAuditValue(metadata), before: null, after: null };
+    return { reason: null, metadata: null, before: null, after: null };
   }
   const sanitized = sanitizeAuditValue(metadata) as Prisma.JsonObject;
   const before: Prisma.JsonObject = {};
@@ -32,7 +32,7 @@ export function auditReadDetails(metadata: Prisma.JsonValue | null) {
   }
   return {
     reason: typeof sanitized.reason === 'string' ? sanitized.reason : null,
-    metadata: sanitized,
+    metadata: null,
     before: Object.keys(before).length > 0 ? before : null,
     after: Object.keys(after).length > 0 ? after : null,
   };

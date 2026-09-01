@@ -32,7 +32,7 @@ describe('refreshDirectoryCityAggregate', () => {
     expect(mockPrisma.directoryCityAggregate.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          udca_category_city: {
+          categoryId_citySlug: {
             categoryId,
             citySlug,
           },

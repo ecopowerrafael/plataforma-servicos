@@ -4,7 +4,7 @@ import {
   type CustomerMembershipPlanPublic,
 } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
@@ -18,13 +18,6 @@ interface Props {
 const money = (cents: number) =>
   (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-const debounce = (fn: () => void, delay: number) => {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  return () => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(fn, delay);
-  };
-};
 
 const statusOptions = [
   { value: 'PENDING', label: 'Pendente', color: 'orange' },
@@ -50,19 +43,17 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans }: 
   const [planFilter, setPlanFilter] = useState<string>('');
   const limit = 20;
 
-  // Debounce search input
-  const debouncedSearch = useMemo(
-    () =>
-      debounce(() => {
-        setSearchQuery(searchInput);
-        setPage(1);
-      }, 350),
-    [searchInput],
-  );
-
+  // Debounce search input with cleanup
   useEffect(() => {
-    debouncedSearch();
-  }, [searchInput, debouncedSearch]);
+    const timeout = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setPage(1);
+    }, 350);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [searchInput]);
 
   const subscribers = useQuery({
     queryKey: [

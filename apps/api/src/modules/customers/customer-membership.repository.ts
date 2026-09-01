@@ -17,7 +17,7 @@ export class CustomerMembershipRepository {
       limit: number;
       search?: string;
       planPublicId?: string;
-      status?: string;
+      status?: 'PENDING' | 'ACTIVE' | 'PAST_DUE' | 'PAUSED' | 'CANCELED';
     },
   ) {
     const skip = (options.page - 1) * options.limit;
@@ -39,8 +39,7 @@ export class CustomerMembershipRepository {
     }
 
     if (options.status) {
-      // Status is validated by Zod schema in routes before reaching here
-      where.status = { equals: options.status } as any;
+      where.status = options.status;
     }
 
     const [items, total] = await Promise.all([

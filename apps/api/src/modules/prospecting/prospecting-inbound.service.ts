@@ -167,54 +167,152 @@ export class ProspectingInboundService {
     });
 
     // Criar mensagem INBOUND
-    const message = await this.client.prospectingMessage.create({
-      data: {
-        publicId: require('node:crypto').randomUUID(),
-        campaignId: leadData.campaignId,
+    let message;
+    try {
+      console.log('[STAGE] INBOUND_MESSAGE_CREATE_START', {
         leadId: leadData.id,
-        direction: 'INBOUND',
-        status: 'RECEIVED',
-        body: (payload.body as string) || '',
-        externalMessageId: payload.externalMessageId || null,
-      },
-    });
+        campaignId: leadData.campaignId,
+        externalMessageId: payload.externalMessageId,
+        bodyLength: payload.body ? (payload.body as string).length : 0,
+      });
+
+      message = await this.client.prospectingMessage.create({
+        data: {
+          publicId: require('node:crypto').randomUUID(),
+          campaignId: leadData.campaignId,
+          leadId: leadData.id,
+          direction: 'INBOUND',
+          status: 'RECEIVED',
+          body: (payload.body as string) || '',
+          externalMessageId: payload.externalMessageId || null,
+        },
+      });
+
+      console.log('[STAGE] INBOUND_MESSAGE_CREATE_OK', {
+        messagePublicId: message.publicId,
+      });
+    } catch (error: any) {
+      console.error('[STAGE] INBOUND_MESSAGE_CREATE_FAILED', {
+        stage: 'prospectingMessage.create',
+        errorName: error?.name,
+        errorCode: error?.code,
+        errorMessage: error?.message,
+        prismaMeta: error?.meta ? JSON.stringify(error.meta) : undefined,
+        leadPublicId: leadData.publicId,
+        campaignId: leadData.campaignId,
+      });
+      throw error;
+    }
 
     // Atualizar Lead
     const now = new Date();
-    await this.client.prospectingLead.update({
-      where: { id: leadData.id },
-      data: {
-        lastInboundAt: now,
-        respondedAt: leadData.respondedAt || now,
-        status: 'RESPONDED',
-      },
-    });
+    try {
+      console.log('[STAGE] LEAD_RESPONDED_UPDATE_START', { leadId: leadData.id });
 
-    // Verificar pauseOnReply
-    const campaign = await this.client.prospectingCampaign.findUnique({
-      where: { id: leadData.campaignId },
-    });
-
-    if (campaign?.pauseOnReply) {
       await this.client.prospectingLead.update({
         where: { id: leadData.id },
-        data: { nextActionAt: null },
+        data: {
+          lastInboundAt: now,
+          respondedAt: leadData.respondedAt || now,
+          status: 'RESPONDED',
+        },
       });
+
+      console.log('[STAGE] LEAD_RESPONDED_UPDATE_OK');
+    } catch (error: any) {
+      console.error('[STAGE] LEAD_RESPONDED_UPDATE_FAILED', {
+        stage: 'prospectingLead.update(RESPONDED)',
+        errorName: error?.name,
+        errorCode: error?.code,
+        errorMessage: error?.message,
+        leadPublicId: leadData.publicId,
+      });
+      throw error;
+    }
+
+    // Verificar pauseOnReply
+    let campaign;
+    try {
+      console.log('[STAGE] CAMPAIGN_FETCH_START', { campaignId: leadData.campaignId });
+
+      campaign = await this.client.prospectingCampaign.findUnique({
+        where: { id: leadData.campaignId },
+      });
+
+      console.log('[STAGE] CAMPAIGN_FETCH_OK', {
+        campaignPublicId: campaign?.publicId,
+        pauseOnReply: campaign?.pauseOnReply,
+      });
+    } catch (error: any) {
+      console.error('[STAGE] CAMPAIGN_FETCH_FAILED', {
+        stage: 'prospectingCampaign.findUnique',
+        errorName: error?.name,
+        campaignId: leadData.campaignId,
+      });
+      throw error;
+    }
+
+    try {
+      console.log('[STAGE] PAUSE_ON_REPLY_START', { pauseOnReply: campaign?.pauseOnReply });
+
+      if (campaign?.pauseOnReply) {
+        await this.client.prospectingLead.update({
+          where: { id: leadData.id },
+          data: { nextActionAt: null },
+        });
+      }
+
+      console.log('[STAGE] PAUSE_ON_REPLY_OK');
+    } catch (error: any) {
+      console.error('[STAGE] PAUSE_ON_REPLY_FAILED', {
+        stage: 'prospectingLead.update(pauseOnReply)',
+        errorName: error?.name,
+        leadPublicId: leadData.publicId,
+      });
+      throw error;
     }
 
     // Criar human lock (automático de resposta inbound)
-    const lockMinutes = 60;
-    await this.client.prospectingLead.update({
-      where: { id: leadData.id },
-      data: {
-        humanLockUntil: new Date(now.getTime() + lockMinutes * 60_000),
-        humanLockReason: 'Resposta recebida do lead',
-        humanLockType: 'INBOUND_REPLY',
-      },
-    });
+    try {
+      console.log('[STAGE] HUMAN_LOCK_START');
+
+      const lockMinutes = 60;
+      await this.client.prospectingLead.update({
+        where: { id: leadData.id },
+        data: {
+          humanLockUntil: new Date(now.getTime() + lockMinutes * 60_000),
+          humanLockReason: 'Resposta recebida do lead',
+          humanLockType: 'INBOUND_REPLY',
+        },
+      });
+
+      console.log('[STAGE] HUMAN_LOCK_OK');
+    } catch (error: any) {
+      console.error('[STAGE] HUMAN_LOCK_FAILED', {
+        stage: 'prospectingLead.update(humanLock)',
+        errorName: error?.name,
+        leadPublicId: leadData.publicId,
+      });
+      throw error;
+    }
 
     // Verificar opt-out (tem prioridade sobre objection engine e flow engine)
-    const isOptOut = this.detectOptOut(payload.body as string);
+    let isOptOut = false;
+    try {
+      console.log('[STAGE] OPT_OUT_CHECK_START', { body: (payload.body as string).slice(0, 50) });
+
+      isOptOut = this.detectOptOut(payload.body as string);
+
+      console.log('[STAGE] OPT_OUT_CHECK_OK', { isOptOut });
+    } catch (error: any) {
+      console.error('[STAGE] OPT_OUT_CHECK_FAILED', {
+        stage: 'detectOptOut',
+        errorName: error?.name,
+        errorMessage: error?.message,
+      });
+      throw error;
+    }
+
     if (isOptOut) {
       await this.handleOptOut(leadData.id, leadData.campaignId, normalizedPhone);
       return {

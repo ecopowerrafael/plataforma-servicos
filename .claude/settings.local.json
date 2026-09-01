@@ -190,7 +190,8 @@
       "Bash(xargs grep -l \"retry\\\\|409\\\\|CONFLICT\")",
       "Bash(xargs grep -l \"configure\")",
       "Bash(head -670 apps/api/src/modules/platform/directory.routes.ts)",
-      "Bash(mv /tmp/directory.routes.tmp apps/api/src/modules/platform/directory.routes.ts)"
+      "Bash(mv /tmp/directory.routes.tmp apps/api/src/modules/platform/directory.routes.ts)",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")"
     ]
   }
 }

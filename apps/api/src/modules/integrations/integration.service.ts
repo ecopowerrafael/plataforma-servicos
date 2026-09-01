@@ -346,10 +346,29 @@ export class IntegrationService {
    */
   public async ingestWhatsappInbound(raw: unknown) {
     const event = normalizeWApiWebhook(raw);
+
+    // Log de diagnóstico do webhook recebido
+    console.log('[WebhookIngest]', {
+      eventType: event.eventType,
+      providerEvent: event.providerEvent,
+      messageType: event.messageType,
+      text: event.text ? event.text.slice(0, 50) : null,
+      phone: event.phone,
+      fromMe: event.fromMe,
+      selectedIndex: event.selectedIndex,
+      selectedDisplayText: event.selectedDisplayText,
+    });
+
     if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
 
     // ROTEAMENTO PROSPECTING: checar instância de Prospecting PRIMEIRO
     if (this.prospectingInbound) {
+      console.log('[WebhookRoute]', {
+        toProspecting: true,
+        normalizedEventType: event.eventType,
+        instanceId: event.instanceId,
+      });
+
       const prospectingResult = await this.prospectingInbound.processInbound({
         instanceId: event.instanceId || null,
         externalMessageId: event.externalMessageId || null,
@@ -366,6 +385,10 @@ export class IntegrationService {
       }
 
       // Se retornou handled=false, continuar para fluxo tenant normal
+      console.log('[WebhookRoute]', {
+        prospectingHandled: false,
+        prospectingReason: prospectingResult.reason,
+      });
     }
 
     // FLUXO TENANT: continuar com comportamento anterior

@@ -37,38 +37,60 @@ export class ProspectingInboundService {
    * Processa inbound recebido do webhook global.
    */
   public async processInbound(payload: ProspectingInboundPayload): Promise<ProspectingInboundResult> {
+    const trace = {
+      eventType: payload.eventType,
+      fromMe: payload.fromMe,
+      hasBody: !!payload.body,
+      body: typeof payload.body === 'string' ? payload.body.slice(0, 50) : payload.body,
+      fromPhone: payload.fromPhone,
+      instanceIdProvided: !!payload.instanceId,
+    };
+
     if (!this.client || !this.configService) {
+      console.log('[ProspectingInboundTrace]', { ...trace, result: 'SERVICE_NOT_CONFIGURED' });
       return { handled: false, reason: 'SERVICE_NOT_CONFIGURED' };
     }
 
     // Ignorar eventos que não são mensagens recebidas
     if (payload.fromMe === true) {
+      console.log('[ProspectingInboundTrace]', { ...trace, result: 'FROM_ME' });
       return { handled: false, reason: 'FROM_ME' };
     }
 
-    // Apenas 'message' é inbound recebido nesta etapa
-    if (payload.eventType !== 'message') {
+    // Aceitar MESSAGE_RECEIVED (texto normal) ou MESSAGE_ACTION (clique de botão)
+    if (payload.eventType !== 'MESSAGE_RECEIVED' && payload.eventType !== 'MESSAGE_ACTION') {
+      console.log('[ProspectingInboundTrace]', { ...trace, result: 'NOT_MESSAGE_EVENT' });
       return { handled: false, reason: 'NOT_MESSAGE_EVENT' };
     }
 
     // Corpo vazio ou sem texto
     if (!payload.body || (typeof payload.body === 'string' && payload.body.trim() === '')) {
+      console.log('[ProspectingInboundTrace]', { ...trace, result: 'EMPTY_BODY' });
       return { handled: false, reason: 'EMPTY_BODY' };
     }
 
     // Verificar se instanceId é da Prospecting
     const config = await this.configService.getConfig();
-    if (!config || config.instanceId !== payload.instanceId) {
+    const instanceMatch = config && config.instanceId === payload.instanceId;
+    if (!config || !instanceMatch) {
+      console.log('[ProspectingInboundTrace]', {
+        ...trace,
+        configExists: !!config,
+        configInstanceId: config?.instanceId,
+        result: 'INSTANCE_MISMATCH'
+      });
       return { handled: false, reason: 'INSTANCE_MISMATCH' };
     }
 
     // Normalizar telefone
     if (!payload.fromPhone) {
+      console.log('[ProspectingInboundTrace]', { ...trace, result: 'INVALID_PHONE' });
       return { handled: false, reason: 'INVALID_PHONE' };
     }
 
     const normalizedPhone = normalizeWhatsAppPhone(payload.fromPhone);
     if (!normalizedPhone) {
+      console.log('[ProspectingInboundTrace]', { ...trace, normalizeAttempt: payload.fromPhone, result: 'INVALID_PHONE' });
       return { handled: false, reason: 'INVALID_PHONE' };
     }
 
@@ -82,6 +104,7 @@ export class ProspectingInboundService {
       });
 
       if (existing) {
+        console.log('[ProspectingInboundTrace]', { ...trace, result: 'DUPLICATE_MESSAGE' });
         return { handled: true, reason: 'DUPLICATE_MESSAGE' };
       }
     }
@@ -89,6 +112,7 @@ export class ProspectingInboundService {
     // Encontrar Lead elegível
     const leadData = await this.findEligibleLead(normalizedPhone);
     if (!leadData) {
+      console.log('[ProspectingInboundTrace]', { ...trace, normalizedPhone, result: 'LEAD_NOT_FOUND' });
       return { handled: false, reason: 'LEAD_NOT_FOUND' };
     }
 
@@ -149,6 +173,18 @@ export class ProspectingInboundService {
         campaignPublicId: campaign?.publicId || '',
       };
     }
+
+    // Log de sucesso até aqui
+    console.log('[ProspectingInboundTrace]', {
+      eventType: payload.eventType,
+      fromMe: payload.fromMe,
+      normalizedPhone,
+      leadPublicId: leadData.publicId,
+      campaignPublicId: campaign?.publicId,
+      flowId: campaign?.flowId,
+      campaignStatus: campaign?.status,
+      result: 'LEAD_FOUND_PROCEEDING'
+    });
 
     // Flow Engine (se feature flag ativa e campaign possui flow)
     const flowEnabled = this.environment?.PROSPECTING_FLOW_ENABLED === true;

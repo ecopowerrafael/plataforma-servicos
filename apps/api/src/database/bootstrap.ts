@@ -509,73 +509,244 @@ async function seedProspectingFlows(
       publicId: randomUUID(),
       code: 'DIRECTORY_PUBLICATION',
       name: 'Divulgação de Estabelecimento',
-      description: 'Fluxo de autorização de divulgação e coleta de dados',
+      description: 'Fluxo profissional de prospecção com autorização, descoberta e apresentação',
       isActive: true,
     },
   });
 
+  // STEP 1: Abertura - Pedido de autorização
   const step1 = await transaction.prospectingFlowStep.create({
     data: {
       publicId: randomUUID(),
       flowId: flow.id,
-      name: 'Pedido de autorização',
-      message: 'Olá {{estabelecimento}}!\n\nGostaria de saber se você autoriza a divulgação do seu estabelecimento em nosso site.\n\nAproveitando, poderia confirmar se este endereço está correto?\n\n{{endereco}}',
+      name: 'Abertura - Autorização',
+      message: 'Olá! 👋\n\nEstamos atualizando nosso guia de estabelecimentos da região e gostaria de confirmar algumas informações do {{estabelecimento}}.\n\n📍 Endereço que temos:\n{{endereco}}\n\nPosso divulgar o estabelecimento gratuitamente nesta página?\nhttps://agendei.site/encontre/barbearia\n\nE aproveitando: esse endereço está correto?',
       stepType: 'MESSAGE_OPTIONS',
       position: 1,
       isStart: true,
     },
   });
 
+  // STEP 2: Como o estabelecimento agenda
   const step2 = await transaction.prospectingFlowStep.create({
     data: {
       publicId: randomUUID(),
       flowId: flow.id,
-      name: 'Como faz agendamento',
-      message: 'Obrigado pela autorização!\n\nPara completar seus dados, gostaria de saber se vocês possuem algum link para agendamento, site ou aplicativo, ou se o agendamento é feito somente pelo WhatsApp?',
+      name: 'Descoberta - Como agenda',
+      message: 'Obrigado pela autorização! 🙌\n\nSó mais uma informação para completar o cadastro:\n\nHoje seus clientes fazem agendamento por onde?',
       stepType: 'MESSAGE_OPTIONS',
       position: 2,
     },
   });
 
-  const step4 = await transaction.prospectingFlowStep.create({
+  // RAMO A: Só WhatsApp
+  const stepRamoA = await transaction.prospectingFlowStep.create({
     data: {
       publicId: randomUUID(),
       flowId: flow.id,
-      name: 'Apresentação Agendei',
-      message: 'Entendi!\n\nEntão acredito que posso te mostrar algo interessante.\n\nO Agendei permite que seus clientes façam agendamentos pelo celular sem depender de resposta manual no WhatsApp.\n\nAlém disso, organiza sua agenda, envia lembretes, confirma atendimentos e ajuda no acompanhamento dos clientes.',
+      name: 'Ramo A - Só WhatsApp',
+      message: 'Entendi 👍\n\nIsso é muito comum.\n\nNormalmente o cliente manda mensagem, espera alguém responder, pergunta horários disponíveis e vocês vão encaixando manualmente, certo?\n\nFoi justamente por encontrar muitos estabelecimentos trabalhando assim que criamos uma ferramenta específica para resolver isso.',
+      stepType: 'MESSAGE_OPTIONS',
+      position: 3,
+    },
+  });
+
+  // RAMO B: Link ou Site
+  const stepRamoB = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Ramo B - Link/Site',
+      message: 'Legal! 👏\n\nEntão vocês já deram um passo importante e já facilitaram o agendamento para o cliente.\n\nHoje esse sistema também consegue cuidar automaticamente de tarefas como:\n\n✅ confirmar clientes pelo WhatsApp\n✅ enviar lembretes antes do horário\n✅ recuperar clientes que pararam de voltar\n✅ avisar outros clientes quando surge uma vaga\n✅ cobrar pagamentos pendentes\n✅ atender fora do horário comercial\n\nPergunto porque o Agendei vai bem além de um simples link de agendamento.',
       stepType: 'MESSAGE_OPTIONS',
       position: 4,
     },
   });
 
-  const step3 = await transaction.prospectingFlowStep.create({
+  // RAMO C: Aplicativo (primeira mensagem)
+  const stepRamoC1 = await transaction.prospectingFlowStep.create({
     data: {
       publicId: randomUUID(),
       flowId: flow.id,
-      name: 'Aguardar link',
-      message: 'Perfeito! Pode me enviar o link por aqui.',
-      stepType: 'WAIT_LINK',
-      position: 3,
-      nextStepId: step4.id,
+      name: 'Ramo C - Aplicativo P1',
+      message: 'Ótimo! 👏\n\nEntão vocês já entenderam o valor de oferecer agendamento digital para o cliente.\n\nMas o principal diferencial do Agendei não é simplesmente ter um aplicativo.\n\nO Agendei também trabalha automaticamente no atendimento e no relacionamento com seus clientes pelo WhatsApp. 🤖📲',
+      stepType: 'MESSAGE_OPTIONS',
+      position: 5,
     },
   });
 
+  // RAMO C: Aplicativo - Diferença (segundo bloco)
+  const stepRamoC2 = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Ramo C - Aplicativo P2',
+      message: 'É aí que o Agendei começa a ficar realmente diferente. 👇\n\n🤖 ASSISTENTE VIRTUAL NO WHATSAPP\n\nO cliente pode chamar no WhatsApp e o sistema pode atender automaticamente.\n\nEle consegue:\n\n✅ responder o cliente\n✅ consultar horários\n✅ realizar agendamento\n✅ cancelar\n✅ reagendar\n✅ confirmar horários\n\nTudo sem depender de alguém responder cada mensagem manualmente.',
+      stepType: 'MESSAGE_ONLY',
+      position: 6,
+      nextStepId: null,
+    },
+  });
+
+  // RAMO D: Sem horário
+  const stepRamoD = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Ramo D - Sem Horário',
+      message: 'Entendi 👍\n\nNesse caso talvez o Agendei não faça sentido apenas pelo agendamento.\n\nMas dependendo do seu negócio, ele também pode ajudar com atendimento pelo WhatsApp, acompanhamento de clientes, cobranças e relacionamento automático.\n\nSe quiser, posso te mostrar rapidamente como funciona.',
+      stepType: 'MESSAGE_OPTIONS',
+      position: 7,
+    },
+  });
+
+  // SUPER APRESENTAÇÃO: Bloco 1
+  const stepIntro = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Super Apresentação - Intro',
+      message: 'Perfeito! 🙌\n\nEntão deixa eu te mostrar o que realmente é o Agendei.\n\nEle não é apenas uma agenda online.\n\nTambém não é apenas um aplicativo.\n\nE não é só um robô de WhatsApp.\n\nO Agendei reúne atendimento, agendamento, relacionamento e gestão em uma única plataforma.',
+      stepType: 'MESSAGE_ONLY',
+      position: 8,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Assistente Virtual
+  const stepAssistente = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Assistente',
+      message: '🤖 ASSISTENTE VIRTUAL NO WHATSAPP\n\nEnquanto você está trabalhando, o Agendei pode atender seus clientes pelo WhatsApp.\n\nEle pode:\n\n✅ consultar horários\n✅ realizar agendamentos\n✅ cancelar\n✅ reagendar\n✅ confirmar\n✅ responder dúvidas configuradas\n\nInclusivo fora do horário comercial.',
+      stepType: 'MESSAGE_ONLY',
+      position: 9,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Lembretes
+  const stepLembretes = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Lembretes',
+      message: '⏰ LEMBRETES AUTOMÁTICOS\n\nDepois que o cliente agenda, o sistema continua acompanhando.\n\nVocê pode enviar lembretes pelo WhatsApp:\n\n📲 24 horas antes\n📲 1 hora antes\n\nIsso ajuda a reduzir esquecimentos, atrasos e faltas.',
+      stepType: 'MESSAGE_ONLY',
+      position: 10,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Recuperação
+  const stepRecuperacao = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Recuperação',
+      message: '🔄 RECUPERAÇÃO DE CLIENTES\n\nO sistema pode identificar clientes que já passaram pelo estabelecimento e não voltaram.\n\nExemplo:\n\nPassaram 15 dias e o cliente não marcou novamente?\n\nO Agendei pode enviar automaticamente uma mensagem perguntando se ele deseja agendar novamente.\n\nSe necessário, você ainda pode configurar uma nova tentativa depois.',
+      stepType: 'MESSAGE_ONLY',
+      position: 11,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Horários cancelados
+  const stepHorariosCancelados = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Horários Cancelados',
+      message: '🚨 RECUPERAÇÃO DE HORÁRIOS CANCELADOS\n\nUm cliente cancelou?\n\nO sistema pode avisar outros potenciais clientes que surgiu uma vaga.\n\nAssim, aquele horário não precisa virar faturamento perdido.',
+      stepType: 'MESSAGE_ONLY',
+      position: 12,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Cobrança
+  const stepCobranca = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Cobrança',
+      message: '💰 COBRANÇA AUTOMÁTICA\n\nExiste pagamento pendente?\n\nO Agendei pode enviar mensagens de cobrança pelo WhatsApp e continuar acompanhando a situação.\n\nVocê pode definir regras para:\n\n✅ cobrança inicial\n✅ nova data\n✅ pagamento parcial\n✅ novas tentativas\n\nSem precisar lembrar de cobrar um por um.',
+      stepType: 'MESSAGE_ONLY',
+      position: 13,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Atendimento Fora do Horário
+  const stepFora = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Atendimento Fora',
+      message: '🌙 ATENDIMENTO FORA DO HORÁRIO\n\nMuitos clientes mandam mensagem:\n\n🌙 à noite\n📆 no domingo\n⏰ fora do horário comercial\n\nSe ninguém responde, muitas vezes eles procuram outro estabelecimento.\n\nCom o Agendei, o atendimento pode continuar mesmo quando você não está disponível.',
+      stepType: 'MESSAGE_ONLY',
+      position: 14,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Agenda e Gestão
+  const stepAgenda = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Agenda',
+      message: '📅 AGENDA E GESTÃO\n\nNo painel você consegue acompanhar:\n\n✅ agenda do dia\n✅ clientes\n✅ profissionais\n✅ serviços\n✅ pagamentos\n✅ caixa\n✅ comissões\n✅ histórico\n✅ movimentação do negócio\n\nSe existe equipe, cada profissional pode acompanhar sua própria agenda.',
+      stepType: 'MESSAGE_ONLY',
+      position: 15,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Personalização
+  const stepPersonalizacao = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Personalização',
+      message: '🎨 APLICATIVO PERSONALIZADO\n\nO aplicativo pode usar a identidade do próprio estabelecimento:\n\n✅ logo\n✅ cores\n✅ ícone\n✅ serviços\n✅ profissionais\n✅ endereço\n✅ horários\n\nPara o cliente final, a experiência é da sua marca.',
+      stepType: 'MESSAGE_ONLY',
+      position: 16,
+      nextStepId: null,
+    },
+  });
+
+  // APRESENTAÇÃO: Instagram e CTA
+  const stepFinalizacao = await transaction.prospectingFlowStep.create({
+    data: {
+      publicId: randomUUID(),
+      flowId: flow.id,
+      name: 'Apresentação - Finalização',
+      message: '📲 E se quiser ver exemplos visuais de várias funções, temos bastante conteúdo no Instagram:\n\ninstagram.com/app.agendei\n\nLá você encontra vídeos mostrando:\n\n• atendimento pelo WhatsApp\n• lembretes\n• recuperação de clientes\n• horários cancelados\n• cobranças\n• agenda\n• gestão\n• automações\n\n---\n\nA ideia do Agendei é simples:\n\nEnquanto você trabalha atendendo seus clientes, o sistema trabalha nos bastidores cuidando da agenda e do relacionamento. 🤝\n\nEm vez de depender da memória ou de alguém executar cada tarefa manualmente, você configura as regras e deixa o sistema trabalhar.',
+      stepType: 'MESSAGE_OPTIONS',
+      position: 17,
+    },
+  });
+
+  // Encerramento
   const stepEnd = await transaction.prospectingFlowStep.create({
     data: {
       publicId: randomUUID(),
       flowId: flow.id,
       name: 'Encerramento',
-      message: 'Obrigado pelo tempo! Qualquer dúvida, estou à disposição.',
+      message: 'Obrigado pelo tempo! 😊\n\nQualquer dúvida, estou à disposição.',
       stepType: 'END',
-      position: 5,
+      position: 18,
     },
   });
 
+  // OPTIONS STEP 1
   const opt1Step1 = await transaction.prospectingFlowOption.create({
     data: {
       publicId: randomUUID(),
       stepId: step1.id,
-      label: 'Autorizo',
+      label: '✅ Autorizo',
       nextStepId: step2.id,
       actionType: 'NEXT_STEP',
       position: 1,
@@ -586,7 +757,7 @@ async function seedProspectingFlows(
       { optionId: opt1Step1.id, pattern: 'autorizo', patternType: 'EXACT', priority: 10 },
       { optionId: opt1Step1.id, pattern: 'pode divulgar', patternType: 'CONTAINS', priority: 8 },
       { optionId: opt1Step1.id, pattern: 'pode sim', patternType: 'CONTAINS', priority: 7 },
-      { optionId: opt1Step1.id, pattern: 'autorizado', patternType: 'CONTAINS', priority: 7 },
+      { optionId: opt1Step1.id, pattern: 'sim', patternType: 'EXACT', priority: 6 },
     ],
   });
 
@@ -594,7 +765,7 @@ async function seedProspectingFlows(
     data: {
       publicId: randomUUID(),
       stepId: step1.id,
-      label: 'Não autorizo',
+      label: '❌ Não autorizo',
       nextStepId: stepEnd.id,
       actionType: 'NEXT_STEP',
       position: 2,
@@ -604,27 +775,28 @@ async function seedProspectingFlows(
     data: [
       { optionId: opt2Step1.id, pattern: 'não autorizo', patternType: 'EXACT', priority: 10 },
       { optionId: opt2Step1.id, pattern: 'nao autorizo', patternType: 'EXACT', priority: 10 },
-      { optionId: opt2Step1.id, pattern: 'não quero divulgar', patternType: 'CONTAINS', priority: 8 },
-      { optionId: opt2Step1.id, pattern: 'nao quero divulgar', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt2Step1.id, pattern: 'não quero', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt2Step1.id, pattern: 'nao quero', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt2Step1.id, pattern: 'não', patternType: 'EXACT', priority: 5 },
     ],
   });
 
+  // OPTIONS STEP 2 - 4 ramos
   const opt1Step2 = await transaction.prospectingFlowOption.create({
     data: {
       publicId: randomUUID(),
       stepId: step2.id,
-      label: 'Tenho sim, vou fornecer o link',
-      nextStepId: step3.id,
+      label: '📱 Só pelo WhatsApp',
+      nextStepId: stepRamoA.id,
       actionType: 'NEXT_STEP',
       position: 1,
     },
   });
   await transaction.prospectingFlowOptionPattern.createMany({
     data: [
-      { optionId: opt1Step2.id, pattern: 'tenho link', patternType: 'CONTAINS', priority: 8 },
-      { optionId: opt1Step2.id, pattern: 'vou mandar o link', patternType: 'CONTAINS', priority: 8 },
-      { optionId: opt1Step2.id, pattern: 'tenho site', patternType: 'CONTAINS', priority: 7 },
-      { optionId: opt1Step2.id, pattern: 'tenho aplicativo', patternType: 'CONTAINS', priority: 7 },
+      { optionId: opt1Step2.id, pattern: 'só whatsapp', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt1Step2.id, pattern: 'somente whatsapp', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt1Step2.id, pattern: 'whatsapp', patternType: 'CONTAINS', priority: 6 },
     ],
   });
 
@@ -632,59 +804,251 @@ async function seedProspectingFlows(
     data: {
       publicId: randomUUID(),
       stepId: step2.id,
-      label: 'Não tenho, só WhatsApp',
-      nextStepId: step4.id,
+      label: '🌐 Tenho link ou site',
+      nextStepId: stepRamoB.id,
       actionType: 'NEXT_STEP',
       position: 2,
     },
   });
   await transaction.prospectingFlowOptionPattern.createMany({
     data: [
-      { optionId: opt2Step2.id, pattern: 'só whatsapp', patternType: 'CONTAINS', priority: 8 },
-      { optionId: opt2Step2.id, pattern: 'somente whatsapp', patternType: 'CONTAINS', priority: 8 },
-      { optionId: opt2Step2.id, pattern: 'não tenho', patternType: 'CONTAINS', priority: 7 },
-      { optionId: opt2Step2.id, pattern: 'nao tenho', patternType: 'CONTAINS', priority: 7 },
+      { optionId: opt2Step2.id, pattern: 'tenho link', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt2Step2.id, pattern: 'tenho site', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt2Step2.id, pattern: 'site', patternType: 'CONTAINS', priority: 6 },
+      { optionId: opt2Step2.id, pattern: 'link', patternType: 'CONTAINS', priority: 6 },
     ],
   });
 
-  // Step 3 (WAIT_LINK) automatically continues to step4 via nextStepId
-  // No option needed for WAIT_LINK type
+  const opt3Step2 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: step2.id,
+      label: '📲 Tenho aplicativo',
+      nextStepId: stepRamoC1.id,
+      actionType: 'NEXT_STEP',
+      position: 3,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: opt3Step2.id, pattern: 'aplicativo', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt3Step2.id, pattern: 'app', patternType: 'CONTAINS', priority: 7 },
+      { optionId: opt3Step2.id, pattern: 'tenho app', patternType: 'CONTAINS', priority: 8 },
+    ],
+  });
 
+  const opt4Step2 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: step2.id,
+      label: '🚫 Não trabalho com horário',
+      nextStepId: stepRamoD.id,
+      actionType: 'NEXT_STEP',
+      position: 4,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: opt4Step2.id, pattern: 'não trabalho', patternType: 'CONTAINS', priority: 8 },
+      { optionId: opt4Step2.id, pattern: 'nao trabalho', patternType: 'CONTAINS', priority: 8 },
+    ],
+  });
+
+  // OPTIONS RAMO A
+  const optRamoA1 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: stepRamoA.id,
+      label: '👀 Quero conhecer',
+      nextStepId: stepIntro.id,
+      actionType: 'NEXT_STEP',
+      position: 1,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: optRamoA1.id, pattern: 'quero conhecer', patternType: 'CONTAINS', priority: 8 },
+      { optionId: optRamoA1.id, pattern: 'conhecer', patternType: 'CONTAINS', priority: 6 },
+      { optionId: optRamoA1.id, pattern: 'interesse', patternType: 'CONTAINS', priority: 6 },
+    ],
+  });
+
+  const optRamoA2 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: stepRamoA.id,
+      label: '🤔 Como funciona?',
+      nextStepId: stepIntro.id,
+      actionType: 'NEXT_STEP',
+      position: 2,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: optRamoA2.id, pattern: 'como funciona', patternType: 'CONTAINS', priority: 8 },
+      { optionId: optRamoA2.id, pattern: 'funciona', patternType: 'CONTAINS', priority: 6 },
+    ],
+  });
+
+  // OPTIONS RAMO B
+  const optRamoB1 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: stepRamoB.id,
+      label: '🔥 Quero conhecer',
+      nextStepId: stepIntro.id,
+      actionType: 'NEXT_STEP',
+      position: 1,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: optRamoB1.id, pattern: 'quero conhecer', patternType: 'CONTAINS', priority: 8 },
+      { optionId: optRamoB1.id, pattern: 'conhecer', patternType: 'CONTAINS', priority: 6 },
+    ],
+  });
+
+  const optRamoB2 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: stepRamoB.id,
+      label: '🔎 Quero comparar',
+      nextStepId: stepIntro.id,
+      actionType: 'NEXT_STEP',
+      position: 2,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: optRamoB2.id, pattern: 'comparar', patternType: 'CONTAINS', priority: 8 },
+    ],
+  });
+
+  // OPTIONS RAMO C1
+  const optRamoC1_1 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: stepRamoC1.id,
+      label: '🔥 Quero ver a diferença',
+      nextStepId: stepRamoC2.id,
+      actionType: 'NEXT_STEP',
+      position: 1,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: optRamoC1_1.id, pattern: 'diferença', patternType: 'CONTAINS', priority: 8 },
+      { optionId: optRamoC1_1.id, pattern: 'diferenca', patternType: 'CONTAINS', priority: 8 },
+      { optionId: optRamoC1_1.id, pattern: 'quero ver', patternType: 'CONTAINS', priority: 7 },
+    ],
+  });
+
+  // OPTIONS RAMO D
+  const optRamoD1 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: stepRamoD.id,
+      label: '👀 Quero conhecer',
+      nextStepId: stepIntro.id,
+      actionType: 'NEXT_STEP',
+      position: 1,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: optRamoD1.id, pattern: 'quero conhecer', patternType: 'CONTAINS', priority: 8 },
+      { optionId: optRamoD1.id, pattern: 'conhecer', patternType: 'CONTAINS', priority: 6 },
+    ],
+  });
+
+  const optRamoD2 = await transaction.prospectingFlowOption.create({
+    data: {
+      publicId: randomUUID(),
+      stepId: stepRamoD.id,
+      label: '⏸️ Agora não',
+      nextStepId: stepEnd.id,
+      actionType: 'NEXT_STEP',
+      position: 2,
+    },
+  });
+  await transaction.prospectingFlowOptionPattern.createMany({
+    data: [
+      { optionId: optRamoD2.id, pattern: 'agora não', patternType: 'CONTAINS', priority: 8 },
+      { optionId: optRamoD2.id, pattern: 'agora nao', patternType: 'CONTAINS', priority: 8 },
+      { optionId: optRamoD2.id, pattern: 'depois', patternType: 'CONTAINS', priority: 6 },
+    ],
+  });
+
+  // OPTIONS STEP FINALIZAÇÃO
   await transaction.prospectingFlowOption.createMany({
     data: [
       {
         publicId: randomUUID(),
-        stepId: step4.id,
-        label: 'Quero conhecer',
+        stepId: stepFinalizacao.id,
+        label: '🚀 Quero testar',
         nextStepId: null,
         actionType: 'MANUAL',
         position: 1,
       },
       {
         publicId: randomUUID(),
-        stepId: step4.id,
-        label: 'Quanto custa?',
+        stepId: stepFinalizacao.id,
+        label: '💰 Quanto custa?',
         nextStepId: null,
         actionType: 'MANUAL',
         position: 2,
       },
       {
         publicId: randomUUID(),
-        stepId: step4.id,
-        label: 'Agora não',
-        nextStepId: stepEnd.id,
-        actionType: 'NEXT_STEP',
+        stepId: stepFinalizacao.id,
+        label: '📲 Quero ver o WhatsApp',
+        nextStepId: null,
+        actionType: 'MANUAL',
         position: 3,
       },
       {
         publicId: randomUUID(),
-        stepId: step4.id,
-        label: 'Não tenho interesse',
+        stepId: stepFinalizacao.id,
+        label: '⏸️ Agora não',
         nextStepId: stepEnd.id,
         actionType: 'NEXT_STEP',
         position: 4,
       },
     ],
+  });
+
+  // Chain MESSAGE_ONLY steps together
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepAssistente.id },
+    data: { nextStepId: stepLembretes.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepLembretes.id },
+    data: { nextStepId: stepRecuperacao.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepRecuperacao.id },
+    data: { nextStepId: stepHorariosCancelados.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepHorariosCancelados.id },
+    data: { nextStepId: stepCobranca.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepCobranca.id },
+    data: { nextStepId: stepFora.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepFora.id },
+    data: { nextStepId: stepAgenda.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepAgenda.id },
+    data: { nextStepId: stepPersonalizacao.id },
+  });
+  await transaction.prospectingFlowStep.update({
+    where: { id: stepPersonalizacao.id },
+    data: { nextStepId: stepFinalizacao.id },
   });
 }
 

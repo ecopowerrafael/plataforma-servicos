@@ -123,11 +123,48 @@ export class ProspectingInboundService {
     }
 
     // Encontrar Lead elegível
-    const leadData = await this.findEligibleLead(normalizedPhone);
+    // PRIORIDADE 1: referencedMessageId → outbound message → lead exato
+    let leadData = null;
+    let desambiguationMethod = 'none';
+
+    if (payload.referencedMessageId) {
+      leadData = await this.findEligibleLeadByReferencedMessage(
+        payload.referencedMessageId,
+        normalizedPhone
+      );
+      if (leadData) {
+        desambiguationMethod = 'referenced_message';
+      }
+    }
+
+    // PRIORIDADE 2-3: telefone
     if (!leadData) {
-      console.log('[ProspectingInboundTrace]', { ...trace, normalizedPhone, result: 'LEAD_NOT_FOUND' });
+      leadData = await this.findEligibleLead(normalizedPhone);
+      if (leadData) {
+        desambiguationMethod = 'phone';
+      }
+    }
+
+    if (!leadData) {
+      console.log('[ProspectingInboundTrace]', {
+        ...trace,
+        normalizedPhone,
+        referencedMessageId: payload.referencedMessageId,
+        desambiguationMethod,
+        result: 'LEAD_NOT_FOUND'
+      });
       return { handled: false, reason: 'LEAD_NOT_FOUND' };
     }
+
+    // Log desambiguação
+    console.log('[ProspectingInboundTrace]', {
+      ...trace,
+      normalizedPhone,
+      referencedMessageId: payload.referencedMessageId,
+      desambiguationMethod,
+      leadPublicId: leadData.publicId,
+      desambiguationSuccess: true
+    });
 
     // Criar mensagem INBOUND
     const message = await this.client.prospectingMessage.create({
@@ -348,6 +385,97 @@ export class ProspectingInboundService {
     });
 
     return { handled: true };
+  }
+
+  /**
+   * Encontra Lead elegível por referencedMessageId (mensagem outbound original).
+   * Usado para desambiguar quando há múltiplos WAITING_REPLY para o mesmo telefone.
+   */
+  private async findEligibleLeadByReferencedMessage(
+    referencedMessageId: string,
+    normalizedPhone: string,
+  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string } | null> {
+    if (!this.client) {
+      return null;
+    }
+
+    // Buscar mensagem outbound original pelo ID
+    const outboundMessage = await this.client.prospectingMessage.findFirst({
+      where: {
+        externalMessageId: referencedMessageId,
+        direction: 'OUTBOUND',
+      },
+      select: {
+        id: true,
+        leadId: true,
+        campaignId: true,
+      },
+    });
+
+    if (!outboundMessage) {
+      console.log('[ProspectingInboundTrace]', {
+        referencedMessageId,
+        result: 'REFERENCED_MESSAGE_NOT_FOUND',
+      });
+      return null;
+    }
+
+    // Validar que o lead é elegível
+    const maxDays = 30;
+    const minLastOutboundAt = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
+
+    const lead = await this.client.prospectingLead.findUnique({
+      where: { id: outboundMessage.leadId },
+      select: {
+        id: true,
+        campaignId: true,
+        respondedAt: true,
+        publicId: true,
+        normalizedPhone: true,
+        status: true,
+        lastOutboundAt: true,
+        campaign: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    });
+
+    // Validações de elegibilidade
+    const isEligible =
+      lead &&
+      lead.normalizedPhone === normalizedPhone &&
+      ['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'].includes(lead.status) &&
+      lead.lastOutboundAt &&
+      lead.lastOutboundAt >= minLastOutboundAt &&
+      ['RUNNING', 'PAUSED'].includes(lead.campaign?.status || '');
+
+    if (!isEligible) {
+      console.log('[ProspectingInboundTrace]', {
+        referencedMessageId,
+        leadFound: !!lead,
+        phoneMismatch: lead && lead.normalizedPhone !== normalizedPhone,
+        statusInvalid: lead && !['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'].includes(lead.status),
+        stale: lead && lead.lastOutboundAt && lead.lastOutboundAt < minLastOutboundAt,
+        campaignInvalid: lead && !['RUNNING', 'PAUSED'].includes(lead.campaign?.status || ''),
+        result: 'REFERENCED_LEAD_NOT_ELIGIBLE',
+      });
+      return null;
+    }
+
+    console.log('[ProspectingInboundTrace]', {
+      referencedMessageId,
+      leadPublicId: lead.publicId,
+      result: 'FOUND_BY_REFERENCED_MESSAGE',
+    });
+
+    return {
+      id: lead.id,
+      campaignId: lead.campaignId,
+      respondedAt: lead.respondedAt,
+      publicId: lead.publicId,
+    };
   }
 
   /**

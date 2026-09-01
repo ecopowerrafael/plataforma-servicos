@@ -174,27 +174,6 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
     },
   );
   app.post(
-    '/platform/directory/categories',
-    {
-      schema: {
-        body: z.object({
-          name: z.string().min(2).max(120),
-          singularName: z.string().min(2).max(120),
-          pluralName: z.string().min(2).max(120),
-          slug: z.string().min(2).max(120),
-          description: z.string().max(2000).optional(),
-          icon: z.string().max(40).optional(),
-          active: z.boolean().optional(),
-          indexable: z.boolean().optional(),
-        }),
-      },
-    },
-    (request) => {
-      allow(request, 'platform.tenant.update');
-      return options.service.createCategory(request.body);
-    },
-  );
-  app.post(
     '/platform/directory/imports/:publicId/process-batch',
     { schema: { params: importParams } },
     (request) => {

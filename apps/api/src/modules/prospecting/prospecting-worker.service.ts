@@ -303,11 +303,22 @@ export class ProspectingWorkerService implements ProspectingWorker {
         }
 
         // Find/create execution
+        // Include structure for loading execution with full step + options
+        const executionInclude = {
+          currentStep: {
+            include: {
+              options: {
+                orderBy: { position: 'asc' as const }
+              }
+            }
+          }
+        };
+
         let execution = await tx.prospectingFlowExecution.findUnique({
           where: {
             campaignId_leadId_flowId: { campaignId: campaign.id, leadId: lead.id, flowId: campaign.flowId },
           },
-          include: { currentStep: true },
+          include: executionInclude,
         });
 
         if (!execution) {
@@ -325,15 +336,7 @@ export class ProspectingWorkerService implements ProspectingWorker {
               currentStepId: startStep.id,
               status: 'ACTIVE',
             },
-            include: {
-              currentStep: {
-                include: {
-                  options: {
-                    orderBy: { position: 'asc' }
-                  }
-                }
-              }
-            },
+            include: executionInclude,
           });
         }
 
@@ -350,6 +353,14 @@ export class ProspectingWorkerService implements ProspectingWorker {
 
         // Validar MESSAGE_OPTIONS tem options
         if (step.stepType === 'MESSAGE_OPTIONS' && (!step.options || step.options.length === 0)) {
+          // NOTE: Update is rolled back because error is thrown in same transaction
+          // Log before throwing to preserve error evidence
+          console.error('[ProspectingWorker] MESSAGE_OPTIONS without options', {
+            stepPublicId: step.publicId,
+            executionId: String(execution.id),
+            campaignId: String(campaign.id),
+            leadId: String(lead.id),
+          });
           await tx.prospectingLead.update({
             where: { id: lead.id },
             data: { status: 'NEEDS_REVIEW' },

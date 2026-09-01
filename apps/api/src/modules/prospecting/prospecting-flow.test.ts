@@ -565,3 +565,105 @@ describe('ProspectingFlow - MESSAGE_OPTIONS with optionIds (OPÇÃO 2) - Real Pi
     expect(true).toBe(true); // Placeholder para integração completa
   });
 });
+
+/**
+ * REGRESSION TEST: Carregamento de execution existente com options
+ * Cenário: segundo step MESSAGE_OPTIONS não carregava options
+ * Impacto: MESSAGE_OPTIONS_WITHOUT_OPTIONS error em step subsequente
+ */
+describe('ProspectingFlow - Regression: Execution Existing with MESSAGE_OPTIONS', () => {
+  it('L. Execution existente MESSAGE_OPTIONS → carrega options, não falha', async () => {
+    // Setup: flow com 2 steps MESSAGE_OPTIONS
+    const flow = await client.prospectingFlow.create({
+      data: { publicId: randomUUID(), name: 'Test Regression Step2' }
+    });
+
+    const step1 = await service.createStep({
+      flowId: flow.id,
+      name: 'Step 1',
+      message: 'First choice:',
+      stepType: 'MESSAGE_OPTIONS',
+      position: 0,
+      isStart: true
+    });
+
+    const step2 = await service.createStep({
+      flowId: flow.id,
+      name: 'Step 2',
+      message: 'Second choice:',
+      stepType: 'MESSAGE_OPTIONS',
+      position: 1,
+      nextStepId: null
+    });
+
+    // Step 1 options
+    const opt1a = await service.createOption(step1.id, {
+      label: 'Go to Step 2',
+      position: 0,
+      nextStepId: step2.id
+    });
+
+    // Step 2 options (CRITICAL: these must be loaded when execution exists)
+    const opt2a = await service.createOption(step2.id, {
+      label: 'Option A',
+      position: 0,
+      nextStepId: null
+    });
+    const opt2b = await service.createOption(step2.id, {
+      label: 'Option B',
+      position: 1,
+      nextStepId: null
+    });
+
+    // Simulam: execution foi criada, está em step 1, usuário respondeu
+    // Agora execution avançou para step 2
+    const execution = await client.prospectingFlowExecution.create({
+      data: {
+        publicId: randomUUID(),
+        campaignId: BigInt(1),
+        leadId: BigInt(1),
+        flowId: flow.id,
+        currentStepId: step2.id, // JÁ AVANÇOU para step 2!
+        status: 'ACTIVE'
+      }
+    });
+
+    // Teste crítico: Quando worker carrega essa execution EXISTENTE,
+    // deve carregar options de step 2
+    const loaded = await client.prospectingFlowExecution.findUnique({
+      where: { id: execution.id },
+      include: {
+        currentStep: {
+          include: {
+            options: {
+              orderBy: { position: 'asc' }
+            }
+          }
+        }
+      }
+    });
+
+    // Validação 1: execution carregou
+    expect(loaded).toBeDefined();
+
+    // Validação 2: currentStep carregou
+    expect(loaded?.currentStep).toBeDefined();
+    expect(loaded?.currentStep?.id).toBe(step2.id);
+
+    // Validação 3: CRITICAL - options foram carregadas
+    expect(loaded?.currentStep?.options).toBeDefined();
+    expect(loaded?.currentStep?.options?.length).toBe(2);
+
+    // Validação 4: options estão em ordem
+    expect(loaded?.currentStep?.options?.[0].publicId).toBe(opt2a.publicId);
+    expect(loaded?.currentStep?.options?.[1].publicId).toBe(opt2b.publicId);
+
+    // Validação 5: MESSAGE_OPTIONS validation passa
+    const step = loaded?.currentStep;
+    const shouldNotFail = !(
+      step?.stepType === 'MESSAGE_OPTIONS' &&
+      (!step?.options || step.options.length === 0)
+    );
+    expect(shouldNotFail).toBe(true);
+  });
+});

@@ -2,6 +2,7 @@ import { join } from 'node:path';
 
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
+import { type Environment } from '../config/environment.js';
 import { PrismaClient } from '../database-client/client.js';
 import { AppointmentOperationsService } from '../modules/appointments/appointment-operations.service.js';
 import { AppointmentReviewRepository } from '../modules/appointments/appointment-review.repository.js';
@@ -255,7 +256,7 @@ export interface CustomerAuthOptions {
 export function createDatabaseConnection(
   databaseUrl: string,
   customerAuthOptions?: CustomerAuthOptions,
-  environment?: any,
+  environment?: Environment,
 ): DatabaseConnection {
   let activeClient = createPrismaClient(databaseUrl);
   let recovery: Promise<void> | undefined;

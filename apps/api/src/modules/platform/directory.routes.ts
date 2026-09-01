@@ -358,6 +358,70 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
       return options.service.updateBusiness(request.params.publicId, request.body);
     },
   );
+  app.post(
+    '/platform/directory/businesses',
+    {
+      schema: {
+        body: z.object({
+          categoryPublicId: z.string().uuid(),
+          name: z.string().min(1).max(180),
+          rawAddress: z.string().min(1),
+          street: z.string().max(180).optional(),
+          number: z.string().max(32).optional(),
+          complement: z.string().max(160).optional(),
+          neighborhood: z.string().max(120).optional(),
+          city: z.string().min(1).max(120),
+          state: z.string().length(2).toUpperCase(),
+          postalCode: z.string().length(8).optional(),
+          phone: z.string().optional(),
+          whatsapp: z.string().optional(),
+          websiteUrl: z.string().url().optional(),
+          active: z.boolean().optional(),
+          indexable: z.boolean().optional(),
+        }),
+      },
+    },
+    (request: any) => {
+      allow(request, 'platform.tenant.create');
+      return options.service.createBusinessManual(request.body);
+    },
+  );
+  app.get(
+    '/platform/directory/businesses/:publicId',
+    { schema: { params: importParams } },
+    (request) => {
+      allow(request, 'platform.tenant.read');
+      return options.service.getBusinessDetail(request.params.publicId);
+    },
+  );
+  app.patch(
+    '/platform/directory/businesses/:publicId/details',
+    {
+      schema: {
+        params: importParams,
+        body: z.object({
+          name: z.string().min(1).max(180).optional(),
+          rawAddress: z.string().min(1).optional(),
+          street: z.string().max(180).optional().nullable(),
+          number: z.string().max(32).optional().nullable(),
+          complement: z.string().max(160).optional().nullable(),
+          neighborhood: z.string().max(120).optional().nullable(),
+          city: z.string().min(1).max(120).optional(),
+          state: z.string().length(2).toUpperCase().optional(),
+          postalCode: z.string().length(8).optional().nullable(),
+          phone: z.string().optional().nullable(),
+          whatsapp: z.string().optional().nullable(),
+          websiteUrl: z.string().url().optional().nullable(),
+          active: z.boolean().optional(),
+          indexable: z.boolean().optional(),
+        }),
+      },
+    },
+    (request: any) => {
+      allow(request, 'platform.tenant.update');
+      return options.service.updateBusinessDetails(request.params.publicId, request.body);
+    },
+  );
   app.get('/platform/directory/metrics', { schema: { querystring: metricsQuery } }, (request) => {
     allow(request, 'platform.tenant.read');
     return options.service.metrics(request.query);

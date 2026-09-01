@@ -9,7 +9,10 @@ import {
 } from './directory.service.js';
 import { type DirectoryLocationService } from './directory-location.service.js';
 import { type DirectorySeoService } from './directory-seo.service.js';
-import { evaluateDirectoryBusinessSeo, type DirectorySeoEligibilityReason } from './directory-seo-quality.js';
+import {
+  evaluateDirectoryBusinessSeo,
+  type DirectorySeoEligibilityReason,
+} from './directory-seo-quality.js';
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { type PlatformService } from './platform.service.js';
 import { type AuthService } from '../auth/auth.service.js';
@@ -27,6 +30,18 @@ const importParams = z.object({ publicId: z.uuid() });
 const pagination = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  search: z.string().trim().max(180).optional(),
+  categorySlug: z.string().trim().max(120).optional(),
+  city: z.string().trim().max(120).optional(),
+  state: z.string().trim().length(2).toUpperCase().optional(),
+  active: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
+  indexable: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
 });
 const metricsQuery = z.object({
   from: z.coerce.date().optional(),
@@ -235,6 +250,27 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
     allow(request, 'platform.tenant.read');
     return options.service.adminCategories();
   });
+  app.post(
+    '/platform/directory/categories',
+    {
+      schema: {
+        body: z.object({
+          name: z.string().trim().min(2).max(120),
+          singularName: z.string().trim().min(2).max(120),
+          pluralName: z.string().trim().min(2).max(120),
+          slug: z.string().trim().min(2).max(120),
+          description: z.string().trim().max(2000).optional(),
+          icon: z.string().trim().max(40).optional(),
+          active: z.boolean().default(true),
+          indexable: z.boolean().default(true),
+        }),
+      },
+    },
+    async (request, reply) => {
+      allow(request, 'platform.tenant.create');
+      return reply.status(201).send(await options.service.createCategory(request.body));
+    },
+  );
   app.patch(
     '/platform/directory/categories/:publicId',
     {
@@ -263,7 +299,7 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
   app.get('/platform/directory/location-config', {}, async (request) => {
     allow(request, 'platform.tenant.read');
     const service = (request.server as any).directoryLocationConfigService as any;
-    const status = await service?.getStatus() ?? {
+    const status = (await service?.getStatus()) ?? {
       geoapifyConfigured: false,
       geoapifyMaskedKey: null,
       source: 'NONE' as const,
@@ -276,12 +312,11 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
     async (request) => {
       allow(request, 'platform.tenant.update');
       const service = (request.server as any).directoryLocationConfigService as any;
-      const status =
-        await service?.saveGeoapifyApiKey(request.body.geoapifyApiKey) ?? {
-          geoapifyConfigured: false,
-          geoapifyMaskedKey: null,
-          source: 'NONE' as const,
-        };
+      const status = (await service?.saveGeoapifyApiKey(request.body.geoapifyApiKey)) ?? {
+        geoapifyConfigured: false,
+        geoapifyMaskedKey: null,
+        source: 'NONE' as const,
+      };
       return status;
     },
   );
@@ -305,7 +340,8 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
         const categoryConfig = await options.service.getLocationCategoryConfig(
           request.body.categorySlug,
         );
-        const apiConfigured = result.location.latitude !== null && result.location.longitude !== null;
+        const apiConfigured =
+          result.location.latitude !== null && result.location.longitude !== null;
         return {
           success: true,
           location: {
@@ -323,7 +359,7 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
           },
           geoapify: {
             apiConfigured: true,
-            categoryConfigured: ((categoryConfig?.geoapifyCategories?.length ?? 0) > 0),
+            categoryConfigured: (categoryConfig?.geoapifyCategories?.length ?? 0) > 0,
             categories: categoryConfig?.geoapifyCategories ?? [],
             externalSearchTerms: categoryConfig?.externalSearchTerms ?? [],
             hasCoordinates: apiConfigured,
@@ -331,9 +367,10 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
           diagnostics: result.diagnostics,
         };
       } catch (error) {
-        const message = error instanceof AppError
-          ? error.message
-          : 'Erro ao testar localização. Tente novamente.';
+        const message =
+          error instanceof AppError
+            ? error.message
+            : 'Erro ao testar localização. Tente novamente.';
         return {
           success: false,
           error: message,
@@ -343,7 +380,7 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
   );
   app.get('/platform/directory/businesses', { schema: { querystring: pagination } }, (request) => {
     allow(request, 'platform.tenant.read');
-    return options.service.adminBusinesses(request.query.page, request.query.limit);
+    return options.service.adminBusinesses(request.query);
   });
   app.patch(
     '/platform/directory/businesses/:publicId',
@@ -641,8 +678,12 @@ export const directoryRoutes: FastifyPluginAsyncZod<DirectoryRoutesOptions> = as
       client.directoryBusiness.count({ where: { active: true } }),
       client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null } } }),
       client.directoryBusiness.count({ where: { seoEvaluatedAt: null } }),
-      client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null }, seoEligible: true } }),
-      client.directoryBusiness.count({ where: { seoEvaluatedAt: { not: null }, seoEligible: false } }),
+      client.directoryBusiness.count({
+        where: { seoEvaluatedAt: { not: null }, seoEligible: true },
+      }),
+      client.directoryBusiness.count({
+        where: { seoEvaluatedAt: { not: null }, seoEligible: false },
+      }),
       options.service['sitemapCounts'](),
     ]);
 
@@ -770,7 +811,10 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
   const escapeXml = (value: string) =>
     value.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;');
   app.get('/sitemap-directory.xml', async (_request, reply) => {
-    reply.header('Cache-Control', 'public, max-age=600, s-maxage=21600, stale-while-revalidate=86400');
+    reply.header(
+      'Cache-Control',
+      'public, max-age=600, s-maxage=21600, stale-while-revalidate=86400',
+    );
     const summary = await options.service.sitemapSummary();
     const entries = Array.from(
       { length: summary.pageCount },
@@ -792,7 +836,10 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
     // z.coerce.number() no schema (que rejeitaria com VALIDATION_ERROR/400).
     { schema: { params: z.object({ page: z.string() }) } },
     async (request, reply) => {
-      reply.header('Cache-Control', 'public, max-age=600, s-maxage=21600, stale-while-revalidate=86400');
+      reply.header(
+        'Cache-Control',
+        'public, max-age=600, s-maxage=21600, stale-while-revalidate=86400',
+      );
       if (!/^\d+$/u.test(request.params.page)) return reply.code(404).send();
       const page = Number(request.params.page);
       if (page < 1) return reply.code(404).send();
@@ -809,7 +856,10 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
     '/public/directory/categories',
     { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
     async (_request, reply) => {
-      reply.header('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+      reply.header(
+        'Cache-Control',
+        'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+      );
       return { categories: await options.service.categories() };
     },
   );
@@ -828,7 +878,10 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
     '/public/directory/categories/:categorySlug/cities',
     { schema: { params: z.object({ categorySlug: z.string().min(1).max(120) }) } },
     async (request, reply) => {
-      reply.header('Cache-Control', 'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400');
+      reply.header(
+        'Cache-Control',
+        'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400',
+      );
       return options.service.categoryCities(request.params.categorySlug);
     },
   );
@@ -844,7 +897,10 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
       },
     },
     async (request, reply) => {
-      reply.header('Cache-Control', 'public, max-age=120, s-maxage=900, stale-while-revalidate=3600');
+      reply.header(
+        'Cache-Control',
+        'public, max-age=120, s-maxage=900, stale-while-revalidate=3600',
+      );
       return options.service.cityBusinesses(
         request.params.categorySlug,
         request.params.citySlug,
@@ -865,7 +921,10 @@ export const publicDirectoryRoutes: FastifyPluginAsyncZod<PublicDirectoryRoutesO
       },
     },
     async (request, reply) => {
-      reply.header('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+      reply.header(
+        'Cache-Control',
+        'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+      );
       return options.service.business(
         request.params.categorySlug,
         request.params.citySlug,

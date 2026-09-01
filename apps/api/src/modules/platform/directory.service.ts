@@ -705,7 +705,7 @@ export class DirectoryService {
     indexable?: boolean | undefined;
   }) {
     const slug = directorySlug(input.slug);
-    return this.client.directoryCategory.upsert({
+    const category = await this.client.directoryCategory.upsert({
       where: { slug },
       update: {
         name: input.name,
@@ -727,7 +727,9 @@ export class DirectoryService {
         active: input.active ?? true,
         indexable: input.indexable ?? true,
       },
+      include: { _count: { select: { businesses: true } } },
     });
+    return this.adminCategoryPublic(category);
   }
 
   public async configure(
@@ -1174,7 +1176,9 @@ export class DirectoryService {
       sortOrder: cat.sortOrder,
       geoapifyCategories: Array.isArray(cat.geoapifyCategories) ? cat.geoapifyCategories : null,
       externalSearchTerms: Array.isArray(cat.externalSearchTerms) ? cat.externalSearchTerms : null,
-      externalNegativeTerms: Array.isArray(cat.externalNegativeTerms) ? cat.externalNegativeTerms : null,
+      externalNegativeTerms: Array.isArray(cat.externalNegativeTerms)
+        ? cat.externalNegativeTerms
+        : null,
       _count: cat._count,
     };
   }
@@ -1216,7 +1220,11 @@ export class DirectoryService {
     }
 
     // If Geoapify categories/terms changed, invalidate cache to reflect new config immediately
-    if (input.geoapifyCategories !== undefined || input.externalSearchTerms !== undefined || input.externalNegativeTerms !== undefined) {
+    if (
+      input.geoapifyCategories !== undefined ||
+      input.externalSearchTerms !== undefined ||
+      input.externalNegativeTerms !== undefined
+    ) {
       await this.client.directoryExternalSearchCache.deleteMany({
         where: { categoryId: category.id },
       });
@@ -1224,22 +1232,66 @@ export class DirectoryService {
 
     return this.adminCategoryPublic(category);
   }
-  public async adminBusinesses(page: number, limit: number) {
-    const [total, items] = await Promise.all([
-      this.client.directoryBusiness.count(),
+  public async adminBusinesses(input: {
+    page: number;
+    limit: number;
+    search?: string | undefined;
+    categorySlug?: string | undefined;
+    city?: string | undefined;
+    state?: string | undefined;
+    active?: boolean | undefined;
+    indexable?: boolean | undefined;
+  }) {
+    const where: Prisma.DirectoryBusinessWhereInput = {
+      ...(input.search === undefined ? {} : { name: { contains: input.search } }),
+      ...(input.categorySlug === undefined ? {} : { category: { slug: input.categorySlug } }),
+      ...(input.city === undefined ? {} : { city: { contains: input.city } }),
+      ...(input.state === undefined ? {} : { state: input.state }),
+      ...(input.active === undefined ? {} : { active: input.active }),
+      ...(input.indexable === undefined ? {} : { indexable: input.indexable }),
+    };
+    const [
+      total,
+      items,
+      totalBusinesses,
+      activeBusinesses,
+      indexableBusinesses,
+      categoryCount,
+      cities,
+    ] = await Promise.all([
+      this.client.directoryBusiness.count({ where }),
       this.client.directoryBusiness.findMany({
+        where,
         orderBy: { updatedAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (input.page - 1) * input.limit,
+        take: input.limit,
         include: { category: true },
+      }),
+      this.client.directoryBusiness.count(),
+      this.client.directoryBusiness.count({ where: { active: true } }),
+      this.client.directoryBusiness.count({
+        where: { active: true, indexable: true, seoEligible: true },
+      }),
+      this.client.directoryCategory.count(),
+      this.client.directoryBusiness.findMany({
+        where: { active: true },
+        distinct: ['city', 'state'],
+        select: { city: true, state: true },
       }),
     ]);
     return {
       items: items.map((item) => this.adminBusinessPublic(item)),
-      page,
-      limit,
+      page: input.page,
+      limit: input.limit,
       total,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / input.limit),
+      summary: {
+        totalBusinesses,
+        activeBusinesses,
+        indexableBusinesses,
+        categoryCount,
+        cityCount: cities.length,
+      },
     };
   }
 
@@ -1251,6 +1303,9 @@ export class DirectoryService {
       state: item.state,
       active: item.active,
       indexable: item.indexable,
+      whatsapp: item.whatsapp,
+      seoQualityScore: item.seoQualityScore,
+      updatedAt: item.updatedAt,
       category: item.category ? this.adminCategoryPublic(item.category) : null,
     };
   }
@@ -1382,7 +1437,8 @@ export class DirectoryService {
     ]);
 
     // Use aggregate data for neighborhoods and whatsapp count
-    const neighborhoods = aggregate?.topNeighborhoods as Array<{ name: string; count: number }> || [];
+    const neighborhoods =
+      (aggregate?.topNeighborhoods as Array<{ name: string; count: number }>) || [];
     const whatsappCount = aggregate?.whatsappCount ?? 0;
 
     return {
@@ -1635,12 +1691,14 @@ export class DirectoryService {
     });
 
     const sourceHash = createHash('sha256')
-      .update(JSON.stringify({
-        name: input.name,
-        city: input.city,
-        state: input.state,
-        rawAddress: input.rawAddress,
-      }))
+      .update(
+        JSON.stringify({
+          name: input.name,
+          city: input.city,
+          state: input.state,
+          rawAddress: input.rawAddress,
+        }),
+      )
       .digest('hex');
 
     const business = await this.client.directoryBusiness.create({
@@ -1835,7 +1893,11 @@ export class DirectoryService {
 
     // Enqueue city aggregate refresh if city changed
     if (input.city !== undefined) {
-      await enqueueDirectoryCityAggregate(this.client, business.categoryId, (updateData.citySlug as string) ?? business.citySlug);
+      await enqueueDirectoryCityAggregate(
+        this.client,
+        business.categoryId,
+        (updateData.citySlug as string) ?? business.citySlug,
+      );
     }
 
     return updated;

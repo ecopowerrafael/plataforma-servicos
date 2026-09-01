@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
@@ -126,7 +127,9 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform', 'directory', 'businesses'] });
-      queryClient.invalidateQueries({ queryKey: ['platform', 'directory', 'business', businessPublicId] });
+      queryClient.invalidateQueries({
+        queryKey: ['platform', 'directory', 'business', businessPublicId],
+      });
       onClose();
     },
     onError: (err: any) => {
@@ -154,7 +157,8 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
   const isCityValid = form.city.trim().length > 0;
   const isStateValid = form.state.trim().length === 2;
 
-  const isCreateValid = isCategoryValid && isNameValid && isAddressValid && isCityValid && isStateValid;
+  const isCreateValid =
+    isCategoryValid && isNameValid && isAddressValid && isCityValid && isStateValid;
   const isEditValid = isNameValid && isAddressValid && isCityValid && isStateValid;
   const isFormValid = isEdit ? isEditValid : isCreateValid;
 
@@ -211,18 +215,51 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ backgroundColor: 'var(--ds-background-primary)', borderRadius: '8px', padding: '2rem', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-        <h2>{isEdit ? 'Editar' : 'Adicionar'} Estabelecimento</h2>
+    <>
+      <button className="platform-backdrop" type="button" aria-label="Fechar" onClick={onClose} />
+      <aside className="platform-drawer directory-form-drawer directory-business-drawer">
+        <button
+          type="button"
+          className="platform-drawer-close"
+          aria-label="Fechar"
+          onClick={onClose}
+        >
+          <IconX size={20} />
+        </button>
+        <header>
+          <span>Diretório</span>
+          <h2>{isEdit ? 'Editar estabelecimento' : 'Adicionar estabelecimento'}</h2>
+          <p>Revise os dados públicos, contato e regras de publicação.</p>
+        </header>
 
-        {error && <div style={{ color: 'var(--ds-text-negative)', marginBottom: '1rem', padding: '0.5rem', backgroundColor: 'var(--ds-background-negative-subtle)', borderRadius: '4px' }}>{error}</div>}
+        {error && (
+          <div
+            style={{
+              color: 'var(--ds-text-negative)',
+              marginBottom: '1rem',
+              padding: '0.5rem',
+              backgroundColor: 'var(--ds-background-negative-subtle)',
+              borderRadius: '4px',
+            }}
+          >
+            {error}
+          </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {!isEdit && (
             <>
               <label>
-                Categoria * {!isCategoryValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatória</span>}
-                <select value={form.categoryPublicId} onChange={(e) => setForm({ ...form, categoryPublicId: e.target.value })} disabled={isEdit} style={{ width: '100%', padding: '0.5rem' }}>
+                Categoria *{' '}
+                {!isCategoryValid && (
+                  <span style={{ color: 'var(--ds-text-negative)' }}>obrigatória</span>
+                )}
+                <select
+                  value={form.categoryPublicId}
+                  onChange={(e) => setForm({ ...form, categoryPublicId: e.target.value })}
+                  disabled={isEdit}
+                  style={{ width: '100%', padding: '0.5rem' }}
+                >
                   <option value="">Selecione</option>
                   {categories.data?.map((cat) => (
                     <option key={cat.publicId} value={cat.publicId}>
@@ -235,73 +272,160 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
           )}
 
           <label>
-            Nome * {!isNameValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatório</span>}
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nome do estabelecimento" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            Nome *{' '}
+            {!isNameValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatório</span>}
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Nome do estabelecimento"
+              style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+            />
           </label>
 
           <label>
-            Endereço Completo * {!isAddressValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatório</span>}
-            <input type="text" value={form.rawAddress} onChange={(e) => setForm({ ...form, rawAddress: e.target.value })} placeholder="Rua, número, complemento" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            Endereço Completo *{' '}
+            {!isAddressValid && (
+              <span style={{ color: 'var(--ds-text-negative)' }}>obrigatório</span>
+            )}
+            <input
+              type="text"
+              value={form.rawAddress}
+              onChange={(e) => setForm({ ...form, rawAddress: e.target.value })}
+              placeholder="Rua, número, complemento"
+              style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+            />
           </label>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
             <label>
               Rua
-              <input type="text" value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+              <input
+                type="text"
+                value={form.street}
+                onChange={(e) => setForm({ ...form, street: e.target.value })}
+                style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+              />
             </label>
             <label>
               Número
-              <input type="text" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+              <input
+                type="text"
+                value={form.number}
+                onChange={(e) => setForm({ ...form, number: e.target.value })}
+                style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+              />
             </label>
           </div>
 
           <label>
             Complemento
-            <input type="text" value={form.complement} onChange={(e) => setForm({ ...form, complement: e.target.value })} style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            <input
+              type="text"
+              value={form.complement}
+              onChange={(e) => setForm({ ...form, complement: e.target.value })}
+              style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+            />
           </label>
 
           <label>
             Bairro
-            <input type="text" value={form.neighborhood} onChange={(e) => setForm({ ...form, neighborhood: e.target.value })} style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            <input
+              type="text"
+              value={form.neighborhood}
+              onChange={(e) => setForm({ ...form, neighborhood: e.target.value })}
+              style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+            />
           </label>
 
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
             <label>
-              Cidade * {!isCityValid && <span style={{ color: 'var(--ds-text-negative)' }}>obrigatória</span>}
-              <input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+              Cidade *{' '}
+              {!isCityValid && (
+                <span style={{ color: 'var(--ds-text-negative)' }}>obrigatória</span>
+              )}
+              <input
+                type="text"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+              />
             </label>
             <label>
-              Estado * {!isStateValid && <span style={{ color: 'var(--ds-text-negative)' }}>2 chars</span>}
-              <input type="text" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value.toUpperCase().slice(0, 2) })} maxLength={2} style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+              Estado *{' '}
+              {!isStateValid && <span style={{ color: 'var(--ds-text-negative)' }}>2 chars</span>}
+              <input
+                type="text"
+                value={form.state}
+                onChange={(e) =>
+                  setForm({ ...form, state: e.target.value.toUpperCase().slice(0, 2) })
+                }
+                maxLength={2}
+                style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+              />
             </label>
           </div>
 
           <label>
             CEP
-            <input type="text" value={form.postalCode} onChange={(e) => setForm({ ...form, postalCode: e.target.value })} placeholder="12345-678" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            <input
+              type="text"
+              value={form.postalCode}
+              onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
+              placeholder="12345-678"
+              style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+            />
           </label>
 
           <label>
             WhatsApp
-            <input type="text" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder="(85) 98877-6655" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            <input
+              type="text"
+              value={form.whatsapp}
+              onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+              placeholder="(85) 98877-6655"
+              style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+            />
           </label>
 
           <label>
             Telefone
-            <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(85) 3082-1234" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            <input
+              type="text"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="(85) 3082-1234"
+              style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+            />
           </label>
 
           <label>
             Website
-            <input type="url" value={form.websiteUrl} onChange={(e) => setForm({ ...form, websiteUrl: e.target.value })} placeholder="https://exemplo.com" style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }} />
+            <input
+              type="url"
+              value={form.websiteUrl}
+              onChange={(e) => setForm({ ...form, websiteUrl: e.target.value })}
+              placeholder="https://exemplo.com"
+              style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+            />
           </label>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Ativo
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(e) => setForm({ ...form, active: e.target.checked })}
+              />{' '}
+              Ativo
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="checkbox" checked={form.indexable} onChange={(e) => setForm({ ...form, indexable: e.target.checked })} /> Indexável
+              <input
+                type="checkbox"
+                checked={form.indexable}
+                onChange={(e) => setForm({ ...form, indexable: e.target.checked })}
+              />{' '}
+              Indexável
             </label>
           </div>
 
@@ -309,12 +433,23 @@ export function DirectoryBusinessForm({ businessPublicId, onClose }: DirectoryBu
             <button onClick={onClose} disabled={isLoading} style={{ flex: 1, padding: '0.75rem' }}>
               Cancelar
             </button>
-            <button onClick={handleSubmit} disabled={isLoading || !isFormValid || (isEdit && businessDetail.isLoading)} style={{ flex: 1, padding: '0.75rem', backgroundColor: isFormValid ? 'var(--ds-background-positive-subtle)' : 'var(--ds-background-tertiary)', cursor: isFormValid ? 'pointer' : 'not-allowed' }}>
+            <button
+              onClick={handleSubmit}
+              disabled={isLoading || !isFormValid || (isEdit && businessDetail.isLoading)}
+              style={{
+                flex: 1,
+                padding: '0.75rem',
+                backgroundColor: isFormValid
+                  ? 'var(--ds-background-positive-subtle)'
+                  : 'var(--ds-background-tertiary)',
+                cursor: isFormValid ? 'pointer' : 'not-allowed',
+              }}
+            >
               {isLoading ? 'Salvando...' : isEdit ? 'Atualizar' : 'Criar'}
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </aside>
+    </>
   );
 }

@@ -148,6 +148,7 @@ describe('Directory sitemap', () => {
           })),
         ),
       },
+      directoryCityAggregate: { count: vi.fn().mockResolvedValue(0) },
       $queryRaw: vi.fn().mockResolvedValue([{ total: 0n }]),
     } as unknown as PrismaClient;
     return new DirectoryService(client);
@@ -257,6 +258,7 @@ describe('Directory telemetry aggregation', () => {
   it('keeps the metrics of two businesses isolated and ranks an unlinked prospect', async () => {
     const client = {
       directoryBusiness: {
+        count: async () => 2,
         findMany: async () => [
           {
             publicId: '00000000-0000-4000-8000-000000000001',
@@ -331,7 +333,9 @@ describe('Directory telemetry aggregation', () => {
 
   it('applies the requested period and business filters before aggregating metrics', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
-    const client = { directoryBusiness: { findMany } } as unknown as PrismaClient;
+    const client = {
+      directoryBusiness: { findMany, count: vi.fn().mockResolvedValue(0) },
+    } as unknown as PrismaClient;
     await new DirectoryService(client).metrics({
       from: new Date('2026-08-10T00:00:00.000Z'),
       to: new Date('2026-08-18T00:00:00.000Z'),
@@ -349,6 +353,81 @@ describe('Directory telemetry aggregation', () => {
     expect(call.include.events.where.createdAt).toEqual({
       gte: new Date('2026-08-10T00:00:00.000Z'),
       lte: new Date('2026-08-18T23:59:59.999Z'),
+    });
+  });
+});
+
+describe('Directory administrative catalog', () => {
+  it('applies stable filters, paginates and returns global dashboard totals', async () => {
+    const count = vi
+      .fn()
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(42)
+      .mockResolvedValueOnce(39)
+      .mockResolvedValueOnce(31);
+    const findMany = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          publicId: '00000000-0000-4000-8000-000000000001',
+          name: 'Barbearia Central',
+          city: 'Maceió',
+          state: 'AL',
+          active: true,
+          indexable: true,
+          whatsapp: '5582999999999',
+          seoQualityScore: 90,
+          updatedAt: new Date('2026-09-01T10:00:00.000Z'),
+          category: { pluralName: 'Barbearias', slug: 'barbearias' },
+        },
+      ])
+      .mockResolvedValueOnce([
+        { city: 'Maceió', state: 'AL' },
+        { city: 'Recife', state: 'PE' },
+      ]);
+    const client = {
+      directoryBusiness: { count, findMany },
+      directoryCategory: { count: vi.fn().mockResolvedValue(5) },
+    } as unknown as PrismaClient;
+
+    const result = await new DirectoryService(client).adminBusinesses({
+      page: 2,
+      limit: 20,
+      search: 'Central',
+      categorySlug: 'barbearias',
+      city: 'Maceió',
+      state: 'AL',
+      active: true,
+      indexable: true,
+    });
+
+    expect(findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        skip: 20,
+        take: 20,
+        orderBy: { updatedAt: 'desc' },
+        where: {
+          name: { contains: 'Central' },
+          category: { slug: 'barbearias' },
+          city: { contains: 'Maceió' },
+          state: 'AL',
+          active: true,
+          indexable: true,
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      page: 2,
+      total: 1,
+      totalPages: 1,
+      summary: {
+        totalBusinesses: 42,
+        activeBusinesses: 39,
+        indexableBusinesses: 31,
+        categoryCount: 5,
+        cityCount: 2,
+      },
     });
   });
 });

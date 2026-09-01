@@ -4,7 +4,10 @@ describe('DirectoryModule - Geoapify Configuration', () => {
   describe('category field parsing', () => {
     it('should parse comma-separated categories', () => {
       const input = 'restaurant, cafe, bar';
-      const parsed = input.split(',').map((x) => x.trim()).filter((x) => x);
+      const parsed = input
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => x);
 
       expect(parsed).toEqual(['restaurant', 'cafe', 'bar']);
     });
@@ -12,7 +15,10 @@ describe('DirectoryModule - Geoapify Configuration', () => {
     it('should handle empty input', () => {
       const input = '';
       const parsed = input.trim()
-        ? input.split(',').map((x) => x.trim()).filter((x) => x)
+        ? input
+            .split(',')
+            .map((x) => x.trim())
+            .filter((x) => x)
         : null;
 
       expect(parsed).toBe(null);
@@ -20,7 +26,10 @@ describe('DirectoryModule - Geoapify Configuration', () => {
 
     it('should trim whitespace', () => {
       const input = '  restaurant  ,  cafe  ';
-      const parsed = input.split(',').map((x) => x.trim()).filter((x) => x);
+      const parsed = input
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => x);
 
       expect(parsed).toEqual(['restaurant', 'cafe']);
     });
@@ -33,17 +42,17 @@ describe('DirectoryModule - Geoapify Configuration', () => {
         externalSearchTerms: ['food'],
       };
 
-      const isConfigured = category.geoapifyCategories && category.geoapifyCategories.length > 0;
+      const isConfigured = (category.geoapifyCategories?.length ?? 0) > 0;
       expect(isConfigured).toBe(true);
     });
 
     it('should show unconfigured status for categories without Geoapify', () => {
-      const category = {
+      const category: { geoapifyCategories: string[] | null; externalSearchTerms: string[] | null } = {
         geoapifyCategories: null,
         externalSearchTerms: null,
       };
 
-      const isConfigured = category.geoapifyCategories && category.geoapifyCategories.length > 0;
+      const isConfigured = (category.geoapifyCategories?.length ?? 0) > 0;
       expect(isConfigured).toBe(false);
     });
 

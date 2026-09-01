@@ -563,9 +563,34 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         response: { 200: PlatformAuditResponseSchema },
       },
     },
-    (request) => {
+    async (request) => {
       allow(request, 'platform.audit.read');
-      return options.service.listAudit(request.query);
+
+      request.log.info({ auditStage: 'AUDIT_ROUTE_START' }, 'Diagnóstico de auditoria');
+
+      try {
+        const result = await options.service.listAudit(request.query);
+
+        request.log.info({ auditStage: 'AUDIT_ROUTE_OK' }, 'Diagnóstico de auditoria');
+
+        return result;
+      } catch (error) {
+        const errorName = error instanceof Error ? error.name : 'Unknown';
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorCode = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : null;
+
+        request.log.error(
+          {
+            auditStage: 'AUDIT_ROUTE_ERROR',
+            errorName,
+            errorMessage,
+            errorCode,
+          },
+          'Falha diagnosticada em /platform/audit',
+        );
+
+        throw error;
+      }
     },
   );
 

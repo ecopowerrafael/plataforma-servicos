@@ -6,6 +6,7 @@ import {
   CreateTenantCustomFieldRequestSchema,
   CommercialPlanPublicSchema,
   PlanBenefitPublicSchema,
+  PlatformAuditResponseSchema,
   type CreateCommercialPlanRequest,
   type CreatePlanBenefitRequest,
   type CreateSubscriptionRequest,
@@ -2435,30 +2436,39 @@ export class PlatformService {
     to?: string | undefined;
     direction: 'asc' | 'desc';
   }) {
-    const where: Prisma.AuditLogWhereInput = {
-      action: query.action ?? { startsWith: 'platform.' },
-      ...(query.userPublicId === undefined ? {} : { user: { publicId: query.userPublicId } }),
-      ...(query.tenantPublicId === undefined ? {} : { tenant: { publicId: query.tenantPublicId } }),
-      ...(query.targetType === undefined ? {} : { targetType: query.targetType }),
-      ...(query.from === undefined && query.to === undefined
-        ? {}
-        : {
-            createdAt: {
-              ...(query.from === undefined ? {} : { gte: new Date(query.from) }),
-              ...(query.to === undefined ? {} : { lte: new Date(query.to) }),
-            },
-          }),
-    };
-    const total = await this.client.auditLog.count({ where });
-    const items = await this.client.auditLog.findMany({
-      where,
-      skip: (query.page - 1) * query.limit,
-      take: query.limit,
-      orderBy: { createdAt: query.direction },
-      include: { tenant: true, user: true },
-    });
-    return {
-      items: items.map((item) => ({
+    try {
+      console.log('AUDIT_COUNT_START');
+
+      const where: Prisma.AuditLogWhereInput = {
+        action: query.action ?? { startsWith: 'platform.' },
+        ...(query.userPublicId === undefined ? {} : { user: { publicId: query.userPublicId } }),
+        ...(query.tenantPublicId === undefined ? {} : { tenant: { publicId: query.tenantPublicId } }),
+        ...(query.targetType === undefined ? {} : { targetType: query.targetType }),
+        ...(query.from === undefined && query.to === undefined
+          ? {}
+          : {
+              createdAt: {
+                ...(query.from === undefined ? {} : { gte: new Date(query.from) }),
+                ...(query.to === undefined ? {} : { lte: new Date(query.to) }),
+              },
+            }),
+      };
+
+      const total = await this.client.auditLog.count({ where });
+      console.log('AUDIT_COUNT_OK', { total });
+
+      console.log('AUDIT_FIND_START');
+      const items = await this.client.auditLog.findMany({
+        where,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+        orderBy: { createdAt: query.direction },
+        include: { tenant: true, user: true },
+      });
+      console.log('AUDIT_FIND_OK', { itemsCount: items.length });
+
+      console.log('AUDIT_MAP_START');
+      const mapped = items.map((item) => ({
         publicId: item.publicId,
         action: item.action,
         targetType: item.targetType,
@@ -2470,8 +2480,26 @@ export class PlatformService {
             : { publicId: item.user.publicId, email: item.user.email, status: item.user.status },
         createdAt: item.createdAt.toISOString(),
         ...auditReadDetails(item.metadata),
-      })),
-      page: pageMeta(total, query),
-    };
+      }));
+      console.log('AUDIT_MAP_OK', { mappedCount: mapped.length });
+
+      const response = {
+        items: mapped,
+        page: pageMeta(total, query),
+      };
+
+      console.log('AUDIT_RESPONSE_PARSE_START');
+      const parsed = PlatformAuditResponseSchema.parse(response);
+      console.log('AUDIT_RESPONSE_PARSE_OK');
+
+      return parsed;
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'Unknown';
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : null;
+
+      console.error('AUDIT_ERROR', { errorName, errorMessage, errorCode });
+      throw error;
+    }
   }
 }

@@ -1543,4 +1543,316 @@ export class DirectoryService {
       urls: [...new Map(urls.map((url) => [url.path, url])).values()],
     };
   }
+
+  public async createBusinessManual(input: {
+    categoryPublicId: string;
+    name: string;
+    rawAddress: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city: string;
+    state: string;
+    postalCode?: string;
+    phone?: string;
+    whatsapp?: string;
+    websiteUrl?: string;
+    active?: boolean;
+    indexable?: boolean;
+  }) {
+    const category = await this.client.directoryCategory.findUnique({
+      where: { publicId: input.categoryPublicId },
+    });
+    if (!category)
+      throw new AppError({
+        code: 'DIRECTORY_CATEGORY_NOT_FOUND',
+        message: 'Categoria não encontrada.',
+        statusCode: 404,
+      });
+
+    const slug = directorySlug(input.name);
+    const citySlug = directorySlug(`${input.city}-${input.state}`);
+
+    const normalizedPhone = input.phone ? normalizeDirectoryPhone(input.phone) : null;
+    const normalizedWhatsapp = input.whatsapp ? normalizeDirectoryPhone(input.whatsapp) : null;
+
+    if (input.phone && !normalizedPhone)
+      throw new AppError({
+        code: 'INVALID_PHONE',
+        message: 'Número de telefone inválido.',
+        statusCode: 400,
+      });
+
+    if (input.whatsapp && !normalizedWhatsapp)
+      throw new AppError({
+        code: 'INVALID_WHATSAPP',
+        message: 'Número de WhatsApp inválido.',
+        statusCode: 400,
+      });
+
+    // Check unique constraint
+    const existing = await this.client.directoryBusiness.findFirst({
+      where: {
+        categoryId: category.id,
+        state: input.state,
+        citySlug,
+        slug,
+      },
+    });
+
+    if (existing)
+      throw new AppError({
+        code: 'DIRECTORY_BUSINESS_ALREADY_EXISTS',
+        message: `Estabelecimento "${input.name}" já existe nesta categoria e cidade.`,
+        statusCode: 409,
+      });
+
+    // Extract address parts if not provided
+    const addressParts = extractDirectoryAddressParts(input.rawAddress);
+    const street = input.street || addressParts.street;
+    const number = input.number || addressParts.number;
+    const neighborhood = input.neighborhood || addressParts.neighborhood;
+    const active = input.active ?? true;
+    const indexable = input.indexable ?? true;
+
+    // Calculate SEO
+    const seo = evaluateDirectoryBusinessSeo({
+      name: input.name,
+      city: input.city,
+      state: input.state,
+      rawAddress: input.rawAddress,
+      neighborhood: neighborhood || null,
+      postalCode: input.postalCode || null,
+      phone: normalizedPhone,
+      whatsapp: normalizedWhatsapp,
+      websiteUrl: input.websiteUrl || null,
+      tenantId: null,
+      categoryActive: category.active,
+      categoryIndexable: category.indexable,
+      active,
+      indexable,
+    });
+
+    const sourceHash = createHash('sha256')
+      .update(JSON.stringify({
+        name: input.name,
+        city: input.city,
+        state: input.state,
+        rawAddress: input.rawAddress,
+      }))
+      .digest('hex');
+
+    const business = await this.client.directoryBusiness.create({
+      data: {
+        publicId: randomUUID(),
+        categoryId: category.id,
+        name: input.name,
+        slug,
+        citySlug,
+        rawAddress: input.rawAddress,
+        street: street || null,
+        number: number || null,
+        complement: input.complement || null,
+        neighborhood: neighborhood || null,
+        city: input.city,
+        state: input.state,
+        postalCode: input.postalCode || null,
+        phone: normalizedPhone,
+        whatsapp: normalizedWhatsapp,
+        websiteUrl: input.websiteUrl || null,
+        active,
+        indexable,
+        seoQualityScore: seo.score,
+        seoEligible: seo.eligible,
+        sourceHash,
+      },
+    });
+
+    // Enqueue city aggregate refresh
+    await enqueueDirectoryCityAggregate(this.client, category.id, citySlug);
+
+    return business;
+  }
+
+  public async updateBusinessDetails(
+    publicId: string,
+    input: {
+      name?: string;
+      rawAddress?: string;
+      street?: string | null;
+      number?: string | null;
+      complement?: string | null;
+      neighborhood?: string | null;
+      city?: string;
+      state?: string;
+      postalCode?: string | null;
+      phone?: string | null;
+      whatsapp?: string | null;
+      websiteUrl?: string | null;
+      active?: boolean;
+      indexable?: boolean;
+    },
+  ) {
+    const business = await this.client.directoryBusiness.findUnique({
+      where: { publicId },
+      include: { category: true },
+    });
+
+    if (!business)
+      throw new AppError({
+        code: 'DIRECTORY_BUSINESS_NOT_FOUND',
+        message: 'Estabelecimento não encontrado.',
+        statusCode: 404,
+      });
+
+    // Prepare update data
+    const updateData: Parameters<typeof this.client.directoryBusiness.update>[0]['data'] = {};
+
+    if (input.name !== undefined) {
+      updateData.name = input.name;
+      updateData.slug = directorySlug(input.name);
+    }
+
+    if (input.city !== undefined || input.state !== undefined) {
+      const city = input.city ?? business.city;
+      const state = input.state ?? business.state;
+      updateData.city = city;
+      updateData.state = state;
+      updateData.citySlug = directorySlug(`${city}-${state}`);
+    }
+
+    if (input.rawAddress !== undefined) {
+      updateData.rawAddress = input.rawAddress;
+    }
+
+    if (input.street !== undefined) {
+      updateData.street = input.street;
+    }
+
+    if (input.number !== undefined) {
+      updateData.number = input.number;
+    }
+
+    if (input.complement !== undefined) {
+      updateData.complement = input.complement;
+    }
+
+    if (input.neighborhood !== undefined) {
+      updateData.neighborhood = input.neighborhood;
+    }
+
+    if (input.postalCode !== undefined) {
+      updateData.postalCode = input.postalCode;
+    }
+
+    if (input.phone !== undefined) {
+      const normalizedPhone = input.phone ? normalizeDirectoryPhone(input.phone) : null;
+      if (input.phone && !normalizedPhone)
+        throw new AppError({
+          code: 'INVALID_PHONE',
+          message: 'Número de telefone inválido.',
+          statusCode: 400,
+        });
+      updateData.phone = normalizedPhone;
+    }
+
+    if (input.whatsapp !== undefined) {
+      const normalizedWhatsapp = input.whatsapp ? normalizeDirectoryPhone(input.whatsapp) : null;
+      if (input.whatsapp && !normalizedWhatsapp)
+        throw new AppError({
+          code: 'INVALID_WHATSAPP',
+          message: 'Número de WhatsApp inválido.',
+          statusCode: 400,
+        });
+      updateData.whatsapp = normalizedWhatsapp;
+    }
+
+    if (input.websiteUrl !== undefined) {
+      updateData.websiteUrl = input.websiteUrl;
+    }
+
+    if (input.active !== undefined) {
+      updateData.active = input.active;
+    }
+
+    if (input.indexable !== undefined) {
+      updateData.indexable = input.indexable;
+    }
+
+    // Check unique constraint if name/city/state changed
+    if (input.name !== undefined || input.city !== undefined || input.state !== undefined) {
+      const slug = (updateData.slug as string) ?? business.slug;
+      const citySlug = (updateData.citySlug as string) ?? business.citySlug;
+      const state = (updateData.state as string) ?? business.state;
+
+      const conflicting = await this.client.directoryBusiness.findFirst({
+        where: {
+          categoryId: business.categoryId,
+          state,
+          citySlug,
+          slug,
+          id: { not: business.id }, // Exclude current business
+        },
+      });
+
+      if (conflicting)
+        throw new AppError({
+          code: 'DIRECTORY_BUSINESS_ALREADY_EXISTS',
+          message: `Outro estabelecimento com esse nome já existe nesta categoria e cidade.`,
+          statusCode: 409,
+        });
+    }
+
+    // Re-evaluate SEO
+    const name = (updateData.name as string) ?? business.name;
+    const city = (updateData.city as string) ?? business.city;
+    const state = (updateData.state as string) ?? business.state;
+    const seo = evaluateDirectoryBusinessSeo({
+      name,
+      city,
+      state,
+      rawAddress: (updateData.rawAddress as string) ?? business.rawAddress,
+      neighborhood: (updateData.neighborhood as string | null) ?? business.neighborhood,
+      postalCode: (updateData.postalCode as string | null) ?? business.postalCode,
+      phone: (updateData.phone as string | null) ?? business.phone,
+      whatsapp: (updateData.whatsapp as string | null) ?? business.whatsapp,
+      websiteUrl: (updateData.websiteUrl as string | null) ?? business.websiteUrl,
+      tenantId: business.tenantId,
+      categoryActive: business.category.active,
+      categoryIndexable: business.category.indexable,
+      active: (updateData.active as boolean) ?? business.active,
+      indexable: (updateData.indexable as boolean) ?? business.indexable,
+    });
+
+    updateData.seoQualityScore = seo.score;
+    updateData.seoEligible = seo.eligible;
+
+    const updated = await this.client.directoryBusiness.update({
+      where: { id: business.id },
+      data: updateData,
+    });
+
+    // Enqueue city aggregate refresh if city changed
+    if (input.city !== undefined) {
+      await enqueueDirectoryCityAggregate(this.client, business.categoryId, (updateData.citySlug as string) ?? business.citySlug);
+    }
+
+    return updated;
+  }
+
+  public async getBusinessDetail(publicId: string) {
+    const business = await this.client.directoryBusiness.findUnique({
+      where: { publicId },
+    });
+
+    if (!business)
+      throw new AppError({
+        code: 'DIRECTORY_BUSINESS_NOT_FOUND',
+        message: 'Estabelecimento não encontrado.',
+        statusCode: 404,
+      });
+
+    return business;
+  }
 }

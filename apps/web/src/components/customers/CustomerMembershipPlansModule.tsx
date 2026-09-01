@@ -1,10 +1,14 @@
 import {
   CustomerMembershipPlanListResponseSchema,
   CustomerMembershipPlanPublicSchema,
+  CustomerMembershipSubscriberListResponseSchema,
+  CustomerMembershipStatusSchema,
   ServiceListResponseSchema,
   type CustomerMembershipPlanPublic,
+  type CustomerMembershipSubscriberItem,
   type MembershipBenefitType,
 } from '@plataforma/shared';
+import { IconSearch, IconFilter } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
@@ -231,21 +235,231 @@ export function CustomerMembershipPlansModule({
   );
   const benefitCount = activePlans.reduce((total, plan) => total + plan.benefits.length, 0);
 
-  if (section === 'subscribers' || section === 'usage')
+  // Subscribers section
+  if (section === 'subscribers') {
+    const [page, setPage] = useState(1);
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('');
+    const [planFilter, setPlanFilter] = useState<string>('');
+    const limit = 20;
+
+    const subscribers = useQuery({
+      queryKey: ['tenant', tenantPublicId, 'customer-memberships', { page, search, statusFilter, planFilter }],
+      queryFn: () => {
+        const params = new URLSearchParams();
+        params.set('page', page.toString());
+        params.set('limit', limit.toString());
+        if (search) params.set('search', search);
+        if (statusFilter) params.set('status', statusFilter);
+        if (planFilter) params.set('planPublicId', planFilter);
+        return httpClient.request(`/tenant/customer-memberships?${params}`, {
+          tenantPublicId,
+          schema: CustomerMembershipSubscriberListResponseSchema,
+        });
+      },
+      retry: false,
+    });
+
+    const statusOptions = [
+      { value: 'PENDING', label: 'Pendente', color: 'orange' },
+      { value: 'ACTIVE', label: 'Ativo', color: 'green' },
+      { value: 'PAST_DUE', label: 'Inadimplente', color: 'red' },
+      { value: 'PAUSED', label: 'Pausado', color: 'blue' },
+      { value: 'CANCELED', label: 'Cancelado', color: 'gray' },
+    ] as const;
+
+    const getStatusBadgeColor = (status: string) =>
+      statusOptions.find((opt) => opt.value === status)?.color ?? 'gray';
+    const getStatusLabel = (status: string) =>
+      statusOptions.find((opt) => opt.value === status)?.label ?? status;
+
+    const pagination = subscribers.data?.pagination;
+
     return (
       <section className="sessions-panel membership-plans-module">
         <PageHeader
           eyebrow="Assinaturas"
-          title={section === 'subscribers' ? 'Assinantes' : 'Consumo'}
-          description="O domínio está preparado; esta visão operacional entra no próximo bloco funcional."
+          title="Assinantes"
+          description="Gerencie clientes com planos ativos e acompanhe seus ciclos de cobrança."
+        />
+
+        {/* Filters */}
+        <div className="membership-filters">
+          <div className="membership-search">
+            <IconSearch size={18} stroke={1.5} />
+            <input
+              type="text"
+              placeholder="Buscar por nome ou email..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="membership-search-input"
+            />
+          </div>
+
+          <select
+            value={planFilter}
+            onChange={(e) => {
+              setPlanFilter(e.target.value);
+              setPage(1);
+            }}
+            className="membership-filter-select"
+          >
+            <option value="">Todos os planos</option>
+            {plans.data?.items.map((plan) => (
+              <option key={plan.publicId} value={plan.publicId}>
+                {plan.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="membership-filter-select"
+          >
+            <option value="">Todos os status</option>
+            {statusOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+
+          {(search || statusFilter || planFilter) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('');
+                setPlanFilter('');
+                setPage(1);
+              }}
+              className="membership-clear-btn"
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+
+        {/* Table */}
+        {subscribers.isLoading && <ListSkeleton count={5} />}
+
+        {subscribers.error && (
+          <EmptyState
+            title="Erro ao carregar assinantes"
+            description="Não foi possível carregar a lista de assinantes. Tente novamente."
+          />
+        )}
+
+        {!subscribers.isLoading && subscribers.data && subscribers.data.items.length === 0 && (
+          <EmptyState
+            title="Nenhum assinante encontrado"
+            description="Comece criando o primeiro plano e então atribua-o aos seus clientes."
+          />
+        )}
+
+        {!subscribers.isLoading && subscribers.data && subscribers.data.items.length > 0 && (
+          <>
+            <table className="membership-subscribers-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Plano</th>
+                  <th>Status</th>
+                  <th>Período atual</th>
+                  <th>Valor mensal</th>
+                  <th>Próxima cobrança</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscribers.data.items.map((subscriber) => (
+                  <tr key={subscriber.membershipPublicId}>
+                    <td className="membership-subscriber-cell">
+                      <div className="membership-customer-info">
+                        <div className="membership-customer-avatar">
+                          {subscriber.customerAvatar ? (
+                            <img src={subscriber.customerAvatar} alt={subscriber.customerName} />
+                          ) : (
+                            <span>{subscriber.customerName.charAt(0).toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="membership-customer-name">{subscriber.customerName}</div>
+                          <div className="membership-customer-email">{subscriber.customerEmail}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{subscriber.planName}</td>
+                    <td>
+                      <StatusBadge
+                        status={getStatusLabel(subscriber.status).toLowerCase()}
+                        tone={getStatusBadgeColor(subscriber.status) as any}
+                      />
+                    </td>
+                    <td className="membership-date-cell">
+                      {subscriber.currentPeriodStart
+                        ? new Date(subscriber.currentPeriodStart).toLocaleDateString('pt-BR')
+                        : '—'}
+                    </td>
+                    <td>{money(subscriber.priceCents)}</td>
+                    <td className="membership-date-cell">
+                      {subscriber.nextBillingAt
+                        ? new Date(subscriber.nextBillingAt).toLocaleDateString('pt-BR')
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Pagination */}
+            {pagination && pagination.pages > 1 && (
+              <div className="membership-pagination">
+                <button
+                  type="button"
+                  disabled={page === 1}
+                  onClick={() => setPage(page - 1)}
+                  className="membership-pagination-btn"
+                >
+                  ← Anterior
+                </button>
+                <span className="membership-pagination-info">
+                  Página {pagination.page} de {pagination.pages} ({pagination.total} total)
+                </span>
+                <button
+                  type="button"
+                  disabled={page === pagination.pages}
+                  onClick={() => setPage(page + 1)}
+                  className="membership-pagination-btn"
+                >
+                  Próximo →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+    );
+  }
+
+  // Usage section (still placeholder)
+  if (section === 'usage')
+    return (
+      <section className="sessions-panel membership-plans-module">
+        <PageHeader
+          eyebrow="Assinaturas"
+          title="Consumo"
+          description="Acompanhe o consumo de benefícios por cliente."
         />
         <EmptyState
-          title={
-            section === 'subscribers'
-              ? 'Gestão de assinantes em preparação'
-              : 'Ledger de consumo em preparação'
-          }
-          description="Planos e benefícios já podem ser configurados sem misturar a assinatura do cliente com o plano SaaS do Agendei."
+          title="Ledger de consumo em preparação"
+          description="Esta visão será habilitada no próximo bloco funcional."
         />
       </section>
     );

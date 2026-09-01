@@ -15,6 +15,13 @@ interface Options {
 
 const UuidParamSchema = z.object({ publicId: z.uuid() }).strict();
 const CreateMembershipSchema = z.object({ planPublicId: z.uuid() }).strict();
+const ListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  planPublicId: z.uuid().optional(),
+  status: z.enum(['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED', 'CANCELED']).optional(),
+}).strict();
 
 export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (app, options) => {
   const repository = new CustomerMembershipRepository(options.client);
@@ -90,6 +97,48 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
         cancelAtPeriodEnd: membership.cancelAtPeriodEnd,
         createdAt: membership.createdAt.toISOString(),
         updatedAt: membership.updatedAt.toISOString(),
+      };
+    },
+  );
+
+  app.get<{ Querystring: z.infer<typeof ListQuerySchema> }>(
+    '/tenant/customer-memberships',
+    { schema: { querystring: ListQuerySchema } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.read');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
+
+      const result = await repository.listByTenant(request.tenant.id, {
+        page: request.query.page,
+        limit: request.query.limit,
+        ...(request.query.search && { search: request.query.search }),
+        ...(request.query.planPublicId && { planPublicId: request.query.planPublicId }),
+        ...(request.query.status && { status: request.query.status }),
+      });
+
+      return {
+        items: result.items.map((membership) => ({
+          membershipPublicId: membership.publicId,
+          customerPublicId: membership.customer.publicId,
+          customerName: membership.customer.name,
+          customerEmail: membership.customer.email,
+          customerAvatar: membership.customer.avatar,
+          planPublicId: membership.plan.publicId,
+          planName: membership.plan.name,
+          priceCents: Number(membership.plan.priceCents),
+          status: membership.status,
+          startedAt: membership.startedAt?.toISOString() ?? null,
+          currentPeriodStart: membership.currentPeriodStart?.toISOString() ?? null,
+          currentPeriodEnd: membership.currentPeriodEnd?.toISOString() ?? null,
+          nextBillingAt: membership.nextBillingAt?.toISOString() ?? null,
+          createdAt: membership.createdAt.toISOString(),
+        })),
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          pages: Math.ceil(result.total / result.limit),
+        },
       };
     },
   );

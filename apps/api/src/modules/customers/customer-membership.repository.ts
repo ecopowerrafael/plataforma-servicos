@@ -10,6 +10,55 @@ export class CustomerMembershipRepository {
     });
   }
 
+  public async listByTenant(
+    tenantId: bigint,
+    options: {
+      page: number;
+      limit: number;
+      search?: string;
+      planPublicId?: string;
+      status?: string;
+    },
+  ) {
+    const skip = (options.page - 1) * options.limit;
+    const where: Prisma.CustomerMembershipWhereInput = {
+      tenantId,
+    };
+
+    if (options.search) {
+      where.customer = {
+        OR: [
+          { name: { contains: options.search } },
+          { email: { contains: options.search } },
+        ],
+      };
+    }
+
+    if (options.planPublicId) {
+      where.plan = { publicId: options.planPublicId };
+    }
+
+    if (options.status) {
+      where.status = options.status as any;
+    }
+
+    const [items, total] = await Promise.all([
+      this.client.customerMembership.findMany({
+        where,
+        include: {
+          customer: { select: { publicId: true, name: true, email: true, avatar: true } },
+          plan: { select: { publicId: true, name: true, priceCents: true } },
+        },
+        skip,
+        take: options.limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.client.customerMembership.count({ where }),
+    ]);
+
+    return { items, total, page: options.page, limit: options.limit };
+  }
+
   public find(tenantId: bigint, publicId: string) {
     return this.client.customerMembership.findFirst({
       where: { tenantId, publicId },

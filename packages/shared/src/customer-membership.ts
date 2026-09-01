@@ -204,3 +204,40 @@ export const CustomerMembershipBenefitsBalanceResponseSchema = z.object({
 export type CustomerMembershipBenefitsBalanceResponse = z.infer<
   typeof CustomerMembershipBenefitsBalanceResponseSchema
 >;
+
+// List (Subscribers view)
+export const CustomerMembershipSubscriberItemSchema = z.object({
+  membershipPublicId: z.string().uuid(),
+  customerPublicId: z.string().uuid(),
+  customerName: z.string(),
+  customerEmail: z.string().email(),
+  customerAvatar: z.string().nullable(),
+  planPublicId: z.string().uuid(),
+  planName: z.string(),
+  priceCents: z.number().int().nonnegative(),
+  status: CustomerMembershipStatusSchema,
+  startedAt: z.string().datetime().nullable(),
+  currentPeriodStart: z.string().datetime().nullable(),
+  currentPeriodEnd: z.string().datetime().nullable(),
+  nextBillingAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type CustomerMembershipSubscriberItem = z.infer<
+  typeof CustomerMembershipSubscriberItemSchema
+>;
+
+export const PaginationSchema = z.object({
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  pages: z.number().int().nonnegative(),
+});
+export type Pagination = z.infer<typeof PaginationSchema>;
+
+export const CustomerMembershipSubscriberListResponseSchema = z.object({
+  items: z.array(CustomerMembershipSubscriberItemSchema),
+  pagination: PaginationSchema,
+});
+export type CustomerMembershipSubscriberListResponse = z.infer<
+  typeof CustomerMembershipSubscriberListResponseSchema
+>;

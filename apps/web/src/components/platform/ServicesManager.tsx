@@ -13,6 +13,8 @@ import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { ErrorState, formatMoney, StatusBadge } from './PlatformUi.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
+import { PlatformServiceImage } from './PlatformServiceImage.js';
+import { ServiceImageModal } from './ServiceImageModal.js';
 
 const HEX = /^#[0-9A-Fa-f]{6}$/u;
 
@@ -82,7 +84,7 @@ export function ServicesManager({ tenantPublicId }: { tenantPublicId: string }) 
   const [formData, setFormData] = useState<ServiceFormData>(emptyForm());
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
-  const [imageUploadingFor, setImageUploadingFor] = useState<string | null>(null);
+  const [imageModalService, setImageModalService] = useState<z.infer<typeof ServicePublicSchema> | null>(null);
 
   const queryKey = [
     'platform',
@@ -175,37 +177,6 @@ export function ServicesManager({ tenantPublicId }: { tenantPublicId: string }) 
     },
   });
 
-  const uploadImage = useMutation({
-    mutationFn: async (file: File) => {
-      if (!editingService) return;
-      const body = new FormData();
-      body.set('file', file, file.name);
-      return httpClient.request(
-        `/platform/tenants/${tenantPublicId}/services/${editingService.publicId}/image`,
-        {
-          method: 'PUT',
-          body,
-          schema: ServicePublicSchema,
-        },
-      );
-    },
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey });
-      setImageUploadingFor(null);
-    },
-  });
-
-  const removeImage = useMutation({
-    mutationFn: async (servicePublicId: string) => {
-      return httpClient.request(
-        `/platform/tenants/${tenantPublicId}/services/${servicePublicId}/image`,
-        { method: 'DELETE', schema: SuccessResponseSchema },
-      );
-    },
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey });
-    },
-  });
 
   const setActive = useMutation({
     mutationFn: async ({ servicePublicId, active }: { servicePublicId: string; active: boolean }) => {
@@ -233,19 +204,6 @@ export function ServicesManager({ tenantPublicId }: { tenantPublicId: string }) 
     setShowForm(true);
   };
 
-  const openDeleteImage = (service: z.infer<typeof ServicePublicSchema>) => {
-    if (!service.imageUrl) return;
-    setConfirmation({
-      title: 'Remover imagem',
-      description: `Remover imagem do serviço "${service.name}"?`,
-      confirmLabel: 'Remover',
-      requiresReason: false,
-      variant: 'danger',
-      onConfirm: async () => {
-        removeImage.mutate(service.publicId);
-      },
-    });
-  };
 
   const openDeactivate = (service: z.infer<typeof ServicePublicSchema>) => {
     setConfirmation({
@@ -339,6 +297,7 @@ export function ServicesManager({ tenantPublicId }: { tenantPublicId: string }) 
               <table className="platform-table">
                 <thead>
                   <tr>
+                    <th>Foto</th>
                     <th>Nome</th>
                     <th>Categoria</th>
                     <th>Duração</th>
@@ -351,8 +310,32 @@ export function ServicesManager({ tenantPublicId }: { tenantPublicId: string }) 
                   {data.items.map((service) => (
                     <tr key={service.publicId}>
                       <td>
+                        {service.imageUrl ? (
+                          <PlatformServiceImage
+                            alt={service.name}
+                            servicePublicId={service.publicId}
+                            tenantPublicId={tenantPublicId}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '56px',
+                              height: '56px',
+                              backgroundColor: '#f0f0f0',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.75rem',
+                              color: '#999',
+                            }}
+                          >
+                            sem img
+                          </div>
+                        )}
+                      </td>
+                      <td>
                         <strong>{service.name}</strong>
-                        {service.imageUrl && <div style={{ fontSize: '0.75rem', color: '#999' }}>📷 tem imagem</div>}
                       </td>
                       <td>{service.categoryName ?? '—'}</td>
                       <td>{service.durationMinutes}m</td>
@@ -370,6 +353,13 @@ export function ServicesManager({ tenantPublicId }: { tenantPublicId: string }) 
                         >
                           Editar
                         </button>
+                        <button
+                          type="button"
+                          className="text-button button--xs"
+                          onClick={() => setImageModalService(service)}
+                        >
+                          Imagem
+                        </button>
                         {service.active ? (
                           <button
                             type="button"
@@ -386,33 +376,6 @@ export function ServicesManager({ tenantPublicId }: { tenantPublicId: string }) 
                           >
                             Ativar
                           </button>
-                        )}
-                        {service.imageUrl ? (
-                          <button
-                            type="button"
-                            className="text-button button--xs"
-                            onClick={() => openDeleteImage(service)}
-                          >
-                            Remover img
-                          </button>
-                        ) : (
-                          <label className="text-button button--xs" style={{ cursor: 'pointer', margin: 0 }}>
-                            Enviar img
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp"
-                              hidden
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  setImageUploadingFor(service.publicId);
-                                  uploadImage.mutate(file);
-                                }
-                                e.target.value = '';
-                              }}
-                              disabled={uploadImage.isPending}
-                            />
-                          </label>
                         )}
                       </td>
                     </tr>
@@ -641,6 +604,17 @@ export function ServicesManager({ tenantPublicId }: { tenantPublicId: string }) 
             </form>
           </section>
         </div>
+      )}
+
+      {imageModalService && (
+        <ServiceImageModal
+          service={imageModalService}
+          tenantPublicId={tenantPublicId}
+          onClose={() => setImageModalService(null)}
+          onImageUpdated={async () => {
+            await client.invalidateQueries({ queryKey });
+          }}
+        />
       )}
     </div>
   );

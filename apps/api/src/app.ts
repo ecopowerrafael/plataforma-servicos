@@ -968,6 +968,7 @@ export async function buildApp(options: BuildAppOptions) {
     await app.register(platformRoutes, {
       service: options.database.platform,
       authService,
+      passwordService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       ...(options.database.commercialPolicy === undefined
         ? {}
@@ -987,6 +988,9 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.services ? { serviceService: options.database.services } : {}),
       ...(options.database.serviceCategories
         ? { serviceCategoryService: options.database.serviceCategories }
+        : {}),
+      ...(options.database.professionals
+        ? { professionalService: options.database.professionals }
         : {}),
     });
   }

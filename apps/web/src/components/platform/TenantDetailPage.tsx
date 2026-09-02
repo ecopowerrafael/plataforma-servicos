@@ -24,6 +24,7 @@ import { SubscriptionBillingPanel } from './SubscriptionBillingPanel.js';
 import { TenantEditForm } from './TenantEditForm.js';
 import { ServicesManager } from './ServicesManager.js';
 import { CategoriesManager } from './CategoriesManager.js';
+import { ProfessionalsManager } from './ProfessionalsManager.js';
 import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
@@ -50,6 +51,7 @@ type TabKey =
   | 'company'
   | 'services'
   | 'serviceCategories'
+  | 'professionals'
   | 'subscription'
   | 'units'
   | 'features'
@@ -64,6 +66,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'company', label: 'Empresa' },
   { key: 'services', label: 'Serviços' },
   { key: 'serviceCategories', label: 'Categorias' },
+  { key: 'professionals', label: 'Profissionais' },
   { key: 'subscription', label: 'Assinatura' },
   { key: 'units', label: 'Unidades' },
   { key: 'features', label: 'Funcionalidades' },
@@ -264,6 +267,8 @@ export function TenantDetailPage({ tenantPublicId }: { tenantPublicId: string })
         <ServicesManager tenantPublicId={tenantPublicId} />
       ) : tab === 'serviceCategories' ? (
         <CategoriesManager tenantPublicId={tenantPublicId} />
+      ) : tab === 'professionals' ? (
+        <ProfessionalsManager tenantPublicId={tenantPublicId} />
       ) : tab === 'subscription' ? (
         <SubscriptionTab
           data={data}

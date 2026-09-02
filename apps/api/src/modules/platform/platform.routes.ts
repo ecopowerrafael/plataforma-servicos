@@ -69,6 +69,11 @@ import {
   ServiceCategoryPublicSchema,
   ServiceCategoryListResponseSchema,
   ServiceCategoryStatusResponseSchema,
+  CreateProfessionalRequestSchema,
+  UpdateProfessionalRequestSchema,
+  ProfessionalPublicSchema,
+  ProfessionalListResponseSchema,
+  ProfessionalStatusResponseSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -87,10 +92,13 @@ import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.serv
 import { validateServiceImageUpload } from '../services/service-image.storage.js';
 import { type ServiceService } from '../services/service.service.js';
 import { type ServiceCategoryService } from '../services/service-category.service.js';
+import { type ProfessionalService } from '../professionals/professional.service.js';
+import { PasswordService } from '../auth/password.service.js';
 
 interface PlatformRoutesOptions {
   service: PlatformService;
   authService: AuthService;
+  passwordService: PasswordService;
   cookieName: string;
   commercialPolicyService?: TenantCommercialPolicyService;
   billingService?: PlatformBillingService;
@@ -99,6 +107,7 @@ interface PlatformRoutesOptions {
   whiteLabelService?: TenantWhiteLabelService;
   serviceService?: ServiceService;
   serviceCategoryService?: ServiceCategoryService;
+  professionalService?: ProfessionalService;
 }
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const TenantParamsSchema = z.object({ tenantPublicId: z.uuid() });
@@ -627,6 +636,20 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         },
       );
     }
+    app.get(
+      '/platform/tenants/:tenantPublicId/services/:servicePublicId/image',
+      { schema: { params: TenantParamsSchema.extend({ servicePublicId: z.uuid() }) } },
+      async (request, reply) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        try {
+          const buffer = await svc.getImage(tenantId, request.params.servicePublicId);
+          return reply.type('image/jpeg').send(buffer);
+        } catch {
+          return reply.status(404).send({ code: 'SERVICE_IMAGE_NOT_FOUND' });
+        }
+      },
+    );
     app.put(
       '/platform/tenants/:tenantPublicId/services/:servicePublicId/image',
       {
@@ -795,6 +818,227 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         },
       );
     }
+  }
+  if (options.professionalService) {
+    const prof = options.professionalService;
+    app.get(
+      '/platform/tenants/:tenantPublicId/professionals',
+      {
+        schema: {
+          params: TenantParamsSchema,
+          querystring: PaginationQuerySchema.extend({
+            search: z.string().optional(),
+            active: z.coerce.boolean().optional(),
+          }),
+          response: { 200: ProfessionalListResponseSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return prof.list(tenantId, request.query);
+      },
+    );
+    app.get(
+      '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }),
+          response: { 200: ProfessionalPublicSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return prof.get(tenantId, request.params.professionalPublicId);
+      },
+    );
+    app.post(
+      '/platform/tenants/:tenantPublicId/professionals',
+      {
+        schema: {
+          params: TenantParamsSchema,
+          body: CreateProfessionalRequestSchema,
+          response: { 201: ProfessionalPublicSchema },
+        },
+      },
+      async (request, reply) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const professional = await prof.create(
+          tenantId,
+          request.body,
+          undefined,
+          options.passwordService,
+        );
+        await options.service.recordTenantAudit(
+          'platform.tenant.professional_created',
+          'professional',
+          professional.publicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return reply.status(201).send(professional);
+      },
+    );
+    app.patch(
+      '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }),
+          body: UpdateProfessionalRequestSchema,
+          response: { 200: ProfessionalPublicSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const professional = await prof.update(
+          tenantId,
+          request.params.professionalPublicId,
+          request.body,
+        );
+        await options.service.recordTenantAudit(
+          'platform.tenant.professional_updated',
+          'professional',
+          request.params.professionalPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return professional;
+      },
+    );
+    for (const [path, active] of [
+      ['activate', true],
+      ['deactivate', false],
+    ] as const) {
+      app.post(
+        `/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/${path}`,
+        {
+          schema: {
+            params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }),
+            response: { 200: ProfessionalStatusResponseSchema },
+          },
+        },
+        async (request) => {
+          allow(request, 'platform.tenant.update');
+          const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+          await prof.setActive(tenantId, request.params.professionalPublicId, active);
+          await options.service.recordTenantAudit(
+            active
+              ? 'platform.tenant.professional_activated'
+              : 'platform.tenant.professional_deactivated',
+            'professional',
+            request.params.professionalPublicId,
+            tenantId,
+            request.platformAuth,
+            requestMetadata(request),
+          );
+          return { success: true } as const;
+        },
+      );
+    }
+    app.put(
+      '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/password',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }),
+          body: z.object({ password: z.string().min(8).max(200) }),
+          response: { 200: ProfessionalStatusResponseSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        await prof.changePassword(
+          tenantId,
+          request.params.professionalPublicId,
+          request.body.password,
+          options.passwordService,
+          { userId: BigInt(0), sessionId: BigInt(0) },
+        );
+        await options.service.recordTenantAudit(
+          'platform.tenant.professional_password_changed',
+          'professional',
+          request.params.professionalPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return { success: true } as const;
+      },
+    );
+    app.get(
+      '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/photo',
+      { schema: { params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }) } },
+      async (request, reply) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        try {
+          const buffer = await prof.photo(tenantId, request.params.professionalPublicId);
+          return reply.type('image/jpeg').send(buffer);
+        } catch {
+          return reply.status(404).send({ code: 'PROFESSIONAL_PHOTO_NOT_FOUND' });
+        }
+      },
+    );
+    app.put(
+      '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/photo',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }),
+          response: { 200: ProfessionalPublicSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const upload = await request.file();
+        if (upload === undefined)
+          throw new AppError({
+            code: 'PROFESSIONAL_PHOTO_REQUIRED',
+            message: 'Uma foto é obrigatória.',
+            statusCode: 400,
+          });
+        const image = await upload.toBuffer();
+        validateServiceImageUpload(image, upload.filename, upload.mimetype);
+        const professional = await prof.replacePhoto(tenantId, request.params.professionalPublicId, image);
+        await options.service.recordTenantAudit(
+          'platform.tenant.professional_photo_replaced',
+          'professional',
+          request.params.professionalPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return professional;
+      },
+    );
+    app.delete(
+      '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/photo',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }),
+          response: { 200: SuccessResponseSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        await prof.removePhoto(tenantId, request.params.professionalPublicId);
+        await options.service.recordTenantAudit(
+          'platform.tenant.professional_photo_removed',
+          'professional',
+          request.params.professionalPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return { success: true } as const;
+      },
+    );
   }
   app.patch(
     '/platform/tenants/:tenantPublicId/settings',

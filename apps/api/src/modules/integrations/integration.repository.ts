@@ -13,6 +13,8 @@ export class IntegrationRepository {
       active: boolean;
       instanceId: string;
       encryptedAccessToken: string;
+      instanceName?: string | undefined;
+      phoneNumber?: string | undefined;
     },
   ) {
     const stored = {
@@ -23,6 +25,8 @@ export class IntegrationRepository {
       apiVersion: 'v1',
       lastValidationStatus: null,
       lastValidatedAt: null,
+      ...(data.instanceName === undefined ? {} : { instanceName: data.instanceName }),
+      ...(data.phoneNumber === undefined ? {} : { connectedPhone: data.phoneNumber }),
     };
     return this.client.tenantWhatsAppConfig.upsert({
       where: { tenantId },

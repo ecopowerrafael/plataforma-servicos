@@ -34,7 +34,10 @@ import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.serv
 
 interface Actor {
   userId: bigint;
-  sessionId: bigint;
+  // null quando a ação vem de um contexto sem sessão de tenant real — ex.:
+  // um admin da plataforma agindo em nome do tenant (AuditLog.sessionId é
+  // uma FK nullable; nunca inventar um id de sessão que não exista).
+  sessionId: bigint | null;
 }
 const whatsappPublic = (
   item: {
@@ -136,6 +139,8 @@ export class IntegrationService {
       active: boolean;
       instanceId: string;
       token?: string | undefined;
+      instanceName?: string | undefined;
+      phoneNumber?: string | undefined;
     },
     actor: Actor,
   ) {
@@ -155,9 +160,34 @@ export class IntegrationService {
       active: input.active,
       instanceId: input.instanceId,
       encryptedAccessToken,
+      instanceName: input.instanceName,
+      phoneNumber: input.phoneNumber,
     });
     await this.audit(tenantId, actor, 'integration.whatsapp.updated', result.publicId);
     return whatsappPublic(result, true);
+  }
+  /**
+   * Visão administrativa (suporte/plataforma) da instância do WhatsApp do
+   * tenant — nunca devolve o token, só se ele está configurado.
+   */
+  public async whatsappAdminView(tenantId: bigint) {
+    const available = await new PlanEntitlementService().featureEnabledForTenant(
+      this.repository.client,
+      tenantId,
+      'whatsapp.enabled',
+    );
+    const config = await this.repository.whatsapp(tenantId);
+    return {
+      available,
+      configured: config !== null,
+      active: config?.active ?? false,
+      instanceId: config?.phoneNumberId ?? null,
+      instanceName: config?.instanceName ?? null,
+      phoneNumber: config?.connectedPhone ?? null,
+      tokenConfigured: config !== null && config.encryptedAccessToken.length > 0,
+      connectionStatus: config?.connectionStatus ?? 'NOT_CONFIGURED',
+      lastCheckedAt: config?.lastStatusCheckAt?.toISOString() ?? null,
+    };
   }
   public async testWhatsapp(tenantId: bigint,input: {instanceId?:string|undefined;token?:string|undefined}) {
     await this.assertEnabled(tenantId, 'whatsapp.enabled');

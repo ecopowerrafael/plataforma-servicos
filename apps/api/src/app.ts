@@ -975,6 +975,12 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.platformBilling
         ? { billingService: options.database.platformBilling }
         : {}),
+      ...(options.database.integrations
+        ? { integrationsService: options.database.integrations }
+        : {}),
+      ...(options.database.whatsappProvisioning
+        ? { whatsappProvisioningService: options.database.whatsappProvisioning }
+        : {}),
     });
   }
   if (options.database.platformBilling)

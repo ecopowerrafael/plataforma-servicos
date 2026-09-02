@@ -21,6 +21,7 @@ import {
   type TenantFeatureCode,
   type CreateTenantCustomFieldRequest,
   type UpdateTenantCustomFieldRequest,
+  type TenantSettings,
 } from '@plataforma/shared';
 
 import { auditReadDetails } from './audit-sanitizer.js';
@@ -29,9 +30,11 @@ import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthRequestContext, type RequestMetadata } from '../auth/identity.repository.js';
 import { generateOpaqueToken, generatePublicId, hashOpaqueToken } from '../auth/token.service.js';
+import { PrismaTenantRepository } from '../tenants/prisma-tenant.repository.js';
 import { TenantCustomFieldsResolver } from '../tenants/tenant-custom-fields.resolver.js';
 import { TenantExperienceResolver } from '../tenants/tenant-experience.resolver.js';
 import { TenantFeaturesResolver } from '../tenants/tenant-features.resolver.js';
+import { TenantService } from '../tenants/tenant.service.js';
 
 const effectiveStatuses = new Set(['TRIALING', 'ACTIVE', 'PAST_DUE', 'SUSPENDED']);
 const platformPermissions = [
@@ -224,7 +227,7 @@ export function mapSubscription(subscription: {
 }
 
 // All platform audit actions — used for filtering audit logs without collation conflicts
-const PLATFORM_AUDIT_ACTIONS = [
+export const PLATFORM_AUDIT_ACTIONS = [
   'platform.admin.created',
   'platform.admin.provisioned',
   'platform.commercial_policy.updated',
@@ -253,12 +256,43 @@ export class PlatformService {
   private readonly featuresResolver: TenantFeaturesResolver;
   private readonly customFieldsResolver: TenantCustomFieldsResolver;
   private readonly commercialPolicyService: TenantCommercialPolicyService;
+  private readonly tenantService: TenantService;
 
   public constructor(private readonly client: PrismaClient) {
     this.experienceResolver = new TenantExperienceResolver(client);
     this.featuresResolver = new TenantFeaturesResolver(client);
     this.customFieldsResolver = new TenantCustomFieldsResolver(client);
     this.commercialPolicyService = new TenantCommercialPolicyService(client);
+    this.tenantService = new TenantService(new PrismaTenantRepository(client));
+  }
+
+  /** Resolve o publicId de um tenant para o id interno, ou 404. */
+  public async resolveTenantId(publicId: string): Promise<bigint> {
+    const tenant = await this.client.tenant.findUnique({ where: { publicId }, select: { id: true } });
+    if (tenant === null)
+      throw appError('PLATFORM_TENANT_NOT_FOUND', 'O estabelecimento não foi encontrado.', 404);
+    return tenant.id;
+  }
+
+  public async updateTenantSettings(
+    publicId: string,
+    input: TenantSettings,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ) {
+    const tenantId = await this.resolveTenantId(publicId);
+    const settings = await this.tenantService.updateSettings(tenantId, input);
+    await this.client.auditLog.create({
+      data: auditData({
+        action: 'platform.tenant.settings_updated',
+        targetType: 'tenant_settings',
+        targetPublicId: publicId,
+        tenantId,
+        userId: actor.user.id,
+        request: metadata,
+      }),
+    });
+    return { settings };
   }
 
   public async resolveAuth(auth: AuthRequestContext): Promise<PlatformAuthContext> {
@@ -1522,7 +1556,7 @@ export class PlatformService {
           include: { performedByUser: true },
         },
         auditLogs: {
-          where: { action: { startsWith: 'platform.' } },
+          where: { action: { in: PLATFORM_AUDIT_ACTIONS } },
           take: 20,
           orderBy: { createdAt: 'desc' },
         },
@@ -2368,7 +2402,7 @@ export class PlatformService {
       optional(this.listTenants({ page: 1, limit: 5, orderBy: 'createdAt', direction: 'desc' })),
       optional(
         this.client.auditLog.findMany({
-          where: { action: { startsWith: 'platform.' } },
+          where: { action: { in: PLATFORM_AUDIT_ACTIONS } },
           take: 10,
           orderBy: { createdAt: 'desc' },
         }),

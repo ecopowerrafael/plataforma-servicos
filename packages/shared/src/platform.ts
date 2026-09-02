@@ -2,7 +2,13 @@ import { z } from 'zod';
 
 import { EmailSchema, UserPublicSchema } from './auth.js';
 import { BusinessProfileCodeSchema } from './business-profile.js';
-import { BusinessUnitSchema, CreateTenantRequestSchema, TenantPublicSchema } from './tenant.js';
+import {
+  BusinessUnitSchema,
+  CreateTenantRequestSchema,
+  TenantPublicSchema,
+  TenantSettingsInputSchema,
+  TenantSettingsSchema,
+} from './tenant.js';
 
 export const PlatformPermissionCodeSchema = z.enum([
   'platform.dashboard.read',
@@ -463,6 +469,40 @@ export const PlatformTenantDetailResponseSchema = z.object({
     }),
   ),
   counts: z.object({ units: z.number().int(), members: z.number().int() }),
+});
+// Configuração da instância de WhatsApp do próprio tenant (TenantWhatsAppConfig),
+// vista pelo suporte/plataforma — não confundir com PlatformWapiConfig, que é a
+// chave mestra global usada para CRIAR instâncias, não a instância em si.
+export const PlatformTenantWhatsAppSchema = z.object({
+  available: z.boolean(),
+  configured: z.boolean(),
+  active: z.boolean(),
+  instanceId: z.string().nullable(),
+  instanceName: z.string().nullable(),
+  phoneNumber: z.string().nullable(),
+  tokenConfigured: z.boolean(),
+  connectionStatus: z.string().nullable(),
+  lastCheckedAt: IsoDateSchema.nullable(),
+});
+export const PlatformTenantWhatsAppUpdateSchema = z
+  .object({
+    instanceId: z.string().trim().min(1).max(80),
+    token: z.string().trim().min(1).max(4000).optional(),
+    phoneNumber: z.string().trim().min(1).max(32).optional(),
+    instanceName: z.string().trim().min(1).max(120).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+export const PlatformTenantWhatsAppTestResponseSchema = z.object({
+  connected: z.boolean(),
+  state: z.string(),
+  connectedPhone: z.string().nullable(),
+  connectedName: z.string().nullable(),
+  lastStatusCheckAt: IsoDateSchema.nullable(),
+});
+export const PlatformTenantSettingsUpdateRequestSchema = TenantSettingsInputSchema;
+export const PlatformTenantSettingsUpdateResponseSchema = z.object({
+  settings: TenantSettingsSchema,
 });
 export const UpdatePlatformTenantRequestSchema = z
   .object({

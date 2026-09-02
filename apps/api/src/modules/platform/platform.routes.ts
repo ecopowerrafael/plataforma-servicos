@@ -48,6 +48,11 @@ import {
   PlatformFinanceReceiptsQuerySchema,
   PlatformFinanceSubscriptionsQuerySchema,
   PlatformFinanceDelinquencyQuerySchema,
+  PlatformTenantWhatsAppSchema,
+  PlatformTenantWhatsAppUpdateSchema,
+  PlatformTenantWhatsAppTestResponseSchema,
+  PlatformTenantSettingsUpdateRequestSchema,
+  PlatformTenantSettingsUpdateResponseSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -58,6 +63,8 @@ import { type PlatformAuthContext, type PlatformService } from './platform.servi
 import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { requestMetadata } from '../auth/request-context.js';
+import { type IntegrationService } from '../integrations/integration.service.js';
+import { type WhatsAppProvisioningService } from '../integrations/whatsapp-provisioning.service.js';
 
 interface PlatformRoutesOptions {
   service: PlatformService;
@@ -65,6 +72,8 @@ interface PlatformRoutesOptions {
   cookieName: string;
   commercialPolicyService?: TenantCommercialPolicyService;
   billingService?: PlatformBillingService;
+  integrationsService?: IntegrationService;
+  whatsappProvisioningService?: WhatsAppProvisioningService;
 }
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const TenantParamsSchema = z.object({ tenantPublicId: z.uuid() });
@@ -281,6 +290,86 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       },
     );
   }
+  if (options.integrationsService) {
+    app.get(
+      '/platform/tenants/:tenantPublicId/whatsapp',
+      { schema: { params: TenantParamsSchema, response: { 200: PlatformTenantWhatsAppSchema } } },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return options.integrationsService!.whatsappAdminView(tenantId);
+      },
+    );
+    app.patch(
+      '/platform/tenants/:tenantPublicId/whatsapp',
+      {
+        schema: {
+          params: TenantParamsSchema,
+          body: PlatformTenantWhatsAppUpdateSchema,
+          response: { 200: PlatformTenantWhatsAppSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const current = await options.integrationsService!.whatsappAdminView(tenantId);
+        await options.integrationsService!.updateWhatsapp(
+          tenantId,
+          {
+            active: request.body.isActive ?? current.active,
+            instanceId: request.body.instanceId,
+            token: request.body.token,
+            instanceName: request.body.instanceName,
+            phoneNumber: request.body.phoneNumber,
+          },
+          { userId: request.platformAuth.user.id, sessionId: null },
+        );
+        return options.integrationsService!.whatsappAdminView(tenantId);
+      },
+    );
+    if (options.whatsappProvisioningService) {
+      app.post(
+        '/platform/tenants/:tenantPublicId/whatsapp/test',
+        {
+          schema: {
+            params: TenantParamsSchema,
+            response: { 200: PlatformTenantWhatsAppTestResponseSchema },
+          },
+        },
+        async (request) => {
+          allow(request, 'platform.tenant.update');
+          const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+          const view = await options.whatsappProvisioningService!.refreshStatus(tenantId);
+          return {
+            connected: view.state === 'CONNECTED',
+            state: view.state,
+            connectedPhone: view.connectedPhone,
+            connectedName: view.connectedName,
+            lastStatusCheckAt: view.lastStatusCheckAt,
+          };
+        },
+      );
+    }
+  }
+  app.patch(
+    '/platform/tenants/:tenantPublicId/settings',
+    {
+      schema: {
+        params: TenantParamsSchema,
+        body: PlatformTenantSettingsUpdateRequestSchema,
+        response: { 200: PlatformTenantSettingsUpdateResponseSchema },
+      },
+    },
+    (request) => {
+      allow(request, 'platform.tenant.update');
+      return options.service.updateTenantSettings(
+        request.params.tenantPublicId,
+        request.body,
+        request.platformAuth,
+        requestMetadata(request),
+      );
+    },
+  );
   for (const [path, status] of [
     ['suspend', 'SUSPENDED'],
     ['reactivate', 'ACTIVE'],

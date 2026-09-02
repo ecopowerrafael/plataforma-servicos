@@ -12,7 +12,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { platformRoutes } from './platform.routes.js';
-import { PlatformService } from './platform.service.js';
+import { PLATFORM_AUDIT_ACTIONS, PlatformService } from './platform.service.js';
 
 const tenantPublicId = '11111111-1111-4111-8111-111111111111';
 const subscriptionPublicId = '22222222-2222-4222-8222-222222222222';
@@ -108,6 +108,33 @@ describe('platform detail endpoints', () => {
     expect(response.statusCode).toBe(200);
     expect(PlatformTenantDetailResponseSchema.parse(response.json()).tenant.publicId).toBe(
       tenantPublicId,
+    );
+  });
+
+  // Regression: getTenant()'s auditLogs include previously used
+  // `action: { startsWith: 'platform.' }`, which MariaDB rejects with
+  // error 1267 "Illegal mix of collations" on this column (the exact same
+  // bug already found and fixed in listAudit() — see PLATFORM_AUDIT_ACTIONS).
+  // This mock resolves regardless of the where clause shape, so it can't
+  // catch a real DB collation error — it only guards against ever putting
+  // `startsWith` back on this filter.
+  it('filters tenant audit logs by an explicit action list, never by startsWith (MariaDB collation crash)', async () => {
+    const { app, client } = await fixture();
+    const response = await app.inject({
+      method: 'GET',
+      url: `/platform/tenants/${tenantPublicId}`,
+      headers: { cookie: 'ps_session=test' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(client.tenant.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          auditLogs: expect.objectContaining({
+            where: { action: { in: PLATFORM_AUDIT_ACTIONS } },
+          }),
+        }),
+      }),
     );
   });
 

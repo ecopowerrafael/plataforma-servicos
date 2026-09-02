@@ -88,7 +88,12 @@ export function PlatformPageRebuild() {
           }}
         />
       ) : section === 'tenants' ? (
-        <TenantModule />
+        <TenantModule
+          tenantPublicId={params.resourceId}
+          onOpen={(id) => {
+            void navigate(`/platform/tenants/${id}`);
+          }}
+        />
       ) : section === 'plans' ? (
         <PlanModule
           planPublicId={params.resourceId}

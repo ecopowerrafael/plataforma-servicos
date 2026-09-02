@@ -375,6 +375,7 @@ export const router = createBrowserRouter([
   { path: '/platform', element: lazyPage(PlatformPageRebuild) },
   { path: '/platform/plans/:resourceId', element: lazyPage(PlatformPageRebuild) },
   { path: '/platform/subscriptions/:resourceId', element: lazyPage(PlatformPageRebuild) },
+  { path: '/platform/tenants/:resourceId', element: lazyPage(PlatformPageRebuild) },
   { path: '/platform/:section', element: lazyPage(PlatformPageRebuild) },
   { path: '/public/:slug', element: lazyPage(PublicTenantPage) },
   // Área do cliente em página inteira: uma URL por seção.

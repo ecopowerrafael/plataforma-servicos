@@ -409,27 +409,12 @@ export function ProspectingModule({
 
   return (
     <div className="prospecting-module">
-      <nav style={{
-        display: 'flex',
-        gap: '0.5rem',
-        padding: '1rem',
-        borderBottom: '1px solid var(--ds-border-neutral)',
-        flexWrap: 'wrap',
-      }}>
+      <nav className="prospecting-tabs">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setView(item.id as any)}
-            style={{
-              padding: '0.5rem 1rem',
-              border: 'none',
-              borderRadius: '4px',
-              backgroundColor: view === item.id ? 'var(--ds-background-tertiary)' : 'transparent',
-              color: view === item.id ? 'var(--ds-text-primary)' : 'var(--ds-text-secondary)',
-              fontWeight: view === item.id ? 600 : 400,
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-            }}
+            className={view === item.id ? 'is-active' : undefined}
           >
             {item.label}
           </button>

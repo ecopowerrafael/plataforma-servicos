@@ -138,7 +138,7 @@ export const ProspectingFlowsView = () => {
   return (
     <div className="prospecting-flows-container">
       <div className="page-header">
-        <h1>Fluxos de ProspecÃ§Ã£o</h1>
+        <h1>Fluxos de Prospecção</h1>
         <button className="primary-button" onClick={() => setView({ type: 'create' })}>
           + Novo Fluxo
         </button>

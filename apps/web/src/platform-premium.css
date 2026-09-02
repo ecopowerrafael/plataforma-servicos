@@ -1,0 +1,1208 @@
+/*
+ * Platform Premium — visual layer for /platform only.
+ * Every rule is scoped under .platform-app so nothing leaks into the
+ * tenant admin panel, customer app or public storefront, which reuse
+ * some of the same class names (ds-*, platform-table, action-button, etc).
+ */
+
+.platform-app {
+  --pf-bg: #fdfbf7;
+  --pf-bg-soft: #faf8f5;
+  --pf-surface: #ffffff;
+  --pf-border: #ede8e1;
+  --pf-border-hover: #dfd4c4;
+  --pf-text: #1c1917;
+  --pf-text-muted: #57534e;
+  --pf-text-soft: #78716c;
+  --pf-text-faint: #a8a29e;
+  --pf-gold: #c5a059;
+  --pf-gold-dark: #996515;
+  --pf-gold-darker: #855811;
+  --pf-gold-deep: #b8860b;
+  --pf-gold-soft-bg: #faf5eb;
+  --pf-gold-soft-border: #e8dec7;
+  --pf-success-bg: #f0fdf4;
+  --pf-success-border: #bbf7d0;
+  --pf-success-text: #047857;
+  --pf-warning-bg: #fffbeb;
+  --pf-warning-border: #fde68a;
+  --pf-warning-text: #92660c;
+  --pf-danger-bg: #fff1f2;
+  --pf-danger-border: #fecdd3;
+  --pf-danger-text: #b91c1c;
+  --pf-info-bg: #eff6ff;
+  --pf-info-border: #bfdbfe;
+  --pf-info-text: #1d4ed8;
+  --pf-neutral-bg: #f5f4f2;
+  --pf-neutral-border: #e7e4de;
+  --pf-neutral-text: #57534e;
+  --pf-radius-sm: 10px;
+  --pf-radius-md: 14px;
+  --pf-radius-lg: 18px;
+  --pf-radius-xl: 24px;
+  --pf-shadow-sm: 0 4px 20px -2px rgba(28, 25, 23, 0.03), 0 2px 6px -1px rgba(28, 25, 23, 0.02);
+  --pf-shadow-hover: 0 8px 28px -4px rgba(197, 160, 89, 0.14), 0 4px 10px -2px rgba(28, 25, 23, 0.05);
+  --pf-font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --pf-font-serif: 'Playfair Display', Georgia, serif;
+  --pf-font-brand: 'Cinzel', Georgia, serif;
+
+  /*
+   * Compatibility layer: DirectoryModule, ProspectingModule and related
+   * inline styles reference --ds-* variables that are never defined
+   * anywhere in the codebase (verified via repo-wide grep). Without this
+   * block those declarations are invalid and backgrounds/text silently
+   * fall through. Defining them here fixes the real rendering bug AND
+   * brings those inline styles onto the premium palette, with no JSX
+   * changes required.
+   */
+  --ds-background-primary: var(--pf-surface);
+  --ds-background-secondary: var(--pf-bg-soft);
+  --ds-background-tertiary: var(--pf-neutral-bg);
+  --ds-background-danger: var(--pf-danger-bg);
+  --ds-background-focus-subtle: var(--pf-gold-soft-bg);
+  --ds-background-negative-subtle: var(--pf-danger-bg);
+  --ds-background-positive-subtle: var(--pf-success-bg);
+  --ds-border-subtle: var(--pf-border);
+  --ds-border-focus: var(--pf-gold);
+  --ds-border-negative: var(--pf-danger-border);
+  --ds-border-neutral: var(--pf-border);
+  --ds-border-positive: var(--pf-success-border);
+  --ds-border-secondary: var(--pf-border);
+  --ds-text-danger: var(--pf-danger-text);
+  --ds-text-negative: var(--pf-danger-text);
+  --ds-text-positive: var(--pf-success-text);
+  --ds-text-primary: var(--pf-text);
+  --ds-text-secondary: var(--pf-text-muted);
+  --ds-text-success: var(--pf-success-text);
+  --ds-text-tertiary: var(--pf-text-soft);
+  --ds-text-warning: var(--pf-warning-text);
+  --ds-accent: var(--pf-gold-dark);
+  --ds-radius-sm: var(--pf-radius-sm);
+  --ds-radius-md: var(--pf-radius-md);
+  --ds-radius-lg: var(--pf-radius-lg);
+
+  /*
+   * app-design-system.css defines a full parallel token set on
+   * .app-shell (--app-accent, --app-bg, --app-surface, --app-text,
+   * --app-border, --app-danger/success/warning, --app-radius-*,
+   * --app-shadow-*) consumed by ~30 declarations across that file
+   * (buttons, switches, focus rings, tabs, dialogs...). Rather than
+   * chase each consuming selector's specificity individually, the
+   * tokens themselves are redefined here: same specificity as
+   * .app-shell's own definition, later in source order, so every
+   * consumer picks up the premium palette automatically.
+   */
+  --app-accent: var(--pf-gold-dark);
+  --app-accent-hover: var(--pf-gold-darker);
+  --app-bg: var(--pf-bg);
+  --app-surface: var(--pf-surface);
+  --app-surface-subtle: var(--pf-bg-soft);
+  --app-text: var(--pf-text);
+  --app-muted: var(--pf-text-soft);
+  --app-border: var(--pf-border);
+  --app-border-strong: var(--pf-border-hover);
+  --app-danger: var(--pf-danger-text);
+  --app-danger-soft: var(--pf-danger-bg);
+  --app-success: var(--pf-success-text);
+  --app-success-soft: var(--pf-success-bg);
+  --app-warning: var(--pf-warning-text);
+  --app-warning-soft: var(--pf-warning-bg);
+  --app-radius-sm: var(--pf-radius-sm);
+  --app-radius-md: var(--pf-radius-md);
+  --app-radius-lg: var(--pf-radius-lg);
+  --app-shadow-sm: var(--pf-shadow-sm);
+  --app-shadow-md: var(--pf-shadow-hover);
+
+  /*
+   * .app-shell is required on this root (see PlatformShell.tsx) because
+   * ~190 unrelated rules in app-design-system.css/styles.css are scoped
+   * under it (.platform-form, .platform-details, .dialog, .data-list,
+   * .app-shell .platform-table, etc) and would otherwise render
+   * unstyled inside /platform. But .app-shell itself has four separate,
+   * unscoped base definitions elsewhere (min-height/padding, width/
+   * margin, a background gradient, --app-* tokens) that would otherwise
+   * leak into this shell's own layout. Every property those definitions
+   * touch is explicitly reset below.
+   */
+  width: auto;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--pf-bg);
+  color: var(--pf-text);
+  font-family: var(--pf-font-sans);
+}
+
+.platform-app * {
+  scrollbar-width: thin;
+  scrollbar-color: #d6c6b2 var(--pf-bg-soft);
+}
+.platform-app ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.platform-app ::-webkit-scrollbar-track {
+  background: var(--pf-bg-soft);
+}
+.platform-app ::-webkit-scrollbar-thumb {
+  background: #d6c6b2;
+  border-radius: 4px;
+}
+.platform-app ::-webkit-scrollbar-thumb:hover {
+  background: #bfa88f;
+}
+
+/* ---------------------------------------------------------------- */
+/* Typography                                                        */
+/* ---------------------------------------------------------------- */
+.platform-app h1,
+.platform-app h2,
+.platform-app h3 {
+  font-family: var(--pf-font-serif);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--pf-text);
+}
+
+/* ---------------------------------------------------------------- */
+/* Header                                                             */
+/* ---------------------------------------------------------------- */
+.platform-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(250, 248, 245, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--pf-border);
+  padding: 0.85rem 1.25rem;
+}
+/*
+ * app-design-system.css, @media (min-width:900px): ".app-shell >
+ * :not(.app-navigation):not(.app-mobile-nav):not(.mobile-sheet)" reserves
+ * layout space for the tenant admin's fixed sidebar (max-width, centering
+ * margins) and matches ANY direct child of .app-shell that isn't one of
+ * those three tenant-admin classes — including this header and the body
+ * row below. Its three :not(.class) clauses give it specificity (0,4,0),
+ * higher than a plain ".platform-header"/".platform-body", so it wins
+ * regardless of source order. The class repeated 4x below is the
+ * standard way to match that specificity from a single selector (each
+ * repetition of the same class still counts once toward specificity).
+ */
+.platform-header.platform-header.platform-header.platform-header,
+.platform-body.platform-body.platform-body.platform-body {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+.platform-header-inner {
+  max-width: 1700px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.platform-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+.platform-menu-button {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: var(--pf-text-muted);
+  border-radius: var(--pf-radius-sm);
+  padding: 0.45rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+.platform-menu-button:hover {
+  color: var(--pf-text);
+  background: #f2ece4;
+}
+.platform-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.platform-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--pf-radius-sm);
+  padding: 2px;
+  background: linear-gradient(135deg, #d4af37 0%, var(--pf-gold) 50%, var(--pf-gold-dark) 100%);
+  box-shadow: var(--pf-shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.platform-brand-mark-inner {
+  width: 100%;
+  height: 100%;
+  background: var(--pf-bg-soft);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pf-gold-deep);
+}
+.platform-brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.platform-brand-name {
+  font-family: var(--pf-font-brand);
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  color: var(--pf-text);
+}
+.platform-brand-suffix {
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  color: var(--pf-gold-deep);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.platform-header-tag {
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: #f3ece0;
+  border: 1px solid #e4d5be;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #8c6d23;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.platform-header-tag svg {
+  color: var(--pf-gold-deep);
+  flex-shrink: 0;
+}
+.platform-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+.platform-admin-chip {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  box-shadow: var(--pf-shadow-sm);
+}
+.platform-admin-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--pf-gold-soft-bg);
+  border: 1px solid var(--pf-border-hover);
+  color: var(--pf-gold-dark);
+  font-weight: 700;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.platform-admin-meta {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  line-height: 1.25;
+}
+.platform-admin-meta strong {
+  font-size: 0.72rem;
+  color: var(--pf-text);
+}
+.platform-admin-meta small {
+  font-size: 0.68rem;
+  color: var(--pf-text-soft);
+  font-family: ui-monospace, monospace;
+}
+.platform-establishment-link {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--pf-radius-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #664d14;
+  background: linear-gradient(90deg, #f7eedd 0%, #f4e6cb 55%, #ecd8b1 100%);
+  border: 1px solid #d9c49e;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.platform-establishment-link:hover {
+  border-color: var(--pf-gold-deep);
+  box-shadow: var(--pf-shadow-sm);
+}
+.platform-establishment-link svg:first-child {
+  color: var(--pf-gold-deep);
+}
+
+/* ---------------------------------------------------------------- */
+/* Body: sidebar + main                                              */
+/* ---------------------------------------------------------------- */
+.platform-body {
+  flex: 1;
+  display: flex;
+  max-width: 1700px;
+  width: 100%;
+  margin: 0 auto;
+  min-height: 0;
+}
+.platform-sidebar {
+  width: 248px;
+  flex-shrink: 0;
+  background: var(--pf-bg-soft);
+  border-right: 1px solid #eae3d9;
+  padding: 1rem 0.75rem;
+}
+.platform-sidebar--desktop {
+  position: sticky;
+  top: 61px;
+  height: calc(100vh - 61px);
+  overflow-y: auto;
+}
+.platform-app .platform-nav {
+  /*
+   * .platform-nav is also a generic class name reused (differently)
+   * three times elsewhere in styles.css — a dark-navy sticky nav, a
+   * bordered white card with display:grid, and an @media rule forcing
+   * grid-template-columns: repeat(2, 1fr) on narrow viewports. Resetting
+   * every property those rules touch keeps this scoped instance from
+   * inheriting a border, unwanted background or a two-column split.
+   */
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  position: static;
+}
+/*
+ * .platform-app prefix on every selector below (not just the leaf class)
+ * is required, not cosmetic: styles.css has an unrelated ".platform-nav
+ * button" rule (class+element = higher specificity than a single class)
+ * that would otherwise win over a bare ".platform-nav-item".
+ */
+.platform-app .platform-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #57534e;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+}
+.platform-app .platform-nav-item:hover {
+  color: var(--pf-text);
+  background: #f2ece4;
+}
+.platform-app .platform-nav-item.is-active {
+  background: linear-gradient(90deg, #f5ebd7 0%, #efe2c6 100%);
+  color: #614911;
+  border-color: #e0cfb1;
+}
+.platform-app .platform-nav-item-icon {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: #8c827a;
+  flex: 1;
+  min-width: 0;
+}
+.platform-app .platform-nav-item-icon svg {
+  flex-shrink: 0;
+}
+.platform-app .platform-nav-item.is-active .platform-nav-item-icon {
+  color: var(--pf-gold-dark);
+}
+.platform-app .platform-nav-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.platform-app .platform-nav-item-icon + .platform-nav-item-label {
+  margin-left: -0.4rem;
+}
+.platform-app .platform-nav-item-chevron {
+  color: var(--pf-gold-dark);
+  flex-shrink: 0;
+}
+.platform-app .platform-sidebar--mobile {
+  /*
+   * Overrides a legacy rule (styles.css, @media max-width:760px) that
+   * positions .platform-sidebar at left:-260px, gated on an .is-open
+   * class the current markup never adds (it conditionally mounts the
+   * whole overlay instead). Without "left" reset here the drawer renders
+   * off-screen.
+   */
+  position: relative;
+  left: 0;
+  z-index: 60;
+  width: 280px;
+  max-width: 85vw;
+  height: 100%;
+}
+.platform-sidebar-overlay {
+  display: none;
+}
+
+.platform-main {
+  flex: 1;
+  min-width: 0;
+}
+.platform-page {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 1.75rem 1.5rem 2.5rem;
+}
+.platform-page-header,
+.platform-app .ds-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.platform-page-header h2,
+.platform-app .ds-page-header h2 {
+  font-size: 1.65rem;
+  margin: 0;
+}
+.platform-page-header p,
+/*
+ * Some modules (TenantModule's "+ Novo estabelecimento", others) pass a
+ * bare, unclassed <button> as the PageHeader action — it never had any
+ * className, so it always fell through to the browser's default gray
+ * button, both before and after this redesign. This targets ONLY
+ * unclassed buttons (a real classed .action-button/.primary-button/
+ * .button--secondary inside the same header is more specific and still
+ * wins), so it's additive, not a behavior change for anything already
+ * styled.
+ */
+.platform-app .ds-page-actions > button:not([class]) {
+  font-family: var(--pf-font-sans);
+  border-radius: var(--pf-radius-sm);
+  font-weight: 700;
+  font-size: 0.78rem;
+  background: linear-gradient(90deg, var(--pf-gold-deep) 0%, var(--pf-gold-dark) 100%);
+  color: #fff;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 12px -2px rgba(184, 134, 11, 0.25);
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+}
+.platform-app .ds-page-actions > button:not([class]):hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+.platform-app .ds-page-header p:not(.ds-eyebrow) {
+  color: var(--pf-text-soft);
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
+.platform-app .ds-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pf-gold-dark);
+}
+
+/* ---------------------------------------------------------------- */
+/* Cards / panels                                                     */
+/* ---------------------------------------------------------------- */
+.platform-app .platform-panel,
+.platform-app .platform-metric,
+.platform-app .app-card,
+.platform-app .ds-stat-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-lg);
+  box-shadow: var(--pf-shadow-sm);
+}
+.platform-app .platform-panel {
+  padding: 1.35rem;
+}
+.platform-app .platform-panel > header {
+  margin-bottom: 1rem;
+}
+.platform-app .platform-panel h3 {
+  font-size: 1rem;
+}
+.platform-app .platform-panel header button {
+  color: var(--pf-gold-dark);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+.platform-app .platform-metric,
+.platform-app .ds-stat-card {
+  padding: 1.25rem 1.35rem;
+  transition: all 0.18s ease;
+}
+.platform-app .platform-metric:hover,
+.platform-app .ds-stat-card:hover {
+  border-color: var(--pf-border-hover);
+  box-shadow: var(--pf-shadow-hover);
+  transform: translateY(-1px);
+}
+.platform-app .platform-metric > span,
+.platform-app .ds-stat-card .ds-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pf-text-soft);
+}
+.platform-app .platform-metric strong,
+.platform-app .ds-stat-card strong {
+  font-family: var(--pf-font-serif);
+  font-size: 1.9rem;
+  color: var(--pf-text);
+  margin-top: 0.5rem;
+}
+.platform-app .platform-metric small,
+.platform-app .ds-stat-card small {
+  color: var(--pf-text-soft);
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+}
+.platform-app .ds-stat-card--success strong {
+  color: var(--pf-success-text);
+}
+.platform-app .ds-stat-card--warning strong {
+  color: var(--pf-gold-dark);
+}
+.platform-app .ds-stat-card--danger strong {
+  color: var(--pf-danger-text);
+}
+.platform-app .ds-section-card-header h3 {
+  font-family: var(--pf-font-serif);
+}
+.platform-app .ds-section-card-header p {
+  color: var(--pf-text-soft);
+}
+
+.platform-app .platform-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.15rem;
+}
+.platform-app .platform-overview-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 1.15rem;
+}
+.platform-app .platform-status-list > span {
+  padding: 0.65rem 0.8rem;
+  border-radius: 12px;
+  background: var(--pf-bg-soft);
+  border: 1px solid var(--pf-border);
+}
+.platform-app .platform-recent-list li,
+.platform-app .platform-activity-list li {
+  border-bottom-color: #f2ece4;
+}
+.platform-app .platform-recent-list li:hover,
+.platform-app .platform-activity-list li:hover {
+  background: var(--pf-bg-soft);
+}
+
+/* ---------------------------------------------------------------- */
+/* Buttons                                                            */
+/* ---------------------------------------------------------------- */
+.platform-app .action-button,
+.platform-app .button {
+  font-family: var(--pf-font-sans);
+  border-radius: var(--pf-radius-sm);
+  font-weight: 700;
+  font-size: 0.78rem;
+  transition: all 0.15s ease;
+}
+.platform-app .action-button,
+.platform-app .button:not(.button--secondary):not(.button--ghost):not(.button--danger) {
+  background: linear-gradient(90deg, var(--pf-gold-deep) 0%, var(--pf-gold-dark) 100%);
+  color: #fff;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 12px -2px rgba(184, 134, 11, 0.25);
+}
+.platform-app .action-button:hover,
+.platform-app .button:not(.button--secondary):not(.button--ghost):not(.button--danger):hover {
+  filter: brightness(1.05);
+  box-shadow: 0 6px 16px -2px rgba(184, 134, 11, 0.32);
+}
+.platform-app .button--secondary {
+  background: var(--pf-surface);
+  color: var(--pf-text-muted);
+  border: 1px solid var(--pf-border);
+}
+.platform-app .button--secondary:hover:not(:disabled) {
+  border-color: var(--pf-border-hover);
+  color: var(--pf-text);
+}
+.platform-app .button--danger {
+  background: var(--pf-danger-bg);
+  color: var(--pf-danger-text);
+  border: 1px solid var(--pf-danger-border);
+}
+.platform-app button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/*
+ * .primary-button is the app-wide generic button class (login, tenant
+ * admin, public pages...). prospecting.css redefines it unscoped as
+ * blue (#3b82f6), which leaks outside Prospecting too — out of scope to
+ * fix globally here, but /platform must never show that blue. The 2-class
+ * selector below outranks both the global green and the leaked blue.
+ */
+.platform-app .primary-button,
+.platform-app .secondary-button {
+  font-family: var(--pf-font-sans);
+  border-radius: var(--pf-radius-sm);
+  font-weight: 700;
+}
+.platform-app .primary-button {
+  background: linear-gradient(90deg, var(--pf-gold-deep) 0%, var(--pf-gold-dark) 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px -2px rgba(184, 134, 11, 0.25);
+}
+.platform-app .primary-button:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+.platform-app .secondary-button {
+  background: var(--pf-surface);
+  color: var(--pf-text-muted);
+  border: 1px solid var(--pf-border);
+}
+.platform-app .secondary-button:hover:not(:disabled) {
+  border-color: var(--pf-border-hover);
+  color: var(--pf-text);
+}
+
+/* ---------------------------------------------------------------- */
+/* Badges                                                             */
+/* ---------------------------------------------------------------- */
+.platform-app .ds-badge,
+.platform-app .platform-badge {
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid transparent;
+}
+.platform-app .ds-badge--success,
+.platform-app .platform-badge--success {
+  background: var(--pf-success-bg);
+  color: var(--pf-success-text);
+  border-color: var(--pf-success-border);
+}
+.platform-app .ds-badge--warning,
+.platform-app .platform-badge--warning {
+  background: var(--pf-warning-bg);
+  color: var(--pf-warning-text);
+  border-color: var(--pf-warning-border);
+}
+.platform-app .ds-badge--danger,
+.platform-app .platform-badge--danger {
+  background: var(--pf-danger-bg);
+  color: var(--pf-danger-text);
+  border-color: var(--pf-danger-border);
+}
+.platform-app .ds-badge--info,
+.platform-app .platform-badge--info {
+  background: var(--pf-info-bg);
+  color: var(--pf-info-text);
+  border-color: var(--pf-info-border);
+}
+.platform-app .ds-badge--muted,
+.platform-app .platform-badge--neutral {
+  background: var(--pf-neutral-bg);
+  color: var(--pf-neutral-text);
+  border-color: var(--pf-neutral-border);
+}
+
+/* ---------------------------------------------------------------- */
+/* Tables                                                             */
+/* ---------------------------------------------------------------- */
+.platform-app .platform-table-wrap {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-md);
+  box-shadow: var(--pf-shadow-sm);
+}
+.platform-app .platform-table th {
+  background: var(--pf-bg-soft);
+  color: var(--pf-text-soft);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.platform-app .platform-table td {
+  border-top-color: #f2ece4;
+  font-size: 0.83rem;
+}
+.platform-app .platform-table tbody tr:hover {
+  background: var(--pf-bg-soft);
+}
+.platform-app .ds-table-scroll {
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-md);
+  box-shadow: var(--pf-shadow-sm);
+}
+
+/* ---------------------------------------------------------------- */
+/* Filters / toolbar                                                  */
+/* ---------------------------------------------------------------- */
+.platform-app .platform-filter-bar,
+.platform-app .ds-toolbar {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-md);
+  box-shadow: var(--pf-shadow-sm);
+}
+.platform-app .platform-filter-bar label,
+.platform-app .ds-toolbar label {
+  color: var(--pf-text-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.platform-app input,
+.platform-app select,
+.platform-app textarea {
+  font-family: var(--pf-font-sans);
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface);
+  color: var(--pf-text);
+}
+.platform-app input:focus,
+.platform-app select:focus,
+.platform-app textarea:focus {
+  outline: none;
+  border-color: var(--pf-gold);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.12);
+}
+
+/* ---------------------------------------------------------------- */
+/* Pagination                                                         */
+/* ---------------------------------------------------------------- */
+.platform-app .ds-pagination,
+.platform-app .platform-pagination {
+  color: var(--pf-text-soft);
+  font-size: 0.78rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Empty / loading states                                             */
+/* ---------------------------------------------------------------- */
+.platform-app .ds-empty-state,
+.platform-app .platform-empty {
+  background: var(--pf-surface);
+  border: 1px dashed var(--pf-border-hover);
+  border-radius: var(--pf-radius-lg);
+  color: var(--pf-text-soft);
+}
+.platform-app .ds-empty-state strong,
+.platform-app .platform-empty h3 {
+  color: var(--pf-text);
+  font-family: var(--pf-font-serif);
+}
+.platform-app .ds-list-skeleton i,
+.platform-app .platform-skeleton,
+.platform-app .platform-table-skeleton i {
+  background: linear-gradient(90deg, #f2ece4 25%, #ece3d5 37%, #f2ece4 63%);
+  background-size: 400% 100%;
+  animation: platform-shimmer 1.4s ease infinite;
+  border-radius: var(--pf-radius-sm);
+}
+@keyframes platform-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* Alerts                                                             */
+/* ---------------------------------------------------------------- */
+.platform-app .ds-inline-alert {
+  border-radius: var(--pf-radius-md);
+  border: 1px solid transparent;
+}
+.platform-app .ds-inline-alert--info {
+  background: var(--pf-info-bg);
+  border-color: var(--pf-info-border);
+  color: var(--pf-info-text);
+}
+.platform-app .ds-inline-alert--warning {
+  background: var(--pf-warning-bg);
+  border-color: var(--pf-warning-border);
+  color: var(--pf-warning-text);
+}
+.platform-app .ds-inline-alert--danger {
+  background: var(--pf-danger-bg);
+  border-color: var(--pf-danger-border);
+  color: var(--pf-danger-text);
+}
+
+/* ---------------------------------------------------------------- */
+/* Drawers / modals                                                   */
+/* ---------------------------------------------------------------- */
+.platform-app .platform-backdrop {
+  background: rgba(28, 25, 23, 0.32);
+  backdrop-filter: blur(2px);
+}
+.platform-app .platform-drawer {
+  background: var(--pf-surface);
+  border-left: 1px solid var(--pf-border);
+  box-shadow: -24px 0 60px rgba(28, 25, 23, 0.14);
+}
+.platform-app .platform-drawer-close {
+  border-radius: 999px;
+  color: var(--pf-text-soft);
+}
+.platform-app .platform-drawer-close:hover {
+  background: var(--pf-bg-soft);
+  color: var(--pf-text);
+}
+.platform-app .platform-detail-heading h3 {
+  font-family: var(--pf-font-serif);
+}
+.platform-app .platform-form input,
+.platform-app .platform-form select,
+.platform-app .platform-form textarea {
+  border-radius: var(--pf-radius-sm);
+}
+/*
+ * styles.css's ".platform-form button" hardcodes an unclassed <button>
+ * inside a form to a literal teal (#1f7a8c) — not a token, so the
+ * --app-accent redefinition above can't reach it. app-design-system.css
+ * has an equivalent rule for the same elements, but it reads
+ * var(--app-accent) and so already renders gold from the token redefine.
+ */
+.platform-app .platform-form button {
+  border-radius: var(--pf-radius-sm);
+  background: linear-gradient(90deg, var(--pf-gold-deep) 0%, var(--pf-gold-dark) 100%);
+  border: 1px solid transparent;
+  color: #fff;
+  font-family: var(--pf-font-sans);
+  box-shadow: none;
+}
+.platform-app .platform-form button:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+/* ---------------------------------------------------------------- */
+/* Prospecting module — submenu tabs (Visão geral, Campanhas, Fluxos, */
+/* Leads, Conversas, Templates, Objeções, Configurações). Previously  */
+/* built entirely with inline styles; extracted to match the same     */
+/* tab language as Directory.                                         */
+/* ---------------------------------------------------------------- */
+.platform-app .prospecting-tabs {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.5rem;
+  margin-bottom: 1.25rem;
+  background: var(--pf-bg-soft);
+  border: 1px solid #eae3d9;
+  border-radius: var(--pf-radius-md);
+  flex-wrap: wrap;
+}
+.platform-app .prospecting-tabs button {
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--pf-text-soft);
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-family: var(--pf-font-sans);
+  transition: all 0.12s ease;
+}
+.platform-app .prospecting-tabs button:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--pf-text);
+}
+.platform-app .prospecting-tabs button.is-active {
+  background: #fff;
+  color: var(--pf-gold-dark);
+  box-shadow: var(--pf-shadow-sm);
+}
+
+/* ---------------------------------------------------------------- */
+/* Prospecting: solid-fill legacy badges (.badge-success etc, from     */
+/* prospecting.css) and drawer polish.                                 */
+/* ---------------------------------------------------------------- */
+.platform-app .badge-success,
+.platform-app .badge-warning,
+.platform-app .badge-danger,
+.platform-app .badge-muted {
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.68rem;
+  padding: 0.22rem 0.6rem;
+}
+.platform-app .badge-success {
+  background: var(--pf-success-bg);
+  color: var(--pf-success-text);
+}
+.platform-app .badge-warning {
+  background: var(--pf-warning-bg);
+  color: var(--pf-warning-text);
+}
+.platform-app .badge-danger {
+  background: var(--pf-danger-bg);
+  color: var(--pf-danger-text);
+}
+.platform-app .badge-muted {
+  background: var(--pf-neutral-bg);
+  color: var(--pf-neutral-text);
+}
+.platform-app .rate-card {
+  border-radius: var(--pf-radius-md);
+  border: 1px solid var(--pf-border);
+}
+.platform-app .prospecting-form-backdrop {
+  background: rgba(28, 25, 23, 0.32);
+  backdrop-filter: blur(2px);
+}
+.platform-app .prospecting-form-drawer {
+  border-radius: var(--pf-radius-lg) var(--pf-radius-lg) 0 0;
+  box-shadow: 0 -24px 60px rgba(28, 25, 23, 0.14);
+}
+.platform-app .prospecting-module .platform-status-bar {
+  border: 1px solid var(--pf-border);
+}
+
+/* ---------------------------------------------------------------- */
+/* Directory module — has its own visual language (teal/green admin  */
+/* look via --directory-navy/--directory-muted/--directory-line,     */
+/* scoped to .directory-workspace). Re-pointing those tokens at the   */
+/* premium palette fixes the bulk of it; the rest (tabs, stats,       */
+/* badges, buttons) hardcode teal/green directly and need explicit    */
+/* overrides.                                                         */
+/* ---------------------------------------------------------------- */
+.platform-app .directory-workspace {
+  --directory-navy: var(--pf-text);
+  --directory-ink: var(--pf-text);
+  --directory-muted: var(--pf-text-soft);
+  --directory-line: var(--pf-border);
+  --directory-surface: var(--pf-surface);
+}
+.platform-app .directory-tabs {
+  background: var(--pf-bg-soft);
+  border: 1px solid #eae3d9;
+  border-radius: var(--pf-radius-md);
+}
+.platform-app .directory-tabs button {
+  color: var(--pf-text-soft);
+  font-weight: 700;
+}
+.platform-app .directory-tabs button:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--pf-text);
+}
+.platform-app .directory-tabs button.is-active {
+  background: #fff;
+  color: var(--pf-gold-dark);
+  box-shadow: var(--pf-shadow-sm);
+}
+.platform-app .directory-button {
+  border-color: var(--pf-border);
+  background: var(--pf-surface);
+  color: var(--pf-text-muted);
+  box-shadow: none;
+  font-weight: 700;
+}
+.platform-app .directory-button:hover {
+  border-color: var(--pf-border-hover);
+  background: var(--pf-bg-soft);
+  color: var(--pf-text);
+}
+.platform-app .directory-button--primary {
+  border-color: transparent !important;
+  background: linear-gradient(90deg, var(--pf-gold-deep) 0%, var(--pf-gold-dark) 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px -2px rgba(184, 134, 11, 0.25) !important;
+}
+.platform-app .directory-section-heading span,
+.platform-app .directory-card__eyebrow {
+  color: var(--pf-gold-dark);
+}
+.platform-app .directory-card,
+.platform-app .directory-stat {
+  border-radius: var(--pf-radius-lg);
+  box-shadow: var(--pf-shadow-sm);
+}
+.platform-app .directory-stat--blue {
+  color: var(--pf-info-text);
+  background: var(--pf-info-bg);
+  border-color: var(--pf-info-border);
+}
+.platform-app .directory-stat--green,
+.platform-app .directory-stat--gold {
+  color: var(--pf-gold-dark);
+  background: var(--pf-gold-soft-bg);
+  border-color: var(--pf-gold-soft-border);
+}
+.platform-app .directory-stat--purple {
+  color: #7358b7;
+  background: #f4f0ff;
+  border-color: #e5ddfa;
+}
+.platform-app .directory-stat--orange {
+  color: var(--pf-warning-text);
+  background: var(--pf-warning-bg);
+  border-color: var(--pf-warning-border);
+}
+.platform-app .directory-stat--red {
+  color: var(--pf-danger-text);
+  background: var(--pf-danger-bg);
+  border-color: var(--pf-danger-border);
+}
+.platform-app .directory-quick-grid button {
+  border-color: var(--pf-border);
+  background: var(--pf-bg-soft);
+  color: var(--pf-text-muted);
+}
+.platform-app .directory-quick-grid button:hover {
+  border-color: var(--pf-border-hover);
+  background: var(--pf-surface);
+}
+.platform-app .directory-quick-grid strong {
+  color: var(--pf-text);
+}
+.platform-app .directory-badge--success {
+  background: var(--pf-success-bg);
+  color: var(--pf-success-text);
+}
+.platform-app .directory-badge--warning {
+  background: var(--pf-warning-bg);
+  color: var(--pf-warning-text);
+}
+.platform-app .directory-badge--danger {
+  background: var(--pf-danger-bg);
+  color: var(--pf-danger-text);
+}
+.platform-app .directory-badge--neutral {
+  background: var(--pf-neutral-bg);
+  color: var(--pf-neutral-text);
+}
+.platform-app .directory-badge--info {
+  background: var(--pf-info-bg);
+  color: var(--pf-info-text);
+}
+.platform-app .directory-table-wrap {
+  border-radius: var(--pf-radius-md);
+  box-shadow: var(--pf-shadow-sm);
+}
+.platform-app .directory-filter-bar,
+.platform-app .directory-filter-bar input,
+.platform-app .directory-filter-bar select {
+  border-radius: var(--pf-radius-sm);
+}
+.platform-app .directory-form-drawer {
+  background: var(--pf-surface);
+  box-shadow: -24px 0 60px rgba(28, 25, 23, 0.14);
+}
+/*
+ * DirectoryBusinessForm's Cancelar/Criar buttons sit directly in
+ * .directory-business-drawer, not inside a .platform-form, so neither
+ * the legacy teal rule nor this file's .platform-form button override
+ * ever reached them — they rendered as bare unstyled <button> elements.
+ */
+.platform-app .directory-business-drawer button {
+  border-radius: var(--pf-radius-sm);
+  border: 1px solid var(--pf-border);
+  font-family: var(--pf-font-sans);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------- */
+/* Responsive                                                         */
+/* ---------------------------------------------------------------- */
+@media (min-width: 640px) {
+  .platform-header-tag {
+    display: flex;
+  }
+}
+@media (min-width: 768px) {
+  .platform-admin-chip {
+    display: flex;
+  }
+}
+@media (max-width: 1080px) {
+  .platform-app .platform-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .platform-app .platform-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .platform-sidebar--desktop {
+    display: none;
+  }
+  .platform-menu-button {
+    display: inline-flex;
+  }
+  .platform-sidebar-overlay {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+  }
+  .platform-page {
+    padding: 1.25rem 1rem 2rem;
+  }
+  .platform-establishment-link-label {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .platform-app .platform-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  .platform-header {
+    padding: 0.7rem 0.85rem;
+  }
+}

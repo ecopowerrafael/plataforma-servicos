@@ -20,6 +20,7 @@ import './financial-operations.css';
 import './prospecting.css';
 import './components/platform/prospecting-flows.css';
 import './components/platform/prospecting-objections.css';
+import './platform-premium.css';
 
 const rootElement = document.getElementById('root');
 

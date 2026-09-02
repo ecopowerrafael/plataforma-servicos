@@ -157,7 +157,7 @@ export class TenantWhiteLabelService {
   public async updateBranding(
     tenantId: bigint,
     input: { [Key in keyof TenantBranding]?: TenantBranding[Key] | undefined },
-    actor: Actor,
+    actor?: Actor,
   ) {
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
@@ -232,7 +232,7 @@ export class TenantWhiteLabelService {
         input.splashUrl === undefined ? (tenant.branding?.splashUrl ?? null) : input.splashUrl,
     };
     await this.repository.upsertBranding(tenant.id, createData);
-    await this.audit(tenantId, tenant.publicId, 'tenant.branding.updated', actor);
+    if (actor !== undefined) await this.audit(tenantId, tenant.publicId, 'tenant.branding.updated', actor);
     return this.get(tenantId);
   }
 
@@ -247,7 +247,7 @@ export class TenantWhiteLabelService {
     kind: TenantMediaKind,
     originalName: string,
     image: Buffer,
-    actor: Actor,
+    actor?: Actor,
     altText?: string | null,
   ) {
     const tenant = await this.repository.findTenant(tenantId);
@@ -271,12 +271,13 @@ export class TenantWhiteLabelService {
         byteSize: image.length,
         altText: altText ?? null,
       });
-      await this.audit(
-        tenantId,
-        asset.publicId,
-        `tenant.media.${kind.toLowerCase()}_uploaded`,
-        actor,
-      );
+      if (actor !== undefined)
+        await this.audit(
+          tenantId,
+          asset.publicId,
+          `tenant.media.${kind.toLowerCase()}_uploaded`,
+          actor,
+        );
       return assetPublic(asset);
     } catch (error) {
       await this.storage.remove(stored.key);
@@ -288,25 +289,25 @@ export class TenantWhiteLabelService {
     tenantId: bigint,
     publicId: string,
     altText: string | null,
-    actor: Actor,
+    actor?: Actor,
   ) {
     const asset = await this.repository.findAsset(tenantId, publicId);
     if (asset === null) throw notFound();
     const updated = await this.repository.updateAsset(asset.id, { altText });
-    await this.audit(tenantId, publicId, 'tenant.media.updated', actor);
+    if (actor !== undefined) await this.audit(tenantId, publicId, 'tenant.media.updated', actor);
     return assetPublic(updated);
   }
 
-  public async deleteAsset(tenantId: bigint, publicId: string, actor: Actor) {
+  public async deleteAsset(tenantId: bigint, publicId: string, actor?: Actor) {
     const asset = await this.repository.findAsset(tenantId, publicId);
     if (asset === null) throw notFound();
     await this.repository.deleteAsset(asset.id);
     // O original é preservado; só os derivados do ícone são descartados.
     if (asset.kind === 'APP_ICON') await this.storage.removeAppIconDerivatives(asset.storageKey);
-    await this.audit(tenantId, publicId, 'tenant.media.removed', actor);
+    if (actor !== undefined) await this.audit(tenantId, publicId, 'tenant.media.removed', actor);
   }
 
-  public async updateSite(tenantId: bigint, input: UpdateTenantPublicSiteRequest, actor: Actor) {
+  public async updateSite(tenantId: bigint, input: UpdateTenantPublicSiteRequest, actor?: Actor) {
     const tenant = await this.repository.findTenant(tenantId);
     if (tenant === null) throw notFound();
     if (this.commercialClient !== undefined && tenant.onboardingCompletedAt !== null)
@@ -319,7 +320,8 @@ export class TenantWhiteLabelService {
       tenantId,
       ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
     });
-    await this.audit(tenantId, tenant.publicId, 'tenant.public_site.updated', actor);
+    if (actor !== undefined)
+      await this.audit(tenantId, tenant.publicId, 'tenant.public_site.updated', actor);
     return sitePublic(site);
   }
 
@@ -580,7 +582,7 @@ export class TenantWhiteLabelService {
   }
 
   /** Publica o aplicativo depois de revalidar o checklist no servidor. */
-  public async publishPwa(tenantId: bigint, actor: Actor) {
+  public async publishPwa(tenantId: bigint, actor?: Actor) {
     const current = await this.pwa(tenantId);
     if (!current.ready)
       throw new AppError({
@@ -590,7 +592,7 @@ export class TenantWhiteLabelService {
       });
     if (current.status !== 'PUBLISHED') {
       await this.repository.upsertPwaStatus(tenantId, 'PUBLISHED', new Date());
-      await this.audit(tenantId, current.slug, 'tenant_pwa.published', actor);
+      if (actor !== undefined) await this.audit(tenantId, current.slug, 'tenant_pwa.published', actor);
     }
     return this.pwa(tenantId);
   }

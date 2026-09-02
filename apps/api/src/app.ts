@@ -981,6 +981,9 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.whatsappProvisioning
         ? { whatsappProvisioningService: options.database.whatsappProvisioning }
         : {}),
+      ...(options.database.tenantWhiteLabel
+        ? { whiteLabelService: options.database.tenantWhiteLabel }
+        : {}),
     });
   }
   if (options.database.platformBilling)

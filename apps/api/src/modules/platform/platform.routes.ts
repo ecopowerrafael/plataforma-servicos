@@ -53,6 +53,12 @@ import {
   PlatformTenantWhatsAppTestResponseSchema,
   PlatformTenantSettingsUpdateRequestSchema,
   PlatformTenantSettingsUpdateResponseSchema,
+  TenantWhiteLabelResponseSchema,
+  UpdateTenantPublicSiteRequestSchema,
+  TenantMediaAssetSchema,
+  UpdateTenantMediaMetadataRequestSchema,
+  TenantPwaResponseSchema,
+  TenantMediaKindSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -63,8 +69,11 @@ import { type PlatformAuthContext, type PlatformService } from './platform.servi
 import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { requestMetadata } from '../auth/request-context.js';
+import { AppError } from '../../errors/AppError.js';
 import { type IntegrationService } from '../integrations/integration.service.js';
 import { type WhatsAppProvisioningService } from '../integrations/whatsapp-provisioning.service.js';
+import { validateTenantMediaUpload } from '../tenants/tenant-media.storage.js';
+import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
 
 interface PlatformRoutesOptions {
   service: PlatformService;
@@ -74,6 +83,7 @@ interface PlatformRoutesOptions {
   billingService?: PlatformBillingService;
   integrationsService?: IntegrationService;
   whatsappProvisioningService?: WhatsAppProvisioningService;
+  whiteLabelService?: TenantWhiteLabelService;
 }
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const TenantParamsSchema = z.object({ tenantPublicId: z.uuid() });
@@ -350,6 +360,146 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         },
       );
     }
+  }
+  if (options.whiteLabelService) {
+    const white = options.whiteLabelService;
+    app.get(
+      '/platform/tenants/:tenantPublicId/white-label',
+      { schema: { params: TenantParamsSchema, response: { 200: TenantWhiteLabelResponseSchema } } },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return white.get(tenantId);
+      },
+    );
+    app.post(
+      '/platform/tenants/:tenantPublicId/media/:kind',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ kind: TenantMediaKindSchema }),
+          response: { 201: TenantMediaAssetSchema },
+        },
+      },
+      async (request, reply) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const upload = await request.file();
+        if (upload === undefined)
+          throw new AppError({
+            code: 'TENANT_MEDIA_REQUIRED',
+            message: 'Uma imagem é obrigatória.',
+            statusCode: 400,
+          });
+        const image = await upload.toBuffer();
+        validateTenantMediaUpload(image, upload.filename, upload.mimetype, request.params.kind);
+        const asset = await white.upload(tenantId, request.params.kind, upload.filename, image);
+        await options.service.recordTenantAudit(
+          'platform.tenant.media_uploaded',
+          'tenant_media',
+          asset.publicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return reply.status(201).send(asset);
+      },
+    );
+    app.patch(
+      '/platform/tenants/:tenantPublicId/media/:assetPublicId',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ assetPublicId: z.uuid() }),
+          body: UpdateTenantMediaMetadataRequestSchema,
+          response: { 200: TenantMediaAssetSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const asset = await white.updateAsset(
+          tenantId,
+          request.params.assetPublicId,
+          request.body.altText,
+        );
+        await options.service.recordTenantAudit(
+          'platform.tenant.media_updated',
+          'tenant_media',
+          request.params.assetPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return asset;
+      },
+    );
+    app.delete(
+      '/platform/tenants/:tenantPublicId/media/:assetPublicId',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ assetPublicId: z.uuid() }),
+          response: { 200: SuccessResponseSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        await white.deleteAsset(tenantId, request.params.assetPublicId);
+        await options.service.recordTenantAudit(
+          'platform.tenant.media_removed',
+          'tenant_media',
+          request.params.assetPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return { success: true } as const;
+      },
+    );
+    app.patch(
+      '/platform/tenants/:tenantPublicId/public-site',
+      { schema: { params: TenantParamsSchema, body: UpdateTenantPublicSiteRequestSchema } },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const site = await white.updateSite(tenantId, request.body);
+        await options.service.recordTenantAudit(
+          'platform.tenant.public_site_updated',
+          'tenant_public_site',
+          request.params.tenantPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return site;
+      },
+    );
+    app.get(
+      '/platform/tenants/:tenantPublicId/pwa',
+      { schema: { params: TenantParamsSchema, response: { 200: TenantPwaResponseSchema } } },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return white.pwa(tenantId);
+      },
+    );
+    app.post(
+      '/platform/tenants/:tenantPublicId/pwa/publish',
+      { schema: { params: TenantParamsSchema, response: { 200: TenantPwaResponseSchema } } },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const pwa = await white.publishPwa(tenantId);
+        await options.service.recordTenantAudit(
+          'platform.tenant.pwa_published',
+          'tenant_public_site',
+          request.params.tenantPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return pwa;
+      },
+    );
   }
   app.patch(
     '/platform/tenants/:tenantPublicId/settings',

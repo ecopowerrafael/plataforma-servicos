@@ -4,25 +4,47 @@ import {
   PlatformTenantSettingsUpdateResponseSchema,
   PlatformTenantWhatsAppSchema,
   PlatformTenantWhatsAppTestResponseSchema,
+  SuccessResponseSchema,
   TenantCustomFieldsResponseSchema,
   TenantExperienceResponseSchema,
   TenantFeaturesResponseSchema,
+  TenantMediaAssetSchema,
+  TenantMediaKindSchema,
+  TenantPublicSiteSchema,
+  TenantWhiteLabelResponseSchema,
+  UpdateTenantPublicSiteRequestSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
 
 import { ErrorState, formatDate, formatMoney, PageHeader, StatusBadge } from './PlatformUi.js';
 import { SubscriptionBillingPanel } from './SubscriptionBillingPanel.js';
 import { TenantEditForm } from './TenantEditForm.js';
+import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
+import {
+  deriveBrandPalette,
+  PALETTE_KEYS,
+  resolveSavedPalette,
+  themeDefaultPalette,
+  type BrandPalette,
+  type BrandThemeCode,
+  type PublicLayoutCode,
+} from '../branding/brand-studio.js';
+import { BrandAssetCard } from '../branding/BrandAssetCard.js';
+import { BrandColorPalette } from '../branding/BrandColorPalette.js';
+import { BrandLivePreview } from '../branding/BrandLivePreview.js';
+import { BrandThemePicker } from '../branding/BrandThemePicker.js';
+import { PublicLayoutPicker } from '../branding/PublicLayoutPicker.js';
 
 import type { UpdatePlatformTenantRequestSchema } from '@plataforma/shared';
 
 type TabKey =
   | 'overview'
+  | 'branding'
   | 'company'
   | 'subscription'
   | 'units'
@@ -34,6 +56,7 @@ type TabKey =
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Visão geral' },
+  { key: 'branding', label: 'Identidade visual' },
   { key: 'company', label: 'Empresa' },
   { key: 'subscription', label: 'Assinatura' },
   { key: 'units', label: 'Unidades' },
@@ -214,6 +237,8 @@ export function TenantDetailPage({ tenantPublicId }: { tenantPublicId: string })
       </nav>
       {tab === 'overview' ? (
         <OverviewTab data={data} featuresCount={features.data?.features.filter((f) => f.enabled).length} customFieldsCount={customFields.data?.fields.length} experience={experience.data} />
+      ) : tab === 'branding' ? (
+        <BrandingTab tenantPublicId={tenantPublicId} />
       ) : tab === 'company' ? (
         <section className="platform-panel">
           <TenantEditForm
@@ -399,6 +424,419 @@ function OverviewTab({
           </article>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+const HEX = /^#[0-9A-Fa-f]{6}$/u;
+
+const ASSET_CARDS: {
+  kind: z.infer<typeof TenantMediaKindSchema>;
+  title: string;
+  description: string;
+  square?: boolean;
+  allowGif?: boolean;
+}[] = [
+  { kind: 'LOGO', title: 'Logo', description: 'Aparece na página pública e no aplicativo.' },
+  {
+    kind: 'LOGO_COMPACT',
+    title: 'Logo compacta',
+    description: 'Versão reduzida, usada em espaços estreitos.',
+  },
+  {
+    kind: 'FAVICON',
+    title: 'Favicon',
+    description: 'Ícone exibido na aba do navegador.',
+    square: true,
+  },
+  {
+    kind: 'APP_ICON',
+    title: 'Ícone do aplicativo',
+    description: 'Usado quando o cliente instala o app (PWA). Precisa ser quadrado.',
+    square: true,
+  },
+  {
+    kind: 'SPLASH',
+    title: 'Tela de abertura (splash)',
+    description: 'Exibida ao abrir o aplicativo instalado.',
+    allowGif: true,
+  },
+  {
+    kind: 'BANNER_DESKTOP',
+    title: 'Banner / capa (desktop)',
+    description: 'Imagem de destaque da página pública em telas largas.',
+  },
+  {
+    kind: 'BANNER_MOBILE',
+    title: 'Banner / capa (celular)',
+    description: 'Imagem de destaque da página pública no celular.',
+  },
+  {
+    kind: 'INSTITUTIONAL',
+    title: 'Material institucional',
+    description: 'Imagem adicional para uso institucional.',
+  },
+];
+
+interface PublicSiteFields {
+  heroTitle: string;
+  heroSubtitle: string;
+  aboutText: string;
+  primaryCallToAction: string;
+  footerText: string;
+  seoTitle: string;
+  seoDescription: string;
+  pwaName: string;
+  pwaShortName: string;
+  pwaDescription: string;
+}
+const emptySiteFields: PublicSiteFields = {
+  heroTitle: '',
+  heroSubtitle: '',
+  aboutText: '',
+  primaryCallToAction: '',
+  footerText: '',
+  seoTitle: '',
+  seoDescription: '',
+  pwaName: '',
+  pwaShortName: '',
+  pwaDescription: '',
+};
+const nullableText = (value: string) => (value.trim() === '' ? null : value.trim());
+
+function BrandingTab({ tenantPublicId }: { tenantPublicId: string }) {
+  const client = useQueryClient();
+  const queryKey = ['platform', 'tenant', tenantPublicId, 'white-label'];
+  const settings = useQuery({
+    queryKey,
+    queryFn: () =>
+      httpClient.request(`/platform/tenants/${tenantPublicId}/white-label`, {
+        schema: TenantWhiteLabelResponseSchema,
+      }),
+    retry: false,
+  });
+
+  const [themeOverride, setThemeOverride] = useState<BrandThemeCode | null>(null);
+  const [layoutOverride, setLayoutOverride] = useState<PublicLayoutCode | null>(null);
+  const [paletteOverride, setPaletteOverride] = useState<Partial<BrandPalette>>({});
+  const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
+  const [previewVersion, setPreviewVersion] = useState(0);
+  const [siteFieldsOverride, setSiteFieldsOverride] = useState<PublicSiteFields | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const theme = themeOverride ?? settings.data?.site.theme ?? 'CLASSIC';
+  const layout = layoutOverride ?? settings.data?.site.layout ?? 'CLASSIC';
+  const savedPalette = useMemo<BrandPalette>(
+    () => resolveSavedPalette(settings.data?.branding, theme),
+    [settings.data?.branding, theme],
+  );
+  const palette = { ...savedPalette, ...paletteOverride };
+  const dirty =
+    themeOverride !== null || layoutOverride !== null || Object.keys(paletteOverride).length > 0;
+  const paletteValid = PALETTE_KEYS.every((key) => HEX.test(palette[key]));
+
+  const site = settings.data?.site;
+  const persistedSiteFields: PublicSiteFields =
+    site === undefined
+      ? emptySiteFields
+      : {
+          heroTitle: site.heroTitle ?? '',
+          heroSubtitle: site.heroSubtitle ?? '',
+          aboutText: site.aboutText ?? '',
+          primaryCallToAction: site.primaryCallToAction ?? '',
+          footerText: site.footerText ?? '',
+          seoTitle: site.seoTitle ?? '',
+          seoDescription: site.seoDescription ?? '',
+          pwaName: site.pwaName ?? '',
+          pwaShortName: site.pwaShortName ?? '',
+          pwaDescription: site.pwaDescription ?? '',
+        };
+  const siteFields = siteFieldsOverride ?? persistedSiteFields;
+
+  const refresh = async () => {
+    await client.invalidateQueries({ queryKey });
+    setPreviewVersion((version) => version + 1);
+  };
+
+  const saveBranding = useMutation({
+    mutationFn: async () => {
+      await httpClient.request(`/platform/tenants/${tenantPublicId}/branding`, {
+        method: 'PATCH',
+        body: { ...palette, useProfileDefaults: false },
+        schema: TenantExperienceResponseSchema,
+      });
+      await httpClient.request(`/platform/tenants/${tenantPublicId}/public-site`, {
+        method: 'PATCH',
+        body: { theme, layout },
+        schema: TenantPublicSiteSchema,
+      });
+    },
+    onSuccess: async () => {
+      setThemeOverride(null);
+      setLayoutOverride(null);
+      setPaletteOverride({});
+      setNotice('Identidade visual atualizada.');
+      await refresh();
+    },
+  });
+
+  const saveSiteTexts = useMutation({
+    mutationFn: () =>
+      httpClient.request(`/platform/tenants/${tenantPublicId}/public-site`, {
+        method: 'PATCH',
+        body: UpdateTenantPublicSiteRequestSchema.parse({
+          heroTitle: nullableText(siteFields.heroTitle),
+          heroSubtitle: nullableText(siteFields.heroSubtitle),
+          aboutText: nullableText(siteFields.aboutText),
+          primaryCallToAction: nullableText(siteFields.primaryCallToAction),
+          footerText: nullableText(siteFields.footerText),
+          seoTitle: nullableText(siteFields.seoTitle),
+          seoDescription: nullableText(siteFields.seoDescription),
+          pwaName: nullableText(siteFields.pwaName),
+          pwaShortName: nullableText(siteFields.pwaShortName),
+          pwaDescription: nullableText(siteFields.pwaDescription),
+        }),
+        schema: TenantPublicSiteSchema,
+      }),
+    onSuccess: async () => {
+      setSiteFieldsOverride(null);
+      setNotice('Página pública atualizada.');
+      await refresh();
+    },
+  });
+
+  const upload = useMutation({
+    mutationFn: ({ kind, file }: { kind: z.infer<typeof TenantMediaKindSchema>; file: File }) => {
+      const body = new FormData();
+      body.set('file', file, file.name);
+      return httpClient.request(`/platform/tenants/${tenantPublicId}/media/${kind}`, {
+        method: 'POST',
+        body,
+        schema: TenantMediaAssetSchema,
+      });
+    },
+    onSuccess: async () => {
+      setNotice('Imagem atualizada com sucesso.');
+      await refresh();
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (assetPublicId: string) =>
+      httpClient.request(`/platform/tenants/${tenantPublicId}/media/${assetPublicId}`, {
+        method: 'DELETE',
+        schema: SuccessResponseSchema,
+      }),
+    onSuccess: async () => {
+      setNotice('Imagem removida.');
+      await refresh();
+    },
+  });
+
+  const assets = useMemo(
+    () => new Map(settings.data?.assets.map((asset) => [asset.kind, asset])),
+    [settings.data?.assets],
+  );
+  const assetUrl = (kind: z.infer<typeof TenantMediaKindSchema>) => {
+    const asset = assets.get(kind);
+    return asset === undefined ? undefined : `${environment.apiUrl}${asset.url}`;
+  };
+
+  if (settings.isPending) return <i className="platform-skeleton" />;
+  if (settings.error instanceof Error || settings.data === undefined)
+    return (
+      <ErrorState
+        message={settings.error instanceof Error ? settings.error.message : 'Não foi possível carregar a identidade visual.'}
+        retry={() => {
+          void settings.refetch();
+        }}
+      />
+    );
+
+  const busy = upload.isPending || remove.isPending;
+  const site_ = (
+    <BrandLivePreview
+      slug={settings.data.slug}
+      version={previewVersion}
+      mode={previewMode}
+      onModeChange={setPreviewMode}
+      override={{ theme, layout, branding: palette }}
+    />
+  );
+
+  return (
+    <div style={{ display: 'grid', gap: '1.25rem' }}>
+      {notice !== null ? <p className="success-message">{notice}</p> : null}
+      {saveBranding.error instanceof Error ||
+      saveSiteTexts.error instanceof Error ||
+      upload.error instanceof Error ||
+      remove.error instanceof Error ? (
+        <p className="form-error">
+          {(saveBranding.error instanceof Error && saveBranding.error.message) ||
+            (saveSiteTexts.error instanceof Error && saveSiteTexts.error.message) ||
+            (upload.error instanceof Error && upload.error.message) ||
+            (remove.error instanceof Error && remove.error.message) ||
+            'Não foi possível concluir a alteração.'}
+        </p>
+      ) : null}
+      <div className="platform-overview-grid">
+        <div style={{ display: 'grid', gap: '1.25rem' }}>
+          <section className="platform-panel">
+            <header>
+              <h3>Assets visuais</h3>
+            </header>
+            <p className="finance-disclaimer">
+              Mesmo storage e mesmas validações do painel do estabelecimento (tipo, tamanho e
+              dimensão do arquivo).
+            </p>
+            <div className="brand-asset-grid">
+              {ASSET_CARDS.map((card) => (
+                <BrandAssetCard
+                  key={card.kind}
+                  title={card.title}
+                  description={card.description}
+                  previewUrl={assetUrl(card.kind)}
+                  busy={busy}
+                  {...(card.square === undefined ? {} : { square: card.square })}
+                  {...(card.allowGif === undefined ? {} : { allowGif: card.allowGif })}
+                  onUpload={(file) => {
+                    upload.mutate({ kind: card.kind, file });
+                  }}
+                  onRemove={
+                    assets.has(card.kind)
+                      ? () => {
+                          const asset = assets.get(card.kind);
+                          if (asset !== undefined) remove.mutate(asset.publicId);
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          </section>
+          <section className="platform-panel">
+            <header>
+              <h3>Experiência</h3>
+            </header>
+            <p>Define a estrutura e a navegação da página pública — não altera as cores.</p>
+            <PublicLayoutPicker
+              value={layout}
+              onChange={(value) => {
+                setLayoutOverride(value);
+              }}
+            />
+          </section>
+          <section className="platform-panel">
+            <header>
+              <h3>Tema</h3>
+            </header>
+            <BrandThemePicker
+              value={theme}
+              onChange={(value) => {
+                setThemeOverride(value);
+                setPaletteOverride(themeDefaultPalette(value, palette.primaryColor));
+              }}
+            />
+          </section>
+          <section className="platform-panel">
+            <header>
+              <h3>Cores</h3>
+            </header>
+            <BrandColorPalette
+              palette={palette}
+              onChange={(key, value) => {
+                setPaletteOverride((current) => ({ ...current, [key]: value }));
+              }}
+              onApplyPreset={(color) => {
+                setPaletteOverride(deriveBrandPalette(color, theme));
+              }}
+              onRestoreTheme={() => {
+                setPaletteOverride(themeDefaultPalette(theme, palette.primaryColor));
+              }}
+            />
+          </section>
+          {dirty ? (
+            <div className="form-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setThemeOverride(null);
+                  setLayoutOverride(null);
+                  setPaletteOverride({});
+                }}
+              >
+                Descartar
+              </button>
+              <button
+                disabled={saveBranding.isPending || !paletteValid}
+                onClick={() => {
+                  saveBranding.mutate();
+                }}
+                type="button"
+              >
+                {saveBranding.isPending ? 'Salvando…' : 'Salvar identidade visual'}
+              </button>
+            </div>
+          ) : null}
+        </div>
+        <aside>{site_}</aside>
+      </div>
+      <section className="platform-panel">
+        <header>
+          <h3>Página pública</h3>
+        </header>
+        <p className="finance-disclaimer">Textos, apresentação nos buscadores e nome do aplicativo instalado.</p>
+        <form
+          className="platform-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveSiteTexts.mutate();
+          }}
+        >
+          {(
+            [
+              ['heroTitle', 'Título principal', 'input'],
+              ['heroSubtitle', 'Mensagem de apresentação', 'textarea'],
+              ['primaryCallToAction', 'Texto da chamada principal', 'input'],
+              ['aboutText', 'Sobre o estabelecimento', 'textarea'],
+              ['footerText', 'Texto do rodapé', 'input'],
+              ['seoTitle', 'Título para buscadores', 'input'],
+              ['seoDescription', 'Descrição para buscadores', 'textarea'],
+              ['pwaName', 'Nome do aplicativo', 'input'],
+              ['pwaShortName', 'Nome curto do aplicativo', 'input'],
+              ['pwaDescription', 'Descrição do aplicativo', 'textarea'],
+            ] as const
+          ).map(([name, label, kind]) => (
+            <label key={name}>
+              {label}
+              {kind === 'textarea' ? (
+                <textarea
+                  value={siteFields[name]}
+                  onChange={(event) => {
+                    setSiteFieldsOverride((current) => ({
+                      ...(current ?? siteFields),
+                      [name]: event.target.value,
+                    }));
+                  }}
+                />
+              ) : (
+                <input
+                  value={siteFields[name]}
+                  onChange={(event) => {
+                    setSiteFieldsOverride((current) => ({
+                      ...(current ?? siteFields),
+                      [name]: event.target.value,
+                    }));
+                  }}
+                />
+              )}
+            </label>
+          ))}
+          <button disabled={saveSiteTexts.isPending} type="submit">
+            {saveSiteTexts.isPending ? 'Salvando…' : 'Salvar página pública'}
+          </button>
+        </form>
+      </section>
     </div>
   );
 }

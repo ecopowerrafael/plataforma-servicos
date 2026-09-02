@@ -249,6 +249,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.tenant.features.updated',
   'platform.tenant.terminology.updated',
   'platform.tenant.updated',
+  'platform.tenant.settings_updated',
+  'platform.tenant.media_uploaded',
+  'platform.tenant.media_updated',
+  'platform.tenant.media_removed',
+  'platform.tenant.public_site_updated',
+  'platform.tenant.pwa_published',
 ];
 
 export class PlatformService {
@@ -293,6 +299,31 @@ export class PlatformService {
       }),
     });
     return { settings };
+  }
+
+  /**
+   * Registra uma ação administrativa do /platform sobre um tenant sem tocar
+   * no audit log interno do próprio estabelecimento (a ação não deve
+   * aparecer no histórico que o dono do tenant vê).
+   */
+  public async recordTenantAudit(
+    action: string,
+    targetType: string,
+    targetPublicId: string,
+    tenantId: bigint,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ): Promise<void> {
+    await this.client.auditLog.create({
+      data: auditData({
+        action,
+        targetType,
+        targetPublicId,
+        tenantId,
+        userId: actor.user.id,
+        request: metadata,
+      }),
+    });
   }
 
   public async resolveAuth(auth: AuthRequestContext): Promise<PlatformAuthContext> {

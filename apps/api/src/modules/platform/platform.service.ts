@@ -255,6 +255,16 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.tenant.media_removed',
   'platform.tenant.public_site_updated',
   'platform.tenant.pwa_published',
+  'platform.tenant.service_created',
+  'platform.tenant.service_updated',
+  'platform.tenant.service_activated',
+  'platform.tenant.service_deactivated',
+  'platform.tenant.service_image_updated',
+  'platform.tenant.service_image_removed',
+  'platform.tenant.service_category_created',
+  'platform.tenant.service_category_updated',
+  'platform.tenant.service_category_activated',
+  'platform.tenant.service_category_deactivated',
 ];
 
 export class PlatformService {

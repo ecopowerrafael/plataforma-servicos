@@ -22,6 +22,8 @@ import { z } from 'zod';
 import { ErrorState, formatDate, formatMoney, PageHeader, StatusBadge } from './PlatformUi.js';
 import { SubscriptionBillingPanel } from './SubscriptionBillingPanel.js';
 import { TenantEditForm } from './TenantEditForm.js';
+import { ServicesManager } from './ServicesManager.js';
+import { CategoriesManager } from './CategoriesManager.js';
 import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
@@ -46,6 +48,8 @@ type TabKey =
   | 'overview'
   | 'branding'
   | 'company'
+  | 'services'
+  | 'serviceCategories'
   | 'subscription'
   | 'units'
   | 'features'
@@ -58,6 +62,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Visão geral' },
   { key: 'branding', label: 'Identidade visual' },
   { key: 'company', label: 'Empresa' },
+  { key: 'services', label: 'Serviços' },
+  { key: 'serviceCategories', label: 'Categorias' },
   { key: 'subscription', label: 'Assinatura' },
   { key: 'units', label: 'Unidades' },
   { key: 'features', label: 'Funcionalidades' },
@@ -254,6 +260,10 @@ export function TenantDetailPage({ tenantPublicId }: { tenantPublicId: string })
             onSave={save}
           />
         </section>
+      ) : tab === 'services' ? (
+        <ServicesManager tenantPublicId={tenantPublicId} />
+      ) : tab === 'serviceCategories' ? (
+        <CategoriesManager tenantPublicId={tenantPublicId} />
       ) : tab === 'subscription' ? (
         <SubscriptionTab
           data={data}

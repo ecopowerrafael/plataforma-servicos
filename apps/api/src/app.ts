@@ -984,6 +984,10 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.tenantWhiteLabel
         ? { whiteLabelService: options.database.tenantWhiteLabel }
         : {}),
+      ...(options.database.services ? { serviceService: options.database.services } : {}),
+      ...(options.database.serviceCategories
+        ? { serviceCategoryService: options.database.serviceCategories }
+        : {}),
     });
   }
   if (options.database.platformBilling)

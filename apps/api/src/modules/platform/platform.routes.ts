@@ -59,6 +59,16 @@ import {
   UpdateTenantMediaMetadataRequestSchema,
   TenantPwaResponseSchema,
   TenantMediaKindSchema,
+  CreateServiceRequestSchema,
+  UpdateServiceRequestSchema,
+  ServicePublicSchema,
+  ServiceListResponseSchema,
+  ServiceStatusResponseSchema,
+  CreateServiceCategoryRequestSchema,
+  UpdateServiceCategoryRequestSchema,
+  ServiceCategoryPublicSchema,
+  ServiceCategoryListResponseSchema,
+  ServiceCategoryStatusResponseSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -74,6 +84,9 @@ import { type IntegrationService } from '../integrations/integration.service.js'
 import { type WhatsAppProvisioningService } from '../integrations/whatsapp-provisioning.service.js';
 import { validateTenantMediaUpload } from '../tenants/tenant-media.storage.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
+import { validateServiceImageUpload } from '../services/service-image.storage.js';
+import { type ServiceService } from '../services/service.service.js';
+import { type ServiceCategoryService } from '../services/service-category.service.js';
 
 interface PlatformRoutesOptions {
   service: PlatformService;
@@ -84,6 +97,8 @@ interface PlatformRoutesOptions {
   integrationsService?: IntegrationService;
   whatsappProvisioningService?: WhatsAppProvisioningService;
   whiteLabelService?: TenantWhiteLabelService;
+  serviceService?: ServiceService;
+  serviceCategoryService?: ServiceCategoryService;
 }
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const TenantParamsSchema = z.object({ tenantPublicId: z.uuid() });
@@ -500,6 +515,286 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         return pwa;
       },
     );
+  }
+  if (options.serviceService) {
+    const svc = options.serviceService;
+    app.get(
+      '/platform/tenants/:tenantPublicId/services',
+      {
+        schema: {
+          params: TenantParamsSchema,
+          querystring: PaginationQuerySchema.extend({
+            search: z.string().optional(),
+            active: z.coerce.boolean().optional(),
+            categoryPublicId: z.uuid().optional(),
+          }),
+          response: { 200: ServiceListResponseSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return svc.list(tenantId, request.query);
+      },
+    );
+    app.get(
+      '/platform/tenants/:tenantPublicId/services/:servicePublicId',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ servicePublicId: z.uuid() }),
+          response: { 200: ServicePublicSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return svc.get(tenantId, request.params.servicePublicId);
+      },
+    );
+    app.post(
+      '/platform/tenants/:tenantPublicId/services',
+      {
+        schema: {
+          params: TenantParamsSchema,
+          body: CreateServiceRequestSchema,
+          response: { 201: ServicePublicSchema },
+        },
+      },
+      async (request, reply) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const service = await svc.create(tenantId, request.body);
+        await options.service.recordTenantAudit(
+          'platform.tenant.service_created',
+          'service',
+          service.publicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return reply.status(201).send(service);
+      },
+    );
+    app.patch(
+      '/platform/tenants/:tenantPublicId/services/:servicePublicId',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ servicePublicId: z.uuid() }),
+          body: UpdateServiceRequestSchema,
+          response: { 200: ServicePublicSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const service = await svc.update(tenantId, request.params.servicePublicId, request.body);
+        await options.service.recordTenantAudit(
+          'platform.tenant.service_updated',
+          'service',
+          request.params.servicePublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return service;
+      },
+    );
+    for (const [path, active] of [
+      ['activate', true],
+      ['deactivate', false],
+    ] as const) {
+      app.post(
+        `/platform/tenants/:tenantPublicId/services/:servicePublicId/${path}`,
+        {
+          schema: {
+            params: TenantParamsSchema.extend({ servicePublicId: z.uuid() }),
+            response: { 200: ServiceStatusResponseSchema },
+          },
+        },
+        async (request) => {
+          allow(request, 'platform.tenant.update');
+          const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+          await svc.setActive(tenantId, request.params.servicePublicId, active);
+          await options.service.recordTenantAudit(
+            active ? 'platform.tenant.service_activated' : 'platform.tenant.service_deactivated',
+            'service',
+            request.params.servicePublicId,
+            tenantId,
+            request.platformAuth,
+            requestMetadata(request),
+          );
+          return { success: true } as const;
+        },
+      );
+    }
+    app.put(
+      '/platform/tenants/:tenantPublicId/services/:servicePublicId/image',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ servicePublicId: z.uuid() }),
+          response: { 200: ServicePublicSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const upload = await request.file();
+        if (upload === undefined)
+          throw new AppError({
+            code: 'SERVICE_IMAGE_REQUIRED',
+            message: 'Uma imagem é obrigatória.',
+            statusCode: 400,
+          });
+        const image = await upload.toBuffer();
+        validateServiceImageUpload(image, upload.filename, upload.mimetype);
+        const service = await svc.replaceImage(tenantId, request.params.servicePublicId, image);
+        await options.service.recordTenantAudit(
+          'platform.tenant.service_image_updated',
+          'service',
+          request.params.servicePublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return service;
+      },
+    );
+    app.delete(
+      '/platform/tenants/:tenantPublicId/services/:servicePublicId/image',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ servicePublicId: z.uuid() }),
+          response: { 200: SuccessResponseSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        await svc.removeImage(tenantId, request.params.servicePublicId);
+        await options.service.recordTenantAudit(
+          'platform.tenant.service_image_removed',
+          'service',
+          request.params.servicePublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return { success: true } as const;
+      },
+    );
+  }
+  if (options.serviceCategoryService) {
+    const cat = options.serviceCategoryService;
+    app.get(
+      '/platform/tenants/:tenantPublicId/service-categories',
+      {
+        schema: {
+          params: TenantParamsSchema,
+          querystring: PaginationQuerySchema.extend({
+            search: z.string().optional(),
+            active: z.coerce.boolean().optional(),
+          }),
+          response: { 200: ServiceCategoryListResponseSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return cat.list(tenantId, request.query);
+      },
+    );
+    app.get(
+      '/platform/tenants/:tenantPublicId/service-categories/:categoryPublicId',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ categoryPublicId: z.uuid() }),
+          response: { 200: ServiceCategoryPublicSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.read');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        return cat.get(tenantId, request.params.categoryPublicId);
+      },
+    );
+    app.post(
+      '/platform/tenants/:tenantPublicId/service-categories',
+      {
+        schema: {
+          params: TenantParamsSchema,
+          body: CreateServiceCategoryRequestSchema,
+          response: { 201: ServiceCategoryPublicSchema },
+        },
+      },
+      async (request, reply) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const category = await cat.create(tenantId, request.body);
+        await options.service.recordTenantAudit(
+          'platform.tenant.service_category_created',
+          'service_category',
+          category.publicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return reply.status(201).send(category);
+      },
+    );
+    app.patch(
+      '/platform/tenants/:tenantPublicId/service-categories/:categoryPublicId',
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ categoryPublicId: z.uuid() }),
+          body: UpdateServiceCategoryRequestSchema,
+          response: { 200: ServiceCategoryPublicSchema },
+        },
+      },
+      async (request) => {
+        allow(request, 'platform.tenant.update');
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const category = await cat.update(tenantId, request.params.categoryPublicId, request.body);
+        await options.service.recordTenantAudit(
+          'platform.tenant.service_category_updated',
+          'service_category',
+          request.params.categoryPublicId,
+          tenantId,
+          request.platformAuth,
+          requestMetadata(request),
+        );
+        return category;
+      },
+    );
+    for (const [path, active] of [
+      ['activate', true],
+      ['deactivate', false],
+    ] as const) {
+      app.post(
+        `/platform/tenants/:tenantPublicId/service-categories/:categoryPublicId/${path}`,
+        {
+          schema: {
+            params: TenantParamsSchema.extend({ categoryPublicId: z.uuid() }),
+            response: { 200: ServiceCategoryStatusResponseSchema },
+          },
+        },
+        async (request) => {
+          allow(request, 'platform.tenant.update');
+          const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+          await cat.setActive(tenantId, request.params.categoryPublicId, active);
+          await options.service.recordTenantAudit(
+            active
+              ? 'platform.tenant.service_category_activated'
+              : 'platform.tenant.service_category_deactivated',
+            'service_category',
+            request.params.categoryPublicId,
+            tenantId,
+            request.platformAuth,
+            requestMetadata(request),
+          );
+          return { success: true } as const;
+        },
+      );
+    }
   }
   app.patch(
     '/platform/tenants/:tenantPublicId/settings',

@@ -45,6 +45,9 @@ import {
   PlatformChargeResponseSchema,
   PlatformSubscriptionBillingSchema,
   CreatePlatformChargeSchema,
+  PlatformFinanceReceiptsQuerySchema,
+  PlatformFinanceSubscriptionsQuerySchema,
+  PlatformFinanceDelinquencyQuerySchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -677,6 +680,61 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       (request) => {
         allow(request, 'platform.subscription.status.manage');
         return billing.confirm(request.params.publicId, actor(request));
+      },
+    );
+
+    // Financeiro — analytics read-only (Fase 1). No "response" schema on
+    // these four: format=csv returns a text/csv string, which a Zod
+    // object response schema can't validate. The JSON shape is instead
+    // guaranteed by the service methods themselves (each .parse()s its
+    // own response schema before returning).
+    app.get('/platform/finance/overview', { schema: {} }, (request) => {
+      allow(request, 'platform.subscription.read');
+      return billing.financeDashboard();
+    });
+    app.get(
+      '/platform/finance/receipts',
+      { schema: { querystring: PlatformFinanceReceiptsQuerySchema } },
+      async (request, reply) => {
+        allow(request, 'platform.subscription.read');
+        const result = await billing.receipts(request.query);
+        if (request.query.format === 'csv') {
+          return reply
+            .header('Content-Type', 'text/csv; charset=utf-8')
+            .header('Content-Disposition', 'attachment; filename="recebimentos.csv"')
+            .send(result);
+        }
+        return result;
+      },
+    );
+    app.get(
+      '/platform/finance/subscriptions',
+      { schema: { querystring: PlatformFinanceSubscriptionsQuerySchema } },
+      async (request, reply) => {
+        allow(request, 'platform.subscription.read');
+        const result = await billing.subscriptionsAnalytics(request.query);
+        if (request.query.format === 'csv') {
+          return reply
+            .header('Content-Type', 'text/csv; charset=utf-8')
+            .header('Content-Disposition', 'attachment; filename="assinaturas.csv"')
+            .send(result);
+        }
+        return result;
+      },
+    );
+    app.get(
+      '/platform/finance/delinquency',
+      { schema: { querystring: PlatformFinanceDelinquencyQuerySchema } },
+      async (request, reply) => {
+        allow(request, 'platform.subscription.read');
+        const result = await billing.delinquency(request.query);
+        if (request.query.format === 'csv') {
+          return reply
+            .header('Content-Type', 'text/csv; charset=utf-8')
+            .header('Content-Disposition', 'attachment; filename="inadimplencia.csv"')
+            .send(result);
+        }
+        return result;
       },
     );
   }

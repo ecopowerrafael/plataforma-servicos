@@ -9,7 +9,7 @@ import {
   TenantFeaturesResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
 
@@ -793,7 +793,7 @@ function WhatsAppTab({ tenantPublicId }: { tenantPublicId: string }) {
   });
 
   // Sincronizar estados com current quando a query carregar
-  React.useEffect(() => {
+  useEffect(() => {
     if (query.data) {
       setInstanceId(query.data.instanceId ?? '');
       setPhoneNumber(query.data.phoneNumber ?? '');

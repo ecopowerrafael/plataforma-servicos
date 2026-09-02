@@ -791,6 +791,17 @@ function WhatsAppTab({ tenantPublicId }: { tenantPublicId: string }) {
       httpClient.request(`/platform/tenants/${tenantPublicId}/whatsapp`, { schema: PlatformTenantWhatsAppSchema }),
     retry: false,
   });
+
+  // Sincronizar estados com current quando a query carregar
+  React.useEffect(() => {
+    if (query.data) {
+      setInstanceId(query.data.instanceId ?? '');
+      setPhoneNumber(query.data.phoneNumber ?? '');
+      setInstanceName(query.data.instanceName ?? '');
+      setIsActive(query.data.active ?? true);
+      setToken(''); // token sempre começa vazio (para segurança)
+    }
+  }, [query.data]);
   const save = useMutation({
     mutationFn: () =>
       httpClient.request(`/platform/tenants/${tenantPublicId}/whatsapp`, {
@@ -922,7 +933,7 @@ function WhatsAppTab({ tenantPublicId }: { tenantPublicId: string }) {
             Ativa
           </label>
           {save.error instanceof Error ? <p className="form-error">{save.error.message}</p> : null}
-          <button disabled={save.isPending || instanceId.trim() === ''} type="submit">
+          <button disabled={save.isPending || !instanceId.trim()} type="submit">
             Salvar
           </button>
         </form>

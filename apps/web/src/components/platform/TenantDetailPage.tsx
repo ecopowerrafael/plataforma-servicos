@@ -27,6 +27,7 @@ import { CategoriesManager } from './CategoriesManager.js';
 import { ProfessionalsManager } from './ProfessionalsManager.js';
 import { ComboModule } from './ComboModule.js';
 import { ScheduleModule } from './ScheduleModule.js';
+import { UnitsModule } from './UnitsModule.js';
 import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
@@ -286,7 +287,7 @@ export function TenantDetailPage({ tenantPublicId }: { tenantPublicId: string })
           requestAction={requestAction}
         />
       ) : tab === 'units' ? (
-        <UnitsTab units={data.units} />
+        <UnitsModule tenantPublicId={tenantPublicId} />
       ) : tab === 'features' ? (
         <FeaturesTab tenantPublicId={tenantPublicId} features={features} mutation={mutation} setConfirmation={setConfirmation} />
       ) : tab === 'customFields' ? (
@@ -968,47 +969,6 @@ function SubscriptionTab({
       </section>
       <SubscriptionBillingPanel subscriptionPublicId={subscription.publicId} />
     </div>
-  );
-}
-
-function UnitsTab({ units }: { units: z.infer<typeof PlatformTenantDetailResponseSchema>['units'] }) {
-  return (
-    <section className="platform-panel">
-      <header>
-        <h3>Unidades</h3>
-      </header>
-      <p className="finance-disclaimer">
-        Ainda não existem endpoints administrativos globais para criar ou editar unidades a partir do
-        /platform — esta lista é somente leitura. Edição de unidades continua disponível apenas pelo
-        próprio painel do estabelecimento.
-      </p>
-      {units.length === 0 ? (
-        <p>Nenhuma unidade cadastrada.</p>
-      ) : (
-        <div className="platform-table-wrap">
-          <table className="platform-table">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Status</th>
-                <th>Sede</th>
-                <th>Cidade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {units.map((unit) => (
-                <tr key={unit.publicId}>
-                  <td>{unit.name}</td>
-                  <td><StatusBadge value={unit.status} /></td>
-                  <td>{unit.isHeadquarters ? 'Sim' : 'Não'}</td>
-                  <td>{unit.city ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
   );
 }
 

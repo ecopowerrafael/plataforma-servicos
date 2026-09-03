@@ -198,8 +198,8 @@ export function ComboDetailPage({ tenantPublicId }: { tenantPublicId: string }) 
                 if (!formData || !combo) return;
                 update.mutate({
                   name: formData.name || combo.name,
-                  description: formData.description || combo.description || null,
-                  imageAlt: formData.imageAlt || combo.imageAlt || null,
+                  description: formData.description || combo.description || undefined,
+                  imageAlt: formData.imageAlt || combo.imageAlt || undefined,
                   priceCents: formData.priceCents ? Number(formData.priceCents) : Number(combo.priceCents),
                   sortOrder: formData.sortOrder || combo.sortOrder,
                   active: formData.active !== undefined ? formData.active : combo.active,
@@ -207,7 +207,7 @@ export function ComboDetailPage({ tenantPublicId }: { tenantPublicId: string }) 
                     servicePublicId: item.servicePublicId,
                     sortOrder: item.sortOrder,
                   })),
-                });
+                } as any);
               }}
               className="platform-form"
             >

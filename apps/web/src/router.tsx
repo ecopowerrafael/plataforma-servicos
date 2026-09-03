@@ -25,6 +25,12 @@ const NotFoundPage = lazy(async () => ({
 const PlatformPageRebuild = lazy(async () => ({
   default: (await import('./routes/PlatformPageRebuild.js')).PlatformPageRebuild,
 }));
+const PlatformProfessionalDetailPage = lazy(async () => ({
+  default: (await import('./routes/PlatformProfessionalDetailPage.js')).PlatformProfessionalDetailPage,
+}));
+const PlatformServiceDetailPage = lazy(async () => ({
+  default: (await import('./routes/PlatformServiceDetailPage.js')).PlatformServiceDetailPage,
+}));
 const PublicTenantPage = lazy(async () => ({
   default: (await import('./routes/PublicTenantPage.js')).PublicTenantPage,
 }));
@@ -375,6 +381,14 @@ export const router = createBrowserRouter([
   { path: '/platform', element: lazyPage(PlatformPageRebuild) },
   { path: '/platform/plans/:resourceId', element: lazyPage(PlatformPageRebuild) },
   { path: '/platform/subscriptions/:resourceId', element: lazyPage(PlatformPageRebuild) },
+  {
+    path: '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId',
+    element: lazyPage(PlatformProfessionalDetailPage),
+  },
+  {
+    path: '/platform/tenants/:tenantPublicId/services/:servicePublicId',
+    element: lazyPage(PlatformServiceDetailPage),
+  },
   { path: '/platform/tenants/:resourceId', element: lazyPage(PlatformPageRebuild) },
   { path: '/platform/:section', element: lazyPage(PlatformPageRebuild) },
   { path: '/public/:slug', element: lazyPage(PublicTenantPage) },

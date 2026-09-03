@@ -957,7 +957,10 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
           request.params.professionalPublicId,
           request.body.password,
           options.passwordService,
-          { userId: BigInt(0), sessionId: BigInt(0) },
+          {
+            userId: request.platformAuth.user.id,
+            sessionId: request.platformAuth.user.id,
+          },
         );
         await options.service.recordTenantAudit(
           'platform.tenant.professional_password_changed',

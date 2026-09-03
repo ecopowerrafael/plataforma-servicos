@@ -97,7 +97,7 @@ export class ProfessionalService {
     userIdOrProfPublicId: bigint | string,
     password: string,
     passwordService: any,
-    actor: Actor,
+    actor?: Actor,
   ) {
     let professional: ProfessionalRecord | null;
     if (typeof userIdOrProfPublicId === 'string') {

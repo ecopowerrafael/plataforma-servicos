@@ -638,16 +638,24 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
     }
     app.get(
       '/platform/tenants/:tenantPublicId/services/:servicePublicId/image',
-      { schema: { params: TenantParamsSchema.extend({ servicePublicId: z.uuid() }) } },
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ servicePublicId: z.uuid() }),
+          querystring: z.object({ variant: z.enum(['original', 'thumbnail']).default('original') }),
+        },
+      },
       async (request, reply) => {
         allow(request, 'platform.tenant.read');
         const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
-        try {
-          const buffer = await svc.getImage(tenantId, request.params.servicePublicId);
-          return reply.type('image/jpeg').send(buffer);
-        } catch {
-          return reply.status(404).send({ code: 'SERVICE_IMAGE_NOT_FOUND' });
-        }
+        const image = await svc.getImage(
+          tenantId,
+          request.params.servicePublicId,
+          request.query.variant,
+        );
+        return reply
+          .header('Cache-Control', 'private, max-age=300')
+          .type(image.mimeType)
+          .send(image.buffer);
       },
     );
     app.put(
@@ -957,10 +965,6 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
           request.params.professionalPublicId,
           request.body.password,
           options.passwordService,
-          {
-            userId: request.platformAuth.user.id,
-            sessionId: request.platformAuth.user.id,
-          },
         );
         await options.service.recordTenantAudit(
           'platform.tenant.professional_password_changed',
@@ -975,16 +979,24 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
     );
     app.get(
       '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/photo',
-      { schema: { params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }) } },
+      {
+        schema: {
+          params: TenantParamsSchema.extend({ professionalPublicId: z.uuid() }),
+          querystring: z.object({ variant: z.enum(['original', 'thumbnail']).default('original') }),
+        },
+      },
       async (request, reply) => {
         allow(request, 'platform.tenant.read');
         const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
-        try {
-          const buffer = await prof.photo(tenantId, request.params.professionalPublicId);
-          return reply.type('image/jpeg').send(buffer);
-        } catch {
-          return reply.status(404).send({ code: 'PROFESSIONAL_PHOTO_NOT_FOUND' });
-        }
+        const photo = await prof.photo(
+          tenantId,
+          request.params.professionalPublicId,
+          request.query.variant,
+        );
+        return reply
+          .header('Cache-Control', 'private, max-age=300')
+          .type(photo.mimeType)
+          .send(photo.buffer);
       },
     );
     app.put(

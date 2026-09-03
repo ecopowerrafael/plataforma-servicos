@@ -4,7 +4,7 @@ import { config } from 'dotenv';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createPrismaClient } from '../src/database/connection.js';
-import { PrismaTenantRepository } from '../src/modules/tenants/tenant.repository.js';
+import { PrismaTenantRepository } from '../src/modules/tenants/prisma-tenant.repository.js';
 import { TenantService } from '../src/modules/tenants/tenant.service.js';
 import { PrismaProfessionalRepository } from '../src/modules/professionals/professional.repository.js';
 import { ProfessionalService } from '../src/modules/professionals/professional.service.js';

@@ -5,15 +5,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createPrismaClient } from '../src/database/connection.js';
 import { AvailabilityService } from '../src/modules/calendar/availability.service.js';
+import { AvailabilityRepository } from '../src/modules/calendar/availability.repository.js';
 import { PrismaProfessionalRepository } from '../src/modules/professionals/professional.repository.js';
 import { ProfessionalService } from '../src/modules/professionals/professional.service.js';
-import { PrismaTenantRepository } from '../src/modules/tenants/tenant.repository.js';
+import { PrismaTenantRepository } from '../src/modules/tenants/prisma-tenant.repository.js';
 import { TenantService } from '../src/modules/tenants/tenant.service.js';
 import { PrismaServiceRepository } from '../src/modules/services/service.repository.js';
 import { ServiceService } from '../src/modules/services/service.service.js';
 import { PrismaProfessionalScheduleRepository } from '../src/modules/professionals/professional-schedule.repository.js';
 import { ProfessionalScheduleService } from '../src/modules/professionals/professional-schedule.service.js';
-import { PrismaAvailabilityRepository } from '../src/modules/calendar/availability.repository.js';
 import { LocalServiceImageStorage } from '../src/modules/services/service-image.storage.js';
 
 config({ path: '../../.env' });
@@ -31,7 +31,7 @@ describe.skipIf(url === undefined)('duração de serviço é independente do int
   const schedules = new ProfessionalScheduleService(
     new PrismaProfessionalScheduleRepository(client),
   );
-  const availability = new AvailabilityService(new PrismaAvailabilityRepository(client));
+  const availability = new AvailabilityService(new AvailabilityRepository(client));
 
   const suffix = randomUUID().slice(0, 8);
   let tenantId: bigint;

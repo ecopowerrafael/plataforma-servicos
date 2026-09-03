@@ -378,17 +378,22 @@ export const router = createBrowserRouter([
   { path: '/reset-password', element: lazyPage(ResetPasswordPage) },
   { path: '/accept-invitation', element: lazyPage(AcceptInvitationPage) },
   { path: '/access-denied', element: lazyPage(AccessDeniedPage) },
-  { path: '/platform', element: lazyPage(PlatformPageRebuild) },
+  {
+    path: '/platform',
+    element: lazyPage(PlatformPageRebuild),
+    children: [
+      {
+        path: 'tenants/:tenantPublicId/professionals/:professionalPublicId',
+        element: lazyPage(PlatformProfessionalDetailPage),
+      },
+      {
+        path: 'tenants/:tenantPublicId/services/:servicePublicId',
+        element: lazyPage(PlatformServiceDetailPage),
+      },
+    ],
+  },
   { path: '/platform/plans/:resourceId', element: lazyPage(PlatformPageRebuild) },
   { path: '/platform/subscriptions/:resourceId', element: lazyPage(PlatformPageRebuild) },
-  {
-    path: '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId',
-    element: lazyPage(PlatformProfessionalDetailPage),
-  },
-  {
-    path: '/platform/tenants/:tenantPublicId/services/:servicePublicId',
-    element: lazyPage(PlatformServiceDetailPage),
-  },
   { path: '/platform/tenants/:resourceId', element: lazyPage(PlatformPageRebuild) },
   { path: '/platform/:section', element: lazyPage(PlatformPageRebuild) },
   { path: '/public/:slug', element: lazyPage(PublicTenantPage) },

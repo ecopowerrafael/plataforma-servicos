@@ -6,7 +6,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { AuditModule } from '../components/platform/AuditModule.js';
 import { CommercialPolicyModule } from '../components/platform/CommercialPolicyModule.js';
@@ -31,6 +31,10 @@ export function PlatformPageRebuild() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
+
+  // Detectar se é uma rota aninhada (detail pages) ou seção principal
+  const isDetailPage = location.pathname.includes('/professionals/') || location.pathname.includes('/services/');
+
   const pathSection = location.pathname.split('/')[2];
   const routeSection = pathSection === 'financeiro' ? 'finance' : pathSection;
   const section: PlatformSection | 'settings' = [
@@ -81,7 +85,9 @@ export function PlatformPageRebuild() {
         void navigate(next === 'finance' ? '/platform/financeiro' : `/platform/${next}`);
       }}
     >
-      {section === 'dashboard' ? (
+      {isDetailPage ? (
+        <Outlet />
+      ) : section === 'dashboard' ? (
         <Overview
           onTenants={() => {
             void navigate('/platform/tenants');

@@ -63,12 +63,7 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
   });
 
   if (isLoading) return <i className="platform-skeleton" />;
-  if (error instanceof Error)
-    return (
-      <section className="platform-detail-page">
-        <ErrorState error={error.message} />
-      </section>
-    );
+  if (error instanceof Error) return <ErrorState error={error.message} />;
   if (!service) return <p>Serviço não encontrado.</p>;
 
   const tabs = [
@@ -79,78 +74,66 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
   ];
 
   return (
-    <section className="platform-detail-page">
-      <nav aria-label="Trilha" className="platform-breadcrumb">
-        <button className="breadcrumb-link" onClick={() => navigate(-1)}>
-          ← Voltar
-        </button>
-      </nav>
+    <>
+      <div className="platform-entity-header">
+        <div className="platform-entity-avatar">
+          {service.imageUrl ? (
+            <PlatformServiceImage
+              alt={service.name}
+              servicePublicId={service.publicId}
+              tenantPublicId={tenantPublicId}
+              variant="original"
+              size={{ width: 88, height: 88 }}
+            />
+          ) : (
+            <div className="platform-entity-avatar-placeholder" />
+          )}
+        </div>
 
-      <article className="platform-panel">
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', gap: '2rem', alignItems: 'start' }}>
-          <div>
-            {service.imageUrl ? (
-              <PlatformServiceImage
-                alt={service.name}
-                servicePublicId={service.publicId}
-                tenantPublicId={tenantPublicId}
-                variant="original"
-                size={{ width: 120, height: 120 }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: '120px',
-                  height: '120px',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#999',
-                  fontSize: '0.75rem',
-                }}
-              >
-                Sem imagem
-              </div>
-            )}
-          </div>
-
-          <div>
-            <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>{service.name}</h1>
-            <p style={{ margin: '0 0 1rem 0', color: '#666' }}>
-              {service.durationMinutes} min · R$ {(service.priceCents / 100).toFixed(2)}
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span
-                style={{
-                  display: 'inline-block',
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '4px',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  backgroundColor: service.active ? '#d1fae5' : '#fee2e2',
-                  color: service.active ? '#065f46' : '#991b1b',
-                }}
-              >
-                {service.active ? 'Ativo' : 'Inativo'}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <button
-              onClick={() => toggleActive.mutate(!service.active)}
-              disabled={toggleActive.isPending}
-              className={service.active ? 'danger-button' : 'primary-button'}
-            >
-              {service.active ? 'Desativar' : 'Ativar'}
-            </button>
+        <div className="platform-entity-info">
+          <h1>{service.name}</h1>
+          <p className="platform-entity-subtitle">
+            {service.durationMinutes} min · R$ {(service.priceCents / 100).toFixed(2)}
+          </p>
+          <div className="platform-entity-status">
+            <span className={service.active ? 'status-active' : 'status-inactive'}>
+              {service.active ? 'Ativo' : 'Inativo'}
+            </span>
           </div>
         </div>
-      </article>
 
-      <nav aria-label="Abas do serviço" className="prospecting-tabs">
+        <div className="platform-entity-actions">
+          <button
+            onClick={() => toggleActive.mutate(!service.active)}
+            disabled={toggleActive.isPending}
+            className={service.active ? 'action-button danger' : 'action-button primary'}
+          >
+            {service.active ? 'Desativar' : 'Ativar'}
+          </button>
+        </div>
+      </div>
+
+      <div className="platform-entity-summary">
+        <article className="platform-panel">
+          <h3>Detalhes</h3>
+          <dl className="platform-details">
+            <div>
+              <dt>Duração</dt>
+              <dd>{service.durationMinutes} minutos</dd>
+            </div>
+            <div>
+              <dt>Preço</dt>
+              <dd>R$ {(service.priceCents / 100).toFixed(2)}</dd>
+            </div>
+            <div>
+              <dt>Modo de preço</dt>
+              <dd>{service.pricingMode || '—'}</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+
+      <nav className="platform-entity-tabs">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -163,12 +146,9 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
         ))}
       </nav>
 
-      {tab === 'overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+      <div className="platform-entity-content">
+        {tab === 'overview' && (
           <article className="platform-panel">
-            <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#999', margin: '0 0 1rem 0', textTransform: 'uppercase' }}>
-              Serviço
-            </h3>
             <dl className="platform-details">
               <div>
                 <dt>Duração</dt>
@@ -178,18 +158,6 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
                 <dt>Preço</dt>
                 <dd>R$ {(service.priceCents / 100).toFixed(2)}</dd>
               </div>
-              <div>
-                <dt>Modo de preço</dt>
-                <dd>{service.pricingMode}</dd>
-              </div>
-            </dl>
-          </article>
-
-          <article className="platform-panel">
-            <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#999', margin: '0 0 1rem 0', textTransform: 'uppercase' }}>
-              Configuração
-            </h3>
-            <dl className="platform-details">
               <div>
                 <dt>Pausa pós-serviço</dt>
                 <dd>{service.hasPostServiceBreak ? `Sim (${service.postServiceBreakMinutes} min)` : 'Não'}</dd>
@@ -202,228 +170,214 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
               )}
             </dl>
           </article>
-        </div>
-      )}
+        )}
 
-      {tab === 'info' && (
-        <article className="platform-panel">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!formData) return;
-              update.mutate({
-                name: formData.name || service.name,
-                description: formData.description,
-                imageAlt: formData.imageAlt,
-                iconKey: formData.iconKey,
-                categoryPublicId: formData.categoryPublicId || service.categoryPublicId,
-                durationMinutes: formData.durationMinutes || service.durationMinutes,
-                hasPostServiceBreak: formData.hasPostServiceBreak ?? service.hasPostServiceBreak,
-                postServiceBreakMinutes: formData.postServiceBreakMinutes || service.postServiceBreakMinutes,
-                priceCents: formData.priceCents || service.priceCents,
-                pricingMode: formData.pricingMode || service.pricingMode,
-                quoteNotice: formData.quoteNotice,
-                color: formData.color || service.color,
-                sortOrder: formData.sortOrder || service.sortOrder,
-                active: formData.active !== undefined ? formData.active : service.active,
-              } as any);
-            }}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}
-          >
-            <label>
-              <span>Nome</span>
-              <input
-                type="text"
-                defaultValue={service.name}
-                onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
-              />
-            </label>
+        {tab === 'info' && (
+          <article className="platform-panel">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!formData) return;
+                update.mutate({
+                  name: formData.name || service.name,
+                  description: formData.description,
+                  imageAlt: formData.imageAlt,
+                  iconKey: formData.iconKey,
+                  categoryPublicId: formData.categoryPublicId || service.categoryPublicId,
+                  durationMinutes: formData.durationMinutes || service.durationMinutes,
+                  hasPostServiceBreak: formData.hasPostServiceBreak ?? service.hasPostServiceBreak,
+                  postServiceBreakMinutes: formData.postServiceBreakMinutes || service.postServiceBreakMinutes,
+                  priceCents: formData.priceCents || service.priceCents,
+                  pricingMode: formData.pricingMode || service.pricingMode,
+                  quoteNotice: formData.quoteNotice,
+                  color: formData.color || service.color,
+                  sortOrder: formData.sortOrder || service.sortOrder,
+                  active: formData.active !== undefined ? formData.active : service.active,
+                } as any);
+              }}
+              className="platform-form"
+            >
+              <div className="platform-form-grid">
+                <label className="platform-form-field">
+                  <span>Nome</span>
+                  <input
+                    type="text"
+                    defaultValue={service.name}
+                    onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
+                  />
+                </label>
 
-            <label style={{ gridColumn: '1 / -1' }}>
-              <span>Descrição</span>
-              <textarea
-                defaultValue={service.description || ''}
-                onChange={(e) => setFormData((f) => ({ ...f, description: e.target.value || undefined }))}
-                style={{ minHeight: '100px' }}
-              />
-            </label>
+                <label className="platform-form-field">
+                  <span>Cor</span>
+                  <input
+                    type="color"
+                    defaultValue={service.color}
+                    onChange={(e) => setFormData((f) => ({ ...f, color: e.target.value }))}
+                  />
+                </label>
 
-            <label>
-              <span>Alt de imagem</span>
-              <input
-                type="text"
-                defaultValue={service.imageAlt || ''}
-                onChange={(e) => setFormData((f) => ({ ...f, imageAlt: e.target.value || undefined }))}
-              />
-            </label>
+                <label className="platform-form-field" style={{ gridColumn: '1 / -1' }}>
+                  <span>Descrição</span>
+                  <textarea
+                    defaultValue={service.description || ''}
+                    onChange={(e) => setFormData((f) => ({ ...f, description: e.target.value || undefined }))}
+                    rows={4}
+                  />
+                </label>
 
-            <label>
-              <span>Cor</span>
-              <input
-                type="color"
-                defaultValue={service.color}
-                onChange={(e) => setFormData((f) => ({ ...f, color: e.target.value }))}
-              />
-            </label>
-
-            {update.error instanceof Error && (
-              <p className="form-error" style={{ gridColumn: '1 / -1' }}>
-                {update.error.message}
-              </p>
-            )}
-
-            <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
-              <button type="button" className="secondary-button" onClick={() => setFormData(null)}>
-                Cancelar
-              </button>
-              <button type="submit" className="primary-button" disabled={update.isPending}>
-                {update.isPending ? 'Salvando…' : 'Salvar'}
-              </button>
-            </div>
-          </form>
-        </article>
-      )}
-
-      {tab === 'image' && (
-        <article className="platform-panel">
-          <div style={{ textAlign: 'center' }}>
-            {service.imageUrl ? (
-              <PlatformServiceImage
-                alt={service.name}
-                servicePublicId={service.publicId}
-                tenantPublicId={tenantPublicId}
-                variant="original"
-                size={{ width: 200, height: 200 }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: '200px',
-                  height: '200px',
-                  margin: '0 auto',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#999',
-                }}
-              >
-                Sem imagem
+                <label className="platform-form-field">
+                  <span>Alt de imagem</span>
+                  <input
+                    type="text"
+                    defaultValue={service.imageAlt || ''}
+                    onChange={(e) => setFormData((f) => ({ ...f, imageAlt: e.target.value || undefined }))}
+                  />
+                </label>
               </div>
-            )}
-          </div>
-          <div className="form-actions">
-            <button className="primary-button" onClick={() => setImageModalOpen(true)}>
-              Gerenciar imagem
-            </button>
-          </div>
-        </article>
-      )}
 
-      {tab === 'pricing' && (
-        <article className="platform-panel">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!formData) return;
-              update.mutate({
-                name: service.name,
-                description: service.description,
-                imageAlt: service.imageAlt,
-                iconKey: service.iconKey,
-                categoryPublicId: service.categoryPublicId,
-                durationMinutes: formData.durationMinutes || service.durationMinutes,
-                hasPostServiceBreak: formData.hasPostServiceBreak ?? service.hasPostServiceBreak,
-                postServiceBreakMinutes: formData.postServiceBreakMinutes || service.postServiceBreakMinutes,
-                priceCents: formData.priceCents || service.priceCents,
-                pricingMode: formData.pricingMode || service.pricingMode,
-                quoteNotice: formData.quoteNotice,
-                color: service.color,
-                sortOrder: service.sortOrder,
-              } as any);
-            }}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}
-          >
-            <label>
-              <span>Duração (minutos)</span>
-              <input
-                type="number"
-                defaultValue={service.durationMinutes}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, durationMinutes: parseInt(e.target.value) || 0 }))
-                }
-              />
-            </label>
+              {update.error instanceof Error && (
+                <p className="form-error">{update.error.message}</p>
+              )}
 
-            <label>
-              <span>Preço (R$)</span>
-              <input
-                type="number"
-                step="0.01"
-                defaultValue={(service.priceCents / 100).toFixed(2)}
-                onChange={(e) =>
-                  setFormData((f) => ({
-                    ...f,
-                    priceCents: Math.round(parseFloat(e.target.value) * 100) || 0,
-                  }))
-                }
-              />
-            </label>
+              <div className="platform-form-actions">
+                <button type="button" className="action-button secondary" onClick={() => setFormData(null)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="action-button primary" disabled={update.isPending}>
+                  {update.isPending ? 'Salvando…' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </article>
+        )}
 
-            <label>
-              <span>Modo de preço</span>
-              <input
-                type="text"
-                defaultValue={service.pricingMode || ''}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, pricingMode: e.target.value || undefined }))
-                }
-              />
-            </label>
-
-            <label>
-              <span>Pausa pós-serviço (minutos)</span>
-              <input
-                type="number"
-                defaultValue={service.postServiceBreakMinutes}
-                onChange={(e) =>
-                  setFormData((f) => ({
-                    ...f,
-                    postServiceBreakMinutes: parseInt(e.target.value) || 0,
-                  }))
-                }
-              />
-            </label>
-
-            <label>
-              <span>Aviso de orçamento</span>
-              <input
-                type="text"
-                defaultValue={service.quoteNotice || ''}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, quoteNotice: e.target.value || undefined }))
-                }
-              />
-            </label>
-
-            {update.error instanceof Error && (
-              <p className="form-error" style={{ gridColumn: '1 / -1' }}>
-                {update.error.message}
-              </p>
-            )}
-
-            <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
-              <button type="button" className="secondary-button" onClick={() => setFormData(null)}>
-                Cancelar
-              </button>
-              <button type="submit" className="primary-button" disabled={update.isPending}>
-                {update.isPending ? 'Salvando…' : 'Salvar'}
+        {tab === 'image' && (
+          <article className="platform-panel">
+            <div className="platform-image-preview">
+              {service.imageUrl ? (
+                <PlatformServiceImage
+                  alt={service.name}
+                  servicePublicId={service.publicId}
+                  tenantPublicId={tenantPublicId}
+                  variant="original"
+                  size={{ width: 240, height: 240 }}
+                />
+              ) : (
+                <div className="platform-image-placeholder">Sem imagem</div>
+              )}
+            </div>
+            <div className="platform-form-actions">
+              <button className="action-button primary" onClick={() => setImageModalOpen(true)}>
+                Gerenciar imagem
               </button>
             </div>
-          </form>
-        </article>
-      )}
+          </article>
+        )}
+
+        {tab === 'pricing' && (
+          <article className="platform-panel">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!formData) return;
+                update.mutate({
+                  name: service.name,
+                  description: service.description,
+                  imageAlt: service.imageAlt,
+                  iconKey: service.iconKey,
+                  categoryPublicId: service.categoryPublicId,
+                  durationMinutes: formData.durationMinutes || service.durationMinutes,
+                  hasPostServiceBreak: formData.hasPostServiceBreak ?? service.hasPostServiceBreak,
+                  postServiceBreakMinutes: formData.postServiceBreakMinutes || service.postServiceBreakMinutes,
+                  priceCents: formData.priceCents || service.priceCents,
+                  pricingMode: formData.pricingMode || service.pricingMode,
+                  quoteNotice: formData.quoteNotice,
+                  color: service.color,
+                  sortOrder: service.sortOrder,
+                } as any);
+              }}
+              className="platform-form"
+            >
+              <div className="platform-form-grid">
+                <label className="platform-form-field">
+                  <span>Duração (minutos)</span>
+                  <input
+                    type="number"
+                    defaultValue={service.durationMinutes}
+                    onChange={(e) =>
+                      setFormData((f) => ({ ...f, durationMinutes: parseInt(e.target.value) || 0 }))
+                    }
+                  />
+                </label>
+
+                <label className="platform-form-field">
+                  <span>Preço (R$)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    defaultValue={(service.priceCents / 100).toFixed(2)}
+                    onChange={(e) =>
+                      setFormData((f) => ({
+                        ...f,
+                        priceCents: Math.round(parseFloat(e.target.value) * 100) || 0,
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="platform-form-field">
+                  <span>Modo de preço</span>
+                  <input
+                    type="text"
+                    defaultValue={service.pricingMode || ''}
+                    onChange={(e) =>
+                      setFormData((f) => ({ ...f, pricingMode: e.target.value || undefined }))
+                    }
+                  />
+                </label>
+
+                <label className="platform-form-field">
+                  <span>Pausa pós-serviço (minutos)</span>
+                  <input
+                    type="number"
+                    defaultValue={service.postServiceBreakMinutes}
+                    onChange={(e) =>
+                      setFormData((f) => ({
+                        ...f,
+                        postServiceBreakMinutes: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="platform-form-field" style={{ gridColumn: '1 / -1' }}>
+                  <span>Aviso de orçamento</span>
+                  <input
+                    type="text"
+                    defaultValue={service.quoteNotice || ''}
+                    onChange={(e) =>
+                      setFormData((f) => ({ ...f, quoteNotice: e.target.value || undefined }))
+                    }
+                  />
+                </label>
+              </div>
+
+              {update.error instanceof Error && (
+                <p className="form-error">{update.error.message}</p>
+              )}
+
+              <div className="platform-form-actions">
+                <button type="button" className="action-button secondary" onClick={() => setFormData(null)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="action-button primary" disabled={update.isPending}>
+                  {update.isPending ? 'Salvando…' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </article>
+        )}
+      </div>
 
       {imageModalOpen && (
         <ServiceImageModal
@@ -437,6 +391,6 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
           }}
         />
       )}
-    </section>
+    </>
   );
 }

@@ -65,12 +65,7 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
   });
 
   if (isLoading) return <i className="platform-skeleton" />;
-  if (error instanceof Error)
-    return (
-      <section className="platform-detail-page">
-        <ErrorState error={error.message} />
-      </section>
-    );
+  if (error instanceof Error) return <ErrorState error={error.message} />;
   if (!professional) return <p>Profissional não encontrado.</p>;
 
   const tabs = [
@@ -81,81 +76,46 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
   ];
 
   return (
-    <section className="platform-detail-page">
-      <nav aria-label="Trilha" className="platform-breadcrumb">
-        <button className="breadcrumb-link" onClick={() => navigate(-1)}>
-          ← Voltar
-        </button>
-      </nav>
+    <>
+      <div className="platform-entity-header">
+        <div className="platform-entity-avatar">
+          {professional.photoUrl ? (
+            <PlatformProfessionalPhoto
+              alt={professional.name}
+              professionalPublicId={professional.publicId}
+              tenantPublicId={tenantPublicId}
+              variant="original"
+              size={{ width: 88, height: 88 }}
+            />
+          ) : (
+            <div className="platform-entity-avatar-placeholder" />
+          )}
+        </div>
 
-      <article className="platform-panel">
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', gap: '2rem', alignItems: 'start' }}>
-          <div style={{ textAlign: 'center' }}>
-            {professional.photoUrl ? (
-              <PlatformProfessionalPhoto
-                alt={professional.name}
-                professionalPublicId={professional.publicId}
-                tenantPublicId={tenantPublicId}
-                variant="original"
-                size={{ width: 120, height: 120 }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: '120px',
-                  height: '120px',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#999',
-                }}
-              >
-                Sem foto
-              </div>
-            )}
-          </div>
-
-          <div>
-            <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>{professional.name}</h1>
-            <p style={{ margin: '0 0 1rem 0', color: '#666', fontSize: '1.1rem' }}>
-              {professional.publicName}
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span
-                style={{
-                  display: 'inline-block',
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '4px',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  backgroundColor: professional.active ? '#d1fae5' : '#fee2e2',
-                  color: professional.active ? '#065f46' : '#991b1b',
-                }}
-              >
-                {professional.active ? 'Ativo' : 'Inativo'}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <button
-              onClick={() => toggleActive.mutate(!professional.active)}
-              disabled={toggleActive.isPending}
-              className={professional.active ? 'danger-button' : 'primary-button'}
-            >
-              {professional.active ? 'Desativar' : 'Ativar'}
-            </button>
+        <div className="platform-entity-info">
+          <h1>{professional.name}</h1>
+          <p className="platform-entity-subtitle">{professional.publicName}</p>
+          <div className="platform-entity-status">
+            <span className={professional.active ? 'status-active' : 'status-inactive'}>
+              {professional.active ? 'Ativo' : 'Inativo'}
+            </span>
           </div>
         </div>
-      </article>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+        <div className="platform-entity-actions">
+          <button
+            onClick={() => toggleActive.mutate(!professional.active)}
+            disabled={toggleActive.isPending}
+            className={professional.active ? 'action-button danger' : 'action-button primary'}
+          >
+            {professional.active ? 'Desativar' : 'Ativar'}
+          </button>
+        </div>
+      </div>
+
+      <div className="platform-entity-summary">
         <article className="platform-panel">
-          <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#999', margin: '0 0 1rem 0', textTransform: 'uppercase' }}>
-            Contato
-          </h3>
+          <h3>Contato</h3>
           <dl className="platform-details">
             <div>
               <dt>Telefone</dt>
@@ -173,9 +133,7 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
         </article>
 
         <article className="platform-panel">
-          <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#999', margin: '0 0 1rem 0', textTransform: 'uppercase' }}>
-            Comissão
-          </h3>
+          <h3>Comissão</h3>
           <dl className="platform-details">
             <div>
               <dt>Tipo</dt>
@@ -192,7 +150,7 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
         </article>
       </div>
 
-      <nav aria-label="Abas do profissional" className="prospecting-tabs">
+      <nav className="platform-entity-tabs">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -205,9 +163,9 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
         ))}
       </nav>
 
-      {tab === 'overview' && (
-        <article className="platform-panel">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
+      <div className="platform-entity-content">
+        {tab === 'overview' && (
+          <article className="platform-panel">
             <dl className="platform-details">
               <div>
                 <dt>Ordem</dt>
@@ -218,164 +176,150 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
                 <dd>{professional.specialties?.join(', ') || '—'}</dd>
               </div>
             </dl>
-          </div>
-        </article>
-      )}
+          </article>
+        )}
 
-      {tab === 'profile' && (
-        <article className="platform-panel">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!formData) return;
-              update.mutate({
-                name: formData.name || professional.name,
-                publicName: formData.publicName || professional.publicName,
-                bio: formData.bio ?? undefined,
-                phone: formData.phone ?? undefined,
-                email: formData.email ?? undefined,
-                professionalDocument: formData.professionalDocument ?? undefined,
-                specialties: formData.specialties ?? professional.specialties,
-                calendarColor: formData.calendarColor ?? professional.calendarColor,
-                sortOrder: formData.sortOrder ?? professional.sortOrder,
-                primaryUnitPublicId: formData.primaryUnitPublicId ?? professional.primaryUnitPublicId,
-                userPublicId: formData.userPublicId ?? professional.userPublicId,
-                commissionType: formData.commissionType ?? professional.commissionType,
-                commissionValue: formData.commissionValue ?? professional.commissionValue,
-                customFields: formData.customFields ?? professional.customFields,
-              } as any);
-            }}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}
-          >
-            <label>
-              <span>Nome</span>
-              <input
-                type="text"
-                defaultValue={professional.name}
-                onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
-              />
-            </label>
+        {tab === 'profile' && (
+          <article className="platform-panel">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!formData) return;
+                update.mutate({
+                  name: formData.name || professional.name,
+                  publicName: formData.publicName || professional.publicName,
+                  bio: formData.bio ?? undefined,
+                  phone: formData.phone ?? undefined,
+                  email: formData.email ?? undefined,
+                  professionalDocument: formData.professionalDocument ?? undefined,
+                  specialties: formData.specialties ?? professional.specialties,
+                  calendarColor: formData.calendarColor ?? professional.calendarColor,
+                  sortOrder: formData.sortOrder ?? professional.sortOrder,
+                  primaryUnitPublicId: formData.primaryUnitPublicId ?? professional.primaryUnitPublicId,
+                  userPublicId: formData.userPublicId ?? professional.userPublicId,
+                  commissionType: formData.commissionType ?? professional.commissionType,
+                  commissionValue: formData.commissionValue ?? professional.commissionValue,
+                  customFields: formData.customFields ?? professional.customFields,
+                } as any);
+              }}
+              className="platform-form"
+            >
+              <div className="platform-form-grid">
+                <label className="platform-form-field">
+                  <span>Nome</span>
+                  <input
+                    type="text"
+                    defaultValue={professional.name}
+                    onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
+                  />
+                </label>
 
-            <label>
-              <span>Nome de exibição</span>
-              <input
-                type="text"
-                defaultValue={professional.publicName}
-                onChange={(e) => setFormData((f) => ({ ...f, publicName: e.target.value }))}
-              />
-            </label>
+                <label className="platform-form-field">
+                  <span>Nome de exibição</span>
+                  <input
+                    type="text"
+                    defaultValue={professional.publicName}
+                    onChange={(e) => setFormData((f) => ({ ...f, publicName: e.target.value }))}
+                  />
+                </label>
 
-            <label>
-              <span>Telefone</span>
-              <input
-                type="tel"
-                defaultValue={professional.phone || ''}
-                onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value || null }))}
-              />
-            </label>
+                <label className="platform-form-field">
+                  <span>Telefone</span>
+                  <input
+                    type="tel"
+                    defaultValue={professional.phone || ''}
+                    onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value || null }))}
+                  />
+                </label>
 
-            <label>
-              <span>Email</span>
-              <input
-                type="email"
-                defaultValue={professional.email || ''}
-                onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value || null }))}
-              />
-            </label>
+                <label className="platform-form-field">
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    defaultValue={professional.email || ''}
+                    onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value || null }))}
+                  />
+                </label>
 
-            <label>
-              <span>CPF/CNPJ</span>
-              <input
-                type="text"
-                defaultValue={professional.professionalDocument || ''}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, professionalDocument: e.target.value || null }))
-                }
-              />
-            </label>
+                <label className="platform-form-field">
+                  <span>CPF/CNPJ</span>
+                  <input
+                    type="text"
+                    defaultValue={professional.professionalDocument || ''}
+                    onChange={(e) =>
+                      setFormData((f) => ({ ...f, professionalDocument: e.target.value || null }))
+                    }
+                  />
+                </label>
 
-            <label>
-              <span>Cor do calendário</span>
-              <input
-                type="color"
-                defaultValue={professional.calendarColor}
-                onChange={(e) => setFormData((f) => ({ ...f, calendarColor: e.target.value }))}
-              />
-            </label>
+                <label className="platform-form-field">
+                  <span>Cor do calendário</span>
+                  <input
+                    type="color"
+                    defaultValue={professional.calendarColor}
+                    onChange={(e) => setFormData((f) => ({ ...f, calendarColor: e.target.value }))}
+                  />
+                </label>
+              </div>
 
-            {update.error instanceof Error && (
-              <p className="form-error" style={{ gridColumn: '1 / -1' }}>
-                {update.error.message}
-              </p>
-            )}
+              {update.error instanceof Error && (
+                <p className="form-error">{update.error.message}</p>
+              )}
 
-            <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
-              <button type="button" className="secondary-button" onClick={() => setFormData(null)}>
-                Cancelar
-              </button>
-              <button type="submit" className="primary-button" disabled={update.isPending}>
-                {update.isPending ? 'Salvando…' : 'Salvar'}
+              <div className="platform-form-actions">
+                <button type="button" className="action-button secondary" onClick={() => setFormData(null)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="action-button primary" disabled={update.isPending}>
+                  {update.isPending ? 'Salvando…' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </article>
+        )}
+
+        {tab === 'photo' && (
+          <article className="platform-panel">
+            <div className="platform-image-preview">
+              {professional.photoUrl ? (
+                <PlatformProfessionalPhoto
+                  alt={professional.name}
+                  professionalPublicId={professional.publicId}
+                  tenantPublicId={tenantPublicId}
+                  variant="original"
+                  size={{ width: 240, height: 240 }}
+                />
+              ) : (
+                <div className="platform-image-placeholder">Sem foto</div>
+              )}
+            </div>
+            <div className="platform-form-actions">
+              <button className="action-button primary" onClick={() => setPhotoModalOpen(true)}>
+                Gerenciar foto
               </button>
             </div>
-          </form>
-        </article>
-      )}
+          </article>
+        )}
 
-      {tab === 'photo' && (
-        <article className="platform-panel">
-          <div style={{ textAlign: 'center' }}>
-            {professional.photoUrl ? (
-              <PlatformProfessionalPhoto
-                alt={professional.name}
-                professionalPublicId={professional.publicId}
-                tenantPublicId={tenantPublicId}
-                variant="original"
-                size={{ width: 200, height: 200 }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: '200px',
-                  height: '200px',
-                  margin: '0 auto',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#999',
-                }}
-              >
-                Sem foto
+        {tab === 'access' && (
+          <article className="platform-panel">
+            <div className="platform-account-status">
+              {professional.userPublicId ? (
+                <p className="status-active">✓ Conta vinculada e ativa</p>
+              ) : (
+                <p className="status-inactive">Nenhuma conta vinculada</p>
+              )}
+            </div>
+            {professional.userPublicId && (
+              <div className="platform-form-actions">
+                <button className="action-button primary" onClick={() => setPasswordModalOpen(true)}>
+                  Alterar senha
+                </button>
               </div>
             )}
-          </div>
-          <div className="form-actions">
-            <button className="primary-button" onClick={() => setPhotoModalOpen(true)}>
-              Gerenciar foto
-            </button>
-          </div>
-        </article>
-      )}
-
-      {tab === 'access' && (
-        <article className="platform-panel">
-          <div style={{ padding: '1rem', backgroundColor: professional.userPublicId ? '#f0fdf4' : '#fef2f2', borderRadius: '8px', marginBottom: '1rem' }}>
-            {professional.userPublicId ? (
-              <p style={{ color: '#065f46', margin: 0 }}>✓ Conta vinculada e ativa</p>
-            ) : (
-              <p style={{ color: '#991b1b', margin: 0 }}>Nenhuma conta vinculada</p>
-            )}
-          </div>
-          {professional.userPublicId && (
-            <div className="form-actions">
-              <button className="primary-button" onClick={() => setPasswordModalOpen(true)}>
-                Alterar senha
-              </button>
-            </div>
-          )}
-        </article>
-      )}
+          </article>
+        )}
+      </div>
 
       {photoModalOpen && (
         <ProfessionalPhotoModal
@@ -397,6 +341,6 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
           onClose={() => setPasswordModalOpen(false)}
         />
       )}
-    </section>
+    </>
   );
 }

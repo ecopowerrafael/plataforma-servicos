@@ -1295,6 +1295,258 @@
     display: flex;
   }
 }
+/* ---------------------------------------------------------------- */
+/* Entity detail pages (Professional / Service)                       */
+/* ---------------------------------------------------------------- */
+.platform-entity-header {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 2rem;
+  align-items: start;
+  box-shadow: var(--pf-shadow-sm);
+}
+
+.platform-entity-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: var(--pf-radius-lg);
+  background: var(--pf-bg-soft);
+  border: 1px solid var(--pf-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.platform-entity-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.platform-entity-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  background: var(--pf-bg-soft);
+  border: 1px dashed var(--pf-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pf-text-faint);
+  font-size: 0.75rem;
+}
+
+.platform-entity-info h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.75rem;
+}
+
+.platform-entity-subtitle {
+  margin: 0 0 1rem 0;
+  color: var(--pf-text-soft);
+  font-size: 1rem;
+}
+
+.platform-entity-status {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.platform-entity-status .status-active {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--pf-success-bg);
+  color: var(--pf-success-text);
+  border: 1px solid var(--pf-success-border);
+}
+
+.platform-entity-status .status-inactive {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--pf-danger-bg);
+  color: var(--pf-danger-text);
+  border: 1px solid var(--pf-danger-border);
+}
+
+.platform-entity-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.platform-entity-actions .action-button {
+  white-space: nowrap;
+}
+
+.platform-entity-actions .action-button.danger {
+  background: var(--pf-danger-bg);
+  color: var(--pf-danger-text);
+  border: 1px solid var(--pf-danger-border);
+}
+
+.platform-entity-actions .action-button.danger:hover {
+  background: var(--pf-danger-bg);
+  filter: brightness(0.95);
+}
+
+.platform-entity-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.platform-entity-tabs {
+  display: flex;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--pf-border);
+  margin: 1.5rem 0;
+  padding: 0;
+}
+
+.platform-entity-tabs button {
+  padding: 0.75rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--pf-text-soft);
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.platform-entity-tabs button:hover {
+  color: var(--pf-text);
+}
+
+.platform-entity-tabs button.active {
+  color: var(--pf-gold-dark);
+  border-bottom-color: var(--pf-gold-dark);
+}
+
+.platform-entity-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.platform-form {
+  display: contents;
+}
+
+.platform-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.platform-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.platform-form-field span {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--pf-text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.platform-form-field input,
+.platform-form-field textarea {
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface);
+  color: var(--pf-text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  transition: all 0.15s ease;
+}
+
+.platform-form-field input:focus,
+.platform-form-field textarea:focus {
+  outline: none;
+  border-color: var(--pf-gold);
+  box-shadow: 0 0 0 3px var(--pf-gold-soft-bg);
+}
+
+.platform-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--pf-border);
+}
+
+.platform-form-actions .action-button {
+  flex: 1;
+  padding: 0.75rem 1rem;
+}
+
+.form-error {
+  color: var(--pf-danger-text);
+  font-size: 0.78rem;
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  background: var(--pf-danger-bg);
+  border: 1px solid var(--pf-danger-border);
+  border-radius: var(--pf-radius-sm);
+}
+
+.platform-image-preview {
+  text-align: center;
+  padding: 2rem 1rem;
+  background: var(--pf-bg-soft);
+  border-radius: var(--pf-radius-lg);
+  border: 1px dashed var(--pf-border);
+  margin-bottom: 1.5rem;
+}
+
+.platform-image-preview img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--pf-radius-md);
+}
+
+.platform-image-placeholder {
+  color: var(--pf-text-faint);
+  font-size: 0.88rem;
+}
+
+.platform-account-status {
+  padding: 1rem;
+  border-radius: var(--pf-radius-md);
+  margin-bottom: 1.5rem;
+}
+
+.platform-account-status .status-active {
+  color: var(--pf-success-text);
+  margin: 0;
+}
+
+.platform-account-status .status-inactive {
+  color: var(--pf-danger-text);
+  margin: 0;
+}
+
 @media (min-width: 768px) {
   .platform-admin-chip {
     display: flex;

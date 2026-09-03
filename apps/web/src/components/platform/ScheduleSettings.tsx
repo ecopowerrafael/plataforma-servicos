@@ -5,9 +5,12 @@ import { useState } from 'react';
 import { httpClient } from '../../lib/http.js';
 import { ErrorState } from './PlatformUi.js';
 
+const PRESET_INTERVALS = [5, 10, 15, 20, 30, 60] as const;
+
 export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string }) {
   const queryClient = useQueryClient();
   const [editMode, setEditMode] = useState(false);
+  const [useCustomInterval, setUseCustomInterval] = useState(false);
   const [formData, setFormData] = useState({
     defaultAppointmentIntervalMinutes: 15,
     minimumAdvanceMinutes: 0,
@@ -71,6 +74,7 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
                 minimumAdvanceMinutes: settings.minimumAdvanceMinutes,
                 maximumAdvanceDays: settings.maximumAdvanceDays,
               });
+              setUseCustomInterval(!PRESET_INTERVALS.includes(settings.defaultAppointmentIntervalMinutes as any));
               setEditMode(true);
             }}
             className="action-button primary"
@@ -85,19 +89,65 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
 
       {editMode ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Intervalo da agenda (minutos) *</span>
-            <input
-              type="number"
-              min={5}
-              max={120}
-              step={5}
-              value={formData.defaultAppointmentIntervalMinutes}
-              onChange={(e) => setFormData({ ...formData, defaultAppointmentIntervalMinutes: parseInt(e.target.value, 10) })}
-              style={{ padding: '0.65rem 0.85rem', border: '1px solid #ede8e1', borderRadius: '10px', fontSize: '0.88rem' }}
-            />
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Duração padrão dos agendamentos</p>
-          </label>
+          <div>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontWeight: 600, fontSize: '0.78rem', marginBottom: '0.75rem' }}>
+              Intervalo da agenda *
+              <p style={{ margin: '0', fontSize: '0.75rem', color: '#99958f', fontWeight: 400 }}>Define de quanto em quanto tempo os horários são organizados (08:00, 08:15, 08:30...)</p>
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              {PRESET_INTERVALS.map((interval) => (
+                <button
+                  key={interval}
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, defaultAppointmentIntervalMinutes: interval });
+                    setUseCustomInterval(false);
+                  }}
+                  style={{
+                    padding: '0.65rem',
+                    border: formData.defaultAppointmentIntervalMinutes === interval && !useCustomInterval ? '2px solid #c5a059' : '1px solid #ede8e1',
+                    borderRadius: '6px',
+                    backgroundColor: formData.defaultAppointmentIntervalMinutes === interval && !useCustomInterval ? '#faf5eb' : '#ffffff',
+                    color: formData.defaultAppointmentIntervalMinutes === interval && !useCustomInterval ? '#996515' : '#57534e',
+                    fontWeight: formData.defaultAppointmentIntervalMinutes === interval && !useCustomInterval ? 600 : 400,
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  {interval} min
+                </button>
+              ))}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={useCustomInterval}
+                onChange={(e) => {
+                  setUseCustomInterval(e.target.checked);
+                  if (!e.target.checked) setFormData({ ...formData, defaultAppointmentIntervalMinutes: 15 });
+                }}
+                style={{ cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>Personalizado</span>
+            </label>
+            {useCustomInterval && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <input
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={formData.defaultAppointmentIntervalMinutes}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10);
+                    if (!Number.isNaN(value)) setFormData({ ...formData, defaultAppointmentIntervalMinutes: value });
+                  }}
+                  placeholder="Digite os minutos"
+                  style={{ padding: '0.65rem 0.85rem', border: '1px solid #ede8e1', borderRadius: '6px', fontSize: '0.88rem', width: '100%', boxSizing: 'border-box' }}
+                />
+                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Valor entre 1 e 180 minutos</p>
+              </div>
+            )}
+          </div>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Antecedência mínima (minutos) *</span>

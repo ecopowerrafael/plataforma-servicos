@@ -81,6 +81,8 @@ import { z } from 'zod';
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { platformComboRoutes } from './platform.combo-routes.js';
 import { platformScheduleRoutes } from './platform.schedule-routes.js';
+import { platformUnitsRoutes } from './platform.units-routes.js';
+import { type TenantService } from '../tenants/tenant.service.js';
 import { type PlatformBillingService } from './platform-billing.service.js';
 import { type PlatformAuthContext, type PlatformService } from './platform.service.js';
 import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
@@ -116,6 +118,7 @@ interface PlatformRoutesOptions {
   serviceCategoryService?: ServiceCategoryService;
   comboService?: ComboService;
   professionalService?: ProfessionalService;
+  tenantService?: TenantService;
   businessUnitOperatingHoursService?: BusinessUnitOperatingHoursService;
   professionalScheduleService?: ProfessionalScheduleService;
   professionalUnavailabilityService?: ProfessionalUnavailabilityService;
@@ -152,6 +155,12 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       professionalScheduleService: options.professionalScheduleService,
       professionalUnavailabilityService: options.professionalUnavailabilityService,
       businessUnitDateOverridesService: options.businessUnitDateOverridesService,
+    });
+  }
+  if (options.tenantService) {
+    await app.register(platformUnitsRoutes, {
+      service: options.service,
+      tenantService: options.tenantService,
     });
   }
   const allow = (

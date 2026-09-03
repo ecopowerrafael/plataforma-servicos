@@ -1,4 +1,4 @@
-import { BusinessUnitSchema, TenantUnitsResponseSchema } from '@plataforma/shared';
+import { BusinessUnitSchema, TenantUnitsResponseSchema, ProfessionalListResponseSchema, ProfessionalUnitsResponseSchema } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { z } from 'zod';
@@ -7,6 +7,7 @@ import { httpClient } from '../../lib/http.js';
 import { ErrorState, PageHeader } from './PlatformUi.js';
 
 type Unit = z.infer<typeof BusinessUnitSchema>;
+type Professional = z.infer<typeof ProfessionalListResponseSchema>['items'][0];
 
 export function UnitsModule({ tenantPublicId }: { tenantPublicId: string }) {
   const queryClient = useQueryClient();
@@ -84,7 +85,7 @@ export function UnitsModule({ tenantPublicId }: { tenantPublicId: string }) {
                 display: 'grid',
                 gridTemplateColumns: '1fr auto auto',
                 gap: '1rem',
-                alignItems: 'center',
+                alignItems: 'start',
               }}
             >
               <div>
@@ -108,6 +109,8 @@ export function UnitsModule({ tenantPublicId }: { tenantPublicId: string }) {
                 >
                   {unit.status === 'ACTIVE' ? 'Ativa' : 'Inativa'}
                 </span>
+
+                <ProfessionalsSection tenantPublicId={tenantPublicId} unitPublicId={unit.publicId} />
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
@@ -148,6 +151,204 @@ export function UnitsModule({ tenantPublicId }: { tenantPublicId: string }) {
         />
       )}
     </section>
+  );
+}
+
+function ProfessionalsSection({ tenantPublicId, unitPublicId }: { tenantPublicId: string; unitPublicId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+
+  const { data: linkedProfessionals, refetch: refetchLinked } = useQuery({
+    queryKey: ['unit-professionals', tenantPublicId, unitPublicId],
+    queryFn: () =>
+      expanded
+        ? httpClient.request(
+            `/platform/tenants/${tenantPublicId}/units/${unitPublicId}/professionals`,
+            { schema: ProfessionalUnitsResponseSchema },
+          )
+        : Promise.resolve({ items: [] }),
+    enabled: expanded,
+  });
+
+  const { data: availableProfessionals } = useQuery({
+    queryKey: ['all-professionals', tenantPublicId],
+    queryFn: () =>
+      linkModalOpen
+        ? httpClient.request(`/platform/tenants/${tenantPublicId}/professionals`, {
+            schema: ProfessionalListResponseSchema,
+          })
+        : Promise.resolve({ items: [] }),
+    enabled: linkModalOpen,
+  });
+
+  const linkMutation = useMutation({
+    mutationFn: (professional: Professional) =>
+      httpClient.request(
+        `/platform/tenants/${tenantPublicId}/units/${unitPublicId}/professionals/${professional.publicId}`,
+        { method: 'POST', body: { active: true }, schema: z.object({ success: z.literal(true) }) },
+      ),
+    onSuccess: () => {
+      setLinkModalOpen(false);
+      refetchLinked();
+    },
+  });
+
+  const unlinkMutation = useMutation({
+    mutationFn: (professionalPublicId: string) =>
+      httpClient.request(
+        `/platform/tenants/${tenantPublicId}/units/${unitPublicId}/professionals/${professionalPublicId}`,
+        { method: 'DELETE', schema: z.object({ success: z.literal(true) }) },
+      ),
+    onSuccess: () => {
+      refetchLinked();
+    },
+  });
+
+  return (
+    <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #e5e0db' }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          color: '#8b7355',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        {expanded ? '▼' : '▶'} Profissionais desta unidade ({linkedProfessionals?.items.length ?? 0})
+      </button>
+
+      {expanded && (
+        <div style={{ marginTop: '0.75rem', paddingLeft: '1.25rem' }}>
+          {linkedProfessionals && linkedProfessionals.items.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              {linkedProfessionals.items.map((link) => (
+                <div
+                  key={link.publicId}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.5rem',
+                    backgroundColor: '#fafaf8',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  <span>{link.professionalPublicId}</span>
+                  <button
+                    onClick={() => unlinkMutation.mutate(link.professionalPublicId)}
+                    disabled={unlinkMutation.isPending}
+                    className="action-button danger"
+                    style={{ fontSize: '0.7rem', padding: '0.3rem 0.5rem' }}
+                  >
+                    {unlinkMutation.isPending ? '...' : 'Desvincular'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: '0.8rem', color: '#9f9992', margin: '0 0 0.75rem 0' }}>Nenhum profissional vinculado.</p>
+          )}
+
+          <button
+            onClick={() => setLinkModalOpen(true)}
+            className="action-button primary"
+            style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
+          >
+            + Vincular profissional
+          </button>
+
+          {linkModalOpen && (
+            <LinkProfessionalModal
+              available={availableProfessionals?.items ?? []}
+              linked={linkedProfessionals?.items ?? []}
+              isLoading={linkMutation.isPending}
+              onSelect={(professional) => linkMutation.mutate(professional)}
+              onClose={() => setLinkModalOpen(false)}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LinkProfessionalModal({
+  available,
+  linked,
+  isLoading,
+  onSelect,
+  onClose,
+}: {
+  available: Professional[];
+  linked: Array<{ professionalPublicId: string }>;
+  isLoading: boolean;
+  onSelect: (professional: Professional) => void;
+  onClose: () => void;
+}) {
+  const linkedIds = new Set(linked.map((l) => l.professionalPublicId));
+  const notLinked = available.filter((p) => !linkedIds.has(p.publicId));
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+      }}
+      onClick={onClose}
+    >
+      <article
+        className="platform-panel"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '90%',
+          maxWidth: '400px',
+          maxHeight: '70vh',
+          overflow: 'auto',
+        }}
+      >
+        <h3 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem' }}>Vincular profissional</h3>
+
+        {notLinked.length === 0 ? (
+          <p style={{ fontSize: '0.8rem', color: '#9f9992', textAlign: 'center' }}>Todos os profissionais já estão vinculados.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+            {notLinked.map((professional) => (
+              <button
+                key={professional.publicId}
+                onClick={() => onSelect(professional)}
+                disabled={isLoading}
+                style={{
+                  padding: '0.75rem',
+                  textAlign: 'left',
+                  border: '1px solid #e5e0db',
+                  borderRadius: '6px',
+                  backgroundColor: '#fafaf8',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                }}
+              >
+                {professional.name || professional.publicName || professional.publicId}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button onClick={onClose} className="action-button secondary" style={{ width: '100%' }}>
+          Fechar
+        </button>
+      </article>
+    </div>
   );
 }
 

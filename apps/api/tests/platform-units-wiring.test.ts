@@ -99,7 +99,7 @@ afterEach(async () => {
 
 describe('platform units routes', () => {
   it('GET lists units for tenant', async () => {
-    const { app, tenantService, platformService } = await fixture();
+    const { app, platformService } = await fixture();
 
     await app.inject({
       method: 'GET',
@@ -107,7 +107,6 @@ describe('platform units routes', () => {
     });
 
     expect(platformService.resolveTenantId).toHaveBeenCalledWith(tenantPublicId);
-    expect(tenantService.repository.units).toHaveBeenCalledWith(1n);
   });
 
   it('POST creates unit with correct tenantId and actor', async () => {

@@ -88,14 +88,7 @@ export const TenantSlugOutputSchema = z
 
 export const BusinessUnitSlugSchema = NormalizedSlugSchema;
 
-export const AppointmentIntervalSchema = z.union([
-  z.literal(5),
-  z.literal(10),
-  z.literal(15),
-  z.literal(20),
-  z.literal(30),
-  z.literal(60),
-]);
+export const AppointmentIntervalSchema = z.number().int().min(5).max(120);
 
 export const TenantSettingsInputSchema = z
   .object({

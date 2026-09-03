@@ -992,9 +992,6 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.professionals
         ? { professionalService: options.database.professionals }
         : {}),
-      ...(options.database.tenants
-        ? { tenantService: options.database.tenants }
-        : {}),
       ...(options.database.businessUnitOperatingHours
         ? { businessUnitOperatingHoursService: options.database.businessUnitOperatingHours }
         : {}),

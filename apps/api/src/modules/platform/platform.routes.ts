@@ -79,6 +79,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
+import { platformComboRoutes } from './platform.combo-routes.js';
 import { type PlatformBillingService } from './platform-billing.service.js';
 import { type PlatformAuthContext, type PlatformService } from './platform.service.js';
 import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
@@ -92,6 +93,7 @@ import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.serv
 import { validateServiceImageUpload } from '../services/service-image.storage.js';
 import { type ServiceService } from '../services/service.service.js';
 import { type ServiceCategoryService } from '../services/service-category.service.js';
+import { type ComboService } from '../services/combo.service.js';
 import { type ProfessionalService } from '../professionals/professional.service.js';
 import { PasswordService } from '../auth/password.service.js';
 
@@ -107,6 +109,7 @@ interface PlatformRoutesOptions {
   whiteLabelService?: TenantWhiteLabelService;
   serviceService?: ServiceService;
   serviceCategoryService?: ServiceCategoryService;
+  comboService?: ComboService;
   professionalService?: ProfessionalService;
 }
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
@@ -122,6 +125,12 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
     authService: options.authService,
     cookieName: options.cookieName,
   });
+  if (options.comboService) {
+    await app.register(platformComboRoutes, {
+      service: options.service,
+      comboService: options.comboService,
+    });
+  }
   const allow = (
     request: { platformAuth: PlatformAuthContext },
     permission: PlatformPermissionCode,

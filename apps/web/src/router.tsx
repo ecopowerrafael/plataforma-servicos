@@ -31,6 +31,9 @@ const PlatformProfessionalDetailPage = lazy(async () => ({
 const PlatformServiceDetailPage = lazy(async () => ({
   default: (await import('./routes/PlatformServiceDetailPage.js')).PlatformServiceDetailPage,
 }));
+const PlatformComboDetailPage = lazy(async () => ({
+  default: (await import('./routes/PlatformComboDetailPage.js')).PlatformComboDetailPage,
+}));
 const PublicTenantPage = lazy(async () => ({
   default: (await import('./routes/PublicTenantPage.js')).PublicTenantPage,
 }));
@@ -389,6 +392,10 @@ export const router = createBrowserRouter([
       {
         path: 'tenants/:tenantPublicId/services/:servicePublicId',
         element: lazyPage(PlatformServiceDetailPage),
+      },
+      {
+        path: 'tenants/:tenantPublicId/combos/:comboPublicId',
+        element: lazyPage(PlatformComboDetailPage),
       },
     ],
   },

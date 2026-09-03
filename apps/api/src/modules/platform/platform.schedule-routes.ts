@@ -15,6 +15,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { type PlatformService } from './platform.service.js';
+import { type PlatformAuthContext } from './platform.service.js';
 import { type BusinessUnitOperatingHoursService } from '../tenants/business-unit-operating-hours.service.js';
 import { type ProfessionalScheduleService } from '../professionals/professional-schedule.service.js';
 import { type ProfessionalUnavailabilityService } from '../professionals/professional-unavailability.service.js';
@@ -33,10 +34,11 @@ const UnitParamsSchema = TenantParamsSchema.extend({ unitPublicId: z.uuid() });
 const ProfessionalParamsSchema = TenantParamsSchema.extend({ professionalPublicId: z.uuid() });
 const UnavailabilityParamsSchema = ProfessionalParamsSchema.extend({ unavailabilityPublicId: z.uuid() });
 const SchedulePeriodParamsSchema = ProfessionalParamsSchema.extend({ periodPublicId: z.uuid() });
+const DateOverrideQuerySchema = z.object({ from: z.string().optional(), to: z.string().optional() });
 
 export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app, options) => {
   const allow = (request: any, permission: any) => {
-    options.service.requirePermission(request.platformAuth, permission);
+    options.service.requirePermission(request.platformAuth as PlatformAuthContext, permission);
   };
 
   // OPERATING HOURS
@@ -44,11 +46,11 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
     app.get(
       '/platform/tenants/:tenantPublicId/units/:unitPublicId/operating-hours',
       { schema: { params: UnitParamsSchema, response: { 200: BusinessUnitOperatingHoursResponseSchema } } },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.read');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
         return options.businessUnitOperatingHoursService!.list(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.unitPublicId,
         );
       },
@@ -63,14 +65,15 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: BusinessUnitOperatingHoursResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         const result = await options.businessUnitOperatingHoursService!.replace(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.unitPublicId,
           request.body,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         return result;
       },
@@ -82,11 +85,11 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
     app.get(
       '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/schedule',
       { schema: { params: ProfessionalParamsSchema, response: { 200: ProfessionalScheduleResponseSchema } } },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.read');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
         return options.professionalScheduleService!.list(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
         );
       },
@@ -101,14 +104,15 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: ProfessionalScheduleResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         const result = await options.professionalScheduleService!.create(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
           request.body,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         return result;
       },
@@ -123,14 +127,15 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: ProfessionalScheduleResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         const result = await options.professionalScheduleService!.replace(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
           request.body,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         return result;
       },
@@ -145,15 +150,16 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: ProfessionalScheduleResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         const result = await options.professionalScheduleService!.update(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
           request.params.periodPublicId,
           request.body,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         return result;
       },
@@ -162,14 +168,15 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
     app.delete(
       '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/schedule/:periodPublicId',
       { schema: { params: SchedulePeriodParamsSchema, response: { 200: ProfessionalScheduleResponseSchema } } },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         const result = await options.professionalScheduleService!.remove(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
           request.params.periodPublicId,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         return result;
       },
@@ -187,11 +194,11 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: ProfessionalUnavailabilityListResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.read');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
         return options.professionalUnavailabilityService!.list(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
           request.query,
         );
@@ -207,14 +214,15 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: ProfessionalUnavailabilityListResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         const result = await options.professionalUnavailabilityService!.create(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
           request.body,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         return result;
       },
@@ -229,15 +237,16 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: ProfessionalUnavailabilityListResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         const result = await options.professionalUnavailabilityService!.update(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
           request.params.unavailabilityPublicId,
           request.body,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         return result;
       },
@@ -246,14 +255,15 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
     app.delete(
       '/platform/tenants/:tenantPublicId/professionals/:professionalPublicId/unavailabilities/:unavailabilityPublicId',
       { schema: { params: UnavailabilityParamsSchema, response: { 200: ProfessionalUnavailabilityListResponseSchema } } },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         const result = await options.professionalUnavailabilityService!.remove(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.professionalPublicId,
           request.params.unavailabilityPublicId,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         return result;
       },
@@ -266,21 +276,23 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
       '/platform/tenants/:tenantPublicId/units/:unitPublicId/date-overrides',
       {
         schema: {
-          params: UnitParamsSchema.extend({ from: z.string(), to: z.string() }).optional(),
+          params: UnitParamsSchema,
+          querystring: DateOverrideQuerySchema,
           response: { 200: BusinessUnitDateOverridesResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.read');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const query = request.query as { from?: string; to?: string };
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
         const oneMonthLater = new Date();
         oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
-        const from = oneMonthAgo.toISOString().slice(0, 10);
-        const to = oneMonthLater.toISOString().slice(0, 10);
+        const from = query.from ?? oneMonthAgo.toISOString().slice(0, 10);
+        const to = query.to ?? oneMonthLater.toISOString().slice(0, 10);
         return options.businessUnitDateOverridesService!.list(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.unitPublicId,
           from,
           to,
@@ -297,15 +309,16 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: BusinessUnitDateOverridesResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         await options.businessUnitDateOverridesService!.replace(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.unitPublicId,
           request.params.date,
           request.body,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -314,7 +327,7 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
         const from = oneMonthAgo.toISOString().slice(0, 10);
         const to = oneMonthLater.toISOString().slice(0, 10);
         const result = await options.businessUnitDateOverridesService!.list(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.unitPublicId,
           from,
           to,
@@ -331,14 +344,15 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           response: { 200: BusinessUnitDateOverridesResponseSchema },
         },
       },
-      async (request: any) => {
+      async (request) => {
         allow(request, 'platform.tenant.update');
-        await options.service.resolveTenantId(request.params.tenantPublicId);
+        const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
+        const platformAuth = request.platformAuth as PlatformAuthContext;
         await options.businessUnitDateOverridesService!.remove(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.unitPublicId,
           request.params.date,
-          { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
+          { userId: platformAuth.user.id, sessionId: null },
         );
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -347,7 +361,7 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
         const from = oneMonthAgo.toISOString().slice(0, 10);
         const to = oneMonthLater.toISOString().slice(0, 10);
         const result = await options.businessUnitDateOverridesService!.list(
-          request.platformAuth.tenantId,
+          tenantId,
           request.params.unitPublicId,
           from,
           to,

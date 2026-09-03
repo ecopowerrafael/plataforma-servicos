@@ -1007,6 +1007,7 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.combos
         ? { comboService: options.database.combos }
         : {}),
+      tenantService,
     });
   }
   if (options.database.platformBilling)

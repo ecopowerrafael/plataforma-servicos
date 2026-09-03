@@ -51,7 +51,7 @@ function conflictError(error: TenantRepositoryConflictError): AppError {
 
 interface Actor {
   userId: bigint;
-  sessionId: bigint;
+  sessionId: bigint | null;
 }
 
 export class TenantService {

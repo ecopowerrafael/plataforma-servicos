@@ -30,7 +30,7 @@ export const platformUnitsRoutes: FastifyPluginAsyncZod<Options> = async (app, o
     async (request) => {
       allow(request, 'platform.tenant.read');
       const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
-      const units = await options.tenantService.repository.units(tenantId);
+      const units = await options.tenantService.listBusinessUnits(tenantId);
       return { units };
     },
   );
@@ -47,12 +47,10 @@ export const platformUnitsRoutes: FastifyPluginAsyncZod<Options> = async (app, o
     async (request, reply) => {
       allow(request, 'platform.tenant.update');
       const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
-      const tenant = await options.tenantService.repository.byId(tenantId);
-      if (!tenant) throw new Error('Tenant not found');
       const platformAuth = request.platformAuth as PlatformAuthContext;
       const unit = await options.tenantService.createBusinessUnit(
         tenantId,
-        tenant.timezone,
+        'UTC',
         request.body,
         { userId: platformAuth.user.id, sessionId: null },
       );
@@ -72,13 +70,11 @@ export const platformUnitsRoutes: FastifyPluginAsyncZod<Options> = async (app, o
     async (request) => {
       allow(request, 'platform.tenant.update');
       const tenantId = await options.service.resolveTenantId(request.params.tenantPublicId);
-      const tenant = await options.tenantService.repository.byId(tenantId);
-      if (!tenant) throw new Error('Tenant not found');
       const platformAuth = request.platformAuth as PlatformAuthContext;
       const unit = await options.tenantService.updateBusinessUnit(
         tenantId,
         request.params.unitPublicId,
-        tenant.timezone,
+        'UTC',
         request.body,
         { userId: platformAuth.user.id, sessionId: null },
       );

@@ -26,63 +26,68 @@ export function ScheduleModule({ tenantPublicId }: { tenantPublicId: string }) {
   const { data: units, isLoading: unitsLoading } = useQuery({
     queryKey: ['tenant', tenantPublicId, 'units'],
     queryFn: () =>
-      httpClient.request(`/tenant/units`, {
-        schema: z.object({ items: z.array(z.object({ publicId: z.string(), name: z.string(), slug: z.string(), timezone: z.string() })) }),
-        tenantPublicId,
+      httpClient.request(`/platform/tenants/${tenantPublicId}/units`, {
+        schema: z.object({ units: z.array(z.object({ publicId: z.string(), name: z.string(), slug: z.string(), status: z.enum(['ACTIVE', 'INACTIVE']), isHeadquarters: z.boolean(), timezone: z.string() })) }),
       }),
   });
 
-  const unitsList = units?.items || [];
-  const selectedUnit = unitsList.find((u) => u.publicId === selectedUnitId) || unitsList[0];
-
-  if (unitsLoading)
-    return (
-      <article className="platform-panel">
-        <p style={{ margin: 0, textAlign: 'center', color: '#99958f' }}>Carregando...</p>
-      </article>
-    );
-
-  if (unitsList.length === 0)
-    return (
-      <article className="platform-panel">
-        <p style={{ margin: 0, textAlign: 'center', color: '#99958f' }}>Nenhuma unidade configurada.</p>
-      </article>
-    );
+  const unitsList = units?.units || [];
+  const activeUnits = unitsList.filter((u) => u.status === 'ACTIVE');
+  const selectedUnit = unitsList.find((u) => u.publicId === selectedUnitId) || activeUnits[0];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {unitsList.length > 1 && (
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.85rem' }}>
-            Unidade
-          </label>
-          <select
-            value={selectedUnitId || selectedUnit?.publicId || ''}
-            onChange={(e) => setSelectedUnitId(e.target.value)}
-            style={{
-              padding: '0.65rem 0.85rem',
-              border: '1px solid #ede8e1',
-              borderRadius: '10px',
-              fontSize: '0.88rem',
-              width: '100%',
-            }}
-          >
-            {unitsList.map((unit) => (
-              <option key={unit.publicId} value={unit.publicId}>
-                {unit.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* Horários dos Profissionais */}
+      <ScheduleProfessionals tenantPublicId={tenantPublicId} />
 
-      {selectedUnit && (
+      {/* Indisponibilidades */}
+      <ScheduleUnavailability tenantPublicId={tenantPublicId} />
+
+      {/* Configurações Gerais da Agenda */}
+      <ScheduleSettings tenantPublicId={tenantPublicId} />
+
+      {/* Configurações Específicas da Unidade */}
+      {unitsLoading ? (
+        <article className="platform-panel">
+          <p style={{ margin: 0, textAlign: 'center', color: '#99958f' }}>Carregando unidades...</p>
+        </article>
+      ) : activeUnits.length === 0 ? (
+        <article className="platform-panel">
+          <p style={{ margin: 0, textAlign: 'center', color: '#99958f' }}>Nenhuma unidade configurada. As configurações específicas da unidade ficarão disponíveis após criar uma.</p>
+        </article>
+      ) : (
         <>
-          <ScheduleUnitHours tenantPublicId={tenantPublicId} unitPublicId={selectedUnit.publicId} />
-          <ScheduleProfessionals tenantPublicId={tenantPublicId} unitPublicId={selectedUnit.publicId} />
-          <ScheduleUnavailability tenantPublicId={tenantPublicId} />
-          <ScheduleDateOverrides tenantPublicId={tenantPublicId} unitPublicId={selectedUnit.publicId} />
-          <ScheduleSettings tenantPublicId={tenantPublicId} />
+          {activeUnits.length > 1 && (
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.85rem' }}>
+                Unidade
+              </label>
+              <select
+                value={selectedUnitId || selectedUnit?.publicId || ''}
+                onChange={(e) => setSelectedUnitId(e.target.value)}
+                style={{
+                  padding: '0.65rem 0.85rem',
+                  border: '1px solid #ede8e1',
+                  borderRadius: '10px',
+                  fontSize: '0.88rem',
+                  width: '100%',
+                }}
+              >
+                {activeUnits.map((unit) => (
+                  <option key={unit.publicId} value={unit.publicId}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {selectedUnit && (
+            <>
+              <ScheduleUnitHours tenantPublicId={tenantPublicId} unitPublicId={selectedUnit.publicId} />
+              <ScheduleDateOverrides tenantPublicId={tenantPublicId} unitPublicId={selectedUnit.publicId} />
+            </>
+          )}
         </>
       )}
     </div>

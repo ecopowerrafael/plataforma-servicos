@@ -226,30 +226,36 @@ function ProfessionalsSection({ tenantPublicId, unitPublicId }: { tenantPublicId
         <div style={{ marginTop: '0.75rem', paddingLeft: '1.25rem' }}>
           {linkedProfessionals && linkedProfessionals.items.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              {linkedProfessionals.items.map((link) => (
-                <div
-                  key={link.publicId}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.5rem',
-                    backgroundColor: '#fafaf8',
-                    borderRadius: '6px',
-                    fontSize: '0.8rem',
-                  }}
-                >
-                  <span>{link.professionalPublicId}</span>
-                  <button
-                    onClick={() => unlinkMutation.mutate(link.professionalPublicId)}
-                    disabled={unlinkMutation.isPending}
-                    className="action-button danger"
-                    style={{ fontSize: '0.7rem', padding: '0.3rem 0.5rem' }}
+              {linkedProfessionals.items.map((link) => {
+                const professional = availableProfessionals?.items?.find(
+                  (p) => p.publicId === link.professionalPublicId,
+                );
+                const displayName = professional?.publicName || professional?.name || 'Profissional não encontrado';
+                return (
+                  <div
+                    key={link.publicId}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.5rem',
+                      backgroundColor: '#fafaf8',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                    }}
                   >
-                    {unlinkMutation.isPending ? '...' : 'Desvincular'}
-                  </button>
-                </div>
-              ))}
+                    <span>{displayName}</span>
+                    <button
+                      onClick={() => unlinkMutation.mutate(link.professionalPublicId)}
+                      disabled={unlinkMutation.isPending}
+                      className="action-button danger"
+                      style={{ fontSize: '0.7rem', padding: '0.3rem 0.5rem' }}
+                    >
+                      {unlinkMutation.isPending ? '...' : 'Desvincular'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p style={{ fontSize: '0.8rem', color: '#9f9992', margin: '0 0 0.75rem 0' }}>Nenhum profissional vinculado.</p>

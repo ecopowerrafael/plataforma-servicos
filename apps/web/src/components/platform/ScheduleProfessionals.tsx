@@ -13,7 +13,7 @@ interface Professional {
 
 const weekdayLabel = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
-export function ScheduleProfessionals({ tenantPublicId, unitPublicId }: { tenantPublicId: string; unitPublicId: string }) {
+export function ScheduleProfessionals({ tenantPublicId }: { tenantPublicId: string }) {
   const [editingProfessional, setEditingProfessional] = useState<string | null>(null);
 
   const { data: professionals, isLoading } = useQuery({
@@ -59,7 +59,6 @@ export function ScheduleProfessionals({ tenantPublicId, unitPublicId }: { tenant
             key={pro.publicId}
             professional={pro}
             tenantPublicId={tenantPublicId}
-            unitPublicId={unitPublicId}
             onEdit={() => setEditingProfessional(pro.publicId)}
           />
         ))}

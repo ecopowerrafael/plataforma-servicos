@@ -13,6 +13,7 @@ import { CommercialPolicyModule } from '../components/platform/CommercialPolicyM
 import { FinanceModule } from '../components/platform/FinanceModule.js';
 import { PlanModule } from '../components/platform/PlanModule.js';
 import { PlatformShell, type PlatformSection } from '../components/platform/PlatformShell.js';
+import { isPlatformDetailPath } from '../lib/platform-route-detection.js';
 import {
   ErrorState,
   formatDate,
@@ -33,7 +34,7 @@ export function PlatformPageRebuild() {
   const params = useParams();
 
   // Detectar se é uma rota aninhada (detail pages) ou seção principal
-  const isDetailPage = /\/(professionals|services|combos)\//.test(location.pathname);
+  const isDetailPage = isPlatformDetailPath(location.pathname);
 
   const pathSection = location.pathname.split('/')[2];
   const routeSection = pathSection === 'financeiro' ? 'finance' : pathSection;

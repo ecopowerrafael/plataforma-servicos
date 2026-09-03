@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-/**
- * Testa a detecção de detail pages na navegação de Platform.
- * Garante que combos, professionals e services sejam detectados como detail routes.
- */
-function isPlatformDetailPath(pathname: string): boolean {
-  return /\/(professionals|services|combos)\//.test(pathname);
-}
+import { isPlatformDetailPath } from '../lib/platform-route-detection.js';
 
 describe('Platform Detail Page Detection', () => {
   it('professionals/:professionalPublicId → true', () => {

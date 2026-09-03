@@ -16,7 +16,7 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = useState<'overview' | 'info' | 'image' | 'category' | 'pricing'>('overview');
+  const [tab, setTab] = useState<'overview' | 'info' | 'image' | 'pricing'>('overview');
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [formData, setFormData] = useState<Partial<Service> | null>(null);
 
@@ -62,123 +62,151 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
     },
   });
 
-  if (isLoading) return <p style={{ padding: '2rem' }}>Carregando…</p>;
+  if (isLoading) return <i className="platform-skeleton" />;
   if (error instanceof Error)
     return (
-      <div style={{ padding: '2rem' }}>
+      <section className="platform-detail-page">
         <ErrorState error={error.message} />
-      </div>
+      </section>
     );
-  if (!service) return <p style={{ padding: '2rem' }}>Serviço não encontrado.</p>;
+  if (!service) return <p>Serviço não encontrado.</p>;
 
   const tabs = [
     { key: 'overview' as const, label: 'Visão geral' },
     { key: 'info' as const, label: 'Informações' },
     { key: 'image' as const, label: 'Imagem' },
-    { key: 'category' as const, label: 'Categoria' },
     { key: 'pricing' as const, label: 'Preço e duração' },
   ];
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between' }}>
-        <div>
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#0ea5e9',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              marginBottom: '0.5rem',
-            }}
-          >
-            ← Voltar
-          </button>
-          <h1>{service.name}</h1>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => toggleActive.mutate(!service.active)}
-            disabled={toggleActive.isPending}
-            className={service.active ? 'danger-button' : 'primary-button'}
-          >
-            {service.active ? 'Desativar' : 'Ativar'}
-          </button>
-        </div>
-      </div>
+    <section className="platform-detail-page">
+      <nav aria-label="Trilha" className="platform-breadcrumb">
+        <button className="breadcrumb-link" onClick={() => navigate(-1)}>
+          ← Voltar
+        </button>
+      </nav>
 
-      <div style={{ borderBottom: '1px solid #e5e5e5', marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', gap: '2rem' }}>
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                padding: '1rem 0',
-                background: 'none',
-                border: 'none',
-                borderBottom: tab === t.key ? '2px solid #0ea5e9' : 'none',
-                color: tab === t.key ? '#0ea5e9' : '#666',
-                cursor: 'pointer',
-                fontWeight: tab === t.key ? 600 : 400,
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {tab === 'overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
+      <article className="platform-panel">
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', gap: '2rem', alignItems: 'start' }}>
           <div>
-            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#999', marginBottom: '0.5rem' }}>
-              Imagem
-            </h3>
             {service.imageUrl ? (
               <PlatformServiceImage
                 alt={service.name}
                 servicePublicId={service.publicId}
                 tenantPublicId={tenantPublicId}
+                variant="original"
+                size={{ width: 120, height: 120 }}
               />
             ) : (
-              <div style={{ width: '100px', height: '100px', backgroundColor: '#f5f5f5', borderRadius: '4px' }} />
+              <div
+                style={{
+                  width: '120px',
+                  height: '120px',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#999',
+                  fontSize: '0.75rem',
+                }}
+              >
+                Sem imagem
+              </div>
             )}
           </div>
 
           <div>
-            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#999', marginBottom: '0.5rem' }}>
-              Serviço
-            </h3>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>Status:</strong>{' '}
+            <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>{service.name}</h1>
+            <p style={{ margin: '0 0 1rem 0', color: '#666' }}>
+              {service.durationMinutes} min · R$ {(service.priceCents / 100).toFixed(2)}
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <span
                 style={{
                   display: 'inline-block',
                   padding: '0.25rem 0.75rem',
                   borderRadius: '4px',
                   fontSize: '0.75rem',
+                  fontWeight: 500,
                   backgroundColor: service.active ? '#d1fae5' : '#fee2e2',
                   color: service.active ? '#065f46' : '#991b1b',
                 }}
               >
                 {service.active ? 'Ativo' : 'Inativo'}
               </span>
-            </p>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>Duração:</strong> {service.durationMinutes} min
-            </p>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>Preço:</strong> R$ {(service.priceCents / 100).toFixed(2)}
-            </p>
+            </div>
           </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <button
+              onClick={() => toggleActive.mutate(!service.active)}
+              disabled={toggleActive.isPending}
+              className={service.active ? 'danger-button' : 'primary-button'}
+            >
+              {service.active ? 'Desativar' : 'Ativar'}
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <nav aria-label="Abas do serviço" className="prospecting-tabs">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            aria-selected={tab === t.key}
+            className={tab === t.key ? 'active' : ''}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'overview' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+          <article className="platform-panel">
+            <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#999', margin: '0 0 1rem 0', textTransform: 'uppercase' }}>
+              Serviço
+            </h3>
+            <dl className="platform-details">
+              <div>
+                <dt>Duração</dt>
+                <dd>{service.durationMinutes} minutos</dd>
+              </div>
+              <div>
+                <dt>Preço</dt>
+                <dd>R$ {(service.priceCents / 100).toFixed(2)}</dd>
+              </div>
+              <div>
+                <dt>Modo de preço</dt>
+                <dd>{service.pricingMode}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article className="platform-panel">
+            <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#999', margin: '0 0 1rem 0', textTransform: 'uppercase' }}>
+              Configuração
+            </h3>
+            <dl className="platform-details">
+              <div>
+                <dt>Pausa pós-serviço</dt>
+                <dd>{service.hasPostServiceBreak ? `Sim (${service.postServiceBreakMinutes} min)` : 'Não'}</dd>
+              </div>
+              {service.quoteNotice && (
+                <div>
+                  <dt>Aviso de orçamento</dt>
+                  <dd>{service.quoteNotice}</dd>
+                </div>
+              )}
+            </dl>
+          </article>
         </div>
       )}
 
       {tab === 'info' && (
-        <div style={{ maxWidth: '600px' }}>
+        <article className="platform-panel">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -200,51 +228,51 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
                 active: formData.active !== undefined ? formData.active : service.active,
               } as any);
             }}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}
           >
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Nome</span>
+            <label>
+              <span>Nome</span>
               <input
                 type="text"
                 defaultValue={service.name}
                 onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Descrição</span>
+            <label style={{ gridColumn: '1 / -1' }}>
+              <span>Descrição</span>
               <textarea
                 defaultValue={service.description || ''}
                 onChange={(e) => setFormData((f) => ({ ...f, description: e.target.value || undefined }))}
-                style={{ marginTop: '0.5rem', minHeight: '100px' }}
+                style={{ minHeight: '100px' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Alt de imagem</span>
+            <label>
+              <span>Alt de imagem</span>
               <input
                 type="text"
                 defaultValue={service.imageAlt || ''}
                 onChange={(e) => setFormData((f) => ({ ...f, imageAlt: e.target.value || undefined }))}
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Cor</span>
+            <label>
+              <span>Cor</span>
               <input
                 type="color"
                 defaultValue={service.color}
                 onChange={(e) => setFormData((f) => ({ ...f, color: e.target.value }))}
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
             {update.error instanceof Error && (
-              <p className="form-error">{update.error.message}</p>
+              <p className="form-error" style={{ gridColumn: '1 / -1' }}>
+                {update.error.message}
+              </p>
             )}
 
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
               <button type="button" className="secondary-button" onClick={() => setFormData(null)}>
                 Cancelar
               </button>
@@ -253,17 +281,19 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
               </button>
             </div>
           </form>
-        </div>
+        </article>
       )}
 
       {tab === 'image' && (
-        <div style={{ maxWidth: '400px' }}>
-          <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+        <article className="platform-panel">
+          <div style={{ textAlign: 'center' }}>
             {service.imageUrl ? (
               <PlatformServiceImage
                 alt={service.name}
                 servicePublicId={service.publicId}
                 tenantPublicId={tenantPublicId}
+                variant="original"
+                size={{ width: 200, height: 200 }}
               />
             ) : (
               <div
@@ -283,47 +313,116 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
               </div>
             )}
           </div>
-          <button className="primary-button" onClick={() => setImageModalOpen(true)}>
-            Gerenciar imagem
-          </button>
-        </div>
-      )}
-
-      {tab === 'category' && (
-        <div style={{ maxWidth: '400px' }}>
-          <p style={{ color: '#666', marginBottom: '1rem' }}>
-            Categoria: <strong>{service.categoryPublicId ? 'Vinculado' : 'Não vinculado'}</strong>
-          </p>
-          <p style={{ fontSize: '0.875rem', color: '#999' }}>
-            Gerenciar categorias está disponível na aba Categorias.
-          </p>
-        </div>
+          <div className="form-actions">
+            <button className="primary-button" onClick={() => setImageModalOpen(true)}>
+              Gerenciar imagem
+            </button>
+          </div>
+        </article>
       )}
 
       {tab === 'pricing' && (
-        <div style={{ maxWidth: '400px' }}>
-          <p style={{ margin: '0.5rem 0' }}>
-            <strong>Duração:</strong> {service.durationMinutes} minutos
-          </p>
-          <p style={{ margin: '0.5rem 0' }}>
-            <strong>Preço:</strong> R$ {(service.priceCents / 100).toFixed(2)}
-          </p>
-          <p style={{ margin: '0.5rem 0' }}>
-            <strong>Modo de preço:</strong> {service.pricingMode}
-          </p>
-          <p style={{ margin: '0.5rem 0' }}>
-            <strong>Pausa pós-serviço:</strong> {service.hasPostServiceBreak ? 'Sim' : 'Não'}
-            {service.hasPostServiceBreak && ` (${service.postServiceBreakMinutes} min)`}
-          </p>
-          {service.quoteNotice && (
-            <p style={{ margin: '0.5rem 0' }}>
-              <strong>Aviso de orçamento:</strong> {service.quoteNotice}
-            </p>
-          )}
-          <p style={{ fontSize: '0.875rem', color: '#999', marginTop: '1rem' }}>
-            Edite esses dados na aba Informações.
-          </p>
-        </div>
+        <article className="platform-panel">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!formData) return;
+              update.mutate({
+                name: service.name,
+                description: service.description,
+                imageAlt: service.imageAlt,
+                iconKey: service.iconKey,
+                categoryPublicId: service.categoryPublicId,
+                durationMinutes: formData.durationMinutes || service.durationMinutes,
+                hasPostServiceBreak: formData.hasPostServiceBreak ?? service.hasPostServiceBreak,
+                postServiceBreakMinutes: formData.postServiceBreakMinutes || service.postServiceBreakMinutes,
+                priceCents: formData.priceCents || service.priceCents,
+                pricingMode: formData.pricingMode || service.pricingMode,
+                quoteNotice: formData.quoteNotice,
+                color: service.color,
+                sortOrder: service.sortOrder,
+              } as any);
+            }}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}
+          >
+            <label>
+              <span>Duração (minutos)</span>
+              <input
+                type="number"
+                defaultValue={service.durationMinutes}
+                onChange={(e) =>
+                  setFormData((f) => ({ ...f, durationMinutes: parseInt(e.target.value) || 0 }))
+                }
+              />
+            </label>
+
+            <label>
+              <span>Preço (R$)</span>
+              <input
+                type="number"
+                step="0.01"
+                defaultValue={(service.priceCents / 100).toFixed(2)}
+                onChange={(e) =>
+                  setFormData((f) => ({
+                    ...f,
+                    priceCents: Math.round(parseFloat(e.target.value) * 100) || 0,
+                  }))
+                }
+              />
+            </label>
+
+            <label>
+              <span>Modo de preço</span>
+              <input
+                type="text"
+                defaultValue={service.pricingMode || ''}
+                onChange={(e) =>
+                  setFormData((f) => ({ ...f, pricingMode: e.target.value || undefined }))
+                }
+              />
+            </label>
+
+            <label>
+              <span>Pausa pós-serviço (minutos)</span>
+              <input
+                type="number"
+                defaultValue={service.postServiceBreakMinutes}
+                onChange={(e) =>
+                  setFormData((f) => ({
+                    ...f,
+                    postServiceBreakMinutes: parseInt(e.target.value) || 0,
+                  }))
+                }
+              />
+            </label>
+
+            <label>
+              <span>Aviso de orçamento</span>
+              <input
+                type="text"
+                defaultValue={service.quoteNotice || ''}
+                onChange={(e) =>
+                  setFormData((f) => ({ ...f, quoteNotice: e.target.value || undefined }))
+                }
+              />
+            </label>
+
+            {update.error instanceof Error && (
+              <p className="form-error" style={{ gridColumn: '1 / -1' }}>
+                {update.error.message}
+              </p>
+            )}
+
+            <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
+              <button type="button" className="secondary-button" onClick={() => setFormData(null)}>
+                Cancelar
+              </button>
+              <button type="submit" className="primary-button" disabled={update.isPending}>
+                {update.isPending ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
+          </form>
+        </article>
       )}
 
       {imageModalOpen && (
@@ -338,6 +437,6 @@ export function ServiceDetailPage({ tenantPublicId }: { tenantPublicId: string }
           }}
         />
       )}
-    </div>
+    </section>
   );
 }

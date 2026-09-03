@@ -64,14 +64,14 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
     },
   });
 
-  if (isLoading) return <p style={{ padding: '2rem' }}>Carregando…</p>;
+  if (isLoading) return <i className="platform-skeleton" />;
   if (error instanceof Error)
     return (
-      <div style={{ padding: '2rem' }}>
+      <section className="platform-detail-page">
         <ErrorState error={error.message} />
-      </div>
+      </section>
     );
-  if (!professional) return <p style={{ padding: '2rem' }}>Profissional não encontrado.</p>;
+  if (!professional) return <p>Profissional não encontrado.</p>;
 
   const tabs = [
     { key: 'overview' as const, label: 'Visão geral' },
@@ -81,122 +81,149 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
   ];
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between' }}>
-        <div>
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#0ea5e9',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              marginBottom: '0.5rem',
-            }}
-          >
-            ← Voltar
-          </button>
-          <h1>{professional.name}</h1>
-          <p style={{ color: '#666' }}>{professional.publicName}</p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => toggleActive.mutate(!professional.active)}
-            disabled={toggleActive.isPending}
-            className={professional.active ? 'danger-button' : 'primary-button'}
-          >
-            {professional.active ? 'Desativar' : 'Ativar'}
-          </button>
-        </div>
-      </div>
+    <section className="platform-detail-page">
+      <nav aria-label="Trilha" className="platform-breadcrumb">
+        <button className="breadcrumb-link" onClick={() => navigate(-1)}>
+          ← Voltar
+        </button>
+      </nav>
 
-      <div style={{ borderBottom: '1px solid #e5e5e5', marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', gap: '2rem' }}>
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                padding: '1rem 0',
-                background: 'none',
-                border: 'none',
-                borderBottom: tab === t.key ? '2px solid #0ea5e9' : 'none',
-                color: tab === t.key ? '#0ea5e9' : '#666',
-                cursor: 'pointer',
-                fontWeight: tab === t.key ? 600 : 400,
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {tab === 'overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
-          <div>
-            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#999', marginBottom: '0.5rem' }}>
-              Foto
-            </h3>
+      <article className="platform-panel">
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', gap: '2rem', alignItems: 'start' }}>
+          <div style={{ textAlign: 'center' }}>
             {professional.photoUrl ? (
               <PlatformProfessionalPhoto
                 alt={professional.name}
                 professionalPublicId={professional.publicId}
                 tenantPublicId={tenantPublicId}
+                variant="original"
+                size={{ width: 120, height: 120 }}
               />
             ) : (
-              <div style={{ width: '100px', height: '100px', backgroundColor: '#f5f5f5', borderRadius: '4px' }} />
+              <div
+                style={{
+                  width: '120px',
+                  height: '120px',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#999',
+                }}
+              >
+                Sem foto
+              </div>
             )}
           </div>
 
           <div>
-            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#999', marginBottom: '0.5rem' }}>
-              Contato
-            </h3>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>Telefone:</strong> {professional.phone || '—'}
+            <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>{professional.name}</h1>
+            <p style={{ margin: '0 0 1rem 0', color: '#666', fontSize: '1.1rem' }}>
+              {professional.publicName}
             </p>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>Email:</strong> {professional.email || '—'}
-            </p>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>CPF/CNPJ:</strong> {professional.professionalDocument || '—'}
-            </p>
-          </div>
-
-          <div>
-            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#999', marginBottom: '0.5rem' }}>
-              Informações
-            </h3>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>Status:</strong>{' '}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <span
                 style={{
                   display: 'inline-block',
                   padding: '0.25rem 0.75rem',
                   borderRadius: '4px',
                   fontSize: '0.75rem',
+                  fontWeight: 500,
                   backgroundColor: professional.active ? '#d1fae5' : '#fee2e2',
                   color: professional.active ? '#065f46' : '#991b1b',
                 }}
               >
                 {professional.active ? 'Ativo' : 'Inativo'}
               </span>
-            </p>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>Ordem:</strong> {professional.sortOrder}
-            </p>
-            <p style={{ margin: '0.25rem 0' }}>
-              <strong>Comissão:</strong> {professional.commissionValue}
-              {professional.commissionType === 'PERCENTAGE' ? '%' : ' R$'}
-            </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <button
+              onClick={() => toggleActive.mutate(!professional.active)}
+              disabled={toggleActive.isPending}
+              className={professional.active ? 'danger-button' : 'primary-button'}
+            >
+              {professional.active ? 'Desativar' : 'Ativar'}
+            </button>
           </div>
         </div>
+      </article>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+        <article className="platform-panel">
+          <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#999', margin: '0 0 1rem 0', textTransform: 'uppercase' }}>
+            Contato
+          </h3>
+          <dl className="platform-details">
+            <div>
+              <dt>Telefone</dt>
+              <dd>{professional.phone || '—'}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{professional.email || '—'}</dd>
+            </div>
+            <div>
+              <dt>CPF/CNPJ</dt>
+              <dd>{professional.professionalDocument || '—'}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article className="platform-panel">
+          <h3 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#999', margin: '0 0 1rem 0', textTransform: 'uppercase' }}>
+            Comissão
+          </h3>
+          <dl className="platform-details">
+            <div>
+              <dt>Tipo</dt>
+              <dd>{professional.commissionType === 'PERCENTAGE' ? 'Percentual' : 'Valor fixo'}</dd>
+            </div>
+            <div>
+              <dt>Valor</dt>
+              <dd>
+                {professional.commissionValue}
+                {professional.commissionType === 'PERCENTAGE' ? '%' : ' R$'}
+              </dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+
+      <nav aria-label="Abas do profissional" className="prospecting-tabs">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            aria-selected={tab === t.key}
+            className={tab === t.key ? 'active' : ''}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'overview' && (
+        <article className="platform-panel">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
+            <dl className="platform-details">
+              <div>
+                <dt>Ordem</dt>
+                <dd>{professional.sortOrder}</dd>
+              </div>
+              <div>
+                <dt>Especialidades</dt>
+                <dd>{professional.specialties?.join(', ') || '—'}</dd>
+              </div>
+            </dl>
+          </div>
+        </article>
       )}
 
       {tab === 'profile' && (
-        <div style={{ maxWidth: '600px' }}>
+        <article className="platform-panel">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -218,104 +245,71 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
                 customFields: formData.customFields ?? professional.customFields,
               } as any);
             }}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}
           >
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Nome</span>
+            <label>
+              <span>Nome</span>
               <input
                 type="text"
                 defaultValue={professional.name}
                 onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Nome de exibição</span>
+            <label>
+              <span>Nome de exibição</span>
               <input
                 type="text"
                 defaultValue={professional.publicName}
                 onChange={(e) => setFormData((f) => ({ ...f, publicName: e.target.value }))}
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Telefone</span>
+            <label>
+              <span>Telefone</span>
               <input
                 type="tel"
                 defaultValue={professional.phone || ''}
                 onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value || null }))}
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Email</span>
+            <label>
+              <span>Email</span>
               <input
                 type="email"
                 defaultValue={professional.email || ''}
                 onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value || null }))}
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>CPF/CNPJ</span>
+            <label>
+              <span>CPF/CNPJ</span>
               <input
                 type="text"
                 defaultValue={professional.professionalDocument || ''}
                 onChange={(e) =>
                   setFormData((f) => ({ ...f, professionalDocument: e.target.value || null }))
                 }
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Cor do calendário</span>
+            <label>
+              <span>Cor do calendário</span>
               <input
                 type="color"
                 defaultValue={professional.calendarColor}
                 onChange={(e) => setFormData((f) => ({ ...f, calendarColor: e.target.value }))}
-                style={{ marginTop: '0.5rem' }}
               />
             </label>
 
-            <label style={{ display: 'block', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Comissão</span>
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <select
-                  defaultValue={professional.commissionType}
-                  onChange={(e) =>
-                    setFormData((f) => ({
-                      ...f,
-                      commissionType: e.target.value as 'PERCENTAGE' | 'FIXED',
-                    }))
-                  }
-                  style={{ flex: 1 }}
-                >
-                  <option value="PERCENTAGE">Percentual (%)</option>
-                  <option value="FIXED">Valor fixo (R$)</option>
-                </select>
-                <input
-                  type="number"
-                  defaultValue={professional.commissionValue}
-                  onChange={(e) =>
-                    setFormData((f) => ({
-                      ...f,
-                      commissionValue: parseInt(e.target.value) || 0,
-                    }))
-                  }
-                  style={{ flex: 1 }}
-                />
-              </div>
-            </label>
-
             {update.error instanceof Error && (
-              <p className="form-error">{update.error.message}</p>
+              <p className="form-error" style={{ gridColumn: '1 / -1' }}>
+                {update.error.message}
+              </p>
             )}
 
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
               <button type="button" className="secondary-button" onClick={() => setFormData(null)}>
                 Cancelar
               </button>
@@ -324,17 +318,19 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
               </button>
             </div>
           </form>
-        </div>
+        </article>
       )}
 
       {tab === 'photo' && (
-        <div style={{ maxWidth: '400px' }}>
-          <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+        <article className="platform-panel">
+          <div style={{ textAlign: 'center' }}>
             {professional.photoUrl ? (
               <PlatformProfessionalPhoto
                 alt={professional.name}
                 professionalPublicId={professional.publicId}
                 tenantPublicId={tenantPublicId}
+                variant="original"
+                size={{ width: 200, height: 200 }}
               />
             ) : (
               <div
@@ -354,27 +350,31 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
               </div>
             )}
           </div>
-          <button className="primary-button" onClick={() => setPhotoModalOpen(true)}>
-            Gerenciar foto
-          </button>
-        </div>
+          <div className="form-actions">
+            <button className="primary-button" onClick={() => setPhotoModalOpen(true)}>
+              Gerenciar foto
+            </button>
+          </div>
+        </article>
       )}
 
       {tab === 'access' && (
-        <div style={{ maxWidth: '400px' }}>
-          <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+        <article className="platform-panel">
+          <div style={{ padding: '1rem', backgroundColor: professional.userPublicId ? '#f0fdf4' : '#fef2f2', borderRadius: '8px', marginBottom: '1rem' }}>
             {professional.userPublicId ? (
-              <p style={{ color: '#065f46' }}>✓ Conta vinculada e ativa</p>
+              <p style={{ color: '#065f46', margin: 0 }}>✓ Conta vinculada e ativa</p>
             ) : (
-              <p style={{ color: '#991b1b' }}>Nenhuma conta vinculada</p>
+              <p style={{ color: '#991b1b', margin: 0 }}>Nenhuma conta vinculada</p>
             )}
           </div>
           {professional.userPublicId && (
-            <button className="primary-button" onClick={() => setPasswordModalOpen(true)}>
-              Alterar senha
-            </button>
+            <div className="form-actions">
+              <button className="primary-button" onClick={() => setPasswordModalOpen(true)}>
+                Alterar senha
+              </button>
+            </div>
           )}
-        </div>
+        </article>
       )}
 
       {photoModalOpen && (
@@ -397,6 +397,6 @@ export function ProfessionalDetailPage({ tenantPublicId }: { tenantPublicId: str
           onClose={() => setPasswordModalOpen(false)}
         />
       )}
-    </div>
+    </section>
   );
 }

@@ -1004,6 +1004,9 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.businessUnitDateOverrides
         ? { businessUnitDateOverridesService: options.database.businessUnitDateOverrides }
         : {}),
+      ...(options.database.combos
+        ? { comboService: options.database.combos }
+        : {}),
     });
   }
   if (options.database.platformBilling)

@@ -22,13 +22,18 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['platform-combos', tenantPublicId, page, search, status],
-    queryFn: () =>
-      httpClient.request(
-        `/platform/tenants/${tenantPublicId}/combos?page=${page}&limit=10&search=${search || ''}&active=${
-          status === 'all' ? '' : status === 'active' ? 'true' : 'false'
-        }`,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '10');
+      if (search.trim()) params.append('search', search.trim());
+      if (status !== 'all') params.append('active', status === 'active' ? 'true' : 'false');
+
+      return httpClient.request(
+        `/platform/tenants/${tenantPublicId}/combos?${params.toString()}`,
         { schema: ComboListResponseSchema },
-      ),
+      );
+    },
   });
 
   const toggleActive = useMutation({

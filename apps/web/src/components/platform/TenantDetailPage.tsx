@@ -26,6 +26,7 @@ import { ServicesManager } from './ServicesManager.js';
 import { CategoriesManager } from './CategoriesManager.js';
 import { ProfessionalsManager } from './ProfessionalsManager.js';
 import { ComboModule } from './ComboModule.js';
+import { ScheduleModule } from './ScheduleModule.js';
 import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
@@ -54,6 +55,7 @@ type TabKey =
   | 'serviceCategories'
   | 'professionals'
   | 'combos'
+  | 'schedule'
   | 'subscription'
   | 'units'
   | 'features'
@@ -70,6 +72,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'serviceCategories', label: 'Categorias' },
   { key: 'professionals', label: 'Profissionais' },
   { key: 'combos', label: 'Combos' },
+  { key: 'schedule', label: 'Agenda / Horários' },
   { key: 'subscription', label: 'Assinatura' },
   { key: 'units', label: 'Unidades' },
   { key: 'features', label: 'Funcionalidades' },
@@ -274,6 +277,8 @@ export function TenantDetailPage({ tenantPublicId }: { tenantPublicId: string })
         <ProfessionalsManager tenantPublicId={tenantPublicId} />
       ) : tab === 'combos' ? (
         <ComboModule tenantPublicId={tenantPublicId} />
+      ) : tab === 'schedule' ? (
+        <ScheduleModule tenantPublicId={tenantPublicId} />
       ) : tab === 'subscription' ? (
         <SubscriptionTab
           data={data}

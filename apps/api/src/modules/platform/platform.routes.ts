@@ -80,6 +80,7 @@ import { z } from 'zod';
 
 import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { platformComboRoutes } from './platform.combo-routes.js';
+import { platformScheduleRoutes } from './platform.schedule-routes.js';
 import { type PlatformBillingService } from './platform-billing.service.js';
 import { type PlatformAuthContext, type PlatformService } from './platform.service.js';
 import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
@@ -95,6 +96,10 @@ import { type ServiceService } from '../services/service.service.js';
 import { type ServiceCategoryService } from '../services/service-category.service.js';
 import { type ComboService } from '../services/combo.service.js';
 import { type ProfessionalService } from '../professionals/professional.service.js';
+import { type BusinessUnitOperatingHoursService } from '../tenants/business-unit-operating-hours.service.js';
+import { type ProfessionalScheduleService } from '../professionals/professional-schedule.service.js';
+import { type ProfessionalUnavailabilityService } from '../professionals/professional-unavailability.service.js';
+import { type BusinessUnitDateOverridesService } from '../tenants/business-unit-date-overrides.service.js';
 import { PasswordService } from '../auth/password.service.js';
 
 interface PlatformRoutesOptions {
@@ -111,6 +116,10 @@ interface PlatformRoutesOptions {
   serviceCategoryService?: ServiceCategoryService;
   comboService?: ComboService;
   professionalService?: ProfessionalService;
+  businessUnitOperatingHoursService?: BusinessUnitOperatingHoursService;
+  professionalScheduleService?: ProfessionalScheduleService;
+  professionalUnavailabilityService?: ProfessionalUnavailabilityService;
+  businessUnitDateOverridesService?: BusinessUnitDateOverridesService;
 }
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const TenantParamsSchema = z.object({ tenantPublicId: z.uuid() });
@@ -129,6 +138,20 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
     await app.register(platformComboRoutes, {
       service: options.service,
       comboService: options.comboService,
+    });
+  }
+  if (
+    options.businessUnitOperatingHoursService ||
+    options.professionalScheduleService ||
+    options.professionalUnavailabilityService ||
+    options.businessUnitDateOverridesService
+  ) {
+    await app.register(platformScheduleRoutes, {
+      service: options.service,
+      businessUnitOperatingHoursService: options.businessUnitOperatingHoursService,
+      professionalScheduleService: options.professionalScheduleService,
+      professionalUnavailabilityService: options.professionalUnavailabilityService,
+      businessUnitDateOverridesService: options.businessUnitDateOverridesService,
     });
   }
   const allow = (

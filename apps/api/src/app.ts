@@ -992,6 +992,18 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.professionals
         ? { professionalService: options.database.professionals }
         : {}),
+      ...(options.database.businessUnitOperatingHours
+        ? { businessUnitOperatingHoursService: options.database.businessUnitOperatingHours }
+        : {}),
+      ...(options.database.professionalSchedules
+        ? { professionalScheduleService: options.database.professionalSchedules }
+        : {}),
+      ...(options.database.professionalUnavailabilities
+        ? { professionalUnavailabilityService: options.database.professionalUnavailabilities }
+        : {}),
+      ...(options.database.businessUnitDateOverrides
+        ? { businessUnitDateOverridesService: options.database.businessUnitDateOverrides }
+        : {}),
     });
   }
   if (options.database.platformBilling)

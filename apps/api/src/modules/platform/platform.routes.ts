@@ -82,10 +82,12 @@ import { platformAuthenticationPlugin } from './platform-auth.plugin.js';
 import { platformComboRoutes } from './platform.combo-routes.js';
 import { platformScheduleRoutes } from './platform.schedule-routes.js';
 import { platformUnitsRoutes } from './platform.units-routes.js';
+import { platformProfessionalUnitsRoutes } from './platform.professional-units-routes.js';
 import type { PlatformBillingService } from './platform-billing.service.js';
 import { type PlatformAuthContext, type PlatformService } from './platform.service.js';
 import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 import { type TenantService } from '../tenants/tenant.service.js';
+import { type ProfessionalUnitLinkService } from '../professionals/professional-unit.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { requestMetadata } from '../auth/request-context.js';
 import { AppError } from '../../errors/AppError.js';
@@ -119,6 +121,7 @@ interface PlatformRoutesOptions {
   comboService?: ComboService;
   professionalService?: ProfessionalService;
   tenantService?: TenantService;
+  professionalUnitLinkService?: ProfessionalUnitLinkService;
   businessUnitOperatingHoursService?: BusinessUnitOperatingHoursService;
   professionalScheduleService?: ProfessionalScheduleService;
   professionalUnavailabilityService?: ProfessionalUnavailabilityService;
@@ -161,6 +164,12 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
     await app.register(platformUnitsRoutes, {
       service: options.service,
       tenantService: options.tenantService,
+    });
+  }
+  if (options.professionalUnitLinkService) {
+    await app.register(platformProfessionalUnitsRoutes, {
+      service: options.service,
+      professionalUnitLinkService: options.professionalUnitLinkService,
     });
   }
   const allow = (

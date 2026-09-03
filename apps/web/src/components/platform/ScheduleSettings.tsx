@@ -15,6 +15,9 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
     defaultAppointmentIntervalMinutes: 15,
     minimumAdvanceMinutes: 0,
     maximumAdvanceDays: 180,
+    allowMultipleUnits: false,
+    weekStartsOn: 'MONDAY' as const,
+    timeFormat: '24H' as const,
   });
 
   const { data: tenant, isLoading } = useQuery({
@@ -30,13 +33,13 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
       httpClient.request(`/platform/tenants/${tenantPublicId}/settings`, {
         method: 'PATCH',
         body: {
-          allowMultipleUnits: tenant?.settings.allowMultipleUnits ?? false,
+          allowMultipleUnits: formData.allowMultipleUnits,
           defaultAppointmentIntervalMinutes: formData.defaultAppointmentIntervalMinutes,
           minimumAdvanceMinutes: formData.minimumAdvanceMinutes,
           maximumAdvanceDays: formData.maximumAdvanceDays,
-          weekStartsOn: tenant?.settings.weekStartsOn ?? 'MONDAY',
+          weekStartsOn: formData.weekStartsOn,
           dateFormat: tenant?.settings.dateFormat ?? 'DD/MM/YYYY',
-          timeFormat: tenant?.settings.timeFormat ?? '24H',
+          timeFormat: formData.timeFormat,
         },
         schema: PlatformTenantDetailResponseSchema,
       }),
@@ -73,6 +76,9 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
                 defaultAppointmentIntervalMinutes: settings.defaultAppointmentIntervalMinutes,
                 minimumAdvanceMinutes: settings.minimumAdvanceMinutes,
                 maximumAdvanceDays: settings.maximumAdvanceDays,
+                allowMultipleUnits: settings.allowMultipleUnits,
+                weekStartsOn: settings.weekStartsOn,
+                timeFormat: settings.timeFormat,
               });
               setUseCustomInterval(!PRESET_INTERVALS.includes(settings.defaultAppointmentIntervalMinutes as any));
               setEditMode(true);
@@ -176,6 +182,45 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
             <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Até quantos dias no futuro pode agendar</p>
           </label>
 
+          <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid #ede8e1' }} />
+
+          <h3 style={{ margin: '0.5rem 0 1rem 0', fontSize: '0.9rem', fontWeight: 600 }}>Preferências de Calendário</h3>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Início da semana *</span>
+            <select
+              value={formData.weekStartsOn}
+              onChange={(e) => setFormData({ ...formData, weekStartsOn: e.target.value as any })}
+              style={{ padding: '0.65rem 0.85rem', border: '1px solid #ede8e1', borderRadius: '10px', fontSize: '0.88rem' }}
+            >
+              <option value="SUNDAY">Domingo</option>
+              <option value="MONDAY">Segunda-feira</option>
+            </select>
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Formato de hora *</span>
+            <select
+              value={formData.timeFormat}
+              onChange={(e) => setFormData({ ...formData, timeFormat: e.target.value as any })}
+              style={{ padding: '0.65rem 0.85rem', border: '1px solid #ede8e1', borderRadius: '10px', fontSize: '0.88rem' }}
+            >
+              <option value="24H">24 horas</option>
+              <option value="12H">12 horas (AM/PM)</option>
+            </select>
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+            <input
+              type="checkbox"
+              checked={formData.allowMultipleUnits}
+              onChange={(e) => setFormData({ ...formData, allowMultipleUnits: e.target.checked })}
+              style={{ cursor: 'pointer' }}
+            />
+            <span style={{ fontWeight: 500, fontSize: '0.85rem' }}>Permitir múltiplas unidades</span>
+          </label>
+          <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Habilita gerenciamento de múltiplas filiais/unidades</p>
+
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
             <button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="action-button primary" style={{ flex: 1 }}>
               {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
@@ -206,6 +251,30 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
             <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#57534e', fontWeight: 600 }}>Antecedência máxima</p>
             <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#1c1917' }}>{displaySettings.maximumAdvanceDays} dias</p>
             <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#99958f' }}>Até quantos dias no futuro pode agendar</p>
+          </div>
+
+          <div style={{ margin: '1.5rem 0 0 0', padding: '1.5rem 0', borderTop: '1px solid #ede8e1' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: 600 }}>Preferências de Calendário</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+              <div style={{ padding: '1rem', backgroundColor: '#faf8f5', borderRadius: '10px' }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#57534e', fontWeight: 600 }}>Início da semana</p>
+                <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1c1917' }}>
+                  {displaySettings.weekStartsOn === 'SUNDAY' ? 'Domingo' : 'Segunda-feira'}
+                </p>
+              </div>
+              <div style={{ padding: '1rem', backgroundColor: '#faf8f5', borderRadius: '10px' }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#57534e', fontWeight: 600 }}>Formato de hora</p>
+                <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1c1917' }}>
+                  {displaySettings.timeFormat === '24H' ? '24 horas' : '12 horas (AM/PM)'}
+                </p>
+              </div>
+              <div style={{ padding: '1rem', backgroundColor: '#faf8f5', borderRadius: '10px' }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#57534e', fontWeight: 600 }}>Múltiplas unidades</p>
+                <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: displaySettings.allowMultipleUnits ? '#047857' : '#b91c1c' }}>
+                  {displaySettings.allowMultipleUnits ? '✓ Habilitado' : '✗ Desabilitado'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

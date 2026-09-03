@@ -47,7 +47,7 @@ export const platformProfessionalUnitsRoutes: FastifyPluginAsyncZod<Options> = a
         tenantId,
         request.params.professionalPublicId,
         { unitPublicId: request.params.unitPublicId, active: request.body.active },
-        { userId: platformAuth.user.id, sessionId: null as any },
+        { userId: platformAuth.user.id, sessionId: null },
       );
       return reply.status(201).send({ success: true });
     },
@@ -66,7 +66,7 @@ export const platformProfessionalUnitsRoutes: FastifyPluginAsyncZod<Options> = a
         request.params.professionalPublicId,
         request.params.unitPublicId,
         false,
-        { userId: platformAuth.user.id, sessionId: null as any },
+        { userId: platformAuth.user.id, sessionId: null },
       );
       return { success: true };
     },

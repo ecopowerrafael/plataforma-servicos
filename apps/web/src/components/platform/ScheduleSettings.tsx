@@ -18,6 +18,9 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
     allowMultipleUnits: false,
     weekStartsOn: 'MONDAY' as const,
     timeFormat: '24H' as const,
+    timezone: 'America/Sao_Paulo',
+    locale: 'pt-BR',
+    currency: 'BRL' as const,
   });
 
   const { data: tenant, isLoading } = useQuery({
@@ -29,8 +32,8 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
   });
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      httpClient.request(`/platform/tenants/${tenantPublicId}/settings`, {
+    mutationFn: async () => {
+      await httpClient.request(`/platform/tenants/${tenantPublicId}/settings`, {
         method: 'PATCH',
         body: {
           allowMultipleUnits: formData.allowMultipleUnits,
@@ -42,7 +45,17 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
           timeFormat: formData.timeFormat,
         },
         schema: PlatformTenantDetailResponseSchema,
-      }),
+      });
+      return httpClient.request(`/platform/tenants/${tenantPublicId}`, {
+        method: 'PATCH',
+        body: {
+          timezone: formData.timezone,
+          locale: formData.locale,
+          currency: formData.currency,
+        },
+        schema: PlatformTenantDetailResponseSchema,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform', 'tenant', tenantPublicId, 'settings'] });
       setEditMode(false);
@@ -79,6 +92,9 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
                 allowMultipleUnits: settings.allowMultipleUnits,
                 weekStartsOn: settings.weekStartsOn,
                 timeFormat: settings.timeFormat,
+                timezone: tenant?.timezone ?? 'America/Sao_Paulo',
+                locale: tenant?.locale ?? 'pt-BR',
+                currency: tenant?.currency ?? 'BRL',
               });
               setUseCustomInterval(!PRESET_INTERVALS.includes(settings.defaultAppointmentIntervalMinutes as any));
               setEditMode(true);
@@ -221,6 +237,47 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
           </label>
           <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Habilita gerenciamento de múltiplas filiais/unidades</p>
 
+          <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid #ede8e1' }} />
+
+          <h3 style={{ margin: '0.5rem 0 1rem 0', fontSize: '0.9rem', fontWeight: 600 }}>Preferências Regionais</h3>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Fuso horário *</span>
+            <input
+              type="text"
+              value={formData.timezone}
+              onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+              placeholder="America/Sao_Paulo"
+              style={{ padding: '0.65rem 0.85rem', border: '1px solid #ede8e1', borderRadius: '10px', fontSize: '0.88rem' }}
+            />
+            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Identificador IANA (ex: America/Sao_Paulo, America/New_York)</p>
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Localidade *</span>
+            <input
+              type="text"
+              value={formData.locale}
+              onChange={(e) => setFormData({ ...formData, locale: e.target.value })}
+              placeholder="pt-BR"
+              style={{ padding: '0.65rem 0.85rem', border: '1px solid #ede8e1', borderRadius: '10px', fontSize: '0.88rem' }}
+            />
+            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Código de idioma/região (ex: pt-BR, en-US, es-ES)</p>
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.78rem' }}>Moeda *</span>
+            <select
+              value={formData.currency}
+              onChange={(e) => setFormData({ ...formData, currency: e.target.value as any })}
+              style={{ padding: '0.65rem 0.85rem', border: '1px solid #ede8e1', borderRadius: '10px', fontSize: '0.88rem' }}
+            >
+              <option value="BRL">BRL - Real Brasileiro</option>
+              <option value="USD">USD - Dólar Americano</option>
+              <option value="EUR">EUR - Euro</option>
+            </select>
+          </label>
+
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
             <button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="action-button primary" style={{ flex: 1 }}>
               {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
@@ -273,6 +330,24 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
                 <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: displaySettings.allowMultipleUnits ? '#047857' : '#b91c1c' }}>
                   {displaySettings.allowMultipleUnits ? '✓ Habilitado' : '✗ Desabilitado'}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ margin: '1.5rem 0 0 0', padding: '1.5rem 0', borderTop: '1px solid #ede8e1' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', fontWeight: 600 }}>Preferências Regionais</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+              <div style={{ padding: '1rem', backgroundColor: '#faf8f5', borderRadius: '10px' }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#57534e', fontWeight: 600 }}>Fuso horário</p>
+                <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1c1917' }}>{tenant?.timezone}</p>
+              </div>
+              <div style={{ padding: '1rem', backgroundColor: '#faf8f5', borderRadius: '10px' }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#57534e', fontWeight: 600 }}>Localidade</p>
+                <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1c1917' }}>{tenant?.locale}</p>
+              </div>
+              <div style={{ padding: '1rem', backgroundColor: '#faf8f5', borderRadius: '10px' }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#57534e', fontWeight: 600 }}>Moeda</p>
+                <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#1c1917' }}>{tenant?.currency}</p>
               </div>
             </div>
           </div>

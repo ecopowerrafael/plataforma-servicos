@@ -19,7 +19,6 @@ import { type BusinessUnitOperatingHoursService } from '../tenants/business-unit
 import { type ProfessionalScheduleService } from '../professionals/professional-schedule.service.js';
 import { type ProfessionalUnavailabilityService } from '../professionals/professional-unavailability.service.js';
 import { type BusinessUnitDateOverridesService } from '../tenants/business-unit-date-overrides.service.js';
-import { requestMetadata } from '../auth/request-context.js';
 
 interface Options {
   service: PlatformService;
@@ -73,14 +72,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.body,
           { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
         );
-        await options.service.recordTenantAudit(
-          'platform.tenant.operating_hours_updated',
-          'business_unit',
-          request.params.unitPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
-        );
         return result;
       },
     );
@@ -119,14 +110,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.body,
           { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
         );
-        await options.service.recordTenantAudit(
-          'platform.tenant.professional_schedule_created',
-          'professional',
-          request.params.professionalPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
-        );
         return result;
       },
     );
@@ -148,14 +131,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.params.professionalPublicId,
           request.body,
           { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
-        );
-        await options.service.recordTenantAudit(
-          'platform.tenant.professional_schedule_replaced',
-          'professional',
-          request.params.professionalPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
         );
         return result;
       },
@@ -180,14 +155,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.body,
           { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
         );
-        await options.service.recordTenantAudit(
-          'platform.tenant.professional_schedule_updated',
-          'professional',
-          request.params.professionalPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
-        );
         return result;
       },
     );
@@ -203,14 +170,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.params.professionalPublicId,
           request.params.periodPublicId,
           { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
-        );
-        await options.service.recordTenantAudit(
-          'platform.tenant.professional_schedule_deleted',
-          'professional',
-          request.params.professionalPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
         );
         return result;
       },
@@ -257,14 +216,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.body,
           { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
         );
-        await options.service.recordTenantAudit(
-          'platform.tenant.professional_unavailability_created',
-          'professional',
-          request.params.professionalPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
-        );
         return result;
       },
     );
@@ -288,14 +239,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.body,
           { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
         );
-        await options.service.recordTenantAudit(
-          'platform.tenant.professional_unavailability_updated',
-          'professional',
-          request.params.professionalPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
-        );
         return result;
       },
     );
@@ -311,14 +254,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.params.professionalPublicId,
           request.params.unavailabilityPublicId,
           { userId: request.platformAuth.userId, sessionId: request.platformAuth.sessionId },
-        );
-        await options.service.recordTenantAudit(
-          'platform.tenant.professional_unavailability_deleted',
-          'professional',
-          request.params.professionalPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
         );
         return result;
       },
@@ -384,14 +319,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           from,
           to,
         );
-        await options.service.recordTenantAudit(
-          'platform.tenant.date_override_updated',
-          'business_unit',
-          request.params.unitPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
-        );
         return result;
       },
     );
@@ -424,14 +351,6 @@ export const platformScheduleRoutes: FastifyPluginAsyncZod<Options> = async (app
           request.params.unitPublicId,
           from,
           to,
-        );
-        await options.service.recordTenantAudit(
-          'platform.tenant.date_override_deleted',
-          'business_unit',
-          request.params.unitPublicId,
-          request.platformAuth.tenantId,
-          request.platformAuth,
-          requestMetadata(request),
         );
         return result;
       },

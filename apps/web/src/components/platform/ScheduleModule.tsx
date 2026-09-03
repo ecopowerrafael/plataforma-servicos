@@ -5,6 +5,9 @@ import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { ScheduleUnitHours } from './ScheduleUnitHours.js';
 import { ScheduleProfessionals } from './ScheduleProfessionals.js';
+import { ScheduleUnavailability } from './ScheduleUnavailability.js';
+import { ScheduleDateOverrides } from './ScheduleDateOverrides.js';
+import { ScheduleSettings } from './ScheduleSettings.js';
 
 interface BusinessUnit {
   publicId: string;
@@ -77,6 +80,9 @@ export function ScheduleModule({ tenantPublicId }: { tenantPublicId: string }) {
         <>
           <ScheduleUnitHours tenantPublicId={tenantPublicId} unitPublicId={selectedUnit.publicId} />
           <ScheduleProfessionals tenantPublicId={tenantPublicId} unitPublicId={selectedUnit.publicId} />
+          <ScheduleUnavailability tenantPublicId={tenantPublicId} />
+          <ScheduleDateOverrides tenantPublicId={tenantPublicId} unitPublicId={selectedUnit.publicId} />
+          <ScheduleSettings tenantPublicId={tenantPublicId} />
         </>
       )}
     </div>

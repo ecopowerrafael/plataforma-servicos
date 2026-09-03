@@ -247,6 +247,22 @@ export class TenantService {
   }
 
   public async updateSettings(tenantId: bigint, settings: TenantSettings): Promise<TenantSettings> {
+    const current = await this.repository.findSettings(tenantId);
+    if (current === null) {
+      throw new Error('As configurações estruturais do tenant não foram encontradas.');
+    }
+
+    if (current.allowMultipleUnits === true && settings.allowMultipleUnits === false) {
+      const activeCount = await this.repository.countActiveBusinessUnits(tenantId);
+      if (activeCount > 1) {
+        throw new AppError({
+          code: 'TENANT_MULTIPLE_UNITS_ACTIVE',
+          message: 'Não é possível desativar múltiplas unidades quando existem unidades ativas.',
+          statusCode: 409,
+        });
+      }
+    }
+
     const updated = await this.repository.updateSettings(tenantId, settings);
 
     if (updated === null) {

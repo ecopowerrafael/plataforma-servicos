@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { httpClient } from '../../lib/http.js';
 import { ErrorState } from './PlatformUi.js';
 
-const PRESET_INTERVALS = [5, 10, 15, 20, 30, 60] as const;
+const PRESET_INTERVALS = [10, 15, 30, 60] as const;
 
 export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string }) {
   const queryClient = useQueryClient();
@@ -134,8 +134,8 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
               <div style={{ marginTop: '0.5rem' }}>
                 <input
                   type="number"
-                  min={1}
-                  max={180}
+                  min={5}
+                  max={120}
                   value={formData.defaultAppointmentIntervalMinutes}
                   onChange={(e) => {
                     const value = parseInt(e.target.value, 10);
@@ -144,7 +144,7 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
                   placeholder="Digite os minutos"
                   style={{ padding: '0.65rem 0.85rem', border: '1px solid #ede8e1', borderRadius: '6px', fontSize: '0.88rem', width: '100%', boxSizing: 'border-box' }}
                 />
-                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Valor entre 1 e 180 minutos</p>
+                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.75rem', color: '#99958f' }}>Valor entre 5 e 120 minutos</p>
               </div>
             )}
           </div>

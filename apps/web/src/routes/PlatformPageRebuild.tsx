@@ -33,7 +33,7 @@ export function PlatformPageRebuild() {
   const params = useParams();
 
   // Detectar se é uma rota aninhada (detail pages) ou seção principal
-  const isDetailPage = location.pathname.includes('/professionals/') || location.pathname.includes('/services/');
+  const isDetailPage = /\/(professionals|services|combos)\//.test(location.pathname);
 
   const pathSection = location.pathname.split('/')[2];
   const routeSection = pathSection === 'financeiro' ? 'finance' : pathSection;

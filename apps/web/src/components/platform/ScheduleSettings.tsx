@@ -11,6 +11,7 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
   const queryClient = useQueryClient();
   const [editMode, setEditMode] = useState(false);
   const [useCustomInterval, setUseCustomInterval] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [formData, setFormData] = useState({
     defaultAppointmentIntervalMinutes: 15,
     minimumAdvanceMinutes: 0,
@@ -59,6 +60,8 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform', 'tenant', tenantPublicId, 'settings'] });
       setEditMode(false);
+      setSuccessMessage('Configurações de agendamento salvas com sucesso.');
+      setTimeout(() => setSuccessMessage(''), 4000);
     },
   });
 
@@ -97,6 +100,8 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
                 currency: tenant?.currency ?? 'BRL',
               });
               setUseCustomInterval(!PRESET_INTERVALS.includes(settings.defaultAppointmentIntervalMinutes as any));
+              setSuccessMessage('');
+              updateMutation.reset();
               setEditMode(true);
             }}
             className="action-button primary"
@@ -107,7 +112,12 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
         )}
       </div>
 
-      {(updateMutation.error instanceof Error) && <ErrorState error={updateMutation.error.message} />}
+      {(updateMutation.error instanceof Error) && <ErrorState message={updateMutation.error.message} />}
+      {successMessage && (
+        <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', color: '#15803d', marginBottom: '1rem', fontSize: '0.9rem' }}>
+          {successMessage}
+        </div>
+      )}
 
       {editMode ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>

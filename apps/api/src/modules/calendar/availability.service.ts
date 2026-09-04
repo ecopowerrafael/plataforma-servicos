@@ -435,7 +435,12 @@ export class AvailabilityService {
           postServiceBreakMinutes: item.service.postServiceBreakMinutes,
         },
       };
-      if (link) {
+      if (
+        link &&
+        (link.durationMinutes !== null ||
+          link.hasPostServiceBreak !== null ||
+          link.postServiceBreakMinutes !== null)
+      ) {
         timingItem.link = {
           durationMinutes: link.durationMinutes,
           hasPostServiceBreak: link.hasPostServiceBreak,

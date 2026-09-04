@@ -14,6 +14,7 @@ import {
   isoFromDate,
   usePublicBooking,
   type BookingStep,
+  type PublicBookingEntry,
   type Site,
 } from '../use-public-booking.js';
 
@@ -31,12 +32,14 @@ export function PremiumBooking({
   slug,
   site,
   onFinish,
+  initialEntry,
 }: {
   slug: string;
   site: Site;
   onFinish: () => void;
+  initialEntry?: PublicBookingEntry;
 }) {
-  const booking = usePublicBooking(slug, site);
+  const booking = usePublicBooking(slug, site, initialEntry);
   const {
     step,
     flow,
@@ -48,6 +51,7 @@ export function PremiumBooking({
     professionalPublicId,
     selectProfessionalAndContinue,
     professionals,
+    professionalServices,
     selectedProfessional,
     date,
     selectDateAndContinue,
@@ -256,7 +260,10 @@ export function PremiumBooking({
               </div>
             ) : null}
             <div className="premium-pick-list">
-              {site.services.map((item) => (
+              {(initialEntry?.type === 'PROFESSIONAL' && professionalPublicId !== ''
+                ? professionalServices.data?.services ?? []
+                : site.services
+              ).map((item) => (
                 <button
                   key={item.publicId}
                   className={`premium-pick${servicePublicId === item.publicId ? ' is-selected' : ''}`}

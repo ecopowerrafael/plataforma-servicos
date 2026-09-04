@@ -6,6 +6,7 @@ import {
   CustomerRegisterRequestSchema,
   PublicBookingConfirmationSchema,
   PublicPaymentOptionsResponseSchema,
+  PublicProfessionalServicesResponseSchema,
   PublicServiceProfessionalsResponseSchema,
   type PublicTenantSiteResponseSchema,
 } from '@plataforma/shared';
@@ -21,6 +22,10 @@ export type BookingStep =
 export type BookingProfessional = z.infer<
   typeof PublicServiceProfessionalsResponseSchema
 >['professionals'][number];
+export type PublicBookingEntry =
+  | { type: 'SERVICE'; publicId: string }
+  | { type: 'PROFESSIONAL'; publicId: string }
+  | null;
 
 export const BOOKING_STEPS: { id: BookingStep; label: string }[] = [
   { id: 'service', label: 'Serviço' },
@@ -72,8 +77,9 @@ export function humanError(error: unknown): string {
  * disponibilidade, criação do agendamento, conta opcional e decisão de pagamento.
  * As apresentações (Clássico e App Premium) só desenham o que este hook expõe.
  */
-export function usePublicBooking(slug: string, site: Site) {
+export function usePublicBooking(slug: string, site: Site, initialEntry?: PublicBookingEntry) {
   const bookingSubmissionInFlight = useRef(false);
+  const entryConsumedRef = useRef(false);
   const storageKey = `agendei:booking:${slug}`;
   const restored = useMemo(() => {
     try {
@@ -82,18 +88,39 @@ export function usePublicBooking(slug: string, site: Site) {
       return {};
     }
   }, [storageKey]);
+
+  // Priority: initialEntry > query param > sessionStorage > default
   const serviceFromUrl = new URLSearchParams(window.location.search).get('service');
-  const initialService = serviceFromUrl ?? restored.servicePublicId ?? '';
+  const professionalFromUrl = new URLSearchParams(window.location.search).get('professional');
+
+  const initialService = initialEntry?.type === 'SERVICE'
+    ? initialEntry.publicId
+    : serviceFromUrl ?? restored.servicePublicId ?? '';
+  const initialProfessional = initialEntry?.type === 'PROFESSIONAL'
+    ? initialEntry.publicId
+    : professionalFromUrl ?? restored.professionalPublicId ?? '';
+
   const restoredStep = BOOKING_STEPS.some((item) => item.id === restored.step)
     ? restored.step === 'review'
       ? 'customer'
       : (restored.step as BookingStep)
     : null;
-  const [step, setStep] = useState<BookingStep>(
-    serviceFromUrl !== null
-      ? 'professional'
-      : (restoredStep ?? (initialService !== '' ? 'professional' : 'service')),
-  );
+
+  // Determine initial step based on entry type
+  let initialStep: BookingStep;
+  if (initialEntry?.type === 'SERVICE') {
+    initialStep = 'professional';
+  } else if (initialEntry?.type === 'PROFESSIONAL') {
+    initialStep = 'service';
+  } else if (serviceFromUrl !== null) {
+    initialStep = 'professional';
+  } else if (professionalFromUrl !== null) {
+    initialStep = 'service';
+  } else {
+    initialStep = restoredStep ?? (initialService !== '' ? 'professional' : 'service');
+  }
+
+  const [step, setStep] = useState<BookingStep>(initialStep);
   const [unitPublicId, setUnitPublicId] = useState(
     site.units.length === 1 ? (site.units[0]?.publicId ?? '') : (restored.unitPublicId ?? ''),
   );
@@ -101,7 +128,9 @@ export function usePublicBooking(slug: string, site: Site) {
     site.services.some((item) => item.publicId === initialService) ? initialService : '',
   );
   const [professionalPublicId, setProfessionalPublicId] = useState(
-    restored.professionalPublicId ?? '',
+    site.professionals.some((item) => item.publicId === initialProfessional)
+      ? initialProfessional
+      : '',
   );
   const [date, setDate] = useState(restored.date ?? todayIsoDate());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(restored.selectedSlot ?? null);
@@ -160,8 +189,13 @@ export function usePublicBooking(slug: string, site: Site) {
   const localAvailable = tenantOptions.data?.payLocalAvailable ?? true;
   // Só existe etapa de pagamento quando há de fato uma escolha a fazer.
   const needsPaymentChoice = onlineAvailable && localAvailable;
+  // When a professional is pre-selected, skip professional step
+  const isProfessionalPreselected = initialEntry?.type === 'PROFESSIONAL' && professionalPublicId !== '';
   const flow = BOOKING_STEPS.map((item) => item.id).filter(
-    (id) => (id !== 'payment' || needsPaymentChoice) && (id !== 'customer' || !profileComplete),
+    (id) =>
+      (id !== 'payment' || needsPaymentChoice) &&
+      (id !== 'customer' || !profileComplete) &&
+      (id !== 'professional' || !isProfessionalPreselected),
   );
   const payOnline = needsPaymentChoice ? paymentChoice === 'online' : onlineAvailable;
   // Se o perfil já cobre os dados, o passo "Seus dados" nunca é apresentado:
@@ -204,6 +238,16 @@ export function usePublicBooking(slug: string, site: Site) {
         schema: PublicServiceProfessionalsResponseSchema,
       }),
     enabled: servicePublicId !== '',
+    retry: false,
+  });
+
+  const professionalServices = useQuery({
+    queryKey: ['public-booking', slug, 'services', professionalPublicId],
+    queryFn: () =>
+      httpClient.request(`/public/sites/${slug}/professionals/${professionalPublicId}/services`, {
+        schema: PublicProfessionalServicesResponseSchema,
+      }),
+    enabled: professionalPublicId !== '',
     retry: false,
   });
   const availability = useQuery({
@@ -358,13 +402,17 @@ export function usePublicBooking(slug: string, site: Site) {
 
   const selectService = (id: string) => {
     setServicePublicId(id);
-    setProfessionalPublicId('');
+    // Only clear professional if not pre-selected
+    if (!isProfessionalPreselected) {
+      setProfessionalPublicId('');
+    }
     setSelectedSlot(null);
   };
   const selectServiceAndContinue = (id: string) => {
     selectService(id);
     setValidation(null);
-    setStep('professional');
+    // If professional is pre-selected, skip to date; otherwise go to professional
+    setStep(isProfessionalPreselected ? 'date' : 'professional');
   };
   const selectProfessional = (id: string) => {
     setProfessionalPublicId(id);
@@ -412,6 +460,7 @@ export function usePublicBooking(slug: string, site: Site) {
     selectProfessional,
     selectProfessionalAndContinue,
     professionals,
+    professionalServices,
     selectedProfessional,
     date,
     selectDate,

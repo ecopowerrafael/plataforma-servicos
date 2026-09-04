@@ -16,6 +16,7 @@ import { PublicLocationSection } from '../PublicLocationSection.js';
 import { PwaInstallModal } from '../PwaInstallModal.js';
 import { ServiceVisual } from '../ServiceVisual.js';
 import { usePwaInstall } from '../use-pwa-install.js';
+import { type PublicBookingEntry } from '../use-public-booking.js';
 
 type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
 
@@ -63,6 +64,7 @@ export function PremiumApp({
 }) {
   const [tab, setTab] = useState<PremiumTab>('home');
   const [installOpen, setInstallOpen] = useState(false);
+  const [bookingEntry, setBookingEntry] = useState<PublicBookingEntry>(null);
   const pwa = usePwaInstall();
   const appName = site.site.pwaName ?? site.displayName;
   // Some assim que o aplicativo é instalado (ou quando já está rodando standalone).
@@ -199,6 +201,7 @@ export function PremiumApp({
                     className="premium-service-card"
                     type="button"
                     onClick={() => {
+                      setBookingEntry({ type: 'SERVICE', publicId: service.publicId });
                       setTab('booking');
                     }}
                   >
@@ -229,7 +232,18 @@ export function PremiumApp({
               </header>
               <div className="premium-professional-row">
                 {site.professionals.map((professional) => (
-                  <article key={professional.publicId} className="premium-professional">
+                  <button
+                    key={professional.publicId}
+                    className="premium-professional"
+                    type="button"
+                    onClick={() => {
+                      setBookingEntry({
+                        type: 'PROFESSIONAL',
+                        publicId: professional.publicId,
+                      });
+                      setTab('booking');
+                    }}
+                  >
                     <span className="premium-avatar">
                       <b>{initials(professional.name)}</b>
                       <img
@@ -246,7 +260,7 @@ export function PremiumApp({
                     </span>
                     <strong>{professional.name}</strong>
                     {professional.bio === null ? null : <small>{professional.bio}</small>}
-                  </article>
+                  </button>
                 ))}
               </div>
             </section>
@@ -359,6 +373,7 @@ export function PremiumApp({
                   className="premium-service-row"
                   type="button"
                   onClick={() => {
+                    setBookingEntry({ type: 'SERVICE', publicId: service.publicId });
                     setTab('booking');
                   }}
                 >
@@ -451,7 +466,9 @@ export function PremiumApp({
             site={site}
             onFinish={() => {
               setTab('home');
+              setBookingEntry(null);
             }}
+            initialEntry={bookingEntry}
           />
         </main>
       ) : null}

@@ -1,12 +1,8 @@
 import { z } from 'zod';
 
 import { ComboPublicDisplaySchema } from './combo.js';
+import { ImageUrlSchema } from './image-url.js';
 import { TenantSlugSchema } from './tenant.js';
-
-export const ImageUrlSchema = z
-  .string()
-  .regex(/^(\/(tenant|public)\/(services|combos|professionals)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/image)(\?.*)?$/iu)
-  .nullable();
 
 export const PublicServiceProfessionalSchema = z.object({
   publicId: z.uuid(),

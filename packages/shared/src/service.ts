@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ImageUrlSchema } from './public-booking.js';
+import { ImageUrlSchema } from './image-url.js';
 
 const ServiceColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/u);
 const MoneyInputSchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);

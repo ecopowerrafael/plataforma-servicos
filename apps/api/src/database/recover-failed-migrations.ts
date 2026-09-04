@@ -302,6 +302,60 @@ async function main(): Promise<void> {
         }
       }
 
+      // Tratamento especial para 20260904_combo_booking_appointments
+      if (migration.migration_name === '20260904_combo_booking_appointments') {
+        console.warn('[combo booking migration recovery] Migration detectada: 20260904_combo_booking_appointments');
+
+        // Verificar estado: deve ter applied_steps_count = 0 (nenhum passo foi aplicado)
+        const currentState = await client.$queryRaw<
+          { migration_name: string; applied_steps_count: number; finished_at: Date | null; rolled_back_at: Date | null }[]
+        >`
+          SELECT migration_name, applied_steps_count, finished_at, rolled_back_at
+          FROM _prisma_migrations
+          WHERE migration_name = '20260904_combo_booking_appointments'
+        `;
+
+        const state = currentState[0];
+        if (state?.finished_at) {
+          console.warn('[combo booking migration recovery] Migration já estava applied; skipping.');
+          continue;
+        }
+
+        if (state?.rolled_back_at) {
+          console.warn('[combo booking migration recovery] Migration já foi rolled back; skipping.');
+          continue;
+        }
+
+        if (state?.applied_steps_count === 0) {
+          console.warn(
+            '[combo booking migration recovery] Migration falhou com applied_steps_count=0. Marcando como rolled-back para reaplicação.',
+          );
+          const result = spawnSync(
+            'npx',
+            ['prisma', 'migrate', 'resolve', '--rolled-back', migration.migration_name],
+            {
+              stdio: 'inherit',
+              env: { ...process.env, DATABASE_URL: url },
+              shell: process.platform === 'win32',
+              cwd: resolve(import.meta.dirname, '../../'),
+            },
+          );
+          if (result.status !== 0)
+            throw new Error(
+              `Não foi possível marcar a migration ${migration.migration_name} como rolled-back.`,
+            );
+          console.warn('[combo booking migration recovery] Migration marcada como rolled-back: ✓');
+          continue;
+        } else {
+          console.warn(
+            '[combo booking migration recovery] applied_steps_count > 0; schema está parcialmente aplicado. Abortando para inspeção manual.',
+          );
+          throw new Error(
+            'Migration 20260904_combo_booking_appointments: partial application detected (applied_steps_count > 0). Manual investigation required.',
+          );
+        }
+      }
+
       // Para outras migrations: NÃO fazer rollback automático cego
       // MySQL/MariaDB DDL com partial application é perigoso (implicit commit)
       // Requerendo resolução manual via: npx prisma migrate resolve --rolled-back <migration_name>

@@ -323,27 +323,17 @@ export function PremiumBooking({
                       <h4 className="premium-section-title">Combos</h4>
                       <div className="premium-pick-list">
                         {(professionalServices.data?.combos ?? []).map((item) => (
-                          <div
+                          <button
                             key={item.publicId}
                             className="premium-pick premium-pick-combo"
-                            style={{ position: 'relative' }}
+                            type="button"
+                            style={{ position: 'relative', cursor: 'pointer', border: 'none', background: 'none', padding: 0, width: '100%' }}
+                            onClick={() => {
+                              booking.setComboPublicId(item.publicId);
+                              booking.setServicePublicId('');
+                              booking.goToStep('date');
+                            }}
                           >
-                            <span
-                              className="premium-pick-badge"
-                              style={{
-                                position: 'absolute',
-                                top: '0.5rem',
-                                right: '0.5rem',
-                                fontSize: '0.7rem',
-                                backgroundColor: 'var(--tenant-primary)',
-                                color: 'var(--tenant-surface)',
-                                padding: '0.25rem 0.5rem',
-                                borderRadius: '0.25rem',
-                                fontWeight: 'bold',
-                              }}
-                            >
-                              Em breve
-                            </span>
                             <ServiceVisual
                               name={item.name}
                               imageUrl={item.imageUrl}
@@ -356,7 +346,7 @@ export function PremiumBooking({
                                 {` · R$ ${(Number(item.priceCents) / 100).toLocaleString('pt-BR')} · ${String(item.durationMinutes)} min`}
                               </small>
                             </span>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </>

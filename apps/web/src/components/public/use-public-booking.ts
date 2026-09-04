@@ -127,6 +127,7 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
   const [servicePublicId, setServicePublicId] = useState(
     site.services.some((item) => item.publicId === initialService) ? initialService : '',
   );
+  const [comboPublicId, setComboPublicId] = useState('');
   const [professionalPublicId, setProfessionalPublicId] = useState(
     site.professionals.some((item) => item.publicId === initialProfessional)
       ? initialProfessional
@@ -456,6 +457,8 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
     servicePublicId,
     selectService,
     selectServiceAndContinue,
+    comboPublicId,
+    setComboPublicId,
     professionalPublicId,
     selectProfessional,
     selectProfessionalAndContinue,

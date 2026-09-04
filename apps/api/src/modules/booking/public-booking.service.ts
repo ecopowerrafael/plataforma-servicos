@@ -7,6 +7,7 @@ import {
 } from '@plataforma/shared';
 
 import { AppError } from '../../errors/AppError.js';
+import { isProfessionalEligibleForCombo } from '../combos/combo-eligibility.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type CustomerService } from '../customers/customer.service.js';
@@ -89,8 +90,10 @@ export class PublicBookingService {
     // Get eligible combos: professional must have ALL services in combo
     // (site.combos already filtered to active only by whiteLabel.publicSite)
     const combos = site.combos.filter((combo) =>
-      // Professional must have all services in combo
-      combo.items.every((item) => eligible.has(item.servicePublicId)),
+      isProfessionalEligibleForCombo(
+        eligible,
+        combo.items.map((item) => item.servicePublicId),
+      ),
     )
       .map((combo) => ({
         publicId: combo.publicId,

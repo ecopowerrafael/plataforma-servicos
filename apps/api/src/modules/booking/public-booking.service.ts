@@ -125,12 +125,15 @@ export class PublicBookingService {
       phone: input.customer.phone ?? null,
       email: input.customer.email ?? null,
     });
+
+    // Pass through discriminated input (service or combo, never both)
     const appointment = await this.appointments.create(
       tenant.id,
       {
         customerPublicId: customer.publicId,
         professionalPublicId: input.professionalPublicId,
         servicePublicId: input.servicePublicId,
+        comboPublicId: input.comboPublicId,
         unitPublicId: input.unitPublicId ?? undefined,
         startsAt: input.startsAt,
         notes: input.notes ?? undefined,
@@ -153,6 +156,7 @@ export class PublicBookingService {
       startsAt: appointment.startsAt,
       endsAt: appointment.endsAt,
       serviceName: appointment.serviceName,
+      comboName: appointment.comboName,
       professionalName: appointment.professionalName,
       unitName: appointment.unitName,
       customerName: appointment.customerName,

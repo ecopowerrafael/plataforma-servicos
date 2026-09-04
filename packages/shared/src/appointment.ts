@@ -105,6 +105,8 @@ export const AppointmentPublicSchema = z.object({
   professionalName: z.string(),
   servicePublicId: z.uuid().nullable(),
   serviceName: z.string().nullable(),
+  comboPublicId: z.uuid().nullable(),
+  comboName: z.string().nullable(),
   unitPublicId: z.uuid().nullable(),
   unitName: z.string().nullable(),
   startsAt: z.iso.datetime({ offset: true }),

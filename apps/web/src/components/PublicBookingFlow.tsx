@@ -882,11 +882,73 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
           ) : null}
           {step === 'service' ? (
             <>
-              <ServiceStep
-                site={site}
-                selected={servicePublicId}
-                onSelect={selectService}
-              />
+              {professionalPublicId !== '' && professionalServices.data ? (
+                <>
+                  {professionalServices.data.services.length > 0 ? (
+                    <>
+                      <h3>Serviços</h3>
+                      <div className="booking-service-list">
+                        {professionalServices.data.services.map((service) => (
+                          <button
+                            key={service.publicId}
+                            type="button"
+                            className={`booking-service-card${servicePublicId === service.publicId ? ' is-selected' : ''}`}
+                            onClick={() => selectServiceAndContinue(service.publicId)}
+                          >
+                            <strong>{service.name}</strong>
+                            <small>
+                              R$ {(Number(service.priceCents) / 100).toLocaleString('pt-BR')}
+                              {` · ${service.durationMinutes} min`}
+                            </small>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  {professionalServices.data.combos.length > 0 ? (
+                    <>
+                      <h3>Combos</h3>
+                      <div className="booking-service-list">
+                        {professionalServices.data.combos.map((combo) => (
+                          <div
+                            key={combo.publicId}
+                            className="booking-service-card booking-combo-info"
+                          >
+                            <strong>{combo.name}</strong>
+                            <small>
+                              {combo.items.map((item) => item.name).join(' + ')}
+                            </small>
+                            <small>
+                              R$ {(Number(combo.priceCents) / 100).toLocaleString('pt-BR')}
+                              {` · ${combo.durationMinutes} min`}
+                            </small>
+                            <span className="combo-badge">Agendamento em breve</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  {professionalServices.data.services.length === 0 && professionalServices.data.combos.length === 0 ? (
+                    <div className="booking-empty">
+                      <p>Nenhum atendimento disponível para este profissional.</p>
+                    </div>
+                  ) : null}
+                </>
+              ) : professionalServices.isPending ? (
+                <div className="booking-loading">
+                  <p>Carregando atendimentos...</p>
+                </div>
+              ) : professionalServices.isError ? (
+                <div className="booking-error">
+                  <p>Não foi possível carregar os atendimentos deste profissional.</p>
+                </div>
+              ) : (
+                <ServiceStep
+                  site={site}
+                  selected={servicePublicId}
+                  onSelect={selectService}
+                />
+              )}
               {site.units.length > 1 ? (
                 <fieldset className="booking-unit-picker">
                   <legend>Escolha a unidade</legend>

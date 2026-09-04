@@ -9,6 +9,7 @@ import {
   PublicProfessionalServicesResponseSchema,
   PublicServiceProfessionalsResponseSchema,
 } from '@plataforma/shared';
+import { z } from 'zod';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { type PublicBookingService } from './public-booking.service.js';
@@ -27,6 +28,20 @@ export const publicBookingRoutes: FastifyPluginAsyncZod<{
     },
     (request) =>
       options.service.professionalsForService(request.params.slug, request.params.servicePublicId),
+  );
+  app.get(
+    '/public/sites/:slug/combos/:comboPublicId/professionals',
+    {
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: z.object({ slug: z.string(), comboPublicId: z.uuid() }).strict(),
+        response: { 200: PublicServiceProfessionalsResponseSchema },
+      },
+    },
+    (request) => {
+      const params = request.params as { slug: string; comboPublicId: string };
+      return options.service.professionalsForCombo(params.slug, params.comboPublicId);
+    },
   );
   app.get(
     '/public/sites/:slug/professionals/:professionalPublicId/services',

@@ -48,6 +48,8 @@ export function PremiumBooking({
     validation,
     servicePublicId,
     selectServiceAndContinue,
+    comboPublicId,
+    selectComboAndContinue,
     professionalPublicId,
     selectProfessionalAndContinue,
     professionals,
@@ -116,6 +118,7 @@ export function PremiumBooking({
     new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1, 12).getTime() >
     new Date(new Date().getFullYear(), new Date().getMonth(), 1, 12).getTime();
   const service = site.services.find((item) => item.publicId === servicePublicId);
+  const selectedCombo = site.combos.find((item) => item.publicId === comboPublicId);
   const index = flow.indexOf(step);
   const title = BOOKING_STEPS.find((item) => item.id === step)?.label ?? '';
   const headings: Record<string, { title: string; subtitle: string }> = {
@@ -165,7 +168,7 @@ export function PremiumBooking({
         <dl className="premium-review-card">
           <div>
             <dt>{site.terminology.service.singular}</dt>
-            <dd>{confirmation.serviceName}</dd>
+            <dd>{confirmation.serviceName ?? confirmation.comboName}</dd>
           </div>
           <div>
             <dt>{site.terminology.professional.singular}</dt>
@@ -328,11 +331,7 @@ export function PremiumBooking({
                             className="premium-pick premium-pick-combo"
                             type="button"
                             style={{ position: 'relative', cursor: 'pointer', border: 'none', background: 'none', padding: 0, width: '100%' }}
-                            onClick={() => {
-                              booking.setComboPublicId(item.publicId);
-                              booking.setServicePublicId('');
-                              booking.goToStep('date');
-                            }}
+                            onClick={() => selectComboAndContinue(item.publicId)}
                           >
                             <ServiceVisual
                               name={item.name}
@@ -695,19 +694,36 @@ export function PremiumBooking({
 
         {step === 'review' ? (
           <dl className="premium-review-card">
-            {service === undefined ? null : (
+            {selectedCombo === undefined ? (
+              service === undefined ? null : (
+                <>
+                  <div>
+                    <dt>{site.terminology.service.singular}</dt>
+                    <dd>{service.name}</dd>
+                  </div>
+                  <div>
+                    <dt>Valor</dt>
+                    <dd>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</dd>
+                  </div>
+                  <div>
+                    <dt>Duração aproximada</dt>
+                    <dd>{service.durationMinutes} min</dd>
+                  </div>
+                </>
+              )
+            ) : (
               <>
                 <div>
                   <dt>{site.terminology.service.singular}</dt>
-                  <dd>{service.name}</dd>
+                  <dd>{selectedCombo.name}</dd>
                 </div>
                 <div>
                   <dt>Valor</dt>
-                  <dd>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</dd>
+                  <dd>{servicePriceLabel(selectedCombo.pricingMode ?? 'FIXED', selectedCombo.priceCents, null)}</dd>
                 </div>
                 <div>
                   <dt>Duração aproximada</dt>
-                  <dd>{service.durationMinutes} min</dd>
+                  <dd>{selectedCombo.durationMinutes} min</dd>
                 </div>
               </>
             )}

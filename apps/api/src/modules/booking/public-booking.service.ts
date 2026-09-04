@@ -62,6 +62,56 @@ export class PublicBookingService {
     });
   }
 
+  public async professionalsForCombo(slug: string, comboPublicId: string) {
+    const tenant = await this.resolveTenant(slug);
+    const site = await this.whiteLabel.publicSite(slug);
+    const combo = site.combos.find((item) => item.publicId === comboPublicId);
+    if (combo === undefined) {
+      throw new AppError({
+        code: 'COMBO_NOT_FOUND',
+        message: 'Combo não encontrado.',
+        statusCode: 404,
+      });
+    }
+
+    // Get service IDs from combo items
+    const servicePublicIds = combo.items.map((item) => item.servicePublicId);
+
+    // Get links for all services in the combo
+    const allLinks = await Promise.all(
+      servicePublicIds.map((serviceId) =>
+        this.professionalServices.listService(tenant.id, serviceId),
+      ),
+    );
+
+    // Professional is eligible only if they have active links to ALL services
+    const linksByService = new Map(
+      servicePublicIds.map((serviceId, index) => [
+        serviceId,
+        new Set(
+          (allLinks[index]?.items ?? [])
+            .filter((link) => link.active)
+            .map((link) => link.professionalPublicId),
+        ),
+      ]),
+    );
+
+    const eligibleProfessionals = site.professionals.filter((professional) =>
+      servicePublicIds.every((serviceId) =>
+        linksByService.get(serviceId)?.has(professional.publicId),
+      ),
+    );
+
+    return PublicServiceProfessionalsResponseSchema.parse({
+      professionals: eligibleProfessionals.map((professional) => ({
+        publicId: professional.publicId,
+        name: professional.name,
+        bio: professional.bio,
+        photoUrl: professional.photoUrl,
+      })),
+    });
+  }
+
   public async servicesForProfessional(slug: string, professionalPublicId: string) {
     const tenant = await this.resolveTenant(slug);
     const [links, site] = await Promise.all([

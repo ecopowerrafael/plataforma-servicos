@@ -91,11 +91,13 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
 
   // Priority: initialEntry > query param > sessionStorage > default
   const serviceFromUrl = new URLSearchParams(window.location.search).get('service');
+  const comboFromUrl = new URLSearchParams(window.location.search).get('combo');
   const professionalFromUrl = new URLSearchParams(window.location.search).get('professional');
 
   const initialService = initialEntry?.type === 'SERVICE'
     ? initialEntry.publicId
     : serviceFromUrl ?? restored.servicePublicId ?? '';
+  const initialCombo = comboFromUrl ?? restored.comboPublicId ?? '';
   const initialProfessional = initialEntry?.type === 'PROFESSIONAL'
     ? initialEntry.publicId
     : professionalFromUrl ?? restored.professionalPublicId ?? '';
@@ -127,7 +129,9 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
   const [servicePublicId, setServicePublicId] = useState(
     site.services.some((item) => item.publicId === initialService) ? initialService : '',
   );
-  const [comboPublicId, setComboPublicId] = useState('');
+  const [comboPublicId, setComboPublicId] = useState(
+    site.combos.some((item) => item.publicId === initialCombo) ? initialCombo : '',
+  );
   const [professionalPublicId, setProfessionalPublicId] = useState(
     site.professionals.some((item) => item.publicId === initialProfessional)
       ? initialProfessional
@@ -225,20 +229,27 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
         step,
         unitPublicId,
         servicePublicId,
+        comboPublicId,
         professionalPublicId,
         date,
         selectedSlot,
       }),
     );
-  }, [date, professionalPublicId, selectedSlot, servicePublicId, step, storageKey, unitPublicId]);
+  }, [date, professionalPublicId, selectedSlot, servicePublicId, comboPublicId, step, storageKey, unitPublicId]);
 
   const professionals = useQuery({
-    queryKey: ['public-booking', slug, 'professionals', servicePublicId],
-    queryFn: () =>
-      httpClient.request(`/public/sites/${slug}/services/${servicePublicId}/professionals`, {
+    queryKey: ['public-booking', slug, 'professionals', servicePublicId, comboPublicId],
+    queryFn: async () => {
+      if (comboPublicId !== '') {
+        return httpClient.request(`/public/sites/${slug}/combos/${comboPublicId}/professionals`, {
+          schema: PublicServiceProfessionalsResponseSchema,
+        });
+      }
+      return httpClient.request(`/public/sites/${slug}/services/${servicePublicId}/professionals`, {
         schema: PublicServiceProfessionalsResponseSchema,
-      }),
-    enabled: servicePublicId !== '',
+      });
+    },
+    enabled: servicePublicId !== '' || comboPublicId !== '',
     retry: false,
   });
 
@@ -257,12 +268,15 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
       slug,
       'availability',
       servicePublicId,
+      comboPublicId,
       professionalPublicId,
       date,
       unitPublicId,
     ],
     queryFn: () => {
-      const query = new URLSearchParams({ date, professionalPublicId, servicePublicId });
+      const query = new URLSearchParams({ date, professionalPublicId });
+      if (servicePublicId !== '') query.set('servicePublicId', servicePublicId);
+      if (comboPublicId !== '') query.set('comboPublicId', comboPublicId);
       if (unitPublicId !== '') query.set('unitPublicId', unitPublicId);
       return httpClient.request(`/public/sites/${slug}/availability?${query.toString()}`, {
         schema: AvailabilityResponseSchema,
@@ -270,7 +284,7 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
     },
     enabled:
       step === 'time' &&
-      servicePublicId !== '' &&
+      (servicePublicId !== '' || comboPublicId !== '') &&
       professionalPublicId !== '' &&
       date !== '' &&
       (site.units.length <= 1 || unitPublicId !== ''),
@@ -288,7 +302,8 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
         method: 'POST',
         body: {
           unitPublicId: unitPublicId === '' ? null : unitPublicId,
-          servicePublicId,
+          servicePublicId: servicePublicId === '' ? null : servicePublicId,
+          comboPublicId: comboPublicId === '' ? null : comboPublicId,
           professionalPublicId,
           startsAt: selectedSlot,
           notes: notes.trim() === '' ? null : notes.trim(),
@@ -337,8 +352,8 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
         setValidation('Escolha a unidade.');
         return;
       }
-      if (servicePublicId === '') {
-        setValidation('Escolha um serviço.');
+      if (servicePublicId === '' && comboPublicId === '') {
+        setValidation('Escolha um serviço ou pacote.');
         return;
       }
       setStep('professional');
@@ -403,6 +418,7 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
 
   const selectService = (id: string) => {
     setServicePublicId(id);
+    setComboPublicId('');
     // Only clear professional if not pre-selected
     if (!isProfessionalPreselected) {
       setProfessionalPublicId('');
@@ -411,6 +427,21 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
   };
   const selectServiceAndContinue = (id: string) => {
     selectService(id);
+    setValidation(null);
+    // If professional is pre-selected, skip to date; otherwise go to professional
+    setStep(isProfessionalPreselected ? 'date' : 'professional');
+  };
+  const selectCombo = (id: string) => {
+    setComboPublicId(id);
+    setServicePublicId('');
+    // Only clear professional if not pre-selected
+    if (!isProfessionalPreselected) {
+      setProfessionalPublicId('');
+    }
+    setSelectedSlot(null);
+  };
+  const selectComboAndContinue = (id: string) => {
+    selectCombo(id);
     setValidation(null);
     // If professional is pre-selected, skip to date; otherwise go to professional
     setStep(isProfessionalPreselected ? 'date' : 'professional');
@@ -459,6 +490,8 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
     selectServiceAndContinue,
     comboPublicId,
     setComboPublicId,
+    selectCombo,
+    selectComboAndContinue,
     professionalPublicId,
     selectProfessional,
     selectProfessionalAndContinue,

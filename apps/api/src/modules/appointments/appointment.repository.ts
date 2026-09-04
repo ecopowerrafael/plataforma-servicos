@@ -4,6 +4,7 @@ const include = {
   customer: { select: { publicId: true, name: true, phone: true } },
   professional: { select: { publicId: true, publicName: true } },
   service: { select: { publicId: true, name: true } },
+  combo: { select: { publicId: true } },
   unit: { select: { publicId: true, name: true } },
   treatmentPlan: { select: { publicId: true } },
 } as const;
@@ -21,6 +22,12 @@ export class AppointmentRepository {
   }
   service(t: bigint, id: string) {
     return this.client.service.findFirst({ where: { tenantId: t, publicId: id, active: true } });
+  }
+  combo(t: bigint, id: string) {
+    return this.client.combo.findFirst({
+      where: { tenantId: t, publicId: id },
+      include: { items: { include: { service: true } } },
+    });
   }
   /** Plano de uma sessão já agendada, para recalcular o progresso. */
   planIdOf(t: bigint, appointmentId: bigint) {

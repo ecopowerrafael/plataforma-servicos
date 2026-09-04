@@ -50,6 +50,8 @@ const pub = (x: AppointmentRecord) =>
     professionalName: x.professional.publicName,
     servicePublicId: x.service?.publicId ?? null,
     serviceName: x.service?.name ?? null,
+    comboPublicId: x.combo?.publicId ?? null,
+    comboName: x.comboNameSnapshot ?? null,
     unitPublicId: x.unit?.publicId ?? null,
     unitName: x.unit?.name ?? null,
     startsAt: x.startsAt.toISOString(),
@@ -492,24 +494,100 @@ export class AppointmentService {
           : { unitPublicId: i.unitPublicId }),
         ...(old === undefined ? {} : { excludeAppointmentId: old.id }),
       });
-    const [customer, professional, service] = await Promise.all([
+    const [customer, professional] = await Promise.all([
       this.repo.customer(t, i.customerPublicId),
       this.repo.professional(t, i.professionalPublicId),
-      this.repo.service(t, i.servicePublicId),
     ]);
-    if (customer === null || professional === null || service === null)
+    if (customer === null || professional === null)
       throw new AppError({
         code: 'APPOINTMENT_RESOURCE_NOT_FOUND',
-        message: 'Cliente, profissional ou serviço inválido.',
+        message: 'Cliente ou profissional inválido.',
         statusCode: 400,
       });
-    const link = await this.repo.link(t, professional.id, service.id);
-    if (link === null)
-      throw new AppError({
-        code: 'PROFESSIONAL_SERVICE_LINK_REQUIRED',
-        message: 'Vínculo profissional-serviço inválido.',
-        statusCode: 400,
-      });
+
+    // Branch on service vs combo
+    let serviceId: bigint | null;
+    let comboId: bigint | null;
+    let duration: number;
+    let pause: number;
+    let priceCents: bigint;
+    let comboNameSnapshot: string | null = null;
+
+    if (i.servicePublicId !== undefined) {
+      // SERVICE path
+      const service = await this.repo.service(t, i.servicePublicId);
+      if (service === null)
+        throw new AppError({
+          code: 'APPOINTMENT_RESOURCE_NOT_FOUND',
+          message: 'Serviço inválido.',
+          statusCode: 400,
+        });
+      const link = await this.repo.link(t, professional.id, service.id);
+      if (link === null)
+        throw new AppError({
+          code: 'PROFESSIONAL_SERVICE_LINK_REQUIRED',
+          message: 'Vínculo profissional-serviço inválido.',
+          statusCode: 400,
+        });
+      serviceId = service.id;
+      comboId = null;
+      duration = link.durationMinutes ?? service.durationMinutes;
+      pause =
+        (link.hasPostServiceBreak ?? service.hasPostServiceBreak)
+          ? (link.postServiceBreakMinutes ?? service.postServiceBreakMinutes)
+          : 0;
+      priceCents = link.priceCents ?? service.priceCents;
+    } else {
+      // COMBO path
+      const combo = await this.repo.combo(t, i.comboPublicId!);
+      if (combo === null || !combo.active)
+        throw new AppError({
+          code: 'COMBO_NOT_FOUND',
+          message: 'Combo inválido ou indisponível.',
+          statusCode: 400,
+        });
+      if (combo.items.length === 0)
+        throw new AppError({
+          code: 'COMBO_EMPTY',
+          message: 'Combo sem itens.',
+          statusCode: 400,
+        });
+      // Validate links and resolve timing
+      const { resolveComboTiming } = await import('@plataforma/shared');
+      const timingItems = [];
+      for (const item of combo.items) {
+        if (!item.service.active)
+          throw new AppError({
+            code: 'COMBO_SERVICE_INACTIVE',
+            message: `Serviço inativo no combo.`,
+            statusCode: 400,
+          });
+        const link = await this.repo.link(t, professional.id, item.serviceId);
+        if (!link?.active)
+          throw new AppError({
+            code: 'COMBO_PROFESSIONAL_INELIGIBLE',
+            message: 'Profissional não elegível para este combo.',
+            statusCode: 400,
+          });
+        timingItems.push({
+          serviceId: item.serviceId,
+          service: {
+            durationMinutes: item.service.durationMinutes,
+            hasPostServiceBreak: item.service.hasPostServiceBreak,
+            postServiceBreakMinutes: item.service.postServiceBreakMinutes,
+          },
+          link: link ?? undefined,
+        });
+      }
+      const timing = resolveComboTiming(timingItems);
+      serviceId = null;
+      comboId = combo.id;
+      duration = timing.durationMinutes;
+      pause = timing.postServiceBreakMinutes;
+      priceCents = combo.priceCents;
+      comboNameSnapshot = combo.name;
+    }
+
     const unit =
       i.unitPublicId === undefined || i.unitPublicId === null
         ? null
@@ -520,11 +598,7 @@ export class AppointmentService {
         message: 'Unidade não encontrada.',
         statusCode: 400,
       });
-    const duration = link.durationMinutes ?? service.durationMinutes;
-    const pause =
-      (link.hasPostServiceBreak ?? service.hasPostServiceBreak)
-        ? (link.postServiceBreakMinutes ?? service.postServiceBreakMinutes)
-        : 0;
+
     const start = new Date(i.startsAt);
     const end = new Date(start.getTime() + (duration + pause) * 60000);
     if (await this.repo.conflict(t, professional.id, start, end, old?.id))
@@ -533,16 +607,33 @@ export class AppointmentService {
         message: 'Há conflito na agenda do profissional.',
         statusCode: 409,
       });
+    // COMBO cannot use treatment plans
+    if (comboId !== null && i.treatmentPlanPublicId !== undefined)
+      throw new AppError({
+        code: 'COMBO_TREATMENT_NOT_SUPPORTED',
+        message: 'Combos não podem ser usados com planos de tratamento.',
+        statusCode: 400,
+      });
+
     // Sessão de tratamento: o preço e a ordem vêm do plano. Avaliação de um
     // serviço sob orçamento nasce sem preço — ele só existe após o orçamento.
     const session =
       i.treatmentPlanPublicId === undefined || this.treatmentPlans === undefined
         ? null
         : await this.treatmentPlans.nextSession(t, i.treatmentPlanPublicId);
-    if (session !== null) {
+
+    if (session !== null && serviceId === null)
+      throw new AppError({
+        code: 'COMBO_TREATMENT_NOT_SUPPORTED',
+        message: 'Combos não podem ser usados com planos de tratamento.',
+        statusCode: 400,
+      });
+
+    if (session !== null && serviceId !== null) {
+      const service = await this.repo.service(t, i.servicePublicId!);
       if (
         session.customerId !== customer.id ||
-        session.serviceId !== service.id ||
+        session.serviceId !== serviceId ||
         session.professionalId !== professional.id
       )
         throw new AppError({
@@ -551,18 +642,19 @@ export class AppointmentService {
           statusCode: 400,
         });
     }
+
+    // Price calculation is already done in branching above, just preserve on reschedule
+    const finalPrice =
+      old !== undefined && (old.treatmentPlanId !== null || old.kind === 'EVALUATION')
+        ? old.priceCents
+        : priceCents;
+
     const kind =
       session !== null
         ? ('TREATMENT_SESSION' as const)
-        : service.pricingMode === 'QUOTE'
+        : serviceId !== null && (await this.repo.service(t, i.servicePublicId!))?.pricingMode === 'QUOTE'
           ? ('EVALUATION' as const)
           : ('STANDARD' as const);
-    const priceCents =
-      // Reagendar uma avaliação ou sessão preserva o valor já acordado.
-      old !== undefined && (old.treatmentPlanId !== null || old.kind === 'EVALUATION')
-        ? old.priceCents
-        : (session?.priceCents ??
-          (kind === 'EVALUATION' ? 0n : (link.priceCents ?? service.priceCents)));
 
     // Resolve membership benefit if applicable
     const tenant = await this.client.tenant.findFirst({
@@ -611,13 +703,15 @@ export class AppointmentService {
     const data = {
       customerId: customer.id,
       professionalId: professional.id,
-      serviceId: service.id,
+      serviceId,
+      comboId,
+      comboNameSnapshot,
       unitId: unit?.id ?? null,
       startsAt: start,
       endsAt: end,
       durationMinutes: duration,
       postServiceBreakMinutes: pause,
-      priceCents,
+      priceCents: finalPrice,
       chargeSource: chargeSource,
       referencePriceCents: referencePriceCents,
       amountDueCents: amountDueCents,

@@ -1,7 +1,7 @@
 import { resolveComboTiming, type ComboItemTiming } from '@plataforma/shared';
 
-import { type ComboRecord, type PrismaComboRepository } from '../services/combo.repository.js';
-import { type ServiceRecord, type PrismaServiceRepository } from '../services/service.repository.js';
+import { type PrismaComboRepository } from '../services/combo.repository.js';
+import { type PrismaServiceRepository } from '../services/service.repository.js';
 import { AppError } from '../../errors/AppError.js';
 
 export type BookingOffering =
@@ -27,6 +27,7 @@ export type BookingOffering =
     };
 
 interface ProfessionalServiceLink {
+  active: boolean;
   durationMinutes: number | null;
   hasPostServiceBreak: boolean | null;
   postServiceBreakMinutes: number | null;
@@ -97,6 +98,7 @@ export async function resolveBookingOffering(
   }
 
   // Combo path
+  if (!comboPublicId) throw new Error('comboPublicId required for combo path');
   const combo = await comboRepository.find(tenantId, comboPublicId);
   if (!combo) {
     throw new AppError({

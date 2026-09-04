@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { AvailabilityResponseSchema, CalendarResponseSchema, isComboBookingInput } from '@plataforma/shared';
+import { AvailabilityResponseSchema, CalendarResponseSchema } from '@plataforma/shared';
 
 import { type AvailabilityRepository } from './availability.repository.js';
 import { AppError } from '../../errors/AppError.js';
@@ -96,6 +96,9 @@ export class AvailabilityService {
     if (input.comboPublicId !== undefined) {
       return this.availableCombo(tenantId, input);
     }
+
+    // SERVICE path: servicePublicId must be defined after XOR check
+    if (!input.servicePublicId) throw new Error('servicePublicId required for service path');
 
     const context = await this.repository.context(
       tenantId,
@@ -389,7 +392,8 @@ export class AvailabilityService {
         statusCode: 400,
       });
     // Load combo
-    const combo = await this.repository.combo(tenantId, input.comboPublicId!);
+    if (!input.comboPublicId) throw new Error('comboPublicId required');
+    const combo = await this.repository.combo(tenantId, input.comboPublicId);
     if (!combo?.active)
       throw new AppError({
         code: 'COMBO_INACTIVE',

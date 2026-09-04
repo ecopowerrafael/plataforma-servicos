@@ -630,7 +630,6 @@ export class AppointmentService {
       });
 
     if (session !== null && serviceId !== null) {
-      const service = await this.repo.service(t, i.servicePublicId!);
       if (
         session.customerId !== customer.id ||
         session.serviceId !== serviceId ||
@@ -649,26 +648,33 @@ export class AppointmentService {
         ? old.priceCents
         : priceCents;
 
-    const kind =
-      session !== null
-        ? ('TREATMENT_SESSION' as const)
-        : serviceId !== null && (await this.repo.service(t, i.servicePublicId!))?.pricingMode === 'QUOTE'
-          ? ('EVALUATION' as const)
-          : ('STANDARD' as const);
+    // For COMBO, kind is always STANDARD (no treatment or evaluation)
+    let kind: 'STANDARD' | 'EVALUATION' | 'TREATMENT_SESSION';
+    if (comboId !== null) {
+      kind = 'STANDARD';
+    } else {
+      const service = await this.repo.service(t, i.servicePublicId!);
+      kind =
+        session !== null
+          ? ('TREATMENT_SESSION' as const)
+          : service?.pricingMode === 'QUOTE'
+            ? ('EVALUATION' as const)
+            : ('STANDARD' as const);
+    }
 
-    // Resolve membership benefit if applicable
+    // Resolve membership benefit if applicable (only for SERVICE)
     const tenant = await this.client.tenant.findFirst({
       where: { id: t },
       select: { operatingModel: true },
     });
     let chargeSource: 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT' | null = null;
-    let referencePriceCents = priceCents;
-    let amountDueCents = priceCents;
+    let referencePriceCents = finalPrice;
+    let amountDueCents = finalPrice;
     let membershipChargeId: bigint | null = null;
 
-    if (tenant?.operatingModel === 'MEMBERSHIP') {
+    if (comboId === null && tenant?.operatingModel === 'MEMBERSHIP' && serviceId !== null) {
       const resolver = new CustomerMembershipBenefitResolver(this.client);
-      const benefit = await resolver.resolveBenefit(t, customer.id, service.id, priceCents);
+      const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
       chargeSource = benefit.chargeSource as 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT';
       referencePriceCents = benefit.referencePriceCents;
       amountDueCents = benefit.amountDueCents;
@@ -729,9 +735,9 @@ export class AppointmentService {
     };
     // For new appointments with membership, use atomic transaction
     let x: AppointmentRecord | null = null;
-    if (old === undefined && chargeSource !== 'SERVICE_PRICE' && membershipChargeId !== null && this.membershipUsage !== undefined) {
+    if (old === undefined && chargeSource !== 'SERVICE_PRICE' && membershipChargeId !== null && this.membershipUsage !== undefined && serviceId !== null) {
       const resolver = new CustomerMembershipBenefitResolver(this.client);
-      const benefit = await resolver.resolveBenefit(t, customer.id, service.id, priceCents);
+      const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
 
       // Use shared transaction for Appointment + Usage consistency
       x = await this.repo.createIfAvailable({
@@ -755,7 +761,7 @@ export class AppointmentService {
               membershipId: charge.membershipId,
               membershipChargeId,
               appointmentId: x.id,
-              serviceId: service.id,
+              serviceId: serviceId!,
               quantity: 1,
               ...(isQuantity ? { quantityLimit: benefit.limit } : {}),
             });

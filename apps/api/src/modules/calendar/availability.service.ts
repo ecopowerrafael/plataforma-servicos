@@ -408,7 +408,11 @@ export class AvailabilityService {
       });
     // Validate all services active and professional has links
     const { resolveComboTiming } = await import('@plataforma/shared');
-    const timingItems = [];
+    const timingItems: Array<{
+      serviceId: bigint;
+      service: { durationMinutes: number; hasPostServiceBreak: boolean; postServiceBreakMinutes: number };
+      link?: { durationMinutes: number | null; hasPostServiceBreak: boolean | null; postServiceBreakMinutes: number | null };
+    }> = [];
     for (const item of combo.items) {
       if (!item.service.active)
         throw new AppError({
@@ -423,15 +427,22 @@ export class AvailabilityService {
           message: `Profissional não está vinculado ao serviço "${item.service.name}".`,
           statusCode: 400,
         });
-      timingItems.push({
+      const timingItem: typeof timingItems[number] = {
         serviceId: item.serviceId,
         service: {
           durationMinutes: item.service.durationMinutes,
           hasPostServiceBreak: item.service.hasPostServiceBreak,
           postServiceBreakMinutes: item.service.postServiceBreakMinutes,
         },
-        link: link ?? undefined,
-      });
+      };
+      if (link) {
+        timingItem.link = {
+          durationMinutes: link.durationMinutes,
+          hasPostServiceBreak: link.hasPostServiceBreak,
+          postServiceBreakMinutes: link.postServiceBreakMinutes,
+        };
+      }
+      timingItems.push(timingItem);
     }
     const timing = resolveComboTiming(timingItems);
     const blockedMinutes = timing.blockedMinutes;

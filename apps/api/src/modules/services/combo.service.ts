@@ -11,6 +11,7 @@ import {
 
 import { type ComboRecord, type PrismaComboRepository } from './combo.repository.js';
 import { type ServiceImageStorage } from './service-image.storage.js';
+import { isProfessionalEligibleForCombo } from '../combos/combo-eligibility.js';
 import { Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
@@ -206,11 +207,12 @@ export class ComboService {
   public async eligibleProfessionals(tenantId: bigint, publicId: string) {
     const combo = await this.repository.find(tenantId, publicId);
     if (combo === null) throw notFound();
-    const serviceIds = combo.items.map((item) => item.serviceId);
-    const links = await this.repository.professionalsLinkedToServices(tenantId, serviceIds);
+    const comboServiceIds = combo.items.map((item) => item.service.publicId);
+    const serviceDbIds = combo.items.map((item) => item.serviceId);
+    const links = await this.repository.professionalsLinkedToServices(tenantId, serviceDbIds);
     const byProfessional = new Map<
       string,
-      { professionalId: bigint; publicId: string; publicName: string; serviceIds: Set<bigint> }
+      { professionalId: bigint; publicId: string; publicName: string; servicePublicIds: Set<string> }
     >();
     for (const link of links) {
       const key = link.professionalId.toString();
@@ -218,13 +220,13 @@ export class ComboService {
         professionalId: link.professionalId,
         publicId: link.professional.publicId,
         publicName: link.professional.publicName,
-        serviceIds: new Set<bigint>(),
+        servicePublicIds: new Set<string>(),
       };
-      entry.serviceIds.add(link.serviceId);
+      entry.servicePublicIds.add(link.service.publicId);
       byProfessional.set(key, entry);
     }
     const eligible = [...byProfessional.values()].filter(
-      (entry) => entry.serviceIds.size === serviceIds.length,
+      (entry) => isProfessionalEligibleForCombo(entry.servicePublicIds, comboServiceIds),
     );
     return ComboEligibleProfessionalsResponseSchema.parse({
       items: eligible.map((entry) => ({ publicId: entry.publicId, publicName: entry.publicName })),

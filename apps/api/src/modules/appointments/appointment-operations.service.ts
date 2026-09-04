@@ -422,15 +422,20 @@ export class AppointmentOperationsService {
 
   private async resolveServiceBreakdown(
     tenantId: bigint,
-    grouped: { serviceId: bigint; _count: { _all: number } }[],
+    grouped: { serviceId: bigint | null; _count: { _all: number } }[],
   ) {
     if (grouped.length === 0) return [];
+    const serviceIds = grouped
+      .map((entry) => entry.serviceId)
+      .filter((id): id is bigint => id !== null);
+    if (serviceIds.length === 0) return [];
     const services = await this.client.service.findMany({
-      where: { tenantId, id: { in: grouped.map((entry) => entry.serviceId) } },
+      where: { tenantId, id: { in: serviceIds } },
       select: { id: true, publicId: true, name: true },
     });
     return grouped
       .map((entry) => {
+        if (entry.serviceId === null) return null;
         const service = services.find((item) => item.id === entry.serviceId);
         return service === undefined
           ? null

@@ -34,7 +34,8 @@ type MovementWithContext = CashMovement & {
     appointment: {
       publicId: string;
       customer: { name: string };
-      service: { name: string };
+      service: { name: string } | null;
+      comboNameSnapshot: string | null;
     } | null;
   } | null;
   user?: { email: string } | null;
@@ -58,6 +59,7 @@ const movementInclude = {
           publicId: true,
           customer: { select: { name: true } },
           service: { select: { name: true } },
+          comboNameSnapshot: true,
         },
       },
     },
@@ -104,8 +106,11 @@ const pubRegister = (
     notes: register.notes,
   });
 
-const pubMovement = (movement: MovementWithContext) =>
-  ({
+const pubMovement = (movement: MovementWithContext) => {
+  const offeringName = movement.payment?.appointment
+    ? movement.payment.appointment.service?.name ?? movement.payment.appointment.comboNameSnapshot ?? null
+    : null;
+  return {
     publicId: movement.publicId,
     type: movement.type,
     direction: movement.direction,
@@ -116,9 +121,10 @@ const pubMovement = (movement: MovementWithContext) =>
     userEmail: movement.user?.email ?? null,
     paymentMethodName: movement.payment?.paymentMethod.name ?? null,
     customerName: movement.payment?.appointment?.customer.name ?? null,
-    serviceName: movement.payment?.appointment?.service.name ?? null,
+    serviceName: offeringName,
     appointmentPublicId: movement.payment?.appointment?.publicId ?? null,
-  }) as const;
+  } as const;
+};
 
 export class CashRegisterService {
   public constructor(private readonly client: PrismaClient) {}

@@ -13,7 +13,14 @@ interface Actor {
 const include = {
   payment: { select: { publicId: true } },
   professional: { select: { publicId: true, name: true } },
-  appointment: { select: { publicId: true, protocol: true, service: { select: { name: true } } } },
+  appointment: {
+    select: {
+      publicId: true,
+      protocol: true,
+      service: { select: { name: true } },
+      comboNameSnapshot: true,
+    },
+  },
 } as const;
 
 interface CommissionWithRelations {
@@ -29,18 +36,19 @@ interface CommissionWithRelations {
   createdAt: Date;
   payment: { publicId: string };
   professional: { publicId: string; name: string };
-  appointment: { publicId: string; protocol: string; service: { name: string } };
+  appointment: { publicId: string; protocol: string; service: { name: string } | null; comboNameSnapshot: string | null };
 }
 
-const pub = (commission: CommissionWithRelations) =>
-  CommissionRecordPublicSchema.parse({
+const pub = (commission: CommissionWithRelations) => {
+  const offeringName = commission.appointment.service?.name ?? commission.appointment.comboNameSnapshot ?? 'Oferta';
+  return CommissionRecordPublicSchema.parse({
     publicId: commission.publicId,
     paymentPublicId: commission.payment.publicId,
     appointmentPublicId: commission.appointment.publicId,
     appointmentProtocol: commission.appointment.protocol,
     professionalPublicId: commission.professional.publicId,
     professionalName: commission.professional.name,
-    serviceName: commission.appointment.service.name,
+    serviceName: offeringName,
     commissionType: commission.commissionType,
     commissionValue: commission.commissionValue,
     ruleSource: commission.ruleSource,
@@ -51,6 +59,7 @@ const pub = (commission: CommissionWithRelations) =>
     canceledReason: commission.canceledReason,
     createdAt: commission.createdAt.toISOString(),
   });
+};
 
 export class ProfessionalCommissionService {
   public constructor(private readonly client: PrismaClient) {}
@@ -65,7 +74,7 @@ export class ProfessionalCommissionService {
   public async recordForPayment(
     tenantId: bigint,
     payment: { id: bigint; amountCents: bigint },
-    appointment: { id: bigint; professionalId: bigint; serviceId: bigint },
+    appointment: { id: bigint; professionalId: bigint; serviceId: bigint | null },
     actor: Actor,
   ) {
     await this.assertEnabled(tenantId);
@@ -74,15 +83,17 @@ export class ProfessionalCommissionService {
         where: { id: appointment.professionalId },
         select: { commissionType: true, commissionValue: true },
       }),
-      this.client.professionalService.findFirst({
-        where: { professionalId: appointment.professionalId, serviceId: appointment.serviceId },
-        select: { commissionType: true, commissionValue: true },
-      }),
+      appointment.serviceId !== null
+        ? this.client.professionalService.findFirst({
+            where: { professionalId: appointment.professionalId, serviceId: appointment.serviceId },
+            select: { commissionType: true, commissionValue: true },
+          })
+        : Promise.resolve(null),
     ]);
     if (professional === null) return;
 
     const rule =
-      override?.commissionType != null && override.commissionValue != null
+      appointment.serviceId !== null && override?.commissionType != null && override.commissionValue != null
         ? {
             type: override.commissionType,
             value: override.commissionValue,

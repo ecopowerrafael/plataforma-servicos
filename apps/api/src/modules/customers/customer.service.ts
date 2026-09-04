@@ -90,7 +90,8 @@ function buildTimeline(
     appointment: {
       publicId: string;
       source: string;
-      service: { name: string };
+      service: { name: string } | null;
+      comboNameSnapshot?: string | null;
       professional: { publicName: string };
     };
   }[],
@@ -100,7 +101,7 @@ function buildTimeline(
     createdAt: Date;
     appointment: { publicId: string } | null;
   }[],
-  reviews: { rating: number; comment: string | null; createdAt: Date; service: { name: string } }[],
+  reviews: { rating: number; comment: string | null; createdAt: Date; service: { name: string } | null }[],
   loyalty: { type: string; direction: string; amount: bigint; createdAt: Date }[],
 ) {
   const entries: {
@@ -112,7 +113,8 @@ function buildTimeline(
     amountCents: string | null;
   }[] = [];
   for (const entry of history) {
-    const context = `${entry.appointment.service.name} · ${entry.appointment.professional.publicName}`;
+    const offeringName = entry.appointment.service?.name ?? entry.appointment.comboNameSnapshot ?? 'Atendimento';
+    const context = offeringName !== null ? `${offeringName} · ${entry.appointment.professional.publicName}` : entry.appointment.professional.publicName;
     if (entry.action === 'CREATED')
       entries.push({
         kind: 'APPOINTMENT_CREATED',
@@ -166,7 +168,7 @@ function buildTimeline(
       kind: 'REVIEW',
       at: review.createdAt.toISOString(),
       title: `Avaliação ${String(review.rating)}/5`,
-      description: review.comment ?? review.service.name,
+      description: review.comment ?? review.service?.name ?? null,
       appointmentPublicId: null,
       amountCents: null,
     });
@@ -420,10 +422,13 @@ export class CustomerService {
         noShowCount: appointmentValues.filter((item) => item.status === 'NO_SHOW').length,
         nextAppointment,
         lastCompleted: completed[0] ?? null,
-        recurringServices: rank(completed, (item) => ({
-          publicId: item.servicePublicId,
-          name: item.serviceName,
-        })),
+        recurringServices: rank(
+          completed.filter((item) => item.servicePublicId !== null),
+          (item) => ({
+            publicId: item.servicePublicId!,
+            name: item.serviceName!,
+          }),
+        ),
         recurringProfessionals: rank(completed, (item) => ({
           publicId: item.professionalPublicId,
           name: item.professionalName,

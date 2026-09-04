@@ -158,13 +158,9 @@ export function PremiumApp({
               </header>
               <div className="premium-service-grid">
                 {site.combos.slice(0, 4).map((combo) => (
-                  <button
+                  <article
                     key={combo.publicId}
                     className="premium-service-card"
-                    type="button"
-                    onClick={() => {
-                      setTab('booking');
-                    }}
                   >
                     <ServiceVisual
                       name={combo.name}
@@ -174,7 +170,7 @@ export function PremiumApp({
                     <strong>{combo.name}</strong>
                     <small>A partir de</small>
                     <b>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</b>
-                  </button>
+                  </article>
                 ))}
               </div>
             </section>
@@ -320,13 +316,9 @@ export function PremiumApp({
             </header>
             <div className="premium-service-list">
               {site.combos.map((combo) => (
-                <button
+                <article
                   key={combo.publicId}
                   className="premium-service-row"
-                  type="button"
-                  onClick={() => {
-                    setTab('booking');
-                  }}
                 >
                   <ServiceVisual
                     name={combo.name}
@@ -341,7 +333,7 @@ export function PremiumApp({
                     <b>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</b>
                     <small>{combo.durationMinutes} min</small>
                   </span>
-                </button>
+                </article>
               ))}
             </div>
           </section>

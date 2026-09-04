@@ -267,12 +267,6 @@ export function PublicTenantPage() {
                           <strong>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</strong>
                           <span>{`${String(combo.durationMinutes)} min`}</span>
                         </div>
-                        <a
-                          className="public-service-cta"
-                          href="#agendar"
-                        >
-                          Ver detalhes
-                        </a>
                       </div>
                     </article>
                   ))}

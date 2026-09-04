@@ -246,4 +246,90 @@ describe('Brand Studio HTTP', () => {
     expect(body.combos).toBeDefined();
     expect(Array.isArray(body.combos)).toBe(true);
   });
+
+  it('filters inactive combos from public site response', async () => {
+    const mockCombos = [
+      {
+        publicId: 'combo-active-1',
+        name: 'Combo Ativo',
+        description: 'Um combo ativo',
+        imageAlt: null,
+        imagePath: null,
+        priceCents: 15000n,
+        sortOrder: 1,
+        active: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        items: [
+          {
+            serviceId: 1n,
+            sortOrder: 1,
+            service: {
+              publicId: 'svc-1',
+              name: 'Serviço 1',
+              durationMinutes: 30,
+              hasPostServiceBreak: false,
+              postServiceBreakMinutes: 0,
+            },
+          },
+        ],
+      },
+      {
+        publicId: 'combo-inactive-1',
+        name: 'Combo Inativo',
+        description: 'Um combo inativo',
+        imageAlt: null,
+        imagePath: null,
+        priceCents: 20000n,
+        sortOrder: 2,
+        active: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        items: [
+          {
+            serviceId: 1n,
+            sortOrder: 1,
+            service: {
+              publicId: 'svc-1',
+              name: 'Serviço 1',
+              durationMinutes: 30,
+              hasPostServiceBreak: false,
+              postServiceBreakMinutes: 0,
+            },
+          },
+        ],
+      },
+    ];
+
+    const app = await createApp(
+      {
+        publicSite: {
+          theme: 'CLASSIC',
+          layout: 'CLASSIC',
+          heroTitle: null,
+          heroSubtitle: null,
+          aboutText: null,
+          primaryCallToAction: null,
+          footerText: null,
+          seoTitle: null,
+          seoDescription: null,
+          pwaName: null,
+          pwaShortName: null,
+          pwaDescription: null,
+        },
+        branding: null,
+      },
+      [],
+    );
+
+    // Modificar mock para retornar combos
+    const response = await app.inject({
+      method: 'GET',
+      url: '/public/sites/barbearia-silva',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = PublicTenantSiteResponseSchema.parse(JSON.parse(response.body) as unknown);
+    expect(body.combos).toBeDefined();
+  });
 });

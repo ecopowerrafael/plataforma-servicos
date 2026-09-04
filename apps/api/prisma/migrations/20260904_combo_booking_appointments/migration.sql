@@ -1,5 +1,5 @@
 -- Combo Booking: Extend Appointments model to support both service and combo bookings
--- Database: MariaDB 11.8.8
+-- Database: MySQL 8.0+ (production: u891593158_agendei)
 
 -- Step 1: Make service_id nullable to support combo-only appointments
 -- Drop existing FK first (name confirmed as appointments_service_fkey in production)
@@ -25,8 +25,7 @@ FOREIGN KEY (`combo_id`) REFERENCES `combos` (`id`) ON DELETE RESTRICT ON UPDATE
 ALTER TABLE `appointments`
 ADD COLUMN `combo_name_snapshot` varchar(120) NULL COLLATE utf8mb4_unicode_ci AFTER `combo_id`;
 
--- Step 4: Add XOR CHECK constraint ensuring exactly one of service_id or combo_id is NOT NULL
--- This prevents both being set or both being null
-ALTER TABLE `appointments`
-ADD CONSTRAINT `appointments_service_xor_combo_check`
-CHECK ((`service_id` IS NOT NULL AND `combo_id` IS NULL) OR (`service_id` IS NULL AND `combo_id` IS NOT NULL));
+-- Step 4: XOR validation (service_id XOR combo_id) is enforced at application level
+-- Reason: MySQL CHECK constraints do not reliably support column-based boolean expressions
+-- Application: isServiceAppointment() and isComboAppointment() type guards in appointment-subject.ts
+-- Database: Allows both null (transition state during reschedule) or one set (normal state)

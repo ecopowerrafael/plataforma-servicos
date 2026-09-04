@@ -137,6 +137,14 @@ export async function resolveBookingOffering(
   const timingItems: ComboItemTiming[] = [];
   for (const item of combo.items) {
     const link = await linkLoader(tenantId, professionalId, item.serviceId);
+    if (!link?.active) {
+      throw new AppError({
+        code: 'COMBO_PROFESSIONAL_INELIGIBLE',
+        message: `Profissional não está vinculado ao serviço "${item.service.name}" do combo.`,
+        statusCode: 400,
+      });
+    }
+
     timingItems.push({
       serviceId: item.serviceId,
       service: {

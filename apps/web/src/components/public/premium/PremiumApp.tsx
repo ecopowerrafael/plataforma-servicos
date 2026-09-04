@@ -168,8 +168,11 @@ export function PremiumApp({
                       iconKey={null}
                     />
                     <strong>{combo.name}</strong>
+                    {combo.items.length > 0 ? (
+                      <small style={{ opacity: 0.7 }}>{combo.items.map((item) => item.name).join(' • ')}</small>
+                    ) : null}
                     <small>A partir de</small>
-                    <b>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</b>
+                    <b>{servicePriceLabel('FIXED', combo.priceCents, null)}</b>
                   </article>
                 ))}
               </div>
@@ -327,10 +330,13 @@ export function PremiumApp({
                   />
                   <span>
                     <strong>{combo.name}</strong>
+                    {combo.items.length > 0 ? (
+                      <small style={{ opacity: 0.7 }}>{combo.items.map((item) => item.name).join(' • ')}</small>
+                    ) : null}
                     {combo.description === null ? null : <small>{combo.description}</small>}
                   </span>
                   <span className="premium-service-meta">
-                    <b>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</b>
+                    <b>{servicePriceLabel('FIXED', combo.priceCents, null)}</b>
                     <small>{combo.durationMinutes} min</small>
                   </span>
                 </article>

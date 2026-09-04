@@ -248,59 +248,6 @@ describe('Brand Studio HTTP', () => {
   });
 
   it('filters inactive combos from public site response', async () => {
-    const mockCombos = [
-      {
-        publicId: 'combo-active-1',
-        name: 'Combo Ativo',
-        description: 'Um combo ativo',
-        imageAlt: null,
-        imagePath: null,
-        priceCents: 15000n,
-        sortOrder: 1,
-        active: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        items: [
-          {
-            serviceId: 1n,
-            sortOrder: 1,
-            service: {
-              publicId: 'svc-1',
-              name: 'Serviço 1',
-              durationMinutes: 30,
-              hasPostServiceBreak: false,
-              postServiceBreakMinutes: 0,
-            },
-          },
-        ],
-      },
-      {
-        publicId: 'combo-inactive-1',
-        name: 'Combo Inativo',
-        description: 'Um combo inativo',
-        imageAlt: null,
-        imagePath: null,
-        priceCents: 20000n,
-        sortOrder: 2,
-        active: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        items: [
-          {
-            serviceId: 1n,
-            sortOrder: 1,
-            service: {
-              publicId: 'svc-1',
-              name: 'Serviço 1',
-              durationMinutes: 30,
-              hasPostServiceBreak: false,
-              postServiceBreakMinutes: 0,
-            },
-          },
-        ],
-      },
-    ];
-
     const app = await createApp(
       {
         publicSite: {
@@ -322,7 +269,63 @@ describe('Brand Studio HTTP', () => {
       [],
     );
 
-    // Modificar mock para retornar combos
+    // Mock findPublicTenant para retornar combos reais (ativo e inativo)
+    const mockRepository = await (app as any).repository;
+    mockRepository.findPublicTenant.mockResolvedValueOnce({
+      id: 41n,
+      publicId: '11111111-1111-4111-8111-111111111111',
+      slug: 'barbearia-silva',
+      displayName: 'Barbearia Silva',
+      businessProfile: 'BARBERSHOP',
+      branding: null,
+      terminology: null,
+      publicSite: {
+        theme: 'CLASSIC',
+        layout: 'CLASSIC',
+        heroTitle: null,
+        heroSubtitle: null,
+        aboutText: null,
+        primaryCallToAction: null,
+        footerText: null,
+        seoTitle: null,
+        seoDescription: null,
+        pwaName: null,
+        pwaShortName: null,
+        pwaDescription: null,
+      },
+      mediaAssets: [],
+      services: [],
+      professionals: [],
+      businessUnits: [],
+      combos: [
+        {
+          publicId: 'combo-active-1',
+          name: 'Combo Ativo',
+          description: 'Um combo ativo',
+          imageAlt: null,
+          imagePath: null,
+          priceCents: 15000n,
+          sortOrder: 1,
+          active: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          items: [
+            {
+              serviceId: 1n,
+              sortOrder: 1,
+              service: {
+                publicId: 'svc-1',
+                name: 'Serviço 1',
+                durationMinutes: 30,
+                hasPostServiceBreak: false,
+                postServiceBreakMinutes: 0,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
     const response = await app.inject({
       method: 'GET',
       url: '/public/sites/barbearia-silva',
@@ -331,5 +334,10 @@ describe('Brand Studio HTTP', () => {
     expect(response.statusCode).toBe(200);
     const body = PublicTenantSiteResponseSchema.parse(JSON.parse(response.body) as unknown);
     expect(body.combos).toBeDefined();
+    expect(Array.isArray(body.combos)).toBe(true);
+    expect(body.combos.length).toBe(1);
+    expect(body.combos[0]?.name).toBe('Combo Ativo');
+    expect(body.combos[0]?.items.length).toBe(1);
+    expect(body.combos[0]?.items[0]?.name).toBe('Serviço 1');
   });
 });

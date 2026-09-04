@@ -263,8 +263,13 @@ export function PublicTenantPage() {
                       <div className="public-service-body">
                         <h3>{combo.name}</h3>
                         {combo.description === null ? null : <p>{combo.description}</p>}
+                        {combo.items.length > 0 ? (
+                          <p style={{ fontSize: '0.875rem', color: 'var(--tenant-muted)' }}>
+                            {combo.items.map((item) => item.name).join(' • ')}
+                          </p>
+                        ) : null}
                         <div className="public-service-meta">
-                          <strong>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</strong>
+                          <strong>{servicePriceLabel('FIXED', combo.priceCents, null)}</strong>
                           <span>{`${String(combo.durationMinutes)} min`}</span>
                         </div>
                       </div>

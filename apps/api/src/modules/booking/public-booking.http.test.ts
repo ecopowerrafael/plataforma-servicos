@@ -327,5 +327,49 @@ describe('Bidirectional symmetry', () => {
       expect(servicesForProfessional).toContain(serviceId);
     }
   });
+});
 
+describe('Image URL format regression', () => {
+  it('accepts imageUrl in /public/services format with query params', async () => {
+    const { app, slug, professionalId, mocks } = await fixture();
+
+    // Mock with real imageUrl format from publicSite()
+    // publicSite() transforms imagePath into /public/services/{uuid}/image?variant=thumbnail
+    const serviceWithImage = {
+      publicId: '11111111-1111-4111-8111-111111111111',
+      name: 'Service with Image',
+      description: 'Service description',
+      imageUrl: '/public/services/11111111-1111-4111-8111-111111111111/image?variant=thumbnail',
+      iconKey: null,
+      priceCents: '5000',
+      pricingMode: 'FIXED' as const,
+      quoteNotice: null,
+      durationMinutes: 60,
+    };
+
+    mocks.whiteLabel.publicSite.mockResolvedValueOnce({
+      publicId: '77777777-7777-4777-8777-777777777777',
+      slug,
+      displayName: 'Example Tenant',
+      professionals: [],
+      services: [serviceWithImage],
+      combos: [],
+      unit: null,
+      units: [],
+      bookingAvailable: true,
+      unavailableMessage: null,
+      pwaPublished: false,
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/public/sites/${slug}/professionals/${professionalId}/services`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const data = JSON.parse(response.body);
+    // No ZodError should occur; schema accepts /public format
+    expect(data).toHaveProperty('services');
+    expect(data.services[0].imageUrl).toBe('/public/services/11111111-1111-4111-8111-111111111111/image?variant=thumbnail');
+  });
 });

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { ImageUrlSchema } from './public-booking.js';
+
 const ServiceColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/u);
 const MoneyInputSchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const MoneyPublicSchema = z.string().regex(/^\d+$/u);
@@ -84,10 +86,7 @@ export const ServicePublicSchema = z
     categoryPublicId: z.uuid().nullable(),
     categoryName: z.string().nullable().optional(),
     enabledProfessionalCount: z.number().int().nonnegative().optional(),
-    imageUrl: z
-      .string()
-      .regex(/^\/tenant\/services\/[0-9a-f-]{36}\/image$/iu)
-      .nullable(),
+    imageUrl: ImageUrlSchema,
     durationMinutes: z.number().int(),
     hasPostServiceBreak: z.boolean(),
     postServiceBreakMinutes: z.number().int(),

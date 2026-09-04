@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { ImageUrlSchema } from './public-booking.js';
+
 const MoneyInputSchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const MoneyPublicSchema = z.string().regex(/^\d+$/u);
 
@@ -54,10 +56,7 @@ export const ComboPublicSchema = z
     name: z.string(),
     description: z.string().nullable(),
     imageAlt: z.string().nullable(),
-    imageUrl: z
-      .string()
-      .regex(/^\/tenant\/combos\/[0-9a-f-]{36}\/image$/iu)
-      .nullable(),
+    imageUrl: ImageUrlSchema,
     priceCents: MoneyPublicSchema,
     sortOrder: z.number().int(),
     active: z.boolean(),

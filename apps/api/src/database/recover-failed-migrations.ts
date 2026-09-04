@@ -321,8 +321,24 @@ async function main(): Promise<void> {
           continue;
         }
 
+        // Se já foi rolled back anteriormente, marcar como applied para Prisma reaplicar
         if (state?.rolled_back_at) {
-          console.warn('[combo booking migration recovery] Migration já foi rolled back; skipping.');
+          console.warn('[combo booking migration recovery] Migration estava rolled back de deploy anterior. Marcando como applied para Prisma reaplicar.');
+          const result = spawnSync(
+            'npx',
+            ['prisma', 'migrate', 'resolve', '--applied', migration.migration_name],
+            {
+              stdio: 'inherit',
+              env: { ...process.env, DATABASE_URL: url },
+              shell: process.platform === 'win32',
+              cwd: resolve(import.meta.dirname, '../../'),
+            },
+          );
+          if (result.status !== 0)
+            throw new Error(
+              `Não foi possível marcar a migration ${migration.migration_name} como applied.`,
+            );
+          console.warn('[combo booking migration recovery] Migration marcada como applied: ✓');
           continue;
         }
 

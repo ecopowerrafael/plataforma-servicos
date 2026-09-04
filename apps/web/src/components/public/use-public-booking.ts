@@ -24,6 +24,7 @@ export type BookingProfessional = z.infer<
 >['professionals'][number];
 export type PublicBookingEntry =
   | { type: 'SERVICE'; publicId: string }
+  | { type: 'COMBO'; publicId: string }
   | { type: 'PROFESSIONAL'; publicId: string }
   | null;
 
@@ -97,7 +98,9 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
   const initialService = initialEntry?.type === 'SERVICE'
     ? initialEntry.publicId
     : serviceFromUrl ?? restored.servicePublicId ?? '';
-  const initialCombo = comboFromUrl ?? restored.comboPublicId ?? '';
+  const initialCombo = initialEntry?.type === 'COMBO'
+    ? initialEntry.publicId
+    : comboFromUrl ?? restored.comboPublicId ?? '';
   const initialProfessional = initialEntry?.type === 'PROFESSIONAL'
     ? initialEntry.publicId
     : professionalFromUrl ?? restored.professionalPublicId ?? '';
@@ -110,7 +113,7 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
 
   // Determine initial step based on entry type
   let initialStep: BookingStep;
-  if (initialEntry?.type === 'SERVICE') {
+  if (initialEntry?.type === 'SERVICE' || initialEntry?.type === 'COMBO') {
     initialStep = 'professional';
   } else if (initialEntry?.type === 'PROFESSIONAL') {
     initialStep = 'service';

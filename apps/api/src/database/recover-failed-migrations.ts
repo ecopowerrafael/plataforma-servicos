@@ -308,7 +308,7 @@ async function main(): Promise<void> {
 
         // Verificar estado: deve ter applied_steps_count = 0 (nenhum passo foi aplicado)
         const currentState = await client.$queryRaw<
-          { migration_name: string; applied_steps_count: number; finished_at: Date | null; rolled_back_at: Date | null }[]
+          { migration_name: string; applied_steps_count: number | bigint | string; finished_at: Date | null; rolled_back_at: Date | null }[]
         >`
           SELECT migration_name, applied_steps_count, finished_at, rolled_back_at
           FROM _prisma_migrations
@@ -326,7 +326,24 @@ async function main(): Promise<void> {
           continue;
         }
 
-        if (state?.applied_steps_count === 0) {
+        // Normalizar applied_steps_count: MariaDB pode retornar bigint/string em runtime
+        const appliedStepsCountRaw = state?.applied_steps_count;
+        const appliedStepsCount = Number(appliedStepsCountRaw);
+
+        if (!Number.isFinite(appliedStepsCount) || !Number.isInteger(appliedStepsCount) || appliedStepsCount < 0) {
+          console.warn(
+            `[combo booking migration recovery] applied_steps_count inválido (raw=${appliedStepsCountRaw}, normalized=${appliedStepsCount}). Abortando.`,
+          );
+          throw new Error(
+            `Migration 20260904_combo_booking_appointments: invalid applied_steps_count=${appliedStepsCountRaw}`,
+          );
+        }
+
+        console.warn(
+          `[combo booking migration recovery] applied_steps_count: raw=${appliedStepsCountRaw}, normalized=${appliedStepsCount}`,
+        );
+
+        if (appliedStepsCount === 0) {
           console.warn(
             '[combo booking migration recovery] Migration falhou com applied_steps_count=0. Marcando como rolled-back para reaplicação.',
           );
@@ -348,10 +365,10 @@ async function main(): Promise<void> {
           continue;
         } else {
           console.warn(
-            '[combo booking migration recovery] applied_steps_count > 0; schema está parcialmente aplicado. Abortando para inspeção manual.',
+            `[combo booking migration recovery] applied_steps_count=${appliedStepsCount} > 0; schema está parcialmente aplicado. Abortando para inspeção manual.`,
           );
           throw new Error(
-            'Migration 20260904_combo_booking_appointments: partial application detected (applied_steps_count > 0). Manual investigation required.',
+            `Migration 20260904_combo_booking_appointments: partial application detected (applied_steps_count=${appliedStepsCount}). Manual investigation required.`,
           );
         }
       }

@@ -74,7 +74,7 @@ export class AppointmentNotificationService {
     await this.dispatcher.dispatch(tenantId, customer.id, kind, appointment.publicId, {
       customerName: appointment.customerName,
       protocol: appointment.protocol,
-      serviceName: appointment.serviceName,
+      serviceName: appointment.serviceName ?? '',
       professionalName: appointment.professionalName,
       when: formatWhen(appointment.startsAt, timeZone),
       date: formatAppointmentDate(appointment.startsAt, timeZone),

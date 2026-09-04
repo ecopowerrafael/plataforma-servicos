@@ -1135,16 +1135,20 @@ export class WhatsAppAssistantService {
     appointment: Awaited<ReturnType<AppointmentService['getForCustomer']>>,
   ): Promise<string[]> {
     if (this.availability === undefined) return [];
+    // Combos (servicePublicId === null) não suportam reschedule com verificação de disponibilidade
+    if (appointment.servicePublicId === null) return [];
+
     const tenant = await this.repository.tenantName(tenantId);
     const timezone = tenant?.timezone ?? 'UTC';
     const candidates = followingDates(timezone, 7);
+    const servicePublicId = appointment.servicePublicId;
     const results = await Promise.all(
       candidates.map(async (date) => {
         try {
           const availability = await this.availability?.available(tenantId, {
             date,
             professionalPublicId: appointment.professionalPublicId,
-            servicePublicId: appointment.servicePublicId,
+            servicePublicId,
             ...(appointment.unitPublicId === null ? {} : { unitPublicId: appointment.unitPublicId }),
           });
           return availability?.slots.some((slot) => slot.state === 'AVAILABLE') === true ? date : null;
@@ -1162,6 +1166,9 @@ export class WhatsAppAssistantService {
     date: string,
   ): Promise<string[]> {
     if (this.availability === undefined) return [];
+    // Combos (servicePublicId === null) não suportam reschedule com verificação de disponibilidade
+    if (appointment.servicePublicId === null) return [];
+
     try {
       const availability = await this.availability.available(tenantId, {
         date,
@@ -1476,12 +1483,13 @@ export class WhatsAppAssistantService {
     );
   }
 
-  private async showAppointment(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversationId: bigint, phone: string, appointment: { publicId: string; startsAt: string; serviceName: string; professionalName: string; priceCents: string; status: string }, customerId: bigint) {
+  private async showAppointment(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversationId: bigint, phone: string, appointment: { publicId: string; startsAt: string; serviceName: string | null; professionalName: string; priceCents: string; status: string }, customerId: bigint) {
     const tenant = await this.repository.tenantName(input.tenantId);
     const timezone = tenant?.timezone ?? 'UTC';
     const status: Record<string, string> = { PENDING: 'Pendente', CONFIRMED: 'Confirmado', IN_PROGRESS: 'Em atendimento' };
     const value = (Number(appointment.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: tenant?.currency ?? 'BRL' });
-    const message = `Seu próximo agendamento:\n\n📅 ${formatAppointmentDate(appointment.startsAt, timezone)}\n🕐 ${formatAppointmentTime(appointment.startsAt, timezone)}\n✂️ ${appointment.serviceName}\n👤 ${appointment.professionalName}\n💰 ${value}\nStatus: ${status[appointment.status] ?? 'Agendado'}`;
+    const serviceName = appointment.serviceName ?? 'Atendimento';
+    const message = `Seu próximo agendamento:\n\n📅 ${formatAppointmentDate(appointment.startsAt, timezone)}\n🕐 ${formatAppointmentTime(appointment.startsAt, timezone)}\n✂️ ${serviceName}\n👤 ${appointment.professionalName}\n💰 ${value}\nStatus: ${status[appointment.status] ?? 'Agendado'}`;
     await this.repository.updateConversation(conversationId, { customerId, currentFlow: 'BOOKING_QUERY', currentStep: 'BOOKING_DETAILS', context: { appointmentPublicId: appointment.publicId } });
     await this.dispatchCustomButtons(input, phone, message, BOOKING_ACTIONS.map((action) => ({ buttonId: action.actionId, label: action.label })), conversationId);
   }

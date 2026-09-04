@@ -60,6 +60,28 @@ async function fixture() {
     listProfessional: vi.fn().mockResolvedValue({ items: [mockLink] }),
   };
 
+  const mockCombo = {
+    publicId: '99999999-9999-4999-8999-999999999999',
+    name: 'Service Combo',
+    description: 'Combo com serviço único',
+    imageAlt: null,
+    imageUrl: null,
+    priceCents: '8000',
+    sortOrder: 1,
+    active: true,
+    durationMinutes: 60,
+    items: [
+      {
+        servicePublicId: serviceId,
+        name: 'Service Name',
+        sortOrder: 1,
+        durationMinutes: 60,
+        hasPostServiceBreak: false,
+        postServiceBreakMinutes: 0,
+      },
+    ],
+  };
+
   const whiteLabelMock = {
     publicSite: vi.fn().mockResolvedValue({
       publicId: '77777777-7777-4777-8777-777777777777',
@@ -67,7 +89,7 @@ async function fixture() {
       displayName: 'Example Tenant',
       professionals: [mockProfessional],
       services: [mockService],
-      combos: [],
+      combos: [mockCombo],
       unit: null,
       units: [{ publicId: unitId, name: 'Unit 1', isHeadquarters: true }],
       bookingAvailable: true,
@@ -272,4 +294,38 @@ describe('Existing endpoint still works', () => {
     expect(data).toHaveProperty('professionals');
     expect(Array.isArray(data.professionals)).toBe(true);
   });
+});
+
+describe('Bidirectional symmetry', () => {
+  it('if service→professionals contains P, then professional→services contains S', async () => {
+    const { app, slug, serviceId, professionalId, mocks } = await fixture();
+
+    // Get professionals for service
+    const serviceResponse = await app.inject({
+      method: 'GET',
+      url: `/public/sites/${slug}/services/${serviceId}/professionals`,
+    });
+
+    expect(serviceResponse.statusCode).toBe(200);
+    const serviceData = JSON.parse(serviceResponse.body);
+    const professionalsForService = serviceData.professionals.map(
+      (p: any) => p.publicId,
+    );
+
+    // For each professional in the result, get their services
+    for (const profPublicId of professionalsForService) {
+      const profResponse = await app.inject({
+        method: 'GET',
+        url: `/public/sites/${slug}/professionals/${profPublicId}/services`,
+      });
+
+      expect(profResponse.statusCode).toBe(200);
+      const profData = JSON.parse(profResponse.body);
+      const servicesForProfessional = profData.services.map((s: any) => s.publicId);
+
+      // Verify bidirectional: if P is in service→professionals, S must be in professional→services
+      expect(servicesForProfessional).toContain(serviceId);
+    }
+  });
+
 });

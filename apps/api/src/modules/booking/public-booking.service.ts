@@ -70,20 +70,43 @@ export class PublicBookingService {
     const eligible = new Set(
       links.items.filter((link) => link.active).map((link) => link.servicePublicId),
     );
+
+    // Get services for professional
+    const services = site.services
+      .filter((service) => eligible.has(service.publicId))
+      .map((service) => ({
+        publicId: service.publicId,
+        name: service.name,
+        description: service.description,
+        imageUrl: service.imageUrl,
+        iconKey: service.iconKey,
+        priceCents: service.priceCents,
+        pricingMode: service.pricingMode,
+        quoteNotice: service.quoteNotice,
+        durationMinutes: service.durationMinutes,
+      }));
+
+    // Get eligible combos: professional must have ALL services in combo
+    // (site.combos already filtered to active only by whiteLabel.publicSite)
+    const combos = site.combos.filter((combo) =>
+      // Professional must have all services in combo
+      combo.items.every((item) => eligible.has(item.servicePublicId)),
+    )
+      .map((combo) => ({
+        publicId: combo.publicId,
+        name: combo.name,
+        description: combo.description,
+        imageAlt: combo.imageAlt,
+        imageUrl: combo.imageUrl,
+        priceCents: combo.priceCents,
+        sortOrder: combo.sortOrder,
+        items: combo.items,
+        durationMinutes: combo.durationMinutes,
+      }));
+
     return PublicProfessionalServicesResponseSchema.parse({
-      services: site.services
-        .filter((service) => eligible.has(service.publicId))
-        .map((service) => ({
-          publicId: service.publicId,
-          name: service.name,
-          description: service.description,
-          imageUrl: service.imageUrl,
-          iconKey: service.iconKey,
-          priceCents: service.priceCents,
-          pricingMode: service.pricingMode,
-          quoteNotice: service.quoteNotice,
-          durationMinutes: service.durationMinutes,
-        })),
+      services,
+      combos,
     });
   }
 

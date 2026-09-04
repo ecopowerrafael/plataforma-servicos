@@ -259,38 +259,126 @@ export function PremiumBooking({
                 ))}
               </div>
             ) : null}
-            <div className="premium-pick-list">
-              {(initialEntry?.type === 'PROFESSIONAL' && professionalPublicId !== ''
-                ? professionalServices.data?.services ?? []
-                : site.services
-              ).map((item) => (
-                <button
-                  key={item.publicId}
-                  className={`premium-pick${servicePublicId === item.publicId ? ' is-selected' : ''}`}
-                  type="button"
-                  aria-pressed={servicePublicId === item.publicId}
-                  onClick={() => {
-                    selectServiceAndContinue(item.publicId);
-                  }}
-                >
-                  <ServiceVisual
-                    name={item.name}
-                    imageUrl={item.imageUrl}
-                    iconKey={item.iconKey}
-                  />
-                  <span className="premium-pick-body">
-                    <strong>{item.name}</strong>
-                    <small>
-                      {servicePriceLabel(item.pricingMode, item.priceCents, item.quoteNotice)}
-                      {` · ${String(item.durationMinutes)} min`}
-                    </small>
-                  </span>
-                  <span className="premium-pick-check" aria-hidden="true">
-                    ✓
-                  </span>
-                </button>
-              ))}
-            </div>
+            {initialEntry?.type === 'PROFESSIONAL' && professionalPublicId !== '' ? (
+              professionalServices.isPending ? (
+                <div className="premium-pick-list">
+                  {[1, 2, 3].map((item) => (
+                    <div key={item} className="premium-skeleton" />
+                  ))}
+                </div>
+              ) : professionalServices.isError ? (
+                <div className="premium-empty">
+                  <strong>Não foi possível carregar os atendimentos</strong>
+                  <p>Tente novamente em alguns instantes.</p>
+                </div>
+              ) : (professionalServices.data?.services?.length ?? 0) +
+                  (professionalServices.data?.combos?.length ?? 0) ===
+                0 ? (
+                <div className="premium-empty">
+                  <strong>Nenhum atendimento disponível</strong>
+                  <p>Este profissional não possui atendimentos no momento.</p>
+                </div>
+              ) : (
+                <>
+                  {(professionalServices.data?.services ?? []).length > 0 ? (
+                    <>
+                      <h4 className="premium-section-title">Serviços</h4>
+                      <div className="premium-pick-list">
+                        {(professionalServices.data?.services ?? []).map((item) => (
+                          <button
+                            key={item.publicId}
+                            className={`premium-pick${servicePublicId === item.publicId ? ' is-selected' : ''}`}
+                            type="button"
+                            aria-pressed={servicePublicId === item.publicId}
+                            onClick={() => {
+                              selectServiceAndContinue(item.publicId);
+                            }}
+                          >
+                            <ServiceVisual
+                              name={item.name}
+                              imageUrl={item.imageUrl}
+                              iconKey={item.iconKey}
+                            />
+                            <span className="premium-pick-body">
+                              <strong>{item.name}</strong>
+                              <small>
+                                {servicePriceLabel(
+                                  item.pricingMode,
+                                  item.priceCents,
+                                  item.quoteNotice,
+                                )}
+                                {` · ${String(item.durationMinutes)} min`}
+                              </small>
+                            </span>
+                            <span className="premium-pick-check" aria-hidden="true">
+                              ✓
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  {(professionalServices.data?.combos ?? []).length > 0 ? (
+                    <>
+                      <h4 className="premium-section-title">Combos</h4>
+                      <div className="premium-pick-list">
+                        {(professionalServices.data?.combos ?? []).map((item) => (
+                          <div
+                            key={item.publicId}
+                            className="premium-pick premium-pick-combo"
+                            style={{ opacity: 0.6, pointerEvents: 'none' }}
+                            title="Booking de combo será disponível em breve"
+                          >
+                            <ServiceVisual
+                              name={item.name}
+                              imageUrl={item.imageUrl}
+                              iconKey={undefined}
+                            />
+                            <span className="premium-pick-body">
+                              <strong>{item.name}</strong>
+                              <small>
+                                {item.items.map((s) => s.name).join(' + ')}
+                                {` · R$ ${(Number(item.priceCents) / 100).toLocaleString('pt-BR')} · ${String(item.durationMinutes)} min`}
+                              </small>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </>
+              )
+            ) : (
+              <div className="premium-pick-list">
+                {site.services.map((item) => (
+                  <button
+                    key={item.publicId}
+                    className={`premium-pick${servicePublicId === item.publicId ? ' is-selected' : ''}`}
+                    type="button"
+                    aria-pressed={servicePublicId === item.publicId}
+                    onClick={() => {
+                      selectServiceAndContinue(item.publicId);
+                    }}
+                  >
+                    <ServiceVisual
+                      name={item.name}
+                      imageUrl={item.imageUrl}
+                      iconKey={item.iconKey}
+                    />
+                    <span className="premium-pick-body">
+                      <strong>{item.name}</strong>
+                      <small>
+                        {servicePriceLabel(item.pricingMode, item.priceCents, item.quoteNotice)}
+                        {` · ${String(item.durationMinutes)} min`}
+                      </small>
+                    </span>
+                    <span className="premium-pick-check" aria-hidden="true">
+                      ✓
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         ) : null}
 

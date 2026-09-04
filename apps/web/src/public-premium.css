@@ -196,10 +196,21 @@
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
 }
 .premium-professional {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
   display: grid;
+  font: inherit;
   gap: 0.35rem;
   justify-items: center;
+  padding: 0;
   text-align: center;
+}
+.premium-professional:hover,
+.premium-professional:focus-visible {
+  opacity: 0.8;
 }
 .premium-avatar {
   align-items: center;

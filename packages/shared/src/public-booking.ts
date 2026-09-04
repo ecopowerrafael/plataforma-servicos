@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { ComboPublicDisplaySchema } from './combo.js';
 import { TenantSlugSchema } from './tenant.js';
 
 export const PublicServiceProfessionalSchema = z.object({
@@ -25,6 +26,7 @@ export const PublicProfessionalServiceSchema = z.object({
 });
 export const PublicProfessionalServicesResponseSchema = z.object({
   services: z.array(PublicProfessionalServiceSchema),
+  combos: z.array(ComboPublicDisplaySchema),
 });
 
 const PublicBookingCustomerInputSchema = z

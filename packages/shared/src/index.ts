@@ -20,6 +20,7 @@ export * from './service-category.js';
 export * from './service-variation.js';
 export * from './combo.js';
 export * from './combo-timing.js';
+export * from './booking-offering-input.js';
 export * from './professional.js';
 export * from './professional-service.js';
 export * from './professional-commission.js';

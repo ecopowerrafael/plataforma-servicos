@@ -45,21 +45,35 @@ const PublicBookingCustomerInputSchema = z
     'Informe telefone ou e-mail para contato.',
   );
 
-export const CreatePublicBookingRequestSchema = z
+// Discriminated union: exactly one of servicePublicId or comboPublicId
+const CreateServiceBookingRequestSchema = z
   .object({
     unitPublicId: z.uuid().nullable().optional(),
-    servicePublicId: z.uuid().optional(),
-    comboPublicId: z.uuid().optional(),
+    servicePublicId: z.uuid(),
+    comboPublicId: z.never().optional(),
     professionalPublicId: z.uuid(),
     startsAt: z.iso.datetime({ offset: true }),
     notes: z.string().trim().max(2000).nullable().optional(),
     customer: PublicBookingCustomerInputSchema,
   })
-  .strict()
-  .refine(
-    (value) => (value.servicePublicId !== undefined) !== (value.comboPublicId !== undefined),
-    'Informe exatamente um: servicePublicId ou comboPublicId.',
-  );
+  .strict();
+
+const CreateComboBookingRequestSchema = z
+  .object({
+    unitPublicId: z.uuid().nullable().optional(),
+    servicePublicId: z.never().optional(),
+    comboPublicId: z.uuid(),
+    professionalPublicId: z.uuid(),
+    startsAt: z.iso.datetime({ offset: true }),
+    notes: z.string().trim().max(2000).nullable().optional(),
+    customer: PublicBookingCustomerInputSchema,
+  })
+  .strict();
+
+export const CreatePublicBookingRequestSchema = z.union([
+  CreateServiceBookingRequestSchema,
+  CreateComboBookingRequestSchema,
+]);
 
 export const PublicBookingConfirmationSchema = z.object({
   protocol: z.string(),

@@ -1,19 +1,29 @@
 import { z } from 'zod';
 
 const DateSchema = z.iso.date();
-const QuerySchema = z
+
+// Discriminated union: exactly one of servicePublicId or comboPublicId
+const ServiceQuerySchema = z
   .object({
     date: DateSchema,
     professionalPublicId: z.uuid(),
-    servicePublicId: z.uuid().optional(),
-    comboPublicId: z.uuid().optional(),
+    servicePublicId: z.uuid(),
+    comboPublicId: z.never().optional(),
     unitPublicId: z.uuid().optional(),
   })
-  .strict()
-  .refine(
-    (value) => (value.servicePublicId !== undefined) !== (value.comboPublicId !== undefined),
-    'Informe exatamente um: servicePublicId ou comboPublicId.',
-  );
+  .strict();
+
+const ComboQuerySchema = z
+  .object({
+    date: DateSchema,
+    professionalPublicId: z.uuid(),
+    servicePublicId: z.never().optional(),
+    comboPublicId: z.uuid(),
+    unitPublicId: z.uuid().optional(),
+  })
+  .strict();
+
+const QuerySchema = z.union([ServiceQuerySchema, ComboQuerySchema]);
 
 export const AvailabilityQuerySchema = QuerySchema;
 export const CalendarQuerySchema = z

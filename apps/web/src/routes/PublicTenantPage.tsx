@@ -272,6 +272,12 @@ export function PublicTenantPage() {
                           <strong>{servicePriceLabel('FIXED', combo.priceCents, null)}</strong>
                           <span>{`${String(combo.durationMinutes)} min`}</span>
                         </div>
+                        <a
+                          className="public-service-cta"
+                          href={`?combo=${combo.publicId}#agendar`}
+                        >
+                          Agendar horário
+                        </a>
                       </div>
                     </article>
                   ))}

@@ -34,7 +34,7 @@ function pub(
       amountCents: bigint;
       createdAt: Date;
       paymentMethod: { name: string };
-      appointment: { protocol: string; customer: { name: string }; service: { name: string } } | null;
+      appointment: { protocol: string; customer: { name: string }; service: { name: string } | null } | null;
     };
   },
   tenant: { legalName: string; displayName: string },
@@ -43,6 +43,12 @@ function pub(
     throw new AppError({
       code: 'RECEIPT_INVALID_PAYMENT_ORIGIN',
       message: 'Apenas pagamentos relacionados a agendamentos permitem recibo.',
+      statusCode: 400,
+    });
+  if (receipt.payment.appointment.service === null)
+    throw new AppError({
+      code: 'RECEIPT_COMBO_NOT_SUPPORTED',
+      message: 'Recibos para agendamentos de combos não são suportados nesta versão.',
       statusCode: 400,
     });
   return ReceiptPublicSchema.parse({

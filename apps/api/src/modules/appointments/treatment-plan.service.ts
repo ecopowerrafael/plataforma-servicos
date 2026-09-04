@@ -120,7 +120,13 @@ export class TreatmentPlanService {
       });
     if (professionalId !== undefined && appointment.professionalId !== professionalId)
       throw planNotFound();
-    if (appointment.kind !== 'EVALUATION' || appointment.service.pricingMode !== 'QUOTE')
+    if (appointment.serviceId === null)
+      throw new AppError({
+        code: 'TREATMENT_PLAN_COMBO_NOT_SUPPORTED',
+        message: 'Planos de tratamento para agendamentos de combos não são suportados nesta versão.',
+        statusCode: 400,
+      });
+    if (appointment.kind !== 'EVALUATION' || appointment.service!.pricingMode !== 'QUOTE')
       throw new AppError({
         code: 'TREATMENT_PLAN_REQUIRES_EVALUATION',
         message: 'Só é possível definir orçamento a partir de uma avaliação.',

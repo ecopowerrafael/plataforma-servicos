@@ -55,6 +55,12 @@ export class AppointmentReviewService {
   ) {
     const appointment = await this.appointments.find(tenantId, appointmentPublicId);
     if (appointment?.customerId !== customerId) throw notFound();
+    if (appointment.serviceId === null)
+      throw new AppError({
+        code: 'APPOINTMENT_REVIEW_COMBO_NOT_SUPPORTED',
+        message: 'Avaliações para agendamentos de combos não são suportadas nesta versão.',
+        statusCode: 400,
+      });
     if (appointment.status !== 'COMPLETED')
       throw new AppError({
         code: 'APPOINTMENT_REVIEW_NOT_ALLOWED',

@@ -98,8 +98,8 @@ export const CustomerCrmAppointmentSchema = z.object({
   unitName: z.string().nullable(),
 });
 const CustomerCrmRankingSchema = z.object({
-  publicId: z.uuid(),
-  name: z.string(),
+  publicId: z.uuid().nullable(),
+  name: z.string().nullable(),
   count: z.number().int().positive(),
 });
 export const CustomerCrmTimelineEntrySchema = z.object({

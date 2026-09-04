@@ -354,8 +354,8 @@ export class CustomerService {
       status: appointment.status,
       professionalPublicId: appointment.professional.publicId,
       professionalName: appointment.professional.publicName,
-      servicePublicId: appointment.service.publicId,
-      serviceName: appointment.service.name,
+      servicePublicId: appointment.service?.publicId ?? null,
+      serviceName: appointment.service?.name ?? null,
       unitPublicId: appointment.unit?.publicId ?? null,
       unitName: appointment.unit?.name ?? null,
     }));

@@ -2204,7 +2204,7 @@ model Appointment {
   professionalId          BigInt                          @map("professional_id") @db.UnsignedBigInt
   serviceId               BigInt?                         @map("service_id") @db.UnsignedBigInt
   comboId                 BigInt?                         @map("combo_id") @db.UnsignedBigInt
-  comboPublicId           String?                         @map("combo_public_id") @db.Char(36)
+  comboNameSnapshot       String?                         @map("combo_name_snapshot") @db.VarChar(120)
   unitId                  BigInt?                         @map("unit_id") @db.UnsignedBigInt
   startsAt                DateTime                        @map("starts_at") @db.DateTime(3)
   endsAt                  DateTime                        @map("ends_at") @db.DateTime(3)

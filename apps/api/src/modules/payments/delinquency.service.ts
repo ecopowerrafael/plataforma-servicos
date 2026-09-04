@@ -91,7 +91,7 @@ export class DelinquencyService {
           professionalName: appointment.professional.name,
           unitPublicId: appointment.unit?.publicId ?? null,
           unitName: appointment.unit?.name ?? null,
-          serviceName: appointment.service.name,
+          serviceName: appointment.service?.name ?? 'Oferta',
           priceCents: appointment.priceCents.toString(),
           netPriceCents: netPriceCents(appointment.priceCents, discountCents).toString(),
           discountCents: discountCents.toString(),

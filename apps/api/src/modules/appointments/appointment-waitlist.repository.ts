@@ -147,6 +147,7 @@ export class AppointmentWaitlistRepository {
           where: { id: appointmentId, tenantId: t, status: 'CANCELED', unitId: { not: null } },
         });
         if (appointment?.unitId === null || appointment === null) return null;
+        if (appointment.serviceId === null) return null;
         const tenant = await tx.tenant.findUniqueOrThrow({
           where: { id: t },
           select: { timezone: true },

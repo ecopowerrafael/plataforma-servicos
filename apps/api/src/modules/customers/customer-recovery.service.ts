@@ -113,7 +113,7 @@ export class CustomerRecoveryService {
                     Math.floor((now.getTime() - match.referenceAt.getTime()) / 86_400_000),
                     0,
                   ),
-            lastServiceName: last?.service.name ?? null,
+            lastServiceName: last?.service?.name ?? null,
             lastProfessionalName: last?.professional.publicName ?? null,
             nextAppointmentAt: next?.startsAt.toISOString() ?? null,
           },

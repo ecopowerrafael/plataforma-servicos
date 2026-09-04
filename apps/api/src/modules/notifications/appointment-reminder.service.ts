@@ -96,7 +96,7 @@ export class AppointmentReminderService {
           {
             customerName: appointment.customer.name,
             protocol: appointment.protocol,
-            serviceName: appointment.service.name,
+            serviceName: appointment.service?.name ?? appointment.comboNameSnapshot ?? 'Oferta',
             professionalName: appointment.professional.publicName,
             when: formatWhen(startsAtIso, tenant.timezone),
             date: formatAppointmentDate(startsAtIso, tenant.timezone),
@@ -197,7 +197,7 @@ export class AppointmentReminderService {
           {
             customerName: appointment.customer.name,
             protocol: appointment.protocol,
-            serviceName: appointment.service.name,
+            serviceName: appointment.service?.name ?? appointment.comboNameSnapshot ?? 'Oferta',
             professionalName: appointment.professional.publicName,
             when: formatWhen(startsAtIso, tenant.timezone),
             date: formatAppointmentDate(startsAtIso, tenant.timezone),

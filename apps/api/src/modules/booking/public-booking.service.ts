@@ -3,6 +3,7 @@ import {
   type CreatePublicBookingRequest,
   PublicBookingConfirmationSchema,
   PublicServiceProfessionalsResponseSchema,
+  PublicProfessionalServicesResponseSchema,
 } from '@plataforma/shared';
 
 import { AppError } from '../../errors/AppError.js';
@@ -56,6 +57,32 @@ export class PublicBookingService {
           name: professional.name,
           bio: professional.bio,
           photoUrl: professional.photoUrl,
+        })),
+    });
+  }
+
+  public async servicesForProfessional(slug: string, professionalPublicId: string) {
+    const tenant = await this.resolveTenant(slug);
+    const [links, site] = await Promise.all([
+      this.professionalServices.listProfessional(tenant.id, professionalPublicId),
+      this.whiteLabel.publicSite(slug),
+    ]);
+    const eligible = new Set(
+      links.items.filter((link) => link.active).map((link) => link.servicePublicId),
+    );
+    return PublicProfessionalServicesResponseSchema.parse({
+      services: site.services
+        .filter((service) => eligible.has(service.publicId))
+        .map((service) => ({
+          publicId: service.publicId,
+          name: service.name,
+          description: service.description,
+          imageUrl: service.imageUrl,
+          iconKey: service.iconKey,
+          priceCents: service.priceCents,
+          pricingMode: service.pricingMode,
+          quoteNotice: service.quoteNotice,
+          durationMinutes: service.durationMinutes,
         })),
     });
   }

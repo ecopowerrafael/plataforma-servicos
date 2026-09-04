@@ -12,6 +12,21 @@ export const PublicServiceProfessionalsResponseSchema = z.object({
   professionals: z.array(PublicServiceProfessionalSchema),
 });
 
+export const PublicProfessionalServiceSchema = z.object({
+  publicId: z.uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  imageUrl: z.string().regex(/^\/tenant\/services\/[0-9a-f-]{36}\/image$/iu).nullable(),
+  iconKey: z.string().nullable(),
+  priceCents: z.string().regex(/^\d+$/u),
+  pricingMode: z.enum(['FIXED', 'QUOTE']),
+  quoteNotice: z.string().nullable(),
+  durationMinutes: z.number().int(),
+});
+export const PublicProfessionalServicesResponseSchema = z.object({
+  services: z.array(PublicProfessionalServiceSchema),
+});
+
 const PublicBookingCustomerInputSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
@@ -50,6 +65,9 @@ export const PublicBookingConfirmationSchema = z.object({
 export const PublicBookingSlugParamsSchema = z.object({ slug: TenantSlugSchema }).strict();
 export const PublicBookingServiceParamsSchema = PublicBookingSlugParamsSchema.extend({
   servicePublicId: z.uuid(),
+}).strict();
+export const PublicProfessionalServicesParamsSchema = PublicBookingSlugParamsSchema.extend({
+  professionalPublicId: z.uuid(),
 }).strict();
 
 export type CreatePublicBookingRequest = z.infer<typeof CreatePublicBookingRequestSchema>;

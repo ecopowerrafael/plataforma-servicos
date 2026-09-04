@@ -5,6 +5,8 @@ import {
   PublicBookingConfirmationSchema,
   PublicBookingServiceParamsSchema,
   PublicBookingSlugParamsSchema,
+  PublicProfessionalServicesParamsSchema,
+  PublicProfessionalServicesResponseSchema,
   PublicServiceProfessionalsResponseSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -25,6 +27,21 @@ export const publicBookingRoutes: FastifyPluginAsyncZod<{
     },
     (request) =>
       options.service.professionalsForService(request.params.slug, request.params.servicePublicId),
+  );
+  app.get(
+    '/public/sites/:slug/professionals/:professionalPublicId/services',
+    {
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: PublicProfessionalServicesParamsSchema,
+        response: { 200: PublicProfessionalServicesResponseSchema },
+      },
+    },
+    (request) =>
+      options.service.servicesForProfessional(
+        request.params.slug,
+        request.params.professionalPublicId,
+      ),
   );
   app.get(
     '/public/sites/:slug/availability',

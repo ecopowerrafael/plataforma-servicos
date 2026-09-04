@@ -88,5 +88,24 @@ export const ComboEligibleProfessionalsResponseSchema = z.object({
   items: z.array(ComboEligibleProfessionalSchema),
 });
 
+/**
+ * Schema para combos expostos na API pública (/public/sites/:slug).
+ * Exclui campos administrativos: active, createdAt, updatedAt.
+ */
+export const ComboPublicDisplaySchema = z
+  .object({
+    publicId: z.uuid(),
+    name: z.string(),
+    description: z.string().nullable(),
+    imageAlt: z.string().nullable(),
+    imageUrl: z.string().nullable(),
+    priceCents: MoneyPublicSchema,
+    sortOrder: z.number().int(),
+    items: z.array(ComboItemPublicSchema),
+    durationMinutes: z.number().int(),
+  })
+  .strict();
+
 export type CreateComboRequest = z.infer<typeof CreateComboRequestSchema>;
 export type UpdateComboRequest = z.infer<typeof UpdateComboRequestSchema>;
+export type ComboPublicDisplay = z.infer<typeof ComboPublicDisplaySchema>;

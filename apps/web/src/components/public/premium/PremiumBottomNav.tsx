@@ -1,6 +1,6 @@
 import { IconCalendarEvent, IconHome, IconPlus, IconScissors, IconUser } from '@tabler/icons-react';
 
-export type PremiumTab = 'home' | 'appointments' | 'booking' | 'services' | 'profile';
+export type PremiumTab = 'home' | 'appointments' | 'booking' | 'services' | 'combos' | 'profile';
 
 const items = [
   { id: 'home', label: 'Início', Icon: IconHome },

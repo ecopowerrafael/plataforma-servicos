@@ -247,6 +247,38 @@ export function PublicTenantPage() {
                 </a>
               )}
             </section>
+            {site.data.combos.length === 0 ? null : (
+              <section className="public-section">
+                <h2>Combos</h2>
+                <div className="public-service-grid">
+                  {site.data.combos.map((combo) => (
+                    <article key={combo.publicId} className="public-service-card">
+                      <div className="public-service-media">
+                        {combo.imageUrl === null ? (
+                          <span aria-hidden="true">{combo.name.slice(0, 1)}</span>
+                        ) : (
+                          <img src={mediaUrl(combo.imageUrl)} alt={combo.imageAlt ?? combo.name} />
+                        )}
+                      </div>
+                      <div className="public-service-body">
+                        <h3>{combo.name}</h3>
+                        {combo.description === null ? null : <p>{combo.description}</p>}
+                        <div className="public-service-meta">
+                          <strong>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</strong>
+                          <span>{`${String(combo.durationMinutes)} min`}</span>
+                        </div>
+                        <a
+                          className="public-service-cta"
+                          href="#agendar"
+                        >
+                          Ver detalhes
+                        </a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
             {site.data.services.length === 0 ? null : (
               <section className="public-section">
                 <h2>{site.data.terminology.service.plural}</h2>

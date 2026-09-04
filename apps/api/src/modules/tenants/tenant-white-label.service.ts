@@ -351,6 +351,16 @@ export class TenantWhiteLabelService {
     return this.professionalImages.read(photoPath, variant);
   }
 
+  public async publicComboImage(
+    publicId: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ) {
+    const combo = await this.repository.findPublicComboImage(publicId);
+    const imagePath = combo?.imagePath;
+    if (imagePath === undefined || imagePath === null) throw publicImageNotFound();
+    return this.serviceImages.read(imagePath, variant);
+  }
+
   public async publicSite(slug: string) {
     const tenant = await this.repository.findPublicTenant(slug);
     if (tenant === null) throw notFound();
@@ -358,6 +368,14 @@ export class TenantWhiteLabelService {
     const { bookingAvailable, unavailableMessage } = await this.resolveBookingAvailability(
       tenant.id,
     );
+    // Calcula a duração total de um combo somando a duração de todos os seus itens
+    const calculateComboDuration = (items: typeof tenant.combos[number]['items']) => {
+      return items.reduce((total, item) => {
+        const duration = item.service.durationMinutes;
+        const breakTime = item.service.hasPostServiceBreak ? item.service.postServiceBreakMinutes : 0;
+        return total + duration + breakTime;
+      }, 0);
+    };
     return PublicTenantSiteResponseSchema.parse({
       publicId: tenant.publicId,
       slug: tenant.slug,
@@ -389,6 +407,25 @@ export class TenantWhiteLabelService {
           professional.photoPath === null
             ? null
             : `/public/professionals/${professional.publicId}/image?variant=thumbnail`,
+      })),
+      combos: tenant.combos.map((combo) => ({
+        publicId: combo.publicId,
+        name: combo.name,
+        description: combo.description,
+        imageAlt: combo.imageAlt,
+        imageUrl:
+          combo.imagePath === null ? null : `/public/combos/${combo.publicId}/image?variant=thumbnail`,
+        priceCents: combo.priceCents.toString(),
+        sortOrder: combo.sortOrder,
+        items: combo.items.map((item) => ({
+          servicePublicId: item.service.publicId,
+          name: item.service.name,
+          sortOrder: item.sortOrder,
+          durationMinutes: item.service.durationMinutes,
+          hasPostServiceBreak: item.service.hasPostServiceBreak,
+          postServiceBreakMinutes: item.service.postServiceBreakMinutes,
+        })),
+        durationMinutes: calculateComboDuration(combo.items),
       })),
       unit:
         tenant.businessUnits[0] === undefined

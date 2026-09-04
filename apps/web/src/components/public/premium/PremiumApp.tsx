@@ -141,6 +141,45 @@ export function PremiumApp({
             style={heroStyle as React.CSSProperties | undefined}
           />
 
+          {site.combos.length > 0 ? (
+            <section className="premium-section">
+              <header>
+                <h2>Combos</h2>
+                {site.combos.length > 4 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab('combos');
+                    }}
+                  >
+                    Ver todos
+                  </button>
+                ) : null}
+              </header>
+              <div className="premium-service-grid">
+                {site.combos.slice(0, 4).map((combo) => (
+                  <button
+                    key={combo.publicId}
+                    className="premium-service-card"
+                    type="button"
+                    onClick={() => {
+                      setTab('booking');
+                    }}
+                  >
+                    <ServiceVisual
+                      name={combo.name}
+                      imageUrl={combo.imageUrl}
+                      iconKey={null}
+                    />
+                    <strong>{combo.name}</strong>
+                    <small>A partir de</small>
+                    <b>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</b>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {site.services.length > 0 ? (
             <section className="premium-section">
               <header>
@@ -270,6 +309,42 @@ export function PremiumApp({
               <small>Adicione o aplicativo à tela inicial do seu celular</small>
             </footer>
           ) : null}
+        </main>
+      ) : null}
+
+      {tab === 'combos' ? (
+        <main className="premium-main">
+          <section className="premium-section">
+            <header>
+              <h2>Combos</h2>
+            </header>
+            <div className="premium-service-list">
+              {site.combos.map((combo) => (
+                <button
+                  key={combo.publicId}
+                  className="premium-service-row"
+                  type="button"
+                  onClick={() => {
+                    setTab('booking');
+                  }}
+                >
+                  <ServiceVisual
+                    name={combo.name}
+                    imageUrl={combo.imageUrl}
+                    iconKey={null}
+                  />
+                  <span>
+                    <strong>{combo.name}</strong>
+                    {combo.description === null ? null : <small>{combo.description}</small>}
+                  </span>
+                  <span className="premium-service-meta">
+                    <b>{`R$ ${(Number(combo.priceCents) / 100).toFixed(2).replace('.', ',')}`}</b>
+                    <small>{combo.durationMinutes} min</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
         </main>
       ) : null}
 

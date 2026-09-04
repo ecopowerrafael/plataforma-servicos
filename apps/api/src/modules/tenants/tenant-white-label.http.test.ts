@@ -51,6 +51,7 @@ async function createApp(
       mediaAssets: [],
       services: [],
       professionals: [],
+      combos: [],
       businessUnits,
     }),
     listAssets: vi.fn().mockResolvedValue([]),
@@ -211,5 +212,38 @@ describe('Brand Studio HTTP', () => {
       googleMapsUrl: 'https://maps.app.goo.gl/local',
     });
     expect(body.units).toHaveLength(1);
+  });
+
+  it('includes combos array in the public site response', async () => {
+    const app = await createApp(
+      {
+        publicSite: {
+          theme: 'CLASSIC',
+          layout: 'CLASSIC',
+          heroTitle: null,
+          heroSubtitle: null,
+          aboutText: null,
+          primaryCallToAction: null,
+          footerText: null,
+          seoTitle: null,
+          seoDescription: null,
+          pwaName: null,
+          pwaShortName: null,
+          pwaDescription: null,
+        },
+        branding: null,
+      },
+      [],
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/public/sites/barbearia-silva',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = PublicTenantSiteResponseSchema.parse(JSON.parse(response.body) as unknown);
+    expect(body.combos).toBeDefined();
+    expect(Array.isArray(body.combos)).toBe(true);
   });
 });

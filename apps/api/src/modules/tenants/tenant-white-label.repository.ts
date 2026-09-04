@@ -221,6 +221,26 @@ export class TenantWhiteLabelRepository {
           where: { active: true },
           orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         },
+        combos: {
+          where: { active: true },
+          include: {
+            items: {
+              orderBy: { sortOrder: 'asc' },
+              include: {
+                service: {
+                  select: {
+                    publicId: true,
+                    name: true,
+                    durationMinutes: true,
+                    hasPostServiceBreak: true,
+                    postServiceBreakMinutes: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        },
         businessUnits: {
           where: { status: 'ACTIVE' },
           orderBy: [{ isHeadquarters: 'desc' }, { name: 'asc' }],
@@ -259,6 +279,13 @@ export class TenantWhiteLabelRepository {
     return this.client.professional.findFirst({
       where: { publicId, active: true, tenant: { status: 'ACTIVE' } },
       select: { photoPath: true },
+    });
+  }
+
+  public findPublicComboImage(publicId: string) {
+    return this.client.combo.findFirst({
+      where: { publicId, active: true, tenant: { status: 'ACTIVE' } },
+      select: { imagePath: true },
     });
   }
 

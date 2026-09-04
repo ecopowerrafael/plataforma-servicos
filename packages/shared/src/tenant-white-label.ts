@@ -6,6 +6,7 @@ import {
   TenantBrandingSchema,
 } from './business-profile.js';
 import { ServicePricingModeSchema } from './service.js';
+import { ComboPublicDisplaySchema } from './combo.js';
 import { TenantPublicIdSchema, TenantSlugOutputSchema, TenantSlugSchema } from './tenant.js';
 
 export const TenantMediaKindSchema = z.enum([
@@ -111,6 +112,7 @@ export const PublicTenantSiteResponseSchema = z.object({
       photoUrl: z.string().nullable(),
     }),
   ),
+  combos: z.array(ComboPublicDisplaySchema),
   unit: z
     .object({
       name: z.string(),

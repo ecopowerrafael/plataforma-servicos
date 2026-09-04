@@ -48,13 +48,18 @@ const PublicBookingCustomerInputSchema = z
 export const CreatePublicBookingRequestSchema = z
   .object({
     unitPublicId: z.uuid().nullable().optional(),
-    servicePublicId: z.uuid(),
+    servicePublicId: z.uuid().optional(),
+    comboPublicId: z.uuid().optional(),
     professionalPublicId: z.uuid(),
     startsAt: z.iso.datetime({ offset: true }),
     notes: z.string().trim().max(2000).nullable().optional(),
     customer: PublicBookingCustomerInputSchema,
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => (value.servicePublicId !== undefined) !== (value.comboPublicId !== undefined),
+    'Informe exatamente um: servicePublicId ou comboPublicId.',
+  );
 
 export const PublicBookingConfirmationSchema = z.object({
   protocol: z.string(),
@@ -62,7 +67,8 @@ export const PublicBookingConfirmationSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED', 'NO_SHOW']),
   startsAt: z.iso.datetime({ offset: true }),
   endsAt: z.iso.datetime({ offset: true }),
-  serviceName: z.string(),
+  serviceName: z.string().nullable(),
+  comboName: z.string().nullable(),
   professionalName: z.string(),
   unitName: z.string().nullable(),
   customerName: z.string(),

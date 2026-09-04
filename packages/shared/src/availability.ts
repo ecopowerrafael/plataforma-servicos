@@ -5,10 +5,15 @@ const QuerySchema = z
   .object({
     date: DateSchema,
     professionalPublicId: z.uuid(),
-    servicePublicId: z.uuid(),
+    servicePublicId: z.uuid().optional(),
+    comboPublicId: z.uuid().optional(),
     unitPublicId: z.uuid().optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => (value.servicePublicId !== undefined) !== (value.comboPublicId !== undefined),
+    'Informe exatamente um: servicePublicId ou comboPublicId.',
+  );
 
 export const AvailabilityQuerySchema = QuerySchema;
 export const CalendarQuerySchema = z

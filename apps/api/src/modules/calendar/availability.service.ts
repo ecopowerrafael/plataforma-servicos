@@ -8,7 +8,8 @@ import { AppError } from '../../errors/AppError.js';
 interface Input {
   date: string;
   professionalPublicId: string;
-  servicePublicId: string;
+  servicePublicId?: string | undefined;
+  comboPublicId?: string | undefined;
   unitPublicId?: string | undefined;
   excludeAppointmentId?: bigint | undefined;
 }

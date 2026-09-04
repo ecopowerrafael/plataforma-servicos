@@ -23,7 +23,9 @@ interface Actor {
 interface Input {
   customerPublicId: string;
   professionalPublicId: string;
-  servicePublicId: string;
+  servicePublicId?: string | undefined;
+  comboPublicId?: string | undefined;
+  comboNameSnapshot?: string | undefined;
   unitPublicId?: string | null | undefined;
   startsAt: string;
   notes?: string | null | undefined;
@@ -471,10 +473,19 @@ export class AppointmentService {
   }
   private async save(t: bigint, i: Input, a: Actor, old?: AppointmentRecord) {
     const isFitIn = i.isFitIn === true;
+    // Validate XOR: service OR combo, not both
+    if ((i.servicePublicId !== undefined) === (i.comboPublicId !== undefined))
+      throw new AppError({
+        code: 'APPOINTMENT_OFFERING_REQUIRED',
+        message: 'Informe exatamente um: serviço ou combo.',
+        statusCode: 400,
+      });
+
     if (!isFitIn)
       await this.availability.assertSlot(t, {
         professionalPublicId: i.professionalPublicId,
         servicePublicId: i.servicePublicId,
+        comboPublicId: i.comboPublicId,
         startsAt: i.startsAt,
         ...(i.unitPublicId === undefined || i.unitPublicId === null
           ? {}

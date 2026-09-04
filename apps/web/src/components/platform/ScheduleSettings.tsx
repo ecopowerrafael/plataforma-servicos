@@ -1,6 +1,7 @@
-import { PlatformTenantDetailResponseSchema, TenantSettingsInputSchema } from '@plataforma/shared';
+import { PlatformTenantDetailResponseSchema, PlatformTenantSettingsUpdateResponseSchema, TenantSettingsInputSchema } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
 import { ErrorState } from './PlatformUi.js';
@@ -45,7 +46,7 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
           dateFormat: tenant?.settings.dateFormat ?? 'DD/MM/YYYY',
           timeFormat: formData.timeFormat,
         },
-        schema: PlatformTenantDetailResponseSchema,
+        schema: PlatformTenantSettingsUpdateResponseSchema,
       });
       return httpClient.request(`/platform/tenants/${tenantPublicId}`, {
         method: 'PATCH',
@@ -54,7 +55,17 @@ export function ScheduleSettings({ tenantPublicId }: { tenantPublicId: string })
           locale: formData.locale,
           currency: formData.currency,
         },
-        schema: PlatformTenantDetailResponseSchema,
+        schema: z.object({
+          tenant: z.object({
+            publicId: z.string().uuid(),
+            slug: z.string(),
+            displayName: z.string(),
+            status: z.string(),
+            timezone: z.string(),
+            locale: z.string(),
+            currency: z.string(),
+          }),
+        }),
       });
     },
     onSuccess: () => {

@@ -24,10 +24,13 @@ export const PublicProfessionalServiceSchema = z.object({
   quoteNotice: z.string().nullable(),
   durationMinutes: z.number().int(),
 });
-export const PublicProfessionalServicesResponseSchema = z.object({
+export const PublicProfessionalOfferingsResponseSchema = z.object({
   services: z.array(PublicProfessionalServiceSchema),
   combos: z.array(ComboPublicDisplaySchema),
 });
+
+// Backwards compatibility alias (to be removed)
+export const PublicProfessionalServicesResponseSchema = PublicProfessionalOfferingsResponseSchema;
 
 const PublicBookingCustomerInputSchema = z
   .object({

@@ -326,9 +326,24 @@ export function PremiumBooking({
                           <div
                             key={item.publicId}
                             className="premium-pick premium-pick-combo"
-                            style={{ opacity: 0.6, pointerEvents: 'none' }}
-                            title="Booking de combo será disponível em breve"
+                            style={{ position: 'relative' }}
                           >
+                            <span
+                              className="premium-pick-badge"
+                              style={{
+                                position: 'absolute',
+                                top: '0.5rem',
+                                right: '0.5rem',
+                                fontSize: '0.7rem',
+                                backgroundColor: 'var(--tenant-primary)',
+                                color: 'var(--tenant-surface)',
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '0.25rem',
+                                fontWeight: 'bold',
+                              }}
+                            >
+                              Em breve
+                            </span>
                             <ServiceVisual
                               name={item.name}
                               imageUrl={item.imageUrl}

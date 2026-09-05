@@ -15,6 +15,7 @@ export interface RouterOutcome {
 // Textos temporários: as funcionalidades chegam nas próximas etapas.
 const PENDING: Record<MainMenuActionId, string> = {
   MAIN_MENU_BOOK: 'Agendamento pelo WhatsApp será disponibilizado nesta próxima etapa.',
+  MAIN_MENU_TREATMENTS: 'Consultando seus tratamentos...',
   MAIN_MENU_QUERY: 'Consulta de agendamentos será disponibilizada na próxima etapa.',
   MAIN_MENU_RESCHEDULE: 'Reagendamento será disponibilizado na próxima etapa.',
   MAIN_MENU_CANCEL: 'Cancelamento será disponibilizado na próxima etapa.',

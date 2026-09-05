@@ -23,6 +23,7 @@ import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-pay
 import { type PaymentService } from '../payments/payment.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
+import { type TreatmentPlanService } from '../appointments/treatment-plan.service.js';
 
 /** Motivo pelo qual o assistente não respondeu — usado só em log/diagnóstico. */
 export type AssistantSkipReason =
@@ -105,6 +106,7 @@ export class WhatsAppAssistantService {
     private readonly paymentOptions?: TenantPaymentOptionsService,
     private readonly payments?: PaymentService,
     private readonly customerAuth?: CustomerAuthService,
+    private readonly treatmentPlans?: TreatmentPlanService,
   ) {}
 
   /**
@@ -224,6 +226,18 @@ export class WhatsAppAssistantService {
     }
     if (input.actionId === 'MAIN_MENU_RESCHEDULE') {
       await this.startUpcomingAppointmentAction(input, conversation, phone, 'RESCHEDULE');
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.actionId === 'MAIN_MENU_TREATMENTS') {
+      await this.listTreatments(input, conversation, phone);
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.actionId?.startsWith('TREATMENT_SELECT:') === true) {
+      await this.showTreatmentDetail(input, conversation, phone, input.actionId.slice('TREATMENT_SELECT:'.length));
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.actionId?.startsWith('TREATMENT_APPROVE:') === true) {
+      await this.approveTreatment(input, conversation, phone, input.actionId.slice('TREATMENT_APPROVE:'.length));
       return { replied: true, conversationPublicId: conversation.publicId };
     }
     if (input.actionId?.startsWith('BOOKING_CREATE_SERVICE:') === true) {
@@ -1544,6 +1558,143 @@ export class WhatsAppAssistantService {
     // Mapeamento de actionId para buttonId
     // Hoje o buttonId é o próprio actionId
     return actionId;
+  }
+
+  private async listTreatments(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversation: { id: bigint; customerId: bigint | null },
+    phone: string,
+  ): Promise<void> {
+    const customerId = conversation.customerId ?? input.customerId;
+    if (customerId === null || this.treatmentPlans === undefined) {
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        'Não encontrei nenhum cadastro associado a este número.',
+        [{ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' }],
+        conversation.id,
+      );
+      return;
+    }
+
+    const response = await this.treatmentPlans.listForCustomer(input.tenantId, customerId);
+    const relevant = response.items.filter(
+      (plan) => plan.status === 'PENDING' || plan.status === 'APPROVED' || plan.status === 'IN_PROGRESS',
+    );
+
+    if (relevant.length === 0) {
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        'Você não possui tratamentos/orçamentos ativos neste estabelecimento.',
+        [
+          { buttonId: 'MAIN_MENU_BOOK', label: 'Agendar horário' },
+          { buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' },
+        ],
+        conversation.id,
+      );
+      return;
+    }
+
+    if (relevant.length === 1) {
+      const plan = relevant[0];
+      if (plan !== undefined) {
+        await this.showTreatmentDetail(input, conversation, phone, plan.publicId);
+        return;
+      }
+    }
+
+    const buttons = relevant.slice(0, 3).map((plan) => ({
+      buttonId: `TREATMENT_SELECT:${plan.publicId}`,
+      label: `${plan.title.substring(0, 25)} • ${plan.status === 'PENDING' ? 'Pendente' : plan.status === 'APPROVED' ? 'Aprovado' : 'Em andamento'}`,
+    }));
+
+    buttons.push({ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' });
+
+    await this.dispatchCustomButtons(
+      input,
+      phone,
+      'Encontrei seus tratamentos. Qual deseja consultar?',
+      buttons,
+      conversation.id,
+    );
+  }
+
+  private async showTreatmentDetail(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversation: { id: bigint; customerId: bigint | null },
+    phone: string,
+    treatmentPublicId: string,
+  ): Promise<void> {
+    const customerId = conversation.customerId ?? input.customerId;
+    if (customerId === null || this.treatmentPlans === undefined) return;
+
+    const plan = await this.treatmentPlans.getForCustomer(input.tenantId, customerId, treatmentPublicId);
+    if (plan === null) {
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        'Não foi possível carregar este tratamento.',
+        [{ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' }],
+        conversation.id,
+      );
+      return;
+    }
+
+    const amount = Number(plan.amountCents) / 100;
+    let message = `*${plan.title}*\n\n`;
+    message += `Serviço: ${plan.serviceName}\n`;
+    message += `Profissional: ${plan.professionalName}\n`;
+    message += `Valor: R$ ${amount.toFixed(2)}\n`;
+    message += `Status: ${plan.status === 'PENDING' ? 'Pendente' : plan.status === 'APPROVED' ? 'Aprovado' : 'Em andamento'}\n`;
+
+    if (plan.sessionsPlanned !== null) {
+      message += `Sessões planejadas: ${String(plan.sessionsPlanned)}\n`;
+    }
+    if (plan.returnIntervalDays !== null) {
+      message += `Intervalo: ${String(plan.returnIntervalDays)} dias\n`;
+    }
+
+    const buttons: { buttonId: string; label: string }[] = [];
+    if (plan.status === 'PENDING') {
+      buttons.push({ buttonId: `TREATMENT_APPROVE:${plan.publicId}`, label: 'Aprovar orçamento' });
+    }
+    buttons.push({ buttonId: 'MAIN_MENU_BACK', label: 'Voltar' });
+
+    await this.dispatchCustomButtons(input, phone, message, buttons, conversation.id);
+  }
+
+  private async approveTreatment(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversation: { id: bigint; customerId: bigint | null },
+    phone: string,
+    treatmentPublicId: string,
+  ): Promise<void> {
+    const customerId = conversation.customerId ?? input.customerId;
+    if (customerId === null || this.treatmentPlans === undefined) return;
+
+    try {
+      await this.treatmentPlans.approveForCustomer(input.tenantId, customerId, treatmentPublicId);
+
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        '✅ Orçamento aprovado com sucesso!',
+        [
+          { buttonId: 'MAIN_MENU_TREATMENTS', label: 'Meus tratamentos' },
+          { buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' },
+        ],
+        conversation.id,
+      );
+    } catch {
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        'Não foi possível aprovar o orçamento. Tente novamente mais tarde.',
+        [{ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' }],
+        conversation.id,
+      );
+    }
   }
 
   /** Menu principal. O envio e o rastreio passam pelo mesmo caminho de sempre. */

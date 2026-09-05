@@ -9,6 +9,7 @@ import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
 import { WhatsAppSettingsCard } from './WhatsAppSettingsCard.js';
+import '../../styles/company.css';
 
 export function IntegrationsModule({
   tenantPublicId,
@@ -65,7 +66,7 @@ export function IntegrationsModule({
       }),
   });
   return (
-    <section className="platform-form" aria-label="Integracoes">
+    <section className="platform-form integrations-module--redesigned" aria-label="Integracoes">
       <h3>Integrações</h3>
       <WhatsAppSettingsCard tenantPublicId={tenantPublicId} canManage={canManage} />
       <h3>Webhooks externos</h3>

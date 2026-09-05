@@ -109,6 +109,10 @@ const FinanceOverviewModule = load(
   'FinanceOverviewModule',
 );
 const BotCobraModule = load(import('../components/bot-cobra/BotCobraModule.js'), 'BotCobraModule');
+const TreatmentPlansModule = load(
+  import('../components/treatment-plans/TreatmentPlansModule.js'),
+  'TreatmentPlansModule',
+);
 const DelinquencyModule = load(
   import('../components/tenants/DelinquencyModule.js'),
   'DelinquencyModule',
@@ -673,6 +677,13 @@ export function HomePage() {
           to: '/app/clientes/cupons',
           visible: canReadCoupons && planFeatureEnabled('coupons.enabled'),
         },
+      ],
+    },
+    {
+      label: 'Orçamentos e Planos',
+      path: '/app/orcamentos',
+      items: [
+        { label: 'Orçamentos e Planos', to: '/app/orcamentos', visible: canReadAppointments },
       ],
     },
     {
@@ -1840,6 +1851,9 @@ export function HomePage() {
                 canReadPayments={canReadPayments}
                 canCreateAppointments={canCreateAppointments}
               />
+            )}
+            {isRoute('/app/orcamentos') && canReadAppointments && (
+              <TreatmentPlansModule tenantPublicId={selectedTenant} />
             )}
             {location.pathname.startsWith('/app/assinaturas') && canViewCustomerMemberships && (
               <CustomerMembershipPlansModule

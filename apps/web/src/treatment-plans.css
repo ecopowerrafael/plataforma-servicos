@@ -603,3 +603,447 @@
   border-radius: 4px;
   margin: 1rem 0;
 }
+
+.treatment-plans-reminder-config-section {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 2rem;
+  margin: 2rem 0;
+}
+
+.treatment-plans-reminder-config-section legend {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  padding: 0 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.reminder-toggle {
+  margin-bottom: 2rem;
+}
+
+.reminder-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.reminder-toggle input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+.reminder-channel {
+  margin-bottom: 2rem;
+}
+
+.reminder-channel label {
+  display: block;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.reminder-channel select {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
+}
+
+.reminder-sequence {
+  margin-bottom: 2rem;
+}
+
+.reminder-sequence h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 1rem;
+}
+
+.sequence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sequence-step {
+  padding: 1.5rem;
+  background: var(--color-background-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.step-number {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #d32f2f;
+  cursor: pointer;
+  font-size: 1.25rem;
+  padding: 0;
+}
+
+.remove-btn:disabled {
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+}
+
+.step-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.step-controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.step-controls input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+}
+
+.delay-group {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.delay-group label {
+  margin: 0;
+}
+
+.delay-group input,
+.delay-group select {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+}
+
+.message-group {
+  margin-top: 1rem;
+}
+
+.message-group label {
+  display: block;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.message-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.message-preview {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--color-background-secondary);
+  border-radius: 4px;
+  border-left: 3px solid var(--color-primary);
+}
+
+.message-preview p {
+  margin: 0.5rem 0 0 0;
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+}
+
+.preview-btn {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.preview-btn:hover {
+  background: var(--color-background-secondary);
+}
+
+.add-step-btn {
+  padding: 0.75rem 1.5rem;
+  background: var(--color-background-secondary);
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.add-step-btn:hover:not(:disabled) {
+  background: var(--color-background-tertiary);
+}
+
+.add-step-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.submit-btn {
+  padding: 0.75rem 1.5rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.treatment-plan-follow-up {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 2rem;
+  margin: 2rem 0;
+}
+
+.treatment-plan-follow-up h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 1rem;
+}
+
+.follow-up-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.status-info div {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+}
+
+.follow-up-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  padding: 0.625rem 1rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-btn.secondary {
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.action-btn.secondary:hover:not(:disabled) {
+  background: var(--color-background-tertiary);
+}
+
+.confirm-dialog {
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.confirm-dialog p {
+  margin: 0 0 1rem 0;
+  color: var(--color-text-primary);
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.confirm-btn {
+  padding: 0.625rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.confirm-btn.primary {
+  background: var(--color-primary);
+  color: white;
+}
+
+.confirm-btn.primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.confirm-btn.secondary {
+  background: var(--color-background-tertiary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.follow-up-history {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.history-toggle {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-weight: 500;
+  padding: 0;
+  text-align: left;
+}
+
+.history-toggle:hover {
+  text-decoration: underline;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.history-entry {
+  background: var(--color-background-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.entry-header strong {
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
+}
+
+.entry-message {
+  margin-bottom: 0.75rem;
+}
+
+.entry-message strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.entry-message p {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.entry-error {
+  background: rgba(244, 67, 54, 0.1);
+  border-left: 3px solid #d32f2f;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-top: 0.75rem;
+}
+
+.entry-error strong {
+  color: #d32f2f;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.entry-error p {
+  margin: 0;
+  color: #d32f2f;
+  font-size: 0.85rem;
+}

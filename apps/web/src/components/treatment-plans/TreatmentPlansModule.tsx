@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { getTreatmentPlansLabels } from './treatment-plans-labels.js';
+import { TreatmentPlanFollowUpSection } from './TreatmentPlanFollowUpSection.js';
 import { formatMoneyCents, formatShortDate } from '../customers/customer-crm.js';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader } from '../ui/AppUi.js';
@@ -351,6 +352,11 @@ function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBa
           </div>
         )}
       </div>
+
+      <TreatmentPlanFollowUpSection
+        treatmentPlanPublicId={plan.publicId}
+        canUpdate={plan.status === 'PENDING' || plan.status === 'APPROVED'}
+      />
 
       <div className="detail-actions">
         <button

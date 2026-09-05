@@ -28,6 +28,8 @@ import { BrandPreview } from '../components/branding/BrandPreview.js';
 import { BrandThemePicker } from '../components/branding/BrandThemePicker.js';
 import { ErrorBoundary } from '../components/ErrorBoundary.js';
 import { PageHeader } from '../components/ui/AppUi.js';
+import { AppHeader } from '../components/app/AppHeader.js';
+import { AppSidebar } from '../components/app/AppSidebar.js';
 import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
 import { clearSelectedTenant, readSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
@@ -275,6 +277,7 @@ export function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // "Sair do início guiado" apenas pausa: o CTA no painel retoma a etapa pendente.
   const [guidedPaused, setGuidedPaused] = useState(
     () => sessionStorage.getItem('agendei:onboarding-paused') === '1',
@@ -910,27 +913,19 @@ export function HomePage() {
 
   return (
     <main className={`app-shell${guidedActive && !guidedPaused ? ' is-onboarding' : ''}`}>
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">
-            Início{activeMenuGroup === undefined ? '' : ` / ${activeMenuGroup.label}`}
-          </p>
-          <h1>{pageTitle}</h1>
-          <p className="app-page-description">
-            {me.data.currentTenant?.tenant.displayName ?? 'Selecione um estabelecimento'}
-          </p>
-        </div>
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => {
-            void httpClient
-              .request('/auth/logout', { method: 'POST', body: {}, schema: SuccessResponseSchema })
-              .finally(finishSession);
-          }}
-        >
-          Sair
-        </button>
-      </header>
+      <AppHeader
+        title={pageTitle}
+        subtitle={activeMenuGroup === undefined ? 'Início' : `Início / ${activeMenuGroup.label}`}
+        tenantName={me.data.currentTenant?.tenant.displayName ?? 'Selecione um estabelecimento'}
+        showMobileMenu={true}
+        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+        onLogout={() => {
+          void httpClient
+            .request('/auth/logout', { method: 'POST', body: {}, schema: SuccessResponseSchema })
+            .finally(finishSession);
+        }}
+        onTenantSelect={() => void navigate('/select-tenant')}
+      />
       {guidedActive && guidedPaused && (
         <button
           className="onboarding-resume"
@@ -1377,63 +1372,10 @@ export function HomePage() {
           </section>
         </div>
       )}
-      <nav className="app-navigation" aria-label="Navegação principal">
-        <strong className="app-navigation-brand">
-          {me.data.currentTenant?.tenant.displayName ?? 'Agendei'}
-        </strong>
-        {/* Só esta área rola: a identidade acima fica fixa e nunca recebe itens por baixo. */}
-        <div className="app-navigation-scroll">
-          <NavLink to="/app" end>
-            ⌂ Início
-          </NavLink>
-          {menuGroups.map((group) => (
-            <details
-              key={group.path}
-              open={expandedGroups[group.path] ?? location.pathname.startsWith(group.path)}
-              onToggle={(event) => {
-                const open = event.currentTarget.open;
-                setExpandedGroups((current) => ({ ...current, [group.path]: open }));
-              }}
-            >
-              <summary>{group.label}</summary>
-              <div className="app-navigation-submenu">
-                {group.items.map((item) => {
-                  const hasSubitems = item.items !== undefined && item.items.length > 0;
-                  const itemExpandKey = `${group.path}/${item.to}`;
-                  if (hasSubitems) {
-                    return (
-                      <details
-                        key={item.to}
-                        open={
-                          expandedGroups[itemExpandKey] ?? location.pathname.startsWith(item.to)
-                        }
-                        onToggle={(event) => {
-                          const open = event.currentTarget.open;
-                          setExpandedGroups((current) => ({ ...current, [itemExpandKey]: open }));
-                        }}
-                      >
-                        <summary>{item.label}</summary>
-                        <div className="app-navigation-submenu">
-                          {item.items.map((subitem) => (
-                            <NavLink key={subitem.to} to={subitem.to} end>
-                              {subitem.label}
-                            </NavLink>
-                          ))}
-                        </div>
-                      </details>
-                    );
-                  }
-                  return (
-                    <NavLink key={item.to} to={item.to} end>
-                      {item.label}
-                    </NavLink>
-                  );
-                })}
-              </div>
-            </details>
-          ))}
-        </div>
-      </nav>
+      <AppSidebar
+        tenantName={me.data.currentTenant?.tenant.displayName ?? 'Agendei'}
+        groups={menuGroups as any}
+      />
       <nav className="app-mobile-nav" aria-label="Navegação móvel">
         <NavLink to="/app" end>
           <span aria-hidden="true">⌂</span>Início

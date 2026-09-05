@@ -1,6 +1,3 @@
--- Add enums
-ALTER TABLE `db` MODIFY COLUMN ...;
-
 -- CreateTable treatment_plan_reminder_states
 CREATE TABLE `treatment_plan_reminder_states` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

@@ -70,7 +70,20 @@ export function registerErrorHandlers(app: FastifyInstance, options: ErrorHandle
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
-      request.log.warn({ err: error, requestId: request.id }, 'Falha operacional na requisição');
+      request.log.warn(
+        {
+          err: error,
+          requestId: request.id,
+          method: request.method,
+          url: request.url,
+          statusCode: error.statusCode,
+          code: error.code,
+          message: error.message,
+          stack: error.stack,
+          cause: error.cause,
+        },
+        'Falha operacional na requisição',
+      );
       void reply
         .status(error.statusCode)
         .send(createErrorResponse(request.id, error.code, error.message, error.details));
@@ -127,7 +140,19 @@ export function registerErrorHandlers(app: FastifyInstance, options: ErrorHandle
       return;
     }
 
-    request.log.error({ err: error, requestId: request.id }, 'Falha interna na requisição');
+    request.log.error(
+      {
+        err: error,
+        requestId: request.id,
+        method: request.method,
+        url: request.url,
+        statusCode: 500,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        cause: error instanceof Error ? (error as any).cause : undefined,
+      },
+      'Falha interna na requisição',
+    );
     void reply
       .status(500)
       .send(

@@ -1,11 +1,19 @@
 import { CustomerFavoriteListResponseSchema, SuccessResponseSchema } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { IconHeart, IconScissors, IconUser } from '@tabler/icons-react';
 
 import { httpClient, HttpError } from '../lib/http.js';
+import { environment } from '../config/environment.js';
 
 interface FavoriteTarget {
   publicId: string;
   name: string;
+  photoUrl?: string | null;
+  imageUrl?: string | null;
+  description?: string | null;
+  priceCents?: string;
+  durationMinutes?: number;
 }
 
 interface CustomerFavoritesProps {
@@ -15,6 +23,7 @@ interface CustomerFavoritesProps {
 }
 
 export function CustomerFavorites({ slug, services, professionals }: CustomerFavoritesProps) {
+  const [tab, setTab] = useState<'professional' | 'service'>('professional');
   const queryClient = useQueryClient();
   const queryKey = ['public', slug, 'customer', 'favorites'];
 
@@ -75,72 +84,89 @@ export function CustomerFavorites({ slug, services, professionals }: CustomerFav
         : item.servicePublicId === publicId,
     )?.publicId;
 
+  const renderGroup = (
+    title: string,
+    items: FavoriteTarget[],
+    kind: 'professional' | 'service',
+    favoriteIds: Set<string>,
+  ) => (
+    <section className="customer-favorites-group" aria-label={title}>
+      {items.length === 0 ? (
+        <p className="customer-empty">Nada disponível por aqui ainda.</p>
+      ) : (
+        <div className="customer-favorite-list">
+          {items.map((item) => {
+            const isFavorite = favoriteIds.has(item.publicId);
+            return (
+              <article
+                className={`customer-favorite${isFavorite ? ' is-favorite' : ''}`}
+                key={item.publicId}
+              >
+                <span className="customer-favorite-media" aria-hidden="true">
+                  {(item.photoUrl ?? item.imageUrl) === null || (item.photoUrl ?? item.imageUrl) === undefined
+                    ? kind === 'professional' ? <IconUser /> : <IconScissors />
+                    : <img alt="" src={`${environment.apiUrl}${item.photoUrl ?? item.imageUrl ?? ''}`} />}
+                </span>
+                <span className="customer-favorite-copy">
+                  <strong>{item.name}</strong>
+                  {item.description === null || item.description === undefined ? null : <small>{item.description}</small>}
+                  {item.priceCents === undefined ? null : <small>{`R$ ${(Number(item.priceCents) / 100).toFixed(2)} · ${String(item.durationMinutes ?? 0)} min`}</small>}
+                </span>
+                <button
+                  className="client-icon-button customer-favorite-button"
+                  disabled={busy}
+                  type="button"
+                  aria-pressed={isFavorite}
+                  aria-label={isFavorite ? `Remover ${item.name} dos favoritos` : `Adicionar ${item.name} aos favoritos`}
+                  onClick={() => {
+                    if (isFavorite) {
+                      const favoriteId = findFavoriteId(kind, item.publicId);
+                      if (favoriteId !== undefined) remove.mutate(favoriteId);
+                    } else {
+                      add.mutate(
+                        kind === 'professional'
+                          ? { professionalPublicId: item.publicId }
+                          : { servicePublicId: item.publicId },
+                      );
+                    }
+                  }}
+                >
+                  <IconHeart aria-hidden="true" fill={isFavorite ? 'currentColor' : 'none'} />
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+
   return (
-    <section className="platform-form" aria-label="Meus favoritos">
-      <h4>Meus favoritos</h4>
-      {favorites.isPending ? <p>Carregando favoritos…</p> : null}
-      {favorites.error instanceof Error ? (
-        <p className="form-error">Não foi possível carregar os favoritos.</p>
+    <section className="customer-section" aria-label="Meus favoritos">
+      <h1 className="client-page-title">Favoritos</h1>
+      <div className="customer-tabs" role="tablist">
+        <button aria-selected={tab === 'professional'} onClick={() => { setTab('professional'); }} role="tab" type="button">Profissionais</button>
+        <button aria-selected={tab === 'service'} onClick={() => { setTab('service'); }} role="tab" type="button">Serviços</button>
+      </div>
+      {favorites.isPending ? (
+        <div className="customer-skeleton-list" aria-busy="true">
+          <span />
+          <span />
+        </div>
       ) : null}
-      {errorMessage !== null && (
-        <p className="form-error" role="alert">
+      {favorites.error instanceof Error ? (
+        <p className="public-form-error" role="alert">
+          Não foi possível carregar os favoritos.
+        </p>
+      ) : null}
+      {errorMessage === null ? null : (
+        <p className="public-form-error" role="alert">
           {errorMessage}
         </p>
       )}
-      <div>
-        <strong>{'Profissionais'}</strong>
-        <ul>
-          {professionals.map((professional) => {
-            const isFavorite = favoriteProfessionalIds.has(professional.publicId);
-            return (
-              <li key={professional.publicId}>
-                <span>{professional.name}</span>
-                <button
-                  disabled={busy}
-                  type="button"
-                  onClick={() => {
-                    if (isFavorite) {
-                      const favoriteId = findFavoriteId('professional', professional.publicId);
-                      if (favoriteId !== undefined) remove.mutate(favoriteId);
-                    } else {
-                      add.mutate({ professionalPublicId: professional.publicId });
-                    }
-                  }}
-                >
-                  {isFavorite ? 'Remover dos favoritos' : 'Favoritar'}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-      <div>
-        <strong>{'Serviços'}</strong>
-        <ul>
-          {services.map((service) => {
-            const isFavorite = favoriteServiceIds.has(service.publicId);
-            return (
-              <li key={service.publicId}>
-                <span>{service.name}</span>
-                <button
-                  disabled={busy}
-                  type="button"
-                  onClick={() => {
-                    if (isFavorite) {
-                      const favoriteId = findFavoriteId('service', service.publicId);
-                      if (favoriteId !== undefined) remove.mutate(favoriteId);
-                    } else {
-                      add.mutate({ servicePublicId: service.publicId });
-                    }
-                  }}
-                >
-                  {isFavorite ? 'Remover dos favoritos' : 'Favoritar'}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      {tab === 'professional'
+        ? renderGroup('Profissionais', professionals, 'professional', favoriteProfessionalIds)
+        : renderGroup('Serviços', services, 'service', favoriteServiceIds)}
     </section>
   );
 }

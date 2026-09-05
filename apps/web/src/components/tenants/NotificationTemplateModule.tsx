@@ -7,11 +7,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
+import '../../notification-campaign.css';
 
 const kindLabels: Record<string, string> = {
-  'appointment.booking_confirmed': 'Confirmação de agendamento',
-  'appointment.booking_canceled': 'Cancelamento de agendamento',
-  'appointment.reminder': 'Lembrete de atendimento',
+  'customer.recovery.inactive': 'Cliente inativo',
+  'customer.recovery.canceled': 'Atendimento cancelado',
+  'customer.recovery.no_show': 'Cliente não compareceu',
+  'customer.recovery.post_service': 'Pós-atendimento',
+  'customer.recovery.birthday': 'Aniversário do cliente',
 };
 
 function TemplateEditor({
@@ -31,7 +34,10 @@ function TemplateEditor({
     mutationFn: () =>
       httpClient.request(`/tenant/notification-templates/${entry.kind}`, {
         method: 'PUT',
-        body: { subject, body },
+        body: {
+          subject,
+          body,
+        },
         schema: SuccessResponseSchema,
         tenantPublicId,
       }),
@@ -58,7 +64,7 @@ function TemplateEditor({
   });
 
   return (
-    <fieldset disabled={!canManage}>
+    <fieldset className="notification-template-card" disabled={!canManage}>
       <legend>
         {kindLabels[entry.kind] ?? entry.kind}
         {entry.isCustom ? ' (personalizado)' : ' (padrão)'}
@@ -82,6 +88,9 @@ function TemplateEditor({
           }}
         />
       </label>
+      <small>
+        Variáveis: {'{{customerName}}'}, {'{{tenantName}}'}, {'{{value}}'}, {'{{protocol}}'}.
+      </small>
       {canManage && (
         <div className="form-row">
           <button
@@ -98,7 +107,10 @@ function TemplateEditor({
               type="button"
               disabled={reset.isPending}
               onClick={() => {
-                reset.mutate();
+                if (
+                  window.confirm('Restaurar o modelo padrão? A personalização atual será removida.')
+                )
+                  reset.mutate();
               }}
             >
               Restaurar padrão
@@ -127,14 +139,21 @@ export function NotificationTemplateModule({
     retry: false,
   });
 
+  const marketingTemplates = templates.data?.items.filter((entry) =>
+    entry.kind.startsWith('customer.recovery.'),
+  ) ?? [];
+
   return (
-    <section className="platform-form" aria-label="Modelos de mensagens">
-      <h3>Modelos de mensagens</h3>
+    <section className="notification-campaign" aria-label="Modelos de marketing">
+      <div className="notification-template-header">
+        <h2>Modelos de marketing</h2>
+        <p>Personalize as mensagens de relacionamento e recuperação de clientes.</p>
+      </div>
       {templates.isPending ? <p>Carregando…</p> : null}
       {templates.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar os modelos de mensagens.</p>
       ) : null}
-      {templates.data?.items.map((entry) => (
+      {marketingTemplates.map((entry) => (
         <TemplateEditor
           key={entry.kind}
           entry={entry}

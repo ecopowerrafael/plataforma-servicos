@@ -17,6 +17,7 @@ interface ServiceListInput {
   limit: number;
   search?: string | undefined;
   active?: boolean | undefined;
+  categoryPublicId?: string | undefined;
 }
 
 interface ServiceAuditActor {
@@ -30,12 +31,17 @@ function toPublic(service: ServiceRecord) {
     name: service.name,
     description: service.description,
     imageAlt: service.imageAlt,
+    iconKey: service.iconKey,
     categoryPublicId: service.category?.publicId ?? null,
+    categoryName: service.category?.name ?? null,
+    enabledProfessionalCount: service._count.professionalServices,
     imageUrl: service.imagePath === null ? null : `/tenant/services/${service.publicId}/image`,
     durationMinutes: service.durationMinutes,
     hasPostServiceBreak: service.hasPostServiceBreak,
     postServiceBreakMinutes: service.postServiceBreakMinutes,
     priceCents: service.priceCents.toString(),
+    pricingMode: service.pricingMode,
+    quoteNotice: service.quoteNotice,
     color: service.color,
     sortOrder: service.sortOrder,
     active: service.active,
@@ -75,6 +81,9 @@ export class ServiceService {
       tenantId,
       ...(input.search === undefined ? {} : { name: { contains: input.search } }),
       ...(input.active === undefined ? {} : { active: input.active }),
+      ...(input.categoryPublicId === undefined
+        ? {}
+        : { category: { publicId: input.categoryPublicId } }),
     };
     const { total, services } = await this.repository.list(where, input.page, input.limit);
     return ServiceListResponseSchema.parse({
@@ -104,10 +113,14 @@ export class ServiceService {
         name: input.name,
         description: input.description ?? null,
         imageAlt: input.imageAlt ?? null,
+        iconKey: input.iconKey ?? null,
         durationMinutes: input.durationMinutes,
         hasPostServiceBreak: input.hasPostServiceBreak,
         postServiceBreakMinutes: input.postServiceBreakMinutes,
         priceCents: BigInt(input.priceCents),
+        // Sem escolha explícita o serviço continua com preço fixo.
+        pricingMode: input.pricingMode ?? 'FIXED',
+        quoteNotice: input.quoteNotice ?? null,
         color: input.color,
         sortOrder: input.sortOrder,
         active: input.active,
@@ -134,13 +147,16 @@ export class ServiceService {
         categoryId,
         description: input.description ?? null,
         imageAlt: input.imageAlt ?? null,
+        iconKey: input.iconKey ?? null,
         durationMinutes: input.durationMinutes,
         hasPostServiceBreak: input.hasPostServiceBreak,
         postServiceBreakMinutes: input.postServiceBreakMinutes,
         priceCents: BigInt(input.priceCents),
+        pricingMode: input.pricingMode ?? 'FIXED',
+        quoteNotice: input.quoteNotice ?? null,
         color: input.color,
         sortOrder: input.sortOrder,
-        active: input.active,
+        ...(input.active === undefined ? {} : { active: input.active }),
       });
       await this.recordAudit(tenantId, service.publicId, 'service.updated', actor);
       return toPublic(service);
@@ -196,11 +212,15 @@ export class ServiceService {
     return toPublic(updated);
   }
 
-  public async getImage(tenantId: bigint, publicId: string) {
+  public async getImage(
+    tenantId: bigint,
+    publicId: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ) {
     const service = await this.repository.find(tenantId, publicId);
     const imagePath = service?.imagePath;
     if (imagePath === null || imagePath === undefined) throw serviceNotFound();
-    return this.images.read(imagePath);
+    return this.images.read(imagePath, variant);
   }
 
   private async recordAudit(

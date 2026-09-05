@@ -15,6 +15,12 @@ import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDia
 import { ComboForm, type ComboSubmission } from './ComboForm.js';
 import { ServiceImageUpload } from './ServiceImageUpload.js';
 import { TenantServiceImage } from './TenantServiceImage.js';
+import {
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+  StatusBadge,
+} from '../ui/AppUi.js';
 
 export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
   const client = useQueryClient();
@@ -144,8 +150,16 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
   };
   return (
     <section aria-labelledby="combo-title" className="sessions-panel">
-      <p className="eyebrow">Catálogo</p>
-      <h2 id="combo-title">Combos</h2>
+      <PageHeader
+        eyebrow="Catálogo"
+        title="Combos"
+        description="Agrupe serviços em ofertas fáceis de entender."
+        actions={
+          <button className="primary-button" type="button" onClick={() => { setCreating(true); }}>
+            + Novo combo
+          </button>
+        }
+      />
       {notice !== null && <p className="success-message">{notice}</p>}
       <button
         onClick={() => {
@@ -191,17 +205,21 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
         </label>
       </div>
       {combos.isPending ? (
-        <p>Carregando combos…</p>
+        <ListSkeleton rows={5} />
       ) : combos.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar combos.</p>
       ) : combos.data === undefined || combos.data.items.length === 0 ? (
-        <p>Nenhum item encontrado.</p>
+        <EmptyState
+          title="Nenhum combo cadastrado"
+          description="Combine dois ou mais serviços em uma oferta."
+          action={<button onClick={() => { setCreating(true); }}>+ Criar combo</button>}
+        />
       ) : (
         <>
-          <div className="data-list">
+          <div className="service-catalog-list">
             {combos.data.items.map((combo) => (
               <button
-                className="data-row"
+                className="service-catalog-row"
                 key={combo.publicId}
                 onClick={() => {
                   setSelected(combo.publicId);
@@ -215,9 +233,22 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
                   servicePublicId={combo.publicId}
                   tenantPublicId={tenantPublicId}
                 />
-                <span>{combo.name}</span>
-                <span>{`${String(combo.items.length)} serviços · ${String(combo.durationMinutes)} min`}</span>
-                <span>{combo.active ? 'Ativo' : 'Inativo'}</span>
+                <span>
+                  <strong>{combo.name}</strong>
+                  <small>{`${String(combo.items.length)} serviços · ${String(combo.durationMinutes)} min`}</small>
+                </span>
+                <span>
+                  <strong>
+                    {(Number(combo.priceCents) / 100).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </strong>
+                  <small>{combo.items.map((item) => item.name).join(' + ')}</small>
+                </span>
+                <StatusBadge active={combo.active}>
+                  {combo.active ? 'Ativo' : 'Inativo'}
+                </StatusBadge>
               </button>
             ))}
           </div>

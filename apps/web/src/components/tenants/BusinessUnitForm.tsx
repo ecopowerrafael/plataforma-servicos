@@ -22,6 +22,7 @@ const values = (unit?: Unit): Input =>
         city: '',
         state: '',
         countryCode: '',
+        googleMapsUrl: '',
       }
     : {
         name: unit.name,
@@ -35,6 +36,9 @@ const values = (unit?: Unit): Input =>
         city: unit.city ?? '',
         state: unit.state ?? '',
         countryCode: unit.countryCode ?? '',
+        latitude: unit.latitude ?? undefined,
+        longitude: unit.longitude ?? undefined,
+        googleMapsUrl: unit.googleMapsUrl ?? '',
       };
 
 const optional = (value: string) => (value.trim() === '' ? undefined : value.trim());
@@ -122,6 +126,12 @@ export function BusinessUnitForm({
           {...register('countryCode', { setValueAs: optional })}
         />
       </label>
+      <label>
+        Link do estabelecimento no Google Maps
+        <input type="url" {...register('googleMapsUrl', { setValueAs: optional })} />
+      </label>
+      <input type="hidden" {...register('latitude', { setValueAs: (value) => value === '' ? undefined : Number(value) })} />
+      <input type="hidden" {...register('longitude', { setValueAs: (value) => value === '' ? undefined : Number(value) })} />
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">
           Revise os campos informados.

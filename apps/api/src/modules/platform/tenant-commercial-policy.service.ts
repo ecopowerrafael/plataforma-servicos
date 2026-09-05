@@ -25,6 +25,7 @@ const DEFAULT_POLICY = {
     'Sua assinatura está pendente. Regularize o pagamento para continuar utilizando todos os recursos do sistema. Seus dados permanecem preservados.',
   publicMessage:
     'Os agendamentos online deste estabelecimento estão temporariamente indisponíveis. Entre em contato diretamente com o estabelecimento para mais informações.',
+  commercialWhatsapp: null,
 };
 
 function mapPolicy(policy: {
@@ -40,6 +41,7 @@ function mapPolicy(policy: {
   publicSiteBehaviorWhileBlocked: 'NORMAL' | 'HIDE_BOOKING' | 'OFFLINE';
   adminMessage: string;
   publicMessage: string;
+  commercialWhatsapp: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {

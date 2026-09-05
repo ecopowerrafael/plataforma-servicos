@@ -6,6 +6,7 @@ import {
 
 import { type DelinquencyService } from './delinquency.service.js';
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface BreakdownAccumulator {
   key: string;
@@ -209,18 +210,20 @@ export class FinancialReportService {
     const byProfessional = new Map<string, BreakdownAccumulator>();
     const byUnit = new Map<string, BreakdownAccumulator>();
     for (const payment of paidPayments) {
+      if (payment.appointment === null) continue;
       addToBreakdown(
         byPaymentMethod,
         payment.paymentMethod.publicId,
         payment.paymentMethod.name,
         payment.amountCents,
       );
-      addToBreakdown(
-        byService,
-        payment.appointment.service.publicId,
-        payment.appointment.service.name,
-        payment.amountCents,
-      );
+      if (payment.appointment.service)
+        addToBreakdown(
+          byService,
+          payment.appointment.service.publicId,
+          payment.appointment.service.name,
+          payment.amountCents,
+        );
       addToBreakdown(
         byProfessional,
         payment.appointment.professional.publicId,
@@ -269,6 +272,7 @@ export class FinancialReportService {
   }
 
   public async get(tenantId: bigint, query: FinancialReportQuery) {
+    await new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'advanced_reports.enabled');
     const [unitId, professionalId] = await Promise.all([
       this.resolveUnitId(tenantId, query.unitPublicId),
       this.resolveProfessionalId(tenantId, query.professionalPublicId),

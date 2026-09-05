@@ -1,12 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   CreateServiceRequestSchema,
+  DEFAULT_QUOTE_NOTICE,
   blockedServiceMinutes,
   type ServicePublicSchema,
   type ServiceCategoryPublicSchema,
 } from '@plataforma/shared';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
+
+import { ServiceIconPicker } from './ServiceIconPicker.js';
 
 import type { z } from 'zod';
 
@@ -21,11 +24,14 @@ function defaults(service?: Service): ServiceInput {
       name: '',
       description: null,
       imageAlt: null,
+      iconKey: null,
       categoryPublicId: null,
       durationMinutes: 30,
       hasPostServiceBreak: false,
       postServiceBreakMinutes: 0,
       priceCents: 0,
+      pricingMode: 'FIXED',
+      quoteNotice: null,
       color: '#2563EB',
       sortOrder: 0,
       active: true,
@@ -35,30 +41,44 @@ function defaults(service?: Service): ServiceInput {
     name: service.name,
     description: service.description,
     imageAlt: service.imageAlt,
+    iconKey: service.iconKey,
     categoryPublicId: service.categoryPublicId,
     durationMinutes: service.durationMinutes,
     hasPostServiceBreak: service.hasPostServiceBreak,
     postServiceBreakMinutes: service.postServiceBreakMinutes,
     priceCents: Number(service.priceCents),
+    pricingMode: service.pricingMode,
+    quoteNotice: service.quoteNotice,
     color: service.color,
     sortOrder: service.sortOrder,
     active: service.active,
   };
 }
 
+/**
+ * `fields` escolhe o recorte exibido, mas o formulário sempre envia o serviço
+ * completo: as regras e os valores atuais continuam em um único lugar.
+ */
 export function ServiceForm({
   busy,
   error,
   service,
-  terminology,
   categories = [],
+  fields = 'all',
+  submitLabel,
+  imageSlot,
+  onCancel,
   onSave,
 }: {
   busy: boolean;
   error: string | null;
   service?: Service;
-  terminology: string;
   categories?: Category[];
+  fields?: 'all' | 'operational' | 'public';
+  submitLabel?: string;
+  /** Seletor de imagem exibido na seção de apresentação, no cadastro. */
+  imageSlot?: ReactNode;
+  onCancel?: () => void;
   onSave: (value: ServiceSubmission) => Promise<void>;
 }) {
   const form = useForm<ServiceInput, unknown, ServiceSubmission>({
@@ -70,12 +90,21 @@ export function ServiceForm({
     handleSubmit,
     reset,
     control,
+    setValue,
     formState: { errors },
   } = form;
-  const [duration, hasBreak, breakMinutes] = useWatch({
+  const [duration, hasBreak, breakMinutes, priceCents, iconKey, pricingMode] = useWatch({
     control,
-    name: ['durationMinutes', 'hasPostServiceBreak', 'postServiceBreakMinutes'],
+    name: [
+      'durationMinutes',
+      'hasPostServiceBreak',
+      'postServiceBreakMinutes',
+      'priceCents',
+      'iconKey',
+      'pricingMode',
+    ],
   });
+  const isQuote = pricingMode === 'QUOTE';
   useEffect(() => {
     reset(defaults(service));
   }, [reset, service]);
@@ -84,84 +113,132 @@ export function ServiceForm({
     hasBreak === true,
     Number(breakMinutes) || 0,
   );
+  const formatMoney = (value: number) =>
+    (value / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  return (
-    <form
-      className="platform-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void handleSubmit(onSave)();
-      }}
-    >
-      <h3>
-        {service === undefined
-          ? `Criar ${terminology.toLowerCase()}`
-          : `Editar ${terminology.toLowerCase()}`}
-      </h3>
-      <label>
-        Nome
-        <input {...register('name')} />
-      </label>
-      <label>
-        {'Descri\u00e7\u00e3o'}
-        <textarea {...register('description')} />
-      </label>
-      <label>
-        Categoria
-        <select
-          {...register('categoryPublicId', {
-            setValueAs: (value: string) => (value === '' ? null : value),
-          })}
-        >
-          <option value="">Sem categoria</option>
-          {categories
-            .filter(
-              (category) => category.active || category.publicId === service?.categoryPublicId,
-            )
-            .map((category) => (
-              <option key={category.publicId} value={category.publicId}>
-                {category.name}
-              </option>
-            ))}
-        </select>
-      </label>
-      <label>
-        Texto alternativo da imagem
-        <input {...register('imageAlt')} />
-      </label>
-      <label>
-        {'Dura\u00e7\u00e3o em minutos'}
-        <input
-          min="1"
-          max="1440"
-          type="number"
-          {...register('durationMinutes', { valueAsNumber: true })}
-        />
-      </label>
-      <label>
-        {'Pre\u00e7o em centavos'}
-        <input min="0" type="number" {...register('priceCents', { valueAsNumber: true })} />
-      </label>
-      <label>
-        Cor para agenda
-        <input type="color" {...register('color')} />
-      </label>
-      <label>
-        Ordem de {'exibi\u00e7\u00e3o'}
-        <input
-          min="0"
-          max="999"
-          type="number"
-          {...register('sortOrder', { valueAsNumber: true })}
-        />
-      </label>
-      <label>
+  const nameField = (
+    <label className="service-field--wide">
+      Nome
+      <input {...register('name')} />
+    </label>
+  );
+  const categoryField = (
+    <label>
+      Categoria
+      <select
+        {...register('categoryPublicId', {
+          setValueAs: (value: string) => (value === '' ? null : value),
+        })}
+      >
+        <option value="">Sem categoria</option>
+        {categories
+          .filter((category) => category.active || category.publicId === service?.categoryPublicId)
+          .map((category) => (
+            <option key={category.publicId} value={category.publicId}>
+              {category.name}
+            </option>
+          ))}
+      </select>
+    </label>
+  );
+  const statusField = (
+    <label>
+      Status
+      <select {...register('active', { setValueAs: (value: string) => value === 'true' })}>
+        <option value="true">Ativo</option>
+        <option value="false">Inativo</option>
+      </select>
+    </label>
+  );
+  const durationField = (
+    <label>
+      {isQuote ? 'Duração da avaliação (minutos)' : 'Duração (minutos)'}
+      <input
+        min="1"
+        max="1440"
+        type="number"
+        list="service-duration-options"
+        {...register('durationMinutes', { valueAsNumber: true })}
+      />
+      <datalist id="service-duration-options">
+        <option value="30">30 min</option>
+        <option value="45">45 min</option>
+        <option value="60">1 h</option>
+        <option value="90">1 h 30</option>
+        <option value="120">2 h</option>
+      </datalist>
+    </label>
+  );
+  // Sob orçamento a tela guarda só o essencial: a complexidade (sessões,
+  // intervalo, valor) pertence ao atendimento de cada cliente.
+  const pricingModeField = (
+    <div className="service-field--wide service-pricing-mode">
+      <span>Tipo de preço</span>
+      <div className="service-pricing-options" role="radiogroup" aria-label="Tipo de preço">
+        {(
+          [
+            ['FIXED', 'Preço fixo', 'O valor já aparece para o cliente.'],
+            ['QUOTE', 'Sob orçamento', 'O cliente agenda uma avaliação e o valor vem depois.'],
+          ] as const
+        ).map(([value, label, hint]) => (
+          <label key={value} className={pricingMode === value ? 'is-selected' : undefined}>
+            <input
+              type="radio"
+              value={value}
+              checked={pricingMode === value}
+              onChange={() => {
+                setValue('pricingMode', value, { shouldDirty: true });
+                // Sob orçamento não existe preço no cadastro.
+                if (value === 'QUOTE') setValue('priceCents', 0, { shouldDirty: true });
+              }}
+            />
+            <strong>{label}</strong>
+            <small>{hint}</small>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+  const quoteNoticeField = (
+    <label className="service-field--wide">
+      {'Texto exibido no lugar do preço'}
+      <input placeholder={DEFAULT_QUOTE_NOTICE} {...register('quoteNotice')} />
+      <small>{`Sem preencher, o cliente vê "${DEFAULT_QUOTE_NOTICE}".`}</small>
+    </label>
+  );
+  const priceField = (
+    <label>
+      {'Preço'}
+      <input
+        min="0"
+        inputMode="decimal"
+        type="number"
+        step="0.01"
+        value={Number(priceCents ?? 0) / 100}
+        onChange={(event) => {
+          setValue('priceCents', Math.round(Number(event.target.value.replace(',', '.')) * 100), {
+            shouldDirty: true,
+          });
+        }}
+      />
+      <small>{formatMoney(Number(priceCents) || 0)}</small>
+    </label>
+  );
+  const colorField = (
+    <label>
+      Cor na agenda
+      <input className="service-field--color" type="color" {...register('color')} />
+    </label>
+  );
+  const breakFields = (
+    <>
+      <label className="service-form-check service-field--wide">
         <input type="checkbox" {...register('hasPostServiceBreak')} />
-        {' Adicionar uma pausa ap\u00f3s este servi\u00e7o?'}
+        {' Adicionar uma pausa após este atendimento?'}
       </label>
-      {hasBreak && (
+      {hasBreak ? (
         <label>
-          {'Dura\u00e7\u00e3o da pausa em minutos'}
+          {'Duração da pausa (minutos)'}
           <input
             min="1"
             max="240"
@@ -169,8 +246,108 @@ export function ServiceForm({
             {...register('postServiceBreakMinutes', { valueAsNumber: true })}
           />
         </label>
-      )}
-      <p className="muted">{`Tempo total bloqueado na agenda: ${String(total)} minutos`}</p>
+      ) : null}
+      <p className="muted service-field--wide">
+        {`Tempo total bloqueado na agenda: ${String(total)} minutos`}
+      </p>
+    </>
+  );
+  const sortOrderField = (
+    <label>
+      {'Ordem de exibição'}
+      <input min="0" max="999" type="number" {...register('sortOrder', { valueAsNumber: true })} />
+    </label>
+  );
+  const descriptionField = (
+    <label className="service-field--wide">
+      {'Descrição pública'}
+      <textarea
+        rows={4}
+        placeholder="Como este atendimento aparece para o cliente."
+        {...register('description')}
+      />
+    </label>
+  );
+  const iconField = (
+    <div className="service-field--wide">
+      <ServiceIconPicker
+        value={typeof iconKey === 'string' ? iconKey : null}
+        onChange={(value) => {
+          setValue('iconKey', value, { shouldDirty: true });
+        }}
+      />
+    </div>
+  );
+  const imageAltField = (
+    <label className="service-field--wide">
+      Texto alternativo da imagem
+      <input {...register('imageAlt')} />
+      <small>Descreve a imagem para leitores de tela.</small>
+    </label>
+  );
+
+  return (
+    <form
+      className="platform-form service-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleSubmit(onSave)();
+      }}
+    >
+      {fields === 'all' ? (
+        <>
+          <fieldset className="service-form-section">
+            <legend>Informações principais</legend>
+            <div className="service-form-grid">
+              {nameField}
+              {categoryField}
+              {statusField}
+            </div>
+          </fieldset>
+          <fieldset className="service-form-section">
+            <legend>Preço e duração</legend>
+            <div className="service-form-grid">
+              {pricingModeField}
+              {isQuote ? quoteNoticeField : priceField}
+              {durationField}
+              {colorField}
+              {breakFields}
+            </div>
+          </fieldset>
+          <fieldset className="service-form-section">
+            <legend>Apresentação pública</legend>
+            <div className="service-form-grid">
+              {imageSlot === undefined ? null : (
+                <div className="service-field--wide">{imageSlot}</div>
+              )}
+              {descriptionField}
+              {iconField}
+              {imageAltField}
+              {sortOrderField}
+            </div>
+          </fieldset>
+        </>
+      ) : null}
+      {fields === 'operational' ? (
+        <div className="service-form-grid">
+          {nameField}
+          {categoryField}
+          {pricingModeField}
+          {durationField}
+          {isQuote ? quoteNoticeField : priceField}
+          {colorField}
+          {statusField}
+          {sortOrderField}
+          {breakFields}
+        </div>
+      ) : null}
+      {fields === 'public' ? (
+        <div className="service-form-grid">
+          {descriptionField}
+          {iconField}
+          {imageAltField}
+        </div>
+      ) : null}
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">
           Revise os campos informados.
@@ -181,9 +358,16 @@ export function ServiceForm({
           {error}
         </p>
       )}
-      <button disabled={busy} type="submit">
-        {busy ? 'Salvando\u2026' : 'Salvar'}
-      </button>
+      <div className="service-form-actions">
+        <button className="primary-button" disabled={busy} type="submit">
+          {busy ? 'Salvando…' : (submitLabel ?? 'Salvar')}
+        </button>
+        {onCancel !== undefined && (
+          <button className="secondary-button" type="button" onClick={onCancel}>
+            Cancelar
+          </button>
+        )}
+      </div>
     </form>
   );
 }

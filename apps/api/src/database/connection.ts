@@ -1,44 +1,66 @@
+import { join } from 'node:path';
+
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
+import { type Environment } from '../config/environment.js';
 import { PrismaClient } from '../database-client/client.js';
 import { AppointmentOperationsService } from '../modules/appointments/appointment-operations.service.js';
 import { AppointmentReviewRepository } from '../modules/appointments/appointment-review.repository.js';
 import { AppointmentReviewService } from '../modules/appointments/appointment-review.service.js';
+import { GoogleAuthService } from '../modules/auth/google-auth.service.js';
 import { AppointmentWaitlistRepository } from '../modules/appointments/appointment-waitlist.repository.js';
 import { AppointmentWaitlistService } from '../modules/appointments/appointment-waitlist.service.js';
 import { AppointmentRepository } from '../modules/appointments/appointment.repository.js';
 import { AppointmentService } from '../modules/appointments/appointment.service.js';
+import { TreatmentPlanRepository } from '../modules/appointments/treatment-plan.repository.js';
+import { TreatmentPlanService } from '../modules/appointments/treatment-plan.service.js';
+import { TreatmentPlanReminderService } from '../modules/appointments/treatment-plan-reminder.service.js';
+import { TreatmentPlanReminderRepository } from '../modules/appointments/treatment-plan-reminder.repository.js';
 import { type IdentityRepository } from '../modules/auth/identity.repository.js';
 import { PasswordService } from '../modules/auth/password.service.js';
 import { PrismaIdentityRepository } from '../modules/auth/prisma-identity.repository.js';
 import { PublicBookingService } from '../modules/booking/public-booking.service.js';
 import { AvailabilityRepository } from '../modules/calendar/availability.repository.js';
 import { AvailabilityService } from '../modules/calendar/availability.service.js';
+import { CollectionAttemptExecutionService } from '../modules/collections/collection-attempt-execution.service.js';
+import { CollectionAttemptEngineService } from '../modules/collections/collection-attempt.service.js';
+import { CollectionRuleService } from '../modules/collections/collection-rule.service.js';
+import { DebtPixPaymentService } from '../modules/collections/debt-pix-payment.service.js';
+import { DebtService } from '../modules/collections/debt.service.js';
+import { PaymentPromiseService } from '../modules/collections/payment-promise.service.js';
 import { CustomerAuthRepository } from '../modules/customers/customer-auth.repository.js';
 import { CustomerAuthService } from '../modules/customers/customer-auth.service.js';
 import { CustomerFavoriteRepository } from '../modules/customers/customer-favorite.repository.js';
 import { CustomerFavoriteService } from '../modules/customers/customer-favorite.service.js';
+import { CustomerPhotoService } from '../modules/customers/customer-photo.service.js';
 import { CustomerProfileService } from '../modules/customers/customer-profile.service.js';
 import { CustomerRecoveryRepository } from '../modules/customers/customer-recovery.repository.js';
 import { CustomerRecoveryService } from '../modules/customers/customer-recovery.service.js';
 import { CustomerRepository } from '../modules/customers/customer.repository.js';
 import { CustomerService } from '../modules/customers/customer.service.js';
+import { CustomerMembershipUsageService } from '../modules/customers/customer-membership-usage.service.js';
 import {
-  MetaWhatsAppDelivery,
+  WApiWhatsAppDelivery,
   WebhookDelivery,
 } from '../modules/integrations/integration-delivery.js';
 import { IntegrationRepository } from '../modules/integrations/integration.repository.js';
 import { IntegrationService } from '../modules/integrations/integration.service.js';
+import { WApiIntegrationService, type WapiCredentialProvider } from '../modules/integrations/wapi-integration.service.js';
+import { WapiMasterCredentialProvider } from '../modules/integrations/wapi-master-credential-provider.js';
+import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
+import { WapiConfigService } from '../modules/platform/wapi-config.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
+import { AppointmentReminderConfigService } from '../modules/notifications/appointment-reminder-config.service.js';
 import { AutomationService } from '../modules/notifications/automation.service.js';
 import { CustomerNotificationDispatcher } from '../modules/notifications/customer-notification-dispatcher.js';
+import { type EmailDelivery } from '../modules/notifications/email-delivery.js';
 import {
-  type EmailDelivery,
-  SmtpEmailDelivery,
-  UnconfiguredEmailDelivery,
-} from '../modules/notifications/email-delivery.js';
+  type HostingerMailApiDeliveryOptions,
+  resolveEmailDelivery,
+} from '../modules/notifications/hostinger-mail-delivery.js';
 import { NotificationTemplateService } from '../modules/notifications/notification-template.service.js';
+import { NotificationCampaignService } from '../modules/notifications/notification-campaign.service.js';
 import { NotificationService } from '../modules/notifications/notification.service.js';
 import {
   type PushDelivery,
@@ -46,10 +68,12 @@ import {
   WebPushDelivery,
 } from '../modules/notifications/push-delivery.js';
 import { PushSubscriptionService } from '../modules/notifications/push-subscription.service.js';
+import { TreatmentPlanNotificationService } from '../modules/notifications/treatment-plan-notification.service.js';
 import { CashRegisterService } from '../modules/payments/cash-register.service.js';
 import { CouponService } from '../modules/payments/coupon.service.js';
 import { DelinquencyService } from '../modules/payments/delinquency.service.js';
 import { FinancialClosingService } from '../modules/payments/financial-closing.service.js';
+import { FinanceOverviewService } from '../modules/payments/finance-overview.service.js';
 import { FinancialReportService } from '../modules/payments/financial-report.service.js';
 import { CredentialsCipher } from '../modules/payments/gateway/credentials-cipher.js';
 import { FetchHttpClient } from '../modules/payments/gateway/mercadopago/http-client.js';
@@ -63,7 +87,10 @@ import { PaymentMethodService } from '../modules/payments/payment-method.service
 import { PaymentService } from '../modules/payments/payment.service.js';
 import { ProfessionalCommissionService } from '../modules/payments/professional-commission.service.js';
 import { ReceiptService } from '../modules/payments/receipt.service.js';
+import { PlatformBillingService } from '../modules/platform/platform-billing.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
+import { DirectoryService } from '../modules/platform/directory.service.js';
+import { DirectorySeoService } from '../modules/platform/directory-seo.service.js';
 import { TenantCommercialPolicyService } from '../modules/platform/tenant-commercial-policy.service.js';
 import { TenantCommercialSweepService } from '../modules/platform/tenant-commercial-sweep.service.js';
 import { ProductSaleRepository } from '../modules/products/product-sale.repository.js';
@@ -82,6 +109,10 @@ import { PrismaProfessionalUnitRepository } from '../modules/professionals/profe
 import { ProfessionalUnitLinkService } from '../modules/professionals/professional-unit.service.js';
 import { PrismaProfessionalRepository } from '../modules/professionals/professional.repository.js';
 import { ProfessionalService } from '../modules/professionals/professional.service.js';
+import { ProspectingService } from '../modules/prospecting/prospecting.service.js';
+import { ProspectingWhatsAppConfigService } from '../modules/prospecting/prospecting-whatsapp-config.service.js';
+import { ProspectingAudienceService } from '../modules/prospecting/prospecting-audience.service.js';
+import { ProspectingRepository } from '../modules/prospecting/prospecting.repository.js';
 import { PrismaComboRepository } from '../modules/services/combo.repository.js';
 import { ComboService } from '../modules/services/combo.service.js';
 import { PrismaServiceCategoryRepository } from '../modules/services/service-category.repository.js';
@@ -119,12 +150,18 @@ export interface DatabaseConnection {
   readonly availability?: AvailabilityService;
   readonly appointments?: AppointmentService;
   readonly appointmentWaitlists?: AppointmentWaitlistService;
+  readonly treatmentPlans?: TreatmentPlanService;
+  readonly treatmentPlanReminders?: TreatmentPlanReminderService;
   readonly platform?: PlatformService;
+  readonly directory?: DirectoryService;
+  readonly directorySeo?: DirectorySeoService;
+  readonly platformBilling?: PlatformBillingService;
   readonly commercialPolicy?: TenantCommercialPolicyService;
   readonly commercialSweep?: TenantCommercialSweepService;
   readonly customers?: CustomerService;
   readonly customerAuth?: CustomerAuthService;
   readonly customerProfile?: CustomerProfileService;
+  readonly customerPhotos?: CustomerPhotoService;
   readonly customerFavorites?: CustomerFavoriteService;
   readonly customerRecovery?: CustomerRecoveryService;
   readonly appointmentReviews?: AppointmentReviewService;
@@ -147,7 +184,15 @@ export interface DatabaseConnection {
   readonly appointmentOperations?: AppointmentOperationsService;
   readonly notifications?: NotificationService;
   readonly notificationTemplates?: NotificationTemplateService;
+  readonly notificationCampaigns?: NotificationCampaignService;
+  readonly prospecting?: ProspectingService;
+  readonly prospectingAudience?: ProspectingAudienceService;
+  readonly prospectingRepository?: ProspectingRepository;
+  readonly prospectingWhatsAppConfig?: ProspectingWhatsAppConfigService;
+  readonly whatsappProvisioning?: WhatsAppProvisioningService;
   readonly appointmentNotifications?: AppointmentNotificationService;
+  readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
+  readonly appointmentReminderConfig?: AppointmentReminderConfigService;
   readonly appointmentReminders?: AppointmentReminderService;
   readonly automations?: AutomationService;
   readonly pushSubscriptions?: PushSubscriptionService;
@@ -159,12 +204,19 @@ export interface DatabaseConnection {
   readonly commissions?: ProfessionalCommissionService;
   readonly coupons?: CouponService;
   readonly loyalty?: LoyaltyService;
+  readonly collectionRules?: CollectionRuleService;
+  readonly debts?: DebtService;
+  readonly collectionAttempts?: CollectionAttemptEngineService;
+  readonly collectionAttemptExecution?: CollectionAttemptExecutionService;
+  readonly paymentPromises?: PaymentPromiseService;
   readonly financialClosings?: FinancialClosingService;
   readonly delinquency?: DelinquencyService;
   readonly financialReports?: FinancialReportService;
+  readonly financeOverview?: FinanceOverviewService;
   readonly paymentGateway?: PaymentGatewayService;
   readonly tenantPaymentOptions?: TenantPaymentOptionsService;
   readonly integrations?: IntegrationService;
+  readonly wapiConfig?: WapiConfigService;
   readonly publicBooking?: PublicBookingService;
   readonly products?: ProductCatalogService;
   readonly stockMovements?: StockMovementService;
@@ -180,7 +232,7 @@ function readPositiveInteger(value: string | null, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-interface CustomerAuthOptions {
+export interface CustomerAuthOptions {
   publicBaseDomain?: string;
   passwordArgon2?: { memoryCost: number; timeCost: number; parallelism: number };
   sessionTtlHours?: number;
@@ -192,17 +244,23 @@ interface CustomerAuthOptions {
     pass?: string | undefined;
     from: string;
   };
+  hostingerMail?: HostingerMailApiDeliveryOptions;
   vapid?: {
     publicKey: string;
     privateKey: string;
     subject: string;
   };
   paymentGatewayEncryptionKey?: string;
+  /** Credencial mestra da W-API; nunca sai do backend. */
+  wapiMasterApiKey?: string;
+  wapiBaseUrl?: string;
+  appWebUrl?: string;
 }
 
 export function createDatabaseConnection(
   databaseUrl: string,
   customerAuthOptions?: CustomerAuthOptions,
+  environment?: Environment,
 ): DatabaseConnection {
   let activeClient = createPrismaClient(databaseUrl);
   let recovery: Promise<void> | undefined;
@@ -235,6 +293,7 @@ export function createDatabaseConnection(
   const appointments = new AppointmentService(
     appointmentRepository,
     availability,
+    client,
     commercialPolicy,
     client,
   );
@@ -244,6 +303,11 @@ export function createDatabaseConnection(
     availability,
   );
   appointments.setWaitlistService(appointmentWaitlists);
+  const treatmentPlans = new TreatmentPlanService(new TreatmentPlanRepository(client));
+  appointments.setTreatmentPlanService(treatmentPlans);
+  // Injeta TreatmentPlanReminderService após sua criação (será injetado após whatsappDelivery estar disponível)
+  const membershipUsage = new CustomerMembershipUsageService(client);
+  appointments.setMembershipUsageService(membershipUsage);
   const appointmentReviews = new AppointmentReviewService(
     new AppointmentReviewRepository(client),
     appointmentRepository,
@@ -269,6 +333,14 @@ export function createDatabaseConnection(
     productRepository,
   );
   const tenantWhiteLabelRepository = new TenantWhiteLabelRepository(client);
+  // Uma única instância compartilhada entre a conta do cliente e as
+  // notificações. A Mail API da Hostinger tem prioridade sobre o SMTP; sem
+  // nenhum dos dois, continua sendo a implementação inerte.
+  const emailDelivery: EmailDelivery = resolveEmailDelivery({
+    hostingerMail: customerAuthOptions?.hostingerMail,
+    smtp: customerAuthOptions?.smtp,
+  });
+  const googleAuth = new GoogleAuthService(process.env.GOOGLE_CLIENT_ID ?? 'NOT_CONFIGURED');
   const customerAuth = new CustomerAuthService(
     customerRepository,
     new CustomerAuthRepository(client),
@@ -280,20 +352,30 @@ export function createDatabaseConnection(
         parallelism: 1,
       },
     ),
-    { sessionTtlHours: customerAuthOptions?.sessionTtlHours ?? 168 },
+    googleAuth,
+    {
+      sessionTtlHours: customerAuthOptions?.sessionTtlHours ?? 168,
+      passwordResetTtlMinutes: 60,
+      appWebUrl: process.env.APP_WEB_URL ?? '',
+    },
+    emailDelivery.available ? emailDelivery : undefined,
+  );
+  const customerPhotos = new CustomerPhotoService(
+    client,
+    new LocalServiceImageStorage(
+      process.env.CUSTOMER_PHOTO_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'customers'),
+      'professional',
+    ),
   );
   const tenantWhiteLabel = new TenantWhiteLabelService(
     tenantWhiteLabelRepository,
     new LocalTenantMediaStorage(),
     new LocalServiceImageStorage(),
-    new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR),
+    new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR, 'professional'),
     commercialPolicy,
     client,
   );
-  const emailDelivery: EmailDelivery =
-    customerAuthOptions?.smtp === undefined
-      ? new UnconfiguredEmailDelivery()
-      : new SmtpEmailDelivery(customerAuthOptions.smtp);
+
   const pushDelivery: PushDelivery =
     customerAuthOptions?.vapid === undefined
       ? new UnconfiguredPushDelivery()
@@ -302,13 +384,32 @@ export function createDatabaseConnection(
     customerAuthOptions?.paymentGatewayEncryptionKey === undefined
       ? undefined
       : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
+  const whatsappDelivery = new WApiWhatsAppDelivery(client, credentialsCipher);
+  // Provisionamento da instância: chave mestra resolvida dinamicamente em runtime
+  const wapiCredentialProvider: WapiCredentialProvider = new WapiMasterCredentialProvider(
+    client,
+    customerAuthOptions?.wapiMasterApiKey,
+    credentialsCipher,
+  );
+  const whatsappProvisioning = new WhatsAppProvisioningService(
+    client,
+    new WApiIntegrationService(wapiCredentialProvider, customerAuthOptions?.wapiBaseUrl),
+    credentialsCipher,
+    customerAuthOptions?.appWebUrl,
+  );
+  const wapiConfigService = new WapiConfigService(
+    client,
+    credentialsCipher,
+    customerAuthOptions?.wapiMasterApiKey,
+  );
   const notifications = new NotificationService(client, {
     email: emailDelivery,
     push: pushDelivery,
-    whatsapp: new MetaWhatsAppDelivery(client, credentialsCipher),
+    whatsapp: whatsappDelivery,
     webhook: new WebhookDelivery(client, credentialsCipher),
   });
   const notificationTemplates = new NotificationTemplateService(client);
+  const notificationCampaigns = new NotificationCampaignService(client, notifications);
   const notificationDispatcher = new CustomerNotificationDispatcher(
     client,
     notifications,
@@ -322,25 +423,58 @@ export function createDatabaseConnection(
     client,
     notificationDispatcher,
   );
-  const appointmentReminders = new AppointmentReminderService(client, notificationDispatcher);
-  const automations = new AutomationService(client, notificationDispatcher);
+  const treatmentPlanNotifications = new TreatmentPlanNotificationService(
+    client,
+    notificationDispatcher,
+    notifications,
+  );
+  const appointmentReminderConfig = new AppointmentReminderConfigService(client);
+  const appointmentReminders = new AppointmentReminderService(
+    client,
+    notificationDispatcher,
+    appointmentReminderConfig,
+  );
+  const automations = new AutomationService(client);
   const pushSubscriptions = new PushSubscriptionService(client);
   const cashRegisters = new CashRegisterService(client);
   const commissions = new ProfessionalCommissionService(client);
   const coupons = new CouponService(client);
   const loyalty = new LoyaltyService(client, coupons);
   const delinquency = new DelinquencyService(client);
+  const collectionRules = new CollectionRuleService(client);
+  const debts = new DebtService(client, collectionRules);
+  const collectionAttempts = new CollectionAttemptEngineService(client);
+  const paymentPromises = new PaymentPromiseService(client, debts);
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
   paymentGatewayRegistry.register(new PixLocalProviderAdapter());
   paymentGatewayRegistry.register(new MercadoPagoProviderAdapter(new FetchHttpClient()));
+  // debtPixPayments/collectionAttemptExecution só podem ser construídos depois
+  // de paymentMethods/payments (Fase 6 do Bot Cobra — PIX integral): o
+  // executor da régua passa a saber gerar cobrança PIX via paymentGateway.
+  const debtPixPayments = new DebtPixPaymentService(
+    client,
+    debts,
+    notifications,
+    paymentMethods,
+    payments,
+    paymentPromises,
+  );
   const paymentGateway = new PaymentGatewayService(
     client,
     paymentGatewayRegistry,
     credentialsCipher,
     paymentMethods,
     payments,
+    debtPixPayments,
+  );
+  const collectionAttemptExecution = new CollectionAttemptExecutionService(
+    client,
+    notifications,
+    debts,
+    paymentPromises,
+    paymentGateway,
   );
   const tenantPaymentOptions = new TenantPaymentOptionsService(
     client,
@@ -348,6 +482,27 @@ export function createDatabaseConnection(
     payments,
     tenantWhiteLabelRepository,
   );
+  const platformBilling = new PlatformBillingService(
+    client,
+    paymentGatewayRegistry,
+    credentialsCipher,
+  );
+  const directorySeo = new DirectorySeoService(client, {
+    ...(process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL === undefined ? {} : { siteUrl: process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL }),
+    ...(process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON === undefined ? {} : { serviceAccountJson: process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }),
+    ...(process.env.GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN === undefined ? {} : { accessToken: process.env.GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN }),
+    ...(process.env.INDEXNOW_KEY === undefined ? {} : { indexNowKey: process.env.INDEXNOW_KEY }),
+    ...(process.env.INDEXNOW_ENDPOINT === undefined ? {} : { indexNowEndpoint: process.env.INDEXNOW_ENDPOINT }),
+  });
+
+  // Cria TreatmentPlanReminder com dependências (será injetado no treatmentPlans depois)
+  const treatmentPlanReminders = new TreatmentPlanReminderService(
+    new TreatmentPlanReminderRepository(client),
+    new IntegrationRepository(client),
+    whatsappDelivery,
+  );
+  // Injeta o serviço de lembretes no serviço de planos
+  treatmentPlans.setReminderService(treatmentPlanReminders);
 
   return {
     client,
@@ -355,13 +510,19 @@ export function createDatabaseConnection(
     availability,
     appointments: appointments,
     appointmentWaitlists: appointmentWaitlists,
+    treatmentPlans,
+    treatmentPlanReminders,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
+    directorySeo,
+    directory: new DirectoryService(client, directorySeo),
+    platformBilling,
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client),
     customers: customers,
     customerAuth: customerAuth,
     customerProfile: customerProfile,
+    customerPhotos,
     customerFavorites: customerFavorites,
     customerRecovery: customerRecovery,
     appointmentReviews: appointmentReviews,
@@ -370,14 +531,20 @@ export function createDatabaseConnection(
       new LocalServiceImageStorage(),
     ),
     serviceCategories: new ServiceCategoryService(new PrismaServiceCategoryRepository(client)),
-    products: new ProductCatalogService(productRepository, stockMovements),
+    products: new ProductCatalogService(
+      productRepository,
+      stockMovements,
+      new LocalServiceImageStorage(
+        process.env.PRODUCT_IMAGE_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'products'),
+      ),
+    ),
     stockMovements,
     productSales,
     serviceVariations: new ServiceVariationService(new PrismaServiceVariationRepository(client)),
     combos: new ComboService(new PrismaComboRepository(client), new LocalServiceImageStorage()),
     professionals: new ProfessionalService(
       new PrismaProfessionalRepository(client),
-      new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR),
+      new LocalServiceImageStorage(process.env.PROFESSIONAL_IMAGE_STORAGE_DIR, 'professional'),
     ),
     professionalServices: professionalServices,
     professionalUnits: professionalUnits,
@@ -405,7 +572,15 @@ export function createDatabaseConnection(
     appointmentOperations: new AppointmentOperationsService(client),
     notifications: notifications,
     notificationTemplates: notificationTemplates,
+    notificationCampaigns: notificationCampaigns,
+    prospecting: new ProspectingService(client),
+    prospectingAudience: new ProspectingAudienceService(client),
+    prospectingRepository: new ProspectingRepository(client),
+    ...(credentialsCipher ? { prospectingWhatsAppConfig: new ProspectingWhatsAppConfigService(client, credentialsCipher) } : {}),
+    whatsappProvisioning,
     appointmentNotifications: appointmentNotifications,
+    treatmentPlanNotifications,
+    appointmentReminderConfig: appointmentReminderConfig,
     appointmentReminders: appointmentReminders,
     automations: automations,
     pushSubscriptions: pushSubscriptions,
@@ -417,12 +592,34 @@ export function createDatabaseConnection(
     commissions: commissions,
     coupons: coupons,
     loyalty: loyalty,
+    collectionRules: collectionRules,
+    debts: debts,
+    collectionAttempts: collectionAttempts,
+    collectionAttemptExecution: collectionAttemptExecution,
+    paymentPromises: paymentPromises,
     financialClosings: new FinancialClosingService(client),
     delinquency: delinquency,
     financialReports: new FinancialReportService(client, delinquency),
+    financeOverview: new FinanceOverviewService(client, delinquency),
     paymentGateway: paymentGateway,
     tenantPaymentOptions: tenantPaymentOptions,
-    integrations: new IntegrationService(new IntegrationRepository(client), credentialsCipher),
+    integrations: new IntegrationService(
+      new IntegrationRepository(client),
+      credentialsCipher,
+      whatsappDelivery,
+      appointments,
+      availability,
+      tenantWhiteLabel,
+      professionalServices,
+      customers,
+      tenantPaymentOptions,
+      payments,
+      customerAuth,
+      collectionAttemptExecution,
+      client,
+      credentialsCipher ? new ProspectingWhatsAppConfigService(client, credentialsCipher) : undefined,
+      environment,
+    ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,
       tenantWhiteLabel,
@@ -430,7 +627,9 @@ export function createDatabaseConnection(
       customers,
       appointments,
       new AvailabilityService(new AvailabilityRepository(client)),
+      appointmentNotifications,
     ),
+    wapiConfig: wapiConfigService,
     async ping() {
       try {
         await activeClient.$queryRaw`SELECT 1`;
@@ -455,6 +654,7 @@ export function createPrismaClient(databaseUrl: string): PrismaClient {
     connectionLimit: readPositiveInteger(url.searchParams.get('connection_limit'), 10),
     connectTimeout: 5_000,
     idleTimeout: 300,
+    ...(process.env.NODE_ENV === 'production' ? {} : { allowPublicKeyRetrieval: true }),
   });
   return new PrismaClient({ adapter });
 }

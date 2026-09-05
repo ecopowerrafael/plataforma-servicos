@@ -115,7 +115,7 @@ export function MembersModule({
         : null;
 
   return (
-    <section className="platform-form" aria-label="Membros do estabelecimento">
+    <section className="app-card members-module" aria-label="Membros do estabelecimento">
       <h3>Membros</h3>
       {members.isPending ? <p>Carregando membros…</p> : null}
       {members.error instanceof Error ? (

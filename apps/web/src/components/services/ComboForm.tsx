@@ -4,8 +4,8 @@ import {
   type ComboPublicSchema,
   type ServicePublicSchema,
 } from '@plataforma/shared';
-import { useEffect } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useEffect, useMemo, useState } from 'react';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 
 import type { z } from 'zod';
 
@@ -13,14 +13,6 @@ type ComboInput = z.input<typeof CreateComboRequestSchema>;
 export type ComboSubmission = z.output<typeof CreateComboRequestSchema>;
 type Combo = z.infer<typeof ComboPublicSchema>;
 type Service = z.infer<typeof ServicePublicSchema>;
-type ItemField = 'servicePublicId' | 'sortOrder';
-
-function itemFieldPath<Field extends ItemField>(
-  index: number,
-  field: Field,
-): `items.${number}.${Field}` {
-  return `items.${index.toString()}.${field}` as `items.${number}.${Field}`;
-}
 
 function defaults(combo?: Combo): ComboInput {
   if (combo === undefined) {
@@ -31,10 +23,7 @@ function defaults(combo?: Combo): ComboInput {
       priceCents: 0,
       sortOrder: 0,
       active: true,
-      items: [
-        { servicePublicId: '', sortOrder: 0 },
-        { servicePublicId: '', sortOrder: 1 },
-      ],
+      items: [],
     };
   }
   return {
@@ -51,6 +40,9 @@ function defaults(combo?: Combo): ComboInput {
   };
 }
 
+const money = (cents: string) =>
+  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 export function ComboForm({
   busy,
   error,
@@ -64,102 +56,179 @@ export function ComboForm({
   services: Service[];
   onSave: (value: ComboSubmission) => Promise<void>;
 }) {
+  const form = useForm<ComboInput, unknown, ComboSubmission>({
+    defaultValues: defaults(combo),
+    resolver: zodResolver(CreateComboRequestSchema),
+  });
   const {
     register,
     handleSubmit,
     reset,
     control,
+    setValue,
     formState: { errors },
-  } = useForm<ComboInput, unknown, ComboSubmission>({
-    defaultValues: defaults(combo),
-    resolver: zodResolver(CreateComboRequestSchema),
-  });
+  } = form;
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+  const selectedItems = useWatch({ control, name: 'items' }) ?? [];
+  const priceCents = useWatch({ control, name: 'priceCents' });
+  const [search, setSearch] = useState('');
+  const selectedIds = useMemo(
+    () => new Set(selectedItems.map((item) => item.servicePublicId)),
+    [selectedItems],
+  );
+  const available = useMemo(
+    () =>
+      services.filter((service) =>
+        service.name.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')),
+      ),
+    [search, services],
+  );
+  const selectedServices = useMemo(
+    () => services.filter((service) => selectedIds.has(service.publicId)),
+    [selectedIds, services],
+  );
+  const regularPrice = selectedServices.reduce(
+    (total, service) => total + Number(service.priceCents),
+    0,
+  );
+
   useEffect(() => {
     reset(defaults(combo));
-  }, [reset, combo]);
+  }, [combo, reset]);
+
+  const toggle = (service: Service) => {
+    const index = selectedItems.findIndex((item) => item.servicePublicId === service.publicId);
+    if (index >= 0) remove(index);
+    else append({ servicePublicId: service.publicId, sortOrder: fields.length });
+  };
+
+  const comboPrice = Number(priceCents ?? 0);
+  const savings = Math.max(0, regularPrice - comboPrice);
 
   return (
     <form
-      className="platform-form"
+      className="platform-form combo-form"
       onSubmit={(event) => {
         event.preventDefault();
         void handleSubmit(onSave)();
       }}
     >
-      <h3>{combo === undefined ? 'Criar combo' : 'Editar combo'}</h3>
-      <label>
-        Nome
-        <input {...register('name')} />
-      </label>
-      <label>
-        {'Descrição'}
-        <textarea {...register('description')} />
-      </label>
-      <label>
-        Texto alternativo da imagem
-        <input {...register('imageAlt')} />
-      </label>
-      <label>
-        {'Preço do combo em centavos'}
-        <input min="0" type="number" {...register('priceCents', { valueAsNumber: true })} />
-      </label>
-      <label>
-        Ordem de {'exibição'}
-        <input
-          min="0"
-          max="999"
-          type="number"
-          {...register('sortOrder', { valueAsNumber: true })}
-        />
-      </label>
-      <label>
-        <input type="checkbox" {...register('active')} />
-        {' Ativo'}
-      </label>
-      <fieldset>
-        <legend>{'Serviços do combo (mínimo de dois)'}</legend>
-        {fields.map((field, index) => (
-          <div className="platform-form" key={field.id}>
-            <label>
-              {'Serviço'}
-              <select {...register(itemFieldPath(index, 'servicePublicId'))}>
-                <option value="">Selecionar</option>
-                {services.map((service) => (
-                  <option key={service.publicId} value={service.publicId}>
-                    {service.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Ordem
-              <input
-                min="0"
-                max="999"
-                type="number"
-                {...register(itemFieldPath(index, 'sortOrder'), { valueAsNumber: true })}
-              />
-            </label>
-            <button
-              disabled={fields.length <= 2}
-              onClick={() => {
-                remove(index);
+      <fieldset className="combo-form-section">
+        <legend>Dados do combo</legend>
+        <div className="combo-form-grid">
+          <label className="combo-field--wide">
+            Nome
+            <input {...register('name')} />
+          </label>
+          <label>
+            {'Preço do combo'}
+            <input
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              type="number"
+              value={comboPrice / 100}
+              onChange={(event) => {
+                setValue(
+                  'priceCents',
+                  Math.round(Number(event.target.value.replace(',', '.')) * 100),
+                  { shouldDirty: true },
+                );
               }}
-              type="button"
-            >
-              Remover item
-            </button>
-          </div>
-        ))}
-        <button
-          onClick={() => {
-            append({ servicePublicId: '', sortOrder: fields.length });
-          }}
-          type="button"
-        >
-          Adicionar item
-        </button>
+            />
+            <small>{money(String(comboPrice))}</small>
+          </label>
+          <label>
+            Status
+            <select {...register('active', { setValueAs: (value: string) => value === 'true' })}>
+              <option value="true">Ativo</option>
+              <option value="false">Inativo</option>
+            </select>
+          </label>
+          <label>
+            {'Ordem de exibição'}
+            <input
+              min="0"
+              max="999"
+              type="number"
+              {...register('sortOrder', { valueAsNumber: true })}
+            />
+          </label>
+          <label className="combo-field--wide">
+            {'Descrição'}
+            <textarea rows={3} {...register('description')} />
+          </label>
+          <label className="combo-field--wide">
+            Texto alternativo da imagem
+            <input {...register('imageAlt')} />
+            <small>Usado quando o combo tiver imagem publicada.</small>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset className="combo-form-section">
+        <legend>{'Serviços do combo'}</legend>
+        <div className="combo-picker-toolbar">
+          <label>
+            {'Buscar serviço'}
+            <input
+              type="search"
+              value={search}
+              placeholder="Digite o nome"
+              onChange={(event) => {
+                setSearch(event.target.value);
+              }}
+            />
+          </label>
+          <span className="combo-selection-count">
+            {`${String(selectedItems.length)} ${selectedItems.length === 1 ? 'serviço selecionado' : 'serviços selecionados'}`}
+            {selectedItems.length < 2 ? ' — mínimo de dois' : ''}
+          </span>
+        </div>
+        <div className="combo-service-grid">
+          {available.map((service) => {
+            const selected = selectedIds.has(service.publicId);
+            return (
+              <button
+                className={`combo-service-card${selected ? ' is-selected' : ''}`}
+                key={service.publicId}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  toggle(service);
+                }}
+              >
+                <span className="combo-service-check" aria-hidden="true">
+                  {selected ? '✓' : ''}
+                </span>
+                <span className="combo-service-body">
+                  <strong>{service.name}</strong>
+                  <small>
+                    {money(service.priceCents)} • {service.durationMinutes} min
+                  </small>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {available.length === 0 ? (
+          <p className="muted">{'Nenhum serviço encontrado para esta busca.'}</p>
+        ) : null}
+        {selectedServices.length > 0 ? (
+          <dl className="combo-price-summary">
+            <div>
+              <dt>Valor avulso</dt>
+              <dd>{money(String(regularPrice))}</dd>
+            </div>
+            <div>
+              <dt>Valor do combo</dt>
+              <dd>{money(String(comboPrice))}</dd>
+            </div>
+            <div>
+              <dt>Economia</dt>
+              <dd>{money(String(savings))}</dd>
+            </div>
+          </dl>
+        ) : null}
       </fieldset>
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">
@@ -171,9 +240,11 @@ export function ComboForm({
           {error}
         </p>
       )}
-      <button disabled={busy} type="submit">
-        {busy ? 'Salvando…' : 'Salvar'}
-      </button>
+      <div className="combo-form-actions">
+        <button className="primary-button" disabled={busy} type="submit">
+          {busy ? 'Salvando…' : 'Salvar combo'}
+        </button>
+      </div>
     </form>
   );
 }

@@ -76,6 +76,41 @@ export class ProfessionalService {
   public async me(tenantId: bigint, userId: bigint) {
     return publicValue(await this.myRecord(tenantId, userId));
   }
+  public async updateMyProfile(
+    tenantId: bigint,
+    userId: bigint,
+    input: Pick<UpdateProfessionalRequest, 'name' | 'publicName' | 'bio' | 'phone'>,
+    actor: Actor,
+  ) {
+    const current = await this.myRecord(tenantId, userId);
+    const updated = await this.repository.update(current.id, {
+      name: input.name,
+      publicName: input.publicName,
+      bio: input.bio ?? null,
+      phone: input.phone ?? null,
+    });
+    await this.log(tenantId, updated.publicId, 'professional.self_profile_updated', actor);
+    return publicValue(updated);
+  }
+  public async changePassword(
+    tenantId: bigint,
+    userIdOrProfPublicId: bigint | string,
+    password: string,
+    passwordService: any,
+    actor?: Actor,
+  ) {
+    let professional: ProfessionalRecord | null;
+    if (typeof userIdOrProfPublicId === 'string') {
+      professional = await this.repository.find(tenantId, userIdOrProfPublicId);
+    } else {
+      professional = await this.repository.findByUserId(tenantId, userIdOrProfPublicId);
+    }
+    if (professional === null) throw this.notFound();
+    if (!professional.user) throw new AppError({ code: 'PROFESSIONAL_NO_USER', message: 'Nenhuma conta vinculada.', statusCode: 400 });
+    const passwordHash = await passwordService.hash(password);
+    await this.repository.updateUserPassword(professional.user.publicId, passwordHash);
+    await this.log(tenantId, professional.publicId, 'professional.password_changed', actor);
+  }
   public async myId(tenantId: bigint, userId: bigint) {
     return (await this.myRecord(tenantId, userId)).id;
   }
@@ -89,11 +124,26 @@ export class ProfessionalService {
       });
     return item;
   }
-  public async create(tenantId: bigint, input: CreateProfessionalRequest, actor?: Actor) {
+  public async create(tenantId: bigint, input: CreateProfessionalRequest, actor?: Actor, passwordService?: any) {
+    // Extrair senha antes de passar para data() - senha não faz parte do modelo
+    const password = (input as any).password as string | undefined;
     const data = await this.data(tenantId, input);
     let item: ProfessionalRecord;
     try {
-      item = await this.repository.create({ publicId: randomUUID(), tenantId, ...data });
+      if (input.userPublicId === undefined && input.email) {
+        const roleId = await this.repository.findRoleByCode(tenantId, 'PROFESSIONAL');
+        if (!roleId) throw new AppError({ code: 'PROFESSIONAL_ROLE_NOT_FOUND', message: 'Permissão de profissional não configurada.', statusCode: 500 });
+        item = await this.repository.createWithAutomaticUser(tenantId, { publicId: randomUUID(), ...data }, roleId.id);
+
+        // Se senha foi fornecida, atualizar User criado automaticamente
+        if (password && item.user) {
+          if (!passwordService) throw new AppError({ code: 'PASSWORD_SERVICE_REQUIRED', message: 'Serviço de senha não disponível.', statusCode: 500 });
+          const passwordHash = await passwordService.hash(password);
+          await this.repository.updateUserPassword(item.user.publicId, passwordHash);
+        }
+      } else {
+        item = await this.repository.create({ publicId: randomUUID(), tenantId, ...data });
+      }
     } catch (error) {
       this.conflict(error);
     }
@@ -110,7 +160,22 @@ export class ProfessionalService {
     if (old === null) throw this.notFound();
     let item: ProfessionalRecord;
     try {
-      item = await this.repository.update(old.id, await this.data(tenantId, input));
+      const data = await this.data(tenantId, input);
+
+      // Auto-link User por email se Professional não tem userId mas email foi informado
+      if (!old.user && input.email) {
+        const linkedUserId = await this.repository.autoLinkUserByEmail(tenantId, input.email);
+        if (linkedUserId) {
+          (data as any).userId = linkedUserId;
+        }
+      }
+
+      // Sincronizar email se Professional já tem User
+      if (input.email && old.email !== input.email && old.user) {
+        await this.repository.updateUserEmail(old.user.publicId, input.email);
+      }
+
+      item = await this.repository.update(old.id, data);
     } catch (error) {
       this.conflict(error);
     }
@@ -150,11 +215,15 @@ export class ProfessionalService {
     await this.log(tenantId, id, 'professional.photo_removed', actor);
     return publicValue(updated);
   }
-  public async photo(tenantId: bigint, id: string) {
+  public async photo(
+    tenantId: bigint,
+    id: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ) {
     const item = await this.repository.find(tenantId, id);
     const photoPath = item?.photoPath;
     if (photoPath === null || photoPath === undefined) throw this.notFound();
-    return this.images.read(photoPath);
+    return this.images.read(photoPath, variant);
   }
   private async data(
     tenantId: bigint,
@@ -188,16 +257,16 @@ export class ProfessionalService {
     return {
       name: input.name,
       publicName: input.publicName,
-      bio: input.bio ?? null,
-      phone: input.phone ?? null,
-      email: input.email ?? null,
-      professionalDocument: input.professionalDocument ?? null,
+      ...(input.bio === undefined ? {} : { bio: input.bio ?? null }),
+      ...(input.phone === undefined ? {} : { phone: input.phone ?? null }),
+      ...(input.email === undefined ? {} : { email: input.email ?? null }),
+      ...(input.professionalDocument === undefined ? {} : { professionalDocument: input.professionalDocument ?? null }),
       specialties: input.specialties as Prisma.InputJsonValue,
       calendarColor: input.calendarColor,
       sortOrder: input.sortOrder,
-      active: input.active,
+      ...(input.active === undefined ? {} : { active: input.active }),
       primaryUnitId: unit?.id ?? null,
-      userId: member?.id ?? null,
+      ...(input.userPublicId === undefined ? {} : { userId: member?.id ?? null }),
       commissionType: input.commissionType,
       commissionValue: input.commissionValue,
       customFields: input.customFields as Prisma.InputJsonValue,

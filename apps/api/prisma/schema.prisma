@@ -75,6 +75,18 @@ enum TenantPublicTheme {
   CLASSIC
   MODERN
   PREMIUM
+  LUXURY
+}
+
+/// Modelo (estrutura/UX) do aplicativo público, independente do tema visual.
+enum TenantPublicLayout {
+  CLASSIC
+  PREMIUM_APP
+}
+
+enum TenantPwaStatus {
+  DRAFT
+  PUBLISHED
 }
 
 enum ProfessionalUnavailabilityType {
@@ -110,6 +122,53 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+/** Como o preco do servico e definido: fixo no catalogo ou apos avaliacao. */
+enum ServicePricingMode {
+  FIXED
+  QUOTE
+}
+
+/** Papel do agendamento: atendimento comum, avaliacao ou sessao de tratamento. */
+enum AppointmentKind {
+  STANDARD
+  EVALUATION
+  TREATMENT_SESSION
+}
+
+/** Fonte de cobranca do agendamento: preco fixo, beneficio sem custo ou desconto. */
+enum AppointmentChargeSource {
+  SERVICE_PRICE
+  MEMBERSHIP_INCLUDED
+  MEMBERSHIP_DISCOUNT
+}
+
+enum TreatmentPlanStatus {
+  PENDING
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+/** O valor do plano e o total do tratamento ou o valor de cada sessao. */
+enum TreatmentBillingMode {
+  TOTAL
+  PER_SESSION
+}
+
+enum TreatmentPlanReminderStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELED
+}
+
+enum TreatmentPlanReminderChannel {
+  WHATSAPP
+  EMAIL
+  PUSH
+}
+
 enum AppointmentWaitlistStatus {
   WAITING
   MATCHED
@@ -135,6 +194,56 @@ enum PaymentStatus {
 enum PaymentKind {
   PAYMENT
   DEPOSIT
+}
+
+enum PaymentOriginType {
+  APPOINTMENT
+  MEMBERSHIP_CHARGE
+  DEBT
+}
+
+/// Define como o estabelecimento comercializa seus serviços. Os tenants
+/// existentes permanecem no modelo histórico, por padrão.
+enum OperatingModel {
+  SERVICE_PRICING
+  MEMBERSHIP
+}
+
+enum MembershipBillingInterval {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+enum MembershipBenefitType {
+  QUANTITY
+  UNLIMITED
+  DISCOUNT
+}
+
+enum CustomerMembershipStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELED
+  EXPIRED
+}
+
+enum CustomerMembershipChargeStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum CustomerMembershipUsageStatus {
+  RESERVED
+  CONSUMED
+  RELEASED
+  REVERSED
 }
 
 enum DepositType {
@@ -361,13 +470,24 @@ model Tenant {
   id                           BigInt                           @id @default(autoincrement()) @db.UnsignedBigInt
   publicId                     String                           @unique @map("public_id") @db.Char(36)
   slug                         String                           @unique @db.VarChar(63)
+  slugChangedAt                DateTime?                        @map("slug_changed_at") @db.DateTime(3)
   legalName                    String                           @map("legal_name") @db.VarChar(160)
   displayName                  String                           @map("display_name") @db.VarChar(120)
   status                       TenantStatus                     @default(ACTIVE)
   timezone                     String                           @db.VarChar(64)
   locale                       String                           @db.VarChar(16)
   currency                     String                           @db.Char(3)
+  operatingModel               OperatingModel                   @default(SERVICE_PRICING) @map("operating_model")
   businessProfile              BusinessProfile                  @default(GENERIC) @map("business_profile")
+  businessTypeCustom           String?                           @map("business_type_custom") @db.VarChar(120)
+  onboardingStep               String                           @default("WELCOME") @map("onboarding_step") @db.VarChar(40)
+  onboardingCompletedAt        DateTime?                        @map("onboarding_completed_at") @db.DateTime(3)
+  onboardingChecklistHiddenAt  DateTime?                        @map("onboarding_checklist_hidden_at") @db.DateTime(3)
+  /// Marca técnica do bootstrap de conteúdo inicial; garante idempotência.
+  starterContentSeededAt       DateTime?                        @map("starter_content_seeded_at") @db.DateTime(3)
+  /// publicIds do conteúdo inicial gerado pelo sistema, para poder substituí-lo
+  /// quando o tipo de negócio muda durante o onboarding.
+  starterContentIds            Json?                            @map("starter_content_ids")
   createdAt                    DateTime                         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                    DateTime                         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   settings                     TenantSettings?
@@ -381,6 +501,10 @@ model Tenant {
   comboItems                   ComboItem[]
   customers                    Customer[]
   appointments                 Appointment[]
+  treatmentPlans               TreatmentPlan[]
+  treatmentPlanReminderStates  TreatmentPlanReminderState[]
+  treatmentPlanReminderLogs    TreatmentPlanReminderLog[]
+  treatmentPlanReminderConfig  TreatmentPlanReminderConfig?
   appointmentWaitlists         AppointmentWaitlist[]
   waitlistOpportunities        AppointmentWaitlistOpportunity[]
   serviceCategories            ServiceCategory[]
@@ -393,6 +517,7 @@ model Tenant {
   businessUnitDateOverrides    BusinessUnitDateOverride[]
   appointmentHistoryEntries    AppointmentHistoryEntry[]
   customerSessions             CustomerSession[]
+  customerPasswordResets       CustomerPasswordResetToken[]
   businessUnits                BusinessUnit[]
   memberships                  TenantMembership[]
   roles                        Role[]
@@ -404,7 +529,12 @@ model Tenant {
   publicSite                   TenantPublicSite?
   customerFavorites            CustomerFavorite[]
   appointmentReviews           AppointmentReview[]
-  notificationLogs             NotificationLog[]
+  customerMembershipPlans       CustomerMembershipPlan[]
+  customerMemberships           CustomerMembership[]
+  customerMembershipCharges     CustomerMembershipCharge[]
+  customerMembershipUsages      CustomerMembershipUsage[]
+  notificationLogs              NotificationLog[]
+  notificationCampaigns        NotificationCampaign[]
   notificationTemplates        NotificationTemplate[]
   pushSubscriptions            PushSubscription[]
   productCategories            ProductCategory[]
@@ -433,10 +563,438 @@ model Tenant {
   loyaltyLedgerEntries         LoyaltyLedgerEntry[]
   domains                      TenantDomain[]
   whatsappConfig               TenantWhatsAppConfig?
+  whatsappInboundEvents        WhatsAppInboundEvent[]
+  whatsappOutboundMessages     WhatsAppOutboundMessage[]
+  whatsappConversations        WhatsAppConversation[]
+  appointmentReminderConfig    AppointmentReminderConfig?
   externalIntegrations         ExternalIntegration[]
+  directoryBusinesses          DirectoryBusiness[]
+  collectionRules              CollectionRule[]
+  debts                        Debt[]
+  debtEvents                   DebtEvent[]
+  collectionAttempts           CollectionAttempt[]
+  paymentPromises               PaymentPromise[]
+  debtPaymentAllocations        DebtPaymentAllocation[]
 
   @@index([status])
   @@map("tenants")
+}
+
+enum DirectoryImportStatus {
+  ANALYZED
+  QUEUED
+  PROCESSING
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+enum DirectoryImportItemStatus {
+  CREATED
+  UPDATED
+  UNCHANGED
+  POSSIBLE_DUPLICATE
+  SKIPPED
+  ERROR
+}
+
+enum DirectoryBusinessEventType {
+  BUSINESS_VIEW
+  WHATSAPP_CLICK
+}
+
+enum DirectorySeoSyncStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum SeoUrlSubmissionProvider {
+  INDEXNOW
+}
+
+enum SeoUrlSubmissionReason {
+  CREATED
+  UPDATED
+  DELETED
+  MANUAL
+}
+
+enum SeoUrlSubmissionStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum SeoUrlInspectionStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model DirectoryCategory {
+  id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId     String   @unique @map("public_id") @db.Char(36)
+  name         String   @db.VarChar(120)
+  singularName String   @map("singular_name") @db.VarChar(120)
+  pluralName   String   @map("plural_name") @db.VarChar(120)
+  slug         String   @unique @db.VarChar(120)
+  description  String?  @db.Text
+  seoTitle     String?  @map("seo_title") @db.VarChar(180)
+  seoDescription String? @map("seo_description") @db.VarChar(320)
+  icon         String?  @db.VarChar(40)
+  active       Boolean  @default(true)
+  indexable    Boolean  @default(true)
+  sortOrder    Int      @default(0) @map("sort_order")
+  externalSearchTerms Json? @map("external_search_terms")
+  externalNegativeTerms Json? @map("external_negative_terms")
+  geoapifyCategories Json? @map("geoapify_categories")
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  businesses   DirectoryBusiness[]
+  importItems  DirectoryImportItem[]
+  seoMetrics   DirectorySeoDailyMetric[]
+  seoQueries   DirectorySeoQueryMetric[]
+  externalSearches DirectoryExternalSearchCache[]
+  cityAggregates DirectoryCityAggregate[]
+  aggregateJobs DirectoryCityAggregateJob[]
+  prospectingCampaigns ProspectingCampaign[]
+
+  @@index([active, sortOrder])
+  @@map("directory_categories")
+}
+
+model DirectoryPostalCodeCache {
+  id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  cep          String   @unique @db.Char(8)
+  city         String   @db.VarChar(120)
+  state        String   @db.Char(2)
+  neighborhood String?  @db.VarChar(120)
+  street       String?  @db.VarChar(180)
+  latitude     Float?
+  longitude    Float?
+  provider     String   @db.VarChar(40)
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("directory_postal_code_cache")
+}
+
+model DirectoryExternalSearchCache {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  cacheKey   String   @unique @map("cache_key") @db.Char(64)
+  categoryId BigInt   @map("category_id") @db.UnsignedBigInt
+  cep        String   @db.Char(8)
+  radius     Int
+  results    Json
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  category   DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, cep, radius])
+  @@map("directory_external_search_cache")
+}
+
+model DirectoryLocationConfig {
+  id                       BigInt   @id @default(1) @db.UnsignedBigInt
+  geoapifyApiKeyEncrypted  String?  @map("geoapify_api_key_encrypted") @db.VarChar(256)
+  createdAt                DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("directory_location_config")
+}
+
+model DirectoryBusiness {
+  id               BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId         String   @unique @map("public_id") @db.Char(36)
+  categoryId       BigInt   @map("category_id") @db.UnsignedBigInt
+  tenantId         BigInt?  @map("tenant_id") @db.UnsignedBigInt
+  sourceLocalId    String?  @map("source_local_id") @db.VarChar(120)
+  sourceSegmentKey String?  @map("source_segment_key") @db.VarChar(120)
+  sourceSearchTerm String?  @map("source_search_term") @db.VarChar(160)
+  name             String   @db.VarChar(180)
+  slug             String   @db.VarChar(180)
+  citySlug         String   @map("city_slug") @db.VarChar(180)
+  rawAddress       String   @map("raw_address") @db.Text
+  street           String?  @db.VarChar(180)
+  number           String?  @db.VarChar(32)
+  complement       String?  @db.VarChar(160)
+  neighborhood     String?  @db.VarChar(120)
+  city             String   @db.VarChar(120)
+  state            String   @db.Char(2)
+  postalCode       String?  @map("postal_code") @db.Char(8)
+  ibgeCode         String?  @map("ibge_code") @db.VarChar(16)
+  phone            String?  @db.VarChar(20)
+  whatsapp         String?  @db.VarChar(20)
+  email            String?  @db.VarChar(254)
+  websiteUrl       String?  @map("website_url") @db.VarChar(500)
+  imageUrl         String?  @map("image_url") @db.VarChar(500)
+  sourceUrl        String?  @map("source_url") @db.VarChar(500)
+  relevanceScore   Int?     @map("relevance_score")
+  reviewStatus     String?  @map("review_status") @db.VarChar(40)
+  active           Boolean  @default(true)
+  indexable        Boolean  @default(true)
+  seoQualityScore  Int      @default(0) @map("seo_quality_score") @db.UnsignedTinyInt
+  seoEligible      Boolean  @default(false) @map("seo_eligible")
+  seoEvaluatedAt   DateTime? @map("seo_evaluated_at") @db.DateTime(3)
+  sourceHash       String   @map("source_hash") @db.Char(64)
+  firstImportedAt  DateTime @default(now()) @map("first_imported_at") @db.DateTime(3)
+  lastImportedAt   DateTime @default(now()) @map("last_imported_at") @db.DateTime(3)
+  claimedAt        DateTime? @map("claimed_at") @db.DateTime(3)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  category         DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  tenant           Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  importItems      DirectoryImportItem[]
+  events           DirectoryBusinessEvent[]
+  seoMetrics       DirectorySeoDailyMetric[]
+  seoQueries       DirectorySeoQueryMetric[]
+  seoSubmissions   SeoUrlSubmission[]
+  seoInspections   SeoUrlInspection[]
+  prospectingLeads ProspectingLead[]
+
+  @@unique([categoryId, state, citySlug, slug], map: "udb_category_city_slug")
+  @@index([categoryId, citySlug, active])
+  @@index([city, state])
+  @@index([ibgeCode])
+  @@index([whatsapp])
+  @@index([phone])
+  @@index([tenantId])
+  @@index([seoEligible, active])
+  @@index([categoryId, seoEligible])
+  @@map("directory_businesses")
+}
+
+model DirectoryCityAggregate {
+  id                          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  categoryId                  BigInt   @map("category_id") @db.UnsignedBigInt
+  citySlug                    String   @map("city_slug") @db.VarChar(180)
+  city                        String   @db.VarChar(120)
+  state                       String   @db.Char(2)
+
+  businessCount               Int      @default(0) @map("business_count")
+  seoEligibleBusinessCount    Int      @default(0) @map("seo_eligible_business_count")
+  whatsappCount               Int      @default(0) @map("whatsapp_count")
+
+  topNeighborhoods            Json     @default("[]") @map("top_neighborhoods")
+  lastBusinessUpdatedAt       DateTime? @map("last_business_updated_at") @db.DateTime(3)
+
+  seoEligible                 Boolean  @default(false) @map("seo_eligible")
+
+  createdAt                   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                   DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  category                    DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, citySlug], map: "udca_category_city")
+  @@index([categoryId, seoEligible])
+  @@index([seoEligibleBusinessCount])
+  @@map("directory_city_aggregates")
+}
+
+model DirectoryCityAggregateJob {
+  id                BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String    @unique @map("public_id") @db.Char(36)
+
+  categoryId        BigInt    @map("category_id") @db.UnsignedBigInt
+  citySlug          String    @map("city_slug") @db.VarChar(180)
+
+  status            String    @default("PENDING") @db.VarChar(20)
+  attempts          Int       @default(0)
+
+  pendingKey        String?   @map("pending_key") @db.VarChar(220)
+  nextAttemptAt     DateTime? @map("next_attempt_at") @db.DateTime(3)
+  lastError         String?   @map("last_error") @db.Text
+
+  createdAt         DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  processedAt       DateTime? @map("processed_at") @db.DateTime(3)
+
+  category          DirectoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([pendingKey], map: "udcaj_pending_key")
+  @@index([status, nextAttemptAt])
+  @@index([categoryId, citySlug])
+  @@map("directory_city_aggregate_jobs")
+}
+
+model DirectoryBusinessEvent {
+  id          BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId    String                    @unique @map("public_id") @db.Char(36)
+  businessId  BigInt                    @map("business_id") @db.UnsignedBigInt
+  type        DirectoryBusinessEventType
+  visitorHash String?                   @map("visitor_hash") @db.Char(64)
+  sessionHash String?                   @map("session_hash") @db.Char(64)
+  sourcePath  String                    @map("source_path") @db.VarChar(500)
+  referrer    String?                   @db.VarChar(500)
+  utmSource   String?                   @map("utm_source") @db.VarChar(160)
+  utmMedium   String?                   @map("utm_medium") @db.VarChar(160)
+  utmCampaign String?                   @map("utm_campaign") @db.VarChar(160)
+  createdAt   DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  business    DirectoryBusiness         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, type, createdAt])
+  @@index([type, createdAt])
+  @@index([visitorHash, businessId, type, createdAt])
+  @@map("directory_business_events")
+}
+
+model DirectorySeoDailyMetric {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  date        DateTime @db.Date
+  pageUrl     String   @map("page_url") @db.VarChar(700)
+  pageHash    String   @map("page_hash") @db.Char(64)
+  businessId  BigInt?  @map("business_id") @db.UnsignedBigInt
+  categoryId  BigInt?  @map("category_id") @db.UnsignedBigInt
+  citySlug    String?  @map("city_slug") @db.VarChar(180)
+  clicks      Float    @default(0)
+  impressions Float    @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+  syncedAt    DateTime @default(now()) @map("synced_at") @db.DateTime(3)
+  business    DirectoryBusiness? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  category    DirectoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([date, pageHash], map: "udsdm_date_page")
+  @@index([date])
+  @@index([businessId, date])
+  @@index([categoryId, date])
+  @@map("directory_seo_daily_metrics")
+}
+
+model DirectorySeoQueryMetric {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  date        DateTime @db.Date
+  pageUrl     String   @map("page_url") @db.VarChar(700)
+  pageHash    String   @map("page_hash") @db.Char(64)
+  query       String   @db.VarChar(500)
+  businessId  BigInt?  @map("business_id") @db.UnsignedBigInt
+  categoryId  BigInt?  @map("category_id") @db.UnsignedBigInt
+  citySlug    String?  @map("city_slug") @db.VarChar(180)
+  clicks      Float    @default(0)
+  impressions Float    @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+  syncedAt    DateTime @default(now()) @map("synced_at") @db.DateTime(3)
+  business    DirectoryBusiness? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  category    DirectoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([date, pageHash, query], map: "udsqm_date_page_query")
+  @@index([date])
+  @@index([businessId, date])
+  @@index([categoryId, date])
+  @@map("directory_seo_query_metrics")
+}
+
+model DirectorySeoSyncRun {
+  id          BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId    String                 @unique @map("public_id") @db.Char(36)
+  status      DirectorySeoSyncStatus @default(PENDING)
+  fromDate    DateTime               @map("from_date") @db.Date
+  toDate      DateTime               @map("to_date") @db.Date
+  attempts    Int                    @default(0)
+  lastError   String?                @map("last_error") @db.VarChar(1000)
+  startedAt   DateTime?              @map("started_at") @db.DateTime(3)
+  completedAt DateTime?              @map("completed_at") @db.DateTime(3)
+  createdAt   DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([status, createdAt])
+  @@map("directory_seo_sync_runs")
+}
+
+model SeoUrlSubmission {
+  id             BigInt                   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                   @unique @map("public_id") @db.Char(36)
+  url            String                   @db.VarChar(700)
+  provider       SeoUrlSubmissionProvider
+  reason         SeoUrlSubmissionReason
+  status         SeoUrlSubmissionStatus   @default(PENDING)
+  businessId     BigInt?                  @map("business_id") @db.UnsignedBigInt
+  attempts       Int                      @default(0)
+  lastError      String?                  @map("last_error") @db.VarChar(1000)
+  responseStatus Int?                     @map("response_status")
+  lastAttemptAt  DateTime?                @map("last_attempt_at") @db.DateTime(3)
+  processedAt    DateTime?                @map("processed_at") @db.DateTime(3)
+  nextAttemptAt  DateTime?                @map("next_attempt_at") @db.DateTime(3)
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                 @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  business       DirectoryBusiness?       @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, url], map: "usu_provider_url")
+  @@index([status, nextAttemptAt])
+  @@index([businessId])
+  @@map("seo_url_submissions")
+}
+
+model SeoUrlInspection {
+  id                    BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                 @unique @map("public_id") @db.Char(36)
+  url                   String                 @unique @db.VarChar(700)
+  businessId            BigInt?                @map("business_id") @db.UnsignedBigInt
+  status                SeoUrlInspectionStatus @default(PENDING)
+  priority              Int                    @default(0)
+  attempts              Int                    @default(0)
+  lastError             String?                @map("last_error") @db.VarChar(1000)
+  verdict               String?                @db.VarChar(80)
+  coverageState         String?                @map("coverage_state") @db.VarChar(160)
+  googleCanonical       String?                @map("google_canonical") @db.VarChar(700)
+  lastCrawlAt           DateTime?              @map("last_crawl_at") @db.DateTime(3)
+  lastAttemptAt         DateTime?              @map("last_attempt_at") @db.DateTime(3)
+  processedAt           DateTime?              @map("processed_at") @db.DateTime(3)
+  nextAttemptAt         DateTime?              @map("next_attempt_at") @db.DateTime(3)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime               @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  business              DirectoryBusiness?     @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([status, priority, nextAttemptAt])
+  @@index([businessId])
+  @@map("seo_url_inspections")
+}
+
+model DirectoryImport {
+  id             BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                @unique @map("public_id") @db.Char(36)
+  filename       String                @db.VarChar(255)
+  status         DirectoryImportStatus @default(ANALYZED)
+  totalFound     Int                   @default(0) @map("total_found")
+  totalSelected  Int                   @default(0) @map("total_selected")
+  totalCreated   Int                   @default(0) @map("total_created")
+  totalUpdated   Int                   @default(0) @map("total_updated")
+  totalUnchanged Int                   @default(0) @map("total_unchanged")
+  totalDuplicates Int                  @default(0) @map("total_duplicates")
+  processedCount Int                   @default(0) @map("processed_count")
+  createdAt      DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime              @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  completedAt    DateTime?             @map("completed_at") @db.DateTime(3)
+  items          DirectoryImportItem[]
+
+  @@index([status, createdAt])
+  @@map("directory_imports")
+}
+
+model DirectoryImportItem {
+  id              BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  importId        BigInt                    @map("import_id") @db.UnsignedBigInt
+  categoryId      BigInt?                   @map("category_id") @db.UnsignedBigInt
+  businessId      BigInt?                   @map("business_id") @db.UnsignedBigInt
+  sourceLocalId   String?                   @map("source_local_id") @db.VarChar(120)
+  categoryDetected String?                  @map("category_detected") @db.VarChar(160)
+  status          DirectoryImportItemStatus @default(SKIPPED)
+  position        Int
+  sourceData      Json                      @map("source_data")
+  message         String?                   @db.VarChar(500)
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  import          DirectoryImport           @relation(fields: [importId], references: [id], onDelete: Cascade)
+  category        DirectoryCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  business        DirectoryBusiness?        @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@unique([importId, position], map: "udi_import_position")
+  @@index([importId, status])
+  @@map("directory_import_items")
 }
 
 model TenantWhatsAppConfig {
@@ -444,15 +1002,117 @@ model TenantWhatsAppConfig {
   publicId             String   @unique @map("public_id") @db.Char(36)
   tenantId             BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
   active               Boolean  @default(false)
+  /** Provedor da instancia; hoje sempre W-API. */
+  provider             String   @default("WAPI") @db.VarChar(32)
+  /** Identificador da instancia no provedor (mantido em phone_number_id por compatibilidade). */
   phoneNumberId        String   @map("phone_number_id") @db.VarChar(80)
+  /** Nome enviado ao provedor ao criar a instancia. */
+  instanceName         String?  @map("instance_name") @db.VarChar(120)
+  connectionStatus     String   @default("NOT_CREATED") @map("connection_status") @db.VarChar(24)
+  connectedPhone       String?  @map("connected_phone") @db.VarChar(32)
+  connectedName        String?  @map("connected_name") @db.VarChar(120)
+  connectedAt          DateTime? @map("connected_at") @db.DateTime(3)
+  lastStatusCheckAt    DateTime? @map("last_status_check_at") @db.DateTime(3)
   businessAccountId    String   @map("business_account_id") @db.VarChar(80)
   encryptedAccessToken String   @map("encrypted_access_token") @db.Text
   apiVersion           String   @default("v23.0") @map("api_version") @db.VarChar(16)
+  lastValidationStatus String?  @map("last_validation_status") @db.VarChar(32)
+  lastValidatedAt      DateTime? @map("last_validated_at") @db.DateTime(3)
+  assistantConfig      Json?     @map("assistant_config")
   createdAt            DateTime @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@map("tenant_whatsapp_configs")
+}
+
+/// Eventos recebidos do provedor de WhatsApp. Guarda apenas o payload já
+/// sanitizado (sem token, Authorization ou qualquer credencial) e serve de
+/// base para a prova de que o clique no botão retorna pelo webhook.
+model WhatsAppInboundEvent {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String   @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt   @map("tenant_id") @db.UnsignedBigInt
+  instanceId        String   @map("instance_id") @db.VarChar(80)
+  externalMessageId String?  @map("external_message_id") @db.VarChar(191)
+  phone             String?  @db.VarChar(32)
+  /// Tipo interno: MESSAGE_RECEIVED | MESSAGE_ACTION | MESSAGE_SENT | ...
+  eventType           String?  @map("event_type") @db.VarChar(80)
+  messageType         String?  @map("message_type") @db.VarChar(80)
+  actionId            String?  @map("action_id") @db.VarChar(191)
+  fingerprint         String?  @db.VarChar(191)
+  /// Texto da mensagem, quando houver. Já sanitizado.
+  text                String?  @db.Text
+  /// Mensagem à qual o evento responde, para a Etapa 3 não reinterpretar o provedor.
+  referencedMessageId String?  @map("referenced_message_id") @db.VarChar(191)
+  customerId          BigInt?  @map("customer_id") @db.UnsignedBigInt
+  payload             Json
+  receivedAt          DateTime @default(now()) @map("received_at") @db.DateTime(3)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([tenantId, fingerprint], map: "whatsapp_inbound_events_fingerprint_key")
+  @@index([tenantId, receivedAt])
+  @@map("whatsapp_inbound_events")
+}
+
+/// Mensagens com botões que nós enviamos. Guarda a ordem dos `actionIds` para
+/// que o `selectedIndex` devolvido no clique seja traduzido de volta para a
+/// nossa ação — a decisão nunca vem do texto visível do botão.
+model WhatsAppOutboundMessage {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String   @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt   @map("tenant_id") @db.UnsignedBigInt
+  instanceId        String   @map("instance_id") @db.VarChar(80)
+  phone             String   @db.VarChar(32)
+  externalMessageId String?   @map("external_message_id") @db.VarChar(191)
+  actionIds         Json      @map("action_ids")
+  /// QUEUED | SENT | DELIVERED | READ | FAILED, resolvido em whatsapp-message-status.
+  status            String    @db.VarChar(32)
+  customerId        BigInt?   @map("customer_id") @db.UnsignedBigInt
+  /// Notificação que originou o envio, quando houver.
+  notificationLogId BigInt?   @map("notification_log_id") @db.UnsignedBigInt
+  errorCode         String?   @map("error_code") @db.VarChar(80)
+  sentAt            DateTime  @default(now()) @map("sent_at") @db.DateTime(3)
+  deliveredAt       DateTime? @map("delivered_at") @db.DateTime(3)
+  readAt            DateTime? @map("read_at") @db.DateTime(3)
+  failedAt          DateTime? @map("failed_at") @db.DateTime(3)
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  notification NotificationLog? @relation(fields: [notificationLogId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([tenantId, externalMessageId])
+  @@index([tenantId, sentAt])
+  @@map("whatsapp_outbound_messages")
+}
+
+/// Sessão de conversa do assistente. Sempre por tenant + telefone: o mesmo
+/// número falando com estabelecimentos diferentes nunca compartilha contexto.
+model WhatsAppConversation {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId      String    @unique @map("public_id") @db.Char(36)
+  tenantId      BigInt    @map("tenant_id") @db.UnsignedBigInt
+  customerId    BigInt?   @map("customer_id") @db.UnsignedBigInt
+  phone         String    @db.VarChar(32)
+  /// ACTIVE | HUMAN_SUPPORT | CLOSED
+  status        String    @default("ACTIVE") @db.VarChar(32)
+  currentFlow   String    @default("MAIN_MENU") @map("current_flow") @db.VarChar(48)
+  currentStep   String?   @map("current_step") @db.VarChar(48)
+  context       Json?
+  lastInboundAt DateTime  @map("last_inbound_at") @db.DateTime(3)
+  lastOutboundAt DateTime? @map("last_outbound_at") @db.DateTime(3)
+  expiresAt     DateTime  @map("expires_at") @db.DateTime(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([tenantId, phone, status])
+  @@index([tenantId, lastInboundAt])
+  @@map("whatsapp_conversations")
 }
 
 model ExternalIntegration {
@@ -497,6 +1157,7 @@ model User {
   email                         String                    @db.VarChar(254)
   normalizedEmail               String                    @unique @map("normalized_email") @db.VarChar(254)
   passwordHash                  String?                   @map("password_hash") @db.VarChar(255)
+  googleSub                     String?                   @unique @map("google_sub") @db.VarChar(255)
   status                        UserStatus                @default(INVITED)
   emailVerifiedAt               DateTime?                 @map("email_verified_at") @db.DateTime(3)
   lastLoginAt                   DateTime?                 @map("last_login_at") @db.DateTime(3)
@@ -522,6 +1183,7 @@ model User {
   loyaltyLedgerEntries          LoyaltyLedgerEntry[]
   stockMovementsPerformed       StockMovement[]
   productSales                  ProductSale[]
+  debtsCreated                  Debt[]
 
   @@index([status])
   @@map("users")
@@ -711,16 +1373,88 @@ model NotificationLog {
   status         NotificationStatus  @default(PENDING)
   attempts       Int                 @default(0) @db.UnsignedTinyInt
   lastError      String?             @map("last_error") @db.VarChar(500)
+  scheduledAt    DateTime?           @map("scheduled_at") @db.DateTime(3)
   sentAt         DateTime?           @map("sent_at") @db.DateTime(3)
+  whatsappButtons Json?              @map("whatsapp_buttons")
   createdAt      DateTime            @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  whatsappMessages WhatsAppOutboundMessage[]
+  collectionAttempts CollectionAttempt[]
 
   @@unique([tenantId, kind, targetType, targetPublicId, channel, recipient], map: "notification_logs_target_key")
   @@index([tenantId, createdAt])
   @@index([tenantId, status])
   @@index([targetType, targetPublicId])
   @@map("notification_logs")
+}
+
+model AppointmentReminderConfig {
+  id                    BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  tenantId              BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
+  dayBeforeEnabled      Boolean  @default(true) @map("day_before_enabled")
+  dayBeforeDaysBefore   Int      @default(1) @map("day_before_days_before") @db.UnsignedSmallInt
+  dayBeforeHour         Int      @default(9) @map("day_before_hour") @db.UnsignedSmallInt
+  dayBeforeMinute       Int      @default(0) @map("day_before_minute") @db.UnsignedSmallInt
+  upcomingEnabled       Boolean  @default(true) @map("upcoming_enabled")
+  upcomingMinutesBefore Int      @default(60) @map("upcoming_minutes_before") @db.UnsignedSmallInt
+  createdAt             DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("appointment_reminder_configs")
+}
+
+enum NotificationCampaignStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+/// A campanha apenas agrupa logs já existentes: o worker e as tentativas
+/// continuam pertencendo a NotificationLog, sem uma segunda fila.
+model NotificationCampaign {
+  id         BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId   String              @unique @map("public_id") @db.Char(36)
+  tenantId   BigInt              @map("tenant_id") @db.UnsignedBigInt
+  idempotencyKey String           @map("idempotency_key") @db.Char(36)
+  audience   String              @db.VarChar(24)
+  channel    NotificationChannel
+  title      String              @db.VarChar(160)
+  message    String              @db.Text
+  status     NotificationCampaignStatus @default(QUEUED)
+  recipientCount Int             @default(0) @map("recipient_count") @db.UnsignedInt
+  eligibleCount Int              @default(0) @map("eligible_count") @db.UnsignedInt
+  skippedCount Int               @default(0) @map("skipped_count") @db.UnsignedInt
+  deliveryCount Int              @default(0) @map("delivery_count") @db.UnsignedInt
+  materializedCount Int          @default(0) @map("materialized_count") @db.UnsignedInt
+  startedAt DateTime?            @map("started_at") @db.DateTime(3)
+  completedAt DateTime?          @map("completed_at") @db.DateTime(3)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  recipients NotificationCampaignRecipient[]
+
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+  @@unique([tenantId, idempotencyKey])
+  @@map("notification_campaigns")
+}
+
+model NotificationCampaignRecipient {
+  id         BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId   String @unique @map("public_id") @db.Char(36)
+  campaignId BigInt @map("campaign_id") @db.UnsignedBigInt
+  targetPublicId String @map("target_public_id") @db.Char(36)
+  status     String @default("PENDING") @db.VarChar(16)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign   NotificationCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([campaignId, targetPublicId], map: "ucr_campaign_target")
+  @@index([campaignId, status, id])
+  @@map("notification_campaign_recipients")
 }
 
 model PushSubscription {
@@ -816,15 +1550,18 @@ model CustomerRecoveryExecution {
 }
 
 model NotificationTemplate {
-  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId  String   @unique @map("public_id") @db.Char(36)
-  tenantId  BigInt   @map("tenant_id") @db.UnsignedBigInt
-  kind      String   @db.VarChar(80)
-  subject   String   @db.VarChar(255)
-  body      String   @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id                 BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId           String   @unique @map("public_id") @db.Char(36)
+  tenantId           BigInt   @map("tenant_id") @db.UnsignedBigInt
+  kind               String   @db.VarChar(80)
+  subject            String   @db.VarChar(255)
+  body               String   @db.Text
+  whatsappBody       String?  @map("whatsapp_body") @db.Text
+  whatsappButtons    Json?    @map("whatsapp_buttons")
+  whatsappEnabled    Boolean  @default(true) @map("whatsapp_enabled")
+  createdAt          DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, kind])
   @@map("notification_templates")
@@ -862,6 +1599,11 @@ model TenantBranding {
   borderColor        String   @map("border_color") @db.Char(7)
   borderRadius       String   @map("border_radius") @db.VarChar(16)
   fontFamily         String   @map("font_family") @db.VarChar(64)
+  onPrimaryColor     String?  @map("on_primary_color") @db.Char(7)
+  headerColor        String?  @map("header_color") @db.Char(7)
+  headerTextColor    String?  @map("header_text_color") @db.Char(7)
+  navigationColor    String?  @map("navigation_color") @db.Char(7)
+  activeColor        String?  @map("active_color") @db.Char(7)
   logoUrl            String?  @map("logo_url") @db.VarChar(2048)
   faviconUrl         String?  @map("favicon_url") @db.VarChar(2048)
   bannerUrl          String?  @map("banner_url") @db.VarChar(2048)
@@ -896,7 +1638,8 @@ model TenantMediaAsset {
 model TenantPublicSite {
   id                  BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
   tenantId            BigInt            @unique @map("tenant_id") @db.UnsignedBigInt
-  theme               TenantPublicTheme @default(CLASSIC)
+  theme               TenantPublicTheme  @default(CLASSIC)
+  layout              TenantPublicLayout @default(CLASSIC)
   heroTitle           String?           @map("hero_title") @db.VarChar(160)
   heroSubtitle        String?           @map("hero_subtitle") @db.VarChar(500)
   aboutText           String?           @map("about_text") @db.VarChar(4000)
@@ -907,6 +1650,8 @@ model TenantPublicSite {
   pwaName             String?           @map("pwa_name") @db.VarChar(80)
   pwaShortName        String?           @map("pwa_short_name") @db.VarChar(30)
   pwaDescription      String?           @map("pwa_description") @db.VarChar(160)
+  pwaStatus           TenantPwaStatus   @default(DRAFT) @map("pwa_status")
+  pwaPublishedAt      DateTime?         @map("pwa_published_at") @db.DateTime(3)
   createdAt           DateTime          @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -915,21 +1660,26 @@ model TenantPublicSite {
 }
 
 model TenantTerminology {
-  id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  tenantId             BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
-  professionalSingular String?  @map("professional_singular") @db.VarChar(80)
-  professionalPlural   String?  @map("professional_plural") @db.VarChar(80)
-  customerSingular     String?  @map("customer_singular") @db.VarChar(80)
-  customerPlural       String?  @map("customer_plural") @db.VarChar(80)
-  serviceSingular      String?  @map("service_singular") @db.VarChar(80)
-  servicePlural        String?  @map("service_plural") @db.VarChar(80)
-  appointmentSingular  String?  @map("appointment_singular") @db.VarChar(80)
-  appointmentPlural    String?  @map("appointment_plural") @db.VarChar(80)
-  unitSingular         String?  @map("unit_singular") @db.VarChar(80)
-  unitPlural           String?  @map("unit_plural") @db.VarChar(80)
-  createdAt            DateTime @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id                              BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  tenantId                        BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
+  professionalSingular            String?  @map("professional_singular") @db.VarChar(80)
+  professionalPlural              String?  @map("professional_plural") @db.VarChar(80)
+  customerSingular                String?  @map("customer_singular") @db.VarChar(80)
+  customerPlural                  String?  @map("customer_plural") @db.VarChar(80)
+  serviceSingular                 String?  @map("service_singular") @db.VarChar(80)
+  servicePlural                   String?  @map("service_plural") @db.VarChar(80)
+  appointmentSingular             String?  @map("appointment_singular") @db.VarChar(80)
+  appointmentPlural               String?  @map("appointment_plural") @db.VarChar(80)
+  unitSingular                    String?  @map("unit_singular") @db.VarChar(80)
+  unitPlural                      String?  @map("unit_plural") @db.VarChar(80)
+  treatmentPlanModuleTitle        String?  @map("treatment_plan_module_title") @db.VarChar(80)
+  treatmentPlanSingular           String?  @map("treatment_plan_singular") @db.VarChar(80)
+  treatmentPlanPlural             String?  @map("treatment_plan_plural") @db.VarChar(80)
+  treatmentPlanSessionSingular    String?  @map("treatment_plan_session_singular") @db.VarChar(80)
+  treatmentPlanSessionPlural      String?  @map("treatment_plan_session_plural") @db.VarChar(80)
+  createdAt                       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                       DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@map("tenant_terminology")
 }
@@ -999,6 +1749,8 @@ model Product {
   description     String?           @db.VarChar(1000)
   sku             String?           @db.VarChar(80)
   barcode         String?           @db.VarChar(80)
+  imagePath       String?           @map("image_path") @db.VarChar(512)
+  imageAlt        String?           @map("image_alt") @db.VarChar(160)
   costPriceCents  BigInt            @default(0) @map("cost_price_cents") @db.UnsignedBigInt
   salePriceCents  BigInt            @map("sale_price_cents") @db.UnsignedBigInt
   commissionType  CommissionType?   @map("commission_type")
@@ -1131,10 +1883,14 @@ model Service {
   description             String?                          @db.VarChar(1000)
   imagePath               String?                          @map("image_path") @db.VarChar(512)
   imageAlt                String?                          @map("image_alt") @db.VarChar(160)
+  iconKey                 String?                          @map("icon_key") @db.VarChar(60)
   durationMinutes         Int                              @map("duration_minutes") @db.UnsignedSmallInt
   hasPostServiceBreak     Boolean                          @default(false) @map("has_post_service_break")
   postServiceBreakMinutes Int                              @default(0) @map("post_service_break_minutes") @db.UnsignedSmallInt
   priceCents              BigInt                           @default(0) @map("price_cents") @db.UnsignedBigInt
+  pricingMode             ServicePricingMode               @default(FIXED) @map("pricing_mode")
+  /** Texto publico exibido no lugar do preco quando o servico e sob orcamento. */
+  quoteNotice             String?                          @map("quote_notice") @db.VarChar(160)
   color                   String                           @db.Char(7)
   sortOrder               Int                              @default(0) @map("sort_order") @db.UnsignedSmallInt
   active                  Boolean                          @default(true)
@@ -1150,6 +1906,9 @@ model Service {
   reviews                 AppointmentReview[]
   waitlistEntries         AppointmentWaitlist[]
   waitlistOpportunities   AppointmentWaitlistOpportunity[]
+  treatmentPlans          TreatmentPlan[]
+  membershipPlanBenefits  CustomerMembershipPlanBenefit[]
+  membershipUsages        CustomerMembershipUsage[]
 
   @@unique([tenantId, name])
   @@index([tenantId, active, sortOrder])
@@ -1178,20 +1937,21 @@ model ServiceVariation {
 }
 
 model Combo {
-  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId    String      @unique @map("public_id") @db.Char(36)
-  tenantId    BigInt      @map("tenant_id") @db.UnsignedBigInt
-  name        String      @db.VarChar(120)
-  description String?     @db.VarChar(1000)
-  imagePath   String?     @map("image_path") @db.VarChar(512)
-  imageAlt    String?     @map("image_alt") @db.VarChar(160)
-  priceCents  BigInt      @default(0) @map("price_cents") @db.UnsignedBigInt
-  sortOrder   Int         @default(0) @map("sort_order") @db.UnsignedSmallInt
-  active      Boolean     @default(true)
-  createdAt   DateTime    @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  items       ComboItem[]
+  id            BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId      String          @unique @map("public_id") @db.Char(36)
+  tenantId      BigInt          @map("tenant_id") @db.UnsignedBigInt
+  name          String          @db.VarChar(120)
+  description   String?         @db.VarChar(1000)
+  imagePath     String?         @map("image_path") @db.VarChar(512)
+  imageAlt      String?         @map("image_alt") @db.VarChar(160)
+  priceCents    BigInt          @default(0) @map("price_cents") @db.UnsignedBigInt
+  sortOrder     Int             @default(0) @map("sort_order") @db.UnsignedSmallInt
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  items         ComboItem[]
+  appointments  Appointment[]
 
   @@unique([tenantId, name])
   @@index([tenantId, active, sortOrder])
@@ -1254,6 +2014,9 @@ model BusinessUnit {
   city                         String?                          @db.VarChar(100)
   state                        String?                          @db.VarChar(64)
   countryCode                  String?                          @map("country_code") @db.Char(2)
+  latitude                     Float?                           @db.Double
+  longitude                    Float?                           @db.Double
+  googleMapsUrl                String?                          @map("google_maps_url") @db.VarChar(2048)
   createdAt                    DateTime                         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                    DateTime                         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant                       Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -1274,6 +2037,7 @@ model BusinessUnit {
   membershipUnits              TenantMembershipUnit[]
   waitlistEntries              AppointmentWaitlist[]
   waitlistOpportunities        AppointmentWaitlistOpportunity[]
+  debts                        Debt[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -1350,6 +2114,7 @@ model Professional {
   workSchedules         ProfessionalWorkSchedule[]
   unavailabilities      ProfessionalUnavailability[]
   appointments          Appointment[]
+  treatmentPlans        TreatmentPlan[]
   favoritedBy           CustomerFavorite[]
   reviews               AppointmentReview[]
   commissions           ProfessionalCommission[]
@@ -1380,6 +2145,8 @@ model Customer {
   source                String                      @default("MANUAL") @db.VarChar(64)
   acceptsCommunications Boolean                     @default(false) @map("accepts_communications")
   passwordHash          String?                     @map("password_hash") @db.VarChar(255)
+  googleSub             String?                     @map("google_sub") @db.VarChar(255)
+  photoPath             String?                     @map("photo_path") @db.VarChar(512)
   customFields          Json?                       @map("custom_fields")
   createdAt             DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
@@ -1387,6 +2154,10 @@ model Customer {
   primaryUnit           BusinessUnit?               @relation(fields: [primaryUnitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   appointments          Appointment[]
   sessions              CustomerSession[]
+  passwordResets        CustomerPasswordResetToken[]
+  whatsappInboundEvents WhatsAppInboundEvent[]
+  whatsappOutboundMessages WhatsAppOutboundMessage[]
+  whatsappConversations WhatsAppConversation[]
   favorites             CustomerFavorite[]
   reviews               AppointmentReview[]
   recoveryExecutions    CustomerRecoveryExecution[]
@@ -1395,12 +2166,36 @@ model Customer {
   waitlistEntries       AppointmentWaitlist[]
   pushSubscriptions     PushSubscription[]
   productSales          ProductSale[]
+  treatmentPlans        TreatmentPlan[]
+  memberships           CustomerMembership[]
+  debts                 Debt[]
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
+  @@unique([tenantId, googleSub])
   @@index([tenantId, status, name])
   @@index([tenantId, primaryUnitId])
   @@map("customers")
+}
+
+/// Recuperação de senha do cliente do site público, espelhando o mecanismo já
+/// usado por `PasswordResetToken` (staff): token opaco guardado apenas em hash.
+model CustomerPasswordResetToken {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenantId    BigInt    @map("tenant_id") @db.UnsignedBigInt
+  customerId  BigInt    @map("customer_id") @db.UnsignedBigInt
+  tokenHash   String    @unique @map("token_hash") @db.Char(64)
+  expiresAt   DateTime  @map("expires_at") @db.DateTime(3)
+  usedAt      DateTime? @map("used_at") @db.DateTime(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  requestedIp String?   @map("requested_ip") @db.VarChar(45)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "cust_pwd_reset_tenant_id_fkey")
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "cust_pwd_reset_customer_id_fkey")
+
+  // Nomes curtos: identificador do MySQL tem limite de 64 caracteres.
+  @@index([customerId, usedAt, expiresAt], map: "cust_pwd_reset_customer_used_exp_idx")
+  @@index([expiresAt], map: "cust_pwd_reset_expires_at_idx")
+  @@map("customer_password_reset_tokens")
 }
 
 model CustomerSession {
@@ -1431,18 +2226,27 @@ model Appointment {
   protocol                String                          @db.VarChar(32)
   customerId              BigInt                          @map("customer_id") @db.UnsignedBigInt
   professionalId          BigInt                          @map("professional_id") @db.UnsignedBigInt
-  serviceId               BigInt                          @map("service_id") @db.UnsignedBigInt
+  serviceId               BigInt?                         @map("service_id") @db.UnsignedBigInt
+  comboId                 BigInt?                         @map("combo_id") @db.UnsignedBigInt
+  comboNameSnapshot       String?                         @map("combo_name_snapshot") @db.VarChar(120)
   unitId                  BigInt?                         @map("unit_id") @db.UnsignedBigInt
   startsAt                DateTime                        @map("starts_at") @db.DateTime(3)
   endsAt                  DateTime                        @map("ends_at") @db.DateTime(3)
   durationMinutes         Int                             @map("duration_minutes") @db.UnsignedSmallInt
   postServiceBreakMinutes Int                             @default(0) @map("post_service_break_minutes") @db.UnsignedSmallInt
   priceCents              BigInt                          @map("price_cents") @db.UnsignedBigInt
+  chargeSource            AppointmentChargeSource?        @map("charge_source")
+  referencePriceCents     BigInt?                         @map("reference_price_cents") @db.UnsignedBigInt
+  amountDueCents          BigInt?                         @map("amount_due_cents") @db.UnsignedBigInt
   status                  AppointmentStatus               @default(PENDING)
   notes                   String?                         @db.VarChar(2000)
   source                  String                          @default("INTERNAL") @db.VarChar(64)
   canceledReason          String?                         @map("canceled_reason") @db.VarChar(500)
   rescheduleReason        String?                         @map("reschedule_reason") @db.VarChar(500)
+  kind                    AppointmentKind                 @default(STANDARD)
+  treatmentPlanId         BigInt?                         @map("treatment_plan_id") @db.UnsignedBigInt
+  /** Ordem da sessao dentro do plano; nulo em avaliacoes e atendimentos comuns. */
+  sessionNumber           Int?                            @map("session_number") @db.UnsignedSmallInt
   isFitIn                 Boolean                         @default(false) @map("is_fit_in")
   fitInReason             String?                         @map("fit_in_reason") @db.VarChar(500)
   checkedInAt             DateTime?                       @map("checked_in_at") @db.DateTime(3)
@@ -1454,7 +2258,8 @@ model Appointment {
   tenant                  Tenant                          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   customer                Customer                        @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   professional            Professional                    @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  service                 Service                         @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service                 Service?                        @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  combo                   Combo?                          @relation(fields: [comboId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   unit                    BusinessUnit?                   @relation(fields: [unitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   history                 AppointmentHistoryEntry[]
   review                  AppointmentReview?
@@ -1465,11 +2270,112 @@ model Appointment {
   loyaltyLedgerEntries    LoyaltyLedgerEntry[]
   waitlistConversion      AppointmentWaitlist?            @relation("WaitlistConversion")
   waitlistOpportunity     AppointmentWaitlistOpportunity? @relation("ReleasedAppointment")
+  treatmentPlan           TreatmentPlan?                  @relation("TreatmentPlanSessions", fields: [treatmentPlanId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  originatedTreatmentPlan TreatmentPlan?                  @relation("TreatmentPlanOrigin")
+  membershipUsages        CustomerMembershipUsage[]
+  debts                   Debt[]
 
   @@unique([tenantId, protocol])
+  @@index([tenantId, treatmentPlanId, sessionNumber])
   @@index([tenantId, professionalId, startsAt, endsAt, status])
   @@index([tenantId, customerId, startsAt])
   @@map("appointments")
+}
+
+/**
+ * Orcamento/tratamento definido apos a avaliacao de um servico sob orcamento.
+ * Nao substitui o Appointment: as sessoes continuam sendo agendamentos reais,
+ * apenas vinculados ao plano.
+ */
+model TreatmentPlan {
+  id                  BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String               @unique @map("public_id") @db.Char(36)
+  tenantId            BigInt               @map("tenant_id") @db.UnsignedBigInt
+  customerId          BigInt               @map("customer_id") @db.UnsignedBigInt
+  serviceId           BigInt               @map("service_id") @db.UnsignedBigInt
+  professionalId      BigInt               @map("professional_id") @db.UnsignedBigInt
+  /** Avaliacao que originou o orcamento; nunca conta como sessao. */
+  originAppointmentId BigInt               @unique @map("origin_appointment_id") @db.UnsignedBigInt
+  /** Nome do tratamento definido pelo profissional; planos antigos caem no nome do servico. */
+  title               String?              @db.VarChar(120)
+  status              TreatmentPlanStatus  @default(PENDING)
+  billingMode         TreatmentBillingMode @map("billing_mode")
+  amountCents         BigInt               @map("amount_cents") @db.UnsignedBigInt
+  sessionsPlanned     Int?                 @map("sessions_planned") @db.UnsignedSmallInt
+  returnIntervalDays  Int?                 @map("return_interval_days") @db.UnsignedSmallInt
+  notes               String?              @db.VarChar(1000)
+  approvedAt          DateTime?            @map("approved_at") @db.DateTime(3)
+  startedAt           DateTime?            @map("started_at") @db.DateTime(3)
+  completedAt         DateTime?            @map("completed_at") @db.DateTime(3)
+  canceledAt          DateTime?            @map("canceled_at") @db.DateTime(3)
+  canceledReason      String?              @map("canceled_reason") @db.VarChar(500)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service             Service              @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional        Professional         @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  originAppointment   Appointment          @relation("TreatmentPlanOrigin", fields: [originAppointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sessions            Appointment[]        @relation("TreatmentPlanSessions")
+  reminderState       TreatmentPlanReminderState?
+
+  @@index([tenantId, customerId, status])
+  @@index([tenantId, professionalId, status])
+  @@map("treatment_plans")
+}
+
+model TreatmentPlanReminderState {
+  id              BigInt                             @id @default(autoincrement()) @db.UnsignedBigInt
+  tenantId        BigInt                             @map("tenant_id") @db.UnsignedBigInt
+  treatmentPlanId BigInt                             @unique @map("treatment_plan_id") @db.UnsignedBigInt
+  nextReminderAt  DateTime?                          @map("next_reminder_at") @db.DateTime(3)
+  lastReminderAt  DateTime?                          @map("last_reminder_at") @db.DateTime(3)
+  remindersSent   Int                                @default(0) @map("reminders_sent") @db.UnsignedSmallInt
+  status          TreatmentPlanReminderStatus        @default(ACTIVE)
+  channel         TreatmentPlanReminderChannel       @default(WHATSAPP)
+  currentStepIndex Int                               @default(0) @map("current_step_index") @db.UnsignedSmallInt
+  createdAt       DateTime                           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime                           @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant          Tenant                             @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  treatmentPlan   TreatmentPlan                      @relation(fields: [treatmentPlanId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  logs            TreatmentPlanReminderLog[]
+
+  @@index([tenantId, status])
+  @@index([nextReminderAt, status])
+  @@map("treatment_plan_reminder_states")
+}
+
+model TreatmentPlanReminderLog {
+  id                BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenantId          BigInt    @map("tenant_id") @db.UnsignedBigInt
+  reminderStateId   BigInt    @map("reminder_state_id") @db.UnsignedBigInt
+  stepIndex         Int       @map("step_index") @db.UnsignedSmallInt
+  channel           TreatmentPlanReminderChannel
+  sentAt            DateTime  @default(now()) @map("sent_at") @db.DateTime(3)
+  messageTemplate   String    @map("message_template") @db.VarChar(500)
+  sentMessage       String    @map("sent_message") @db.VarChar(1000)
+  status            String    @db.VarChar(50) // "SENT", "FAILED"
+  errorMessage      String?   @map("error_message") @db.VarChar(500)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reminderState     TreatmentPlanReminderState @relation(fields: [reminderStateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([tenantId])
+  @@index([reminderStateId])
+  @@map("treatment_plan_reminder_logs")
+}
+
+model TreatmentPlanReminderConfig {
+  id        BigInt                             @id @default(autoincrement()) @db.UnsignedBigInt
+  tenantId  BigInt                             @unique @map("tenant_id") @db.UnsignedBigInt
+  enabled   Boolean                            @default(true)
+  channel   TreatmentPlanReminderChannel       @default(WHATSAPP)
+  sequence  Json                               @default("[]")
+  createdAt DateTime                           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime                           @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant    Tenant                             @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@map("treatment_plan_reminder_config")
 }
 
 model AppointmentWaitlist {
@@ -1554,7 +2460,10 @@ model Payment {
   id                   BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
   publicId             String                  @unique @map("public_id") @db.Char(36)
   tenantId             BigInt                  @map("tenant_id") @db.UnsignedBigInt
-  appointmentId        BigInt                  @map("appointment_id") @db.UnsignedBigInt
+  originType           PaymentOriginType       @default(APPOINTMENT) @map("origin_type")
+  appointmentId        BigInt?                 @map("appointment_id") @db.UnsignedBigInt
+  membershipChargeId   BigInt?                 @map("membership_charge_id") @db.UnsignedBigInt
+  debtId               BigInt?                 @map("debt_id") @db.UnsignedBigInt
   paymentMethodId      BigInt                  @map("payment_method_id") @db.UnsignedBigInt
   kind                 PaymentKind             @default(PAYMENT)
   status               PaymentStatus           @default(PAID)
@@ -1567,7 +2476,9 @@ model Payment {
   createdAt            DateTime                @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt            DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  appointment          Appointment             @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment          Appointment?            @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membershipCharge     CustomerMembershipCharge? @relation("PaymentToMembershipCharge", fields: [membershipChargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt                 Debt?                   @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   paymentMethod        PaymentMethod           @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   user                 User?                   @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   session              UserSession?            @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -1576,9 +2487,13 @@ model Payment {
   commission           ProfessionalCommission?
   gatewayCharge        PaymentGatewayCharge?
   loyaltyLedgerEntries LoyaltyLedgerEntry[]
+  debtAllocations      DebtPaymentAllocation[]
 
   @@index([tenantId, appointmentId, createdAt])
+  @@index([tenantId, membershipChargeId, createdAt])
+  @@index([tenantId, debtId, createdAt])
   @@index([tenantId, status, createdAt])
+  @@index([originType])
   @@map("payments")
 }
 
@@ -1693,11 +2608,18 @@ model PaymentGatewayConfig {
   @@map("payment_gateway_configs")
 }
 
+enum PaymentGatewayChargeOrigin {
+  APPOINTMENT
+  DEBT
+}
+
 model PaymentGatewayCharge {
   id             BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
   publicId       String                     @unique @map("public_id") @db.Char(36)
   tenantId       BigInt                     @map("tenant_id") @db.UnsignedBigInt
-  appointmentId  BigInt                     @map("appointment_id") @db.UnsignedBigInt
+  originType     PaymentGatewayChargeOrigin @default(APPOINTMENT) @map("origin_type")
+  appointmentId  BigInt?                    @map("appointment_id") @db.UnsignedBigInt
+  debtId         BigInt?                    @map("debt_id") @db.UnsignedBigInt
   paymentId      BigInt?                    @unique @map("payment_id") @db.UnsignedBigInt
   provider       String                     @db.VarChar(64)
   environment    PaymentGatewayEnvironment
@@ -1709,17 +2631,23 @@ model PaymentGatewayCharge {
   idempotencyKey String                     @map("idempotency_key") @db.VarChar(191)
   pixCopyPaste   String?                    @map("pix_copy_paste") @db.Text
   lastCheckedAt  DateTime?                  @map("last_checked_at") @db.DateTime(3)
+  /// Claim atômico da reconciliação (Fase 6 do Bot Cobra) — evita que dois
+  /// webhooks quase simultâneos (externalEventId diferentes) gerem 2 Payment
+  /// para a mesma cobrança antes de paymentId ser preenchido.
+  reconciledAt   DateTime?                  @map("reconciled_at") @db.DateTime(3)
   canceledAt     DateTime?                  @map("canceled_at") @db.DateTime(3)
   canceledReason String?                    @map("canceled_reason") @db.VarChar(500)
   createdAt      DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt      DateTime                   @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant         Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  appointment    Appointment                @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment    Appointment?               @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt           Debt?                      @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payment        Payment?                   @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   events         PaymentGatewayEvent[]
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, appointmentId])
+  @@index([tenantId, debtId])
   @@index([tenantId, status])
   @@index([tenantId, provider, externalId])
   @@map("payment_gateway_charges")
@@ -2120,6 +3048,8 @@ model CommercialPlan {
   status           CommercialPlanStatus @default(ACTIVE)
   billingCycle     BillingCycle         @map("billing_cycle")
   priceCents       BigInt               @map("price_cents") @db.UnsignedBigInt
+  monthlyPriceCents BigInt?             @map("monthly_price_cents") @db.UnsignedBigInt
+  annualPriceCents  BigInt?             @map("annual_price_cents") @db.UnsignedBigInt
   currency         String               @db.Char(3)
   trialDays        Int?                 @map("trial_days") @db.UnsignedSmallInt
   isPublic         Boolean              @default(false) @map("is_public")
@@ -2131,11 +3061,31 @@ model CommercialPlan {
   updatedAt        DateTime             @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   limits           PlanLimit[]
   benefits         PlanBenefit[]
+  billingOptions   PlanBillingOption[]
   subscriptions    TenantSubscription[]
+  scheduledSubscriptions TenantSubscription[] @relation("ScheduledSubscriptionPlan")
 
   @@index([status, sortOrder])
   @@index([billingCycle])
   @@map("commercial_plans")
+}
+
+model PlanBillingOption {
+  id           BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId     String        @unique @map("public_id") @db.Char(36)
+  planId       BigInt        @map("plan_id") @db.UnsignedBigInt
+  billingCycle BillingCycle  @map("billing_cycle")
+  priceCents   BigInt        @map("price_cents") @db.UnsignedBigInt
+  active       Boolean       @default(true)
+  sortOrder    Int           @default(0) @map("sort_order")
+  recommended  Boolean       @default(false)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  plan         CommercialPlan @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([planId, billingCycle])
+  @@index([planId, active, sortOrder])
+  @@map("plan_billing_options")
 }
 
 model PlanBenefit {
@@ -2188,16 +3138,57 @@ model TenantSubscription {
   currency              String                @db.Char(3)
   billingCycle          BillingCycle          @map("billing_cycle")
   effectiveKey          String?               @map("effective_key") @db.VarChar(20)
+  scheduledPlanId       BigInt?               @map("scheduled_plan_id") @db.UnsignedBigInt
+  scheduledBillingCycle BillingCycle?         @map("scheduled_billing_cycle")
+  scheduledEffectiveAt  DateTime?             @map("scheduled_effective_at") @db.DateTime(3)
   createdAt             DateTime              @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt             DateTime              @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   plan                  CommercialPlan        @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  scheduledPlan         CommercialPlan?       @relation("ScheduledSubscriptionPlan", fields: [scheduledPlanId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   history               SubscriptionHistory[]
+  platformCharges       PlatformSubscriptionCharge[]
 
   @@unique([tenantId, effectiveKey])
   @@index([status, currentPeriodEndsAt])
   @@index([planId, status])
   @@map("tenant_subscriptions")
+}
+
+model PlatformPaymentConfig {
+  id                    BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                    @unique @map("public_id") @db.Char(36)
+  provider              String                    @unique @db.VarChar(64)
+  active                Boolean                   @default(false)
+  environment           PaymentGatewayEnvironment @default(SANDBOX)
+  credentialsCiphertext String?                   @map("credentials_ciphertext") @db.Text
+  createdAt             DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("platform_payment_configs")
+}
+
+model PlatformSubscriptionCharge {
+  id             BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                     @unique @map("public_id") @db.Char(36)
+  subscriptionId BigInt                     @map("subscription_id") @db.UnsignedBigInt
+  provider       String                     @db.VarChar(64)
+  environment    PaymentGatewayEnvironment
+  externalId     String?                    @map("external_id") @db.VarChar(191)
+  status         PaymentGatewayChargeStatus @default(PENDING)
+  amountCents    BigInt                     @map("amount_cents") @db.UnsignedBigInt
+  currency       String                     @db.Char(3)
+  idempotencyKey String                     @unique @map("idempotency_key") @db.VarChar(191)
+  pixCopyPaste   String?                    @map("pix_copy_paste") @db.Text
+  paidAt         DateTime?                  @map("paid_at") @db.DateTime(3)
+  createdAt      DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                   @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  subscription   TenantSubscription         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([provider, externalId])
+  @@index([subscriptionId, createdAt])
+  @@index([status, createdAt])
+  @@map("platform_subscription_charges")
 }
 
 model SubscriptionHistory {
@@ -2242,8 +3233,862 @@ model TenantCommercialPolicy {
   publicSiteBehaviorWhileBlocked   PublicSiteBlockedBehavior @default(HIDE_BOOKING) @map("public_site_behavior_while_blocked")
   adminMessage                     String                    @map("admin_message") @db.VarChar(1000)
   publicMessage                    String                    @map("public_message") @db.VarChar(1000)
+  commercialWhatsapp               String?                   @map("commercial_whatsapp") @db.VarChar(32)
   createdAt                        DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                        DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
 
   @@map("tenant_commercial_policies")
 }
+
+model CustomerMembershipPlan {
+  id            BigInt                         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId      String                         @unique @map("public_id") @db.Char(36)
+  tenantId      BigInt                         @map("tenant_id") @db.UnsignedBigInt
+  name          String                         @db.VarChar(120)
+  description   String?                        @db.Text
+  priceCents    BigInt                         @map("price_cents") @db.UnsignedBigInt
+  billingInterval MembershipBillingInterval   @map("billing_interval")
+  active        Boolean                        @default(true)
+  sortOrder     Int                            @default(0) @map("sort_order")
+  createdAt     DateTime                       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime                       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant        Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  benefits      CustomerMembershipPlanBenefit[]
+  memberships   CustomerMembership[]
+
+  @@index([tenantId, active, sortOrder])
+  @@map("customer_membership_plans")
+}
+
+model CustomerMembershipPlanBenefit {
+  id              BigInt                        @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String                        @unique @map("public_id") @db.Char(36)
+  planId          BigInt                        @map("plan_id") @db.UnsignedBigInt
+  serviceId       BigInt                        @map("service_id") @db.UnsignedBigInt
+  type            MembershipBenefitType
+  quantityPerCycle Int?                          @map("quantity_per_cycle") @db.UnsignedInt
+  discountPercent Int?                          @map("discount_percent") @db.UnsignedSmallInt
+  createdAt       DateTime                      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime                      @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  plan            CustomerMembershipPlan        @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  service         Service                       @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([planId, serviceId])
+  @@index([serviceId])
+  @@map("customer_membership_plan_benefits")
+}
+
+model CustomerMembership {
+  id                 BigInt                         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId           String                         @unique @map("public_id") @db.Char(36)
+  tenantId           BigInt                         @map("tenant_id") @db.UnsignedBigInt
+  customerId         BigInt                         @map("customer_id") @db.UnsignedBigInt
+  planId             BigInt                         @map("plan_id") @db.UnsignedBigInt
+  status             CustomerMembershipStatus      @default(PENDING)
+  activeKey          String?                        @unique @map("active_key") @db.VarChar(100)
+  startedAt          DateTime?                      @map("started_at") @db.DateTime(3)
+  currentPeriodStart DateTime?                      @map("current_period_start") @db.DateTime(3)
+  currentPeriodEnd   DateTime?                      @map("current_period_end") @db.DateTime(3)
+  nextBillingAt      DateTime?                      @map("next_billing_at") @db.DateTime(3)
+  pausedAt           DateTime?                      @map("paused_at") @db.DateTime(3)
+  canceledAt         DateTime?                      @map("canceled_at") @db.DateTime(3)
+  cancelAtPeriodEnd  Boolean                        @default(false) @map("cancel_at_period_end")
+  createdAt          DateTime                       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime                       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant             Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer           Customer                       @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  plan               CustomerMembershipPlan         @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  charges            CustomerMembershipCharge[]
+  usages             CustomerMembershipUsage[]
+
+  @@index([tenantId, customerId, status])
+  @@index([tenantId, status, currentPeriodEnd])
+  @@index([planId])
+  @@map("customer_memberships")
+}
+
+model CustomerMembershipCharge {
+  id             BigInt                            @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                            @unique @map("public_id") @db.Char(36)
+  tenantId       BigInt                            @map("tenant_id") @db.UnsignedBigInt
+  membershipId   BigInt                            @map("membership_id") @db.UnsignedBigInt
+  periodStart    DateTime                          @map("period_start") @db.DateTime(3)
+  periodEnd      DateTime                          @map("period_end") @db.DateTime(3)
+  amountCents    BigInt                            @map("amount_cents") @db.UnsignedBigInt
+  status         CustomerMembershipChargeStatus    @default(PENDING)
+  dueAt          DateTime                          @map("due_at") @db.DateTime(3)
+  paidAt         DateTime?                         @map("paid_at") @db.DateTime(3)
+  planSnapshot   Json?                             @map("plan_snapshot")
+  createdAt      DateTime                          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant         Tenant                            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membership     CustomerMembership                @relation(fields: [membershipId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payments       Payment[]                         @relation("PaymentToMembershipCharge")
+  usages         CustomerMembershipUsage[]
+
+  @@unique([membershipId, periodStart])
+  @@index([tenantId, status, dueAt])
+  @@index([tenantId, membershipId, createdAt])
+  @@map("customer_membership_charges")
+}
+
+model CustomerMembershipUsage {
+  id                    BigInt                         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                         @unique @map("public_id") @db.Char(36)
+  tenantId              BigInt                         @map("tenant_id") @db.UnsignedBigInt
+  membershipId          BigInt                         @map("membership_id") @db.UnsignedBigInt
+  membershipChargeId    BigInt                         @map("membership_charge_id") @db.UnsignedBigInt
+  appointmentId         BigInt?                        @map("appointment_id") @db.UnsignedBigInt
+  serviceId             BigInt                         @map("service_id") @db.UnsignedBigInt
+  quantity              Int                            @db.UnsignedInt
+  status                CustomerMembershipUsageStatus
+  createdAt             DateTime                       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membership            CustomerMembership             @relation(fields: [membershipId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membershipCharge      CustomerMembershipCharge       @relation(fields: [membershipChargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment           Appointment?                   @relation(fields: [appointmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  service               Service                        @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([appointmentId, serviceId, membershipChargeId])
+  @@index([tenantId, membershipId, status])
+  @@index([membershipChargeId])
+  @@index([appointmentId])
+  @@map("customer_membership_usages")
+}
+
+// Bot Cobra — cobrança e negociação automática de dívidas.
+// Fase 1: CollectionRule + Debt + DebtEvent apenas (CRUD administrativo,
+// sem WhatsApp/scheduler/PIX/PaymentPromise/CollectionAttempt operacional).
+
+enum DebtOriginType {
+  APPOINTMENT
+  MANUAL
+}
+
+enum DebtStatus {
+  OPEN
+  COLLECTING
+  WAITING_RESPONSE
+  PROMISE_SCHEDULED
+  PIX_PENDING
+  PARTIALLY_PAID
+  PROMISE_OVERDUE
+  NEGOTIATING
+  DISPUTED
+  HUMAN_SUPPORT
+  PAUSED
+  PAID
+  CANCELED
+}
+
+enum CollectionCadenceType {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  CUSTOM_DAYS
+}
+
+model CollectionRule {
+  id                             BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                       String                @unique @map("public_id") @db.Char(36)
+  tenantId                       BigInt                @map("tenant_id") @db.UnsignedBigInt
+  name                           String                @db.VarChar(120)
+  active                         Boolean               @default(true)
+  cadenceType                    CollectionCadenceType @map("cadence_type")
+  cadenceDays                    Int?                  @map("cadence_days") @db.UnsignedSmallInt
+  preferredWeekday               Int?                  @map("preferred_weekday") @db.UnsignedTinyInt
+  monthlyDay                     Int?                  @map("monthly_day") @db.UnsignedTinyInt
+  allowedStartHour               Int                   @default(9) @map("allowed_start_hour") @db.UnsignedTinyInt
+  allowedEndHour                 Int                   @default(18) @map("allowed_end_hour") @db.UnsignedTinyInt
+  maxAttemptsPerDay              Int                   @default(1) @map("max_attempts_per_day") @db.UnsignedTinyInt
+  consecutiveDays                Int                   @default(3) @map("consecutive_days") @db.UnsignedTinyInt
+  pauseDaysAfterCycle            Int                   @default(4) @map("pause_days_after_cycle") @db.UnsignedTinyInt
+  maxCycles                      Int?                  @map("max_cycles") @db.UnsignedTinyInt
+  minMinutesBetweenAttempts      Int                   @default(120) @map("min_minutes_between_attempts") @db.UnsignedSmallInt
+  skipSundays                    Boolean               @default(true) @map("skip_sundays")
+  partialPaymentEnabled          Boolean               @default(true) @map("partial_payment_enabled")
+  partialOfferPercentages        Json                  @map("partial_offer_percentages")
+  partialMinimumCents            BigInt                @default(0) @map("partial_minimum_cents") @db.UnsignedBigInt
+  partialRoundingStepCents       BigInt                @default(1) @map("partial_rounding_step_cents") @db.UnsignedBigInt
+  askPromiseAfterPartialPayment  Boolean               @default(true) @map("ask_promise_after_partial_payment")
+  promiseQuickOptionsDays        Json                  @map("promise_quick_options_days")
+  noResponseFollowupNextDay      Boolean               @default(true) @map("no_response_followup_next_day")
+  createdAt                      DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                      DateTime              @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debts                          Debt[]
+
+  @@index([tenantId, active])
+  @@map("collection_rules")
+}
+
+model Debt {
+  id                     BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String         @unique @map("public_id") @db.Char(36)
+  tenantId                BigInt         @map("tenant_id") @db.UnsignedBigInt
+  unitId                  BigInt?        @map("unit_id") @db.UnsignedBigInt
+  originType               DebtOriginType @map("origin_type")
+  originAppointmentId      BigInt?        @map("origin_appointment_id") @db.UnsignedBigInt
+  customerId               BigInt?        @map("customer_id") @db.UnsignedBigInt
+  debtorName               String         @map("debtor_name") @db.VarChar(160)
+  debtorWhatsapp           String         @map("debtor_whatsapp") @db.VarChar(20)
+  debtorEmail              String?        @map("debtor_email") @db.VarChar(254)
+  debtorDocument           String?        @map("debtor_document") @db.VarChar(32)
+  description              String         @db.VarChar(500)
+  originalAmountCents      BigInt         @map("original_amount_cents") @db.UnsignedBigInt
+  currentBalanceCents      BigInt         @map("current_balance_cents") @db.UnsignedBigInt
+  dueDate                  DateTime       @map("due_date") @db.Date
+  status                   DebtStatus     @default(OPEN)
+  /// true quando syncAppointmentDebtBalance falhou e precisa reprocessar via
+  /// processPendingDebtBalanceSync — nunca bloqueia o Payment que a originou.
+  balanceSyncPending       Boolean        @default(false) @map("balance_sync_pending")
+  collectionRuleId         BigInt         @map("collection_rule_id") @db.UnsignedBigInt
+  collectionPausedAt       DateTime?      @map("collection_paused_at") @db.DateTime(3)
+  collectionPausedReason   String?        @map("collection_paused_reason") @db.VarChar(500)
+  humanSupportAt           DateTime?      @map("human_support_at") @db.DateTime(3)
+  disputedAt               DateTime?      @map("disputed_at") @db.DateTime(3)
+  paidAt                   DateTime?      @map("paid_at") @db.DateTime(3)
+  canceledAt               DateTime?      @map("canceled_at") @db.DateTime(3)
+  canceledReason           String?        @map("canceled_reason") @db.VarChar(500)
+  notes                    String?        @db.VarChar(1000)
+  createdByUserId          BigInt?        @map("created_by_user_id") @db.UnsignedBigInt
+  createdAt                DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                DateTime       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  unit                     BusinessUnit?  @relation(fields: [unitId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  originAppointment        Appointment?   @relation(fields: [originAppointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer                 Customer?      @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  collectionRule           CollectionRule @relation(fields: [collectionRuleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser            User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  events                   DebtEvent[]
+  attempts                 CollectionAttempt[]
+  paymentPromises          PaymentPromise[]
+  payments                 Payment[]
+  gatewayCharges           PaymentGatewayCharge[]
+  paymentAllocations       DebtPaymentAllocation[]
+
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, debtorWhatsapp])
+  @@index([tenantId, customerId])
+  @@index([tenantId, originAppointmentId])
+  @@index([tenantId, collectionRuleId, status])
+  @@index([originType, balanceSyncPending, status])
+  @@map("debts")
+}
+
+model DebtEvent {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId  String   @unique @map("public_id") @db.Char(36)
+  tenantId  BigInt   @map("tenant_id") @db.UnsignedBigInt
+  debtId    BigInt   @map("debt_id") @db.UnsignedBigInt
+  eventType String   @map("event_type") @db.VarChar(40)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt      Debt     @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, debtId, createdAt])
+  @@map("debt_events")
+}
+
+// Fase 6: ponte de rastreabilidade entre uma Debt e o Payment real que a
+// quitou (parcial ou totalmente) — nunca é a fonte da verdade do saldo, só o
+// registro de auditoria "esse Payment foi cobrado pelo Bot Cobra". O Payment
+// em si pode ter originType DEBT (Debt MANUAL, sem Agendamento por trás) ou
+// APPOINTMENT (Debt de Agendamento — o pagamento vira um Payment real daquele
+// Agendamento, via PaymentService.create(), para não divergir do saldo
+// canônico já sincronizado por syncAppointmentDebtBalance).
+enum DebtPaymentAllocationSource {
+  BOT_PIX
+  MANUAL
+  APPOINTMENT_PAYMENT
+  OTHER
+}
+
+model DebtPaymentAllocation {
+  id          BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId    String                      @unique @map("public_id") @db.Char(36)
+  tenantId    BigInt                      @map("tenant_id") @db.UnsignedBigInt
+  debtId      BigInt                      @map("debt_id") @db.UnsignedBigInt
+  paymentId   BigInt                      @map("payment_id") @db.UnsignedBigInt
+  amountCents BigInt                      @map("amount_cents") @db.UnsignedBigInt
+  source      DebtPaymentAllocationSource
+  createdAt   DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
+  tenant      Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt        Debt                        @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payment     Payment                     @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([debtId, paymentId])
+  @@index([tenantId, debtId])
+  @@map("debt_payment_allocations")
+}
+
+// Fase 5: promessa de pagamento — devedor escolhe uma data (via WhatsApp) e a
+// régua pausa (Debt sai de OPEN) até essa data. dueReminderSentAt controla o
+// claim atômico do lembrete do dia (PaymentPromiseService.sweep); FULFILLED
+// fica reservado no enum mas nenhum código produz esse status ainda (não há
+// sinal de pagamento confirmado até a Fase 6/PIX).
+enum PaymentPromiseStatus {
+  ACTIVE
+  FULFILLED
+  OVERDUE
+  REPLACED
+  CANCELED
+}
+
+enum PaymentPromiseSource {
+  WHATSAPP
+  MANUAL
+}
+
+model PaymentPromise {
+  id                  BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String               @unique @map("public_id") @db.Char(36)
+  tenantId            BigInt               @map("tenant_id") @db.UnsignedBigInt
+  debtId              BigInt               @map("debt_id") @db.UnsignedBigInt
+  promisedDate        DateTime             @map("promised_date") @db.Date
+  promisedAmountCents BigInt?              @map("promised_amount_cents") @db.UnsignedBigInt
+  status              PaymentPromiseStatus @default(ACTIVE)
+  source              PaymentPromiseSource
+  dueReminderSentAt   DateTime?            @map("due_reminder_sent_at") @db.DateTime(3)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt                Debt                 @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, debtId, status])
+  @@index([status, promisedDate])
+  @@map("payment_promises")
+}
+
+// Fase 3: motor de régua — decide QUANDO uma Debt ativa ganha uma nova
+// tentativa de contato; só agenda (status SCHEDULED). Fase 4: execução real
+// via WhatsApp — processingAt/providerMessageId/technicalRetryCount/
+// nextRetryAt/lastError controlam o claim atômico e o retry técnico do envio.
+
+enum CollectionAttemptType {
+  INITIAL_COLLECTION
+  SAME_DAY_FOLLOWUP
+  NEXT_DAY_FOLLOWUP
+  CYCLE_RESTART
+  PROMISE_DUE
+  PROMISE_OVERDUE
+  PIX_PENDING_REMINDER
+  PARTIAL_PAYMENT_FOLLOWUP
+}
+
+enum CollectionAttemptStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  SKIPPED
+  FAILED
+  RESPONDED
+  CANCELED
+}
+
+model CollectionAttempt {
+  id                BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String                  @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt                  @map("tenant_id") @db.UnsignedBigInt
+  debtId            BigInt                  @map("debt_id") @db.UnsignedBigInt
+  cycleNumber       Int                     @map("cycle_number") @db.UnsignedSmallInt
+  attemptNumber     Int                     @map("attempt_number") @db.UnsignedSmallInt
+  attemptType       CollectionAttemptType   @map("attempt_type")
+  scheduledAt       DateTime                @map("scheduled_at") @db.DateTime(3)
+  status            CollectionAttemptStatus @default(SCHEDULED)
+  templateKey       String                  @map("template_key") @db.VarChar(80)
+  notificationLogId BigInt?                 @map("notification_log_id") @db.UnsignedBigInt
+  sentAt            DateTime?               @map("sent_at") @db.DateTime(3)
+  respondedAt       DateTime?               @map("responded_at") @db.DateTime(3)
+  skippedAt         DateTime?               @map("skipped_at") @db.DateTime(3)
+  skipReason        String?                 @map("skip_reason") @db.VarChar(500)
+  processingAt        DateTime? @map("processing_at") @db.DateTime(3)
+  providerMessageId   String?   @map("provider_message_id") @db.VarChar(100)
+  technicalRetryCount Int       @default(0) @map("technical_retry_count") @db.UnsignedTinyInt
+  nextRetryAt         DateTime? @map("next_retry_at") @db.DateTime(3)
+  lastError           String?   @map("last_error") @db.VarChar(500)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  debt              Debt                    @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  notificationLog   NotificationLog?        @relation(fields: [notificationLogId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([debtId, cycleNumber, attemptNumber], map: "udca_debt_cycle_attempt")
+  @@index([tenantId, status, scheduledAt])
+  @@map("collection_attempts")
+}
+
+// Fase 1: Fundação do módulo de prospecção/divulgação
+// Objetivo: Materializar leads a partir do DirectoryBusiness, gerenciar campanhas,
+// rastrear interações. Fases posteriores: envio WhatsApp, worker, webhook, objeções.
+
+enum ProspectingCampaignStatus {
+  DRAFT
+  READY
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELED
+}
+
+enum ProspectingLeadStatus {
+  PENDING
+  SCHEDULED
+  CONTACTED
+  WAITING_REPLY
+  RESPONDED
+  QUALIFYING
+  INTERESTED
+  DEMO_SENT
+  FOLLOW_UP
+  WON
+  LOST
+  NO_RESPONSE
+  SUPPRESSED
+  FAILED
+  NEEDS_REVIEW
+}
+
+enum ProspectingMessagePurpose {
+  CAMPAIGN
+  AUTO_REPLY
+  FOLLOW_UP
+}
+
+enum ProspectingMessageStatus {
+  PENDING
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  DELIVERY_UNCERTAIN
+  CANCELED
+  DRY_RUN
+}
+
+enum ProspectingHumanLockType {
+  INBOUND_REPLY
+  MANUAL
+}
+
+enum ObjectionPattern {
+  EXACT
+  STARTS_WITH
+  ENDS_WITH
+  CONTAINS
+}
+
+model ProspectingCampaign {
+  id                    BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                      @unique @map("public_id") @db.Char(36)
+  name                  String                      @db.VarChar(180)
+  status                ProspectingCampaignStatus   @default(DRAFT)
+  categoryId            BigInt?                     @map("category_id") @db.UnsignedBigInt
+  state                 String?                     @db.Char(2)
+  city                  String?                     @db.VarChar(120)
+  dailyLimit            Int                         @default(100) @map("daily_limit") @db.UnsignedSmallInt
+  sendingStartMinutes   Int                         @default(540) @map("sending_start_minutes") @db.UnsignedSmallInt
+  sendingEndMinutes     Int                         @default(1080) @map("sending_end_minutes") @db.UnsignedSmallInt
+  minIntervalSeconds    Int                         @default(30) @map("min_interval_seconds") @db.UnsignedSmallInt
+  maxIntervalSeconds    Int                         @default(120) @map("max_interval_seconds") @db.UnsignedSmallInt
+  allowedWeekdays       Json                        @default("[1,2,3,4,5]") @map("allowed_weekdays")
+  followUpEnabled       Boolean                     @default(false) @map("follow_up_enabled")
+  followUpAfterHours    Int?                        @map("follow_up_after_hours") @db.UnsignedSmallInt
+  maxFollowUps          Int                         @default(2) @map("max_follow_ups") @db.UnsignedTinyInt
+  pauseOnReply          Boolean                     @default(true) @map("pause_on_reply")
+  pauseOnInterest       Boolean                     @default(true) @map("pause_on_interest")
+  autoReplyEnabled      Boolean                     @default(false) @map("auto_reply_enabled")
+  flowId                BigInt?                     @map("flow_id") @db.UnsignedBigInt
+  startedAt             DateTime?                   @map("started_at") @db.DateTime(3)
+  pausedAt              DateTime?                   @map("paused_at") @db.DateTime(3)
+  completedAt           DateTime?                   @map("completed_at") @db.DateTime(3)
+  nextSendAt            DateTime?                   @map("next_send_at") @db.DateTime(3)
+  createdAt             DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  category              DirectoryCategory?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  flow                  ProspectingFlow?            @relation(fields: [flowId], references: [id], onDelete: SetNull)
+  leads                 ProspectingLead[]
+  messages              ProspectingMessage[]
+  templates             ProspectingTemplate[]
+  suppressions          ProspectingSuppression[]
+  objectionExclusions   ProspectingObjectionExclusion[]
+  flowExecutions        ProspectingFlowExecution[]
+
+  @@index([status, startedAt])
+  @@index([categoryId, state, city])
+  @@map("prospecting_campaigns")
+}
+
+model ProspectingLead {
+  id                      BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String                  @unique @map("public_id") @db.Char(36)
+  campaignId              BigInt                  @map("campaign_id") @db.UnsignedBigInt
+  directoryBusinessId     BigInt                  @map("directory_business_id") @db.UnsignedBigInt
+  phoneSnapshot           String                  @map("phone_snapshot") @db.VarChar(20)
+  normalizedPhone         String                  @map("normalized_phone") @db.VarChar(20)
+  nameSnapshot            String                  @map("name_snapshot") @db.VarChar(180)
+  status                  ProspectingLeadStatus   @default(PENDING)
+  currentStep             Int                     @default(0) @map("current_step") @db.UnsignedSmallInt
+  nextActionAt            DateTime?               @map("next_action_at") @db.DateTime(3)
+  attemptCount            Int                     @default(0) @map("attempt_count") @db.UnsignedSmallInt
+  followUpCount           Int                     @default(0) @map("follow_up_count") @db.UnsignedTinyInt
+  lastOutboundAt          DateTime?               @map("last_outbound_at") @db.DateTime(3)
+  lastInboundAt           DateTime?               @map("last_inbound_at") @db.DateTime(3)
+  respondedAt             DateTime?               @map("responded_at") @db.DateTime(3)
+  interestedAt            DateTime?               @map("interested_at") @db.DateTime(3)
+  convertedAt             DateTime?               @map("converted_at") @db.DateTime(3)
+  humanLockStartedAt      DateTime?               @map("human_lock_started_at") @db.DateTime(3)
+  humanLockUntil          DateTime?               @map("human_lock_until") @db.DateTime(3)
+  humanLockReason         String?                 @map("human_lock_reason") @db.VarChar(500)
+  humanLockType           String?                 @map("human_lock_type") @db.VarChar(50)
+  processingWorkerId      String?                 @map("processing_worker_id") @db.VarChar(255)
+  processingStartedAt     DateTime?               @map("processing_started_at") @db.DateTime(3)
+  processingExpiresAt     DateTime?               @map("processing_expires_at") @db.DateTime(3)
+  suppressedAt            DateTime?               @map("suppressed_at") @db.DateTime(3)
+  suppressionReason       String?                 @map("suppression_reason") @db.VarChar(500)
+  createdAt               DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign                ProspectingCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  directoryBusiness       DirectoryBusiness       @relation(fields: [directoryBusinessId], references: [id], onDelete: Restrict)
+  messages                ProspectingMessage[]
+  flowExecutions          ProspectingFlowExecution[]
+
+  @@unique([campaignId, directoryBusinessId], map: "upld_campaign_business")
+  @@index([campaignId, status, nextActionAt])
+  @@index([normalizedPhone])
+  @@index([humanLockUntil])
+  @@map("prospecting_leads")
+}
+
+model ProspectingMessage {
+  id                BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String                      @unique @map("public_id") @db.Char(36)
+  campaignId        BigInt                      @map("campaign_id") @db.UnsignedBigInt
+  leadId            BigInt                      @map("lead_id") @db.UnsignedBigInt
+  direction         String                      @db.VarChar(20)
+  stepNumber        Int?                        @map("step_number") @db.UnsignedSmallInt
+  templateId        BigInt?                     @map("template_id") @db.UnsignedBigInt
+  variantIndex      Int?                        @map("variant_index") @db.UnsignedTinyInt
+  idempotencyKey    String?                     @map("idempotency_key") @db.VarChar(255)
+  status            String                      @default("PENDING") @db.VarChar(20)
+  sendingStartedAt  DateTime?                   @map("sending_started_at") @db.DateTime(3)
+  classifiedAt      DateTime?                   @map("classified_at") @db.DateTime(3)
+  body              String                      @db.Text
+  externalMessageId String?                     @map("external_message_id") @db.VarChar(100)
+  sentAt            DateTime?                   @map("sent_at") @db.DateTime(3)
+  deliveredAt       DateTime?                   @map("delivered_at") @db.DateTime(3)
+  readAt            DateTime?                   @map("read_at") @db.DateTime(3)
+  failedAt          DateTime?                   @map("failed_at") @db.DateTime(3)
+  errorMessage      String?                     @map("error_message") @db.Text
+  errorCode         String?                     @map("error_code") @db.VarChar(100)
+  attemptNumber     Int                         @default(1) @map("attempt_number") @db.UnsignedTinyInt
+  objectionId       BigInt?                     @map("objection_id") @db.UnsignedBigInt
+  purpose           String                      @default("CAMPAIGN") @db.VarChar(50)
+  scheduledAt       DateTime?                   @map("scheduled_at") @db.DateTime(3)
+  nextAttemptAt     DateTime?                   @map("next_attempt_at") @db.DateTime(3)
+  replyToMessageId  BigInt?                     @map("reply_to_message_id") @db.UnsignedBigInt
+  cancelReason      String?                     @map("cancel_reason") @db.VarChar(500)
+  createdAt         DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign          ProspectingCampaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead              ProspectingLead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  template          ProspectingTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  objection         ProspectingObjection?       @relation(fields: [objectionId], references: [id], onDelete: SetNull)
+  replyToMessage    ProspectingMessage?         @relation("repliesTo", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies           ProspectingMessage[]        @relation("repliesTo")
+  optionIds         Json?                       @map("option_ids")
+
+  @@index([campaignId, status])
+  @@index([leadId, direction, createdAt])
+  @@index([objectionId, classifiedAt])
+  @@index([purpose, status, nextAttemptAt])
+  @@map("prospecting_messages")
+}
+
+model ProspectingTemplate {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String              @unique @map("public_id") @db.Char(36)
+  campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
+  stepNumber        Int                 @map("step_number") @db.UnsignedSmallInt
+  name              String              @db.VarChar(180)
+  body              String              @db.Text
+  type              String              @default("TEXT") @db.VarChar(20)
+  isDefault         Boolean             @default(false) @map("is_default")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  variants          ProspectingTemplateVariant[]
+  messages          ProspectingMessage[]
+
+  @@index([campaignId, stepNumber])
+  @@map("prospecting_templates")
+}
+
+model ProspectingTemplateVariant {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  templateId        BigInt              @map("template_id") @db.UnsignedBigInt
+  variantIndex      Int                 @map("variant_index") @db.UnsignedTinyInt
+  body              String              @db.Text
+  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  template          ProspectingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, variantIndex], map: "uptv_template_variant")
+  @@map("prospecting_template_variants")
+}
+
+model ProspectingObjection {
+  id                BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String      @unique @map("public_id") @db.Char(36)
+  code              String?     @unique @db.VarChar(100)
+  name              String      @db.VarChar(180)
+  description       String?     @db.Text
+  suggestedResponse String?     @db.Text @map("suggested_response")
+  autoReplyAllowed  Boolean     @default(false) @map("auto_reply_allowed")
+  isActive          Boolean     @default(true) @map("is_active")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  patterns          ProspectingObjectionPattern[]
+  exclusions        ProspectingObjectionExclusion[]
+  messages          ProspectingMessage[]
+
+  @@map("prospecting_objections")
+}
+
+model ProspectingObjectionPattern {
+  id                BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  objectionId       BigInt                  @map("objection_id") @db.UnsignedBigInt
+  patternType       ObjectionPattern        @map("pattern_type")
+  pattern           String                  @db.VarChar(500)
+  priority          Int                     @default(0)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  objection         ProspectingObjection    @relation(fields: [objectionId], references: [id], onDelete: Cascade)
+
+  @@index([objectionId, priority])
+  @@map("prospecting_objection_patterns")
+}
+
+model ProspectingObjectionExclusion {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
+  objectionId       BigInt              @map("objection_id") @db.UnsignedBigInt
+  excludeFollowUp   Boolean             @default(false) @map("exclude_follow_up")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  objection         ProspectingObjection @relation(fields: [objectionId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, objectionId], map: "upoe_campaign_objection")
+  @@map("prospecting_objection_exclusions")
+}
+
+model ProspectingSuppression {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  campaignId        BigInt              @map("campaign_id") @db.UnsignedBigInt
+  normalizedPhone   String              @map("normalized_phone") @db.VarChar(20)
+  reason            String              @db.VarChar(500)
+  suppressedAt      DateTime            @default(now()) @map("suppressed_at") @db.DateTime(3)
+  campaign          ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, normalizedPhone], map: "ups_campaign_phone")
+  @@index([campaignId, normalizedPhone])
+  @@map("prospecting_suppressions")
+}
+
+model PlatformWhatsAppConfig {
+  id                BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String      @unique @map("public_id") @db.Char(36)
+  phoneNumberId     String      @map("phone_number_id") @db.VarChar(100)
+  phoneNumber       String      @map("phone_number") @db.VarChar(20)
+  businessAccountId String      @map("business_account_id") @db.VarChar(100)
+  accessToken       String      @db.Text
+  isActive          Boolean     @default(true) @map("is_active")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("platform_whatsapp_configs")
+}
+
+model PlatformWapiConfig {
+  id                        BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                  String      @unique @map("public_id") @db.Char(36)
+  masterApiKeyCiphertext    String      @map("master_api_key_ciphertext") @db.Text
+  isActive                  Boolean     @default(true) @map("is_active")
+  createdAt                 DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                 DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("platform_wapi_configs")
+}
+
+model ProspectingWhatsAppConfig {
+  id                      BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String       @unique @map("public_id") @db.Char(36)
+  instanceId              String       @map("instance_id") @db.VarChar(100)
+  tokenCiphertext         String       @map("token_ciphertext") @db.Text
+  phoneNumber             String?      @map("phone_number") @db.VarChar(20)
+  instanceName            String?      @map("instance_name") @db.VarChar(120)
+  isActive                Boolean      @default(true) @map("is_active")
+  lastConnectionStatus    String?      @map("last_connection_status") @db.VarChar(50)
+  lastCheckedAt           DateTime?    @map("last_checked_at") @db.DateTime(3)
+  nextSendAt              DateTime?    @map("next_send_at") @db.DateTime(3)
+  createdAt               DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@unique([instanceId])
+  @@map("prospecting_whatsapp_configs")
+}
+
+enum ProspectingFlowStepType {
+  MESSAGE_OPTIONS
+  WAIT_TEXT
+  WAIT_LINK
+  MESSAGE_ONLY
+  MANUAL
+  END
+
+  @@map("prospecting_flow_step_type")
+}
+
+enum ProspectingFlowExecutionStatus {
+  ACTIVE
+  WAITING
+  MANUAL
+  COMPLETED
+  CANCELED
+
+  @@map("prospecting_flow_execution_status")
+}
+
+enum ProspectingFlowOptionActionType {
+  NEXT_STEP
+  END
+  MANUAL
+
+  @@map("prospecting_flow_option_action_type")
+}
+
+model ProspectingFlow {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String    @unique @map("public_id") @db.Char(36)
+  code                String?   @unique @map("code") @db.VarChar(100)
+  name                String    @map("name") @db.VarChar(180)
+  description         String?   @map("description") @db.Text
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  steps               ProspectingFlowStep[]
+  executions          ProspectingFlowExecution[]
+  campaigns           ProspectingCampaign[]
+
+  @@map("prospecting_flows")
+}
+
+model ProspectingFlowStep {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String    @unique @map("public_id") @db.Char(36)
+  flowId              BigInt    @map("flow_id") @db.UnsignedBigInt
+  name                String    @map("name") @db.VarChar(180)
+  message             String    @map("message") @db.Text
+  stepType            ProspectingFlowStepType @map("step_type")
+  position            Int       @map("position")
+  nextStepId          BigInt?   @map("next_step_id") @db.UnsignedBigInt
+  isStart             Boolean   @default(false) @map("is_start")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  flow                ProspectingFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  nextStep            ProspectingFlowStep? @relation("StepNextStep", fields: [nextStepId], references: [id])
+  previousSteps       ProspectingFlowStep[] @relation("StepNextStep")
+  optionsAsNextStep   ProspectingFlowOption[] @relation("OptionNextStep")
+  options             ProspectingFlowOption[]
+  executions          ProspectingFlowExecution[]
+  responses           ProspectingFlowResponse[]
+
+  @@index([flowId])
+  @@index([nextStepId])
+  @@index([isStart])
+  @@map("prospecting_flow_steps")
+}
+
+model ProspectingFlowOption {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String    @unique @map("public_id") @db.Char(36)
+  stepId              BigInt    @map("step_id") @db.UnsignedBigInt
+  label               String    @map("label") @db.VarChar(180)
+  nextStepId          BigInt?   @map("next_step_id") @db.UnsignedBigInt
+  actionType          ProspectingFlowOptionActionType @map("action_type")
+  position            Int       @map("position")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  step                ProspectingFlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  nextStep            ProspectingFlowStep? @relation("OptionNextStep", fields: [nextStepId], references: [id])
+  patterns            ProspectingFlowOptionPattern[]
+  responses           ProspectingFlowResponse[]
+
+  @@index([stepId])
+  @@index([nextStepId])
+  @@map("prospecting_flow_options")
+}
+
+model ProspectingFlowOptionPattern {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  optionId            BigInt    @map("option_id") @db.UnsignedBigInt
+  pattern             String    @map("pattern") @db.VarChar(500)
+  patternType         String    @map("pattern_type") @db.VarChar(20)
+  priority            Int       @default(0) @map("priority")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  option              ProspectingFlowOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@index([optionId])
+  @@map("prospecting_flow_option_patterns")
+}
+
+model ProspectingFlowExecution {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String    @unique @map("public_id") @db.Char(36)
+  campaignId          BigInt    @map("campaign_id") @db.UnsignedBigInt
+  leadId              BigInt    @map("lead_id") @db.UnsignedBigInt
+  flowId              BigInt    @map("flow_id") @db.UnsignedBigInt
+  currentStepId       BigInt    @map("current_step_id") @db.UnsignedBigInt
+  status              ProspectingFlowExecutionStatus @map("status")
+  startedAt           DateTime  @default(now()) @map("started_at") @db.DateTime(3)
+  completedAt         DateTime? @map("completed_at") @db.DateTime(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  campaign            ProspectingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead                ProspectingLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  flow                ProspectingFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  currentStep         ProspectingFlowStep @relation(fields: [currentStepId], references: [id])
+  responses           ProspectingFlowResponse[]
+
+  @@unique([campaignId, leadId, flowId])
+  @@index([campaignId])
+  @@index([leadId])
+  @@index([flowId])
+  @@index([status])
+  @@map("prospecting_flow_executions")
+}
+
+model ProspectingFlowResponse {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  executionId         BigInt    @map("execution_id") @db.UnsignedBigInt
+  stepId              BigInt    @map("step_id") @db.UnsignedBigInt
+  inboundMessageId    BigInt?   @map("inbound_message_id") @db.UnsignedBigInt
+  responseText        String    @map("response_text") @db.Text
+  matchedOptionId     BigInt?   @map("matched_option_id") @db.UnsignedBigInt
+  createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  execution           ProspectingFlowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  step                ProspectingFlowStep @relation(fields: [stepId], references: [id])
+  matchedOption       ProspectingFlowOption? @relation(fields: [matchedOptionId], references: [id])
+
+  @@index([executionId])
+  @@index([stepId])
+  @@map("prospecting_flow_responses")
+}
+

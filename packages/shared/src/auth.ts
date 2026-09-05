@@ -8,6 +8,17 @@ import {
 
 const commonPasswords = new Set(['1234567890', 'password123', 'senha12345', 'qwerty12345']);
 
+export function passwordRequirementStatus(value: string) {
+  return {
+    minLength: value.length >= 10,
+    maxLength: value.length <= 128,
+    letter: /\p{L}/u.test(value),
+    number: /\d/u.test(value),
+    notOnlyWhitespace: value.trim().length > 0,
+    notCommon: !commonPasswords.has(value.toLowerCase()),
+  };
+}
+
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -26,6 +37,38 @@ export const PasswordSchema = z
   .refine((value) => /\d/u.test(value), 'A senha deve conter ao menos um número.')
   .refine((value) => value.trim().length > 0, 'A senha não pode conter somente espaços.')
   .refine((value) => !commonPasswords.has(value.toLowerCase()), 'Escolha uma senha menos comum.');
+
+/**
+ * Senha de conta de CLIENTE do site público. É intencionalmente mais simples que
+ * `PasswordSchema` (usada por OWNER/staff, que administram o estabelecimento),
+ * mantendo um mínimo seguro: comprimento e bloqueio de senhas muito comuns.
+ */
+const commonCustomerPasswords = new Set([
+  ...commonPasswords,
+  '12345678',
+  '123456789',
+  'password',
+  'senha123',
+  'qwerty123',
+  'abc12345',
+]);
+export const CUSTOMER_PASSWORD_MIN_LENGTH = 8;
+export const CUSTOMER_PASSWORD_RULES = [
+  `Use pelo menos ${String(CUSTOMER_PASSWORD_MIN_LENGTH)} caracteres.`,
+  'Evite senhas muito comuns, como "12345678".',
+] as const;
+export const CustomerPasswordSchema = z
+  .string()
+  .min(
+    CUSTOMER_PASSWORD_MIN_LENGTH,
+    `A senha deve possuir pelo menos ${String(CUSTOMER_PASSWORD_MIN_LENGTH)} caracteres.`,
+  )
+  .max(128, 'A senha deve possuir no máximo 128 caracteres.')
+  .refine((value) => value.trim().length > 0, 'A senha não pode conter somente espaços.')
+  .refine(
+    (value) => !commonCustomerPasswords.has(value.toLowerCase()),
+    'Escolha uma senha menos comum.',
+  );
 
 export const UserStatusSchema = z.enum(['ACTIVE', 'INVITED', 'SUSPENDED', 'INACTIVE']);
 export const MembershipStatusSchema = z.enum(['ACTIVE', 'INVITED', 'SUSPENDED', 'INACTIVE']);
@@ -122,6 +165,8 @@ export const PermissionCodeSchema = z.enum([
   'loyalty.manage',
   'integration.read',
   'integration.manage',
+  'collection.read',
+  'collection.manage',
 ]);
 
 export const UserPublicSchema = z.object({
@@ -163,6 +208,11 @@ export const LoginResponseSchema = z.object({
   tenants: z.array(AvailableTenantSchema),
   requiresTenantSelection: z.boolean(),
 });
+
+export const GoogleAuthRequestSchema = z
+  .object({ credential: z.string().min(1).max(10000) })
+  .strict();
+export const GoogleAuthResponseSchema = LoginResponseSchema;
 export const AuthMeResponseSchema = LoginResponseSchema.extend({
   session: SessionPublicSchema,
   currentTenant: AuthenticatedTenantSchema.nullable(),
@@ -256,6 +306,17 @@ export const CreateTenantWithOwnerResponseSchema = CreateTenantResponseSchema.ex
   membershipPublicId: z.uuid(),
 });
 
+export const PublicRegistrationRequestSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  email: EmailSchema,
+  password: PasswordSchema,
+  planPublicId: z.uuid(),
+  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL', 'CUSTOM']),
+}).strict();
+export const PublicRegistrationResponseSchema = LoginResponseSchema.extend({
+  tenantPublicId: z.uuid(),
+});
+
 export const AuthErrorCodeSchema = z.enum([
   'AUTH_REQUIRED',
   'AUTH_INVALID_CREDENTIALS',
@@ -292,4 +353,5 @@ export type AcceptInvitationRequest = z.infer<typeof AcceptInvitationRequestSche
 export type MembershipPublic = z.infer<typeof MembershipPublicSchema>;
 export type UpdateMembershipRequest = z.infer<typeof UpdateMembershipRequestSchema>;
 export type CreateTenantWithOwnerRequest = z.infer<typeof CreateTenantWithOwnerRequestSchema>;
+export type PublicRegistrationRequest = z.infer<typeof PublicRegistrationRequestSchema>;
 export type CreateTenantWithOwnerResponse = z.infer<typeof CreateTenantWithOwnerResponseSchema>;

@@ -2,17 +2,57 @@ import { PlatformAuditResponseSchema, PlatformTenantListResponseSchema } from '@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { formatAuditEvent } from './AuditPresentation.js';
+import { ErrorState, formatDate, PageHeader, Pagination } from './PlatformUi.js';
 import { httpClient } from '../../lib/http.js';
+
+type AuditItem = NonNullable<ReturnType<typeof PlatformAuditResponseSchema.parse>['items'][number]>;
+const eventOptions = [
+  ['platform.subscription.plan_changed', 'Plano alterado'],
+  ['platform.subscription.activated', 'Assinatura ativada'],
+  ['platform.subscription.trial_extended', 'Trial estendido'],
+  ['platform.subscription.period_updated', 'Período corrigido'],
+  ['platform.plan.deleted', 'Plano excluído'],
+  ['platform.plan.deactivated', 'Plano desativado'],
+  ['platform.tenant.created', 'Estabelecimento criado'],
+] as const;
+const targetLabels: Record<string, string> = {
+  tenant: 'Estabelecimento',
+  tenant_subscription: 'Assinatura',
+  commercial_plan: 'Plano',
+  tenant_commercial_policy: 'Política comercial',
+};
+
+function AuditValues({ title, values }: { title: string; values: Record<string, unknown> | null }) {
+  if (!values || Object.keys(values).length === 0) return null;
+  return (
+    <article>
+      <h5>{title}</h5>
+      <dl>
+        {Object.entries(values).map(([key, value]) => (
+          <div key={key}>
+            <dt>{key.replaceAll(/([A-Z])/gu, ' $1').toLowerCase()}</dt>
+            <dd>
+              {typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+                ? String(value)
+                : 'Informação estruturada'}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </article>
+  );
+}
 
 export function AuditModule() {
   const [page, setPage] = useState(1);
   const [action, setAction] = useState('');
   const [tenantPublicId, setTenantPublicId] = useState('');
-  const [userPublicId, setUserPublicId] = useState('');
   const [targetType, setTargetType] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
+  const [selected, setSelected] = useState<AuditItem | null>(null);
   const tenants = useQuery({
     queryKey: ['platform', 'tenants', 'audit-options'],
     queryFn: () =>
@@ -21,199 +61,270 @@ export function AuditModule() {
       }),
     retry: false,
   });
-  const tenantNames = new Map(
-    (tenants.data?.items ?? []).map((tenant) => [tenant.publicId, tenant.displayName]),
-  );
+  const tenantNames = new Map((tenants.data?.items ?? []).map((t) => [t.publicId, t.displayName]));
   const audit = useQuery({
-    queryKey: [
-      'platform',
-      'audit',
-      page,
-      action,
-      tenantPublicId,
-      userPublicId,
-      targetType,
-      from,
-      to,
-      direction,
-    ],
+    queryKey: ['platform', 'audit', page, action, tenantPublicId, targetType, from, to, direction],
     queryFn: () => {
-      const query = new URLSearchParams({ page: String(page), limit: '20', direction });
-      if (action.trim() !== '') query.set('action', action.trim());
-      if (tenantPublicId !== '') query.set('tenantPublicId', tenantPublicId);
-      if (userPublicId.trim() !== '') query.set('userPublicId', userPublicId.trim());
-      if (targetType.trim() !== '') query.set('targetType', targetType.trim());
-      if (from.trim() !== '') query.set('from', from.trim());
-      if (to.trim() !== '') query.set('to', to.trim());
-      return httpClient.request(`/platform/audit?${query.toString()}`, {
+      const q = new URLSearchParams({ page: String(page), limit: '20', direction });
+      if (action) q.set('action', action);
+      if (tenantPublicId) q.set('tenantPublicId', tenantPublicId);
+      if (targetType) q.set('targetType', targetType);
+      if (from) q.set('from', new Date(`${from}T00:00:00`).toISOString());
+      if (to) q.set('to', new Date(`${to}T23:59:59.999`).toISOString());
+      return httpClient.request(`/platform/audit?${q.toString()}`, {
         schema: PlatformAuditResponseSchema,
       });
     },
     retry: false,
   });
-  const clearFilters = () => {
+  const clear = () => {
     setPage(1);
     setAction('');
     setTenantPublicId('');
-    setUserPublicId('');
     setTargetType('');
     setFrom('');
     setTo('');
     setDirection('desc');
   };
-
   return (
-    <section aria-labelledby="audit-title">
-      <p className="eyebrow">{'Rastreabilidade global'}</p>
-      <h2 id="audit-title">Auditoria</h2>
-      <p className="muted">
-        {
-          'A API atual n\u00e3o retorna metadata; somente os campos p\u00fablicos aprovados s\u00e3o exibidos.'
-        }
-      </p>
-      <div className="platform-form">
+    <section>
+      <PageHeader
+        title="Auditoria"
+        description="Consulte eventos administrativos e identifique quem realizou cada alteração."
+      />
+      <div className="platform-filter-bar platform-audit-filters">
         <label>
-          {'A\u00e7\u00e3o'}
-          <input
-            placeholder="platform.subscription.created"
-            value={action}
-            onChange={(event) => {
-              setPage(1);
-              setAction(event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          Estabelecimento
+          Tipo de evento
           <select
-            value={tenantPublicId}
-            onChange={(event) => {
+            value={action}
+            onChange={(e) => {
               setPage(1);
-              setTenantPublicId(event.target.value);
+              setAction(e.target.value);
             }}
           >
             <option value="">Todos</option>
-            {(tenants.data?.items ?? []).map((tenant) => (
-              <option key={tenant.publicId} value={tenant.publicId}>
-                {tenant.displayName}
+            {eventOptions.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
               </option>
             ))}
           </select>
         </label>
         <label>
-          {'Usu\u00e1rio (identificador p\u00fablico)'}
-          <input
-            inputMode="text"
-            value={userPublicId}
-            onChange={(event) => {
+          Estabelecimento
+          <select
+            value={tenantPublicId}
+            onChange={(e) => {
               setPage(1);
-              setUserPublicId(event.target.value);
+              setTenantPublicId(e.target.value);
             }}
-          />
+          >
+            <option value="">Todos</option>
+            {(tenants.data?.items ?? []).map((t) => (
+              <option key={t.publicId} value={t.publicId}>
+                {t.displayName}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Tipo de alvo
-          <input
-            placeholder="tenant_subscription"
-            value={targetType}
-            onChange={(event) => {
-              setPage(1);
-              setTargetType(event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {'A partir de (ISO)'}
-          <input
-            placeholder="2026-08-01T00:00:00.000Z"
-            value={from}
-            onChange={(event) => {
-              setPage(1);
-              setFrom(event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {'At\u00e9 (ISO)'}
-          <input
-            placeholder="2026-08-31T23:59:59.999Z"
-            value={to}
-            onChange={(event) => {
-              setPage(1);
-              setTo(event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {'Dire\u00e7\u00e3o'}
           <select
-            value={direction}
-            onChange={(event) => {
+            value={targetType}
+            onChange={(e) => {
               setPage(1);
-              setDirection(event.target.value as 'asc' | 'desc');
+              setTargetType(e.target.value);
             }}
           >
-            <option value="desc">Decrescente</option>
-            <option value="asc">Crescente</option>
+            <option value="">Todos</option>
+            <option value="tenant">Estabelecimento</option>
+            <option value="tenant_subscription">Assinatura</option>
+            <option value="commercial_plan">Plano</option>
+            <option value="tenant_commercial_policy">Política comercial</option>
           </select>
         </label>
-      </div>
-      <div className="form-actions">
-        <button onClick={clearFilters} type="button">
-          Limpar filtros
-        </button>
-        <button
-          onClick={() => {
-            void audit.refetch();
-          }}
-          type="button"
-        >
-          Atualizar
+        <label>
+          De
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setPage(1);
+              setFrom(e.target.value);
+            }}
+          />
+        </label>
+        <label>
+          Até
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => {
+              setPage(1);
+              setTo(e.target.value);
+            }}
+          />
+        </label>
+        <label>
+          Ordem
+          <select
+            value={direction}
+            onChange={(e) => {
+              setPage(1);
+              setDirection(e.target.value as 'asc' | 'desc');
+            }}
+          >
+            <option value="desc">Mais recentes</option>
+            <option value="asc">Mais antigos</option>
+          </select>
+        </label>
+        <button onClick={clear} type="button">
+          Limpar
         </button>
       </div>
       {audit.isPending ? (
-        <p>{'Carregando eventos de auditoria\u2026'}</p>
+        <div className="platform-table-skeleton">
+          <i className="platform-skeleton" />
+          <i className="platform-skeleton" />
+          <i className="platform-skeleton" />
+        </div>
       ) : audit.error instanceof Error ? (
-        <p className="form-error">{'N\u00e3o foi poss\u00edvel carregar a auditoria.'}</p>
-      ) : audit.data === undefined || audit.data.items.length === 0 ? (
-        <p>Nenhum evento encontrado para os filtros atuais.</p>
+        <ErrorState
+          message="Não foi possível carregar a auditoria."
+          retry={() => {
+            void audit.refetch();
+          }}
+        />
+      ) : !audit.data?.items.length ? (
+        <div className="platform-empty">
+          <h3>Nenhum evento encontrado</h3>
+          <p>Nenhum evento corresponde aos filtros atuais.</p>
+        </div>
       ) : (
         <>
-          <div className="data-list">
-            {audit.data.items.map((item) => (
-              <article className="data-row" key={item.publicId}>
-                <span>{item.action}</span>
-                <span>{item.targetType}</span>
-                <span>{tenantNames.get(item.tenantPublicId ?? '') ?? 'Sem estabelecimento'}</span>
-                <span>{item.user?.email ?? 'Sistema'}</span>
-                <span>{item.targetPublicId ?? 'Sem alvo p\u00fablico'}</span>
-                <span>{item.createdAt}</span>
-              </article>
-            ))}
+          <div className="platform-table-wrap">
+            <table className="platform-table platform-audit-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Ação</th>
+                  <th>Alvo</th>
+                  <th>Responsável</th>
+                  <th>Detalhes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.data.items.map((item) => (
+                  <tr
+                    key={item.publicId}
+                    onClick={() => {
+                      setSelected(item);
+                    }}
+                  >
+                    <td>{formatDate(item.createdAt, true)}</td>
+                    <td>
+                      <strong>{formatAuditEvent(item.action)}</strong>
+                    </td>
+                    <td>
+                      {tenantNames.get(item.tenantPublicId ?? '') ??
+                        targetLabels[item.targetType] ??
+                        'Alvo administrativo'}
+                    </td>
+                    <td>{item.user?.email ?? 'Sistema'}</td>
+                    <td>{item.targetPublicId ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="form-actions">
-            <button
-              disabled={page <= 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-              type="button"
-            >
-              Anterior
-            </button>
-            <span>{`P\u00e1gina ${String(audit.data.page.page)} de ${String(audit.data.page.totalPages)}`}</span>
-            <button
-              disabled={page >= audit.data.page.totalPages}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-              type="button"
-            >
-              {'Pr\u00f3xima'}
-            </button>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={audit.data.page.totalPages}
+            total={audit.data.page.total}
+            limit={audit.data.page.limit}
+            onPage={setPage}
+          />
         </>
       )}
+      {selected ? (
+        <>
+          <button
+            className="platform-backdrop"
+            aria-label="Fechar"
+            onClick={() => {
+              setSelected(null);
+            }}
+            type="button"
+          />
+          <aside
+            className="platform-drawer platform-drawer--detail"
+            role="dialog"
+            aria-modal="true"
+          >
+            <button
+              className="platform-drawer-close"
+              aria-label="Fechar"
+              onClick={() => {
+                setSelected(null);
+              }}
+              type="button"
+            >
+              ×
+            </button>
+            <header className="platform-detail-heading">
+              <div>
+                <h3>{formatAuditEvent(selected.action)}</h3>
+                <span>{formatDate(selected.createdAt, true)}</span>
+              </div>
+            </header>
+            <dl className="platform-details">
+              <div>
+                <dt>Responsável</dt>
+                <dd>{selected.user?.email ?? 'Sistema'}</dd>
+              </div>
+              <div>
+                <dt>Estabelecimento/alvo</dt>
+                <dd>
+                  {tenantNames.get(selected.tenantPublicId ?? '') ??
+                    targetLabels[selected.targetType] ??
+                    'Alvo administrativo'}
+                </dd>
+              </div>
+              <div>
+                <dt>Tipo de alvo</dt>
+                <dd>
+                  {targetLabels[selected.targetType] ?? selected.targetType.replaceAll('_', ' ')}
+                </dd>
+              </div>
+              <div>
+                <dt>Identificador público</dt>
+                <dd>{selected.targetPublicId ?? 'Não informado'}</dd>
+              </div>
+              <div>
+                <dt>Motivo</dt>
+                <dd>{selected.reason ?? 'Não informado'}</dd>
+              </div>
+            </dl>
+            <section className="platform-audit-note">
+              <h4>Alterações</h4>
+              {selected.before || selected.after ? (
+                <div className="platform-audit-changes">
+                  <AuditValues title="Antes" values={selected.before} />
+                  <AuditValues title="Depois" values={selected.after} />
+                </div>
+              ) : (
+                <p>Este evento não possui dados de antes e depois.</p>
+              )}
+            </section>
+            {selected.metadata ? (
+              <details className="platform-audit-technical">
+                <summary>Dados complementares</summary>
+                <p>Informações adicionais deste evento foram sanitizadas pelo servidor.</p>
+              </details>
+            ) : null}
+          </aside>
+        </>
+      ) : null}
     </section>
   );
 }

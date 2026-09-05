@@ -45,4 +45,88 @@ export const notificationTemplateRoutes: FastifyPluginAsyncZod<{
       return { success: true as const };
     },
   );
+
+  app.get(
+    '/tenant/integrations/whatsapp/messages',
+    {
+      schema: {
+        response: {
+          200: z.object({
+            items: z.array(
+              z.object({
+                kind: z.string(),
+                enabled: z.boolean(),
+                body: z.string().nullable(),
+                buttons: z.array(
+                  z.object({
+                    actionKey: z.string(),
+                    label: z.string(),
+                    enabled: z.boolean(),
+                    order: z.number(),
+                  }),
+                ),
+                allowedActions: z.array(z.string()),
+                isCustomized: z.boolean(),
+                placeholders: z.array(z.string()),
+              }),
+            ),
+          }),
+        },
+      },
+    },
+    async (r) => {
+      o.authService.requirePermission(r.tenant, 'integration.read');
+      const kinds = ['appointment.booking_confirmed', 'appointment.day_before_reminder', 'appointment.upcoming_reminder', 'appointment.booking_canceled'];
+      const items = await Promise.all(
+        kinds.map((kind) => o.service.getWhatsAppInfo(r.tenant.id, kind as any)),
+      );
+      return { items };
+    },
+  );
+
+  app.patch(
+    '/tenant/integrations/whatsapp/messages/:kind',
+    {
+      schema: {
+        params,
+        body: z.object({
+          enabled: z.boolean().optional(),
+          body: z.string().optional(),
+          buttons: z.array(z.object({
+            actionKey: z.string(),
+            label: z.string(),
+            enabled: z.boolean(),
+            order: z.number(),
+          })).optional(),
+        }),
+        response: { 200: z.object({ success: z.literal(true) }) },
+      },
+    },
+    async (r) => {
+      o.authService.requirePermission(r.tenant, 'integration.manage');
+      const updateData: any = {};
+      if (r.body.body !== undefined) updateData.whatsappBody = r.body.body;
+      if (r.body.enabled !== undefined) updateData.whatsappEnabled = r.body.enabled;
+      if (r.body.buttons !== undefined) updateData.whatsappButtons = r.body.buttons;
+      await o.service.update(r.tenant.id, r.params.kind, updateData as any);
+      return { success: true as const };
+    },
+  );
+
+  app.post(
+    '/tenant/integrations/whatsapp/messages/:kind/restore',
+    {
+      schema: {
+        params,
+        response: { 200: z.object({ success: z.literal(true) }) },
+      },
+    },
+    async (r) => {
+      o.authService.requirePermission(r.tenant, 'integration.manage');
+      await o.client?.notificationTemplate.deleteMany({
+        where: { tenantId: r.tenant.id, kind: r.params.kind },
+      });
+      return { success: true as const };
+    },
+  );
 };

@@ -1,7 +1,11 @@
 import { type CookieSerializeOptions } from '@fastify/cookie';
 import {
   CustomerAuthResponseSchema,
+  CustomerForgotPasswordRequestSchema,
+  CustomerGoogleAuthRequestSchema,
+  CustomerGoogleAuthResponseSchema,
   CustomerLoginRequestSchema,
+  CustomerResetPasswordRequestSchema,
   CustomerProfileResponseSchema,
   CustomerRegisterRequestSchema,
   SuccessResponseSchema,
@@ -11,12 +15,18 @@ import { type FastifyReply, type FastifyRequest } from 'fastify';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
+import { GoogleAuthService } from '../auth/google-auth.service.js';
 import { type CustomerAuthService } from './customer-auth.service.js';
+import { type CustomerPhotoService } from './customer-photo.service.js';
 import { type CustomerProfileService } from './customer-profile.service.js';
+import { AppError } from '../../errors/AppError.js';
+import { validateServiceImageUpload } from '../services/service-image.storage.js';
 
 interface Options {
   service: CustomerAuthService;
   profileService: CustomerProfileService;
+  photoService?: CustomerPhotoService;
+  googleAuth: GoogleAuthService;
   cookieName: string;
   cookieSecure: boolean;
   sessionTtlHours: number;
@@ -51,6 +61,25 @@ function clearCookie(reply: FastifyReply, options: Options) {
   });
 }
 
+function customerPublic(customer: {
+  publicId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  photoPath?: string | null;
+  updatedAt?: Date;
+}) {
+  return {
+    publicId: customer.publicId,
+    name: customer.name,
+    email: customer.email,
+    phone: customer.phone,
+    photoUrl:
+      customer.photoPath === null || customer.photoPath === undefined ? null : 'customer/photo',
+    photoUpdatedAt: customer.updatedAt?.toISOString() ?? null,
+  };
+}
+
 export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options) => {
   app.post(
     '/public/sites/:slug/customer/register',
@@ -69,7 +98,7 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
         requestMetadata(request),
       );
       reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
-      return reply.status(201).send({ customer: result.customer });
+      return reply.status(201).send({ customer: customerPublic(result.customer) });
     },
   );
 
@@ -90,7 +119,28 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
         requestMetadata(request),
       );
       reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
-      return { customer: result.customer };
+      return { customer: customerPublic(result.customer) };
+    },
+  );
+
+  app.post(
+    '/public/sites/:slug/customer/google',
+    {
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: SlugParamsSchema,
+        body: CustomerGoogleAuthRequestSchema,
+        response: { 200: CustomerGoogleAuthResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const result = await options.service.loginWithGoogle(
+        request.params.slug,
+        (request.body as { credential: string }).credential,
+        requestMetadata(request),
+      );
+      reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
+      return { customer: customerPublic(result.customer) };
     },
   );
 
@@ -115,14 +165,101 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
     { schema: { params: SlugParamsSchema, response: { 200: CustomerAuthResponseSchema } } },
     async (request) => {
       const session = await options.service.authenticate(request.cookies[options.cookieName]);
-      return {
-        customer: {
-          publicId: session.customer.publicId,
-          name: session.customer.name,
-          email: session.customer.email,
-          phone: session.customer.phone,
-        },
-      };
+      return { customer: customerPublic(session.customer) };
+    },
+  );
+  app.post(
+    '/public/sites/:slug/customer/forgot-password',
+    {
+      config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+      schema: {
+        params: SlugParamsSchema,
+        body: CustomerForgotPasswordRequestSchema,
+        response: { 202: SuccessResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      // Resposta neutra: nunca revela se existe conta com este e-mail.
+      await options.service.forgotPassword(
+        request.params.slug,
+        request.body.email,
+        requestMetadata(request),
+      );
+      return reply.status(202).send({ success: true } as const);
+    },
+  );
+  app.post(
+    '/public/sites/:slug/customer/reset-password',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+      schema: {
+        params: SlugParamsSchema,
+        body: CustomerResetPasswordRequestSchema,
+        response: { 200: SuccessResponseSchema },
+      },
+    },
+    async (request) => {
+      await options.service.resetPassword(
+        request.params.slug,
+        request.body.token,
+        request.body.newPassword,
+      );
+      return { success: true } as const;
+    },
+  );
+  app.put(
+    '/public/sites/:slug/customer/photo',
+    { schema: { params: SlugParamsSchema, response: { 200: CustomerAuthResponseSchema } } },
+    async (request) => {
+      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      const upload = await request.file();
+      if (upload === undefined || options.photoService === undefined)
+        throw new AppError({
+          code: 'CUSTOMER_PHOTO_REQUIRED',
+          message: 'Uma imagem é obrigatória.',
+          statusCode: 400,
+        });
+      const image = await upload.toBuffer();
+      validateServiceImageUpload(image, upload.filename, upload.mimetype);
+      const customer = await options.photoService.replace(
+        session.tenantId,
+        session.customer.id,
+        image,
+      );
+      return { customer: customerPublic(customer) };
+    },
+  );
+  app.delete(
+    '/public/sites/:slug/customer/photo',
+    { schema: { params: SlugParamsSchema, response: { 200: CustomerAuthResponseSchema } } },
+    async (request) => {
+      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      if (options.photoService === undefined)
+        throw new AppError({
+          code: 'CUSTOMER_PHOTO_UNAVAILABLE',
+          message: 'O armazenamento de imagens não está disponível.',
+          statusCode: 503,
+        });
+      const customer = await options.photoService.remove(session.tenantId, session.customer.id);
+      return { customer: customerPublic(customer) };
+    },
+  );
+  app.get(
+    '/public/sites/:slug/customer/photo',
+    { schema: { params: SlugParamsSchema } },
+    async (request, reply) => {
+      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      if (options.photoService === undefined)
+        throw new AppError({
+          code: 'CUSTOMER_PHOTO_UNAVAILABLE',
+          message: 'O armazenamento de imagens não está disponível.',
+          statusCode: 503,
+        });
+      const image = await options.photoService.read(session.tenantId, session.customer.id);
+      return reply
+        .header('Cache-Control', 'private, max-age=60')
+        .type(image.mimeType)
+        .send(image.buffer);
     },
   );
   app.get(

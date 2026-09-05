@@ -8,6 +8,7 @@ import {
 import { type FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
 
 import { AppError } from '../errors/AppError.js';
+import { type OperationalTelemetry } from '../observability/operational-telemetry.js';
 
 const readinessTimeoutMilliseconds = 5_000;
 
@@ -28,7 +29,15 @@ async function checkDatabaseReadiness(app: Parameters<FastifyPluginCallbackZod>[
   }
 }
 
-export const technicalRoutes: FastifyPluginCallbackZod = (app, _options, done) => {
+interface TechnicalRoutesOptions {
+  telemetry: OperationalTelemetry;
+}
+
+export const technicalRoutes: FastifyPluginCallbackZod<TechnicalRoutesOptions> = (
+  app,
+  options,
+  done,
+) => {
   app.get(
     '/health',
     {
@@ -73,6 +82,13 @@ export const technicalRoutes: FastifyPluginCallbackZod = (app, _options, done) =
       };
     },
   );
+
+  app.get('/metrics', (request, reply) => {
+    void request;
+    return reply
+      .type('text/plain; version=0.0.4; charset=utf-8')
+      .send(options.telemetry.prometheus());
+  });
 
   done();
 };

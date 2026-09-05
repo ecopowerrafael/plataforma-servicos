@@ -2,7 +2,13 @@ import { z } from 'zod';
 
 import { EmailSchema, UserPublicSchema } from './auth.js';
 import { BusinessProfileCodeSchema } from './business-profile.js';
-import { BusinessUnitSchema, CreateTenantRequestSchema, TenantPublicSchema } from './tenant.js';
+import {
+  BusinessUnitSchema,
+  CreateTenantRequestSchema,
+  TenantPublicSchema,
+  TenantSettingsInputSchema,
+  TenantSettingsSchema,
+} from './tenant.js';
 
 export const PlatformPermissionCodeSchema = z.enum([
   'platform.dashboard.read',
@@ -22,6 +28,9 @@ export const PlatformPermissionCodeSchema = z.enum([
   'platform.metrics.read',
   'platform.commercial_policy.read',
   'platform.commercial_policy.manage',
+  'platform.prospecting.read',
+  'platform.prospecting.update',
+  'platform.worker.execute',
 ]);
 
 export const PlatformAdministratorStatusSchema = z.enum(['ACTIVE', 'SUSPENDED', 'INACTIVE']);
@@ -59,24 +68,40 @@ export const PlanLimitKeys = [
   'units.max',
   'members.max',
   'professionals.max',
+  'services.max',
   'monthly_appointments.max',
-  'storage.megabytes',
   'branding.customization.enabled',
   'custom_domain.enabled',
   'advanced_reports.enabled',
-  'priority_support.enabled',
+  'products.enabled',
+  'stock.enabled',
+  'commissions.enabled',
+  'waitlist.enabled',
+  'automations.enabled',
+  'whatsapp.enabled',
+  'integrations.enabled',
+  'loyalty.enabled',
+  'coupons.enabled',
 ] as const;
 export const PlanLimitKeySchema = z.enum(PlanLimitKeys);
 export const PlanLimitCatalog = {
   'units.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'members.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'professionals.max': { valueType: 'INTEGER', allowsUnlimited: true },
+  'services.max': { valueType: 'INTEGER', allowsUnlimited: true },
   'monthly_appointments.max': { valueType: 'INTEGER', allowsUnlimited: true },
-  'storage.megabytes': { valueType: 'INTEGER', allowsUnlimited: false },
   'branding.customization.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
   'custom_domain.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
   'advanced_reports.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
-  'priority_support.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'products.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'stock.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'commissions.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'waitlist.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'automations.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'whatsapp.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'integrations.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'loyalty.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
+  'coupons.enabled': { valueType: 'BOOLEAN', allowsUnlimited: false },
 } as const satisfies Record<
   (typeof PlanLimitKeys)[number],
   {
@@ -169,9 +194,24 @@ export const PlanBenefitPublicSchema = z.object({
   sortOrder: z.number().int(),
   enabled: z.boolean(),
 });
+export const PlanBillingOptionPublicSchema = z.object({
+  publicId: z.uuid(),
+  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']),
+  priceCents: MoneyPublicSchema,
+  active: z.boolean(),
+  sortOrder: z.number().int(),
+  recommended: z.boolean(),
+});
+export const PlanBillingOptionInputSchema = z.object({
+  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']),
+  priceCents: MoneyInputSchema,
+  active: z.boolean().default(true),
+  sortOrder: z.number().int().min(0).max(100).default(0),
+  recommended: z.boolean().default(false),
+});
 export const CommercialPlanPublicSchema = z.object({
   publicId: z.uuid(),
-  code: z.string().regex(/^[A-Z][A-Z0-9_]{1,63}$/u),
+  code: z.string().regex(/^(?:[A-Z][A-Z0-9_]{1,63}|[a-z0-9]+(?:-[a-z0-9]+)*)$/u),
   name: z.string(),
   subtitle: z.string().nullable(),
   shortDescription: z.string().nullable(),
@@ -179,6 +219,9 @@ export const CommercialPlanPublicSchema = z.object({
   status: CommercialPlanStatusSchema,
   billingCycle: BillingCycleSchema,
   priceCents: MoneyPublicSchema,
+  monthlyPriceCents: MoneyPublicSchema.nullable().default(null),
+  annualPriceCents: MoneyPublicSchema.nullable().default(null),
+  billingOptions: z.array(PlanBillingOptionPublicSchema).default([]),
   currency: CurrencySchema,
   trialDays: z.number().int().nonnegative().max(3650).nullable(),
   isPublic: z.boolean(),
@@ -196,13 +239,16 @@ const CommercialPlanRequestObjectSchema = z
     code: z
       .string()
       .trim()
-      .regex(/^[A-Z][A-Z0-9_]{1,63}$/u),
+      .regex(/^(?:[A-Z][A-Z0-9_]{1,63}|[a-z0-9]+(?:-[a-z0-9]+)*)$/u),
     name: z.string().trim().min(2).max(120),
     subtitle: z.string().trim().min(1).max(160).nullable().optional(),
     shortDescription: z.string().trim().min(1).max(240).nullable().optional(),
     description: z.string().trim().min(1).max(500).nullable().optional(),
     billingCycle: BillingCycleSchema,
     priceCents: MoneyInputSchema,
+    monthlyPriceCents: MoneyInputSchema.nullable().optional(),
+    annualPriceCents: MoneyInputSchema.nullable().optional(),
+    billingOptions: z.array(PlanBillingOptionInputSchema).max(4).default([]),
     currency: CurrencySchema.default('BRL'),
     trialDays: z.coerce.number().int().min(0).max(3650).nullable().optional(),
     isPublic: z.boolean().default(false),
@@ -210,7 +256,7 @@ const CommercialPlanRequestObjectSchema = z
     badge: z.string().trim().min(1).max(40).nullable().optional(),
     ctaText: z.string().trim().min(1).max(60).nullable().optional(),
     sortOrder: z.coerce.number().int().min(0).max(10_000).default(0),
-    limits: z.array(PlanLimitInputSchema).max(9).default([]),
+    limits: z.array(PlanLimitInputSchema).max(20).default([]),
   })
   .strict();
 function validateDistinctPlanLimitKeys(
@@ -235,7 +281,7 @@ export const UpdateCommercialPlanRequestSchema = CommercialPlanRequestObjectSche
     code: z
       .string()
       .trim()
-      .regex(/^[A-Z][A-Z0-9_]{1,63}$/u)
+      .regex(/^(?:[A-Z][A-Z0-9_]{1,63}|[a-z0-9]+(?:-[a-z0-9]+)*)$/u)
       .optional(),
   })
   .strict()
@@ -260,14 +306,27 @@ export const PublicCommercialPlansResponseSchema = z.object({
   defaultTrialDays: z.number().int().nonnegative().max(3650),
 });
 
+/**
+ * Item comercial do card: texto livre definido pelo Super Admin. Não liga
+ * nem desliga nada — funcionalidades continuam em `PlanLimit`.
+ */
 export const CreatePlanBenefitRequestSchema = z
   .object({
-    text: z.string().trim().min(1).max(160),
+    text: z.string().trim().min(2).max(160),
     sortOrder: z.coerce.number().int().min(0).max(10_000).default(0),
     enabled: z.boolean().default(true),
   })
   .strict();
-export const UpdatePlanBenefitRequestSchema = CreatePlanBenefitRequestSchema.partial()
+/**
+ * Edição parcial de um item: sem herdar os defaults da criação, senão um PATCH
+ * só de texto reordenaria e reativaria o item sem ninguém pedir.
+ */
+export const UpdatePlanBenefitRequestSchema = z
+  .object({
+    text: z.string().trim().min(2).max(160).optional(),
+    sortOrder: z.coerce.number().int().min(0).max(10_000).optional(),
+    enabled: z.boolean().optional(),
+  })
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'Informe ao menos uma alteração.');
 export const PlanBenefitResponseSchema = z.object({ benefit: PlanBenefitPublicSchema });
@@ -305,6 +364,7 @@ export const SubscriptionHistoryPublicSchema = z.object({
 export const CreateSubscriptionRequestSchema = z
   .object({
     planPublicId: z.uuid(),
+    billingCycle: BillingCycleSchema.optional(),
     startsAt: IsoDateSchema.optional(),
     currentPeriodEndsAt: IsoDateSchema.optional(),
     trial: z.boolean().default(false),
@@ -313,7 +373,8 @@ export const CreateSubscriptionRequestSchema = z
   .strict();
 export const UpdateSubscriptionRequestSchema = z
   .object({
-    currentPeriodEndsAt: IsoDateSchema.optional(),
+    currentPeriodStartsAt: IsoDateSchema,
+    currentPeriodEndsAt: IsoDateSchema,
     reason: z.string().trim().min(3).max(500),
   })
   .strict();
@@ -324,7 +385,11 @@ export const ExtendTrialRequestSchema = z
   .object({ trialEndsAt: IsoDateSchema, reason: z.string().trim().min(3).max(500) })
   .strict();
 export const ChangePlanRequestSchema = z
-  .object({ planPublicId: z.uuid(), reason: z.string().trim().min(3).max(500) })
+  .object({
+    planPublicId: z.uuid(),
+    billingCycle: BillingCycleSchema.optional(),
+    reason: z.string().trim().min(3).max(500),
+  })
   .strict();
 export const SubscriptionListQuerySchema = PaginationQuerySchema.extend({
   status: SubscriptionStatusSchema.optional(),
@@ -353,6 +418,7 @@ export const PlatformTenantSummarySchema = z.object({
     status: true,
     trialEndsAt: true,
     currentPeriodEndsAt: true,
+    billingCycle: true,
     plan: true,
   }).nullable(),
   unitCount: z.number().int().nonnegative(),
@@ -404,6 +470,40 @@ export const PlatformTenantDetailResponseSchema = z.object({
   ),
   counts: z.object({ units: z.number().int(), members: z.number().int() }),
 });
+// Configuração da instância de WhatsApp do próprio tenant (TenantWhatsAppConfig),
+// vista pelo suporte/plataforma — não confundir com PlatformWapiConfig, que é a
+// chave mestra global usada para CRIAR instâncias, não a instância em si.
+export const PlatformTenantWhatsAppSchema = z.object({
+  available: z.boolean(),
+  configured: z.boolean(),
+  active: z.boolean(),
+  instanceId: z.string().nullable(),
+  instanceName: z.string().nullable(),
+  phoneNumber: z.string().nullable(),
+  tokenConfigured: z.boolean(),
+  connectionStatus: z.string().nullable(),
+  lastCheckedAt: IsoDateSchema.nullable(),
+});
+export const PlatformTenantWhatsAppUpdateSchema = z
+  .object({
+    instanceId: z.string().trim().min(1).max(80),
+    token: z.string().trim().min(1).max(4000).optional(),
+    phoneNumber: z.string().trim().min(1).max(32).optional(),
+    instanceName: z.string().trim().min(1).max(120).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
+export const PlatformTenantWhatsAppTestResponseSchema = z.object({
+  connected: z.boolean(),
+  state: z.string(),
+  connectedPhone: z.string().nullable(),
+  connectedName: z.string().nullable(),
+  lastStatusCheckAt: IsoDateSchema.nullable(),
+});
+export const PlatformTenantSettingsUpdateRequestSchema = TenantSettingsInputSchema;
+export const PlatformTenantSettingsUpdateResponseSchema = z.object({
+  settings: TenantSettingsSchema,
+});
 export const UpdatePlatformTenantRequestSchema = z
   .object({
     legalName: z.string().trim().min(2).max(160).optional(),
@@ -428,6 +528,7 @@ export const CreatePlatformTenantRequestSchema = CreateTenantRequestSchema.exten
   businessProfile: BusinessProfileCodeSchema,
   ownerEmail: EmailSchema,
   planPublicId: z.uuid(),
+  billingCycle: BillingCycleSchema,
   trial: z.boolean().default(false),
   startsAt: IsoDateSchema.optional(),
 }).strict();
@@ -438,25 +539,29 @@ export const DashboardQuerySchema = z
 export const PlatformDashboardResponseSchema = z.object({
   period: z.enum(['7d', '30d', '90d', '12m']),
   counts: z.object({
-    tenants: z.number().int().nonnegative(),
-    activeTenants: z.number().int().nonnegative(),
-    suspendedTenants: z.number().int().nonnegative(),
-    pendingTenants: z.number().int().nonnegative(),
-    tenantsCreated: z.number().int().nonnegative(),
-    users: z.number().int().nonnegative(),
-    activeMembers: z.number().int().nonnegative(),
-    units: z.number().int().nonnegative(),
-    trialingSubscriptions: z.number().int().nonnegative(),
-    activeSubscriptions: z.number().int().nonnegative(),
-    suspendedSubscriptions: z.number().int().nonnegative(),
-    expiredSubscriptions: z.number().int().nonnegative(),
+    tenants: z.number().int().nonnegative().nullable(),
+    activeTenants: z.number().int().nonnegative().nullable(),
+    suspendedTenants: z.number().int().nonnegative().nullable(),
+    pendingTenants: z.number().int().nonnegative().nullable(),
+    tenantsCreated: z.number().int().nonnegative().nullable(),
+    users: z.number().int().nonnegative().nullable(),
+    activeMembers: z.number().int().nonnegative().nullable(),
+    units: z.number().int().nonnegative().nullable(),
+    trialingSubscriptions: z.number().int().nonnegative().nullable(),
+    activeSubscriptions: z.number().int().nonnegative().nullable(),
+    pastDueSubscriptions: z.number().int().nonnegative().nullable(),
+    suspendedSubscriptions: z.number().int().nonnegative().nullable(),
+    canceledSubscriptions: z.number().int().nonnegative().nullable(),
+    expiredSubscriptions: z.number().int().nonnegative().nullable(),
   }),
-  estimatedRevenue: z.object({
-    mrrCents: MoneyPublicSchema,
-    arrCents: MoneyPublicSchema,
-    currency: CurrencySchema,
-    disclaimer: z.literal('Valores contratuais estimados; não representam recebimentos.'),
-  }),
+  estimatedRevenue: z
+    .object({
+      mrrCents: MoneyPublicSchema,
+      arrCents: MoneyPublicSchema,
+      currency: CurrencySchema,
+      disclaimer: z.literal('Valores contratuais estimados; não representam recebimentos.'),
+    })
+    .nullable(),
   byPlan: z.array(
     z.object({
       planPublicId: z.uuid(),
@@ -494,12 +599,17 @@ export const PlatformAuditResponseSchema = z.object({
       tenantPublicId: z.uuid().nullable(),
       user: UserPublicSchema.nullable(),
       createdAt: IsoDateSchema,
+      reason: z.string().nullable(),
+      metadata: z.unknown().nullable(),
+      before: z.record(z.string(), z.unknown()).nullable(),
+      after: z.record(z.string(), z.unknown()).nullable(),
     }),
   ),
   page: PaginationMetaSchema,
 });
 
 export type PlatformPermissionCode = z.infer<typeof PlatformPermissionCodeSchema>;
+export type PlanLimitKey = z.infer<typeof PlanLimitKeySchema>;
 export type CreateCommercialPlanRequest = z.infer<typeof CreateCommercialPlanRequestSchema>;
 export type UpdateCommercialPlanRequest = z.infer<typeof UpdateCommercialPlanRequestSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;

@@ -19,6 +19,7 @@ export function CouponsModule({
   const [discountValue, setDiscountValue] = useState('10');
   const [maxUses, setMaxUses] = useState('');
   const [maxUsesPerCustomer, setMaxUsesPerCustomer] = useState('1');
+  const [isCreatorOpen, setIsCreatorOpen] = useState(false);
 
   const queryKey = ['tenant', tenantPublicId, 'coupons'];
 
@@ -48,6 +49,7 @@ export function CouponsModule({
       setCode('');
       setDiscountValue('10');
       setMaxUses('');
+      setIsCreatorOpen(false);
       void queryClient.invalidateQueries({ queryKey });
     },
   });
@@ -79,21 +81,21 @@ export function CouponsModule({
   });
 
   return (
-    <section className="platform-form" aria-label="Cupons de desconto">
-      <h3>Cupons de desconto</h3>
+    <section className="platform-form coupon-module" aria-label="Cupons de desconto">
+      <div className="module-header">
+        <div><p className="eyebrow">Marketing</p><h3>Cupons de desconto</h3><p>Crie incentivos para primeira compra, retorno e campanhas.</p></div>
+        {canManage && <button type="button" className="primary-button" onClick={() => { setIsCreatorOpen(true); }}>Novo cupom</button>}
+      </div>
       {coupons.isPending ? <p>Carregando…</p> : null}
       {coupons.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar os cupons.</p>
       ) : null}
       {coupons.data !== undefined && (
-        <ul>
+        <ul className="coupon-list">
           {coupons.data.items.map((item) => (
-            <li key={item.publicId}>
-              {`${item.code} — ${
-                item.discountType === 'PERCENTAGE'
-                  ? `${String(item.discountValue)}%`
-                  : formatMoney(item.discountValue)
-              } — usos: ${String(item.usageCount)}${item.maxUses === null ? '' : `/${String(item.maxUses)}`} — ${item.active ? 'ativo' : 'inativo'}`}
+            <li key={item.publicId} className="coupon-item">
+              <div><strong>{item.code}</strong><span>{item.discountType === 'PERCENTAGE' ? `${String(item.discountValue)}% de desconto` : formatMoney(item.discountValue)}</span><small>{`Usos: ${String(item.usageCount)}${item.maxUses === null ? '' : ` de ${String(item.maxUses)}`}`}</small></div>
+              <span className={`status-badge ${item.active ? 'status-active' : 'status-muted'}`}>{item.active ? 'Ativo' : 'Inativo'}</span>
               {canManage && (
                 <button
                   type="button"
@@ -107,19 +109,20 @@ export function CouponsModule({
               )}
             </li>
           ))}
-          {coupons.data.items.length === 0 && <li>Nenhum cupom cadastrado.</li>}
+          {coupons.data.items.length === 0 && <li className="empty-state"><strong>Nenhum cupom cadastrado</strong><span>Crie o primeiro cupom para uma campanha comercial.</span></li>}
         </ul>
       )}
-      {canManage && (
-        <div className="form-actions">
-          <input
+      {canManage && isCreatorOpen && (
+        <form className="app-drawer form-actions" onSubmit={(event) => { event.preventDefault(); create.mutate(); }}>
+          <div className="drawer-header"><div><p className="eyebrow">Novo cupom</p><h4>Defina a oferta</h4></div><button type="button" className="secondary-button" onClick={() => { setIsCreatorOpen(false); }}>Fechar</button></div>
+          <label>Código do cupom<input
             placeholder="Código (ex.: BEMVINDO10)"
             value={code}
             onChange={(event) => {
               setCode(event.target.value);
             }}
-          />
-          <select
+          /></label>
+          <label>Tipo de desconto<select
             value={discountType}
             onChange={(event) => {
               setDiscountType(event.target.value as 'FIXED' | 'PERCENTAGE');
@@ -127,8 +130,8 @@ export function CouponsModule({
           >
             <option value="PERCENTAGE">Percentual</option>
             <option value="FIXED">Valor fixo (centavos)</option>
-          </select>
-          <input
+          </select></label>
+          <label>Valor do desconto<input
             type="number"
             min="1"
             placeholder="Valor do desconto"
@@ -136,8 +139,8 @@ export function CouponsModule({
             onChange={(event) => {
               setDiscountValue(event.target.value);
             }}
-          />
-          <input
+          /></label>
+          <label>Limite total de usos<input
             type="number"
             min="1"
             placeholder="Limite total de usos (opcional)"
@@ -145,8 +148,8 @@ export function CouponsModule({
             onChange={(event) => {
               setMaxUses(event.target.value);
             }}
-          />
-          <input
+          /></label>
+          <label>Limite por cliente<input
             type="number"
             min="1"
             placeholder="Limite por cliente (opcional)"
@@ -154,20 +157,17 @@ export function CouponsModule({
             onChange={(event) => {
               setMaxUsesPerCustomer(event.target.value);
             }}
-          />
+          /></label>
           <button
-            type="button"
+            type="submit"
             disabled={create.isPending || code.trim() === '' || discountValue.trim() === ''}
-            onClick={() => {
-              create.mutate();
-            }}
           >
             Criar cupom
           </button>
           {create.error instanceof Error ? (
             <p className="form-error">{create.error.message}</p>
           ) : null}
-        </div>
+        </form>
       )}
     </section>
   );

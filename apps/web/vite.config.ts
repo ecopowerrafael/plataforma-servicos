@@ -19,9 +19,21 @@ export default defineConfig(({ mode }) => {
     throw new Error(`Configuração pública inválida: ${fields}.`);
   }
 
+  const apiUrl = result.data.VITE_API_URL;
+
   return {
     plugins: [react()],
     envDir: environmentDirectory,
+    server: {
+      // Em produção a API e o site compartilham a origem. No desenvolvimento,
+      // encaminhamos as rotas públicas servidas pela API para que manifest e
+      // mídia fiquem na mesma origem da página, como no deploy.
+      proxy: {
+        '/public/sites': { target: apiUrl, changeOrigin: true },
+        '/public/media': { target: apiUrl, changeOrigin: true },
+        '/public/push': { target: apiUrl, changeOrigin: true },
+      },
+    },
     build: {
       sourcemap: false,
     },

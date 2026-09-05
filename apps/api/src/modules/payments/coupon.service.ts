@@ -11,6 +11,7 @@ import {
 
 import { type Coupon, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
   userId: bigint | null;
@@ -54,8 +55,10 @@ const pubRedemption = (redemption: {
 
 export class CouponService {
   public constructor(private readonly client: PrismaClient) {}
+  private assertEnabled(tenantId: bigint) { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'coupons.enabled'); }
 
   public async list(tenantId: bigint) {
+    await this.assertEnabled(tenantId);
     const coupons = await this.client.coupon.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
@@ -67,6 +70,7 @@ export class CouponService {
   }
 
   public async create(tenantId: bigint, input: CreateCouponRequest, actor: Actor) {
+    await this.assertEnabled(tenantId);
     const existing = await this.client.coupon.findFirst({
       where: { tenantId, code: input.code },
       select: { id: true },
@@ -113,6 +117,7 @@ export class CouponService {
     input: UpdateCouponRequest,
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId);
     const existing = await this.client.coupon.findFirst({
       where: { tenantId, publicId: couponPublicId },
     });
@@ -155,6 +160,7 @@ export class CouponService {
    * se reflete automaticamente em todo o fluxo de pagamento já existente.
    */
   public async redeem(tenantId: bigint, appointmentPublicId: string, code: string, actor: Actor) {
+    await this.assertEnabled(tenantId);
     const appointment = await this.client.appointment.findFirst({
       where: { tenantId, publicId: appointmentPublicId },
       select: { id: true, publicId: true, customerId: true, priceCents: true, status: true },
@@ -329,6 +335,7 @@ export class CouponService {
   }
 
   public async listRedemptions(tenantId: bigint, appointmentPublicId: string) {
+    await this.assertEnabled(tenantId);
     const items = await this.client.couponRedemption.findMany({
       where: { tenantId, appointment: { publicId: appointmentPublicId } },
       orderBy: { createdAt: 'desc' },

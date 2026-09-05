@@ -1,7 +1,16 @@
 import { type ErrorDetail, type ErrorResponse } from '@plataforma/shared';
-import { type FastifyError, type FastifyInstance } from 'fastify';
+import { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import { AppError } from './AppError.js';
+
+interface ErrorHandlerOptions {
+  /**
+   * Fallback opcional para navegação SPA. Retorna `true` quando já respondeu
+   * (ex.: enviou o index.html do frontend compilado); nesse caso o 404 JSON
+   * padrão é suprimido. Usado apenas no deploy single-origin.
+   */
+  spaFallback?: (request: FastifyRequest, reply: FastifyReply) => boolean;
+}
 
 function validationDetails(error: FastifyError): ErrorDetail[] | undefined {
   if (error.validation === undefined) {
@@ -43,8 +52,11 @@ function createErrorResponse(
   };
 }
 
-export function registerErrorHandlers(app: FastifyInstance): void {
+export function registerErrorHandlers(app: FastifyInstance, options: ErrorHandlerOptions = {}): void {
   app.setNotFoundHandler((request, reply) => {
+    if (options.spaFallback?.(request, reply) === true) {
+      return;
+    }
     void reply
       .status(404)
       .send(
@@ -58,7 +70,20 @@ export function registerErrorHandlers(app: FastifyInstance): void {
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
-      request.log.warn({ err: error, requestId: request.id }, 'Falha operacional na requisição');
+      request.log.warn(
+        {
+          err: error,
+          requestId: request.id,
+          method: request.method,
+          url: request.url,
+          statusCode: error.statusCode,
+          code: error.code,
+          message: error.message,
+          stack: error.stack,
+          cause: error.cause,
+        },
+        'Falha operacional na requisição',
+      );
       void reply
         .status(error.statusCode)
         .send(createErrorResponse(request.id, error.code, error.message, error.details));
@@ -115,7 +140,19 @@ export function registerErrorHandlers(app: FastifyInstance): void {
       return;
     }
 
-    request.log.error({ err: error, requestId: request.id }, 'Falha interna na requisição');
+    request.log.error(
+      {
+        err: error,
+        requestId: request.id,
+        method: request.method,
+        url: request.url,
+        statusCode: 500,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        cause: error instanceof Error ? (error as any).cause : undefined,
+      },
+      'Falha interna na requisição',
+    );
     void reply
       .status(500)
       .send(

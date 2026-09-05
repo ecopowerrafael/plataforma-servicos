@@ -1,0 +1,342 @@
+import { type PrismaClient } from '../../database-client/client.js';
+import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
+
+export interface PreviewFilterRequest {
+  categoryPublicIds?: string[];
+  states?: string[];
+  cities?: string[];
+  search?: string;
+  contactStatus?: 'all' | 'never' | 'sent' | 'responded';
+}
+
+export interface AudienceCounters {
+  total: number;
+  withPhone: number;
+  neverContacted: number;
+  contacted: number;
+  suppressed: number;
+  eligible: number;
+}
+
+export class ProspectingAudienceService {
+  public constructor(private readonly client: PrismaClient) {}
+
+  public async getCategories() {
+    const categories = await this.client.directoryCategory.findMany({
+      where: { active: true },
+      select: {
+        publicId: true,
+        name: true,
+      },
+      orderBy: {
+        sortOrder: 'asc',
+      },
+    });
+
+    return categories.map((c) => ({
+      publicId: c.publicId,
+      name: c.name,
+    }));
+  }
+
+  public async getCities(filters?: { categoryPublicIds?: string[] }) {
+    const whereClause: any = {
+      active: true,
+    };
+
+    if (filters?.categoryPublicIds?.length) {
+      const categoryIds = await this.client.directoryCategory
+        .findMany({
+          where: { publicId: { in: filters.categoryPublicIds } },
+          select: { id: true },
+        })
+        .then((cats) => cats.map((c) => c.id));
+      whereClause.categoryId = { in: categoryIds };
+    }
+
+    const cities = await this.client.directoryBusiness.findMany({
+      where: whereClause,
+      select: {
+        city: true,
+        state: true,
+      },
+      distinct: ['city', 'state'],
+      orderBy: [{ state: 'asc' }, { city: 'asc' }],
+    });
+
+    return cities.map((c) => ({
+      city: c.city,
+      state: c.state,
+      label: `${c.city}, ${c.state}`,
+    }));
+  }
+
+  public async getPreviewCounters(filters: PreviewFilterRequest): Promise<AudienceCounters> {
+    // Build base filters WITHOUT contactStatus to show metrics on full universe
+    const { contactStatus: _ignore, ...baseFilters } = filters;
+    const whereClause = await this.buildWhereClause(baseFilters);
+
+    // Get total
+    const total = await this.client.directoryBusiness.count({ where: whereClause });
+
+    // Get with valid phone
+    const withPhone = await this.client.directoryBusiness.count({
+      where: { ...whereClause, whatsapp: { not: null } },
+    });
+
+    // Get never sent (no outbound message history)
+    const neverContacted = await this.client.directoryBusiness.count({
+      where: {
+        ...whereClause,
+        whatsapp: { not: null },
+        prospectingLeads: {
+          none: {
+            lastOutboundAt: { not: null },
+          },
+        },
+      },
+    });
+
+    // Get sent (has outbound)
+    const sent = await this.client.directoryBusiness.count({
+      where: {
+        ...whereClause,
+        whatsapp: { not: null },
+        prospectingLeads: {
+          some: {
+            lastOutboundAt: { not: null },
+          },
+        },
+      },
+    });
+
+    // Suppressed doesn't apply to preview (no campaign yet)
+    const suppressed = 0;
+    const eligible = withPhone;
+
+    return {
+      total,
+      withPhone,
+      neverContacted,
+      contacted: sent,
+      suppressed,
+      eligible,
+    };
+  }
+
+  public async getPreviewPage(filters: PreviewFilterRequest, page: number = 1, limit: number = 50) {
+    let stage = 'start';
+    try {
+      const offset = (page - 1) * limit;
+      stage = 'buildWhereClause';
+      const whereClause = await this.buildWhereClause(filters);
+
+      stage = 'findMany:DirectoryBusiness';
+      const businesses = await this.client.directoryBusiness.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          publicId: true,
+          name: true,
+          city: true,
+          state: true,
+          whatsapp: true,
+          category: {
+            select: { name: true },
+          },
+        },
+        orderBy: { name: 'asc' },
+        take: limit,
+        skip: offset,
+      });
+
+      stage = 'count:DirectoryBusiness';
+      const total = await this.client.directoryBusiness.count({ where: whereClause });
+
+      stage = 'findMany:ProspectingLead';
+      const businessIds = businesses.map((b) => b.id);
+      const leads = await this.client.prospectingLead.findMany({
+        where: {
+          directoryBusinessId: { in: businessIds },
+        },
+        select: {
+          directoryBusinessId: true,
+          respondedAt: true,
+          messages: {
+            where: { direction: 'OUTBOUND' },
+            select: { id: true },
+            take: 1,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        distinct: ['directoryBusinessId'],
+      });
+
+      stage = 'buildStatusMap';
+      const statusMap = new Map<bigint, { respondedAt: boolean; hasOutbound: boolean }>();
+      for (const lead of leads) {
+        if (!statusMap.has(lead.directoryBusinessId)) {
+          const msgs = lead.messages as any[] | undefined;
+          statusMap.set(lead.directoryBusinessId, {
+            respondedAt: !!lead.respondedAt,
+            hasOutbound: (msgs?.length ?? 0) > 0,
+          });
+        }
+      }
+
+      stage = 'mapBusinessesForResponse';
+      const result = {
+        data: businesses.map((b: any) => {
+          const status = statusMap.get(b.id);
+          let statusLabel = 'Nunca enviado';
+          if (status?.respondedAt) {
+            statusLabel = 'Respondeu';
+          } else if (status?.hasOutbound) {
+            statusLabel = 'Já enviado';
+          }
+
+          return {
+            publicId: b.publicId,
+            name: b.name,
+            category: b.category?.name || '',
+            city: b.city,
+            state: b.state,
+            phone: b.whatsapp ? this.formatPhone(b.whatsapp) : '',
+            status: statusLabel,
+          };
+        }),
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      };
+
+      stage = 'return';
+      return result;
+    } catch (error) {
+      throw Object.assign(error as any, { diagnosticStage: stage });
+    }
+  }
+
+  public async getCountersForSelection(
+    filters: PreviewFilterRequest,
+    selectionMode: 'explicit' | 'allFiltered',
+    businessPublicIds?: string[],
+    excludedBusinessPublicIds?: string[]
+  ): Promise<{ selected: number; total: number }> {
+    if (selectionMode === 'explicit') {
+      return {
+        selected: businessPublicIds?.length || 0,
+        total: businessPublicIds?.length || 0,
+      };
+    }
+
+    const whereClause = await this.buildWhereClause(filters);
+    const total = await this.client.directoryBusiness.count({ where: whereClause });
+    const selected = Math.max(0, total - (excludedBusinessPublicIds?.length || 0));
+
+    return { selected, total };
+  }
+
+  private async buildWhereClause(filters: PreviewFilterRequest) {
+    const where: any = {
+      active: true,
+    };
+
+    if (filters.categoryPublicIds && filters.categoryPublicIds.length > 0) {
+      const categoryIds = await this.client.directoryCategory
+        .findMany({
+          where: { publicId: { in: filters.categoryPublicIds } },
+          select: { id: true },
+        })
+        .then((cats) => cats.map((c) => c.id));
+      where.categoryId = { in: categoryIds };
+    }
+
+    // Geographic filters: state + city as single OR clause
+    const geographicOr: any[] = [];
+
+    if (filters.states?.length) {
+      geographicOr.push(...filters.states.map((state) => ({ state })));
+    }
+
+    if (filters.cities?.length) {
+      const cityFilters = filters.cities
+        .map((cityState) => {
+          const [city, state] = cityState.split('|');
+          return city && state ? { city, state } : null;
+        })
+        .filter(Boolean);
+      geographicOr.push(...cityFilters);
+    }
+
+    if (geographicOr.length > 0) {
+      where.AND = where.AND ? [...(Array.isArray(where.AND) ? where.AND : [where.AND]), { OR: geographicOr }] : [{ OR: geographicOr }];
+    }
+
+    if (filters.search) {
+      where.name = { contains: filters.search };
+    }
+
+    // Contact status based on actual ProspectingLead history fields
+    if (filters.contactStatus === 'never') {
+      where.prospectingLeads = {
+        none: {
+          lastOutboundAt: { not: null },
+        },
+      };
+    } else if (filters.contactStatus === 'sent') {
+      where.prospectingLeads = {
+        some: {
+          lastOutboundAt: { not: null },
+        },
+      };
+    } else if (filters.contactStatus === 'responded') {
+      where.prospectingLeads = {
+        some: {
+          respondedAt: { not: null },
+        },
+      };
+    }
+
+    return where;
+  }
+
+  public async resolveFilteredBusinessPublicIds(
+    filters: PreviewFilterRequest,
+    excludedPublicIds?: string[]
+  ): Promise<string[]> {
+    const whereClause = await this.buildWhereClause(filters);
+
+    const businesses = await this.client.directoryBusiness.findMany({
+      where: whereClause,
+      select: { publicId: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const publicIds = businesses.map((b) => b.publicId);
+    if (excludedPublicIds?.length) {
+      const excludedSet = new Set(excludedPublicIds);
+      return publicIds.filter((id) => !excludedSet.has(id));
+    }
+
+    return publicIds;
+  }
+
+  private formatPhone(phone: string): string {
+    const normalized = normalizeWhatsAppPhone(phone);
+    if (!normalized) return '';
+
+    // Remove country code if present
+    const digits = normalized.replace(/^55/, '');
+    if (digits.length >= 10) {
+      const ddd = digits.slice(0, 2);
+      const part1 = digits.slice(2, 7);
+      const part2 = digits.slice(7, 11);
+      return `(${ddd}) ${part1}-${part2}`;
+    }
+    return phone;
+  }
+}

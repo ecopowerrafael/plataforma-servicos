@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
+
 import { type Prisma, type PrismaClient, type Professional } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 export type ProfessionalRecord = Professional & {
   primaryUnit: { publicId: string } | null;
   tenant: { publicId: string };
@@ -13,9 +16,15 @@ export interface ProfessionalRepository {
   find(tenantId: bigint, publicId: string): Promise<ProfessionalRecord | null>;
   findByUserId(tenantId: bigint, userId: bigint): Promise<ProfessionalRecord | null>;
   create(data: Prisma.ProfessionalUncheckedCreateInput): Promise<ProfessionalRecord>;
+  createWithAutomaticUser(
+    tenantId: bigint,
+    professionalData: Omit<Prisma.ProfessionalUncheckedCreateInput, 'tenantId'>,
+    roleId: bigint,
+  ): Promise<ProfessionalRecord>;
   update(id: bigint, data: Prisma.ProfessionalUncheckedUpdateInput): Promise<ProfessionalRecord>;
   findUnit(tenantId: bigint, publicId: string): Promise<{ id: bigint } | null>;
   findMember(tenantId: bigint, userPublicId: string): Promise<{ id: bigint } | null>;
+  findRoleByCode(tenantId: bigint, code: string): Promise<{ id: bigint } | null>;
   fields(tenantId: bigint): Promise<
     {
       key: string;
@@ -25,6 +34,10 @@ export interface ProfessionalRepository {
       options: Prisma.JsonValue | null;
     }[]
   >;
+  updateUserPassword(userPublicId: string, passwordHash: string): Promise<{ id: bigint }>;
+  findUserIdByPublicId(userPublicId: string): Promise<{ id: bigint } | null>;
+  updateUserEmail(userPublicId: string, email: string): Promise<{ id: bigint }>;
+  autoLinkUserByEmail(tenantId: bigint, email: string): Promise<bigint | null>;
   audit(data: Prisma.AuditLogUncheckedCreateInput): Promise<void>;
 }
 const include = {
@@ -54,7 +67,16 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
     return this.client.professional.findFirst({ where: { tenantId, userId }, include });
   }
   public create(data: Prisma.ProfessionalUncheckedCreateInput) {
-    return this.client.professional.create({ data, include });
+    return this.client.$transaction(async (transaction) => {
+      await new PlanEntitlementService().assertCanCreateProfessional(transaction, BigInt(data.tenantId));
+      const professional = await transaction.professional.create({ data, include });
+      const periods = [1, 2, 3, 4, 5, 6].flatMap((weekday) => [
+        { publicId: randomUUID(), tenantId: professional.tenantId, professionalId: professional.id, weekday, startsAt: '09:00', endsAt: '12:00', active: true },
+        { publicId: randomUUID(), tenantId: professional.tenantId, professionalId: professional.id, weekday, startsAt: '13:00', endsAt: '18:00', active: true },
+      ]);
+      await transaction.professionalWorkSchedule.createMany({ data: periods });
+      return professional;
+    });
   }
   public update(id: bigint, data: Prisma.ProfessionalUncheckedUpdateInput) {
     return this.client.professional.update({ where: { id }, data, include });
@@ -80,5 +102,121 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
   }
   public async audit(data: Prisma.AuditLogUncheckedCreateInput) {
     await this.client.auditLog.create({ data });
+  }
+  public async findRoleByCode(tenantId: bigint, code: string) {
+    return this.client.role.findFirst({
+      where: { code, tenantId },
+      select: { id: true },
+    });
+  }
+  public async updateUserPassword(userPublicId: string, passwordHash: string) {
+    return this.client.user.update({
+      where: { publicId: userPublicId },
+      data: { passwordHash, passwordChangedAt: new Date() },
+      select: { id: true },
+    });
+  }
+  public async findUserIdByPublicId(userPublicId: string) {
+    return this.client.user.findUnique({
+      where: { publicId: userPublicId },
+      select: { id: true },
+    });
+  }
+  public async updateUserEmail(userPublicId: string, email: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    return this.client.user.update({
+      where: { publicId: userPublicId },
+      data: { email, normalizedEmail },
+      select: { id: true },
+    });
+  }
+  public async autoLinkUserByEmail(tenantId: bigint, email: string): Promise<bigint | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    // Procurar User que JÁ tem membership neste tenant
+    const membership = await this.client.tenantMembership.findFirst({
+      where: {
+        tenantId,
+        user: { normalizedEmail },
+      },
+      select: { userId: true },
+    });
+    return membership?.userId ?? null;
+  }
+  public async createWithAutomaticUser(
+    tenantId: bigint,
+    professionalData: Omit<Prisma.ProfessionalUncheckedCreateInput, 'tenantId'>,
+    roleId: bigint,
+  ): Promise<ProfessionalRecord> {
+    return this.client.$transaction(async (tx) => {
+      await new PlanEntitlementService().assertCanCreateProfessional(tx, tenantId);
+
+      const normalizedEmail = professionalData.email
+        ? professionalData.email.toLowerCase().trim()
+        : null;
+
+      let userId: bigint | null = null;
+      if (normalizedEmail) {
+        const existingUser = await tx.user.findUnique({
+          where: { normalizedEmail },
+          select: { id: true },
+        });
+
+        if (existingUser) {
+          userId = existingUser.id;
+          // Verificar se existingUser já tem membership neste tenant
+          const membershipExists = await tx.tenantMembership.findFirst({
+            where: { tenantId, userId: existingUser.id },
+            select: { id: true },
+          });
+          // Se não tem, criar membership
+          if (!membershipExists) {
+            await tx.tenantMembership.create({
+              data: {
+                publicId: randomUUID(),
+                tenantId,
+                userId: existingUser.id,
+                roleId,
+                status: 'ACTIVE',
+              },
+            });
+          }
+        } else {
+          // Criar novo User
+          const newUser = await tx.user.create({
+            data: {
+              publicId: randomUUID(),
+              email: professionalData.email!,
+              normalizedEmail,
+              status: 'ACTIVE',
+            },
+            select: { id: true },
+          });
+          userId = newUser.id;
+
+          await tx.tenantMembership.create({
+            data: {
+              publicId: randomUUID(),
+              tenantId,
+              userId: newUser.id,
+              roleId,
+              status: 'ACTIVE',
+            },
+          });
+        }
+      }
+
+      const professional = await tx.professional.create({
+        data: { ...professionalData, tenantId, userId },
+        include,
+      });
+
+      const periods = [1, 2, 3, 4, 5, 6].flatMap((weekday) => [
+        { publicId: randomUUID(), tenantId: professional.tenantId, professionalId: professional.id, weekday, startsAt: '09:00', endsAt: '12:00', active: true },
+        { publicId: randomUUID(), tenantId: professional.tenantId, professionalId: professional.id, weekday, startsAt: '13:00', endsAt: '18:00', active: true },
+      ]);
+      await tx.professionalWorkSchedule.createMany({ data: periods });
+
+      return professional;
+    });
   }
 }

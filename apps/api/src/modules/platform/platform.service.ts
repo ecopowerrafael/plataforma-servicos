@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import {
   BusinessProfileCatalog,
+  publicSiteDefaultsFor,
   CreateTenantCustomFieldRequestSchema,
   CommercialPlanPublicSchema,
   PlanBenefitPublicSchema,
+  PlatformAuditResponseSchema,
   type CreateCommercialPlanRequest,
   type CreatePlanBenefitRequest,
   type CreateSubscriptionRequest,
@@ -19,16 +21,20 @@ import {
   type TenantFeatureCode,
   type CreateTenantCustomFieldRequest,
   type UpdateTenantCustomFieldRequest,
+  type TenantSettings,
 } from '@plataforma/shared';
 
+import { auditReadDetails } from './audit-sanitizer.js';
 import { TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthRequestContext, type RequestMetadata } from '../auth/identity.repository.js';
 import { generateOpaqueToken, generatePublicId, hashOpaqueToken } from '../auth/token.service.js';
+import { PrismaTenantRepository } from '../tenants/prisma-tenant.repository.js';
 import { TenantCustomFieldsResolver } from '../tenants/tenant-custom-fields.resolver.js';
 import { TenantExperienceResolver } from '../tenants/tenant-experience.resolver.js';
 import { TenantFeaturesResolver } from '../tenants/tenant-features.resolver.js';
+import { TenantService } from '../tenants/tenant.service.js';
 
 const effectiveStatuses = new Set(['TRIALING', 'ACTIVE', 'PAST_DUE', 'SUSPENDED']);
 const platformPermissions = [
@@ -49,6 +55,9 @@ const platformPermissions = [
   'platform.metrics.read',
   'platform.commercial_policy.read',
   'platform.commercial_policy.manage',
+  'platform.prospecting.read',
+  'platform.prospecting.update',
+  'platform.worker.execute',
 ] as const satisfies readonly PlatformPermissionCode[];
 
 interface PageRequest {
@@ -125,6 +134,8 @@ export function mapPlan(plan: {
   status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
   priceCents: bigint;
+  monthlyPriceCents: bigint | null;
+  annualPriceCents: bigint | null;
   currency: string;
   trialDays: number | null;
   isPublic: boolean;
@@ -149,10 +160,20 @@ export function mapPlan(plan: {
         enabled: boolean;
       }[]
     | undefined;
+  billingOptions?: {
+    publicId: string;
+    billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
+    priceCents: bigint;
+    active: boolean;
+    sortOrder: number;
+    recommended: boolean;
+  }[];
 }) {
   return CommercialPlanPublicSchema.parse({
     ...plan,
     priceCents: publicMoney(plan.priceCents),
+    monthlyPriceCents: plan.monthlyPriceCents === null ? null : publicMoney(plan.monthlyPriceCents),
+    annualPriceCents: plan.annualPriceCents === null ? null : publicMoney(plan.annualPriceCents),
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
     limits: plan.limits.map((limit) => ({
@@ -160,6 +181,9 @@ export function mapPlan(plan: {
       integerValue: limit.integerValue === null ? null : publicMoney(limit.integerValue),
     })),
     benefits: plan.benefits ?? [],
+    billingOptions: (plan.billingOptions ?? [])
+      .filter((option) => option.billingCycle !== 'CUSTOM')
+      .map((option) => ({ ...option, priceCents: publicMoney(option.priceCents) })),
   });
 }
 
@@ -202,17 +226,121 @@ export function mapSubscription(subscription: {
   });
 }
 
+// All platform audit actions — used for filtering audit logs without collation conflicts
+export const PLATFORM_AUDIT_ACTIONS = [
+  'platform.admin.created',
+  'platform.admin.provisioned',
+  'platform.commercial_policy.updated',
+  'platform.dev_fixture.ready',
+  'platform.plan.benefit.created',
+  'platform.plan.benefit.deleted',
+  'platform.plan.benefit.updated',
+  'platform.plan.created',
+  'platform.plan.deleted',
+  'platform.plan.updated',
+  'platform.subscription.created',
+  'platform.subscription.period_adjusted',
+  'platform.subscription.plan_changed',
+  'platform.subscription.trial_extended',
+  'platform.tenant.branding.updated',
+  'platform.tenant.created',
+  'platform.tenant.custom_field.created',
+  'platform.tenant.custom_field.updated',
+  'platform.tenant.features.updated',
+  'platform.tenant.terminology.updated',
+  'platform.tenant.updated',
+  'platform.tenant.settings_updated',
+  'platform.tenant.media_uploaded',
+  'platform.tenant.media_updated',
+  'platform.tenant.media_removed',
+  'platform.tenant.public_site_updated',
+  'platform.tenant.pwa_published',
+  'platform.tenant.service_created',
+  'platform.tenant.service_updated',
+  'platform.tenant.service_activated',
+  'platform.tenant.service_deactivated',
+  'platform.tenant.service_image_updated',
+  'platform.tenant.service_image_removed',
+  'platform.tenant.service_category_created',
+  'platform.tenant.service_category_updated',
+  'platform.tenant.service_category_activated',
+  'platform.tenant.service_category_deactivated',
+  'platform.tenant.professional_created',
+  'platform.tenant.professional_updated',
+  'platform.tenant.professional_activated',
+  'platform.tenant.professional_deactivated',
+  'platform.tenant.professional_photo_replaced',
+  'platform.tenant.professional_photo_removed',
+  'platform.tenant.professional_password_changed',
+];
+
 export class PlatformService {
   private readonly experienceResolver: TenantExperienceResolver;
   private readonly featuresResolver: TenantFeaturesResolver;
   private readonly customFieldsResolver: TenantCustomFieldsResolver;
   private readonly commercialPolicyService: TenantCommercialPolicyService;
+  private readonly tenantService: TenantService;
 
   public constructor(private readonly client: PrismaClient) {
     this.experienceResolver = new TenantExperienceResolver(client);
     this.featuresResolver = new TenantFeaturesResolver(client);
     this.customFieldsResolver = new TenantCustomFieldsResolver(client);
     this.commercialPolicyService = new TenantCommercialPolicyService(client);
+    this.tenantService = new TenantService(new PrismaTenantRepository(client));
+  }
+
+  /** Resolve o publicId de um tenant para o id interno, ou 404. */
+  public async resolveTenantId(publicId: string): Promise<bigint> {
+    const tenant = await this.client.tenant.findUnique({ where: { publicId }, select: { id: true } });
+    if (tenant === null)
+      throw appError('PLATFORM_TENANT_NOT_FOUND', 'O estabelecimento não foi encontrado.', 404);
+    return tenant.id;
+  }
+
+  public async updateTenantSettings(
+    publicId: string,
+    input: TenantSettings,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ) {
+    const tenantId = await this.resolveTenantId(publicId);
+    const settings = await this.tenantService.updateSettings(tenantId, input);
+    await this.client.auditLog.create({
+      data: auditData({
+        action: 'platform.tenant.settings_updated',
+        targetType: 'tenant_settings',
+        targetPublicId: publicId,
+        tenantId,
+        userId: actor.user.id,
+        request: metadata,
+      }),
+    });
+    return { settings };
+  }
+
+  /**
+   * Registra uma ação administrativa do /platform sobre um tenant sem tocar
+   * no audit log interno do próprio estabelecimento (a ação não deve
+   * aparecer no histórico que o dono do tenant vê).
+   */
+  public async recordTenantAudit(
+    action: string,
+    targetType: string,
+    targetPublicId: string,
+    tenantId: bigint,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ): Promise<void> {
+    await this.client.auditLog.create({
+      data: auditData({
+        action,
+        targetType,
+        targetPublicId,
+        tenantId,
+        userId: actor.user.id,
+        request: metadata,
+      }),
+    });
   }
 
   public async resolveAuth(auth: AuthRequestContext): Promise<PlatformAuthContext> {
@@ -309,6 +437,78 @@ export class PlatformService {
       });
   }
 
+  /**
+   * Provisionamento idempotente do primeiro administrador da plataforma a partir
+   * de credenciais fornecidas por ambiente (uso: primeiro acesso). Cria o usuário
+   * (ACTIVE, senha já com hash) caso não exista e o promove a PLATFORM_ADMIN.
+   * Se o usuário já existe, apenas promove; se já é administrador, não faz nada.
+   * A senha NUNCA trafega/armazena em texto puro — o hash é calculado pelo
+   * mecanismo de autenticação existente antes de chamar este método, e só é
+   * aplicado quando o usuário é criado (nunca sobrescreve senha existente).
+   */
+  public async ensureInitialAdministrator(input: {
+    email: string;
+    hashPassword: () => Promise<string>;
+    metadata: RequestMetadata;
+  }): Promise<'created' | 'promoted' | 'exists'> {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    return this.client.$transaction(async (transaction) => {
+      const role = await transaction.platformRole.findUnique({
+        where: { code: 'PLATFORM_ADMIN' },
+      });
+      if (role === null)
+        throw new Error('O bootstrap global não foi executado (papel PLATFORM_ADMIN ausente).');
+
+      let user = await transaction.user.findUnique({
+        where: { normalizedEmail },
+        select: { id: true, publicId: true },
+      });
+
+      let created = false;
+      if (user === null) {
+        const now = new Date();
+        user = await transaction.user.create({
+          data: {
+            publicId: randomUUID(),
+            email: input.email.trim(),
+            normalizedEmail,
+            passwordHash: await input.hashPassword(),
+            status: 'ACTIVE',
+            emailVerifiedAt: now,
+            passwordChangedAt: now,
+          },
+          select: { id: true, publicId: true },
+        });
+        created = true;
+      }
+
+      const existing = await transaction.platformAdministrator.findFirst({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+      if (existing !== null) {
+        return 'exists';
+      }
+
+      const administrator = await transaction.platformAdministrator.create({
+        data: { publicId: randomUUID(), userId: user.id, status: 'ACTIVE' },
+      });
+      await transaction.platformAdministratorRole.create({
+        data: { administratorId: administrator.id, roleId: role.id },
+      });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.admin.provisioned',
+          targetType: 'platform_administrator',
+          targetPublicId: administrator.publicId,
+          userId: user.id,
+          request: input.metadata,
+        }),
+      });
+      return created ? 'created' : 'promoted';
+    });
+  }
+
   public async getMe(context: PlatformAuthContext) {
     return {
       administrator: {
@@ -359,7 +559,11 @@ export class PlatformService {
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         orderBy: { [query.orderBy]: query.direction },
-        include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+        include: {
+          limits: { orderBy: { key: 'asc' } },
+          benefits: { orderBy: { sortOrder: 'asc' } },
+          billingOptions: { orderBy: { sortOrder: 'asc' } },
+        },
       }),
     ]);
     return { items: plans.map(mapPlan), page: pageMeta(total, query) };
@@ -372,6 +576,7 @@ export class PlatformService {
       include: {
         limits: { orderBy: { key: 'asc' } },
         benefits: { where: { enabled: true }, orderBy: { sortOrder: 'asc' } },
+        billingOptions: { where: { active: true }, orderBy: { sortOrder: 'asc' } },
       },
     });
     return plans.map((plan) =>
@@ -385,7 +590,11 @@ export class PlatformService {
   public async getPlan(publicId: string) {
     const plan = await this.client.commercialPlan.findUnique({
       where: { publicId },
-      include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+      include: {
+        limits: { orderBy: { key: 'asc' } },
+        benefits: { orderBy: { sortOrder: 'asc' } },
+        billingOptions: { orderBy: { sortOrder: 'asc' } },
+      },
     });
     if (plan === null)
       throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano não foi encontrado.', 404);
@@ -400,6 +609,9 @@ export class PlatformService {
     try {
       const plan = await this.client.$transaction(
         async (transaction) => {
+          const defaultBillingOption =
+            input.billingOptions.find((option) => option.active && option.recommended) ??
+            input.billingOptions.find((option) => option.active);
           const created = await transaction.commercialPlan.create({
             data: {
               publicId: randomUUID(),
@@ -408,8 +620,16 @@ export class PlatformService {
               subtitle: input.subtitle ?? null,
               shortDescription: input.shortDescription ?? null,
               description: input.description ?? null,
-              billingCycle: input.billingCycle,
-              priceCents: BigInt(input.priceCents),
+              billingCycle: defaultBillingOption?.billingCycle ?? input.billingCycle,
+              priceCents: BigInt(defaultBillingOption?.priceCents ?? input.priceCents),
+              monthlyPriceCents:
+                input.monthlyPriceCents === undefined || input.monthlyPriceCents === null
+                  ? null
+                  : BigInt(input.monthlyPriceCents),
+              annualPriceCents:
+                input.annualPriceCents === undefined || input.annualPriceCents === null
+                  ? null
+                  : BigInt(input.annualPriceCents),
               currency: input.currency,
               trialDays: input.trialDays ?? null,
               isPublic: input.isPublic,
@@ -429,8 +649,22 @@ export class PlatformService {
                   stringValue: limit.stringValue ?? null,
                 })),
               },
+              billingOptions: {
+                create: input.billingOptions.map((option) => ({
+                  publicId: randomUUID(),
+                  billingCycle: option.billingCycle,
+                  priceCents: BigInt(option.priceCents),
+                  active: option.active,
+                  sortOrder: option.sortOrder,
+                  recommended: option.recommended,
+                })),
+              },
             },
-            include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+            include: {
+              limits: { orderBy: { key: 'asc' } },
+              benefits: { orderBy: { sortOrder: 'asc' } },
+              billingOptions: { orderBy: { sortOrder: 'asc' } },
+            },
           });
           await transaction.auditLog.create({
             data: auditData({
@@ -491,6 +725,18 @@ export class PlatformService {
               ...(input.description === undefined ? {} : { description: input.description }),
               ...(input.billingCycle === undefined ? {} : { billingCycle: input.billingCycle }),
               ...(input.priceCents === undefined ? {} : { priceCents: BigInt(input.priceCents) }),
+              ...(input.monthlyPriceCents === undefined
+                ? {}
+                : {
+                    monthlyPriceCents:
+                      input.monthlyPriceCents === null ? null : BigInt(input.monthlyPriceCents),
+                  }),
+              ...(input.annualPriceCents === undefined
+                ? {}
+                : {
+                    annualPriceCents:
+                      input.annualPriceCents === null ? null : BigInt(input.annualPriceCents),
+                  }),
               ...(input.currency === undefined ? {} : { currency: input.currency }),
               ...(input.trialDays === undefined ? {} : { trialDays: input.trialDays }),
               ...(input.isPublic === undefined ? {} : { isPublic: input.isPublic }),
@@ -515,8 +761,27 @@ export class PlatformService {
                       })),
                     },
                   }),
+              ...(input.billingOptions === undefined
+                ? {}
+                : {
+                    billingOptions: {
+                      deleteMany: {},
+                      create: input.billingOptions.map((option) => ({
+                        publicId: randomUUID(),
+                        billingCycle: option.billingCycle,
+                        priceCents: BigInt(option.priceCents),
+                        active: option.active,
+                        sortOrder: option.sortOrder,
+                        recommended: option.recommended,
+                      })),
+                    },
+                  }),
             },
-            include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+            include: {
+              limits: { orderBy: { key: 'asc' } },
+              benefits: { orderBy: { sortOrder: 'asc' } },
+              billingOptions: { orderBy: { sortOrder: 'asc' } },
+            },
           });
           await transaction.auditLog.create({
             data: auditData({
@@ -552,7 +817,10 @@ export class PlatformService {
       const value = await transaction.commercialPlan.update({
         where: { id: plan.id },
         data: { status },
-        include: { limits: { orderBy: { key: 'asc' } }, benefits: { orderBy: { sortOrder: 'asc' } } },
+        include: {
+          limits: { orderBy: { key: 'asc' } },
+          benefits: { orderBy: { sortOrder: 'asc' } },
+        },
       });
       await transaction.auditLog.create({
         data: auditData({
@@ -571,6 +839,45 @@ export class PlatformService {
       return value;
     });
     return { plan: mapPlan(updated) };
+  }
+
+  public async deletePlan(
+    publicId: string,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ): Promise<void> {
+    const plan = await this.client.commercialPlan.findUnique({ where: { publicId } });
+    if (plan === null)
+      throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano nao foi encontrado.', 404);
+    const [subscriptions, history] = await Promise.all([
+      this.client.tenantSubscription.count({ where: { planId: plan.id } }),
+      this.client.subscriptionHistory.count({
+        where: { OR: [{ previousPlanId: plan.id }, { newPlanId: plan.id }] },
+      }),
+    ]);
+    const references = subscriptions + history;
+    if (references > 0)
+      throw appError(
+        'PLAN_IN_USE',
+        `Este plano ja possui assinaturas vinculadas e nao pode ser excluido. Voce pode desativa-lo para impedir novas assinaturas. Referencias encontradas: ${String(references)}.`,
+        409,
+      );
+    await this.client.$transaction(async (transaction) => {
+      await transaction.planBenefit.deleteMany({ where: { planId: plan.id } });
+      await transaction.planBillingOption.deleteMany({ where: { planId: plan.id } });
+      await transaction.planLimit.deleteMany({ where: { planId: plan.id } });
+      await transaction.commercialPlan.delete({ where: { id: plan.id } });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.plan.deleted',
+          targetType: 'commercial_plan',
+          targetPublicId: plan.publicId,
+          userId: actor.user.id,
+          metadata: { code: plan.code },
+          request: metadata,
+        }),
+      });
+    });
   }
 
   public async listPlanBenefits(planPublicId: string) {
@@ -689,7 +996,10 @@ export class PlatformService {
       async (transaction) => {
         const [tenant, plan] = await Promise.all([
           transaction.tenant.findUnique({ where: { publicId: tenantPublicId } }),
-          transaction.commercialPlan.findUnique({ where: { publicId: input.planPublicId } }),
+          transaction.commercialPlan.findUnique({
+            where: { publicId: input.planPublicId },
+            include: { billingOptions: true },
+          }),
         ]);
         if (tenant === null)
           throw appError('PLATFORM_TENANT_NOT_FOUND', 'O estabelecimento não foi encontrado.', 404);
@@ -700,6 +1010,27 @@ export class PlatformService {
             409,
           );
         const effectiveTrialDays = plan.trialDays ?? policy.defaultTrialDays;
+        const billingCycle =
+          input.billingCycle ??
+          plan.billingOptions.find((option) => option.recommended && option.active)?.billingCycle ??
+          plan.billingOptions.find((option) => option.active)?.billingCycle ??
+          plan.billingCycle;
+        const option = plan.billingOptions.find(
+          (item) => item.billingCycle === billingCycle && item.active,
+        );
+        if (plan.billingOptions.length > 0 && option === undefined)
+          throw appError(
+            'PLATFORM_BILLING_OPTION_UNAVAILABLE',
+            'Esta periodicidade não está disponível para o plano.',
+            409,
+          );
+        const priceCents =
+          option?.priceCents ??
+          (billingCycle === 'ANNUAL'
+            ? (plan.annualPriceCents ?? plan.priceCents)
+            : billingCycle === 'MONTHLY'
+              ? (plan.monthlyPriceCents ?? plan.priceCents)
+              : plan.priceCents);
         const trialEndsAt =
           input.trial && effectiveTrialDays > 0
             ? new Date(now.getTime() + effectiveTrialDays * 86_400_000)
@@ -707,7 +1038,7 @@ export class PlatformService {
         const status = trialEndsAt === null ? 'ACTIVE' : 'TRIALING';
         const currentPeriodEndsAt =
           input.currentPeriodEndsAt === undefined
-            ? periodEnd(now, plan.billingCycle)
+            ? periodEnd(now, billingCycle)
             : new Date(input.currentPeriodEndsAt);
         if (currentPeriodEndsAt <= now)
           throw appError(
@@ -727,9 +1058,9 @@ export class PlatformService {
               trialEndsAt,
               currentPeriodStartsAt: now,
               currentPeriodEndsAt,
-              priceCents: plan.priceCents,
+              priceCents,
               currency: plan.currency,
-              billingCycle: plan.billingCycle,
+              billingCycle,
               effectiveKey: 'EFFECTIVE',
             },
             include: { tenant: true, plan: true },
@@ -786,16 +1117,14 @@ export class PlatformService {
       ...(query.planPublicId === undefined ? {} : { plan: { publicId: query.planPublicId } }),
       ...(query.tenantPublicId === undefined ? {} : { tenant: { publicId: query.tenantPublicId } }),
     };
-    const [total, items] = await this.client.$transaction([
-      this.client.tenantSubscription.count({ where }),
-      this.client.tenantSubscription.findMany({
-        where,
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
-        orderBy: { [query.orderBy]: query.direction },
-        include: { tenant: true, plan: true },
-      }),
-    ]);
+    const total = await this.client.tenantSubscription.count({ where });
+    const items = await this.client.tenantSubscription.findMany({
+      where,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+      orderBy: { [query.orderBy]: query.direction },
+      include: { tenant: true, plan: true },
+    });
     return { items: items.map(mapSubscription), page: pageMeta(total, query) };
   }
 
@@ -806,16 +1135,14 @@ export class PlatformService {
     });
     if (subscription === null)
       throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura não foi encontrada.', 404);
-    const [total, history] = await this.client.$transaction([
-      this.client.subscriptionHistory.count({ where: { subscriptionId: subscription.id } }),
-      this.client.subscriptionHistory.findMany({
-        where: { subscriptionId: subscription.id },
-        skip: (page.page - 1) * page.limit,
-        take: page.limit,
-        orderBy: { createdAt: 'desc' },
-        include: { performedByUser: true },
-      }),
-    ]);
+    const total = await this.client.subscriptionHistory.count({ where: { subscriptionId: subscription.id } });
+    const history = await this.client.subscriptionHistory.findMany({
+      where: { subscriptionId: subscription.id },
+      skip: (page.page - 1) * page.limit,
+      take: page.limit,
+      orderBy: { createdAt: 'desc' },
+      include: { performedByUser: true },
+    });
     return SubscriptionDetailResponseSchema.parse({
       subscription: mapSubscription(subscription),
       history: history.map((item) => ({
@@ -863,9 +1190,25 @@ export class PlatformService {
         'A assinatura expirada não pode receber esta alteração.',
         409,
       );
+    const allowed =
+      action === 'ACTIVATED'
+        ? ['TRIALING', 'PAST_DUE'].includes(subscription.status)
+        : action === 'REACTIVATED'
+          ? subscription.status === 'SUSPENDED'
+          : action === 'SUSPENDED'
+            ? ['TRIALING', 'ACTIVE', 'PAST_DUE'].includes(subscription.status)
+            : !['CANCELED', 'EXPIRED'].includes(subscription.status);
+    if (!allowed)
+      throw appError(
+        'PLATFORM_SUBSCRIPTION_INVALID_STATE',
+        'O estado atual da assinatura nao permite esta acao.',
+        409,
+      );
     const value = await this.client.$transaction(
       async (transaction) => {
         const now = new Date();
+        const activating = action === 'ACTIVATED' || action === 'REACTIVATED';
+        const resetPeriod = activating && subscription.currentPeriodEndsAt <= now;
         const updated = await transaction.tenantSubscription.update({
           where: { id: subscription.id },
           data: {
@@ -874,6 +1217,15 @@ export class PlatformService {
             ...(nextStatus === 'SUSPENDED' ? { suspendedAt: now } : {}),
             ...(nextStatus === 'CANCELED' ? { canceledAt: now, endsAt: now } : {}),
             ...(action === 'ACTIVATED' || action === 'REACTIVATED' ? { graceEndsAt: null } : {}),
+            ...(resetPeriod
+              ? {
+                  currentPeriodStartsAt: now,
+                  currentPeriodEndsAt: periodEnd(now, subscription.billingCycle),
+                }
+              : {}),
+            ...(action === 'ACTIVATED' && subscription.status === 'TRIALING'
+              ? { trialEndsAt: now }
+              : {}),
           },
           include: { tenant: true, plan: true },
         });
@@ -904,6 +1256,7 @@ export class PlatformService {
             targetPublicId: updated.publicId,
             tenantId: updated.tenantId,
             userId: actor.user.id,
+            metadata: { previousStatus: subscription.status, newStatus: nextStatus, reason },
             request: metadata,
           }),
         });
@@ -928,8 +1281,22 @@ export class PlatformService {
     if (subscription === null)
       throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura não foi encontrada.', 404);
     const end = new Date(trialEndsAt);
-    if (subscription.status !== 'TRIALING' || end <= new Date() || end <= subscription.startsAt)
-      throw appError('PLATFORM_TRIAL_INVALID', 'A extensão de teste é inválida.', 409);
+    if (subscription.status !== 'TRIALING')
+      throw appError(
+        'PLATFORM_TRIAL_INVALID_STATE',
+        'Este trial nao pode mais ser estendido neste estado.',
+        409,
+      );
+    if (
+      end <= new Date() ||
+      end <= subscription.startsAt ||
+      (subscription.trialEndsAt !== null && end <= subscription.trialEndsAt)
+    )
+      throw appError(
+        'PLATFORM_TRIAL_INVALID',
+        'A nova data deve ampliar o periodo de teste atual.',
+        409,
+      );
     const value = await this.client.$transaction(
       async (transaction) => {
         const updated = await transaction.tenantSubscription.update({
@@ -958,6 +1325,11 @@ export class PlatformService {
             targetPublicId: updated.publicId,
             tenantId: updated.tenantId,
             userId: actor.user.id,
+            metadata: {
+              previousTrialEndsAt: subscription.trialEndsAt?.toISOString() ?? null,
+              newTrialEndsAt: end.toISOString(),
+              reason,
+            },
             request: metadata,
           }),
         });
@@ -971,6 +1343,7 @@ export class PlatformService {
   public async changeSubscriptionPlan(
     publicId: string,
     planPublicId: string,
+    requestedBillingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM' | undefined,
     reason: string,
     actor: PlatformAuthContext,
     metadata: RequestMetadata,
@@ -979,18 +1352,46 @@ export class PlatformService {
       where: { publicId },
       include: { tenant: true, plan: true },
     });
-    const plan = await this.client.commercialPlan.findUnique({ where: { publicId: planPublicId } });
+    const plan = await this.client.commercialPlan.findUnique({
+      where: { publicId: planPublicId },
+      include: { billingOptions: true },
+    });
     if (subscription === null)
       throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura não foi encontrada.', 404);
-    if (plan?.status !== 'ACTIVE')
-      throw appError('PLATFORM_PLAN_UNAVAILABLE', 'O plano não está disponível.', 409);
+    if (plan === null)
+      throw appError('PLATFORM_PLAN_NOT_FOUND', 'O plano nao foi encontrado.', 404);
+    if (plan.status !== 'ACTIVE')
+      throw appError('PLATFORM_PLAN_INACTIVE', 'Este plano esta inativo.', 409);
+    if (plan.id === subscription.planId)
+      throw appError('PLATFORM_PLAN_UNCHANGED', 'A assinatura ja utiliza este plano.', 409);
     if (plan.currency !== subscription.currency)
       throw appError('PLATFORM_CURRENCY_CONFLICT', 'A moeda do plano é incompatível.', 409);
+    const billingCycle =
+      requestedBillingCycle ??
+      plan.billingOptions.find((option) => option.recommended && option.active)?.billingCycle ??
+      plan.billingOptions.find((option) => option.active)?.billingCycle ??
+      plan.billingCycle;
+    const option = plan.billingOptions.find(
+      (item) => item.billingCycle === billingCycle && item.active,
+    );
+    if (plan.billingOptions.length > 0 && option === undefined)
+      throw appError(
+        'PLATFORM_BILLING_OPTION_UNAVAILABLE',
+        'Esta periodicidade não está disponível para o plano.',
+        409,
+      );
+    const priceCents =
+      option?.priceCents ??
+      (billingCycle === 'ANNUAL'
+        ? (plan.annualPriceCents ?? plan.priceCents)
+        : billingCycle === 'MONTHLY'
+          ? (plan.monthlyPriceCents ?? plan.priceCents)
+          : plan.priceCents);
     const value = await this.client.$transaction(
       async (transaction) => {
         const updated = await transaction.tenantSubscription.update({
           where: { id: subscription.id },
-          data: { planId: plan.id, priceCents: plan.priceCents, billingCycle: plan.billingCycle },
+          data: { planId: plan.id, priceCents, billingCycle },
           include: { tenant: true, plan: true },
         });
         await transaction.subscriptionHistory.create({
@@ -1014,6 +1415,14 @@ export class PlatformService {
             targetPublicId: updated.publicId,
             tenantId: updated.tenantId,
             userId: actor.user.id,
+            metadata: {
+              previousPlanPublicId: subscription.plan.publicId,
+              newPlanPublicId: plan.publicId,
+              billingCycle,
+              previousPriceCents: subscription.priceCents.toString(),
+              newPriceCents: priceCents.toString(),
+              reason,
+            },
             request: metadata,
           }),
         });
@@ -1021,6 +1430,71 @@ export class PlatformService {
       },
       { isolationLevel: 'Serializable' },
     );
+    return { subscription: mapSubscription(value) };
+  }
+
+  public async updateSubscriptionPeriod(
+    publicId: string,
+    startsAt: string,
+    endsAt: string,
+    reason: string,
+    actor: PlatformAuthContext,
+    metadata: RequestMetadata,
+  ) {
+    const subscription = await this.client.tenantSubscription.findUnique({
+      where: { publicId },
+      include: { tenant: true, plan: true },
+    });
+    if (subscription === null)
+      throw appError('PLATFORM_SUBSCRIPTION_NOT_FOUND', 'A assinatura nao foi encontrada.', 404);
+    const start = new Date(startsAt);
+    const end = new Date(endsAt);
+    if (start >= end)
+      throw appError(
+        'PLATFORM_SUBSCRIPTION_DATES_INVALID',
+        'O fim do periodo deve ser posterior ao inicio.',
+        400,
+      );
+    const value = await this.client.$transaction(async (transaction) => {
+      const updated = await transaction.tenantSubscription.update({
+        where: { id: subscription.id },
+        data: { currentPeriodStartsAt: start, currentPeriodEndsAt: end },
+        include: { tenant: true, plan: true },
+      });
+      const periodMetadata = {
+        previousStartsAt: subscription.currentPeriodStartsAt.toISOString(),
+        previousEndsAt: subscription.currentPeriodEndsAt.toISOString(),
+        newStartsAt: start.toISOString(),
+        newEndsAt: end.toISOString(),
+      };
+      await transaction.subscriptionHistory.create({
+        data: {
+          publicId: randomUUID(),
+          subscriptionId: updated.id,
+          tenantId: updated.tenantId,
+          action: 'PERIOD_ADJUSTED',
+          previousStatus: subscription.status,
+          newStatus: updated.status,
+          previousPlanId: subscription.planId,
+          newPlanId: updated.planId,
+          reason,
+          performedByUserId: actor.user.id,
+          metadata: periodMetadata,
+        },
+      });
+      await transaction.auditLog.create({
+        data: auditData({
+          action: 'platform.subscription.period_adjusted',
+          targetType: 'tenant_subscription',
+          targetPublicId: updated.publicId,
+          tenantId: updated.tenantId,
+          userId: actor.user.id,
+          metadata: { ...periodMetadata, reason },
+          request: metadata,
+        }),
+      });
+      return updated;
+    });
     return { subscription: mapSubscription(value) };
   }
 
@@ -1130,7 +1604,7 @@ export class PlatformService {
           include: { performedByUser: true },
         },
         auditLogs: {
-          where: { action: { startsWith: 'platform.' } },
+          where: { action: { in: PLATFORM_AUDIT_ACTIONS } },
           take: 20,
           orderBy: { createdAt: 'desc' },
         },
@@ -1360,6 +1834,21 @@ export class PlatformService {
         : { appointmentPlural: input.appointmentPlural }),
       ...(input.unitSingular === undefined ? {} : { unitSingular: input.unitSingular }),
       ...(input.unitPlural === undefined ? {} : { unitPlural: input.unitPlural }),
+      ...(input.treatmentPlanModuleTitle === undefined
+        ? {}
+        : { treatmentPlanModuleTitle: input.treatmentPlanModuleTitle }),
+      ...(input.treatmentPlanSingular === undefined
+        ? {}
+        : { treatmentPlanSingular: input.treatmentPlanSingular }),
+      ...(input.treatmentPlanPlural === undefined
+        ? {}
+        : { treatmentPlanPlural: input.treatmentPlanPlural }),
+      ...(input.treatmentPlanSessionSingular === undefined
+        ? {}
+        : { treatmentPlanSessionSingular: input.treatmentPlanSessionSingular }),
+      ...(input.treatmentPlanSessionPlural === undefined
+        ? {}
+        : { treatmentPlanSessionPlural: input.treatmentPlanSessionPlural }),
     };
     await this.client.$transaction(async (transaction) => {
       await transaction.tenantTerminology.upsert({
@@ -1673,9 +2162,13 @@ export class PlatformService {
         city?: string | undefined;
         state?: string | undefined;
         countryCode?: string | undefined;
+        latitude?: number | undefined;
+        longitude?: number | undefined;
+        googleMapsUrl?: string | undefined;
       };
       ownerEmail: string;
       planPublicId: string;
+      billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
       trial: boolean;
       startsAt?: string | undefined;
     },
@@ -1687,13 +2180,25 @@ export class PlatformService {
       return await this.client.$transaction(
         async (transaction) => {
           const [plan, ownerRole] = await Promise.all([
-            transaction.commercialPlan.findUnique({ where: { publicId: input.planPublicId } }),
+            transaction.commercialPlan.findUnique({
+              where: { publicId: input.planPublicId },
+              include: { billingOptions: true },
+            }),
             transaction.role.findFirst({
               where: { code: 'OWNER', isSystem: true, tenantId: null },
             }),
           ]);
           if (plan?.status !== 'ACTIVE')
             throw appError('PLATFORM_PLAN_UNAVAILABLE', 'O plano não está disponível.', 409);
+          const billingOption = plan.billingOptions.find(
+            (option) => option.active && option.billingCycle === input.billingCycle,
+          );
+          if (plan.billingOptions.length > 0 && billingOption === undefined)
+            throw appError(
+              'PLATFORM_BILLING_OPTION_UNAVAILABLE',
+              'Esta periodicidade não está disponível para o plano.',
+              409,
+            );
           if (ownerRole === null) throw new Error('O papel OWNER não foi inicializado.');
           const tenant = await transaction.tenant.create({
             data: {
@@ -1709,6 +2214,10 @@ export class PlatformService {
             },
           });
           const profileTheme = BusinessProfileCatalog[input.businessProfile].theme;
+          const publicSiteDefaults = publicSiteDefaultsFor(
+            input.businessProfile,
+            input.displayName,
+          );
           const profileFeatures = BusinessProfileCatalog[input.businessProfile].recommendedFeatures;
           const profileCustomFields = BusinessProfileCatalog[
             input.businessProfile
@@ -1737,7 +2246,7 @@ export class PlatformService {
               data: {
                 tenantId: tenant.id,
                 theme: 'CLASSIC',
-                heroTitle: input.displayName,
+                ...publicSiteDefaults,
                 pwaName: input.displayName,
                 pwaShortName: input.displayName.slice(0, 30),
               },
@@ -1795,6 +2304,9 @@ export class PlatformService {
               city: input.initialUnit.city ?? null,
               state: input.initialUnit.state ?? null,
               countryCode: input.initialUnit.countryCode ?? null,
+              latitude: input.initialUnit.latitude ?? null,
+              longitude: input.initialUnit.longitude ?? null,
+              googleMapsUrl: input.initialUnit.googleMapsUrl ?? null,
             },
           });
           let owner = await transaction.user.findUnique({ where: { normalizedEmail } });
@@ -1849,10 +2361,10 @@ export class PlatformService {
               trialStartedAt: trialEndsAt === null ? null : startsAt,
               trialEndsAt,
               currentPeriodStartsAt: startsAt,
-              currentPeriodEndsAt: periodEnd(startsAt, plan.billingCycle),
-              priceCents: plan.priceCents,
+              currentPeriodEndsAt: periodEnd(startsAt, input.billingCycle),
+              priceCents: billingOption?.priceCents ?? plan.priceCents,
               currency: plan.currency,
-              billingCycle: plan.billingCycle,
+              billingCycle: input.billingCycle,
               effectiveKey: 'EFFECTIVE',
             },
             include: { tenant: true, plan: true },
@@ -1910,6 +2422,13 @@ export class PlatformService {
   public async dashboard(period: '7d' | '30d' | '90d' | '12m') {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365;
     const from = new Date(Date.now() - days * 86_400_000);
+    const optional = async <T>(query: PromiseLike<T>): Promise<T | null> => {
+      try {
+        return await query;
+      } catch {
+        return null;
+      }
+    };
     const [
       tenants,
       activeTenants,
@@ -1921,42 +2440,47 @@ export class PlatformService {
       units,
       trialingSubscriptions,
       activeSubscriptions,
+      pastDueSubscriptions,
       suspendedSubscriptions,
+      canceledSubscriptions,
       expiredSubscriptions,
       recentTenants,
       recentAudit,
-      grouped,
+      revenueSubscriptions,
     ] = await Promise.all([
-      this.client.tenant.count(),
-      this.client.tenant.count({ where: { status: 'ACTIVE' } }),
-      this.client.tenant.count({ where: { status: 'SUSPENDED' } }),
-      this.client.tenant.count({ where: { status: 'PENDING' } }),
-      this.client.tenant.count({ where: { createdAt: { gte: from } } }),
-      this.client.user.count(),
-      this.client.tenantMembership.count({ where: { status: 'ACTIVE' } }),
-      this.client.businessUnit.count(),
-      this.client.tenantSubscription.count({ where: { status: 'TRIALING' } }),
-      this.client.tenantSubscription.count({ where: { status: 'ACTIVE' } }),
-      this.client.tenantSubscription.count({ where: { status: 'SUSPENDED' } }),
-      this.client.tenantSubscription.count({ where: { status: 'EXPIRED' } }),
-      this.listTenants({ page: 1, limit: 5, orderBy: 'createdAt', direction: 'desc' }),
-      this.client.auditLog.findMany({
-        where: { action: { startsWith: 'platform.' } },
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.client.tenantSubscription.groupBy({
-        by: ['planId'],
-        where: { effectiveKey: 'EFFECTIVE' },
-        _count: { _all: true },
-        _sum: { priceCents: true },
-      }),
+      optional(this.client.tenant.count()),
+      optional(this.client.tenant.count({ where: { status: 'ACTIVE' } })),
+      optional(this.client.tenant.count({ where: { status: 'SUSPENDED' } })),
+      optional(this.client.tenant.count({ where: { status: 'PENDING' } })),
+      optional(this.client.tenant.count({ where: { createdAt: { gte: from } } })),
+      optional(this.client.user.count()),
+      optional(this.client.tenantMembership.count({ where: { status: 'ACTIVE' } })),
+      optional(this.client.businessUnit.count()),
+      optional(this.client.tenantSubscription.count({ where: { status: 'TRIALING' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'ACTIVE' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'PAST_DUE' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'SUSPENDED' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'CANCELED' } })),
+      optional(this.client.tenantSubscription.count({ where: { status: 'EXPIRED' } })),
+      optional(this.listTenants({ page: 1, limit: 5, orderBy: 'createdAt', direction: 'desc' })),
+      optional(
+        this.client.auditLog.findMany({
+          where: { action: { in: PLATFORM_AUDIT_ACTIONS } },
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        }),
+      ),
+      optional(
+        this.client.tenantSubscription.findMany({
+          where: { effectiveKey: 'EFFECTIVE' },
+          select: {
+            priceCents: true,
+            billingCycle: true,
+            plan: { select: { publicId: true, name: true } },
+          },
+        }),
+      ),
     ]);
-    const planIds = grouped.map(({ planId }) => planId);
-    const plans = await this.client.commercialPlan.findMany({
-      where: { id: { in: planIds } },
-      select: { id: true, publicId: true, name: true, billingCycle: true },
-    });
     const monthlyValue = (amount: bigint, cycle: string) =>
       cycle === 'QUARTERLY'
         ? amount / 3n
@@ -1965,21 +2489,25 @@ export class PlatformService {
           : cycle === 'ANNUAL'
             ? amount / 12n
             : amount;
-    const byPlan = grouped
-      .map((entry) => {
-        const plan = plans.find((item) => item.id === entry.planId);
-        return plan === undefined
-          ? null
-          : {
-              planPublicId: plan.publicId,
-              planName: plan.name,
-              subscriptions: entry._count._all,
-              estimatedMonthlyCents: publicMoney(
-                monthlyValue(entry._sum.priceCents ?? 0n, plan.billingCycle),
-              ),
-            };
-      })
-      .filter((value): value is NonNullable<typeof value> => value !== null);
+    const revenueByPlan = new Map<
+      string,
+      { planPublicId: string; planName: string; subscriptions: number; monthlyCents: bigint }
+    >();
+    for (const subscription of revenueSubscriptions ?? []) {
+      const current = revenueByPlan.get(subscription.plan.publicId) ?? {
+        planPublicId: subscription.plan.publicId,
+        planName: subscription.plan.name,
+        subscriptions: 0,
+        monthlyCents: 0n,
+      };
+      current.subscriptions += 1;
+      current.monthlyCents += monthlyValue(subscription.priceCents, subscription.billingCycle);
+      revenueByPlan.set(subscription.plan.publicId, current);
+    }
+    const byPlan = [...revenueByPlan.values()].map(({ monthlyCents, ...entry }) => ({
+      ...entry,
+      estimatedMonthlyCents: publicMoney(monthlyCents),
+    }));
     const mrr = byPlan.reduce((total, value) => total + BigInt(value.estimatedMonthlyCents), 0n);
     return {
       period,
@@ -1994,18 +2522,23 @@ export class PlatformService {
         units,
         trialingSubscriptions,
         activeSubscriptions,
+        pastDueSubscriptions,
         suspendedSubscriptions,
+        canceledSubscriptions,
         expiredSubscriptions,
       },
-      estimatedRevenue: {
-        mrrCents: publicMoney(mrr),
-        arrCents: publicMoney(mrr * 12n),
-        currency: 'BRL',
-        disclaimer: 'Valores contratuais estimados; não representam recebimentos.' as const,
-      },
+      estimatedRevenue:
+        revenueSubscriptions === null
+          ? null
+          : {
+              mrrCents: publicMoney(mrr),
+              arrCents: publicMoney(mrr * 12n),
+              currency: 'BRL',
+              disclaimer: 'Valores contratuais estimados; não representam recebimentos.' as const,
+            },
       byPlan,
-      recentTenants: recentTenants.items,
-      recentAudit: recentAudit.map((item) => ({
+      recentTenants: recentTenants?.items ?? [],
+      recentAudit: (recentAudit ?? []).map((item) => ({
         publicId: item.publicId,
         action: item.action,
         targetType: item.targetType,
@@ -2026,7 +2559,7 @@ export class PlatformService {
     direction: 'asc' | 'desc';
   }) {
     const where: Prisma.AuditLogWhereInput = {
-      action: query.action ?? { startsWith: 'platform.' },
+      action: query.action ?? { in: PLATFORM_AUDIT_ACTIONS },
       ...(query.userPublicId === undefined ? {} : { user: { publicId: query.userPublicId } }),
       ...(query.tenantPublicId === undefined ? {} : { tenant: { publicId: query.tenantPublicId } }),
       ...(query.targetType === undefined ? {} : { targetType: query.targetType }),
@@ -2039,17 +2572,15 @@ export class PlatformService {
             },
           }),
     };
-    const [total, items] = await this.client.$transaction([
-      this.client.auditLog.count({ where }),
-      this.client.auditLog.findMany({
-        where,
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
-        orderBy: { createdAt: query.direction },
-        include: { tenant: true, user: true },
-      }),
-    ]);
-    return {
+    const total = await this.client.auditLog.count({ where });
+    const items = await this.client.auditLog.findMany({
+      where,
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+      orderBy: { createdAt: query.direction },
+      include: { tenant: true, user: true },
+    });
+    return PlatformAuditResponseSchema.parse({
       items: items.map((item) => ({
         publicId: item.publicId,
         action: item.action,
@@ -2061,8 +2592,9 @@ export class PlatformService {
             ? null
             : { publicId: item.user.publicId, email: item.user.email, status: item.user.status },
         createdAt: item.createdAt.toISOString(),
+        ...auditReadDetails(item.metadata),
       })),
       page: pageMeta(total, query),
-    };
+    });
   }
 }

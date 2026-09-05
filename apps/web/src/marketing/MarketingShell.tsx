@@ -1,18 +1,33 @@
 import { type PropsWithChildren, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { z } from 'zod';
+
+import { httpClient } from '../lib/http.js';
+
+const CommercialContactSchema = z.object({ whatsapp: z.string().nullable() });
+
+function CommercialWhatsAppButton() {
+  const contact = useQuery({
+    queryKey: ['public', 'commercial-contact'],
+    queryFn: () => httpClient.request('/public/commercial-contact', { schema: CommercialContactSchema }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const phone = contact.data?.whatsapp?.replace(/\D/gu, '') ?? '';
+  if (phone === '') return null;
+  return <a className="commercial-whatsapp-button" href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer" aria-label="Falar com o Agendei pelo WhatsApp"><span aria-hidden="true">◔</span><b>Fale conosco</b></a>;
+}
 
 function Brand() {
   return (
-    <Link className="marketing-brand" to="/" aria-label="Plataforma de Serviços — início">
-      <span className="marketing-brand-mark" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </span>
-      <span>
-        Plataforma
-        <small>de Serviços</small>
-      </span>
+    <Link className="marketing-brand" to="/" aria-label="Agendei — início">
+      <img
+        className="marketing-brand-logo"
+        src="/brand/logo-agendei.png"
+        alt="Agendei"
+        width={1536}
+        height={1024}
+      />
     </Link>
   );
 }
@@ -55,6 +70,7 @@ function MarketingHeader() {
         >
           <NavLink to="/">Início</NavLink>
           <NavLink to="/funcionalidades">Funcionalidades</NavLink>
+          <NavLink to="/encontre">Encontre</NavLink>
           <Link to="/#para-quem">Para quem é</Link>
           <NavLink to="/planos">Planos</NavLink>
           <NavLink to="/profissionais">Profissionais</NavLink>
@@ -75,11 +91,23 @@ function MarketingFooter() {
     <footer className="marketing-footer">
       <div className="marketing-container marketing-footer-grid">
         <div className="marketing-footer-brand">
-          <Brand />
+          <Link className="marketing-footer-logo" to="/" aria-label="Agendei — início">
+            <img src="/imagens/logo rodape.png" alt="Agendei" />
+          </Link>
           <p>
             Agenda, clientes, equipe e financeiro organizados para negócios que trabalham com
             serviços e hora marcada.
           </p>
+          <a
+            className="marketing-instagram-link"
+            href="https://www.instagram.com/app.agendei"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Siga o Agendei no Instagram"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.4" cy="6.7" r="1" /></svg>
+            <span>Instagram</span>
+          </a>
         </div>
         <div>
           <strong>Produto</strong>
@@ -96,8 +124,8 @@ function MarketingFooter() {
         </div>
         <div>
           <strong>Empresa</strong>
-          <span>Termos</span>
-          <span>Privacidade</span>
+          <Link to="/termos">Termos</Link>
+          <Link to="/privacidade">Privacidade</Link>
           <span>Contato</span>
         </div>
         <div>
@@ -106,7 +134,7 @@ function MarketingFooter() {
         </div>
       </div>
       <div className="marketing-container marketing-footer-bottom">
-        <span>© {new Date().getFullYear()} Plataforma de Serviços</span>
+        <span>© {new Date().getFullYear()} Agendei</span>
         <span>Feito para operações de serviços.</span>
       </div>
     </footer>
@@ -133,6 +161,7 @@ export function MarketingShell({ children }: PropsWithChildren) {
       </a>
       <MarketingHeader />
       <main id="main-content">{children}</main>
+      <CommercialWhatsAppButton />
       <MarketingFooter />
     </div>
   );

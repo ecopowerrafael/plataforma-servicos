@@ -1,21 +1,32 @@
 import { type AppointmentReminderService } from './appointment-reminder.service.js';
 import { type AutomationService } from './automation.service.js';
 import { type NotificationService } from './notification.service.js';
+import { type NotificationCampaignService } from './notification-campaign.service.js';
+import { type CollectionAttemptExecutionService } from '../collections/collection-attempt-execution.service.js';
+import { type CollectionAttemptEngineService } from '../collections/collection-attempt.service.js';
+import { type PaymentPromiseService } from '../collections/payment-promise.service.js';
 import { type CustomerRecoveryService } from '../customers/customer-recovery.service.js';
 import { type LoyaltyService } from '../payments/loyalty.service.js';
 import { type TenantCommercialSweepService } from '../platform/tenant-commercial-sweep.service.js';
+import { type DirectorySeoService } from '../platform/directory-seo.service.js';
 
 interface WorkerLogger {
+  info: (payload: unknown, message?: string) => void;
   error: (payload: unknown, message?: string) => void;
 }
 
 interface WorkerDeps {
   reminders: AppointmentReminderService;
   notifications: NotificationService;
+  campaigns?: NotificationCampaignService;
   automations?: AutomationService;
   customerRecovery?: CustomerRecoveryService;
+  collectionAttempts?: CollectionAttemptEngineService;
+  collectionAttemptExecution?: CollectionAttemptExecutionService;
+  paymentPromises?: PaymentPromiseService;
   loyalty?: LoyaltyService;
   commercialSweep?: TenantCommercialSweepService;
+  directorySeo?: DirectorySeoService;
 }
 
 interface WorkerOptions {
@@ -40,12 +51,23 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
     if (running) return;
     running = true;
     try {
+      await deps.reminders.scheduleDayBeforeReminders();
       await deps.reminders.scheduleUpcomingReminders();
       await deps.automations?.run();
       await deps.customerRecovery?.run();
+      await deps.collectionAttempts?.run();
+      await deps.collectionAttemptExecution?.run();
+      await deps.paymentPromises?.sweep();
       await deps.loyalty?.expireDue();
       await deps.commercialSweep?.run();
-      await deps.notifications.processPending();
+      await deps.campaigns?.materializePending();
+      const { processed } = await deps.notifications.processPending();
+      await deps.campaigns?.reconcile();
+      await deps.directorySeo?.processSyncs();
+      await deps.directorySeo?.processIndexNow();
+      await deps.directorySeo?.processInspections();
+      // Só registra lotes com trabalho real: ticks ociosos não geram log.
+      if (processed > 0) options.logger.info({ processed }, 'Lote de notificações processado');
     } catch (error) {
       options.logger.error({ err: error }, 'Falha ao processar a fila de notificações.');
     } finally {
@@ -56,6 +78,10 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
   const timer = setInterval(() => {
     void tick();
   }, options.intervalMs);
+  options.logger.info({ intervalMs: options.intervalMs }, 'Worker de notificações iniciado');
+  // Primeiro ciclo imediato: sem ele, nada sai da fila no primeiro minuto de
+  // vida do processo — e neste ambiente o processo é reciclado com frequência.
+  void tick();
 
   return () => {
     clearInterval(timer);

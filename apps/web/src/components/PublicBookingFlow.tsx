@@ -1,37 +1,627 @@
 import {
   AppointmentPaymentOptionsResponseSchema,
-  AvailabilityResponseSchema,
+  CUSTOMER_PASSWORD_RULES,
   PaymentGatewayChargePublicSchema,
   PixChargeResponseSchema,
-  PublicBookingConfirmationSchema,
-  PublicServiceProfessionalsResponseSchema,
-  type PublicTenantSiteResponseSchema,
+  servicePriceLabel,
 } from '@plataforma/shared';
+import { IconCreditCard, IconQrcode } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { type z } from 'zod';
 
+import { PushReminderCta } from './public/PushReminderCta.js';
+import {
+  BOOKING_STEPS as steps,
+  centsToBrl,
+  dateFromIso,
+  humanError,
+  initialsOf,
+  isoFromDate,
+  todayIsoDate,
+  usePublicBooking,
+  type BookingProfessional as Professional,
+  type BookingStep as Step,
+  type Site,
+} from './public/use-public-booking.js';
+import { environment } from '../config/environment.js';
 import { httpClient, HttpError } from '../lib/http.js';
 
-type Site = z.infer<typeof PublicTenantSiteResponseSchema>;
 
-function centsToBrl(cents: string): string {
-  return (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+
+
+
+function BookingProgress({ step, flow }: { step: Step; flow: Step[] }) {
+  const activeIndex = flow.indexOf(step);
+  const label = steps.find((item) => item.id === step)?.label;
+  return (
+    <nav className="booking-progress" aria-label="Progresso do agendamento">
+      <span>{`Etapa ${String(activeIndex + 1)} de ${String(flow.length)}`}</span>
+      <div className="booking-progress-track" aria-hidden="true">
+        <i style={{ width: `${String(((activeIndex + 1) / flow.length) * 100)}%` }} />
+      </div>
+      <strong>{label}</strong>
+    </nav>
+  );
 }
 
-function AppointmentPaymentStep({
+function StepHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <header className="booking-step-header">
+      <h3>{title}</h3>
+      <p>{subtitle}</p>
+    </header>
+  );
+}
+
+function ServiceStep({
+  site,
+  selected,
+  onSelect,
+}: {
+  site: Site;
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const services = site.services.filter((service) =>
+    `${service.name} ${service.description ?? ''}`
+      .toLocaleLowerCase('pt-BR')
+      .includes(search.trim().toLocaleLowerCase('pt-BR')),
+  );
+  return (
+    <section className="booking-step">
+      <StepHeader
+        title={`Escolha ${site.terminology.service.singular.toLocaleLowerCase('pt-BR')}`}
+        subtitle="Selecione o atendimento que você deseja."
+      />
+      {site.services.length > 8 ? (
+        <label className="booking-search">
+          <span>Buscar serviço</span>
+          <input
+            type="search"
+            value={search}
+            placeholder="Digite o nome do serviço"
+            onChange={(event) => {
+              setSearch(event.target.value);
+            }}
+          />
+        </label>
+      ) : null}
+      <div className="booking-card-grid booking-service-grid">
+        {services.map((service) => (
+          <button
+            key={service.publicId}
+            type="button"
+            className="booking-choice-card"
+            aria-pressed={selected === service.publicId}
+            onClick={() => {
+              onSelect(service.publicId);
+            }}
+          >
+            {service.imageUrl === null ? null : (
+              <img src={`${environment.apiUrl}${service.imageUrl}`} alt="" />
+            )}
+            <span className="booking-choice-content">
+              <strong>{service.name}</strong>
+              {service.description === null ? null : <small>{service.description}</small>}
+              <span className="booking-choice-meta">
+                <b>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</b>
+                <span>{`${String(service.durationMinutes)} min`}</span>
+              </span>
+            </span>
+            <i aria-hidden="true">✓</i>
+          </button>
+        ))}
+      </div>
+      {services.length === 0 ? (
+        <div className="booking-empty">
+          <strong>Nenhum serviço encontrado</strong>
+          <span>Tente buscar por outro termo.</span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function ProfessionalStep({
+  site,
+  professionals,
+  selected,
+  loading,
+  error,
+  onSelect,
+}: {
+  site: Site;
+  professionals: Professional[];
+  selected: string;
+  loading: boolean;
+  error: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <section className="booking-step">
+      <StepHeader
+        title={`Com quem você quer ser atendido?`}
+        subtitle={`Escolha ${site.terminology.professional.singular.toLocaleLowerCase('pt-BR')}.`}
+      />
+      {loading ? (
+        <div className="booking-card-grid">
+          {[1, 2, 3].map((item) => (
+            <div className="booking-skeleton booking-professional-skeleton" key={item} />
+          ))}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="booking-empty booking-error" role="alert">
+          <strong>Não foi possível carregar a equipe</strong>
+          <span>Volte e selecione o serviço novamente.</span>
+        </div>
+      ) : null}
+      {!loading && !error ? (
+        <div className="booking-card-grid">
+          {professionals.map((professional) => (
+            <button
+              key={professional.publicId}
+              type="button"
+              className="booking-choice-card booking-professional-card"
+              aria-pressed={selected === professional.publicId}
+              onClick={() => {
+                onSelect(professional.publicId);
+              }}
+            >
+              {professional.photoUrl === null ? (
+                <span className="booking-avatar-fallback" aria-hidden="true">
+                  {initialsOf(professional.name)}
+                </span>
+              ) : (
+                <img src={`${environment.apiUrl}${professional.photoUrl}`} alt="" />
+              )}
+              <span className="booking-choice-content">
+                <strong>{professional.name}</strong>
+                {professional.bio === null ? null : <small>{professional.bio}</small>}
+              </span>
+              <i aria-hidden="true">✓</i>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {!loading && !error && professionals.length === 0 ? (
+        <div className="booking-empty">
+          <strong>Nenhum profissional disponível</strong>
+          <span>Escolha outro serviço para continuar.</span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DateStep({
+  date,
+  onSelect,
+  availableDates,
+}: {
+  date: string;
+  onSelect: (date: string) => void;
+  availableDates: { isPending: boolean; data?: { dates: string[] } };
+}) {
+  const dates = useMemo(
+    () =>
+      Array.from({ length: 21 }, (_, index) => {
+        const next = new Date();
+        next.setHours(12, 0, 0, 0);
+        next.setDate(next.getDate() + index);
+        return next;
+      }),
+    [],
+  );
+  return (
+    <section className="booking-step">
+      <StepHeader
+        title="Escolha a data"
+        subtitle="Consulte os próximos dias e encontre o melhor para você."
+      />
+      <div className="booking-month-label">
+        {dateFromIso(date).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+      </div>
+      <div className="booking-date-strip" role="list" aria-label="Próximas datas">
+        {availableDates.isPending ? (
+          <span style={{ gridColumn: '1 / -1', padding: '12px', textAlign: 'center' }}>
+            Carregando datas...
+          </span>
+        ) : availableDates.data?.dates.length === 0 ? (
+          <span style={{ gridColumn: '1 / -1', padding: '12px', textAlign: 'center' }}>
+            Não há horários disponíveis nos próximos 30 dias.
+          </span>
+        ) : (
+          dates.map((item) => {
+            const value = isoFromDate(item);
+            const isAvailable = availableDates.data?.dates.includes(value) ?? false;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={date === value}
+                disabled={!isAvailable}
+                onClick={() => {
+                  onSelect(value);
+                }}
+              >
+                <span>{item.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+                <strong>{item.getDate()}</strong>
+                <small>{item.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</small>
+              </button>
+            );
+          })
+        )}
+      </div>
+      <details className="booking-calendar-disclosure">
+        <summary>Ver calendário</summary>
+        <label>
+          <span>Escolha outra data</span>
+          <input
+            type="date"
+            min={todayIsoDate()}
+            value={date}
+            onChange={(event) => {
+              const selectedDate = event.target.value;
+              const isAvailable = availableDates.data?.dates.includes(selectedDate) ?? false;
+              if (!isAvailable && selectedDate !== '') {
+                alert('Não há horários disponíveis nesta data.');
+                return;
+              }
+              onSelect(selectedDate);
+            }}
+          />
+        </label>
+      </details>
+      <p className="booking-helper">
+        A disponibilidade real será consultada depois que você escolher a data.
+      </p>
+    </section>
+  );
+}
+
+function TimeStep({
+  slots,
+  selected,
+  loading,
+  error,
+  onSelect,
+}: {
+  slots: { startsAt: string }[];
+  selected: string | null;
+  loading: boolean;
+  error: boolean;
+  onSelect: (slot: string) => void;
+}) {
+  const periods = [
+    { label: 'Manhã', slots: slots.filter((slot) => new Date(slot.startsAt).getHours() < 12) },
+    {
+      label: 'Tarde',
+      slots: slots.filter((slot) => {
+        const hour = new Date(slot.startsAt).getHours();
+        return hour >= 12 && hour < 18;
+      }),
+    },
+    { label: 'Noite', slots: slots.filter((slot) => new Date(slot.startsAt).getHours() >= 18) },
+  ].filter((period) => period.slots.length > 0);
+  return (
+    <section className="booking-step">
+      <StepHeader
+        title="Horários disponíveis"
+        subtitle="Os horários abaixo respeitam a agenda real do profissional."
+      />
+      {loading ? (
+        <div className="booking-slot-skeleton">
+          {Array.from({ length: 8 }, (_, index) => (
+            <i key={index} />
+          ))}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="booking-empty booking-error" role="alert">
+          <strong>Não foi possível consultar os horários</strong>
+          <span>Tente escolher a data novamente.</span>
+        </div>
+      ) : null}
+      {!loading &&
+        !error &&
+        periods.map((period) => (
+          <div className="booking-period" key={period.label}>
+            <h4>{period.label}</h4>
+            <div className="booking-slot-grid">
+              {period.slots.map((slot) => (
+                <button
+                  key={slot.startsAt}
+                  type="button"
+                  aria-pressed={selected === slot.startsAt}
+                  onClick={() => {
+                    onSelect(slot.startsAt);
+                  }}
+                >
+                  {new Date(slot.startsAt).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      {!loading && !error && slots.length === 0 ? (
+        <div className="booking-empty">
+          <strong>Não encontramos horários disponíveis neste dia.</strong>
+          <span>Escolha outra data para continuar.</span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CustomerStep({
+  name,
+  phone,
+  email,
+  notes,
+  createAccount,
+  accountPassword,
+  canCreateAccount,
+  onChange,
+  onToggleAccount,
+  onPasswordChange,
+}: {
+  name: string;
+  phone: string;
+  email: string;
+  notes: string;
+  createAccount: boolean;
+  accountPassword: string;
+  canCreateAccount: boolean;
+  onChange: (field: 'name' | 'phone' | 'email' | 'notes', value: string) => void;
+  onToggleAccount: (value: boolean) => void;
+  onPasswordChange: (value: string) => void;
+}) {
+  return (
+    <section className="booking-step">
+      <StepHeader
+        title="Agora, seus dados"
+        subtitle="Precisamos de um contato para confirmar o agendamento."
+      />
+      <div className="booking-customer-form">
+        <label>
+          <span>Seu nome</span>
+          <input
+            autoComplete="name"
+            required
+            value={name}
+            onChange={(event) => {
+              onChange('name', event.target.value);
+            }}
+          />
+        </label>
+        <label>
+          <span>WhatsApp ou telefone</span>
+          <input
+            autoComplete="tel"
+            inputMode="tel"
+            value={phone}
+            onChange={(event) => {
+              onChange('phone', event.target.value);
+            }}
+          />
+          <small>Informe telefone ou e-mail.</small>
+        </label>
+        <label>
+          <span>
+            E-mail <em>opcional se informar telefone</em>
+          </span>
+          <input
+            autoComplete="email"
+            inputMode="email"
+            type="email"
+            value={email}
+            onChange={(event) => {
+              onChange('email', event.target.value);
+            }}
+          />
+        </label>
+        <label>
+          <span>
+            Observações <em>opcional</em>
+          </span>
+          <textarea
+            rows={3}
+            maxLength={2000}
+            value={notes}
+            onChange={(event) => {
+              onChange('notes', event.target.value);
+            }}
+          />
+        </label>
+      </div>
+      {canCreateAccount ? (
+        <div className="booking-account-optin">
+          <label className="booking-checkbox">
+            <input
+              type="checkbox"
+              checked={createAccount}
+              onChange={(event) => {
+                onToggleAccount(event.target.checked);
+              }}
+            />
+            <span>Quero criar uma conta para acompanhar meus agendamentos</span>
+          </label>
+          <p className="booking-helper">
+            Com uma conta você acompanha seus horários e pagamentos sem preencher seus dados
+            novamente.
+          </p>
+          {createAccount ? (
+            <label>
+              <span>Senha</span>
+              <input
+                autoComplete="new-password"
+                type="password"
+                value={accountPassword}
+                onChange={(event) => {
+                  onPasswordChange(event.target.value);
+                }}
+              />
+              <ul className="booking-password-rules">
+                {CUSTOMER_PASSWORD_RULES.map((rule) => (
+                  <li key={rule}>{rule}</li>
+                ))}
+              </ul>
+            </label>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/** Etapa exibida somente quando existe escolha real entre online e presencial. */
+function PaymentChoiceStep({
+  choice,
+  onSelect,
+}: {
+  choice: 'online' | 'local' | null;
+  onSelect: (value: 'online' | 'local') => void;
+}) {
+  return (
+    <section className="booking-step">
+      <StepHeader
+        title="Como você prefere pagar?"
+        subtitle="Você pode pagar agora ou diretamente no atendimento."
+      />
+      <div className="booking-card-grid">
+        <button
+          type="button"
+          className="booking-choice-card booking-payment-choice"
+          aria-pressed={choice === 'online'}
+          onClick={() => {
+            onSelect('online');
+          }}
+        >
+          <span className="booking-choice-content">
+            <strong>Pagar agora online</strong>
+            <small>Seguro e rápido.</small>
+          </span>
+          <i aria-hidden="true">✓</i>
+        </button>
+        <button
+          type="button"
+          className="booking-choice-card booking-payment-choice"
+          aria-pressed={choice === 'local'}
+          onClick={() => {
+            onSelect('local');
+          }}
+        >
+          <span className="booking-choice-content">
+            <strong>Pagar no atendimento</strong>
+            <small>Você paga diretamente no estabelecimento.</small>
+          </span>
+          <i aria-hidden="true">✓</i>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function BookingSummary({
+  site,
+  serviceId,
+  professional,
+  unitPublicId,
+  date,
+  slot,
+  compact = false,
+}: {
+  site: Site;
+  serviceId: string;
+  professional: Professional | undefined;
+  unitPublicId: string;
+  date: string;
+  slot: string | null;
+  compact?: boolean;
+}) {
+  const service = site.services.find((item) => item.publicId === serviceId);
+  const unit = site.units.find((item) => item.publicId === unitPublicId);
+  return (
+    <aside
+      className={compact ? 'booking-summary booking-summary-compact' : 'booking-summary'}
+      aria-label="Resumo do agendamento"
+    >
+      <h3>Seu agendamento</h3>
+      <dl>
+        {service === undefined ? null : (
+          <>
+            <div>
+              <dt>Serviço</dt>
+              <dd>{service.name}</dd>
+            </div>
+            <div>
+              <dt>Valor</dt>
+              <dd>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</dd>
+            </div>
+          </>
+        )}
+        {professional === undefined ? null : (
+          <div>
+            <dt>Profissional</dt>
+            <dd>{professional.name}</dd>
+          </div>
+        )}
+        {date === '' ? null : (
+          <div>
+            <dt>Data</dt>
+            <dd>
+              {dateFromIso(date).toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              })}
+            </dd>
+          </div>
+        )}
+        {slot === null ? null : (
+          <div>
+            <dt>Horário</dt>
+            <dd>
+              {new Date(slot).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </dd>
+          </div>
+        )}
+        {unit !== undefined ? (
+          <div>
+            <dt>Local</dt>
+            <dd>{unit.name}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </aside>
+  );
+}
+
+/**
+ * Cobrança online do agendamento já criado. Reutiliza os endpoints de cobrança
+ * existentes; `mode` só muda a apresentação (obrigatória ou lembrete discreto).
+ */
+export function AppointmentPaymentPanel({
   slug,
   appointmentPublicId,
+  mode,
 }: {
   slug: string;
   appointmentPublicId: string;
+  mode: 'required' | 'reminder';
 }) {
   const [pixCharge, setPixCharge] = useState<z.infer<typeof PixChargeResponseSchema> | null>(null);
   const [mpCharge, setMpCharge] = useState<z.infer<typeof PaymentGatewayChargePublicSchema> | null>(
     null,
   );
-  const [copyFeedback, setCopyFeedback] = useState(false);
-
+  const [copied, setCopied] = useState(false);
   const options = useQuery({
     queryKey: ['public-booking', slug, 'payment-options', appointmentPublicId],
     queryFn: () =>
@@ -41,444 +631,511 @@ function AppointmentPaymentStep({
       ),
     retry: false,
   });
-
   const kind = options.data?.depositRequired === true ? 'DEPOSIT' : 'PAYMENT';
-
   const createPix = useMutation({
     mutationFn: () =>
       httpClient.request(
         `/public/sites/${slug}/appointments/${appointmentPublicId}/pix-local-charges`,
         { method: 'POST', body: { kind }, schema: PixChargeResponseSchema },
       ),
-    onSuccess: (data) => {
-      setPixCharge(data);
-    },
+    onSuccess: setPixCharge,
   });
-
   const createMercadoPago = useMutation({
     mutationFn: () =>
       httpClient.request(
         `/public/sites/${slug}/appointments/${appointmentPublicId}/mercadopago-charges`,
         { method: 'POST', body: { kind }, schema: PaymentGatewayChargePublicSchema },
       ),
-    onSuccess: (data) => {
-      setMpCharge(data);
-    },
+    onSuccess: setMpCharge,
   });
-
-  const copyPixCode = (code: string) => {
-    void navigator.clipboard.writeText(code).then(() => {
-      setCopyFeedback(true);
-      setTimeout(() => {
-        setCopyFeedback(false);
-      }, 2000);
-    });
-  };
-
-  if (options.isPending) return <p>{'Carregando opções de pagamento…'}</p>;
-  if (options.error instanceof Error)
-    return <p className="form-error">{'Não foi possível carregar as opções de pagamento.'}</p>;
-  if (options.data === undefined) return null;
-
-  const data = options.data;
-  const amountDueCents =
-    data.depositRequired && data.depositAmountCents !== null
-      ? String(Number(data.depositAmountCents) - Number(data.depositPaidCents))
-      : data.balanceCents;
-
-  const noOnlineOption = !data.pixLocalAvailable && !data.mercadoPagoAvailable;
-
-  if (pixCharge !== null) {
+  if (options.isPending)
     return (
-      <section className="platform-form" aria-label="Pagamento por PIX">
-        <h3>Pague com PIX</h3>
-        <p>{`Valor: ${centsToBrl(pixCharge.charge.amountCents)}`}</p>
-        {pixCharge.qrCodeDataUrl !== '' && (
-          <img
-            src={pixCharge.qrCodeDataUrl}
-            alt="QR Code do PIX"
-            width={220}
-            height={220}
-            style={{ maxWidth: '100%', height: 'auto' }}
-          />
-        )}
-        {pixCharge.charge.pixCopyPaste !== null && (
-          <>
-            <textarea readOnly value={pixCharge.charge.pixCopyPaste} rows={4} />
+      <div
+        className="booking-payment booking-skeleton"
+        aria-label="Carregando opções de pagamento"
+      />
+    );
+  if (options.data === undefined) return null;
+  if (pixCharge !== null || mpCharge !== null) {
+    const charge = pixCharge?.charge ?? mpCharge;
+    const code = pixCharge?.charge.pixCopyPaste ?? mpCharge?.pixCopyPaste;
+    return (
+      <section className="booking-payment payment-panel">
+        <header className="payment-panel-header">
+          <strong>{pixCharge === null ? 'Pagamento online' : 'Pagamento via PIX'}</strong>
+          <span className="payment-panel-amount">
+            {charge === null ? null : centsToBrl(charge.amountCents)}
+          </span>
+          <small>Valor a pagar</small>
+        </header>
+        {pixCharge?.qrCodeDataUrl ? (
+          <figure className="payment-qr">
+            <img src={pixCharge.qrCodeDataUrl} alt="QR Code do PIX" />
+            <figcaption>Escaneie o QR Code ou copie o código abaixo.</figcaption>
+          </figure>
+        ) : null}
+        {code ? (
+          <div className="payment-code">
+            <code>{code}</code>
             <button
+              className="payment-copy"
               type="button"
-              className="secondary-button"
               onClick={() => {
-                copyPixCode(pixCharge.charge.pixCopyPaste ?? '');
+                void navigator.clipboard.writeText(code).then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => {
+                    setCopied(false);
+                  }, 2500);
+                });
               }}
             >
-              {copyFeedback ? 'Código copiado!' : 'Copiar código PIX'}
+              {copied ? 'Código copiado' : 'Copiar código'}
             </button>
-          </>
-        )}
-        <p className="form-notice">
-          {'Aguardando confirmação do pagamento pelo estabelecimento após o recebimento.'}
+          </div>
+        ) : null}
+        <p className="payment-status" role="status">
+          Aguardando pagamento. O estabelecimento confirma o recebimento.
         </p>
       </section>
     );
   }
-
-  if (mpCharge !== null) {
-    return (
-      <section className="platform-form" aria-label="Pagamento via Mercado Pago">
-        <h3>Mercado Pago</h3>
-        <p>{`Valor: ${centsToBrl(mpCharge.amountCents)}`}</p>
-        <p>{`Status: ${mpCharge.status}`}</p>
-        {mpCharge.pixCopyPaste !== null && (
-          <>
-            <textarea readOnly value={mpCharge.pixCopyPaste} rows={4} />
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => {
-                copyPixCode(mpCharge.pixCopyPaste ?? '');
-              }}
-            >
-              {copyFeedback ? 'Código copiado!' : 'Copiar código PIX'}
-            </button>
-          </>
-        )}
-        <p className="form-notice">{'Aguardando confirmação do pagamento pelo Mercado Pago.'}</p>
+  const data = options.data;
+  if (!data.pixLocalAvailable && !data.mercadoPagoAvailable) return null;
+  // Nada em aberto: não oferecer pagamento novamente.
+  if (!data.depositRequired && Number(data.balanceCents) <= 0)
+    return mode === 'required' ? (
+      <section className="booking-payment">
+        <strong>Pagamento concluído</strong>
+        <p>Não há valor pendente para este agendamento.</p>
       </section>
-    );
-  }
-
+    ) : null;
+  const methods = [
+    data.pixLocalAvailable
+      ? {
+          id: 'pix',
+          label: 'PIX',
+          hint: 'Copia e cola ou QR Code.',
+          busy: createPix.isPending,
+          run: () => {
+            createPix.mutate();
+          },
+        }
+      : null,
+    data.mercadoPagoAvailable
+      ? {
+          id: 'mercadopago',
+          label: 'Mercado Pago',
+          hint: 'Pagamento pelo Mercado Pago.',
+          busy: createMercadoPago.isPending,
+          run: () => {
+            createMercadoPago.mutate();
+          },
+        }
+      : null,
+  ].filter((method) => method !== null);
   return (
-    <section className="platform-form" aria-label="Pagamento do agendamento">
-      <h3>Pagamento</h3>
-      {data.depositRequired ? (
-        <p>{`Sinal obrigatório: ${centsToBrl(amountDueCents)}`}</p>
-      ) : (
-        <p>{`Saldo: ${centsToBrl(amountDueCents)}`}</p>
-      )}
-      <div className="public-cards">
-        {data.pixLocalAvailable && (
+    <section className={`booking-payment${mode === 'reminder' ? ' is-reminder' : ''}`}>
+      <strong>
+        {mode === 'reminder'
+          ? 'Prefere adiantar o pagamento?'
+          : data.depositRequired
+            ? 'Este agendamento exige um sinal'
+            : 'Pagamento online'}
+      </strong>
+      <p>
+        {mode === 'reminder'
+          ? 'Seu horário está confirmado para pagamento no atendimento. Se preferir, pague online agora.'
+          : `Valor: ${centsToBrl(data.depositRequired ? (data.depositAmountCents ?? data.balanceCents) : data.balanceCents)}`}
+      </p>
+      <div className="booking-payment-methods">
+        {methods.map((method) => (
           <button
+            key={method.id}
             type="button"
-            disabled={createPix.isPending}
-            onClick={() => {
-              createPix.mutate();
-            }}
+            className="booking-payment-method payment-cta"
+            disabled={method.busy}
+            onClick={method.run}
           >
-            {createPix.isPending ? 'Gerando PIX…' : 'Pagar com PIX'}
+            <span className="payment-cta-icon" aria-hidden="true">
+              {method.id === 'pix' ? <IconQrcode size={22} stroke={1.8} /> : <IconCreditCard size={22} stroke={1.8} />}
+            </span>
+            <span className="payment-cta-body">
+              <strong>
+                {method.busy
+                  ? 'Gerando cobrança…'
+                  : methods.length === 1 && mode === 'reminder'
+                    ? 'Pagar online agora'
+                    : `Pagar com ${method.label}`}
+              </strong>
+              <small>{method.hint}</small>
+            </span>
+            <span className="payment-cta-arrow" aria-hidden="true">
+              ›
+            </span>
           </button>
-        )}
-        {data.mercadoPagoAvailable && (
-          <button
-            type="button"
-            disabled={createMercadoPago.isPending}
-            onClick={() => {
-              createMercadoPago.mutate();
-            }}
-          >
-            {createMercadoPago.isPending ? 'Iniciando…' : 'Pagar com Mercado Pago'}
-          </button>
-        )}
-        {data.payLocalAvailable && (
-          <p>
-            {'Você também pode pagar presencialmente no estabelecimento, no dia do atendimento.'}
-          </p>
-        )}
-        {noOnlineOption && !data.payLocalAvailable && (
-          <p>
-            {'Nenhum meio de pagamento online está disponível para este agendamento no momento.'}
-          </p>
-        )}
+        ))}
       </div>
-      {createPix.error instanceof Error ? (
-        <p className="form-error">{errorMessageOf(createPix.error)}</p>
-      ) : null}
-      {createMercadoPago.error instanceof Error ? (
-        <p className="form-error">{errorMessageOf(createMercadoPago.error)}</p>
+      {createPix.error instanceof Error || createMercadoPago.error instanceof Error ? (
+        <p className="booking-inline-error" role="alert">
+          Não foi possível iniciar o pagamento agora. Tente novamente.
+        </p>
       ) : null}
     </section>
   );
 }
 
-function errorMessageOf(error: unknown): string {
-  if (error instanceof HttpError) return error.message;
-  if (error instanceof Error) return error.message;
-  return 'Não foi possível concluir a solicitação.';
-}
-
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) {
-  const [unitPublicId, setUnitPublicId] = useState<string>(
-    site.units[0]?.publicId !== undefined && site.units.length === 1 ? site.units[0].publicId : '',
-  );
-  const [servicePublicId, setServicePublicId] = useState('');
-  const [professionalPublicId, setProfessionalPublicId] = useState('');
-  const [date, setDate] = useState(todayIsoDate);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [notes, setNotes] = useState('');
-
-  const professionals = useQuery({
-    queryKey: ['public-booking', slug, 'professionals', servicePublicId],
-    queryFn: () =>
-      httpClient.request(`/public/sites/${slug}/services/${servicePublicId}/professionals`, {
-        schema: PublicServiceProfessionalsResponseSchema,
-      }),
-    enabled: servicePublicId !== '',
-    retry: false,
-  });
-
-  const availability = useQuery({
-    queryKey: [
-      'public-booking',
-      slug,
-      'availability',
-      servicePublicId,
-      professionalPublicId,
-      date,
-      unitPublicId,
-    ],
-    queryFn: () => {
-      const query = new URLSearchParams({ date, professionalPublicId, servicePublicId });
-      if (unitPublicId !== '') query.set('unitPublicId', unitPublicId);
-      return httpClient.request(`/public/sites/${slug}/availability?${query.toString()}`, {
-        schema: AvailabilityResponseSchema,
-      });
-    },
-    enabled: servicePublicId !== '' && professionalPublicId !== '' && date !== '',
-    retry: false,
-  });
-
-  const booking = useMutation({
-    mutationFn: () =>
-      httpClient.request(`/public/sites/${slug}/bookings`, {
-        method: 'POST',
-        body: {
-          unitPublicId: unitPublicId === '' ? null : unitPublicId,
-          servicePublicId,
-          professionalPublicId,
-          startsAt: selectedSlot,
-          notes: notes.trim() === '' ? null : notes.trim(),
-          customer: {
-            name: customerName,
-            phone: customerPhone.trim() === '' ? null : customerPhone.trim(),
-            email: customerEmail.trim() === '' ? null : customerEmail.trim(),
-          },
-        },
-        schema: PublicBookingConfirmationSchema,
-      }),
-  });
-
-  const selectedService = site.services.find((service) => service.publicId === servicePublicId);
-  const errorMessage = (error: unknown) =>
-    error instanceof HttpError ? error.message : error instanceof Error ? error.message : null;
+  // Toda a lógica vem do hook; aqui só existe a apresentação Clássica.
+  const {
+    step,
+    setStep,
+    flow,
+    goBack,
+    continueFlow,
+    validation,
+    unitPublicId,
+    setUnitPublicId,
+    servicePublicId,
+    selectService,
+    professionalPublicId,
+    selectProfessional,
+    professionals,
+    selectedProfessional,
+    date,
+    selectDate,
+    selectedSlot,
+    setSelectedSlot,
+    availability,
+    availableSlots,
+    customerName,
+    customerPhone,
+    customerEmail,
+    notes,
+    changeCustomer,
+    createAccount,
+    setCreateAccount,
+    accountPassword,
+    setAccountPassword,
+    accountError,
+    accountCreated,
+    canCreateAccount,
+    paymentChoice,
+    setPaymentChoice,
+    needsPaymentChoice,
+    onlineAvailable,
+    payOnline,
+    booking,
+  } = usePublicBooking(slug, site);
 
   if (booking.isSuccess) {
     const confirmation = booking.data;
     return (
-      <section className="public-cards" aria-live="polite">
-        <article>
-          <h3>{'Agendamento confirmado'}</h3>
-          <p>
-            {'Protocolo: '}
-            <strong>{confirmation.protocol}</strong>
+      <section className="booking-success" aria-live="polite">
+        <span className="booking-success-icon" aria-hidden="true">
+          ✓
+        </span>
+        <p>Horário reservado</p>
+        <h2>Agendamento confirmado!</h2>
+        <strong>
+          {new Date(confirmation.startsAt).toLocaleDateString('pt-BR', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          })}
+        </strong>
+        <span>{`às ${new Date(confirmation.startsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>
+        <div className="booking-success-card">
+          <b>{confirmation.serviceName}</b>
+          <span>{`com ${confirmation.professionalName}`}</span>
+          {confirmation.unitName === null ? null : <span>{confirmation.unitName}</span>}
+        </div>
+        <small>
+          Protocolo: <strong>{confirmation.protocol}</strong>
+        </small>
+        {accountError !== null ? (
+          <p className="booking-inline-error" role="alert">
+            {accountError}
           </p>
-          <p>{confirmation.serviceName}</p>
-          <p>{confirmation.professionalName}</p>
-          {confirmation.unitName === null ? null : <p>{confirmation.unitName}</p>}
-          <p>{new Date(confirmation.startsAt).toLocaleString('pt-BR')}</p>
-          <p>{`Status: ${confirmation.status}`}</p>
-        </article>
-        <AppointmentPaymentStep
-          slug={slug}
-          appointmentPublicId={confirmation.appointmentPublicId}
-        />
+        ) : null}
+        {accountCreated ? (
+          <p className="booking-account-created">
+            Sua conta foi criada. Use o avatar no topo para acompanhar seus agendamentos.
+          </p>
+        ) : null}
+        {onlineAvailable ? (
+          <AppointmentPaymentPanel
+            slug={slug}
+            appointmentPublicId={confirmation.appointmentPublicId}
+            mode={payOnline ? 'required' : 'reminder'}
+          />
+        ) : null}
+        <PushReminderCta slug={slug} />
       </section>
     );
   }
-
-  if (site.bookingAvailable === false) {
+  if (site.bookingAvailable === false)
     return (
-      <section className="public-cards" aria-live="polite">
-        <article>
-          <p className="form-error">
-            {site.unavailableMessage ?? 'Agendamento online indisponível no momento.'}
-          </p>
-        </article>
+      <section className="booking-unavailable" aria-live="polite">
+        <strong>Agendamento online indisponível</strong>
+        <p>
+          {site.unavailableMessage ??
+            'Entre em contato com o estabelecimento para mais informações.'}
+        </p>
       </section>
     );
-  }
 
+  const logo = site.assets.find((asset) => asset.kind === 'LOGO_COMPACT' || asset.kind === 'LOGO');
   return (
-    <div className="platform-form">
-      {site.units.length > 1 ? (
-        <label>
-          Unidade
-          <select
-            value={unitPublicId}
-            onChange={(event) => {
-              setUnitPublicId(event.target.value);
-            }}
-          >
-            <option value="">Selecione</option>
-            {site.units.map((unit) => (
-              <option key={unit.publicId} value={unit.publicId}>
-                {unit.name}
-                {unit.isHeadquarters ? ' (matriz)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      <label>
-        {site.terminology.service.singular}
-        <select
-          value={servicePublicId}
-          onChange={(event) => {
-            setServicePublicId(event.target.value);
-            setProfessionalPublicId('');
-            setSelectedSlot(null);
-          }}
-        >
-          <option value="">Selecione</option>
-          {site.services.map((service) => (
-            <option key={service.publicId} value={service.publicId}>
-              {service.name}
-              {` (${String(service.durationMinutes)} min)`}
-            </option>
-          ))}
-        </select>
-      </label>
-      {servicePublicId === '' ? null : (
-        <label>
-          {site.terminology.professional.singular}
-          {professionals.isPending ? (
-            <p>{'Carregando profissionais\u2026'}</p>
-          ) : (
-            <select
-              value={professionalPublicId}
-              onChange={(event) => {
-                setProfessionalPublicId(event.target.value);
-                setSelectedSlot(null);
-              }}
-            >
-              <option value="">Selecione</option>
-              {professionals.data?.professionals.map((professional) => (
-                <option key={professional.publicId} value={professional.publicId}>
-                  {professional.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </label>
-      )}
-      {professionalPublicId === '' ? null : (
-        <>
-          <label>
-            Data
-            <input
-              type="date"
-              min={todayIsoDate()}
-              value={date}
-              onChange={(event) => {
-                setDate(event.target.value);
-                setSelectedSlot(null);
-              }}
+    <div className="public-booking-flow">
+      <header className="booking-shell-header">
+        {logo === undefined ? (
+          <span className="booking-logo-fallback">{initialsOf(site.displayName)}</span>
+        ) : (
+          <img src={`${environment.apiUrl}${logo.url}`} alt={logo.altText ?? site.displayName} />
+        )}
+        <div>
+          <strong>{site.displayName}</strong>
+          <span>Agendar horário</span>
+        </div>
+      </header>
+      <BookingProgress step={step} flow={flow} />
+      <div className="booking-layout">
+        <main className="booking-main">
+          {step !== 'service' ? (
+            <button type="button" className="booking-back" onClick={goBack}>
+              ← Voltar
+            </button>
+          ) : null}
+          {step === 'service' ? (
+            <>
+              {professionalPublicId !== '' && professionalServices.data ? (
+                <>
+                  {professionalServices.data.services.length > 0 ? (
+                    <>
+                      <h3>Serviços</h3>
+                      <div className="booking-service-list">
+                        {professionalServices.data.services.map((service) => (
+                          <button
+                            key={service.publicId}
+                            type="button"
+                            className={`booking-service-card${servicePublicId === service.publicId ? ' is-selected' : ''}`}
+                            onClick={() => selectServiceAndContinue(service.publicId)}
+                          >
+                            <strong>{service.name}</strong>
+                            <small>
+                              R$ {(Number(service.priceCents) / 100).toLocaleString('pt-BR')}
+                              {` · ${service.durationMinutes} min`}
+                            </small>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  {professionalServices.data.combos.length > 0 ? (
+                    <>
+                      <h3>Combos</h3>
+                      <div className="booking-service-list">
+                        {professionalServices.data.combos.map((combo) => (
+                          <div
+                            key={combo.publicId}
+                            className="booking-service-card booking-combo-info"
+                          >
+                            <strong>{combo.name}</strong>
+                            <small>
+                              {combo.items.map((item) => item.name).join(' + ')}
+                            </small>
+                            <small>
+                              R$ {(Number(combo.priceCents) / 100).toLocaleString('pt-BR')}
+                              {` · ${combo.durationMinutes} min`}
+                            </small>
+                            <span className="combo-badge">Agendamento em breve</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  {professionalServices.data.services.length === 0 && professionalServices.data.combos.length === 0 ? (
+                    <div className="booking-empty">
+                      <p>Nenhum atendimento disponível para este profissional.</p>
+                    </div>
+                  ) : null}
+                </>
+              ) : professionalServices.isPending ? (
+                <div className="booking-loading">
+                  <p>Carregando atendimentos...</p>
+                </div>
+              ) : professionalServices.isError ? (
+                <div className="booking-error">
+                  <p>Não foi possível carregar os atendimentos deste profissional.</p>
+                </div>
+              ) : (
+                <ServiceStep
+                  site={site}
+                  selected={servicePublicId}
+                  onSelect={selectService}
+                />
+              )}
+              {site.units.length > 1 ? (
+                <fieldset className="booking-unit-picker">
+                  <legend>Escolha a unidade</legend>
+                  {site.units.map((unit) => (
+                    <button
+                      key={unit.publicId}
+                      type="button"
+                      aria-pressed={unitPublicId === unit.publicId}
+                      onClick={() => {
+                        setUnitPublicId(unit.publicId);
+                      }}
+                    >
+                      <strong>{unit.name}</strong>
+                      <span>
+                        {[unit.street, unit.number, unit.city].filter(Boolean).join(', ')}
+                      </span>
+                    </button>
+                  ))}
+                </fieldset>
+              ) : null}
+            </>
+          ) : null}
+          {step === 'professional' ? (
+            <ProfessionalStep
+              site={site}
+              professionals={professionals.data?.professionals ?? []}
+              selected={professionalPublicId}
+              loading={professionals.isPending}
+              error={professionals.isError}
+              onSelect={selectProfessional}
             />
-          </label>
-          {availability.isPending ? <p>{'Consultando disponibilidade\u2026'}</p> : null}
-          {availability.error instanceof Error ? (
-            <p className="form-error">
-              {'N\u00e3o foi poss\u00edvel consultar a disponibilidade.'}
+          ) : null}
+          {step === 'date' ? (
+            <DateStep
+              date={date}
+              onSelect={selectDate}
+              availableDates={availableDates}
+            />
+          ) : null}
+          {step === 'time' ? (
+            <TimeStep
+              slots={availableSlots}
+              selected={selectedSlot}
+              loading={availability.isPending}
+              error={availability.isError}
+              onSelect={setSelectedSlot}
+            />
+          ) : null}
+          {step === 'customer' ? (
+            <CustomerStep
+              name={customerName}
+              phone={customerPhone}
+              email={customerEmail}
+              notes={notes}
+              createAccount={createAccount}
+              accountPassword={accountPassword}
+              canCreateAccount={canCreateAccount}
+              onChange={changeCustomer}
+              onToggleAccount={setCreateAccount}
+              onPasswordChange={setAccountPassword}
+            />
+          ) : null}
+          {step === 'payment' ? (
+            <PaymentChoiceStep choice={paymentChoice} onSelect={setPaymentChoice} />
+          ) : null}
+          {step === 'review' ? (
+            <section className="booking-step booking-review">
+              <StepHeader
+                title="Revise seu agendamento"
+                subtitle="Confira os dados antes de confirmar."
+              />
+              <BookingSummary
+                site={site}
+                serviceId={servicePublicId}
+                professional={selectedProfessional}
+                unitPublicId={unitPublicId}
+                date={date}
+                slot={selectedSlot}
+                compact
+              />
+              <div className="booking-review-contact">
+                <span>Agendamento para</span>
+                <strong>{customerName}</strong>
+                <small>{customerPhone || customerEmail}</small>
+                {needsPaymentChoice && paymentChoice !== null ? (
+                  <small>
+                    {paymentChoice === 'online'
+                      ? 'Pagamento: online, logo após confirmar.'
+                      : 'Pagamento: no atendimento.'}
+                  </small>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+          {validation !== null ? (
+            <p className="booking-inline-error" role="alert">
+              {validation}
             </p>
           ) : null}
-          {availability.data !== undefined ? (
-            <div className="public-cards">
-              {availability.data.slots
-                .filter((slot) => slot.state === 'AVAILABLE')
-                .map((slot) => (
-                  <button
-                    key={slot.startsAt}
-                    type="button"
-                    className={selectedSlot === slot.startsAt ? '' : 'secondary-button'}
-                    onClick={() => {
-                      setSelectedSlot(slot.startsAt);
-                    }}
-                  >
-                    {new Date(slot.startsAt).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </button>
-                ))}
-              {availability.data.slots.filter((slot) => slot.state === 'AVAILABLE').length === 0 ? (
-                <p>Nenhum hor\u00e1rio dispon\u00edvel nesta data.</p>
+          {booking.isError ? (
+            <div className="booking-inline-error booking-conflict" role="alert">
+              <strong>{humanError(booking.error)}</strong>
+              {booking.error instanceof HttpError && booking.error.status === 409 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('time');
+                  }}
+                >
+                  Escolher outro horário
+                </button>
               ) : null}
             </div>
           ) : null}
-        </>
-      )}
-      {selectedSlot === null ? null : (
-        <form
-          className="platform-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            booking.mutate();
-          }}
-        >
-          <strong>{selectedService?.name}</strong>
-          <p>{new Date(selectedSlot).toLocaleString('pt-BR')}</p>
-          <label>
-            Nome
-            <input
-              required
-              value={customerName}
-              onChange={(event) => {
-                setCustomerName(event.target.value);
-              }}
+          <div className="booking-mobile-summary">
+            <BookingSummary
+              site={site}
+              serviceId={servicePublicId}
+              professional={selectedProfessional}
+              unitPublicId={unitPublicId}
+              date={date}
+              slot={selectedSlot}
+              compact
             />
-          </label>
-          <label>
-            Telefone
-            <input
-              value={customerPhone}
-              onChange={(event) => {
-                setCustomerPhone(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            E-mail
-            <input
-              type="email"
-              value={customerEmail}
-              onChange={(event) => {
-                setCustomerEmail(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            Observa\u00e7\u00f5es
-            <textarea
-              value={notes}
-              onChange={(event) => {
-                setNotes(event.target.value);
-              }}
-            />
-          </label>
-          {booking.error instanceof Error ? (
-            <p className="form-error">{errorMessage(booking.error)}</p>
-          ) : null}
-          <button disabled={booking.isPending} type="submit">
-            {booking.isPending ? 'Confirmando\u2026' : 'Confirmar agendamento'}
+          </div>
+          <div className="booking-mobile-cta">
+            <button
+              type="button"
+              disabled={booking.isPending || (step === 'time' && availability.isPending)}
+              onClick={continueFlow}
+            >
+              {booking.isPending
+                ? 'Confirmando…'
+                : step === 'review'
+                  ? 'Confirmar agendamento'
+                  : 'Continuar'}
+            </button>
+          </div>
+        </main>
+        <div className="booking-desktop-summary">
+          <BookingSummary
+            site={site}
+            serviceId={servicePublicId}
+            professional={selectedProfessional}
+            unitPublicId={unitPublicId}
+            date={date}
+            slot={selectedSlot}
+          />
+          <button
+            type="button"
+            disabled={booking.isPending || (step === 'time' && availability.isPending)}
+            onClick={continueFlow}
+          >
+            {booking.isPending
+              ? 'Confirmando…'
+              : step === 'review'
+                ? 'Confirmar agendamento'
+                : 'Continuar'}
           </button>
-        </form>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

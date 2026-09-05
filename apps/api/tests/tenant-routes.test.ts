@@ -52,6 +52,9 @@ function unit(publicId: string, name: string, slug: string): BusinessUnit {
     city: null,
     state: null,
     countryCode: null,
+    latitude: null,
+    longitude: null,
+    googleMapsUrl: null,
   };
 }
 

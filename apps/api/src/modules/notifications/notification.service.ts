@@ -8,7 +8,7 @@ import { Prisma, type NotificationLog, type PrismaClient } from '../../database-
 import { AppError } from '../../errors/AppError.js';
 import {
   IntegrationUnavailableError,
-  type MetaWhatsAppDelivery,
+  type WhatsAppDelivery,
   type WebhookDelivery,
 } from '../integrations/integration-delivery.js';
 
@@ -20,17 +20,58 @@ export interface NotificationInput {
   recipient: string;
   subject: string;
   body: string;
+  email?: { html: string; fromName: string } | undefined;
+  whatsappButtons?: Array<{ actionKey: string; label: string; enabled: boolean; order: number }> | undefined;
+}
+
+const EMAIL_ENVELOPE_PREFIX = '__AG_EMAIL_V1__';
+
+function encodeEmailBody(input: NotificationInput): string {
+  if (input.channel !== 'EMAIL' || input.email === undefined) return input.body;
+  return `${EMAIL_ENVELOPE_PREFIX}${JSON.stringify({
+    text: input.body,
+    html: input.email.html,
+    fromName: input.email.fromName,
+  })}`;
+}
+
+function decodeEmailBody(body: string): { text: string; html?: string; fromName?: string } {
+  if (!body.startsWith(EMAIL_ENVELOPE_PREFIX)) return { text: body };
+  try {
+    const value = JSON.parse(body.slice(EMAIL_ENVELOPE_PREFIX.length)) as {
+      text?: unknown;
+      html?: unknown;
+      fromName?: unknown;
+    };
+    if (typeof value.text !== 'string') return { text: body };
+    return {
+      text: value.text,
+      ...(typeof value.html === 'string' ? { html: value.html } : {}),
+      ...(typeof value.fromName === 'string' ? { fromName: value.fromName } : {}),
+    };
+  } catch {
+    return { text: body };
+  }
 }
 
 export interface NotificationDeliveries {
   email: EmailDelivery;
   push: PushDelivery;
-  whatsapp?: MetaWhatsAppDelivery;
+  whatsapp?: WhatsAppDelivery;
   webhook?: WebhookDelivery;
 }
 
+/** Ícone real versionado no frontend, usado quando o tenant não tem APP_ICON. */
+const FALLBACK_PUSH_ICON = '/icons/agendei-192.png';
+
 const MAX_AUTOMATIC_ATTEMPTS = 5;
 const BACKOFF_MINUTES_PER_ATTEMPT = 2;
+export const PROCESSING_LEASE_MINUTES = 10;
+
+const MAX_NOTIFICATIONS_PER_TENANT_PER_BATCH = 2;
+const MAX_GLOBAL_BATCH_SIZE = 20;
+const MAX_CONCURRENT_DELIVERIES = 5;
+const MAX_CONCURRENT_PER_TENANT = 1;
 
 const pub = (item: NotificationLog) => ({
   publicId: item.publicId,
@@ -48,6 +89,8 @@ const pub = (item: NotificationLog) => ({
 });
 
 export class NotificationService {
+  private readonly enqueueing = new Set<string>();
+
   public constructor(
     private readonly client: PrismaClient,
     private readonly deliveries: NotificationDeliveries,
@@ -63,20 +106,45 @@ export class NotificationService {
    * da inscrição push) é o que permite múltiplos dispositivos push por
    * cliente sem colidir na constraint.
    */
-  public async enqueue(tenantId: bigint, input: NotificationInput): Promise<void> {
+  public async enqueue(tenantId: bigint, input: NotificationInput, scheduledAt?: Date): Promise<void> {
+    const channel = input.channel ?? 'EMAIL';
+    const identity = [
+      tenantId.toString(),
+      input.kind,
+      input.targetType,
+      input.targetPublicId ?? '',
+      channel,
+      input.recipient,
+    ].join('\u0000');
+    if (this.enqueueing.has(identity)) return;
+    this.enqueueing.add(identity);
     try {
+      const existing = await this.client.notificationLog.findFirst({
+        where: {
+          tenantId,
+          kind: input.kind,
+          targetType: input.targetType,
+          targetPublicId: input.targetPublicId,
+          channel,
+          recipient: input.recipient,
+        },
+        select: { id: true },
+      });
+      if (existing !== null) return;
       const created = await this.client.notificationLog.create({
         data: {
           publicId: randomUUID(),
           tenantId,
-          channel: input.channel ?? 'EMAIL',
+          channel,
           kind: input.kind,
           targetType: input.targetType,
           targetPublicId: input.targetPublicId,
           recipient: input.recipient,
           subject: input.subject,
-          body: input.body,
+          body: encodeEmailBody(input),
           status: 'PENDING',
+          ...(scheduledAt !== undefined && { scheduledAt }),
+          ...(input.whatsappButtons !== undefined && input.channel === 'WHATSAPP' ? { whatsappButtons: (input.whatsappButtons as any) } : {}),
         },
       });
       if (input.channel !== 'WEBHOOK')
@@ -84,6 +152,8 @@ export class NotificationService {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
       throw error;
+    } finally {
+      this.enqueueing.delete(identity);
     }
   }
 
@@ -132,37 +202,93 @@ export class NotificationService {
   }
 
   /**
-   * Processa a fila: reivindica (claim atômico via UPDATE condicional,
-   * impedindo duas execuções concorrentes de processarem a mesma linha) um
-   * lote de notificações PENDING, mais as FAILED elegíveis para nova
-   * tentativa automática (dentro do limite de tentativas e do backoff
-   * mínimo desde a última tentativa), e tenta a entrega de cada uma.
+   * Processa a fila com fairness multi-tenant e concorrência controlada.
+   * Busca no máximo N notificações por tenant para evitar que um tenant
+   * monopolize o batch. Limita entregas simultâneas a M.
    */
-  public async processPending(batchSize = 20): Promise<{ processed: number }> {
-    const backoffThreshold = new Date(Date.now() - BACKOFF_MINUTES_PER_ATTEMPT * 60_000);
-    const candidates = await this.client.notificationLog.findMany({
+  public async processPending(batchSize = MAX_GLOBAL_BATCH_SIZE, now = new Date()): Promise<{ processed: number }> {
+    const backoffThreshold = new Date(now.getTime() - BACKOFF_MINUTES_PER_ATTEMPT * 60_000);
+    const processingLeaseThreshold = new Date(now.getTime() - PROCESSING_LEASE_MINUTES * 60_000);
+
+    const allCandidates = await this.client.notificationLog.findMany({
       where: {
-        OR: [
-          { status: 'PENDING' },
+        AND: [
           {
-            status: 'FAILED',
-            attempts: { lt: MAX_AUTOMATIC_ATTEMPTS },
-            updatedAt: { lte: backoffThreshold },
+            OR: [
+              { status: 'PENDING' },
+              {
+                status: 'FAILED',
+                attempts: { lt: MAX_AUTOMATIC_ATTEMPTS },
+                updatedAt: { lte: backoffThreshold },
+              },
+              { status: 'PROCESSING', updatedAt: { lte: processingLeaseThreshold } },
+            ],
+          },
+          {
+            OR: [
+              { scheduledAt: null },
+              { scheduledAt: { lte: now } },
+            ],
           },
         ],
       },
       orderBy: { createdAt: 'asc' },
-      take: batchSize,
-      select: { id: true, status: true },
+      select: { id: true, status: true, tenantId: true },
     });
 
+    const tenantMap = new Map<bigint, Array<{ id: bigint; status: NotificationLog['status']; tenantId: bigint }>>();
+    for (const candidate of allCandidates) {
+      if (!tenantMap.has(candidate.tenantId)) {
+        tenantMap.set(candidate.tenantId, []);
+      }
+      const list = tenantMap.get(candidate.tenantId)!;
+      if (list.length < MAX_NOTIFICATIONS_PER_TENANT_PER_BATCH) {
+        list.push({ id: candidate.id, status: candidate.status, tenantId: candidate.tenantId });
+      }
+    }
+
+    const candidates: Array<{ id: bigint; status: NotificationLog['status']; tenantId: bigint }> = [];
+    for (const list of tenantMap.values()) {
+      candidates.push(...list);
+      if (candidates.length >= batchSize) break;
+    }
+
     let processed = 0;
+    const inFlight = new Set<Promise<void>>();
+    const tenantInFlight = new Map<bigint, number>();
+
     for (const candidate of candidates) {
       const claimed = await this.claim(candidate.id, candidate.status);
       if (!claimed) continue;
-      await this.attempt(candidate.id);
-      processed += 1;
+
+      const tenantId = candidate.tenantId;
+      const tenantCount = tenantInFlight.get(tenantId) ?? 0;
+
+      if (tenantCount >= MAX_CONCURRENT_PER_TENANT) continue;
+
+      tenantInFlight.set(tenantId, tenantCount + 1);
+
+      const attemptPromise = this.attempt(candidate.id)
+        .then(
+          () => {
+            processed += 1;
+          },
+          () => {},
+        )
+        .finally(() => {
+          inFlight.delete(attemptPromise);
+          const current = tenantInFlight.get(tenantId) ?? 1;
+          tenantInFlight.set(tenantId, current - 1);
+        });
+
+      inFlight.add(attemptPromise);
+
+      if (inFlight.size >= MAX_CONCURRENT_DELIVERIES) {
+        await Promise.race(inFlight);
+      }
     }
+
+    await Promise.all(inFlight);
     return { processed };
   }
 
@@ -205,16 +331,57 @@ export class NotificationService {
       } else if (log.channel === 'WHATSAPP') {
         if (this.deliveries.whatsapp === undefined)
           throw new IntegrationUnavailableError('WhatsApp não configurado.');
-        await this.deliveries.whatsapp.send(log.tenantId, log.recipient, log.body);
+        const buttons = log.whatsappButtons as unknown as Array<{ actionKey: string; label: string; enabled: boolean }> | null;
+        const hasButtons = buttons !== null && buttons.length > 0;
+        if (hasButtons && buttons.some((b) => b.enabled)) {
+          const actionKeyToButtonId = {
+            CONFIRM_APPOINTMENT: 'BOOKING_CONFIRM',
+            RESCHEDULE_APPOINTMENT: 'BOOKING_RESCHEDULE',
+            CANCEL_APPOINTMENT: 'BOOKING_CANCEL',
+          } as Record<string, string>;
+          const enabledButtons = buttons.filter((b) => b.enabled);
+          const mappedButtons = enabledButtons.map((b) => ({
+            buttonId: actionKeyToButtonId[b.actionKey as keyof typeof actionKeyToButtonId] || b.actionKey,
+            label: b.label,
+          }));
+          const result = await this.deliveries.whatsapp.sendInteractiveButtons(
+            log.tenantId,
+            log.recipient,
+            log.body,
+            mappedButtons,
+          );
+          const config = await this.client.tenantWhatsAppConfig.findUnique({
+            where: { tenantId: log.tenantId },
+            select: { phoneNumberId: true },
+          });
+          await this.client.whatsAppOutboundMessage.create({
+            data: {
+              publicId: randomUUID(),
+              tenantId: log.tenantId,
+              instanceId: config?.phoneNumberId ?? '',
+              phone: log.recipient,
+              externalMessageId: result.externalMessageId,
+              actionIds: mappedButtons.map((b) => b.buttonId),
+              status: result.status,
+              notificationLogId: log.id,
+              errorCode: result.errorCode,
+            },
+          });
+        } else {
+          await this.deliveries.whatsapp.send(log.tenantId, log.recipient, log.body);
+        }
       } else if (log.channel === 'WEBHOOK') {
         if (this.deliveries.webhook === undefined)
           throw new IntegrationUnavailableError('Webhook não configurado.');
         await this.deliveries.webhook.send(log.tenantId, log.recipient, log.body, log.publicId);
       } else {
+        const message = decodeEmailBody(log.body);
         await this.deliveries.email.send({
           to: log.recipient,
           subject: log.subject,
-          text: log.body,
+          text: message.text,
+          ...(message.html === undefined ? {} : { html: message.html }),
+          ...(message.fromName === undefined ? {} : { fromName: message.fromName }),
         });
       }
       await this.client.notificationLog.update({
@@ -263,13 +430,47 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Ícone e destino da notificação vêm do backend, que sabe qual tenant a
+   * originou — o service worker nunca precisa descobrir isso. Sem APP_ICON
+   * publicável, cai no ícone global real do Agendei.
+   */
+  private async pushBranding(tenantId: bigint): Promise<{ icon: string; url: string }> {
+    const tenant = await this.client.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        slug: true,
+        mediaAssets: {
+          where: { kind: 'APP_ICON', deletedAt: null },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (tenant === null) return { icon: FALLBACK_PUSH_ICON, url: '/' };
+    return {
+      icon:
+        tenant.mediaAssets.length > 0
+          ? `/public/sites/${tenant.slug}/app-icon-192.png`
+          : FALLBACK_PUSH_ICON,
+      url: `/public/${tenant.slug}`,
+    };
+  }
+
   private async attemptPush(log: NotificationLog): Promise<void> {
     const subscription = await this.client.pushSubscription.findFirst({
       where: { publicId: log.recipient, active: true },
     });
     if (subscription === null) throw new Error('Inscrição push não encontrada ou inativa.');
 
-    const payload = JSON.stringify({ title: log.subject, body: log.body });
+    const branding = await this.pushBranding(log.tenantId);
+    const payload = JSON.stringify({
+      title: log.subject,
+      body: log.body,
+      icon: branding.icon,
+      badge: branding.icon,
+      url: branding.url,
+    });
     try {
       await this.deliveries.push.send({
         subscription: {

@@ -1,4 +1,5 @@
 import {
+  hasCapability,
   normalizeEmail,
   type AcceptInvitationRequest,
   type AuthenticatedTenant,
@@ -10,6 +11,7 @@ import {
   type MembershipPublic,
   type PermissionCode,
   type SessionPublic,
+  type TenantCapability,
   type UpdateMembershipRequest,
 } from '@plataforma/shared';
 
@@ -67,6 +69,7 @@ function isoTenant(tenant: AuthorizedTenantContext): AuthenticatedTenant {
       timezone: tenant.timezone,
       locale: tenant.locale,
       currency: tenant.currency,
+      ...(tenant.operatingModel === undefined ? {} : { operatingModel: tenant.operatingModel }),
     },
     membership: {
       publicId: tenant.membership.publicId,
@@ -83,18 +86,30 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly delivery: AccountMessageDelivery,
     private readonly options: AuthOptions,
-    private readonly dummyPasswordHash: string,
   ) {}
 
-  public static async create(
+  /**
+   * Construção sem I/O: o hash dummy usado contra enumeração de usuários é
+   * calculado sob demanda (Argon2 leva centenas de ms e não pode atrasar o
+   * `listen()` do servidor).
+   */
+  public static create(
     repository: IdentityRepository,
     passwords: PasswordService,
     delivery: AccountMessageDelivery,
     options: AuthOptions,
-  ): Promise<AuthService> {
-    sharedDummyPasswordHash ??= passwords.hash(generateOpaqueToken());
-    const dummyPasswordHash = await sharedDummyPasswordHash;
-    return new AuthService(repository, passwords, delivery, options, dummyPasswordHash);
+  ): AuthService {
+    return new AuthService(repository, passwords, delivery, options);
+  }
+
+  /** Aquecimento opcional, disparado depois que a API já está ouvindo. */
+  public warmUp(): Promise<string> {
+    return this.dummyHash();
+  }
+
+  private dummyHash(): Promise<string> {
+    sharedDummyPasswordHash ??= this.passwords.hash(generateOpaqueToken());
+    return sharedDummyPasswordHash;
   }
 
   public async createTenantWithOwner(
@@ -129,7 +144,8 @@ export class AuthService {
   public async login(request: LoginRequest, metadata: RequestMetadata): Promise<LoginResult> {
     const normalizedEmail = normalizeEmail(request.email);
     const user = await this.repository.findUserByNormalizedEmail(normalizedEmail);
-    const passwordHash = user?.passwordHash ?? this.dummyPasswordHash;
+    // Usuário inexistente continua pagando o mesmo custo de verificação.
+    const passwordHash = user?.passwordHash ?? (await this.dummyHash());
     const passwordMatches = await this.passwords.verify(passwordHash, request.password);
 
     if (user?.status !== 'ACTIVE' || user.passwordHash === null || !passwordMatches) {
@@ -162,6 +178,80 @@ export class AuthService {
       maxActiveSessions: this.options.maxActiveSessions,
       ...metadata,
     });
+    const tenants = await this.repository.listAvailableTenants(user.id);
+    return {
+      user: { publicId: user.publicId, email: user.email, status: user.status },
+      tenants,
+      requiresTenantSelection: tenants.length !== 1,
+      rawSessionToken,
+      sessionExpiresAt: session.expiresAt,
+    };
+  }
+
+  public async loginWithGoogle(
+    googleSub: string,
+    email: string,
+    name: string | undefined,
+    metadata: RequestMetadata,
+  ): Promise<LoginResult> {
+    let user = await this.repository.findUserByGoogleSub(googleSub);
+
+    if (user === null) {
+      // Try to find by email to link existing account
+      const normalizedEmail = normalizeEmail(email);
+      user = await this.repository.findUserByNormalizedEmail(normalizedEmail);
+
+      if (user !== null && user.status === 'ACTIVE') {
+        // Link Google to existing account
+        await this.repository.linkGoogleSub(user.id, googleSub);
+      } else {
+        // Create new user
+        user = await this.repository.createGoogleUser({
+          publicId: generatePublicId(),
+          email,
+          normalizedEmail: normalizeEmail(email),
+          googleSub,
+          name: name ?? email.split('@')[0] ?? 'User',
+        });
+      }
+    }
+
+    if (user.status !== 'ACTIVE') {
+      await this.repository.recordAudit({
+        action: 'auth.login.failure',
+        targetType: 'authentication',
+        userId: user.id,
+        metadata: { reason: 'INACTIVE_USER', provider: 'GOOGLE' },
+        ...metadata,
+      });
+      throw new AppError({
+        code: 'USER_INACTIVE',
+        message: 'O acesso do usuário está bloqueado.',
+        statusCode: 403,
+      });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + this.options.sessionTtlHours * 3_600_000);
+    const rawSessionToken = generateOpaqueToken();
+    const session = await this.repository.createLoginSession({
+      userId: user.id,
+      publicId: generatePublicId(),
+      tokenHash: hashOpaqueToken(rawSessionToken),
+      expiresAt,
+      now,
+      maxActiveSessions: this.options.maxActiveSessions,
+      ...metadata,
+    });
+
+    await this.repository.recordAudit({
+      action: 'auth.login.success',
+      targetType: 'authentication',
+      userId: user.id,
+      metadata: { provider: 'GOOGLE' },
+      ...metadata,
+    });
+
     const tenants = await this.repository.listAvailableTenants(user.id);
     return {
       user: { publicId: user.publicId, email: user.email, status: user.status },
@@ -263,6 +353,23 @@ export class AuthService {
         statusCode: 403,
       });
     }
+  }
+
+  /**
+   * Capacidade do modelo operacional. A UI esconde o que não se aplica, mas quem
+   * decide é o servidor: sem a capacidade a rota recusa.
+   */
+  public requireCapability(
+    tenant: AuthorizedTenantContext,
+    capability: TenantCapability,
+  ): void {
+    const model = tenant.operatingModel ?? 'SERVICE_PRICING';
+    if (!hasCapability(model, capability))
+      throw new AppError({
+        code: 'CAPABILITY_UNAVAILABLE',
+        message: 'Este recurso não está disponível no modelo operacional atual.',
+        statusCode: 409,
+      });
   }
 
   public async me(auth: AuthRequestContext, selectedTenantId?: string) {

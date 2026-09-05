@@ -21,7 +21,7 @@ interface ScheduleInput {
 
 interface Actor {
   userId: bigint;
-  sessionId: bigint;
+  sessionId: bigint | null;
 }
 
 interface ExistingPeriod {
@@ -138,6 +138,31 @@ export class ProfessionalScheduleService {
     });
     await this.writeAudit(tenantId, actor, 'professional_schedule.updated', professional.publicId, {
       periodPublicId,
+    });
+    return this.list(tenantId, professional.publicId);
+  }
+
+  public async replace(
+    tenantId: bigint,
+    professionalPublicId: string,
+    input: ScheduleInput,
+    actor: Actor,
+  ) {
+    const professional = await this.getProfessional(tenantId, professionalPublicId);
+    const periods = input.periods;
+    this.assertNoOverlap([], periods);
+    const unitIds = await this.resolveUnitIds(tenantId, periods);
+    await this.repository.replace(
+      tenantId,
+      professional.id,
+      periods.map((period, index) => ({
+        publicId: randomUUID(), tenantId, professionalId: professional.id, weekday: period.weekday,
+        startsAt: period.startsAt, endsAt: period.endsAt, active: period.active,
+        unitId: unitIds[index] ?? null,
+      })),
+    );
+    await this.writeAudit(tenantId, actor, 'professional_schedule.replaced', professional.publicId, {
+      periodCount: periods.length,
     });
     return this.list(tenantId, professional.publicId);
   }

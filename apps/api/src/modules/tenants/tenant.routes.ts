@@ -1,11 +1,16 @@
 import {
   CreateBusinessUnitRequestSchema,
+  BusinessProfileCodeSchema,
+  OperatingModelSchema,
+  TenantSlugSchema,
   TenantContextResponseSchema,
+  TenantIdentityResponseSchema,
   TenantSettingsInputSchema,
   TenantSettingsResponseSchema,
   TenantUnitResponseSchema,
   TenantUnitsResponseSchema,
   TenantExperienceResponseSchema,
+  UpdateTenantIdentityRequestSchema,
   UpdateBusinessUnitRequestSchema,
   type TenantContextResponse,
   type TenantSettingsResponse,
@@ -16,6 +21,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { tenantContextPlugin } from './tenant-context.plugin.js';
+import { getTenantIdentity, updateTenantIdentity, updateTenantOnboarding } from './tenant-identity.service.js';
 import { type TenantExperienceResolver } from './tenant-experience.resolver.js';
 import { type TenantService } from './tenant.service.js';
 import { canAccessUnit } from './unit-scope.js';
@@ -28,7 +34,7 @@ interface TenantRoutesOptions {
   authService: AuthService;
   cookieName: string;
   experience?: TenantExperienceResolver;
-  client?: PrismaClient;
+  client: PrismaClient;
 }
 
 const EmptyQuerySchema = z.object({}).strict();
@@ -41,6 +47,17 @@ const ensureUnitAccess = (allowed: string[] | null, publicId: string) => {
     });
 };
 const UnitParamsSchema = z.object({ publicId: z.uuid() }).strict();
+const OnboardingSlugQuerySchema = z.object({ slug: TenantSlugSchema }).strict();
+const OnboardingRequestSchema = z.object({
+  step: z.string().trim().min(1).max(40),
+  completed: z.boolean().optional(),
+  hideChecklist: z.boolean().optional(),
+  businessProfile: BusinessProfileCodeSchema.optional(),
+  operatingModel: OperatingModelSchema.optional(),
+  businessTypeCustom: z.string().trim().min(2).max(120).nullable().optional(),
+  displayName: z.string().trim().min(2).max(120).optional(),
+  slug: TenantSlugSchema.optional(),
+}).strict();
 const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
   userId: r.auth.user.id,
   sessionId: r.auth.session.id,
@@ -51,6 +68,53 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     authService: options.authService,
     cookieName: options.cookieName,
     client: options.client,
+  });
+
+  app.get('/tenant/onboarding', async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    const tenant = await options.client.tenant.findUniqueOrThrow({
+      where: { id: request.tenant.id },
+      select: {
+        onboardingStep: true,
+        onboardingCompletedAt: true,
+        onboardingChecklistHiddenAt: true,
+        operatingModel: true,
+      },
+    });
+    return tenant;
+  });
+  app.patch('/tenant/onboarding', { schema: { body: OnboardingRequestSchema } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.update');
+    if (!request.tenant.membership.isOwner) throw new AppError({ code: 'PERMISSION_DENIED', message: 'Apenas o proprietário pode atualizar o onboarding.', statusCode: 403 });
+    return updateTenantOnboarding(options.client, request.tenant.id, request.body);
+  });
+  app.get('/tenant/onboarding/slug-availability', { schema: { querystring: OnboardingSlugQuerySchema } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    const conflict = await options.client.tenant.findFirst({
+      where: { slug: request.query.slug, id: { not: request.tenant.id } },
+      select: { id: true },
+    });
+    return { available: conflict === null };
+  });
+  app.get('/tenant/onboarding/checklist', async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    const [tenant, services, professionals, schedules, appointments, branding] = await Promise.all([
+      options.client.tenant.findUniqueOrThrow({ where: { id: request.tenant.id }, select: { onboardingCompletedAt: true, onboardingChecklistHiddenAt: true } }),
+      options.client.service.count({ where: { tenantId: request.tenant.id, active: true } }),
+      options.client.professional.count({ where: { tenantId: request.tenant.id, active: true } }),
+      options.client.professionalWorkSchedule.count({ where: { tenantId: request.tenant.id } }),
+      options.client.appointment.count({ where: { tenantId: request.tenant.id } }),
+      options.client.tenantBranding.count({ where: { tenantId: request.tenant.id } }),
+    ]);
+    return { hidden: tenant.onboardingChecklistHiddenAt !== null, items: [
+      { key: 'company', complete: tenant.onboardingCompletedAt !== null },
+      { key: 'branding', complete: branding > 0 },
+      { key: 'service', complete: services > 0 },
+      { key: 'professional', complete: professionals > 0 },
+      { key: 'schedule', complete: schedules > 0 },
+      { key: 'appointment', complete: appointments > 0 },
+      { key: 'share', complete: false },
+    ] };
   });
 
   app.get(
@@ -76,6 +140,41 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
       };
     },
   );
+
+  app.get('/tenant/identity', { schema: { response: { 200: TenantIdentityResponseSchema } } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    return getTenantIdentity(options.client, request.tenant.id);
+  });
+
+  app.patch('/tenant/identity', { schema: { body: UpdateTenantIdentityRequestSchema, response: { 200: TenantIdentityResponseSchema } } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.update');
+    if (!request.tenant.membership.isOwner)
+      throw new AppError({ code: 'PERMISSION_DENIED', message: 'Apenas o proprietário pode alterar a identidade do estabelecimento.', statusCode: 403 });
+    return updateTenantIdentity(options.client, request.tenant.id, request.body);
+  });
+
+  app.get('/tenant/info', async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    const tenant = await options.client.tenant.findUniqueOrThrow({
+      where: { id: request.tenant.id },
+      select: {
+        publicId: true,
+        timezone: true,
+      },
+    });
+
+    const whatsappConfig = await options.client.tenantWhatsAppConfig.findFirst({
+      where: { tenantId: request.tenant.id },
+      select: { id: true },
+    });
+
+    return {
+      publicId: tenant.publicId,
+      timezone: tenant.timezone,
+      whatsappEnabled: whatsappConfig !== null,
+      botCobraEnabled: true,
+    };
+  });
 
   const experienceResolver = options.experience;
   if (experienceResolver !== undefined) {

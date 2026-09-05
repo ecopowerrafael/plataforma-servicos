@@ -20,11 +20,16 @@ import { appointmentRoutes } from './modules/appointments/appointment.routes.js'
 import { customerAppointmentsRoutes } from './modules/appointments/customer-appointments.routes.js';
 import { customerReviewsRoutes } from './modules/appointments/customer-reviews.routes.js';
 import {
+  customerTreatmentPlanRoutes,
+  treatmentPlanRoutes,
+} from './modules/appointments/treatment-plan.routes.js';
+import {
   internalIdentityRoutes,
   protectedAuthRoutes,
   publicAuthRoutes,
 } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
+import { GoogleAuthService } from './modules/auth/google-auth.service.js';
 import { membershipRoutes } from './modules/auth/membership.routes.js';
 import {
   type AccountMessageDelivery,
@@ -33,15 +38,31 @@ import {
 import { PasswordService } from './modules/auth/password.service.js';
 import { publicBookingRoutes } from './modules/booking/public-booking.routes.js';
 import { availabilityRoutes } from './modules/calendar/availability.routes.js';
+import { collectionAttemptRoutes } from './modules/collections/collection-attempt.routes.js';
+import { collectionRuleRoutes } from './modules/collections/collection-rule.routes.js';
+import { debtRoutes } from './modules/collections/debt.routes.js';
+import { paymentPromiseRoutes } from './modules/collections/payment-promise.routes.js';
 import { customerAuthRoutes } from './modules/customers/customer-auth.routes.js';
 import { customerFavoriteRoutes } from './modules/customers/customer-favorite.routes.js';
+import { customerMembershipChargeRoutes } from './modules/customers/customer-membership-charge.routes.js';
+import { customerMembershipChargePayLocalRoutes } from './modules/customers/customer-membership-charge-paylocal.routes.js';
+import { customerMembershipPaymentRoutes } from './modules/customers/customer-membership-payment.routes.js';
+import { customerMembershipBenefitBalanceRoutes } from './modules/customers/customer-membership-benefit-balance.routes.js';
+import { customerMembershipRoutes } from './modules/customers/customer-membership.routes.js';
+import { customerMembershipPlanBenefitRoutes } from './modules/customers/customer-membership-plan-benefit.routes.js';
+import { customerMembershipPlanRoutes } from './modules/customers/customer-membership-plan.routes.js';
 import { customerRecoveryRoutes } from './modules/customers/customer-recovery.routes.js';
 import { customerRoutes } from './modules/customers/customer.routes.js';
 import { integrationRoutes } from './modules/integrations/integration.routes.js';
+import { whatsappWebhookRoutes } from './modules/integrations/whatsapp-webhook.routes.js';
 import { automationRoutes } from './modules/notifications/automation.routes.js';
 import { notificationTemplateRoutes } from './modules/notifications/notification-template.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
+import { appointmentReminderConfigRoutes } from './modules/notifications/appointment-reminder-config.routes.js';
 import { pushSubscriptionRoutes } from './modules/notifications/push-subscription.routes.js';
+import { registerProspectingRoutes } from './modules/prospecting/prospecting.routes.js';
+import { registerProspectingOperationalRoutes } from './modules/prospecting/prospecting-operational.routes.js';
+import { prospectingWhatsAppConfigRoutes } from './modules/prospecting/prospecting-whatsapp-config.routes.js';
 import { cashRegisterRoutes } from './modules/payments/cash-register.routes.js';
 import { commissionRoutes } from './modules/payments/commission.routes.js';
 import { couponRoutes } from './modules/payments/coupon.routes.js';
@@ -60,8 +81,13 @@ import { customerLoyaltyRoutes, loyaltyRoutes } from './modules/payments/loyalty
 import { paymentMethodRoutes } from './modules/payments/payment-method.routes.js';
 import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { receiptRoutes } from './modules/payments/receipt.routes.js';
+import { platformBillingWebhookRoutes } from './modules/platform/platform-billing-webhook.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
+import { wapiConfigRoutes } from './modules/platform/wapi-config.routes.js';
 import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
+import { directoryRoutes, publicDirectoryRoutes } from './modules/platform/directory.routes.js';
+import { DirectoryLocationService } from './modules/platform/directory-location.service.js';
+import { DirectoryLocationConfigService } from './modules/platform/directory-location-config.service.js';
 import { productSaleRoutes } from './modules/products/product-sale.routes.js';
 import { productRoutes } from './modules/products/product.routes.js';
 import { stockMovementRoutes } from './modules/products/stock-movement.routes.js';
@@ -91,6 +117,8 @@ import {
 import { tenantRoutes } from './modules/tenants/tenant.routes.js';
 import { TenantService } from './modules/tenants/tenant.service.js';
 import { databasePlugin } from './plugins/database.js';
+import { registerStaticWeb } from './plugins/static-web.js';
+import { OperationalTelemetry } from './observability/operational-telemetry.js';
 import { technicalRoutes } from './routes/technical.js';
 
 interface BuildAppOptions {
@@ -148,11 +176,116 @@ export async function buildApp(options: BuildAppOptions) {
     return503OnClosing: true,
   };
   const baseApp = Fastify(serverOptions);
-  registerErrorHandlers(baseApp);
   const app = baseApp.withTypeProvider<ZodTypeProvider>();
+  const telemetry = new OperationalTelemetry(options.environment.OBSERVABILITY_SLOW_REQUEST_MS);
+  const requestStartedAt = new WeakMap<object, number>();
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+
+  app.addHook('onRequest', (request, _reply, done) => {
+    telemetry.requestStarted();
+    requestStartedAt.set(request, performance.now());
+    done();
+  });
+  app.addHook('onResponse', (request, reply, done) => {
+    const startedAt = requestStartedAt.get(request);
+    const durationMilliseconds = Math.max(0, performance.now() - (startedAt ?? performance.now()));
+    const observation = telemetry.requestCompleted(reply.statusCode, durationMilliseconds);
+    if (observation.failed) {
+      request.log.error(
+        {
+          route: request.routeOptions.url,
+          statusCode: observation.statusCode,
+          durationMilliseconds: observation.durationMilliseconds,
+        },
+        'Alerta operacional: resposta HTTP 5xx.',
+      );
+    } else if (observation.slow) {
+      request.log.warn(
+        {
+          route: request.routeOptions.url,
+          statusCode: observation.statusCode,
+          durationMilliseconds: observation.durationMilliseconds,
+        },
+        'Alerta operacional: resposta HTTP lenta.',
+      );
+    }
+    done();
+  });
+
+  // Deploy single-origin (ex.: Node.js compartilhado da Hostinger): a própria
+  // API serve o frontend Vite compilado e faz o fallback SPA. Em produção isso
+  // é ligado por padrão (localizando `apps/web/dist` automaticamente, mesmo sem
+  // `WEB_DIST_DIR`); fora de produção, só quando `WEB_DIST_DIR` é definido
+  // (evita servir um `dist` antigo em desenvolvimento, onde o Vite serve à parte).
+  const shouldServeWeb =
+    options.environment.WEB_DIST_DIR !== undefined || options.environment.NODE_ENV === 'production';
+  const directory = options.database.directory;
+  const directorySeoPage =
+    directory === undefined
+      ? undefined
+      : async (path: string) => {
+          const parts = path.split('/').filter(Boolean);
+          if (parts.length === 1)
+            return {
+              title: 'Encontre serviços perto de você | Agendei',
+              description:
+                'Encontre estabelecimentos de serviços e entre em contato para solicitar seu agendamento.',
+              canonicalPath: '/encontre',
+              heading: 'Encontre serviços perto de você',
+              content:
+                'Consulte estabelecimentos, endereço e contatos para solicitar seu agendamento.',
+            };
+          const categorySlug = parts[1];
+          if (categorySlug === undefined) return null;
+          const categories = await directory.categories();
+          const category = categories.find((item) => item.slug === categorySlug);
+          if (category === undefined) return null;
+          if (parts.length === 2)
+            return {
+              title: `Encontre ${category.pluralName} | Agendei`,
+              description:
+                category.description ??
+                `Encontre ${category.pluralName.toLowerCase()} perto de você.`,
+              canonicalPath: `/encontre/${categorySlug}`,
+              heading: `Encontre ${category.pluralName}`,
+              content: `Veja estabelecimentos e cidades disponíveis no diretório Agendei.`,
+            };
+          const citySlug = parts[2];
+          if (citySlug === undefined) return null;
+          if (parts.length === 3) {
+            const city = await directory.cityBusinesses(categorySlug, citySlug, 1, 1);
+            const item = city.items[0];
+            return item === undefined
+              ? null
+              : {
+                  title: `${city.category.pluralName} em ${item.city}, ${item.state} | Agendei`,
+                  description: `Encontre ${city.category.pluralName.toLowerCase()} em ${item.city}, ${item.state}, com endereço e contatos.`,
+                  canonicalPath: `/encontre/${categorySlug}/${citySlug}`,
+                  heading: `${city.category.pluralName} em ${item.city}`,
+                  content: `Encontramos ${city.total} estabelecimentos nesta cidade.`,
+                };
+          }
+          const businessSlug = parts[3];
+          if (parts.length === 4 && businessSlug !== undefined) {
+            const business = await directory.business(categorySlug, citySlug, businessSlug);
+            return {
+              title: `${business.name} em ${business.city}, ${business.state} | Agendei`,
+              description: `Endereço e contatos de ${business.name}.`,
+              canonicalPath: `/encontre/${categorySlug}/${citySlug}/${businessSlug}`,
+              heading: business.name,
+              content: `${business.rawAddress} · ${business.city}/${business.state}`,
+            };
+          }
+          return null;
+        };
+  const spaFallback = shouldServeWeb
+    ? await registerStaticWeb(app, options.environment.WEB_DIST_DIR, {
+        ...(directorySeoPage === undefined ? {} : { directorySeoPage }),
+      })
+    : undefined;
+  registerErrorHandlers(baseApp, spaFallback === undefined ? {} : { spaFallback });
 
   await app.register(cookie);
   await app.register(multipart, {
@@ -164,6 +297,7 @@ export async function buildApp(options: BuildAppOptions) {
 
   await app.register(helmet, {
     contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   });
   await app.register(cors, {
     origin(origin, callback) {
@@ -227,14 +361,14 @@ export async function buildApp(options: BuildAppOptions) {
   });
 
   await app.register(databasePlugin, { connection: options.database });
-  await app.register(technicalRoutes);
+  await app.register(technicalRoutes, { telemetry });
   const tenantService = new TenantService(options.database.tenants);
   const passwordService = new PasswordService({
     memoryCost: options.environment.PASSWORD_ARGON2_MEMORY_COST,
     timeCost: options.environment.PASSWORD_ARGON2_TIME_COST,
     parallelism: options.environment.PASSWORD_ARGON2_PARALLELISM,
   });
-  const authService = await AuthService.create(
+  const authService = AuthService.create(
     options.database.identities,
     passwordService,
     options.messageDelivery ?? new UnconfiguredAccountMessageDelivery(),
@@ -246,8 +380,12 @@ export async function buildApp(options: BuildAppOptions) {
       appWebUrl: options.environment.APP_WEB_URL,
     },
   );
+  const googleAuth = new GoogleAuthService(
+    options.environment.GOOGLE_CLIENT_ID ?? 'NOT_CONFIGURED',
+  );
   const authRouteOptions = {
     service: authService,
+    googleAuth,
     cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
     cookieSecure: options.environment.AUTH_COOKIE_SECURE,
@@ -308,10 +446,14 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.integrations !== undefined) {
     await app.register(integrationRoutes, {
       service: options.database.integrations,
+      ...(options.database.whatsappProvisioning === undefined
+        ? {}
+        : { provisioning: options.database.whatsappProvisioning }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });
+    await app.register(whatsappWebhookRoutes, { service: options.database.integrations });
   }
   if (options.database.tenantWhiteLabel !== undefined) {
     await app.register(publicTenantWhiteLabelRoutes, {
@@ -330,6 +472,9 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
+      ...(options.database.platformBilling
+        ? { billingService: options.database.platformBilling }
+        : {}),
     });
   }
   if (options.database.publicBooking !== undefined) {
@@ -347,6 +492,10 @@ export async function buildApp(options: BuildAppOptions) {
     await app.register(customerAuthRoutes, {
       service: options.database.customerAuth,
       profileService: options.database.customerProfile,
+      googleAuth,
+      ...(options.database.customerPhotos === undefined
+        ? {}
+        : { photoService: options.database.customerPhotos }),
       cookieName: 'customer_session',
       cookieSecure: options.environment.AUTH_COOKIE_SECURE,
       sessionTtlHours: options.environment.AUTH_SESSION_TTL_HOURS,
@@ -356,6 +505,20 @@ export async function buildApp(options: BuildAppOptions) {
         service: options.database.appointments,
         authService: options.database.customerAuth,
         cookieName: 'customer_session',
+      });
+    }
+    if (
+      options.database.treatmentPlans !== undefined &&
+      options.database.appointments !== undefined
+    ) {
+      await app.register(customerTreatmentPlanRoutes, {
+        service: options.database.treatmentPlans,
+        appointments: options.database.appointments,
+        authService: options.database.customerAuth,
+        cookieName: 'customer_session',
+        ...(options.database.treatmentPlanNotifications === undefined
+          ? {}
+          : { notifications: options.database.treatmentPlanNotifications }),
       });
     }
     if (options.database.customerFavorites !== undefined) {
@@ -430,6 +593,22 @@ export async function buildApp(options: BuildAppOptions) {
         ? {}
         : { notifications: options.database.appointmentNotifications }),
     });
+  if (
+    options.database.treatmentPlans !== undefined &&
+    options.database.professionals !== undefined &&
+    options.database.appointments !== undefined
+  )
+    await app.register(treatmentPlanRoutes, {
+      service: options.database.treatmentPlans,
+      appointments: options.database.appointments,
+      professionals: options.database.professionals,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+      ...(options.database.treatmentPlanNotifications === undefined
+        ? {}
+        : { notifications: options.database.treatmentPlanNotifications }),
+    });
   if (options.database.appointmentWaitlists !== undefined)
     await app.register(appointmentWaitlistRoutes, {
       service: options.database.appointmentWaitlists,
@@ -486,6 +665,34 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });
+  if (options.database.collectionRules !== undefined)
+    await app.register(collectionRuleRoutes, {
+      service: options.database.collectionRules,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.debts !== undefined)
+    await app.register(debtRoutes, {
+      service: options.database.debts,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.paymentPromises !== undefined)
+    await app.register(paymentPromiseRoutes, {
+      service: options.database.paymentPromises,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.collectionAttempts !== undefined)
+    await app.register(collectionAttemptRoutes, {
+      service: options.database.collectionAttempts,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
   if (options.database.financialClosings !== undefined)
     await app.register(financialClosingRoutes, {
       service: options.database.financialClosings,
@@ -503,6 +710,9 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.financialReports !== undefined)
     await app.register(financialReportRoutes, {
       service: options.database.financialReports,
+      ...(options.database.financeOverview === undefined
+        ? {}
+        : { overview: options.database.financeOverview }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
@@ -529,6 +739,9 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.notifications !== undefined)
     await app.register(notificationRoutes, {
       service: options.database.notifications,
+      ...(options.database.notificationCampaigns === undefined
+        ? {}
+        : { campaigns: options.database.notificationCampaigns }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
@@ -536,6 +749,13 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.notificationTemplates !== undefined)
     await app.register(notificationTemplateRoutes, {
       service: options.database.notificationTemplates,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.appointmentReminderConfig !== undefined)
+    await app.register(appointmentReminderConfigRoutes, {
+      service: options.database.appointmentReminderConfig,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
@@ -554,6 +774,27 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });
+  if (options.database.prospecting !== undefined)
+    await app.register(registerProspectingRoutes, {
+      service: options.database.prospecting,
+      platformService: options.database.platform!,
+      authService: authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+      audienceService: options.database.prospectingAudience!,
+      repository: options.database.prospectingRepository!,
+    });
+  if (options.database.prospecting !== undefined)
+    await app.register(registerProspectingOperationalRoutes, {
+      platformService: options.database.platform!,
+      authService: authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.prospectingWhatsAppConfig !== undefined)
+    await app.register(prospectingWhatsAppConfigRoutes, {
+      service: options.database.prospectingWhatsAppConfig,
+    });
   if (options.database.customerRecovery !== undefined)
     await app.register(customerRecoveryRoutes, {
       service: options.database.customerRecovery,
@@ -568,6 +809,34 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });
+  await app.register(customerMembershipRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipChargeRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipChargePayLocalRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipPaymentRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipBenefitBalanceRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipPlanRoutes, {
+    authService,
+    client: options.database.client,
+  });
+  await app.register(customerMembershipPlanBenefitRoutes, {
+    authService,
+    client: options.database.client,
+  });
   if (options.database.serviceCategories !== undefined) {
     await app.register(serviceCategoryRoutes, {
       service: options.database.serviceCategories,
@@ -604,6 +873,7 @@ export async function buildApp(options: BuildAppOptions) {
     await app.register(professionalRoutes, {
       service: options.database.professionals,
       authService,
+      passwords: passwordService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });
@@ -622,9 +892,11 @@ export async function buildApp(options: BuildAppOptions) {
       unavailabilities: options.database.professionalUnavailabilities,
       professionalServices: options.database.professionalServices,
       availability: options.database.availability,
+      passwords: passwordService,
       ...(options.database.commissions === undefined
         ? {}
         : { commissions: options.database.commissions }),
+      ...(options.database.payments === undefined ? {} : { payments: options.database.payments }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
@@ -663,6 +935,37 @@ export async function buildApp(options: BuildAppOptions) {
     client: options.database.client,
   });
   if (options.database.platform !== undefined) {
+    if (options.database.directory !== undefined) {
+      const directoryLocationConfigService = new DirectoryLocationConfigService(
+        options.database.client,
+        options.environment.GEOAPIFY_API_KEY,
+        options.environment.PAYMENT_GATEWAY_ENCRYPTION_KEY,
+      );
+      app.decorate('directoryLocationConfigService', directoryLocationConfigService);
+
+      const locationService = new DirectoryLocationService(options.database.client, {
+        geoapifyApiKeyProvider: () => directoryLocationConfigService.getGeoapifyApiKey(),
+        localMinResults: options.environment.DIRECTORY_LOCAL_MIN_RESULTS,
+      });
+
+      await app.register(publicDirectoryRoutes, {
+        service: options.database.directory,
+        locationService,
+        ...(options.environment.INDEXNOW_KEY === undefined
+          ? {}
+          : { indexNowKey: options.environment.INDEXNOW_KEY }),
+      });
+      await app.register(directoryRoutes, {
+        service: options.database.directory,
+        locationService,
+        platformService: options.database.platform,
+        authService,
+        cookieName: options.environment.AUTH_COOKIE_NAME,
+        ...(options.database.directorySeo === undefined
+          ? {}
+          : { seo: options.database.directorySeo }),
+      });
+    }
     if (options.database.commercialPolicy !== undefined) {
       await app.register(publicCommercialRoutes, {
         service: options.database.platform,
@@ -672,12 +975,60 @@ export async function buildApp(options: BuildAppOptions) {
     await app.register(platformRoutes, {
       service: options.database.platform,
       authService,
+      passwordService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       ...(options.database.commercialPolicy === undefined
         ? {}
         : { commercialPolicyService: options.database.commercialPolicy }),
+      ...(options.database.platformBilling
+        ? { billingService: options.database.platformBilling }
+        : {}),
+      ...(options.database.integrations
+        ? { integrationsService: options.database.integrations }
+        : {}),
+      ...(options.database.whatsappProvisioning
+        ? { whatsappProvisioningService: options.database.whatsappProvisioning }
+        : {}),
+      ...(options.database.tenantWhiteLabel
+        ? { whiteLabelService: options.database.tenantWhiteLabel }
+        : {}),
+      ...(options.database.services ? { serviceService: options.database.services } : {}),
+      ...(options.database.serviceCategories
+        ? { serviceCategoryService: options.database.serviceCategories }
+        : {}),
+      ...(options.database.professionals
+        ? { professionalService: options.database.professionals }
+        : {}),
+      ...(options.database.professionalUnits
+        ? { professionalUnitLinkService: options.database.professionalUnits }
+        : {}),
+      ...(options.database.businessUnitOperatingHours
+        ? { businessUnitOperatingHoursService: options.database.businessUnitOperatingHours }
+        : {}),
+      ...(options.database.professionalSchedules
+        ? { professionalScheduleService: options.database.professionalSchedules }
+        : {}),
+      ...(options.database.professionalUnavailabilities
+        ? { professionalUnavailabilityService: options.database.professionalUnavailabilities }
+        : {}),
+      ...(options.database.businessUnitDateOverrides
+        ? { businessUnitDateOverridesService: options.database.businessUnitDateOverrides }
+        : {}),
+      ...(options.database.combos
+        ? { comboService: options.database.combos }
+        : {}),
+      tenantService,
     });
   }
+  if (options.database.platformBilling)
+    await app.register(platformBillingWebhookRoutes, { service: options.database.platformBilling });
+  if (options.database.wapiConfig && options.database.platform)
+    await app.register(wapiConfigRoutes, {
+      wapiConfigService: options.database.wapiConfig,
+      platformService: options.database.platform,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
 
   return app;
 }

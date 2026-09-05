@@ -22,6 +22,23 @@ export function formatWhen(startsAtIso: string, timeZone: string): string {
   }
 }
 
+export function formatAppointmentDate(startsAtIso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    timeZone,
+  }).format(new Date(startsAtIso));
+}
+
+export function formatAppointmentTime(startsAtIso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone,
+  }).format(new Date(startsAtIso));
+}
+
 export class AppointmentNotificationService {
   public constructor(
     private readonly client: PrismaClient,
@@ -46,16 +63,27 @@ export class AppointmentNotificationService {
         where: { tenantId, publicId: appointment.customerPublicId },
         select: { id: true },
       }),
-      this.client.tenant.findUnique({ where: { id: tenantId }, select: { timezone: true } }),
+      this.client.tenant.findUnique({
+        where: { id: tenantId },
+        select: { timezone: true, currency: true },
+      }),
     ]);
     if (customer === null) return;
 
+    const timeZone = tenant?.timezone ?? 'UTC';
     await this.dispatcher.dispatch(tenantId, customer.id, kind, appointment.publicId, {
       customerName: appointment.customerName,
       protocol: appointment.protocol,
-      serviceName: appointment.serviceName,
+      serviceName: appointment.serviceName ?? '',
       professionalName: appointment.professionalName,
-      when: formatWhen(appointment.startsAt, tenant?.timezone ?? 'UTC'),
+      when: formatWhen(appointment.startsAt, timeZone),
+      date: formatAppointmentDate(appointment.startsAt, timeZone),
+      time: formatAppointmentTime(appointment.startsAt, timeZone),
+      unitName: appointment.unitName ?? '',
+      value: (Number(appointment.priceCents) / 100).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: tenant?.currency ?? 'BRL',
+      }),
       canceledReasonLine:
         appointment.canceledReason === null ? '' : `\nMotivo: ${appointment.canceledReason}`,
     });

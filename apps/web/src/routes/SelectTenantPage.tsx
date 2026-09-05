@@ -28,7 +28,9 @@ export function SelectTenantPage() {
             key={tenant.publicId}
             onClick={() => {
               selectTenant(tenant.publicId);
-              void navigate('/app');
+              void navigate(
+                membership.roleCode === 'PROFESSIONAL' ? `/public/${tenant.slug}/profissional` : '/app',
+              );
             }}
           >
             <strong>{tenant.displayName}</strong>

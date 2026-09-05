@@ -5,21 +5,30 @@ import {
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { z } from 'zod';
 
-import { httpClient } from '../../lib/http.js';
-import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { PlanEditForm, type PlanFormSubmission } from './PlanEditForm.js';
+import {
+  ErrorState,
+  formatCycle,
+  formatDate,
+  formatMoney,
+  PageHeader,
+  Pagination,
+  StatusBadge,
+} from './PlatformUi.js';
+import { httpClient, HttpError } from '../../lib/http.js';
+import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 
-const PlanDetailResponseSchema = z.object({ plan: CommercialPlanPublicSchema });
-
-function displayLimitValue(limit: z.infer<typeof CommercialPlanPublicSchema>['limits'][number]) {
-  if (limit.integerValue !== null) return limit.integerValue;
-  if (limit.booleanValue !== null) return String(limit.booleanValue);
-  return limit.stringValue ?? '';
-}
-
-export function PlanModule() {
+const PlanResponse = z.object({ plan: CommercialPlanPublicSchema });
+export function PlanModule({
+  planPublicId,
+  onOpen,
+}: {
+  planPublicId: string | undefined;
+  onOpen: (id: string) => void;
+}) {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [billingCycle, setBillingCycle] = useState('');
@@ -27,141 +36,204 @@ export function PlanModule() {
   const [orderBy, setOrderBy] = useState('createdAt');
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
   const [selected, setSelected] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const selectedId = planPublicId ?? selected;
+  const [editor, setEditor] = useState<'create' | 'edit' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const client = useQueryClient();
   const plans = useQuery({
     queryKey: ['platform', 'plans', page, status, billingCycle, visibility, orderBy, direction],
     queryFn: () => {
-      const query = new URLSearchParams({
-        page: String(page),
-        limit: '10',
-        orderBy,
-        direction,
-      });
-      if (status !== '') query.set('status', status);
-      if (billingCycle !== '') query.set('billingCycle', billingCycle);
-      if (visibility !== '') query.set('isPublic', visibility);
-      return httpClient.request(`/platform/plans?${query.toString()}`, {
+      const q = new URLSearchParams({ page: String(page), limit: '10', orderBy, direction });
+      if (status) q.set('status', status);
+      if (billingCycle) q.set('billingCycle', billingCycle);
+      if (visibility) q.set('isPublic', visibility);
+      return httpClient.request(`/platform/plans?${q.toString()}`, {
         schema: PlanListResponseSchema,
       });
     },
     retry: false,
   });
   const detail = useQuery({
-    queryKey: ['platform', 'plan', selected],
+    queryKey: ['platform', 'plan', selectedId],
     queryFn: () =>
-      httpClient.request(`/platform/plans/${selected ?? ''}`, { schema: PlanDetailResponseSchema }),
-    enabled: selected !== null,
+      httpClient.request(`/platform/plans/${selectedId ?? ''}`, { schema: PlanResponse }),
+    enabled: selectedId !== null,
     retry: false,
   });
   const mutation = useMutation({
-    mutationFn: ({
-      url,
-      body,
-      method = 'POST',
-      schema = z.looseObject({}),
-    }: {
+    mutationFn: (input: {
       url: string;
+      method?: 'POST' | 'PATCH' | 'DELETE';
       body?: unknown;
-      method?: 'POST' | 'PATCH';
       schema?: z.ZodType;
-    }) => httpClient.request(url, { method, ...(body === undefined ? {} : { body }), schema }),
+    }) =>
+      httpClient.request(input.url, {
+        method: input.method ?? 'POST',
+        ...(input.body === undefined ? {} : { body: input.body }),
+        schema: input.schema ?? SuccessResponseSchema,
+      }),
     onSuccess: async () => {
-      setNotice('Opera\u00e7\u00e3o conclu\u00edda com sucesso.');
+      setNotice('Operação concluída com sucesso.');
+      setEditor(null);
       await Promise.all([
         client.invalidateQueries({ queryKey: ['platform', 'plans'] }),
-        client.invalidateQueries({ queryKey: ['platform', 'plan', selected] }),
+        client.invalidateQueries({ queryKey: ['platform', 'plan', selectedId] }),
       ]);
     },
   });
-  const createPlan = async (value: PlanFormSubmission) => {
-    const result = await mutation.mutateAsync({
-      url: '/platform/plans',
-      body: value,
-      schema: PlanDetailResponseSchema,
-    });
-    const parsed = PlanDetailResponseSchema.parse(result);
-    setSelected(parsed.plan.publicId);
-    setCreating(false);
+  const save = async (value: PlanFormSubmission) => {
+    if (editor === 'create') {
+      const result = PlanResponse.parse(
+        await mutation.mutateAsync({ url: '/platform/plans', body: value, schema: PlanResponse }),
+      );
+      onOpen(result.plan.publicId);
+    } else if (selectedId) {
+      await mutation.mutateAsync({
+        url: `/platform/plans/${selectedId}`,
+        method: 'PATCH',
+        body: value,
+        schema: PlanResponse,
+      });
+    }
   };
-  const updatePlan = async (value: PlanFormSubmission) => {
-    if (selected === null) return;
-    const body = {
-      name: value.name,
-      subtitle: value.subtitle ?? null,
-      shortDescription: value.shortDescription ?? null,
-      description: value.description,
-      billingCycle: value.billingCycle,
-      priceCents: value.priceCents,
-      currency: value.currency,
-      trialDays: value.trialDays ?? null,
-      isPublic: value.isPublic,
-      highlighted: value.highlighted,
-      badge: value.badge ?? null,
-      ctaText: value.ctaText ?? null,
-      sortOrder: value.sortOrder,
-      limits: value.limits,
-    };
-    await mutation.mutateAsync({
-      url: `/platform/plans/${selected}`,
-      body,
-      method: 'PATCH',
-      schema: PlanDetailResponseSchema,
-    });
-  };
-  const requestAction = (
-    label: string,
-    suffix: 'activate' | 'deactivate' | 'archive',
-    description: string,
-  ) => {
-    if (selected === null) return;
+  const action = (label: string, suffix: 'activate' | 'deactivate' | 'archive' | 'delete') => {
+    if (!selectedId) return;
     setConfirmation({
-      title: `${label}?`,
-      description,
+      title: `${label} plano?`,
+      description:
+        suffix === 'delete'
+          ? 'Esta ação é permanente e somente será aceita se o plano nunca foi utilizado.'
+          : 'A disponibilidade comercial do plano será atualizada.',
       confirmLabel: label,
       requiresReason: false,
-      variant: suffix === 'archive' ? 'danger' : 'default',
+      variant: suffix === 'activate' ? 'default' : 'danger',
       onConfirm: async () => {
         await mutation.mutateAsync({
-          url: `/platform/plans/${selected}/${suffix}`,
-          schema: SuccessResponseSchema,
+          url:
+            suffix === 'delete'
+              ? `/platform/plans/${selectedId}`
+              : `/platform/plans/${selectedId}/${suffix}`,
+          ...(suffix === 'delete' ? { method: 'DELETE' as const } : {}),
         });
       },
     });
   };
-
+  const selectedPlan = detail.data?.plan;
+  if (planPublicId) {
+    return (
+      <section className="platform-detail-page plan-detail-page">
+        <nav aria-label="Trilha" className="platform-breadcrumb">
+          <Link to="/platform/plans">Planos</Link>
+          <span aria-hidden="true">›</span>
+          <span>Editar plano</span>
+        </nav>
+        {detail.isPending ? (
+          <i className="platform-skeleton" />
+        ) : detail.error instanceof Error ? (
+          <ErrorState
+            message={detail.error.message}
+            retry={() => {
+              void detail.refetch();
+            }}
+          />
+        ) : selectedPlan ? (
+          <>
+            {notice ? <p className="success-message">{notice}</p> : null}
+            <PlanEditForm
+              busy={mutation.isPending}
+              error={mutation.error instanceof Error ? mutation.error.message : null}
+              plan={selectedPlan}
+              statusBadge={<StatusBadge value={selectedPlan.status} />}
+              statusActions={
+                <>
+                  {selectedPlan.status === 'ACTIVE' ? (
+                    <button
+                      onClick={() => {
+                        action('Desativar', 'deactivate');
+                      }}
+                      type="button"
+                    >
+                      Desativar plano
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        action('Ativar', 'activate');
+                      }}
+                      type="button"
+                    >
+                      Ativar plano
+                    </button>
+                  )}
+                  <button
+                    className="button--danger"
+                    onClick={() => {
+                      action('Excluir', 'delete');
+                    }}
+                    type="button"
+                  >
+                    Excluir plano
+                  </button>
+                </>
+              }
+              onSave={save}
+            />
+          </>
+        ) : null}
+        {confirmation ? (
+          <ConfirmationDialog
+            request={confirmation}
+            onClose={() => {
+              setConfirmation(null);
+            }}
+          />
+        ) : null}
+      </section>
+    );
+  }
   return (
-    <section aria-labelledby="plan-title">
-      <p className="eyebrow">{'Gest\u00e3o comercial'}</p>
-      <h2 id="plan-title">Planos</h2>
-      {notice !== null && <p className="success-message">{notice}</p>}
-      <div className="form-actions">
-        <button
-          onClick={() => {
-            setCreating((current) => !current);
-          }}
-          type="button"
-        >
-          {creating ? 'Fechar cria\u00e7\u00e3o' : 'Criar plano'}
-        </button>
-      </div>
-      {creating && (
-        <PlanEditForm
-          busy={mutation.isPending}
-          error={mutation.error instanceof Error ? mutation.error.message : null}
-          onSave={createPlan}
-        />
-      )}
-      <div className="platform-form">
+    <section>
+      <PageHeader
+        title="Planos"
+        description="Gerencie precos, ciclos, limites e disponibilidade comercial."
+        action={
+          <button
+            onClick={() => {
+              setEditor('create');
+            }}
+            type="button"
+          >
+            + Criar plano
+          </button>
+        }
+      />
+      {notice ? <p className="success-message">{notice}</p> : null}
+      {mutation.error instanceof Error ? (
+        <div className="platform-action-error">
+          <p>{mutation.error.message}</p>
+          {mutation.error instanceof HttpError &&
+          mutation.error.code === 'PLAN_IN_USE' &&
+          selectedPlan?.status === 'ACTIVE' ? (
+            <button
+              onClick={() => {
+                action('Desativar', 'deactivate');
+              }}
+              type="button"
+            >
+              Desativar plano
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="platform-filter-bar">
         <label>
           Status
           <select
             value={status}
-            onChange={(event) => {
+            onChange={(e) => {
               setPage(1);
-              setStatus(event.target.value);
+              setStatus(e.target.value);
             }}
           >
             <option value="">Todos</option>
@@ -174,54 +246,52 @@ export function PlanModule() {
           Ciclo
           <select
             value={billingCycle}
-            onChange={(event) => {
+            onChange={(e) => {
               setPage(1);
-              setBillingCycle(event.target.value);
+              setBillingCycle(e.target.value);
             }}
           >
             <option value="">Todos</option>
-            <option value="MONTHLY">Mensal</option>
-            <option value="QUARTERLY">Trimestral</option>
-            <option value="SEMIANNUAL">Semestral</option>
-            <option value="ANNUAL">Anual</option>
-            <option value="CUSTOM">Personalizado</option>
+            {['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'].map((c) => (
+              <option key={c} value={c}>
+                {formatCycle(c)}
+              </option>
+            ))}
           </select>
         </label>
         <label>
           Visibilidade
           <select
             value={visibility}
-            onChange={(event) => {
+            onChange={(e) => {
               setPage(1);
-              setVisibility(event.target.value);
+              setVisibility(e.target.value);
             }}
           >
             <option value="">Todas</option>
-            <option value="true">{'P\u00fablico'}</option>
+            <option value="true">Publico</option>
             <option value="false">Interno</option>
           </select>
         </label>
         <label>
-          Ordenar por
+          Ordenar
           <select
             value={orderBy}
-            onChange={(event) => {
-              setPage(1);
-              setOrderBy(event.target.value);
+            onChange={(e) => {
+              setOrderBy(e.target.value);
             }}
           >
-            <option value="createdAt">{'Cria\u00e7\u00e3o'}</option>
+            <option value="createdAt">Criacao</option>
             <option value="name">Nome</option>
             <option value="status">Status</option>
           </select>
         </label>
         <label>
-          {'Dire\u00e7\u00e3o'}
+          Direcao
           <select
             value={direction}
-            onChange={(event) => {
-              setPage(1);
-              setDirection(event.target.value as 'asc' | 'desc');
+            onChange={(e) => {
+              setDirection(e.target.value as 'asc' | 'desc');
             }}
           >
             <option value="desc">Decrescente</option>
@@ -230,166 +300,254 @@ export function PlanModule() {
         </label>
       </div>
       {plans.isPending ? (
-        <p>{'Carregando planos\u2026'}</p>
+        <div className="platform-table-skeleton">
+          <i className="platform-skeleton" />
+          <i className="platform-skeleton" />
+        </div>
       ) : plans.error instanceof Error ? (
-        <p className="form-error">{'N\u00e3o foi poss\u00edvel carregar os planos.'}</p>
-      ) : plans.data === undefined || plans.data.items.length === 0 ? (
-        <p>Nenhum plano encontrado.</p>
+        <ErrorState
+          message={plans.error.message}
+          retry={() => {
+            void plans.refetch();
+          }}
+        />
+      ) : !plans.data?.items.length ? (
+        <div className="platform-empty">
+          <h3>Nenhum plano encontrado</h3>
+          <p>Tente alterar os filtros ou crie um novo plano.</p>
+        </div>
       ) : (
         <>
-          <div className="data-list">
-            {plans.data.items.map((plan) => (
+          <div className="platform-table-wrap">
+            <table className="platform-table platform-plan-table">
+              <thead>
+                <tr>
+                  <th>Plano</th>
+                  <th>Cobranca</th>
+                  <th>Visibilidade</th>
+                  <th>Status</th>
+                  <th>Atualizado</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plans.data.items.map((plan) => (
+                  <tr
+                    key={plan.publicId}
+                    onClick={() => {
+                      onOpen(plan.publicId);
+                    }}
+                  >
+                    <td>
+                      <strong>{plan.name}</strong>
+                      <span>{plan.code}</span>
+                      <span>{plan.shortDescription ?? plan.description ?? 'Sem descricao'}</span>
+                    </td>
+                    <td>
+                      <strong>{formatMoney(plan.priceCents, plan.currency)}</strong>
+                      <span>
+                        {plan.billingOptions
+                          .filter((o) => o.active)
+                          .map((o) => formatCycle(o.billingCycle))
+                          .join(' · ') || formatCycle(plan.billingCycle)}
+                      </span>
+                    </td>
+                    <td>{plan.isPublic ? 'Publico' : 'Interno'}</td>
+                    <td>
+                      <StatusBadge value={plan.status} />
+                    </td>
+                    <td>{formatDate(plan.updatedAt)}</td>
+                    <td>
+                      <button
+                        aria-label={`Editar ${plan.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpen(plan.publicId);
+                        }}
+                        type="button"
+                      >
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            page={page}
+            totalPages={plans.data.page.totalPages}
+            total={plans.data.page.total}
+            limit={plans.data.page.limit}
+            onPage={setPage}
+          />
+        </>
+      )}
+      {selectedPlan ? (
+        <Drawer
+          close={() => {
+            setSelected(null);
+          }}
+        >
+          <header className="platform-detail-heading">
+            <div>
+              <h3>{selectedPlan.name}</h3>
+              <span>{selectedPlan.code}</span>
+            </div>
+            <StatusBadge value={selectedPlan.status} />
+          </header>
+          <p>{selectedPlan.description ?? 'Sem descricao.'}</p>
+          <dl className="platform-details">
+            <div>
+              <dt>Visibilidade</dt>
+              <dd>{selectedPlan.isPublic ? 'Publico' : 'Interno'}</dd>
+            </div>
+            <div>
+              <dt>Criado em</dt>
+              <dd>{formatDate(selectedPlan.createdAt, true)}</dd>
+            </div>
+            <div>
+              <dt>Atualizado em</dt>
+              <dd>{formatDate(selectedPlan.updatedAt, true)}</dd>
+            </div>
+            {selectedPlan.trialDays !== null ? (
+              <div>
+                <dt>Periodo de teste</dt>
+                <dd>{selectedPlan.trialDays} dias</dd>
+              </div>
+            ) : null}
+          </dl>
+          <h4>Cobranca</h4>
+          <div className="platform-option-grid">
+            {(selectedPlan.billingOptions.filter((o) => o.active).length
+              ? selectedPlan.billingOptions.filter((o) => o.active)
+              : [
+                  {
+                    publicId: 'legacy',
+                    billingCycle: selectedPlan.billingCycle,
+                    priceCents: selectedPlan.priceCents,
+                    active: true,
+                    sortOrder: 0,
+                    recommended: true,
+                  },
+                ]
+            ).map((o) => (
+              <article key={o.publicId}>
+                <strong>{formatCycle(o.billingCycle)}</strong>
+                <span>{formatMoney(o.priceCents, selectedPlan.currency)}</span>
+                {o.recommended ? <small>Recomendado</small> : null}
+              </article>
+            ))}
+          </div>
+          <h4>Limites e recursos</h4>
+          <ul className="platform-resource-list">
+            {selectedPlan.limits.map((limit) => (
+              <li key={limit.key}>
+                <span>{friendlyLimit(limit.key)}</span>
+                <strong>
+                  {limit.booleanValue !== null
+                    ? limit.booleanValue
+                      ? 'Incluido'
+                      : 'Nao incluido'
+                    : (limit.integerValue ?? 'Ilimitado')}
+                </strong>
+              </li>
+            ))}
+          </ul>
+          <div className="form-actions">
+            <button
+              onClick={() => {
+                setEditor('edit');
+              }}
+              type="button"
+            >
+              Editar
+            </button>
+            {selectedPlan.status === 'ACTIVE' ? (
               <button
-                className="data-row"
-                key={plan.publicId}
                 onClick={() => {
-                  setSelected(plan.publicId);
-                  setCreating(false);
+                  action('Desativar', 'deactivate');
                 }}
                 type="button"
               >
-                <span>{plan.name}</span>
-                <span>{plan.code}</span>
-                <span>{plan.description ?? 'Sem descri\u00e7\u00e3o'}</span>
-                <span>{plan.status}</span>
-                <span>{`${plan.priceCents} ${plan.currency}`}</span>
-                <span>{`${plan.billingCycle} · ${String(plan.trialDays)} dias`}</span>
-                <span>{plan.isPublic ? 'P\u00fablico' : 'Interno'}</span>
-                <span>{`${String(plan.limits.length)} limites`}</span>
+                Desativar
               </button>
-            ))}
-          </div>
-          <div className="form-actions">
+            ) : (
+              <button
+                onClick={() => {
+                  action('Ativar', 'activate');
+                }}
+                type="button"
+              >
+                Ativar
+              </button>
+            )}
             <button
-              disabled={page <= 1}
               onClick={() => {
-                setPage(page - 1);
+                action('Excluir', 'delete');
               }}
               type="button"
             >
-              Anterior
-            </button>
-            <span>{`P\u00e1gina ${String(plans.data.page.page)} de ${String(plans.data.page.totalPages)}`}</span>
-            <button
-              disabled={page >= plans.data.page.totalPages}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-              type="button"
-            >
-              {'Pr\u00f3xima'}
+              Excluir
             </button>
           </div>
-        </>
-      )}
-      {detail.data !== undefined && (
-        <article className="sessions-panel">
-          <h3>{detail.data.plan.name}</h3>
-          <dl className="platform-details">
-            <div>
-              <dt>{'C\u00f3digo'}</dt>
-              <dd>{detail.data.plan.code}</dd>
-            </div>
-            <div>
-              <dt>{'Descri\u00e7\u00e3o'}</dt>
-              <dd>{detail.data.plan.description ?? 'Sem descri\u00e7\u00e3o'}</dd>
-            </div>
-            <div>
-              <dt>{'Pre\u00e7o'}</dt>
-              <dd>{`${detail.data.plan.priceCents} ${detail.data.plan.currency}`}</dd>
-            </div>
-            <div>
-              <dt>Ciclo</dt>
-              <dd>{detail.data.plan.billingCycle}</dd>
-            </div>
-            <div>
-              <dt>Trial</dt>
-              <dd>{`${String(detail.data.plan.trialDays)} dias`}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{detail.data.plan.status}</dd>
-            </div>
-            <div>
-              <dt>Visibilidade</dt>
-              <dd>{detail.data.plan.isPublic ? 'P\u00fablico' : 'Interno'}</dd>
-            </div>
-            <div>
-              <dt>{'Cria\u00e7\u00e3o'}</dt>
-              <dd>{detail.data.plan.createdAt}</dd>
-            </div>
-            <div>
-              <dt>{'Atualiza\u00e7\u00e3o'}</dt>
-              <dd>{detail.data.plan.updatedAt}</dd>
-            </div>
-          </dl>
-          <h4>Limites configurados</h4>
-          {detail.data.plan.limits.length === 0 ? (
-            <p>Nenhum limite configurado.</p>
-          ) : (
-            <ul>
-              {detail.data.plan.limits.map((limit) => (
-                <li key={limit.key}>{`${limit.key}: ${displayLimitValue(limit)}`}</li>
-              ))}
-            </ul>
-          )}
+        </Drawer>
+      ) : null}
+      {editor ? (
+        <Drawer
+          close={() => {
+            setEditor(null);
+          }}
+        >
           <PlanEditForm
             busy={mutation.isPending}
             error={mutation.error instanceof Error ? mutation.error.message : null}
-            plan={detail.data.plan}
-            onSave={updatePlan}
+            {...(editor === 'edit' && selectedPlan ? { plan: selectedPlan } : {})}
+            onSave={save}
           />
-          <div className="form-actions">
-            <button
-              disabled={mutation.isPending || detail.data.plan.status !== 'INACTIVE'}
-              onClick={() => {
-                requestAction(
-                  'Ativar',
-                  'activate',
-                  'O plano voltar\u00e1 a ficar dispon\u00edvel.',
-                );
-              }}
-              type="button"
-            >
-              Ativar
-            </button>
-            <button
-              disabled={mutation.isPending || detail.data.plan.status !== 'ACTIVE'}
-              onClick={() => {
-                requestAction(
-                  'Desativar',
-                  'deactivate',
-                  'O plano deixar\u00e1 de aceitar novas contrata\u00e7\u00f5es.',
-                );
-              }}
-              type="button"
-            >
-              Desativar
-            </button>
-            <button
-              disabled={mutation.isPending || detail.data.plan.status === 'ARCHIVED'}
-              onClick={() => {
-                requestAction(
-                  'Arquivar',
-                  'archive',
-                  'O plano ser\u00e1 arquivado e n\u00e3o poder\u00e1 ser usado em novas assinaturas.',
-                );
-              }}
-              type="button"
-            >
-              Arquivar
-            </button>
-          </div>
-        </article>
-      )}
-      {confirmation !== null && (
+        </Drawer>
+      ) : null}
+      {confirmation ? (
         <ConfirmationDialog
           request={confirmation}
           onClose={() => {
             setConfirmation(null);
           }}
         />
-      )}
+      ) : null}
     </section>
   );
 }
+function Drawer({ children, close }: { children: React.ReactNode; close: () => void }) {
+  return (
+    <>
+      <button className="platform-backdrop" aria-label="Fechar" onClick={close} type="button" />
+      <aside className="platform-drawer platform-drawer--detail" role="dialog" aria-modal="true">
+        <button className="platform-drawer-close" aria-label="Fechar" onClick={close} type="button">
+          ×
+        </button>
+        {children}
+      </aside>
+    </>
+  );
+}
+const labels: Record<string, string> = {
+  'units.max': 'Unidades',
+  'professionals.max': 'Profissionais',
+  'members.max': 'Membros da equipe',
+  'services.max': 'Serviços',
+  'monthly_appointments.max': 'Agendamentos mensais',
+  'branding.customization.enabled': 'Personalização da marca',
+  'custom_domain.enabled': 'Domínio próprio',
+  'advanced_reports.enabled': 'Relatórios avançados',
+  'products.enabled': 'Produtos',
+  'stock.enabled': 'Estoque',
+  'commissions.enabled': 'Comissões',
+  'waitlist.enabled': 'Lista de espera',
+  'automations.enabled': 'Automações',
+  'whatsapp.enabled': 'WhatsApp',
+  'integrations.enabled': 'Integrações',
+  'loyalty.enabled': 'Fidelidade',
+  'coupons.enabled': 'Cupons',
+};
+export const friendlyLimit = (key: string) => labels[key] ?? key;

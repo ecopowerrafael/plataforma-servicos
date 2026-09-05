@@ -10,6 +10,7 @@ import {
   type TimeFormat,
 } from '@plataforma/shared';
 
+import { PlanEntitlementService } from './plan-entitlement.service.js';
 import {
   type BusinessUnitAuditEntry,
   type CreateTenantPersistenceInput,
@@ -34,6 +35,9 @@ const businessUnitSelect = {
   city: true,
   state: true,
   countryCode: true,
+  latitude: true,
+  longitude: true,
+  googleMapsUrl: true,
 } as const;
 
 function toPrismaTimeFormat(value: TimeFormat): 'H24' | 'H12' {
@@ -132,6 +136,9 @@ export class PrismaTenantRepository implements TenantRepository {
               city: input.initialUnit.city,
               state: input.initialUnit.state,
               countryCode: input.initialUnit.countryCode,
+              latitude: input.initialUnit.latitude,
+              longitude: input.initialUnit.longitude,
+              googleMapsUrl: input.initialUnit.googleMapsUrl,
             },
             select: {
               publicId: true,
@@ -148,6 +155,9 @@ export class PrismaTenantRepository implements TenantRepository {
               city: true,
               state: true,
               countryCode: true,
+              latitude: true,
+              longitude: true,
+              googleMapsUrl: true,
             },
           });
 
@@ -230,25 +240,31 @@ export class PrismaTenantRepository implements TenantRepository {
     input: BusinessUnitInput,
   ): Promise<BusinessUnit> {
     try {
-      const unit = await this.client.businessUnit.create({
-        data: {
-          publicId: randomUUID(),
-          tenantId,
-          name: input.name,
-          slug: input.slug,
-          status: 'ACTIVE',
-          isHeadquarters: false,
-          timezone: input.timezone ?? tenantTimezone,
-          postalCode: input.postalCode ?? null,
-          street: input.street ?? null,
-          number: input.number ?? null,
-          complement: input.complement ?? null,
-          district: input.district ?? null,
-          city: input.city ?? null,
-          state: input.state ?? null,
-          countryCode: input.countryCode ?? null,
-        },
-        select: businessUnitSelect,
+      const unit = await this.client.$transaction(async (transaction) => {
+        await new PlanEntitlementService().assertCanCreateUnit(transaction, tenantId);
+        return transaction.businessUnit.create({
+          data: {
+            publicId: randomUUID(),
+            tenantId,
+            name: input.name,
+            slug: input.slug,
+            status: 'ACTIVE',
+            isHeadquarters: false,
+            timezone: input.timezone ?? tenantTimezone,
+            postalCode: input.postalCode ?? null,
+            street: input.street ?? null,
+            number: input.number ?? null,
+            complement: input.complement ?? null,
+            district: input.district ?? null,
+            city: input.city ?? null,
+            state: input.state ?? null,
+            countryCode: input.countryCode ?? null,
+            latitude: input.latitude ?? null,
+            longitude: input.longitude ?? null,
+            googleMapsUrl: input.googleMapsUrl ?? null,
+          },
+          select: businessUnitSelect,
+        });
       });
 
       return BusinessUnitSchema.parse(unit);
@@ -287,6 +303,9 @@ export class PrismaTenantRepository implements TenantRepository {
           city: input.city ?? null,
           state: input.state ?? null,
           countryCode: input.countryCode ?? null,
+          latitude: input.latitude ?? null,
+          longitude: input.longitude ?? null,
+          googleMapsUrl: input.googleMapsUrl ?? null,
         },
         select: businessUnitSelect,
       });
@@ -331,6 +350,10 @@ export class PrismaTenantRepository implements TenantRepository {
     if (target === null) return null;
 
     const unit = await this.client.$transaction(async (transaction) => {
+      // Serializa a troca de matriz por tenant sem depender de índices por expressão.
+      await transaction.$queryRaw`
+        SELECT id FROM tenants WHERE id = ${tenantId} FOR UPDATE
+      `;
       await transaction.businessUnit.updateMany({
         where: { tenantId, isHeadquarters: true },
         data: { isHeadquarters: false },

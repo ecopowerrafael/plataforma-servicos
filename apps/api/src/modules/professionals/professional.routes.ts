@@ -12,15 +12,19 @@ import { type ProfessionalService } from './professional.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PasswordService } from '../auth/password.service.js';
+import { type AuthorizedTenantContext } from '../auth/identity.repository.js';
 import { validateServiceImageUpload } from '../services/service-image.storage.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 interface Options {
   service: ProfessionalService;
   authService: AuthService;
+  passwords: PasswordService;
   cookieName: string;
   client?: PrismaClient;
 }
 const params = z.object({ publicId: z.uuid() }).strict();
+const ImageVariantQuerySchema = z.object({ variant: z.enum(['original', 'thumbnail']).default('original') }).strict();
 const query = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
@@ -39,6 +43,15 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     cookieName: options.cookieName,
     client: options.client,
   });
+  const ownProfessional = async (r: { tenant: AuthorizedTenantContext; auth: { user: { id: bigint } }; params: { publicId: string } }) => {
+    if (r.tenant.membership.permissions.includes('professional.image.manage')) {
+      options.authService.requirePermission(r.tenant, 'professional.image.manage');
+      return;
+    }
+    options.authService.requirePermission(r.tenant, 'professional.self.update');
+    if ((await options.service.me(r.tenant.id, r.auth.user.id)).publicId !== r.params.publicId)
+      throw new AppError({ code: 'PROFESSIONAL_NOT_FOUND', message: 'Profissional não encontrado.', statusCode: 404 });
+  };
   app.get(
     '/tenant/professionals',
     { schema: { querystring: query, response: { 200: ProfessionalListResponseSchema } } },
@@ -70,7 +83,7 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     },
     async (r, reply) => {
       options.authService.requirePermission(r.tenant, 'professional.create');
-      return reply.status(201).send(await options.service.create(r.tenant.id, r.body, actor(r)));
+      return reply.status(201).send(await options.service.create(r.tenant.id, r.body, actor(r), options.passwords));
     },
   );
   app.patch(
@@ -85,6 +98,33 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     (r) => {
       options.authService.requirePermission(r.tenant, 'professional.update');
       return options.service.update(r.tenant.id, r.params.publicId, r.body, actor(r));
+    },
+  );
+  app.put(
+    '/tenant/professionals/:publicId/password',
+    {
+      schema: {
+        params,
+        body: z.object({
+          password: z.string().min(8),
+          passwordConfirmation: z.string().min(8),
+        }).refine(d => d.password === d.passwordConfirmation, {
+          message: 'Senhas não conferem.',
+          path: ['passwordConfirmation'],
+        }).strict(),
+        response: { 200: z.object({ success: z.boolean() }) },
+      },
+    },
+    async (r) => {
+      options.authService.requirePermission(r.tenant, 'professional.update');
+      await options.service.changePassword(
+        r.tenant.id,
+        r.params.publicId,
+        r.body.password,
+        options.passwords,
+        actor(r),
+      );
+      return { success: true };
     },
   );
   for (const [path, active] of [
@@ -104,7 +144,7 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     '/tenant/professionals/:publicId/photo',
     { schema: { params, response: { 200: ProfessionalPublicSchema } } },
     async (r) => {
-      options.authService.requirePermission(r.tenant, 'professional.image.manage');
+      await ownProfessional(r);
       const upload = await r.file();
       if (upload === undefined)
         throw new AppError({
@@ -121,16 +161,17 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
     '/tenant/professionals/:publicId/photo',
     { schema: { params, response: { 200: ProfessionalPublicSchema } } },
     (r) => {
-      options.authService.requirePermission(r.tenant, 'professional.image.manage');
-      return options.service.removePhoto(r.tenant.id, r.params.publicId, actor(r));
+      return ownProfessional(r).then(() => options.service.removePhoto(r.tenant.id, r.params.publicId, actor(r)));
     },
   );
-  app.get('/tenant/professionals/:publicId/photo', { schema: { params } }, async (r, reply) => {
-    options.authService.requirePermission(r.tenant, 'professional.read');
-    const photo = await options.service.photo(r.tenant.id, r.params.publicId);
+  app.get('/tenant/professionals/:publicId/photo', { schema: { params, querystring: ImageVariantQuerySchema } }, async (r, reply) => {
+    if (r.tenant.membership.permissions.includes('professional.read')) options.authService.requirePermission(r.tenant, 'professional.read');
+    else await ownProfessional(r);
+    const photo = await options.service.photo(r.tenant.id, r.params.publicId, r.query.variant);
     return reply
       .header('Cache-Control', 'private, max-age=300')
       .type(photo.mimeType)
       .send(photo.buffer);
   });
+
 };

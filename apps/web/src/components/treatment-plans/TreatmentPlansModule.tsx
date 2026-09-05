@@ -1,11 +1,13 @@
 import { TreatmentPlanListResponseSchema, type TreatmentPlanPublic } from '@plataforma/shared';
-import { IconChevronRight, IconPhone, IconSearch } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
+import { IconChevronRight, IconPhone, IconSearch, IconEdit, IconCalendar } from '@tabler/icons-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { getTreatmentPlansLabels } from './treatment-plans-labels.js';
 import { TreatmentPlanFollowUpSection } from './TreatmentPlanFollowUpSection.js';
+import { TreatmentPlanEditDialog } from './TreatmentPlanEditDialog.js';
+import { TreatmentPlanScheduleSessionDialog } from './TreatmentPlanScheduleSessionDialog.js';
 import { formatMoneyCents, formatShortDate } from '../customers/customer-crm.js';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader } from '../ui/AppUi.js';
@@ -260,6 +262,18 @@ export function TreatmentPlansModule({
 }
 
 function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const canEdit = plan.status === 'PENDING';
+  const canScheduleSession =
+    (plan.status === 'APPROVED' && plan.sessionsCompleted === 0) ||
+    (plan.status === 'IN_PROGRESS' && plan.sessionsCompleted < plan.sessionsPlanned);
+
+  const refetchPlan = () => {
+    queryClient.invalidateQueries({ queryKey: ['treatmentPlans'] });
+  };
+
   return (
     <section className="treatment-plan-detail">
       <button type="button" className="back-button" onClick={onBack}>
@@ -275,6 +289,31 @@ function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBa
           {STATUS_LABELS[plan.status]}
         </span>
       </header>
+
+      {(canEdit || canScheduleSession) && (
+        <div className="detail-actions-top">
+          {canEdit && (
+            <button
+              type="button"
+              className="action-button primary"
+              onClick={() => setShowEditDialog(true)}
+            >
+              <IconEdit size={18} />
+              Editar orçamento
+            </button>
+          )}
+          {canScheduleSession && (
+            <button
+              type="button"
+              className="action-button primary"
+              onClick={() => setShowScheduleDialog(true)}
+            >
+              <IconCalendar size={18} />
+              {plan.sessionsCompleted === 0 ? 'Agendar primeira sessão' : 'Agendar próxima sessão'}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="detail-grid">
         <div className="detail-section">
@@ -367,9 +406,31 @@ function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBa
           className="action-button secondary"
           onClick={onBack}
         >
-          Voltar
+          ← Voltar
         </button>
       </div>
+
+      {showEditDialog && (
+        <TreatmentPlanEditDialog
+          plan={plan}
+          onClose={() => setShowEditDialog(false)}
+          onSuccess={() => {
+            setShowEditDialog(false);
+            refetchPlan();
+          }}
+        />
+      )}
+
+      {showScheduleDialog && (
+        <TreatmentPlanScheduleSessionDialog
+          plan={plan}
+          onClose={() => setShowScheduleDialog(false)}
+          onSuccess={() => {
+            setShowScheduleDialog(false);
+            refetchPlan();
+          }}
+        />
+      )}
     </section>
   );
 }

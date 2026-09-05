@@ -300,24 +300,30 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
     availability.data?.slots.filter((slot) => slot.state === 'AVAILABLE') ?? [];
 
   const booking = useMutation({
-    mutationFn: () =>
-      httpClient.request(`/public/sites/${slug}/bookings`, {
-        method: 'POST',
-        body: {
-          unitPublicId: unitPublicId === '' ? null : unitPublicId,
-          servicePublicId: servicePublicId === '' ? null : servicePublicId,
-          comboPublicId: comboPublicId === '' ? null : comboPublicId,
-          professionalPublicId,
-          startsAt: selectedSlot,
-          notes: notes.trim() === '' ? null : notes.trim(),
-          customer: {
-            name: effectiveName.trim(),
-            phone: effectivePhone.trim() === '' ? null : effectivePhone.trim(),
-            email: effectiveEmail.trim() === '' ? null : effectiveEmail.trim(),
-          },
+    mutationFn: () => {
+      const body: Record<string, unknown> = {
+        professionalPublicId,
+        startsAt: selectedSlot,
+        notes: notes.trim() === '' ? null : notes.trim(),
+        customer: {
+          name: effectiveName.trim(),
+          phone: effectivePhone.trim() === '' ? null : effectivePhone.trim(),
+          email: effectiveEmail.trim() === '' ? null : effectiveEmail.trim(),
         },
+      };
+      if (unitPublicId !== '') body.unitPublicId = unitPublicId;
+      // XOR: exactly one of servicePublicId or comboPublicId
+      if (servicePublicId !== '') {
+        body.servicePublicId = servicePublicId;
+      } else if (comboPublicId !== '') {
+        body.comboPublicId = comboPublicId;
+      }
+      return httpClient.request(`/public/sites/${slug}/bookings`, {
+        method: 'POST',
+        body,
         schema: PublicBookingConfirmationSchema,
-      }),
+      });
+    },
     onSuccess: async () => {
       sessionStorage.removeItem(storageKey);
       // A conta é criada depois do agendamento, com os dados já informados.

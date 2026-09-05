@@ -174,6 +174,17 @@ export class AvailabilityService {
       dayOfWeek,
       schedule,
     );
+    console.log('[AVAILABILITY_SERVICE_DEBUG]', {
+      servicePublicId: input.servicePublicId,
+      professionalPublicId: input.professionalPublicId,
+      unitPublicId: input.unitPublicId ?? null,
+      date: input.date,
+      timezone: context.timezone,
+      blockedMinutes,
+      scheduleFound: schedule.length,
+      effectiveScheduleFound: effectiveSchedule.length,
+      appointmentsLoaded: appointments.length,
+    });
     const slots = effectiveSchedule.flatMap((period) => {
       const start = timeMinutes(period.startsAt);
       const end = timeMinutes(period.endsAt);
@@ -494,6 +505,19 @@ export class AvailabilityService {
       dayOfWeek,
       schedule,
     );
+    console.log('[AVAILABILITY_COMBO_DEBUG]', {
+      comboPublicId: input.comboPublicId,
+      professionalPublicId: input.professionalPublicId,
+      unitPublicId: input.unitPublicId ?? null,
+      date: input.date,
+      timezone: context.timezone,
+      blockedMinutes,
+      durationMinutes: timing.durationMinutes,
+      postServiceBreakMinutes: timing.postServiceBreakMinutes,
+      scheduleFound: schedule.length,
+      effectiveScheduleFound: effectiveSchedule.length,
+      appointmentsLoaded: appointments.length,
+    });
     const slots = effectiveSchedule.flatMap((period) => {
       const start = timeMinutes(period.startsAt);
       const end = timeMinutes(period.endsAt);

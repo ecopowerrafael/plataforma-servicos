@@ -376,6 +376,10 @@ export class TenantWhiteLabelService {
         return total + duration + breakTime;
       }, 0);
     };
+    // Filter combos: exclude those with any inactive service items
+    const validCombos = tenant.combos.filter((combo) =>
+      combo.items.every((item) => item.service.active === true),
+    );
     return PublicTenantSiteResponseSchema.parse({
       publicId: tenant.publicId,
       slug: tenant.slug,
@@ -408,7 +412,7 @@ export class TenantWhiteLabelService {
             ? null
             : `/public/professionals/${professional.publicId}/image?variant=thumbnail`,
       })),
-      combos: tenant.combos.map((combo) => ({
+      combos: validCombos.map((combo) => ({
         publicId: combo.publicId,
         name: combo.name,
         description: combo.description,

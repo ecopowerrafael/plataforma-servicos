@@ -234,6 +234,7 @@ export class TenantWhiteLabelRepository {
                     durationMinutes: true,
                     hasPostServiceBreak: true,
                     postServiceBreakMinutes: true,
+                    active: true,
                   },
                 },
               },

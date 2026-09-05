@@ -8,6 +8,7 @@ import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
 import '../../notification-campaign.css';
+import '../../styles/marketing.css';
 
 const kindLabels: Record<string, string> = {
   'appointment.booking_confirmed': 'Novo agendamento confirmado',
@@ -220,7 +221,7 @@ export function EmailTemplateModule({
   const emailTemplates = templates.data?.items.filter((entry) => emailKinds.includes(entry.kind)) ?? [];
 
   return (
-    <section className="notification-campaign" aria-label="E-mails automáticos">
+    <section className="notification-campaign email-templates--redesigned" aria-label="E-mails automáticos">
       <div className="notification-template-header">
         <h2>E-mails automáticos</h2>
         <p>Personalize os e-mails enviados automaticamente aos seus clientes.</p>

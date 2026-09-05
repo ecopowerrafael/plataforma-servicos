@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
+import '../../styles/marketing.css';
 
 const formatMoney = (cents: number) => `R$ ${(cents / 100).toFixed(2)}`;
 
@@ -81,7 +82,7 @@ export function CouponsModule({
   });
 
   return (
-    <section className="platform-form coupon-module" aria-label="Cupons de desconto">
+    <section className="platform-form coupon-module coupon-module--redesigned" aria-label="Cupons de desconto">
       <div className="module-header">
         <div><p className="eyebrow">Marketing</p><h3>Cupons de desconto</h3><p>Crie incentivos para primeira compra, retorno e campanhas.</p></div>
         {canManage && <button type="button" className="primary-button" onClick={() => { setIsCreatorOpen(true); }}>Novo cupom</button>}

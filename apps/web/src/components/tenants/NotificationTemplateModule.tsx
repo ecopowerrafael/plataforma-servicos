@@ -8,6 +8,7 @@ import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
 import '../../notification-campaign.css';
+import '../../styles/marketing.css';
 
 const kindLabels: Record<string, string> = {
   'customer.recovery.inactive': 'Cliente inativo',
@@ -144,7 +145,7 @@ export function NotificationTemplateModule({
   ) ?? [];
 
   return (
-    <section className="notification-campaign" aria-label="Modelos de marketing">
+    <section className="notification-campaign notification-templates--redesigned" aria-label="Modelos de marketing">
       <div className="notification-template-header">
         <h2>Modelos de marketing</h2>
         <p>Personalize as mensagens de relacionamento e recuperação de clientes.</p>

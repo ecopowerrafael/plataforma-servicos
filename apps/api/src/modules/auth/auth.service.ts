@@ -188,6 +188,80 @@ export class AuthService {
     };
   }
 
+  public async loginWithGoogle(
+    googleSub: string,
+    email: string,
+    name: string | undefined,
+    metadata: RequestMetadata,
+  ): Promise<LoginResult> {
+    let user = await this.repository.findUserByGoogleSub(googleSub);
+
+    if (user === null) {
+      // Try to find by email to link existing account
+      const normalizedEmail = normalizeEmail(email);
+      user = await this.repository.findUserByNormalizedEmail(normalizedEmail);
+
+      if (user !== null && user.status === 'ACTIVE') {
+        // Link Google to existing account
+        await this.repository.linkGoogleSub(user.id, googleSub);
+      } else {
+        // Create new user
+        user = await this.repository.createGoogleUser({
+          publicId: generatePublicId(),
+          email,
+          normalizedEmail: normalizeEmail(email),
+          googleSub,
+          name: name ?? email.split('@')[0] ?? 'User',
+        });
+      }
+    }
+
+    if (user.status !== 'ACTIVE') {
+      await this.repository.recordAudit({
+        action: 'auth.login.failure',
+        targetType: 'authentication',
+        userId: user.id,
+        metadata: { reason: 'INACTIVE_USER', provider: 'GOOGLE' },
+        ...metadata,
+      });
+      throw new AppError({
+        code: 'USER_INACTIVE',
+        message: 'O acesso do usuário está bloqueado.',
+        statusCode: 403,
+      });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + this.options.sessionTtlHours * 3_600_000);
+    const rawSessionToken = generateOpaqueToken();
+    const session = await this.repository.createLoginSession({
+      userId: user.id,
+      publicId: generatePublicId(),
+      tokenHash: hashOpaqueToken(rawSessionToken),
+      expiresAt,
+      now,
+      maxActiveSessions: this.options.maxActiveSessions,
+      ...metadata,
+    });
+
+    await this.repository.recordAudit({
+      action: 'auth.login.success',
+      targetType: 'authentication',
+      userId: user.id,
+      metadata: { provider: 'GOOGLE' },
+      ...metadata,
+    });
+
+    const tenants = await this.repository.listAvailableTenants(user.id);
+    return {
+      user: { publicId: user.publicId, email: user.email, status: user.status },
+      tenants,
+      requiresTenantSelection: tenants.length !== 1,
+      rawSessionToken,
+      sessionExpiresAt: session.expiresAt,
+    };
+  }
+
   public async authenticate(rawToken: string | undefined): Promise<AuthRequestContext> {
     if (rawToken === undefined || rawToken.length < 32) {
       throw new AppError({

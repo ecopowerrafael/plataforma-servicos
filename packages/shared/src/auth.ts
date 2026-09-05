@@ -208,6 +208,11 @@ export const LoginResponseSchema = z.object({
   tenants: z.array(AvailableTenantSchema),
   requiresTenantSelection: z.boolean(),
 });
+
+export const GoogleAuthRequestSchema = z
+  .object({ credential: z.string().min(1).max(10000) })
+  .strict();
+export const GoogleAuthResponseSchema = LoginResponseSchema;
 export const AuthMeResponseSchema = LoginResponseSchema.extend({
   session: SessionPublicSchema,
   currentTenant: AuthenticatedTenantSchema.nullable(),

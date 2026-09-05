@@ -233,6 +233,49 @@ export class PrismaIdentityRepository implements IdentityRepository {
     return user === null ? null : mapUser(user);
   }
 
+  public async findUserByGoogleSub(googleSub: string): Promise<AuthUserRecord | null> {
+    const user = await this.client.user.findUnique({
+      where: { googleSub },
+      select: userSelect,
+    });
+    return user === null ? null : mapUser(user);
+  }
+
+  public async linkGoogleSub(userId: bigint, googleSub: string): Promise<void> {
+    try {
+      await this.client.user.update({
+        where: { id: userId },
+        data: { googleSub },
+      });
+    } catch (error) {
+      return conflict(error);
+    }
+  }
+
+  public async createGoogleUser(input: {
+    publicId: string;
+    email: string;
+    normalizedEmail: string;
+    googleSub: string;
+    name: string;
+  }): Promise<AuthUserRecord> {
+    try {
+      const user = await this.client.user.create({
+        data: {
+          publicId: input.publicId,
+          email: input.email,
+          normalizedEmail: input.normalizedEmail,
+          googleSub: input.googleSub,
+          status: 'ACTIVE',
+        },
+        select: userSelect,
+      });
+      return mapUser(user);
+    } catch (error) {
+      return conflict(error);
+    }
+  }
+
   public async createLoginSession(input: CreateLoginSessionInput): Promise<AuthSessionRecord> {
     for (let attempt = 1; attempt <= 5; attempt += 1) {
       try {

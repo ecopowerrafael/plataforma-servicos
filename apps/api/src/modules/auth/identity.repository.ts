@@ -143,9 +143,20 @@ export class IdentityConflictError extends Error {
   }
 }
 
+export interface GoogleUserInput {
+  publicId: string;
+  email: string;
+  normalizedEmail: string;
+  googleSub: string;
+  name: string;
+}
+
 export interface IdentityRepository {
   createTenantWithOwner(input: CreateTenantOwnerInput): Promise<CreateTenantWithOwnerResponse>;
   findUserByNormalizedEmail(normalizedEmail: string): Promise<AuthUserRecord | null>;
+  findUserByGoogleSub(googleSub: string): Promise<AuthUserRecord | null>;
+  linkGoogleSub(userId: bigint, googleSub: string): Promise<void>;
+  createGoogleUser(input: GoogleUserInput): Promise<AuthUserRecord>;
   createLoginSession(input: CreateLoginSessionInput): Promise<AuthSessionRecord>;
   updatePasswordHash(userId: bigint, passwordHash: string): Promise<void>;
   findSessionByTokenHash(tokenHash: string): Promise<AuthSessionRecord | null>;

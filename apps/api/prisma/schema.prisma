@@ -1141,6 +1141,7 @@ model User {
   email                         String                    @db.VarChar(254)
   normalizedEmail               String                    @unique @map("normalized_email") @db.VarChar(254)
   passwordHash                  String?                   @map("password_hash") @db.VarChar(255)
+  googleSub                     String?                   @unique @map("google_sub") @db.VarChar(255)
   status                        UserStatus                @default(INVITED)
   emailVerifiedAt               DateTime?                 @map("email_verified_at") @db.DateTime(3)
   lastLoginAt                   DateTime?                 @map("last_login_at") @db.DateTime(3)

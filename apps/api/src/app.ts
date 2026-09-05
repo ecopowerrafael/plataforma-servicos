@@ -29,6 +29,7 @@ import {
   publicAuthRoutes,
 } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
+import { GoogleAuthService } from './modules/auth/google-auth.service.js';
 import { membershipRoutes } from './modules/auth/membership.routes.js';
 import {
   type AccountMessageDelivery,
@@ -378,8 +379,12 @@ export async function buildApp(options: BuildAppOptions) {
       appWebUrl: options.environment.APP_WEB_URL,
     },
   );
+  const googleAuth = new GoogleAuthService(
+    options.environment.GOOGLE_CLIENT_ID ?? 'NOT_CONFIGURED',
+  );
   const authRouteOptions = {
     service: authService,
+    googleAuth,
     cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
     cookieSecure: options.environment.AUTH_COOKIE_SECURE,

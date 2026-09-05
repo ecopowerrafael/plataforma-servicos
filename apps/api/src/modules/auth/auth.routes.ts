@@ -9,6 +9,8 @@ import {
   CreateTenantWithOwnerResponseSchema,
   ForgotPasswordRequestSchema,
   ForgotPasswordResponseSchema,
+  GoogleAuthRequestSchema,
+  GoogleAuthResponseSchema,
   LoginRequestSchema,
   LoginResponseSchema,
   PublicRegistrationRequestSchema,
@@ -26,12 +28,14 @@ import { z } from 'zod';
 
 import { type AuthService } from './auth.service.js';
 import { authenticationPlugin } from './authentication.plugin.js';
+import { GoogleAuthService } from './google-auth.service.js';
 import { requestMetadata } from './request-context.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
 interface AuthRoutesOptions {
   service: AuthService;
+  googleAuth: GoogleAuthService;
   client: PrismaClient;
   cookieName: string;
   cookieSecure: boolean;
@@ -130,6 +134,30 @@ export const publicAuthRoutes: FastifyPluginCallbackZod<AuthRoutesOptions> = (
     },
     async (request, reply) => {
       const result = await options.service.login(request.body, requestMetadata(request));
+      reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
+      return {
+        user: result.user,
+        tenants: result.tenants,
+        requiresTenantSelection: result.requiresTenantSelection,
+      };
+    },
+  );
+
+  app.post(
+    '/auth/google',
+    {
+      config: rateLimitConfig(options),
+      schema: { body: GoogleAuthRequestSchema, response: { 200: GoogleAuthResponseSchema } },
+    },
+    async (request, reply) => {
+      const body = request.body as { credential: string };
+      const payload = options.googleAuth.validateIdToken(body.credential);
+      const result = await options.service.loginWithGoogle(
+        payload.sub,
+        payload.email,
+        payload.name,
+        requestMetadata(request),
+      );
       reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
       return {
         user: result.user,

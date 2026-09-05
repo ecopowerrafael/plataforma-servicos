@@ -42,6 +42,7 @@ const environmentSchema = z
     OBSERVABILITY_SLOW_REQUEST_MS: z.coerce.number().int().min(1).max(120_000).default(1_000),
     APP_WEB_URL: z.url().default('http://localhost:5173'),
     PUBLIC_BASE_DOMAIN: z.string().trim().toLowerCase().optional(),
+    GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
     GOOGLE_SEARCH_CONSOLE_SITE_URL: z.string().trim().min(1).optional(),
     GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON: z.string().trim().min(2).optional(),
     GOOGLE_SEARCH_CONSOLE_ACCESS_TOKEN: z.string().trim().min(1).optional(),

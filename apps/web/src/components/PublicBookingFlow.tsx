@@ -197,7 +197,15 @@ function ProfessionalStep({
   );
 }
 
-function DateStep({ date, onSelect }: { date: string; onSelect: (date: string) => void }) {
+function DateStep({
+  date,
+  onSelect,
+  availableDates,
+}: {
+  date: string;
+  onSelect: (date: string) => void;
+  availableDates: { isPending: boolean; data?: { dates: string[] } };
+}) {
   const dates = useMemo(
     () =>
       Array.from({ length: 21 }, (_, index) => {
@@ -218,23 +226,35 @@ function DateStep({ date, onSelect }: { date: string; onSelect: (date: string) =
         {dateFromIso(date).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
       </div>
       <div className="booking-date-strip" role="list" aria-label="Próximas datas">
-        {dates.map((item) => {
-          const value = isoFromDate(item);
-          return (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={date === value}
-              onClick={() => {
-                onSelect(value);
-              }}
-            >
-              <span>{item.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
-              <strong>{item.getDate()}</strong>
-              <small>{item.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</small>
-            </button>
-          );
-        })}
+        {availableDates.isPending ? (
+          <span style={{ gridColumn: '1 / -1', padding: '12px', textAlign: 'center' }}>
+            Carregando datas...
+          </span>
+        ) : availableDates.data?.dates.length === 0 ? (
+          <span style={{ gridColumn: '1 / -1', padding: '12px', textAlign: 'center' }}>
+            Não há horários disponíveis nos próximos 30 dias.
+          </span>
+        ) : (
+          dates.map((item) => {
+            const value = isoFromDate(item);
+            const isAvailable = availableDates.data?.dates.includes(value) ?? false;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={date === value}
+                disabled={!isAvailable}
+                onClick={() => {
+                  onSelect(value);
+                }}
+              >
+                <span>{item.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+                <strong>{item.getDate()}</strong>
+                <small>{item.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</small>
+              </button>
+            );
+          })
+        )}
       </div>
       <details className="booking-calendar-disclosure">
         <summary>Ver calendário</summary>
@@ -985,6 +1005,7 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
             <DateStep
               date={date}
               onSelect={selectDate}
+              availableDates={availableDates}
             />
           ) : null}
           {step === 'time' ? (

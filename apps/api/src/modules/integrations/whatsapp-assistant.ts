@@ -6,6 +6,7 @@
 /** Ações do menu principal. A ordem também define o índice usado na resposta. */
 export const MAIN_MENU_ACTIONS = [
   { actionId: 'MAIN_MENU_BOOK', label: 'Agendar horário' },
+  { actionId: 'MAIN_MENU_TREATMENTS', label: 'Meus tratamentos' },
   { actionId: 'MAIN_MENU_QUERY', label: 'Consultar agendamento' },
   { actionId: 'MAIN_MENU_RESCHEDULE', label: 'Reagendar' },
   { actionId: 'MAIN_MENU_CANCEL', label: 'Cancelar agendamento' },
@@ -21,6 +22,15 @@ export const BOOKING_ACTIONS = [
   { actionId: 'BOOKING_DIRECTIONS', label: 'Como chegar' },
   { actionId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' },
 ] as const;
+
+export const TREATMENT_ACTIONS = [
+  { actionId: 'TREATMENT_APPROVE', label: 'Aprovar orçamento' },
+  { actionId: 'TREATMENT_SCHEDULE_FIRST', label: 'Agendar primeira sessão' },
+  { actionId: 'TREATMENT_SCHEDULE_NEXT', label: 'Agendar próxima sessão' },
+  { actionId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' },
+] as const;
+
+export type TreatmentActionId = (typeof TREATMENT_ACTIONS)[number]['actionId'];
 
 /** Inatividade que encerra a sessão. Calculado na próxima mensagem, sem cron. */
 export const CONVERSATION_TIMEOUT_MINUTES = 30;

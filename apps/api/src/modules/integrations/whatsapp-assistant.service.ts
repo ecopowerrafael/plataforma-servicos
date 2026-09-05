@@ -240,6 +240,58 @@ export class WhatsAppAssistantService {
       await this.approveTreatment(input, conversation, phone, input.actionId.slice('TREATMENT_APPROVE:'.length));
       return { replied: true, conversationPublicId: conversation.publicId };
     }
+    if (input.actionId?.startsWith('TREATMENT_SCHEDULE:') === true) {
+      const treatmentPublicId = input.actionId.slice('TREATMENT_SCHEDULE:'.length);
+      await this.repository.updateConversation(conversation.id, {
+        currentFlow: 'TREATMENT_BOOKING',
+        currentStep: 'DATE_SELECTION',
+        context: { treatmentPublicId },
+      });
+      await this.showTreatmentDates(input, conversation.id, phone, treatmentPublicId);
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.actionId?.startsWith('TREATMENT_DATE:') === true) {
+      const parts = input.actionId.slice('TREATMENT_DATE:'.length).split(':');
+      const treatmentPublicId = parts[0];
+      const date = parts[1];
+      if (treatmentPublicId !== undefined && date !== undefined) {
+        await this.repository.updateConversation(conversation.id, {
+          currentFlow: 'TREATMENT_BOOKING',
+          currentStep: 'TIME_SELECTION',
+          context: { treatmentPublicId, date },
+        });
+        await this.showTreatmentTimes(input, conversation.id, phone, treatmentPublicId, date);
+      }
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.actionId?.startsWith('TREATMENT_TIME:') === true) {
+      const parts = input.actionId.slice('TREATMENT_TIME:'.length).split(':');
+      const treatmentPublicId = parts[0];
+      const startsAt = parts[1];
+      if (treatmentPublicId !== undefined && startsAt !== undefined) {
+        await this.repository.updateConversation(conversation.id, {
+          currentFlow: 'TREATMENT_BOOKING',
+          currentStep: 'CONFIRMATION',
+          context: { treatmentPublicId, startsAt },
+        });
+        await this.showTreatmentConfirmation(input, conversation.id, phone, treatmentPublicId, startsAt);
+      }
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.actionId?.startsWith('TREATMENT_CONFIRM:') === true) {
+      const parts = input.actionId.slice('TREATMENT_CONFIRM:'.length).split(':');
+      const treatmentPublicId = parts[0];
+      const startsAtEncoded = parts[1];
+      if (treatmentPublicId !== undefined && startsAtEncoded !== undefined) {
+        await this.repository.updateConversation(conversation.id, {
+          currentFlow: 'TREATMENT_BOOKING',
+          currentStep: 'CONFIRMING',
+          context: { treatmentPublicId, startsAtEncoded },
+        });
+        await this.confirmTreatmentSession(input, conversation, phone, treatmentPublicId, startsAtEncoded);
+      }
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
     if (input.actionId?.startsWith('BOOKING_CREATE_SERVICE:') === true) {
       await this.selectBookingService(
         input,
@@ -1560,6 +1612,229 @@ export class WhatsAppAssistantService {
     return actionId;
   }
 
+  private async showTreatmentDates(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversationId: bigint,
+    phone: string,
+    treatmentPublicId: string,
+  ): Promise<void> {
+    if (this.treatmentPlans === undefined || this.availability === undefined) return;
+
+    const plan = await this.treatmentPlans.get(input.tenantId, treatmentPublicId);
+    if (plan === null) return;
+
+    const today = new Date();
+    const startDate = plan.recommendedNextDate !== null ? new Date(plan.recommendedNextDate) : today;
+
+    // Simplified: offer next 5 available dates in time window
+    const dates: string[] = [];
+    for (let i = 0; i < 30 && dates.length < 5; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const isoDate = date.toISOString().slice(0, 10);
+      try {
+        const availability = await this.availability.available(input.tenantId, {
+          professionalPublicId: plan.professionalPublicId,
+          servicePublicId: plan.servicePublicId,
+          date: isoDate,
+        });
+        if ((availability.slots ?? []).length > 0) {
+          dates.push(isoDate);
+        }
+      } catch {
+        // Date has no availability
+      }
+    }
+
+    if (dates.length === 0) {
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        'Desculpa, não há datas disponíveis nos próximos 30 dias.',
+        [{ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' }],
+        conversationId,
+      );
+      return;
+    }
+
+    const buttons = dates.slice(0, 3).map((date) => ({
+      buttonId: `TREATMENT_DATE:${treatmentPublicId}:${date}`,
+      label: new Date(`${date}T12:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }),
+    }));
+
+    buttons.push({ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' });
+
+    await this.dispatchCustomButtons(
+      input,
+      phone,
+      'Escolha uma data para sua sessão:',
+      buttons,
+      conversationId,
+    );
+  }
+
+  private async showTreatmentTimes(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversationId: bigint,
+    phone: string,
+    treatmentPublicId: string,
+    date: string,
+  ): Promise<void> {
+    if (this.treatmentPlans === undefined || this.availability === undefined) return;
+
+    const plan = await this.treatmentPlans.get(input.tenantId, treatmentPublicId);
+    if (plan === null) return;
+
+    try {
+      const availability = await this.availability.available(input.tenantId, {
+        professionalPublicId: plan.professionalPublicId,
+        servicePublicId: plan.servicePublicId,
+        date,
+      });
+
+      const available = (availability.slots ?? []).filter((s) => s.state === 'AVAILABLE');
+
+      if (available.length === 0) {
+        await this.dispatchCustomButtons(
+          input,
+          phone,
+          'Nenhum horário disponível neste dia. Escolha outra data.',
+          [{ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' }],
+          conversationId,
+        );
+        return;
+      }
+
+      const buttons = available.map((slot) => ({
+        buttonId: `TREATMENT_TIME:${treatmentPublicId}:${slot.startsAt.replace(/[-:]/g, '').slice(0, 15)}`,
+        label: new Date(slot.startsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      }));
+
+      buttons.push({ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' });
+
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        'Escolha um horário:',
+        buttons,
+        conversationId,
+      );
+    } catch {
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        'Desculpa, não consegui verificar os horários disponíveis.',
+        [{ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' }],
+        conversationId,
+      );
+    }
+  }
+
+  private async showTreatmentConfirmation(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversationId: bigint,
+    phone: string,
+    treatmentPublicId: string,
+    startsAtEncoded: string,
+  ): Promise<void> {
+    if (this.treatmentPlans === undefined || input.customerId === null) return;
+
+    const plan = await this.treatmentPlans.get(input.tenantId, treatmentPublicId);
+    if (plan === null) return;
+
+    // Decode startsAt: YYYYMMDDTHHMMSS
+    const year = startsAtEncoded.slice(0, 4);
+    const month = startsAtEncoded.slice(4, 6);
+    const day = startsAtEncoded.slice(6, 8);
+    const hour = startsAtEncoded.slice(9, 11);
+    const minute = startsAtEncoded.slice(11, 13);
+    const startsAt = `${year}-${month}-${day}T${hour}:${minute}:00Z`;
+
+    const sessionPrice = Number(plan.amountCents) / 100;
+    const sessionNumber = plan.sessions.length + 1;
+
+    const message = `Confirmar agendamento?\n\n` +
+      `Sessão ${sessionNumber}\n` +
+      `Profissional: ${plan.professionalName}\n` +
+      `Data: ${new Date(startsAt).toLocaleDateString('pt-BR')}\n` +
+      `Horário: ${new Date(startsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\n` +
+      `Valor: R$ ${sessionPrice.toFixed(2)}`;
+
+    await this.dispatchCustomButtons(
+      input,
+      phone,
+      message,
+      [
+        { buttonId: `TREATMENT_CONFIRM:${treatmentPublicId}:${startsAt}`, label: 'Confirmar' },
+        { buttonId: 'MAIN_MENU_BACK', label: 'Voltar' },
+      ],
+      conversationId,
+    );
+  }
+
+  private async confirmTreatmentSession(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversation: { id: bigint; customerId: bigint | null },
+    phone: string,
+    treatmentPublicId: string,
+    startsAtEncoded: string,
+  ): Promise<void> {
+    const customerId = conversation.customerId ?? input.customerId;
+    if (
+      customerId === null ||
+      this.treatmentPlans === undefined ||
+      this.appointments === undefined
+    ) return;
+
+    try {
+      const plan = await this.treatmentPlans.getForCustomer(input.tenantId, customerId, treatmentPublicId);
+      if (plan === null) return;
+
+      // Decode startsAt: YYYYMMDDTHHMMSS
+      const year = startsAtEncoded.slice(0, 4);
+      const month = startsAtEncoded.slice(4, 6);
+      const day = startsAtEncoded.slice(6, 8);
+      const hour = startsAtEncoded.slice(9, 11);
+      const minute = startsAtEncoded.slice(11, 13);
+      const startsAt = `${year}-${month}-${day}T${hour}:${minute}:00Z`;
+
+      await this.appointments.create(input.tenantId, {
+        customerPublicId: plan.customerPublicId,
+        servicePublicId: plan.servicePublicId,
+        professionalPublicId: plan.professionalPublicId,
+        treatmentPlanPublicId: plan.publicId,
+        startsAt,
+        source: 'WHATSAPP_ASSISTANT' as const,
+      }, { userId: null, sessionId: null });
+
+      await this.repository.updateConversation(conversation.id, {
+        currentFlow: 'MAIN_MENU',
+        currentStep: null,
+        context: {},
+      });
+
+      const dateTime = new Date(startsAt);
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        `✅ Sessão agendada com sucesso!\n\nData: ${dateTime.toLocaleDateString('pt-BR')}\nHorário: ${dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+        [
+          { buttonId: 'MAIN_MENU_TREATMENTS', label: 'Meus tratamentos' },
+          { buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' },
+        ],
+        conversation.id,
+      );
+    } catch {
+      await this.dispatchCustomButtons(
+        input,
+        phone,
+        'Desculpa, não consegui agendar a sessão. Tente novamente mais tarde.',
+        [{ buttonId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' }],
+        conversation.id,
+      );
+    }
+  }
+
   private async listTreatments(
     input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
     conversation: { id: bigint; customerId: bigint | null },
@@ -1658,6 +1933,15 @@ export class WhatsAppAssistantService {
     const buttons: { buttonId: string; label: string }[] = [];
     if (plan.status === 'PENDING') {
       buttons.push({ buttonId: `TREATMENT_APPROVE:${plan.publicId}`, label: 'Aprovar orçamento' });
+    } else if ((plan.status === 'APPROVED' || plan.status === 'IN_PROGRESS') && this.appointments !== undefined) {
+      const canSchedule = plan.sessionsPlanned === null || plan.sessions.length < plan.sessionsPlanned;
+      const hasUpcomingSession = plan.sessions.some((s) => s.status === 'PENDING' || s.status === 'CONFIRMED');
+
+      if (plan.sessions.length === 0) {
+        buttons.push({ buttonId: `TREATMENT_SCHEDULE:${plan.publicId}`, label: 'Agendar primeira sessão' });
+      } else if (canSchedule && !hasUpcomingSession) {
+        buttons.push({ buttonId: `TREATMENT_SCHEDULE:${plan.publicId}`, label: 'Agendar próxima sessão' });
+      }
     }
     buttons.push({ buttonId: 'MAIN_MENU_BACK', label: 'Voltar' });
 

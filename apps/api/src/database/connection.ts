@@ -14,6 +14,8 @@ import { AppointmentRepository } from '../modules/appointments/appointment.repos
 import { AppointmentService } from '../modules/appointments/appointment.service.js';
 import { TreatmentPlanRepository } from '../modules/appointments/treatment-plan.repository.js';
 import { TreatmentPlanService } from '../modules/appointments/treatment-plan.service.js';
+import { TreatmentPlanReminderService } from '../modules/appointments/treatment-plan-reminder.service.js';
+import { TreatmentPlanReminderRepository } from '../modules/appointments/treatment-plan-reminder.repository.js';
 import { type IdentityRepository } from '../modules/auth/identity.repository.js';
 import { PasswordService } from '../modules/auth/password.service.js';
 import { PrismaIdentityRepository } from '../modules/auth/prisma-identity.repository.js';
@@ -149,6 +151,7 @@ export interface DatabaseConnection {
   readonly appointments?: AppointmentService;
   readonly appointmentWaitlists?: AppointmentWaitlistService;
   readonly treatmentPlans?: TreatmentPlanService;
+  readonly treatmentPlanReminders?: TreatmentPlanReminderService;
   readonly platform?: PlatformService;
   readonly directory?: DirectoryService;
   readonly directorySeo?: DirectorySeoService;
@@ -302,6 +305,7 @@ export function createDatabaseConnection(
   appointments.setWaitlistService(appointmentWaitlists);
   const treatmentPlans = new TreatmentPlanService(new TreatmentPlanRepository(client));
   appointments.setTreatmentPlanService(treatmentPlans);
+  // Injeta TreatmentPlanReminderService após sua criação (será injetado após whatsappDelivery estar disponível)
   const membershipUsage = new CustomerMembershipUsageService(client);
   appointments.setMembershipUsageService(membershipUsage);
   const appointmentReviews = new AppointmentReviewService(
@@ -491,6 +495,15 @@ export function createDatabaseConnection(
     ...(process.env.INDEXNOW_ENDPOINT === undefined ? {} : { indexNowEndpoint: process.env.INDEXNOW_ENDPOINT }),
   });
 
+  // Cria TreatmentPlanReminder com dependências (será injetado no treatmentPlans depois)
+  const treatmentPlanReminders = new TreatmentPlanReminderService(
+    new TreatmentPlanReminderRepository(client),
+    new IntegrationRepository(client),
+    whatsappDelivery,
+  );
+  // Injeta o serviço de lembretes no serviço de planos
+  treatmentPlans.setReminderService(treatmentPlanReminders);
+
   return {
     client,
     identities: new PrismaIdentityRepository(client),
@@ -498,6 +511,7 @@ export function createDatabaseConnection(
     appointments: appointments,
     appointmentWaitlists: appointmentWaitlists,
     treatmentPlans,
+    treatmentPlanReminders,
     tenants: new PrismaTenantRepository(client),
     platform: new PlatformService(client),
     directorySeo,

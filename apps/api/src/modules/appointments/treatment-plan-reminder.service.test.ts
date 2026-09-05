@@ -7,8 +7,8 @@ import { type IntegrationRepository } from '../integrations/integration.reposito
 describe('TreatmentPlanReminderService', () => {
   let service: TreatmentPlanReminderService;
   let repo: TreatmentPlanReminderRepository;
-  let integrationService: IntegrationService;
   let integrationRepo: IntegrationRepository;
+  let whatsappDelivery: any;
 
   beforeEach(() => {
     repo = {
@@ -26,10 +26,15 @@ describe('TreatmentPlanReminderService', () => {
       getReminderLogs: vi.fn(),
     } as any;
 
-    integrationService = {} as any;
-    integrationRepo = {} as any;
+    integrationRepo = {
+      whatsapp: vi.fn(),
+    } as any;
 
-    service = new TreatmentPlanReminderService(repo, integrationService, integrationRepo);
+    whatsappDelivery = {
+      send: vi.fn(),
+    } as any;
+
+    service = new TreatmentPlanReminderService(repo, integrationRepo, whatsappDelivery);
   });
 
   describe('initializeForPendingPlan', () => {
@@ -138,6 +143,54 @@ describe('TreatmentPlanReminderService', () => {
       vi.mocked(repo.getByTreatmentPlanId).mockResolvedValue(null);
 
       await expect(service.cancelReminder(planId)).resolves.not.toThrow();
+    });
+  });
+
+  describe('sendManualReminder', () => {
+    it('deve enviar lembrete manual via WhatsApp', async () => {
+      const planId = 100n;
+      const state = { id: 1n, tenantId: 1n, currentStepIndex: 0 };
+      const plan = {
+        status: 'PENDING',
+        customer: { name: 'João', phone: '5511999999999' },
+        title: 'Limpeza',
+        service: { name: 'Serviço' },
+        professional: { publicName: 'Prof' },
+        amountCents: 10000n,
+      };
+      const config = {
+        sequence: [{ delayValue: 1, delayUnit: 'DAY', message: 'Olá {{customerName}}!' }],
+      };
+
+      vi.mocked(repo.getByTreatmentPlanId).mockResolvedValue(state as any);
+      vi.mocked(repo.getTreatmentPlan).mockResolvedValue(plan as any);
+      vi.mocked(repo.getConfig).mockResolvedValue(config as any);
+      vi.mocked(repo.getTenant).mockResolvedValue({ currency: 'BRL', displayName: 'Clínica' } as any);
+      vi.mocked(repo.getTenantTerminology).mockResolvedValue({} as any);
+      vi.mocked(integrationRepo.whatsapp).mockResolvedValue({ active: true } as any);
+      vi.mocked(whatsappDelivery.send).mockResolvedValue(undefined);
+      vi.mocked(repo.createReminderLog).mockResolvedValue({} as any);
+
+      await service.sendManualReminder(planId);
+
+      expect(whatsappDelivery.send).toHaveBeenCalledWith(
+        1n,
+        '5511999999999',
+        expect.stringContaining('João'),
+      );
+      expect(repo.createReminderLog).toHaveBeenCalled();
+    });
+
+    it('deve falhar se WhatsApp não está configurado', async () => {
+      const planId = 100n;
+      const state = { id: 1n, tenantId: 1n };
+
+      vi.mocked(repo.getByTreatmentPlanId).mockResolvedValue(state as any);
+      vi.mocked(repo.getTreatmentPlan).mockResolvedValue({ status: 'PENDING' } as any);
+      vi.mocked(repo.getConfig).mockResolvedValue({ sequence: [{}] } as any);
+      vi.mocked(integrationRepo.whatsapp).mockResolvedValue({ active: false } as any);
+
+      await expect(service.sendManualReminder(planId)).rejects.toThrow('WhatsApp');
     });
   });
 

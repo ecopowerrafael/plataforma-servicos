@@ -34,10 +34,13 @@ function planNotFound(): AppError {
 }
 
 export class TreatmentPlanService {
-  public constructor(
-    private readonly repo: TreatmentPlanRepository,
-    private readonly reminderService?: TreatmentPlanReminderService,
-  ) {}
+  private reminderService?: TreatmentPlanReminderService;
+
+  public constructor(private readonly repo: TreatmentPlanRepository) {}
+
+  public setReminderService(service: TreatmentPlanReminderService): void {
+    this.reminderService = service;
+  }
 
   private async toPublic(tenantId: bigint, plan: TreatmentPlanRecord) {
     const paidByAppointment = await this.repo.paidCentsByAppointment(

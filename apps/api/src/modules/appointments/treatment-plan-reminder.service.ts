@@ -1,11 +1,13 @@
 import { type TreatmentPlanReminderRepository } from './treatment-plan-reminder.repository.js';
 import { type IntegrationRepository } from '../integrations/integration.repository.js';
+import { type WhatsAppDelivery } from '../integrations/integration-delivery.js';
 import { AppError } from '../../errors/AppError.js';
 
 export class TreatmentPlanReminderService {
   public constructor(
     private readonly reminderRepo: TreatmentPlanReminderRepository,
     private readonly integrationRepo: IntegrationRepository,
+    private readonly whatsappDelivery?: WhatsAppDelivery,
   ) {}
 
   async initializeForPendingPlan(tenantId: bigint, treatmentPlanId: bigint): Promise<void> {
@@ -189,6 +191,14 @@ export class TreatmentPlanReminderService {
       });
     }
 
+    if (!this.whatsappDelivery) {
+      throw new AppError({
+        code: 'WHATSAPP_DELIVERY_UNAVAILABLE',
+        message: 'Serviço de entrega WhatsApp indisponível.',
+        statusCode: 503,
+      });
+    }
+
     const tenant = await this.reminderRepo.getTenant(state.tenantId);
     if (tenant === null) throw new AppError({
       code: 'TENANT_NOT_FOUND',
@@ -216,8 +226,9 @@ export class TreatmentPlanReminderService {
       });
     }
 
-    // TODO: Integração com delivery será feita pela infraestrutura do tenant
-    // Por enquanto, apenas registra o log como enviado
+    // Envio real via WhatsApp
+    await this.whatsappDelivery.send(state.tenantId, phone, sentMessage);
+
     await this.reminderRepo.createReminderLog({
       tenantId: state.tenantId,
       reminderStateId: state.id,

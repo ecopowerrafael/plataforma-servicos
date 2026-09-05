@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { treatmentPlansLabels } from './treatment-plans-labels.js';
+import { getTreatmentPlansLabels } from './treatment-plans-labels.js';
 import { formatMoneyCents, formatShortDate } from '../customers/customer-crm.js';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader } from '../ui/AppUi.js';
@@ -81,7 +81,7 @@ export function TreatmentPlansModule({
   return (
     <section className="treatment-plans-module">
       <PageHeader
-        title={treatmentPlansLabels.moduleTitle}
+        title={getTreatmentPlansLabels().moduleTitle}
         subtitle={`${filteredPlans.length} ${treatmentPlansLabels.plural.toLowerCase()}`}
       />
 

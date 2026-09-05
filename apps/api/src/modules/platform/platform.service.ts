@@ -1834,6 +1834,21 @@ export class PlatformService {
         : { appointmentPlural: input.appointmentPlural }),
       ...(input.unitSingular === undefined ? {} : { unitSingular: input.unitSingular }),
       ...(input.unitPlural === undefined ? {} : { unitPlural: input.unitPlural }),
+      ...(input.treatmentPlanModuleTitle === undefined
+        ? {}
+        : { treatmentPlanModuleTitle: input.treatmentPlanModuleTitle }),
+      ...(input.treatmentPlanSingular === undefined
+        ? {}
+        : { treatmentPlanSingular: input.treatmentPlanSingular }),
+      ...(input.treatmentPlanPlural === undefined
+        ? {}
+        : { treatmentPlanPlural: input.treatmentPlanPlural }),
+      ...(input.treatmentPlanSessionSingular === undefined
+        ? {}
+        : { treatmentPlanSessionSingular: input.treatmentPlanSessionSingular }),
+      ...(input.treatmentPlanSessionPlural === undefined
+        ? {}
+        : { treatmentPlanSessionPlural: input.treatmentPlanSessionPlural }),
     };
     await this.client.$transaction(async (transaction) => {
       await transaction.tenantTerminology.upsert({

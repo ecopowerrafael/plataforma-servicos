@@ -1644,21 +1644,26 @@ model TenantPublicSite {
 }
 
 model TenantTerminology {
-  id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  tenantId             BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
-  professionalSingular String?  @map("professional_singular") @db.VarChar(80)
-  professionalPlural   String?  @map("professional_plural") @db.VarChar(80)
-  customerSingular     String?  @map("customer_singular") @db.VarChar(80)
-  customerPlural       String?  @map("customer_plural") @db.VarChar(80)
-  serviceSingular      String?  @map("service_singular") @db.VarChar(80)
-  servicePlural        String?  @map("service_plural") @db.VarChar(80)
-  appointmentSingular  String?  @map("appointment_singular") @db.VarChar(80)
-  appointmentPlural    String?  @map("appointment_plural") @db.VarChar(80)
-  unitSingular         String?  @map("unit_singular") @db.VarChar(80)
-  unitPlural           String?  @map("unit_plural") @db.VarChar(80)
-  createdAt            DateTime @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id                              BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  tenantId                        BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
+  professionalSingular            String?  @map("professional_singular") @db.VarChar(80)
+  professionalPlural              String?  @map("professional_plural") @db.VarChar(80)
+  customerSingular                String?  @map("customer_singular") @db.VarChar(80)
+  customerPlural                  String?  @map("customer_plural") @db.VarChar(80)
+  serviceSingular                 String?  @map("service_singular") @db.VarChar(80)
+  servicePlural                   String?  @map("service_plural") @db.VarChar(80)
+  appointmentSingular             String?  @map("appointment_singular") @db.VarChar(80)
+  appointmentPlural               String?  @map("appointment_plural") @db.VarChar(80)
+  unitSingular                    String?  @map("unit_singular") @db.VarChar(80)
+  unitPlural                      String?  @map("unit_plural") @db.VarChar(80)
+  treatmentPlanModuleTitle        String?  @map("treatment_plan_module_title") @db.VarChar(80)
+  treatmentPlanSingular           String?  @map("treatment_plan_singular") @db.VarChar(80)
+  treatmentPlanPlural             String?  @map("treatment_plan_plural") @db.VarChar(80)
+  treatmentPlanSessionSingular    String?  @map("treatment_plan_session_singular") @db.VarChar(80)
+  treatmentPlanSessionPlural      String?  @map("treatment_plan_session_plural") @db.VarChar(80)
+  createdAt                       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                       DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@map("tenant_terminology")
 }

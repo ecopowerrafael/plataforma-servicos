@@ -362,6 +362,11 @@ export const TenantTerminologyOverridesSchema = z
     appointmentPlural: TerminologyOverrideValueSchema.optional(),
     unitSingular: TerminologyOverrideValueSchema.optional(),
     unitPlural: TerminologyOverrideValueSchema.optional(),
+    treatmentPlanModuleTitle: TerminologyOverrideValueSchema.optional(),
+    treatmentPlanSingular: TerminologyOverrideValueSchema.optional(),
+    treatmentPlanPlural: TerminologyOverrideValueSchema.optional(),
+    treatmentPlanSessionSingular: TerminologyOverrideValueSchema.optional(),
+    treatmentPlanSessionPlural: TerminologyOverrideValueSchema.optional(),
   })
   .strict();
 export type TenantTerminologyOverrides = z.infer<typeof TenantTerminologyOverridesSchema>;

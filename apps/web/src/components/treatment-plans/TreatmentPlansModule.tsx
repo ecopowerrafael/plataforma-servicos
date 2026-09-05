@@ -9,6 +9,7 @@ import { TreatmentPlanFollowUpSection } from './TreatmentPlanFollowUpSection.js'
 import { TreatmentPlanCheckpointsSection } from './TreatmentPlanCheckpointsSection.js';
 import { TreatmentPlanEditDialog } from './TreatmentPlanEditDialog.js';
 import { TreatmentPlanScheduleSessionDialog } from './TreatmentPlanScheduleSessionDialog.js';
+import { TreatmentPlansHeader, TreatmentPlanRow, TreatmentPlanCard } from './TreatmentPlansUIComponents.js';
 import { formatMoneyCents, formatShortDate } from '../customers/customer-crm.js';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader } from '../ui/AppUi.js';
@@ -92,65 +93,39 @@ export function TreatmentPlansModule({
         subtitle={`${filteredPlans.length} ${treatmentPlansLabels.plural.toLowerCase()}`}
       />
 
-      <div className="treatment-plans-dashboard">
-        <div className="dashboard-card">
-          <div className="dashboard-card-value">{pendingCount}</div>
-          <div className="dashboard-card-label">Aguardando aprovação</div>
-          <button
-            className="dashboard-card-link"
-            type="button"
-            onClick={() => {
-              setStatusFilter('PENDING');
-              setSearch('');
-            }}
-          >
-            Ver todos →
-          </button>
-        </div>
-        <div className="dashboard-card">
-          <div className="dashboard-card-value">{approvedThisMonth}</div>
-          <div className="dashboard-card-label">Aprovados este mês</div>
-        </div>
-        <div className="dashboard-card">
-          <div className="dashboard-card-value">{inProgressCount}</div>
-          <div className="dashboard-card-label">Em andamento</div>
-          <button
-            className="dashboard-card-link"
-            type="button"
-            onClick={() => {
-              setStatusFilter('IN_PROGRESS');
-              setSearch('');
-            }}
-          >
-            Ver todos →
-          </button>
-        </div>
-      </div>
+      <TreatmentPlansHeader
+        onSearch={(value) => setSearch(value)}
+        stats={
+          <div className="treatment-plans-stats">
+            <div className="stat-item">
+              <div className="stat-value">{pendingCount}</div>
+              <div className="stat-label">Aguardando</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-value">{approvedThisMonth}</div>
+              <div className="stat-label">Aprovados</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-value">{inProgressCount}</div>
+              <div className="stat-label">Em andamento</div>
+            </div>
+          </div>
+        }
+      />
 
-      <div className="treatment-plans-filters">
-        <div className="filter-search">
-          <IconSearch size={18} />
-          <input
-            type="text"
-            placeholder="Buscar por cliente, serviço, profissional..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="filter-status">
-          {(['all', 'PENDING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const).map(
-            (status) => (
-              <button
-                key={status}
-                type="button"
-                className={statusFilter === status ? 'active' : ''}
-                onClick={() => setStatusFilter(status)}
-              >
-                {status === 'all' ? 'Todos' : STATUS_LABELS[status]}
-              </button>
-            ),
-          )}
-        </div>
+      <div className="treatment-plans-status-filter">
+        {(['all', 'PENDING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const).map(
+          (status) => (
+            <button
+              key={status}
+              type="button"
+              className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
+              onClick={() => setStatusFilter(status)}
+            >
+              {status === 'all' ? 'Todos' : STATUS_LABELS[status]}
+            </button>
+          ),
+        )}
       </div>
 
       {filteredPlans.length === 0 ? (
@@ -164,96 +139,50 @@ export function TreatmentPlansModule({
         />
       ) : (
         <>
-          <div className="treatment-plans-desktop">
-            <table className="treatment-plans-table">
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Orçamento</th>
-                  <th>Serviço</th>
-                  <th>Profissional</th>
-                  <th>Valor</th>
-                  <th>Sessões</th>
-                  <th>Status</th>
-                  <th>Criado em</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlans.map((plan) => (
-                  <tr key={plan.publicId}>
-                    <td>{plan.customerName}</td>
-                    <td>{plan.title}</td>
-                    <td>{plan.serviceName}</td>
-                    <td>{plan.professionalName}</td>
-                    <td>{formatMoneyCents(plan.amountCents)}</td>
-                    <td>
-                      {plan.sessionsCompleted}/{plan.sessionsPlanned}
-                    </td>
-                    <td>
-                      <span className={`status-badge status-${STATUS_TONE[plan.status]}`}>
-                        {STATUS_LABELS[plan.status]}
-                      </span>
-                    </td>
-                    <td>{formatShortDate(new Date(plan.createdAt))}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="action-button"
-                        onClick={() => {
-                          setSelectedPlanId(plan.publicId);
-                          setViewMode('detail');
-                        }}
-                      >
-                        <IconChevronRight size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="treatment-plans-mobile">
+          <div className="treatment-plans-list">
             {filteredPlans.map((plan) => (
-              <div
+              <TreatmentPlanRow
                 key={plan.publicId}
-                className="treatment-plan-card"
+                id={plan.publicId}
+                title={plan.title}
+                customer={plan.customerName}
+                service={plan.serviceName}
+                professional={plan.professionalName}
+                value={formatMoneyCents(plan.amountCents)}
+                sessions={`${plan.sessionsCompleted}/${plan.sessionsPlanned}`}
+                status={
+                  <span className={`status-badge status-${STATUS_TONE[plan.status]}`}>
+                    {STATUS_LABELS[plan.status]}
+                  </span>
+                }
                 onClick={() => {
                   setSelectedPlanId(plan.publicId);
                   setViewMode('detail');
                 }}
-              >
-                <div className="card-header">
-                  <div>
-                    <h3>{plan.title}</h3>
-                    <p className="card-customer">{plan.customerName}</p>
-                  </div>
+              />
+            ))}
+          </div>
+
+          <div className="treatment-plans-mobile-list">
+            {filteredPlans.map((plan) => (
+              <TreatmentPlanCard
+                key={plan.publicId}
+                title={plan.title}
+                customer={plan.customerName}
+                service={plan.serviceName}
+                professional={plan.professionalName}
+                value={formatMoneyCents(plan.amountCents)}
+                sessions={`${plan.sessionsCompleted}/${plan.sessionsPlanned}`}
+                status={
                   <span className={`status-badge status-${STATUS_TONE[plan.status]}`}>
                     {STATUS_LABELS[plan.status]}
                   </span>
-                </div>
-                <div className="card-body">
-                  <div className="card-row">
-                    <span className="card-label">Serviço</span>
-                    <span className="card-value">{plan.serviceName}</span>
-                  </div>
-                  <div className="card-row">
-                    <span className="card-label">Profissional</span>
-                    <span className="card-value">{plan.professionalName}</span>
-                  </div>
-                  <div className="card-row">
-                    <span className="card-label">Valor</span>
-                    <span className="card-value">{formatMoneyCents(plan.amountCents)}</span>
-                  </div>
-                  <div className="card-row">
-                    <span className="card-label">Sessões</span>
-                    <span className="card-value">
-                      {plan.sessionsCompleted}/{plan.sessionsPlanned}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                }
+                onClick={() => {
+                  setSelectedPlanId(plan.publicId);
+                  setViewMode('detail');
+                }}
+              />
             ))}
           </div>
         </>

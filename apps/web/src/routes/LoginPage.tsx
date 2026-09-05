@@ -94,17 +94,29 @@ export function LoginPage() {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: async (response: { credential?: string } | unknown) => {
+            if (import.meta.env.DEV) {
+              console.log('[Google Auth] Callback received');
+            }
             form.clearErrors('root');
             if (response && typeof response === 'object' && 'credential' in response && response.credential) {
               try {
+                if (import.meta.env.DEV) {
+                  console.log('[Google Auth] Credential received, sending to /auth/google');
+                }
                 const validated = GoogleAuthRequestSchema.parse({ credential: response.credential });
                 const result = await httpClient.request('/auth/google', {
                   method: 'POST',
                   body: validated,
                   schema: GoogleAuthResponseSchema,
                 });
+                if (import.meta.env.DEV) {
+                  console.log('[Google Auth] Login successful');
+                }
                 await handleLoginSuccess(result);
               } catch (error) {
+                if (import.meta.env.DEV) {
+                  console.error('[Google Auth] Error:', error);
+                }
                 form.setError('root', {
                   message: error instanceof HttpError ? error.message : 'Erro ao autenticar com Google.',
                 });

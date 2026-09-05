@@ -68,11 +68,23 @@ export function CustomerAccountAuth({
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: async (response: { credential?: string } | unknown) => {
+            if (import.meta.env.DEV) {
+              console.log('[Google Auth Customer] Callback received');
+            }
             if (response && typeof response === 'object' && 'credential' in response && response.credential) {
               try {
+                if (import.meta.env.DEV) {
+                  console.log('[Google Auth Customer] Credential received, posting to /customer/google');
+                }
                 const validated = CustomerGoogleAuthRequestSchema.parse({ credential: response.credential });
                 await account.loginWithGoogle.mutateAsync(validated.credential);
+                if (import.meta.env.DEV) {
+                  console.log('[Google Auth Customer] Login successful');
+                }
               } catch (error) {
+                if (import.meta.env.DEV) {
+                  console.error('[Google Auth Customer] Error:', error);
+                }
                 // Error already handled by mutation
               }
             }

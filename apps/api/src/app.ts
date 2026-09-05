@@ -297,6 +297,7 @@ export async function buildApp(options: BuildAppOptions) {
 
   await app.register(helmet, {
     contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   });
   await app.register(cors, {
     origin(origin, callback) {

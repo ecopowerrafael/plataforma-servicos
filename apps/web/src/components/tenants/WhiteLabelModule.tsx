@@ -18,6 +18,7 @@ import {
   type BrandThemeCode,
   type PublicLayoutCode,
 } from '../branding/brand-studio.js';
+import '../../styles/company.css';
 import { BrandAssetCard } from '../branding/BrandAssetCard.js';
 import { BrandColorPalette } from '../branding/BrandColorPalette.js';
 import { BrandLivePreview } from '../branding/BrandLivePreview.js';
@@ -182,7 +183,7 @@ export function WhiteLabelModule({ tenantPublicId }: { tenantPublicId: string })
   );
 
   return (
-    <section className="brand-studio" aria-labelledby="brand-studio-title">
+    <section className="brand-studio brand-studio--redesigned" aria-labelledby="brand-studio-title">
       <PageHeader
         eyebrow="Minha empresa"
         title="Marca e aparência"

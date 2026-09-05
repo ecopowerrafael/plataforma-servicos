@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
+import '../../styles/company.css';
 
 interface Fields {
   heroTitle: string;
@@ -134,7 +135,7 @@ export function PublicPageSettingsModule({ tenantPublicId }: { tenantPublicId: s
       </section>
     );
   return (
-    <section className="public-page-settings" aria-labelledby="public-page-settings-title">
+    <section className="public-page-settings public-page-settings--redesigned" aria-labelledby="public-page-settings-title">
       <div className="module-header">
         <div>
           <p className="eyebrow">Minha empresa</p>

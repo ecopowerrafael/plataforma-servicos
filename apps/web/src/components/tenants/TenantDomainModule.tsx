@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
+import '../../styles/company.css';
 
 export function TenantDomainModule({
   tenantPublicId,
@@ -62,7 +63,7 @@ export function TenantDomainModule({
     onSuccess: invalidate,
   });
   return (
-    <section className="platform-form" aria-label="Domínios">
+    <section className="platform-form tenant-domain--redesigned" aria-label="Domínios">
       <h3>Domínio próprio e subdomínio</h3>
       {canManage ? (
         <div className="form-row">

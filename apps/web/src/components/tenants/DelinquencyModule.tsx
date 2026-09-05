@@ -221,7 +221,7 @@ export function DelinquencyModule({
   );
 
   return (
-    <div className="ds-stack receivables-page" aria-label="Pendências financeiras">
+    <div className="ds-stack receivables-page receivables-page--redesigned" aria-label="Pendências financeiras">
       <PageHeader
         eyebrow="Financeiro"
         title="Pendências financeiras"

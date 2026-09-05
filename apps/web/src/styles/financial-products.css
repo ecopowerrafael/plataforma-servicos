@@ -923,6 +923,94 @@
 }
 
 /* ============================================
+   FINANCIAL CLOSING REDESIGN
+   ============================================ */
+
+.closings-page--redesigned .closings-note {
+  background: var(--color-bg-muted);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  border-left: 3px solid var(--color-accent-dark);
+  margin-bottom: 20px !important;
+}
+
+.closings-page--redesigned .ds-table-scroll {
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  overflow: hidden;
+}
+
+.closings-page--redesigned .platform-table {
+  background: var(--color-bg-secondary);
+}
+
+.closings-page--redesigned .platform-table thead {
+  background: var(--color-bg-muted);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.closings-page--redesigned .platform-table tbody tr {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.closings-page--redesigned .platform-table tbody tr:hover {
+  background: var(--color-bg-muted);
+}
+
+/* ============================================
+   FINANCIAL REPORT REDESIGN
+   ============================================ */
+
+.financial-report--redesigned .report-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.financial-report--redesigned .report-metric {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: 12px !important;
+  padding: 16px !important;
+}
+
+.financial-report--redesigned .app-card {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: 12px !important;
+}
+
+/* ============================================
+   DELINQUENCY REDESIGN
+   ============================================ */
+
+.receivables-page--redesigned .ds-table-scroll {
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  overflow: hidden;
+}
+
+.receivables-page--redesigned .platform-table {
+  background: var(--color-bg-secondary);
+}
+
+.receivables-page--redesigned .platform-table thead {
+  background: var(--color-bg-muted);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.receivables-page--redesigned .platform-table tbody tr {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.receivables-page--redesigned .platform-table tbody tr:hover {
+  background: var(--color-bg-muted);
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 

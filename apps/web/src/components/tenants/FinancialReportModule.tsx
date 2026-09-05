@@ -112,7 +112,7 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
   const summary = data?.summary;
   const comparison = data?.comparison ?? null;
   return (
-    <section className="sessions-panel financial-report" aria-label="Relatórios financeiros">
+    <section className="sessions-panel financial-report financial-report--redesigned" aria-label="Relatórios financeiros">
       <PageHeader
         eyebrow="Financeiro"
         title="Relatórios"

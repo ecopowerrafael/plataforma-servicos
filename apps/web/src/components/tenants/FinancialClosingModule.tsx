@@ -83,7 +83,7 @@ export function FinancialClosingModule({
   const items = closings.data?.items ?? [];
 
   return (
-    <div className="ds-stack closings-page" aria-label="Fechamentos financeiros">
+    <div className="ds-stack closings-page closings-page--redesigned" aria-label="Fechamentos financeiros">
       <PageHeader
         eyebrow="Financeiro"
         title="Fechamentos"

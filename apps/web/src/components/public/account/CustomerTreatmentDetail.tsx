@@ -11,9 +11,9 @@ import {
   stateLabel,
   upcomingSession,
   useCustomerTreatment,
-  useTreatmentSlots,
 } from './customer-treatments.js';
 import { TreatmentAmount, TreatmentProgress } from './CustomerTreatmentsPage.js';
+import { TreatmentSessionBooking } from './TreatmentSessionBooking.js';
 
 const SESSION_STATUS: Record<string, string> = {
   PENDING: 'Agendada',
@@ -24,7 +24,6 @@ const SESSION_STATUS: Record<string, string> = {
   NO_SHOW: 'Não compareceu',
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
 
 /**
  * Detalhe do tratamento: orçamento, progresso, sessões e as ações do cliente
@@ -40,13 +39,10 @@ export function CustomerTreatmentDetail({
   publicId: string;
   whatsappNumber: string | null;
 }) {
-  const { plan, approve, schedule } = useCustomerTreatment(slug, publicId);
+  const { plan, approve } = useCustomerTreatment(slug, publicId);
   const [confirming, setConfirming] = useState(false);
   const [scheduling, setScheduling] = useState(false);
-  const [date, setDate] = useState<string | null>(null);
   const current = plan.data;
-  const chosenDate = date ?? current?.recommendedNextDate?.slice(0, 10) ?? today();
-  const slots = useTreatmentSlots(slug, current, chosenDate, scheduling);
 
   if (plan.isPending) return <p className="customer-skeleton" aria-busy="true" />;
   if (current === undefined)
@@ -54,7 +50,6 @@ export function CustomerTreatmentDetail({
 
   const action = primaryAction(current);
   const upcoming = upcomingSession(current);
-  const available = (slots.data?.slots ?? []).filter((slot) => slot.state === 'AVAILABLE');
   // Em TOTAL o restante é o que falta do tratamento; em PER_SESSION cada
   // sessão tem o próprio saldo e não existe "restante" único.
   const remaining =
@@ -235,69 +230,33 @@ export function CustomerTreatmentDetail({
         </div>
       ) : null}
 
-      {scheduling ? (
-        <div className="treatment-sheet-backdrop" role="dialog" aria-label="Agendar sessão">
-          <div className="treatment-sheet">
-            <h3>{action.label}</h3>
-            <p className="customer-treatment__hint">
-              {current.recommendedNextDate === null
-                ? 'Escolha o melhor dia para você.'
-                : `Recomendada a partir de ${day(current.recommendedNextDate)}.`}
-            </p>
-            <label className="treatment-amount">
-              Dia
-              <input
-                type="date"
-                value={chosenDate}
-                onChange={(event) => {
-                  setDate(event.target.value);
-                }}
-              />
-            </label>
-            {slots.isPending ? <p className="customer-skeleton" aria-busy="true" /> : null}
-            {!slots.isPending && available.length === 0 ? (
-              <p className="customer-treatment__hint">
-                Nenhum horário livre neste dia. Escolha outra data.
-              </p>
-            ) : null}
-            <div className="customer-treatment-slots">
-              {available.map((slot) => (
-                <button
-                  key={slot.startsAt}
-                  type="button"
-                  disabled={schedule.isPending}
-                  onClick={() => {
-                    schedule.mutate(slot.startsAt, {
-                      onSuccess: () => {
-                        setScheduling(false);
-                      },
-                    });
-                  }}
-                >
-                  {new Date(slot.startsAt).toLocaleTimeString('pt-BR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </button>
-              ))}
-            </div>
-            {schedule.error instanceof Error ? (
-              <p className="public-form-error" role="alert">
-                {schedule.error.message}
-              </p>
-            ) : null}
-            <div className="ds-form-actions">
-              <button
-                className="customer-home-secondary-cta"
-                type="button"
-                onClick={() => {
-                  setScheduling(false);
-                }}
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
+      {scheduling && action.kind !== 'none' ? (
+        <div className="treatment-sheet-backdrop">
+          <TreatmentSessionBooking
+            slug={slug}
+            site={{
+              publicId: '',
+              name: '',
+              terminology: { service: { singular: 'serviço' } },
+              services: [],
+              professionals: [],
+              units: [],
+            }}
+            treatmentPublicId={publicId}
+            sessionNumber={current.sessions.length + 1}
+            serviceName={current.serviceName}
+            professionalName={current.professionalName}
+            priceCents={
+              current.billingMode === 'PER_SESSION' ? current.amountCents : current.amountCents
+            }
+            recommendedDate={current.recommendedNextDate}
+            onSuccess={() => {
+              setScheduling(false);
+            }}
+            onCancel={() => {
+              setScheduling(false);
+            }}
+          />
         </div>
       ) : null}
     </section>

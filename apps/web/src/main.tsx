@@ -5,6 +5,7 @@ import { AppProviders } from './AppProviders.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import './styles/design-system.css';
 import './styles/app-shell.css';
+import './styles/header-sidebar.css';
 import './styles/components.css';
 import './styles/modules.css';
 import './styles.css';

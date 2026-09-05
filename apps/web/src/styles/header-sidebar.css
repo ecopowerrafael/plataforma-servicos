@@ -1,0 +1,433 @@
+/* ============================================
+   APP HEADER — REFINADO
+   ============================================ */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border-subtle);
+  box-shadow: 0 1px 3px -1px rgba(28, 25, 23, 0.01);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  gap: 16px;
+}
+
+.app-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.app-header-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-header-menu-btn:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-text-primary);
+}
+
+.app-header-title {
+  min-width: 0;
+}
+
+.app-header-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  margin: 0 0 2px 0;
+}
+
+.app-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.app-header-tenant {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.app-header-tenant:hover {
+  background: var(--color-border-subtle);
+  color: var(--color-text-primary);
+}
+
+.app-header-tenant svg {
+  transition: transform 0.2s ease-in-out;
+}
+
+.app-header-tenant[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.app-header-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  min-width: 200px;
+  z-index: 40;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: var(--color-bg-muted);
+}
+
+.app-header-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+.app-header-logout:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-text-primary);
+}
+
+/* ============================================
+   APP SIDEBAR — REFINADO
+   ============================================ */
+
+.app-sidebar {
+  width: 280px;
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+  overflow: hidden;
+  transition: width 0.3s ease-in-out;
+}
+
+.app-sidebar.is-collapsed {
+  width: 80px;
+}
+
+.app-sidebar.is-collapsed .nav-label,
+.app-sidebar.is-collapsed .app-sidebar-brand strong {
+  display: none;
+}
+
+.app-sidebar.is-collapsed .nav-icon {
+  width: 100%;
+  text-align: center;
+  font-size: 20px;
+}
+
+.app-sidebar-brand {
+  padding: 0 20px 20px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: 20px;
+}
+
+.app-sidebar-brand strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Playfair Display', serif;
+}
+
+.app-sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-home,
+.nav-item,
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+  text-decoration: none;
+  text-align: left;
+}
+
+.nav-home:hover,
+.nav-item:hover,
+.nav-group-header:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-text-primary);
+}
+
+.nav-home.active,
+.nav-home[aria-current="page"],
+.nav-item.active,
+.nav-item[aria-current="page"] {
+  background: rgba(197, 160, 89, 0.12);
+  color: var(--color-accent-dark);
+  font-weight: 600;
+}
+
+.nav-group-header.active {
+  background: var(--color-bg-muted);
+  color: var(--color-text-primary);
+}
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.nav-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-chevron {
+  transition: transform 0.2s ease-in-out;
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-group-header {
+  justify-content: space-between;
+}
+
+.nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 8px;
+}
+
+.nav-submenu-header {
+  list-style: none;
+  cursor: pointer;
+}
+
+.nav-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--color-border-subtle);
+  margin-left: 12px;
+}
+
+.nav-subitem {
+  padding-left: 12px;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+}
+
+.nav-subitem:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-muted);
+}
+
+.nav-subitem.active,
+.nav-subitem[aria-current="page"] {
+  color: var(--color-accent-dark);
+  background: rgba(197, 160, 89, 0.08);
+}
+
+/* ============================================
+   RESPONSIVIDADE
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .app-sidebar {
+    position: fixed;
+    left: 0;
+    top: 64px;
+    height: calc(100vh - 64px);
+    z-index: 29;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .app-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .app-sidebar.is-drawer {
+    width: 280px;
+  }
+
+  .app-header-menu-btn {
+    display: flex;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    height: 56px;
+    padding: 0 16px;
+  }
+
+  .app-header h1 {
+    font-size: 18px;
+  }
+
+  .app-header-eyebrow {
+    display: none;
+  }
+
+  .app-header-tenant {
+    display: none;
+  }
+
+  .app-sidebar {
+    width: 100%;
+  }
+
+  .app-sidebar-brand {
+    display: none;
+  }
+
+  .app-sidebar-nav {
+    padding: 0 8px;
+  }
+
+  .nav-home,
+  .nav-item,
+  .nav-group-header {
+    padding: 12px 12px;
+    gap: 16px;
+  }
+
+  .nav-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 18px;
+  }
+}
+
+/* ============================================
+   SCROLLBAR SIDEBAR
+   ============================================ */
+
+@media (min-width: 1025px) {
+  .app-sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .app-sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .app-sidebar-nav::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+    border-radius: 4px;
+  }
+
+  .app-sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+  }
+}
+
+/* ============================================
+   DARK MODE (preparado)
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  .app-header {
+    background: rgba(42, 38, 34, 0.95);
+  }
+}

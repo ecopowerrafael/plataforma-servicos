@@ -60,9 +60,8 @@ const seoTagPatterns = [
 for (const [path, title, description, heading, lead] of pages) {
   const canonical = `${site}${path === '/' ? '/' : path}`;
   const head = `<title>${escape(title)}</title><meta name="description" content="${escape(description)}"><link rel="canonical" href="${canonical}"><meta name="robots" content="index,follow"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${escape(description)}"><meta property="og:type" content="website"><meta property="og:url" content="${canonical}"><meta property="og:image" content="${site}/og.png"><meta property="og:site_name" content="Agendei"><meta property="og:locale" content="pt_BR"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escape(title)}"><meta name="twitter:description" content="${escape(description)}"><meta name="twitter:image" content="${site}/og.png">`;
-  const content = `<main data-prerendered="commercial"><section><h1>${escape(heading)}</h1><p>${escape(lead)}</p></section></main>`;
   const cleanIndex = seoTagPatterns.reduce((html, pattern) => html.replace(pattern, ''), index);
-  const html = cleanIndex.replace('<head>', `<head>${head}`).replace('<div id="root"></div>', `<div id="root">${content}</div>`);
+  const html = cleanIndex.replace('<head>', `<head>${head}`);
   const file = path === '/' ? join(import.meta.dirname, '..', 'dist', 'index.html') : join(import.meta.dirname, '..', 'dist', path.slice(1), 'index.html');
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, html);

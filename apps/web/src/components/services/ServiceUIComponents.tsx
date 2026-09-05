@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { IconSearch, IconPlus, IconClock, IconDollarSign } from '@tabler/icons-react';
+import { IconSearch, IconPlus, IconClock, IconCoin } from '@tabler/icons-react';
 
 /* ============================================
    SERVICE HEADER
@@ -73,7 +73,7 @@ export function ServiceCard({
             <span>{duration}</span>
           </div>
           <div className="service-info-item">
-            <IconDollarSign size={16} />
+            <IconCoin size={16} />
             <span className="service-price">{price}</span>
           </div>
         </div>

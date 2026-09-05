@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { TenantServiceImage } from './TenantServiceImage.js';
+import { ServiceHeader, ServiceRow } from './ServiceUIComponents.js';
 import { httpClient } from '../../lib/http.js';
 import {
   EmptyState,
@@ -77,21 +78,6 @@ export function ServiceModule({
         eyebrow="Catálogo"
         title={`${terminology}s`}
         description="Gerencie o que seus clientes podem agendar."
-        actions={
-          <button
-            className="primary-button"
-            disabled={limitReached}
-            type="button"
-            title={
-              limitReached
-                ? `Seu plano permite até ${serviceLimit?.integerValue ?? ''} serviços.`
-                : undefined
-            }
-            onClick={() => void navigate('/app/servicos/novo')}
-          >
-            + Novo serviço
-          </button>
-        }
       />
       {hasServiceLimit && (
         <p className="muted">
@@ -99,6 +85,15 @@ export function ServiceModule({
           {limitReached ? '. Seu plano atingiu o limite de serviços.' : '.'}
         </p>
       )}
+      <ServiceHeader
+        onSearch={(value) => {
+          setPage(1);
+          setSearch(value);
+        }}
+        onNewClick={() => {
+          if (!limitReached) void navigate('/app/servicos/novo');
+        }}
+      />
       <PageToolbar>
         <label className="ds-field--wide">
           Busca
@@ -163,33 +158,15 @@ export function ServiceModule({
         <>
           <div className="service-catalog-list">
             {items.map((service) => (
-              <button
+              <ServiceRow
                 key={service.publicId}
-                className="service-catalog-row"
-                type="button"
+                name={service.name}
+                category={service.categoryName ?? 'Sem categoria'}
+                duration={`${service.durationMinutes} min`}
+                price={money(service.priceCents)}
+                active={service.active}
                 onClick={() => void navigate(`/app/servicos/${service.publicId}`)}
-              >
-                <TenantServiceImage
-                  alt={service.imageAlt ?? service.name}
-                  servicePublicId={service.publicId}
-                  tenantPublicId={tenantPublicId}
-                />
-                <span>
-                  <strong>{service.name}</strong>
-                  <small>
-                    {service.categoryName ?? 'Sem categoria'} ·{' '}
-                    {service.enabledProfessionalCount ?? 0} profissional(is)
-                  </small>
-                </span>
-                <span>
-                  <strong>{money(service.priceCents)}</strong>
-                  <small>{service.durationMinutes} min</small>
-                </span>
-                <StatusBadge active={service.active}>
-                  {service.active ? 'Ativo' : 'Inativo'}
-                </StatusBadge>
-                <i aria-hidden="true">›</i>
-              </button>
+              />
             ))}
           </div>
           <Pagination

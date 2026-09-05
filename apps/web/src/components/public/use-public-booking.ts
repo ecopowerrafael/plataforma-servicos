@@ -80,7 +80,6 @@ export function humanError(error: unknown): string {
  */
 export function usePublicBooking(slug: string, site: Site, initialEntry?: PublicBookingEntry) {
   const bookingSubmissionInFlight = useRef(false);
-  const entryConsumedRef = useRef(false);
   const storageKey = `agendei:booking:${slug}`;
   const restored = useMemo(() => {
     try {
@@ -95,12 +94,28 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
   const comboFromUrl = new URLSearchParams(window.location.search).get('combo');
   const professionalFromUrl = new URLSearchParams(window.location.search).get('professional');
 
-  const initialService = initialEntry?.type === 'SERVICE'
-    ? initialEntry.publicId
-    : serviceFromUrl ?? restored.servicePublicId ?? '';
-  const initialCombo = initialEntry?.type === 'COMBO'
-    ? initialEntry.publicId
-    : comboFromUrl ?? restored.comboPublicId ?? '';
+  // XOR enforcement: initialEntry has absolute priority, nullifying the opposite field
+  let initialService = '';
+  let initialCombo = '';
+  if (initialEntry?.type === 'SERVICE') {
+    initialService = initialEntry.publicId;
+    initialCombo = '';
+  } else if (initialEntry?.type === 'COMBO') {
+    initialCombo = initialEntry.publicId;
+    initialService = '';
+  } else if (initialEntry?.type === 'PROFESSIONAL') {
+    // Professional-first: don't restore incompatible offering without need
+    initialService = '';
+    initialCombo = '';
+  } else {
+    // No initialEntry: restore from query params or sessionStorage, with XOR validation
+    initialService = serviceFromUrl ?? restored.servicePublicId ?? '';
+    initialCombo = comboFromUrl ?? restored.comboPublicId ?? '';
+    // If both came from sessionStorage, prefer service (arbitrary choice to break tie)
+    if (initialService !== '' && initialCombo !== '') {
+      initialCombo = '';
+    }
+  }
   const initialProfessional = initialEntry?.type === 'PROFESSIONAL'
     ? initialEntry.publicId
     : professionalFromUrl ?? restored.professionalPublicId ?? '';
@@ -224,6 +239,19 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
         schema: CustomerAuthResponseSchema,
       }),
   });
+
+  // XOR invariant debug: verify never both offerings selected simultaneously
+  useEffect(() => {
+    if (servicePublicId !== '' && comboPublicId !== '') {
+      console.error('[BOOKING_XOR_VIOLATION]', {
+        servicePublicId,
+        comboPublicId,
+        step,
+        professionalPublicId,
+        date,
+      });
+    }
+  }, [servicePublicId, comboPublicId, step, professionalPublicId, date]);
 
   useEffect(() => {
     sessionStorage.setItem(

@@ -190,7 +190,7 @@ export function FinanceOverviewModule({
   };
 
   return (
-    <div className="ds-stack finance-page" aria-label="Visão financeira">
+    <div className="ds-stack finance-page finance-page--redesigned" aria-label="Visão financeira">
       <PageHeader
         eyebrow="Financeiro"
         title="Visão geral"

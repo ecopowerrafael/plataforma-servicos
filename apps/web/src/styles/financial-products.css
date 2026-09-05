@@ -807,6 +807,122 @@
 }
 
 /* ============================================
+   FINANCE OVERVIEW REDESIGN
+   ============================================ */
+
+.finance-page--redesigned .finance-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.finance-page--redesigned .finance-kpi {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.finance-page--redesigned .finance-kpi small {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.finance-page--redesigned .finance-kpi strong {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.finance-page--redesigned .finance-kpi-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+}
+
+.finance-page--redesigned .finance-delta {
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.finance-page--redesigned .finance-delta--positive {
+  color: #16a34a;
+}
+
+.finance-page--redesigned .finance-delta--negative {
+  color: #dc2626;
+}
+
+.finance-page--redesigned .finance-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.finance-page--redesigned .app-card {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: 12px !important;
+}
+
+.finance-page--redesigned .finance-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.finance-page--redesigned .finance-methods li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.finance-page--redesigned .ds-usage {
+  flex: 1;
+  height: 6px;
+  background: var(--color-bg-muted);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.finance-page--redesigned .ds-usage span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent-dark);
+  border-radius: 3px;
+}
+
+.finance-page--redesigned .finance-subfilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 12px;
+  background: var(--color-bg-muted);
+  border-radius: 12px;
+}
+
+.finance-page--redesigned .finance-period-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  margin-left: auto;
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 

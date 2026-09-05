@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { BusinessLocationCard } from './BusinessLocationCard.js';
+import '../../styles/company.css';
 
 const SlugAvailabilitySchema = z.object({ available: z.boolean() });
 interface IdentityDraft {
@@ -121,7 +122,7 @@ export function CompanyDataModule({ tenantPublicId }: { tenantPublicId: string }
     save.mutate();
   };
   return (
-    <section className="company-data-page" aria-labelledby="company-data-title">
+    <section className="company-data-page company-data-page--redesigned" aria-labelledby="company-data-title">
       <div className="module-header">
         <div>
           <p className="eyebrow">Minha empresa</p>

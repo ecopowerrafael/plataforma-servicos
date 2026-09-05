@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
 import { BrandAssetDropzone } from '../branding/BrandAssetDropzone.js';
+import '../../styles/company.css';
 
 type BannerKind = 'BANNER_DESKTOP' | 'BANNER_MOBILE';
 
@@ -75,7 +76,7 @@ export function BannersModule({ tenantPublicId }: { tenantPublicId: string }) {
     if (current !== undefined) remove.mutate(current.publicId);
   };
   return (
-    <section className="banner-manager" aria-labelledby="banners-title">
+    <section className="banner-manager banner-manager--redesigned" aria-labelledby="banners-title">
       <div className="module-header">
         <div>
           <p className="eyebrow">Minha empresa</p>

@@ -115,7 +115,7 @@ export function LoginPage() {
     <AuthLayout
       title="Acesse sua conta"
       description="Use o e-mail e a senha vinculados ao seu estabelecimento."
-      footer={<><Link to="/forgot-password">Esqueci minha senha</Link><Link to={`/cadastro${params.toString() === '' ? '' : `?${params.toString()}`}`}>Ainda não tem uma conta? Criar conta</Link></>}
+      footer={<><Link to="/forgot-password">Esqueci minha senha</Link><Link to={`/cadastro${params.toString() === '' ? '' : `?${params.toString()}`}`}>Ainda não tem uma conta? Criar conta</Link><div style={{ marginTop: '16px', fontSize: '12px', opacity: 0.7 }}><Link to="/privacidade" style={{ marginRight: '16px' }}>Privacidade</Link><Link to="/termos">Termos</Link></div></>}
     >
       <script src="https://accounts.google.com/gsi/client" async defer />
       <form className="auth-form" onSubmit={(event) => void submit(event)} noValidate>

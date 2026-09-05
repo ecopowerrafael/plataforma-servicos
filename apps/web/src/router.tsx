@@ -378,6 +378,7 @@ export const router = createBrowserRouter([
   { path: '/app/configuracoes', element: lazyPage(HomePage) },
   { path: '/app/configuracoes/sessoes', element: lazyPage(HomePage) },
   { path: '/app/configuracoes/emails', element: lazyPage(HomePage) },
+  { path: '/app/orcamentos', element: lazyPage(HomePage) },
   { path: '/select-tenant', element: lazyPage(SelectTenantPage) },
   { path: '/forgot-password', element: lazyPage(ForgotPasswordPage) },
   { path: '/reset-password', element: lazyPage(ResetPasswordPage) },

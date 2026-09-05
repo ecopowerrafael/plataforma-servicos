@@ -491,6 +491,7 @@ export async function buildApp(options: BuildAppOptions) {
     await app.register(customerAuthRoutes, {
       service: options.database.customerAuth,
       profileService: options.database.customerProfile,
+      googleAuth,
       ...(options.database.customerPhotos === undefined
         ? {}
         : { photoService: options.database.customerPhotos }),

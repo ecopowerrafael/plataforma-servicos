@@ -1,5 +1,6 @@
 import {
   CustomerAuthResponseSchema,
+  CustomerGoogleAuthRequestSchema,
   CustomerLoginRequestSchema,
   CustomerProfileResponseSchema,
   CustomerRegisterRequestSchema,
@@ -104,6 +105,16 @@ export function useCustomerAccount(slug: string) {
     onSuccess: invalidateMe,
   });
 
+  const loginWithGoogle = useMutation({
+    mutationFn: (credential: string) =>
+      httpClient.request(`/public/sites/${slug}/customer/google`, {
+        method: 'POST',
+        body: CustomerGoogleAuthRequestSchema.parse({ credential }),
+        schema: CustomerAuthResponseSchema,
+      }),
+    onSuccess: invalidateMe,
+  });
+
   const logout = useMutation({
     mutationFn: () =>
       httpClient.request(`/public/sites/${slug}/customer/logout`, {
@@ -181,6 +192,7 @@ export function useCustomerAccount(slug: string) {
     profile,
     register,
     login,
+    loginWithGoogle,
     logout,
     forgot,
     updateProfile,

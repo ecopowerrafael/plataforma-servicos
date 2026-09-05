@@ -121,6 +121,9 @@ export class CustomerRepository {
   public findByEmail(tenantId: bigint, email: string) {
     return this.client.customer.findFirst({ where: { tenantId, email }, include });
   }
+  public findByGoogleSub(tenantId: bigint, googleSub: string) {
+    return this.client.customer.findFirst({ where: { tenantId, googleSub }, include });
+  }
   public findByContact(tenantId: bigint, phone: string | null, email: string | null) {
     const or: Prisma.CustomerWhereInput[] = [];
     if (phone !== null) or.push({ phone });

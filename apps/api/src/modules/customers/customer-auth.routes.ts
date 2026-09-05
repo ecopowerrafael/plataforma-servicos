@@ -2,6 +2,8 @@ import { type CookieSerializeOptions } from '@fastify/cookie';
 import {
   CustomerAuthResponseSchema,
   CustomerForgotPasswordRequestSchema,
+  CustomerGoogleAuthRequestSchema,
+  CustomerGoogleAuthResponseSchema,
   CustomerLoginRequestSchema,
   CustomerResetPasswordRequestSchema,
   CustomerProfileResponseSchema,
@@ -13,7 +15,7 @@ import { type FastifyReply, type FastifyRequest } from 'fastify';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-
+import { GoogleAuthService } from '../auth/google-auth.service.js';
 import { type CustomerAuthService } from './customer-auth.service.js';
 import { type CustomerPhotoService } from './customer-photo.service.js';
 import { type CustomerProfileService } from './customer-profile.service.js';
@@ -24,6 +26,7 @@ interface Options {
   service: CustomerAuthService;
   profileService: CustomerProfileService;
   photoService?: CustomerPhotoService;
+  googleAuth: GoogleAuthService;
   cookieName: string;
   cookieSecure: boolean;
   sessionTtlHours: number;
@@ -113,6 +116,27 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
       const result = await options.service.login(
         request.params.slug,
         request.body,
+        requestMetadata(request),
+      );
+      reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
+      return { customer: customerPublic(result.customer) };
+    },
+  );
+
+  app.post(
+    '/public/sites/:slug/customer/google',
+    {
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: SlugParamsSchema,
+        body: CustomerGoogleAuthRequestSchema,
+        response: { 200: CustomerGoogleAuthResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const result = await options.service.loginWithGoogle(
+        request.params.slug,
+        (request.body as { credential: string }).credential,
         requestMetadata(request),
       );
       reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));

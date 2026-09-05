@@ -7,6 +7,7 @@ import {
 import { type CustomerAuthRepository } from './customer-auth.repository.js';
 import { type CustomerRepository } from './customer.repository.js';
 import { AppError } from '../../errors/AppError.js';
+import { GoogleAuthService } from '../auth/google-auth.service.js';
 import { type PasswordService } from '../auth/password.service.js';
 import { generateOpaqueToken, generatePublicId, hashOpaqueToken } from '../auth/token.service.js';
 import { type EmailDelivery } from '../notifications/email-delivery.js';
@@ -53,6 +54,7 @@ export class CustomerAuthService {
     private readonly sessions: CustomerAuthRepository,
     private readonly tenants: TenantWhiteLabelRepository,
     private readonly passwords: PasswordService,
+    private readonly googleAuth: GoogleAuthService,
     private readonly options: {
       sessionTtlHours: number;
       passwordResetTtlMinutes?: number;
@@ -239,6 +241,74 @@ export class CustomerAuthService {
       targetPublicId: session.customer.publicId,
       ...metadata,
     });
+  }
+
+  public async loginWithGoogle(
+    slug: string,
+    credential: string,
+    metadata: RequestMetadata,
+  ): Promise<CustomerAuthResult> {
+    const tenant = await this.tenants.findActiveTenantBySlug(slug);
+    if (tenant === null) throw tenantNotFound();
+
+    const payload = this.googleAuth.validateIdToken(credential);
+    const email = normalizeEmail(payload.email);
+
+    // Look up customer by googleSub first
+    let customer = await this.customers.findByGoogleSub(tenant.id, payload.sub);
+
+    if (customer === null) {
+      // Try to find existing customer by email to link
+      customer = await this.customers.findByEmail(tenant.id, email);
+
+      if (customer !== null && customer.status === 'ACTIVE') {
+        // Link googleSub to existing customer
+        await this.customers.update(customer.id, { googleSub: payload.sub });
+      } else {
+        // Create new customer
+        customer = await this.customers.create({
+          publicId: generatePublicId(),
+          tenantId: tenant.id,
+          name: payload.name ?? email.split('@')[0] ?? 'Customer',
+          socialName: null,
+          phone: null,
+          whatsapp: null,
+          email,
+          birthDate: null,
+          document: null,
+          notes: null,
+          status: 'ACTIVE',
+          source: 'GOOGLE_LOGIN',
+          acceptsCommunications: false,
+          passwordHash: null,
+          googleSub: payload.sub,
+          primaryUnitId: null,
+          customFields: {},
+        });
+      }
+    }
+
+    if (customer.status !== 'ACTIVE') {
+      throw new AppError({
+        code: 'CUSTOMER_INACTIVE',
+        message: 'Acesso da cliente está bloqueado.',
+        statusCode: 403,
+      });
+    }
+
+    await this.sessions.audit({
+      publicId: generatePublicId(),
+      tenantId: tenant.id,
+      userId: null,
+      sessionId: null,
+      action: 'customer.login.success',
+      targetType: 'customer',
+      targetPublicId: customer.publicId,
+      metadata: { provider: 'GOOGLE' },
+      ...metadata,
+    });
+
+    return this.createSession(tenant.id, customer, metadata);
   }
 
   private async createSession(

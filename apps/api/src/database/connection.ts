@@ -7,6 +7,7 @@ import { PrismaClient } from '../database-client/client.js';
 import { AppointmentOperationsService } from '../modules/appointments/appointment-operations.service.js';
 import { AppointmentReviewRepository } from '../modules/appointments/appointment-review.repository.js';
 import { AppointmentReviewService } from '../modules/appointments/appointment-review.service.js';
+import { GoogleAuthService } from '../modules/auth/google-auth.service.js';
 import { AppointmentWaitlistRepository } from '../modules/appointments/appointment-waitlist.repository.js';
 import { AppointmentWaitlistService } from '../modules/appointments/appointment-waitlist.service.js';
 import { AppointmentRepository } from '../modules/appointments/appointment.repository.js';
@@ -335,6 +336,7 @@ export function createDatabaseConnection(
     hostingerMail: customerAuthOptions?.hostingerMail,
     smtp: customerAuthOptions?.smtp,
   });
+  const googleAuth = new GoogleAuthService(process.env.GOOGLE_CLIENT_ID ?? 'NOT_CONFIGURED');
   const customerAuth = new CustomerAuthService(
     customerRepository,
     new CustomerAuthRepository(client),
@@ -346,6 +348,7 @@ export function createDatabaseConnection(
         parallelism: 1,
       },
     ),
+    googleAuth,
     {
       sessionTtlHours: customerAuthOptions?.sessionTtlHours ?? 168,
       passwordResetTtlMinutes: 60,

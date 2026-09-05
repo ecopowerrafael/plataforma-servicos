@@ -1,7 +1,22 @@
-import { CUSTOMER_PASSWORD_RULES } from '@plataforma/shared';
-import { useState } from 'react';
+import { CUSTOMER_PASSWORD_RULES, CustomerGoogleAuthRequestSchema } from '@plataforma/shared';
+import { useEffect, useRef, useState } from 'react';
 
+import { loadGoogleIdentityServices } from '../../../lib/google-identity.js';
+import { HttpError, httpClient } from '../../../lib/http.js';
 import { message, type useCustomerAccount } from './customer-account.js';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize(config: { client_id: string; callback: (response: unknown) => void }): void;
+          renderButton(element: HTMLElement | null, options: Record<string, unknown>): void;
+        };
+      };
+    };
+  }
+}
 
 export function PasswordRules() {
   return (
@@ -27,9 +42,58 @@ export function CustomerAccountAuth({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const googleInitializedRef = useRef(false);
 
-  const busy = account.register.isPending || account.login.isPending || account.forgot.isPending;
-  const authError = message(account.register.error ?? account.login.error);
+  const busy = account.register.isPending || account.login.isPending || account.loginWithGoogle.isPending || account.forgot.isPending;
+  const authError = message(account.register.error ?? account.login.error ?? account.loginWithGoogle.error);
+
+  useEffect(() => {
+    if (googleInitializedRef.current) return;
+
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+    if (!clientId) {
+      if (import.meta.env.DEV) {
+        console.warn('[Google Auth] VITE_GOOGLE_CLIENT_ID not configured');
+      }
+      return;
+    }
+
+    googleInitializedRef.current = true;
+
+    loadGoogleIdentityServices()
+      .then(() => {
+        if (!window.google?.accounts?.id) return;
+
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: async (response: { credential?: string } | unknown) => {
+            if (response && typeof response === 'object' && 'credential' in response && response.credential) {
+              try {
+                const validated = CustomerGoogleAuthRequestSchema.parse({ credential: response.credential });
+                await account.loginWithGoogle.mutateAsync(validated.credential);
+              } catch (error) {
+                // Error already handled by mutation
+              }
+            }
+          },
+        });
+
+        if (googleButtonRef.current) {
+          window.google.accounts.id.renderButton(googleButtonRef.current, {
+            theme: 'outline',
+            size: 'large',
+            width: '100%',
+            text: 'continue_with',
+          });
+        }
+      })
+      .catch((error) => {
+        if (import.meta.env.DEV) {
+          console.error('[Google Auth] Failed to load Google Identity Services:', error);
+        }
+      });
+  }, [account.loginWithGoogle]);
 
   return (
     <section className="customer-auth-card" aria-label="Acessar minha conta">
@@ -157,6 +221,9 @@ export function CustomerAccountAuth({
                 ? 'Criar conta'
                 : 'Enviar instruções'}
         </button>
+        {mode === 'login' || mode === 'register' ? (
+          <div ref={googleButtonRef} style={{ marginTop: '16px' }} />
+        ) : null}
         {mode === 'register' ? (
           <p className="public-sheet-hint">
             Com uma conta você acompanha seus horários e pagamentos sem preencher seus dados

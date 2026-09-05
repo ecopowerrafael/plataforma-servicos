@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { money } from './product-format.js';
 import { ProductForm, type ProductSubmission } from './ProductForm.js';
 import { ProductSaleDrawer } from './ProductSaleDrawer.js';
+import { ProductHeader, ProductRow } from './ProductUIComponents.js';
 import { StockStatusBadge } from './StockStatusBadge.js';
 import { httpClient } from '../../lib/http.js';
 import { TenantServiceImage } from '../services/TenantServiceImage.js';
@@ -208,6 +209,15 @@ export function ProductCatalog({
           Cancelar
         </button>
       )}
+      <ProductHeader
+        onSearch={(value) => {
+          setPage(1);
+          setSearch(value);
+        }}
+        onNewClick={() => {
+          if (canManage) setCreating(true);
+        }}
+      />
       <PageToolbar>
         <label className="ds-field--wide">
           Busca
@@ -314,47 +324,16 @@ export function ProductCatalog({
         <>
           <div className="product-catalog-list">
             {items.map((product) => (
-              <button
+              <ProductRow
                 key={product.publicId}
-                className="product-catalog-row"
-                type="button"
+                name={product.name}
+                code={product.sku ?? undefined}
+                category={product.categoryName ?? 'Sem categoria'}
+                price={money(product.salePriceCents)}
+                stock={product.stockQuantity}
+                status={product.active ? 'active' : 'inactive'}
                 onClick={() => void navigate(`/app/produtos/${product.publicId}`)}
-              >
-                <span className="product-thumb">
-                  {product.imageUrl === null ? (
-                    <i aria-hidden="true">{product.name.slice(0, 1).toUpperCase()}</i>
-                  ) : (
-                    <TenantServiceImage
-                      alt={product.imageAlt ?? product.name}
-                      kind="products"
-                      servicePublicId={product.publicId}
-                      tenantPublicId={tenantPublicId}
-                    />
-                  )}
-                </span>
-                <span className="product-identity">
-                  <strong>{product.name}</strong>
-                  <small>{product.categoryName ?? 'Sem categoria'}</small>
-                </span>
-                <span className="product-price">
-                  <strong>{money(product.salePriceCents)}</strong>
-                  {product.sku === null ? null : <small>SKU {product.sku}</small>}
-                </span>
-                <span className="product-stock">
-                  <strong>{product.stockQuantity}</strong>
-                  <small>
-                    em estoque
-                    {multiUnit && unit === '' && product.stockUnitCount > 1
-                      ? ` · ${String(product.stockUnitCount)} unidades`
-                      : ''}
-                  </small>
-                </span>
-                <StockStatusBadge status={product.stockStatus} />
-                <StatusBadge active={product.active}>
-                  {product.active ? 'Ativo' : 'Arquivado'}
-                </StatusBadge>
-                <i aria-hidden="true">›</i>
-              </button>
+              />
             ))}
           </div>
           <Pagination

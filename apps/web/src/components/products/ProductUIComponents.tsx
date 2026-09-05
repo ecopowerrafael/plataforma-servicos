@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { IconSearch, IconPlus, IconBoxSeam, IconDollarSign, IconPackage } from '@tabler/icons-react';
+import { IconSearch, IconPlus, IconBoxSeam, IconCoin, IconPackage } from '@tabler/icons-react';
 
 /* ============================================
    PRODUCT HEADER

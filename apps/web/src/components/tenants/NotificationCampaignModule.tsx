@@ -21,6 +21,7 @@ import {
 } from '../ui/AppUi.js';
 import { httpClient } from '../../lib/http.js';
 import '../../notification-campaign.css';
+import '../../styles/marketing.css';
 
 export function NotificationCampaignModule({
   tenantPublicId,
@@ -109,7 +110,7 @@ export function NotificationCampaignModule({
   });
   const latest = campaigns.data?.items[0];
   return (
-    <section className="notification-campaign" aria-label="Central de comunicação">
+    <section className="notification-campaign notification-campaign--redesigned" aria-label="Central de comunicação">
       <PageHeader
         eyebrow="Marketing"
         title="Notificações"

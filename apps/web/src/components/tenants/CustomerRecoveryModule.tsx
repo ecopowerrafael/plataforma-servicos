@@ -28,6 +28,7 @@ import {
 } from './customer-recovery.js';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, SectionCard } from '../ui/AppUi.js';
+import '../../styles/marketing.css';
 
 type Eligible = ReturnType<typeof RecoveryEligibleListResponseSchema.parse>['items'][number];
 type Rule = ReturnType<typeof RecoveryRulePublicSchema.parse>;
@@ -218,7 +219,7 @@ export function CustomerRecoveryModule({
     );
 
   return (
-    <div className="ds-stack recovery-page" aria-label="Recuperação de clientes">
+    <div className="ds-stack recovery-page recovery-page--redesigned" aria-label="Recuperação de clientes">
       <PageHeader
         eyebrow="Relacionamento"
         title="Recuperação de clientes"

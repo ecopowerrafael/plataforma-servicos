@@ -74,3 +74,41 @@ export const UpdateTenantTerminologySchema = z.object({
 });
 
 export type UpdateTenantTerminology = z.infer<typeof UpdateTenantTerminologySchema>;
+
+export const TreatmentPlanReminderSequenceStepSchema = z.object({
+  enabled: z.boolean().default(true),
+  delayValue: z.number().int().positive(),
+  delayUnit: z.enum(['HOUR', 'DAY']),
+  message: z.string().trim().min(10).max(1000),
+});
+
+export type TreatmentPlanReminderSequenceStep = z.infer<typeof TreatmentPlanReminderSequenceStepSchema>;
+
+export const TreatmentPlanReminderConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    channel: z.enum(['WHATSAPP', 'EMAIL', 'PUSH']).default('WHATSAPP'),
+    sequence: z.array(TreatmentPlanReminderSequenceStepSchema).default([
+      {
+        enabled: true,
+        delayValue: 1,
+        delayUnit: 'DAY',
+        message: 'Olá {{customerName}}! Você tem um {{treatmentPlanSingular}} pendente de aprovação. Confira os detalhes!',
+      },
+      {
+        enabled: true,
+        delayValue: 3,
+        delayUnit: 'DAY',
+        message: 'Oi {{customerName}}, gostaria de relembrar sobre seu {{treatmentPlanSingular}} aguardando aprovação.',
+      },
+      {
+        enabled: true,
+        delayValue: 7,
+        delayUnit: 'DAY',
+        message: 'Última notificação: seu {{treatmentPlanSingular}} foi criado há 7 dias. Clique para aprovar!',
+      },
+    ]),
+  })
+  .strict();
+
+export type TreatmentPlanReminderConfig = z.infer<typeof TreatmentPlanReminderConfigSchema>;

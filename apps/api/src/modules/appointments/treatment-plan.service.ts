@@ -13,6 +13,7 @@ import {
   type TreatmentPlanRecord,
   type TreatmentPlanRepository,
 } from './treatment-plan.repository.js';
+import { type TreatmentPlanReminderService } from './treatment-plan-reminder.service.js';
 import { AppError } from '../../errors/AppError.js';
 
 interface Actor {
@@ -33,7 +34,10 @@ function planNotFound(): AppError {
 }
 
 export class TreatmentPlanService {
-  public constructor(private readonly repo: TreatmentPlanRepository) {}
+  public constructor(
+    private readonly repo: TreatmentPlanRepository,
+    private readonly reminderService?: TreatmentPlanReminderService,
+  ) {}
 
   private async toPublic(tenantId: bigint, plan: TreatmentPlanRecord) {
     const paidByAppointment = await this.repo.paidCentsByAppointment(
@@ -155,6 +159,11 @@ export class TreatmentPlanService {
       notes: input.notes ?? null,
     });
     await this.audit(tenantId, plan.publicId, 'treatment_plan.created', actor);
+    try {
+      await this.reminderService?.initializeForPendingPlan(tenantId, plan.id);
+    } catch {
+      /* falha na inicialização de reminders não impede a criação do plano */
+    }
     return this.toPublic(tenantId, plan);
   }
 
@@ -191,6 +200,11 @@ export class TreatmentPlanService {
       userId: null,
       sessionId: null,
     });
+    try {
+      await this.reminderService?.cancelReminder(plan.id);
+    } catch {
+      /* falha no cancelamento de reminders não impede a aprovação */
+    }
     return { plan: await this.toPublic(tenantId, updated), changed: true };
   }
 
@@ -283,6 +297,11 @@ export class TreatmentPlanService {
       approvedAt: new Date(),
     });
     await this.audit(tenantId, publicId, 'treatment_plan.approved', actor);
+    try {
+      await this.reminderService?.cancelReminder(plan.id);
+    } catch {
+      /* falha no cancelamento de reminders não impede a aprovação */
+    }
     return this.toPublic(tenantId, updated);
   }
 
@@ -302,6 +321,11 @@ export class TreatmentPlanService {
       canceledReason: reason ?? null,
     });
     await this.audit(tenantId, publicId, 'treatment_plan.canceled', actor);
+    try {
+      await this.reminderService?.cancelReminder(plan.id);
+    } catch {
+      /* falha no cancelamento de reminders não impede o cancelamento */
+    }
     return this.toPublic(tenantId, updated);
   }
 
@@ -392,6 +416,13 @@ export class TreatmentPlanService {
       status: finished ? 'COMPLETED' : 'IN_PROGRESS',
       completedAt: finished ? (current.completedAt ?? new Date()) : null,
     });
+    if (finished) {
+      try {
+        await this.reminderService?.cancelReminder(current.id);
+      } catch {
+        /* falha no cancelamento de reminders não impede a conclusão */
+      }
+    }
   }
 
   private async requirePlan(tenantId: bigint, publicId: string, professionalId?: bigint) {

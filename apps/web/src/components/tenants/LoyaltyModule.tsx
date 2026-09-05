@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, StatusBadge } from '../ui/AppUi.js';
+import '../../styles/marketing.css';
 
 interface LoyaltyRule {
   type: 'POINTS' | 'CASHBACK';
@@ -41,7 +42,7 @@ export function LoyaltyModule({
     retry: false,
   });
   return (
-    <section className="sessions-panel loyalty-module" aria-label="Programa de fidelidade">
+    <section className="sessions-panel loyalty-module loyalty-module--redesigned" aria-label="Programa de fidelidade">
       <PageHeader
         eyebrow="Relacionamento"
         title="Programa de fidelidade"

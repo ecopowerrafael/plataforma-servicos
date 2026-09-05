@@ -18,6 +18,7 @@ import {
   StatGrid,
   StatusBadge,
 } from '../ui/AppUi.js';
+import '../../styles/marketing.css';
 
 const dateInTimezone = (date: Date, timezone: string) =>
   new Intl.DateTimeFormat('en-CA', {
@@ -101,7 +102,7 @@ export function MyCommissionsModule({ tenantPublicId }: { tenantPublicId: string
   const services = commissions.data?.services ?? [];
 
   return (
-    <div className="ds-stack" aria-label="Minhas comissões">
+    <div className="ds-stack my-commissions--redesigned" aria-label="Minhas comissões">
       {commissions.isPending ? <ListSkeleton rows={3} /> : null}
       {commissions.error instanceof Error ? (
         <InlineAlert

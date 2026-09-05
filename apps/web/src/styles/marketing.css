@@ -410,6 +410,181 @@
 }
 
 /* ============================================
+   LOYALTY MODULE (REDESIGNED)
+   ============================================ */
+
+.loyalty-module--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.loyalty-module--redesigned .loyalty-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.loyalty-module--redesigned .loyalty-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.2s ease-in-out;
+}
+
+.loyalty-module--redesigned .loyalty-card:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.08);
+}
+
+.loyalty-module--redesigned .loyalty-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.loyalty-module--redesigned .loyalty-card-header strong {
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.loyalty-module--redesigned .loyalty-card-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.loyalty-module--redesigned .loyalty-card-summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.loyalty-module--redesigned .loyalty-card-summary-item:last-child {
+  border-bottom: none;
+}
+
+.loyalty-module--redesigned .loyalty-card-summary-item label {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.loyalty-module--redesigned .loyalty-card-summary-item value {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.loyalty-module--redesigned .loyalty-form {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loyalty-module--redesigned .loyalty-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.loyalty-module--redesigned .loyalty-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.loyalty-module--redesigned .loyalty-form input,
+.loyalty-module--redesigned .loyalty-form select {
+  padding: 10px 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.loyalty-module--redesigned .ds-switch-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+/* ============================================
+   MY COMMISSIONS MODULE (REDESIGNED)
+   ============================================ */
+
+.my-commissions--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.my-commissions--redesigned .ds-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.my-commissions--redesigned .ds-stat-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-commissions--redesigned .app-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.my-commissions--redesigned .platform-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.my-commissions--redesigned .platform-table thead {
+  border-bottom: 2px solid var(--color-border-default);
+}
+
+.my-commissions--redesigned .platform-table th {
+  padding: 12px;
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.my-commissions--redesigned .platform-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+}
+
+.my-commissions--redesigned .platform-table tbody tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+/* ============================================
    COUPONS MODULE (REDESIGNED)
    ============================================ */
 
@@ -647,5 +822,17 @@
   .notification-templates--redesigned .notification-template-card,
   .email-templates--redesigned .notification-template-card {
     padding: 16px;
+  }
+
+  .loyalty-module--redesigned .loyalty-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .loyalty-module--redesigned .loyalty-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-commissions--redesigned .ds-stat-grid {
+    grid-template-columns: 1fr;
   }
 }

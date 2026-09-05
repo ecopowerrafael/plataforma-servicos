@@ -921,7 +921,7 @@ export function HomePage() {
           </p>
         </div>
         <button
-          className="secondary-button"
+          className="btn btn-secondary btn-sm"
           onClick={() => {
             void httpClient
               .request('/auth/logout', { method: 'POST', body: {}, schema: SuccessResponseSchema })
@@ -992,7 +992,7 @@ export function HomePage() {
                     com a identidade do seu negócio.
                   </p>
                   <button
-                    className="primary-button"
+                    className="btn btn-primary"
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'BUSINESS_TYPE' });
                     }}
@@ -1004,8 +1004,8 @@ export function HomePage() {
               {guidedStep === 'BUSINESS_TYPE' && (
                 <>
                   <h2>Qual é o tipo do seu negócio?</h2>
-                  <label>
-                    Tipo de negócio
+                  <div className="form-group">
+                    <label>Tipo de negócio</label>
                     <select
                       value={profile}
                       onChange={(event) => {
@@ -1018,10 +1018,10 @@ export function HomePage() {
                         </option>
                       ))}
                     </select>
-                  </label>
+                  </div>
                   {profile === 'GENERIC' && (
-                    <label>
-                      Conte um pouco sobre o seu negócio
+                    <div className="form-group">
+                      <label>Conte um pouco sobre o seu negócio</label>
                       <input
                         value={customBusinessType}
                         onChange={(event) => {
@@ -1029,10 +1029,10 @@ export function HomePage() {
                         }}
                         placeholder="Ex.: Clínica veterinária"
                       />
-                    </label>
+                    </div>
                   )}
-                  <label>
-                    Como seu negócio trabalha?
+                  <div className="form-group">
+                    <label>Como seu negócio trabalha?</label>
                     <select
                       value={onboardingOperatingModel}
                       onChange={(event) => {
@@ -1042,13 +1042,13 @@ export function HomePage() {
                       <option value="SERVICE_PRICING">Cobrança por serviço</option>
                       <option value="MEMBERSHIP">Clube / assinatura mensal</option>
                     </select>
-                    <small>
+                    <small className="form-hint">
                       Essa escolha define o modelo operacional inicial e não vira um simples botão
                       de troca depois do onboarding.
                     </small>
-                  </label>
+                  </div>
                   <button
-                    className="primary-button"
+                    className="btn btn-primary"
                     disabled={profile === 'GENERIC' && customBusinessType.trim().length < 2}
                     onClick={() => {
                       updateOnboarding.mutate({
@@ -1081,7 +1081,7 @@ export function HomePage() {
                     <li>visual inicial do aplicativo</li>
                   </ul>
                   <button
-                    className="primary-button"
+                    className="btn btn-primary"
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'BUSINESS_IDENTITY' });
                     }}
@@ -1096,8 +1096,8 @@ export function HomePage() {
                   <p>
                     Este é o nome que seus clientes verão no aplicativo e na página de agendamento.
                   </p>
-                  <label>
-                    Nome a ser exibido
+                  <div className="form-group">
+                    <label>Nome a ser exibido</label>
                     <input
                       value={businessName}
                       onChange={(event) => {
@@ -1105,9 +1105,9 @@ export function HomePage() {
                       }}
                       placeholder={me.data.currentTenant?.tenant.displayName ?? ''}
                     />
-                  </label>
+                  </div>
                   <button
-                    className="primary-button"
+                    className="btn btn-primary"
                     disabled={businessName.trim().length < 2}
                     onClick={() => {
                       updateOnboarding.mutate({
@@ -1127,10 +1127,10 @@ export function HomePage() {
                     Escolha com atenção. Por segurança e consistência dos seus links, o endereço
                     poderá ser alterado somente uma vez.
                   </p>
-                  <label>
-                    Endereço público
+                  <div className="form-group">
+                    <label>Endereço público</label>
                     <input value={suggestedSlug} readOnly aria-describedby="slug-help" />
-                    <small id="slug-help">
+                    <small id="slug-help" className="form-hint">
                       {suggestedSlug.length < 2
                         ? 'Volte e informe o nome para gerar o endereço.'
                         : slugAvailability.isPending
@@ -1139,9 +1139,9 @@ export function HomePage() {
                             ? `Disponível: ${window.location.origin}/public/${suggestedSlug}`
                             : 'Este endereço já está em uso. Volte e ajuste o nome.'}
                     </small>
-                  </label>
+                  </div>
                   <button
-                    className="primary-button"
+                    className="btn btn-primary"
                     disabled={!slugAvailability.data?.available}
                     onClick={() => {
                       updateOnboarding.mutate({ step: 'CUSTOMIZE', slug: suggestedSlug });
@@ -1168,7 +1168,7 @@ export function HomePage() {
                   )}
                   <div className="button-row">
                     <button
-                      className="primary-button"
+                      className="btn btn-primary"
                       disabled={uploadBrandAsset.isPending}
                       onClick={() => {
                         updateOnboarding.mutate({ step: 'LAYOUT' });
@@ -1177,7 +1177,7 @@ export function HomePage() {
                       Continuar
                     </button>
                     <button
-                      className="secondary-button"
+                      className="btn btn-secondary"
                       disabled={uploadBrandAsset.isPending}
                       onClick={() => {
                         updateOnboarding.mutate({ step: 'LAYOUT' });
@@ -1201,7 +1201,7 @@ export function HomePage() {
                     }}
                   />
                   <button
-                    className="primary-button"
+                    className="btn btn-primary"
                     disabled={savePublicTheme.isPending || updateOnboarding.isPending}
                     onClick={() => {
                       void persistLayoutAndAdvance({
@@ -1220,7 +1220,7 @@ export function HomePage() {
                   <h2>Escolha as cores da sua empresa</h2>
                   <BrandColorPicker value={primaryColor} onChange={setPrimaryColor} />
                   <button
-                    className="primary-button"
+                    className="btn btn-primary"
                     onClick={() => {
                       saveBranding.mutate(deriveBrandPalette(primaryColor, publicTheme), {
                         onSuccess: () => {
@@ -1255,7 +1255,7 @@ export function HomePage() {
                   )}
                   <div className="button-row">
                     <button
-                      className="primary-button"
+                      className="btn btn-primary"
                       disabled={uploadBrandAsset.isPending}
                       onClick={() => {
                         updateOnboarding.mutate({ step: 'APP_ICON' });
@@ -1264,7 +1264,7 @@ export function HomePage() {
                       Continuar
                     </button>
                     <button
-                      className="secondary-button"
+                      className="btn btn-secondary"
                       disabled={uploadBrandAsset.isPending}
                       onClick={() => {
                         updateOnboarding.mutate({ step: 'APP_ICON' });
@@ -1298,7 +1298,7 @@ export function HomePage() {
                   )}
                   <div className="button-row">
                     <button
-                      className="primary-button"
+                      className="btn btn-primary"
                       disabled={uploadBrandAsset.isPending}
                       onClick={() => {
                         updateOnboarding.mutate({ step: 'READY' });
@@ -1307,7 +1307,7 @@ export function HomePage() {
                       Continuar
                     </button>
                     <button
-                      className="secondary-button"
+                      className="btn btn-secondary"
                       disabled={uploadBrandAsset.isPending}
                       onClick={() => {
                         updateOnboarding.mutate({ step: 'READY' });
@@ -1335,7 +1335,7 @@ export function HomePage() {
                   </p>
                   <div className="onboarding-final-actions">
                     <button
-                      className="primary-button"
+                      className="btn btn-primary"
                       onClick={() => {
                         updateOnboarding.mutate(
                           { step: 'COMPLETE', completed: true },
@@ -1352,7 +1352,7 @@ export function HomePage() {
                       Ver meu aplicativo
                     </button>
                     <button
-                      className="secondary-button"
+                      className="btn btn-secondary"
                       onClick={() => {
                         updateOnboarding.mutate(
                           { step: 'COMPLETE', completed: true },
@@ -1574,7 +1574,7 @@ export function HomePage() {
               </h2>
             </div>
             <button
-              className="text-button"
+              className="btn btn-ghost"
               onClick={() => {
                 updateOnboarding.mutate({
                   step: onboarding.data?.onboardingStep ?? 'COMPLETE',
@@ -1607,7 +1607,7 @@ export function HomePage() {
           </section>
         )}
       {me.data.tenants.length > 1 || me.data.currentTenant === null ? (
-        <button className="text-button" onClick={() => void navigate('/select-tenant')}>
+        <button className="btn btn-ghost" onClick={() => void navigate('/select-tenant')}>
           {me.data.currentTenant === null ? 'Selecionar estabelecimento' : 'Trocar estabelecimento'}
         </button>
       ) : null}
@@ -1681,7 +1681,7 @@ export function HomePage() {
                     description="Controle de produtos e estoque não está incluído no seu plano atual."
                     actions={
                       <button
-                        className="primary-button"
+                        className="btn btn-primary"
                         type="button"
                         onClick={() => void navigate('/app/plano')}
                       >
@@ -1951,7 +1951,7 @@ export function HomePage() {
               <h2 id="sessions-title">Sessões ativas</h2>
             </div>
             <button
-              className="secondary-button"
+              className="btn btn-secondary"
               disabled={logoutAll.isPending}
               onClick={() => {
                 logoutAll.mutate();
@@ -1982,7 +1982,7 @@ export function HomePage() {
                   </span>
                 </div>
                 <button
-                  className="secondary-button"
+                  className="btn btn-secondary"
                   disabled={revokeSession.isPending}
                   onClick={() => {
                     revokeSession.mutate(session.publicId);

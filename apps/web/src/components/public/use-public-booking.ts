@@ -344,7 +344,15 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
 
   const goBack = () => {
     const index = flow.indexOf(effectiveStep);
-    if (index > 0) setStep(flow[index - 1] ?? 'service');
+    if (index > 0) {
+      const previousStep = flow[index - 1] ?? 'service';
+      // Clear offering selection when going back to service step
+      if (previousStep === 'service') {
+        setServicePublicId('');
+        setComboPublicId('');
+      }
+      setStep(previousStep);
+    }
     setValidation(null);
   };
   const continueFlow = () => {

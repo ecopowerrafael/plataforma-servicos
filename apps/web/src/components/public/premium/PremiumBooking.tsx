@@ -353,35 +353,66 @@ export function PremiumBooking({
                 </>
               )
             ) : (
-              <div className="premium-pick-list">
-                {site.services.map((item) => (
-                  <button
-                    key={item.publicId}
-                    className={`premium-pick${servicePublicId === item.publicId ? ' is-selected' : ''}`}
-                    type="button"
-                    aria-pressed={servicePublicId === item.publicId}
-                    onClick={() => {
-                      selectServiceAndContinue(item.publicId);
-                    }}
-                  >
-                    <ServiceVisual
-                      name={item.name}
-                      imageUrl={item.imageUrl}
-                      iconKey={item.iconKey}
-                    />
-                    <span className="premium-pick-body">
-                      <strong>{item.name}</strong>
-                      <small>
-                        {servicePriceLabel(item.pricingMode, item.priceCents, item.quoteNotice)}
-                        {` · ${String(item.durationMinutes)} min`}
-                      </small>
-                    </span>
-                    <span className="premium-pick-check" aria-hidden="true">
-                      ✓
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="premium-pick-list">
+                  {site.services.map((item) => (
+                    <button
+                      key={item.publicId}
+                      className={`premium-pick${servicePublicId === item.publicId ? ' is-selected' : ''}`}
+                      type="button"
+                      aria-pressed={servicePublicId === item.publicId}
+                      onClick={() => {
+                        selectServiceAndContinue(item.publicId);
+                      }}
+                    >
+                      <ServiceVisual
+                        name={item.name}
+                        imageUrl={item.imageUrl}
+                        iconKey={item.iconKey}
+                      />
+                      <span className="premium-pick-body">
+                        <strong>{item.name}</strong>
+                        <small>
+                          {servicePriceLabel(item.pricingMode, item.priceCents, item.quoteNotice)}
+                          {` · ${String(item.durationMinutes)} min`}
+                        </small>
+                      </span>
+                      <span className="premium-pick-check" aria-hidden="true">
+                        ✓
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {site.combos.length > 0 ? (
+                  <>
+                    <h4 className="premium-section-title">Combos</h4>
+                    <div className="premium-pick-list">
+                      {site.combos.map((item) => (
+                        <button
+                          key={item.publicId}
+                          className="premium-pick premium-pick-combo"
+                          type="button"
+                          style={{ position: 'relative', cursor: 'pointer', border: 'none', background: 'none', padding: 0, width: '100%' }}
+                          onClick={() => selectComboAndContinue(item.publicId)}
+                        >
+                          <ServiceVisual
+                            name={item.name}
+                            imageUrl={item.imageUrl}
+                            iconKey={undefined}
+                          />
+                          <span className="premium-pick-body">
+                            <strong>{item.name}</strong>
+                            <small>
+                              {item.items.map((s) => s.name).join(' + ')}
+                              {` · R$ ${(Number(item.priceCents) / 100).toLocaleString('pt-BR')} · ${String(item.durationMinutes)} min`}
+                            </small>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </>
             )}
           </>
         ) : null}

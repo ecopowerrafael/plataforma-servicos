@@ -55,7 +55,7 @@ describe('TreatmentPlanEditDialog', () => {
     expect(screen.getByDisplayValue(mockPlan.sessionsPlanned.toString())).toBeInTheDocument();
   });
 
-  it('should allow editing fields', async () => {
+  it('should allow editing all fields when no restrictions', async () => {
     const onSuccess = vi.fn();
     const onClose = vi.fn();
 
@@ -71,6 +71,42 @@ describe('TreatmentPlanEditDialog', () => {
     fireEvent.change(titleInput, { target: { value: 'Novo Título' } });
 
     expect((titleInput as HTMLInputElement).value).toBe('Novo Título');
+  });
+
+  it('should show form hints for billing modes', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TreatmentPlanEditDialog plan={mockPlan} onClose={vi.fn()} onSuccess={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    const select = screen.getByDisplayValue('Valor por sessão');
+    expect(select).toBeInTheDocument();
+  });
+
+  it('should respect allowed fields restriction', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TreatmentPlanEditDialog
+          plan={mockPlan}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+          allowedFields={['title', 'notes']}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText(/Alguns campos estão bloqueados/)).toBeInTheDocument();
+  });
+
+  it('should calculate values based on billing mode', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TreatmentPlanEditDialog plan={mockPlan} onClose={vi.fn()} onSuccess={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText(/Valor total estimado/)).toBeInTheDocument();
   });
 
   it('should call onSuccess when save succeeds', async () => {

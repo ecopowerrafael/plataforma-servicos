@@ -44,7 +44,7 @@ export function CommissionsModule({ tenantPublicId }: { tenantPublicId: string }
     rows.reduce((sum, item) => sum + Number(item.commissionAmountCents), 0);
 
   return (
-    <div className="ds-stack" aria-label="Comissões da equipe">
+    <div className="ds-stack commissions-page commissions-page--redesigned" aria-label="Comissões da equipe">
       <PageHeader
         eyebrow="Equipe"
         title="Comissões"

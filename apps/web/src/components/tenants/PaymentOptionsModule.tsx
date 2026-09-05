@@ -187,7 +187,7 @@ export function PaymentOptionsModule({
   };
 
   return (
-    <div className="ds-stack payment-options" aria-label="Central de cobrança">
+    <div className="ds-stack payment-options payment-options--redesigned" aria-label="Central de cobrança">
       <PageHeader
         eyebrow="Financeiro"
         title="Central de cobrança"

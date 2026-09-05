@@ -113,7 +113,7 @@ export function PaymentMethodsModule({
         : null;
 
   return (
-    <div className="ds-stack" aria-label="Formas de pagamento">
+    <div className="ds-stack payments-page payments-page--redesigned" aria-label="Formas de pagamento">
       <PageHeader
         eyebrow="Financeiro"
         title="Formas de pagamento"

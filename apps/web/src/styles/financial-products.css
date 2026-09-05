@@ -1062,3 +1062,191 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================
+   PAYMENT METHODS MODULE (REDESIGNED)
+   ============================================ */
+
+.payments-page--redesigned .payment-method-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.payments-page--redesigned .payment-method-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.payments-page--redesigned .payment-method-row:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.payments-page--redesigned .payment-method-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  color: var(--color-accent-primary);
+}
+
+.payments-page--redesigned .payment-method-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.payments-page--redesigned .payment-method-info strong {
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.payments-page--redesigned .payment-method-info small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.payments-page--redesigned .payment-method-form {
+  padding: 20px;
+  margin-top: 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+}
+
+/* ============================================
+   PAYMENT OPTIONS MODULE (REDESIGNED)
+   ============================================ */
+
+.payment-options--redesigned .payment-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.payment-options--redesigned .payment-option-card {
+  padding: 20px;
+  background: var(--color-bg-primary);
+  border: 2px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.payment-options--redesigned .payment-option-card:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.08);
+}
+
+.payment-options--redesigned .payment-option-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.payment-options--redesigned .payment-option-card header strong {
+  color: var(--color-text-primary);
+  font-size: 15px;
+}
+
+.payment-options--redesigned .payment-option-card > p {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.payment-options--redesigned .payment-option-card .platform-details {
+  margin-bottom: 16px;
+}
+
+.payment-options--redesigned .payment-option-card button {
+  width: 100%;
+}
+
+/* ============================================
+   COMMISSIONS MODULE (REDESIGNED)
+   ============================================ */
+
+.commissions-page--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.commissions-page--redesigned .ds-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.commissions-page--redesigned .app-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.commissions-page--redesigned .platform-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.commissions-page--redesigned .platform-table thead {
+  border-bottom: 2px solid var(--color-border-default);
+}
+
+.commissions-page--redesigned .platform-table th {
+  padding: 12px;
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.commissions-page--redesigned .platform-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+}
+
+.commissions-page--redesigned .platform-table tbody tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+@media (max-width: 768px) {
+  .payment-options--redesigned .payment-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .commissions-page--redesigned .ds-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .payments-page--redesigned .payment-method-row {
+    grid-template-columns: 40px 1fr;
+    gap: 12px;
+  }
+
+  .payments-page--redesigned .payment-method-row .ds-badge,
+  .payments-page--redesigned .payment-method-row .ds-row-actions {
+    grid-column: 2;
+    display: flex;
+    gap: 8px;
+  }
+}

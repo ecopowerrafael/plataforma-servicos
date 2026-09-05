@@ -265,7 +265,13 @@ function DateStep({
             min={todayIsoDate()}
             value={date}
             onChange={(event) => {
-              onSelect(event.target.value);
+              const selectedDate = event.target.value;
+              const isAvailable = availableDates.data?.dates.includes(selectedDate) ?? false;
+              if (!isAvailable && selectedDate !== '') {
+                alert('Não há horários disponíveis nesta data.');
+                return;
+              }
+              onSelect(selectedDate);
             }}
           />
         </label>

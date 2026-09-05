@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { httpClient } from '../../lib/http.js';
 
@@ -24,6 +25,7 @@ export function TreatmentPlanFollowUpSection({
   treatmentPlanPublicId: string;
   canUpdate: boolean;
 }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showHistory, setShowHistory] = useState(false);
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
@@ -81,7 +83,16 @@ export function TreatmentPlanFollowUpSection({
     return (
       <div className="treatment-plan-follow-up">
         <h3>Follow-up</h3>
-        <p className="form-note">Sem acompanhamento configurado para este orçamento.</p>
+        <div className="follow-up-empty">
+          <p className="form-note">Sem acompanhamento configurado para este orçamento.</p>
+          <button
+            type="button"
+            className="action-button secondary"
+            onClick={() => navigate('/app/configuracoes#lembretes-automaticos')}
+          >
+            Configurar lembretes
+          </button>
+        </div>
       </div>
     );
   }

@@ -12,6 +12,7 @@ import './styles/dashboard.css';
 import './styles/agenda.css';
 import './styles/customers.css';
 import './styles/catalog.css';
+import './styles/financial-products.css';
 import './styles.css';
 import './app-design-system.css';
 import './public-premium.css';

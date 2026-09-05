@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { IconSearch, IconPlus, IconFilter, IconCalendar, IconDollarSign, IconTrendingUp } from '@tabler/icons-react';
+import { IconSearch, IconPlus, IconFilter, IconCalendar, IconCoin, IconTrendingUp } from '@tabler/icons-react';
 
 /* ============================================
    FINANCIAL HEADER

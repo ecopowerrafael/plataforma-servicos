@@ -9,6 +9,7 @@ import { IconCashRegister, IconLock, IconPlus } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { FinancialHeader, FinancialSummaryCard, FinancialTransactionRow, FinancialTransactionCard } from '../financial/FinancialUIComponents.js';
 import {
   CASH_FILTERS,
   expectedBalance,
@@ -273,66 +274,37 @@ export function CashRegisterModule({
               <p className="ds-form-hint">Nenhuma movimentação neste filtro.</p>
             ) : (
               <>
-                <div className="ds-table-scroll cash-table-wrap">
-                  <table className="platform-table ds-data-table">
-                    <thead>
-                      <tr>
-                        <th>Horário</th>
-                        <th>Tipo</th>
-                        <th>Descrição</th>
-                        <th>Forma</th>
-                        <th>Responsável</th>
-                        <th>Valor</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {movements.map((movement) => (
-                        <tr key={movement.publicId}>
-                          <td>{formatTime(movement.createdAt)}</td>
-                          <td>
-                            <span
-                              className={`ds-badge ds-badge--${movement.type === 'PAYMENT' ? 'info' : movement.direction === 'IN' ? 'success' : 'muted'}`}
-                            >
-                              {movementLabel(movement)}
-                            </span>
-                          </td>
-                          <td>{movementDescription(movement)}</td>
-                          <td>{movement.paymentMethodName ?? '—'}</td>
-                          <td>{movement.userEmail ?? '—'}</td>
-                          <td
-                            className={`cash-amount cash-amount--${movement.direction.toLowerCase()}`}
-                          >
-                            {formatSignedMoney(movement.amountCents, movement.direction)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <ul className="cash-cards">
+                <div className="cash-movements-list">
                   {movements.map((movement) => (
-                    <li className="cash-card" key={movement.publicId}>
-                      <div className="cash-card-head">
-                        <strong>{formatTime(movement.createdAt)}</strong>
-                        <span
-                          className={`ds-badge ds-badge--${movement.type === 'PAYMENT' ? 'info' : movement.direction === 'IN' ? 'success' : 'muted'}`}
-                        >
-                          {movementLabel(movement)}
-                        </span>
-                        <span
-                          className={`cash-amount cash-amount--${movement.direction.toLowerCase()}`}
-                        >
-                          {formatSignedMoney(movement.amountCents, movement.direction)}
-                        </span>
-                      </div>
-                      <p>{movementDescription(movement)}</p>
-                      <small>
-                        {movement.paymentMethodName ?? 'Sem forma'} ·{' '}
-                        {movement.userEmail ?? 'Sem responsável'}
-                      </small>
-                    </li>
+                    <FinancialTransactionRow
+                      key={movement.publicId}
+                      id={movement.publicId}
+                      description={movementDescription(movement)}
+                      category={movementLabel(movement)}
+                      type={movement.direction === 'IN' ? 'income' : 'expense'}
+                      amount={formatSignedMoney(movement.amountCents, movement.direction)}
+                      date={formatTime(movement.createdAt)}
+                      status={
+                        movement.type === 'PAYMENT' ? 'paid' : movement.direction === 'IN' ? 'paid' : 'pending'
+                      }
+                    />
                   ))}
-                </ul>
+                </div>
+                <div className="cash-movements-mobile">
+                  {movements.map((movement) => (
+                    <FinancialTransactionCard
+                      key={movement.publicId}
+                      description={movementDescription(movement)}
+                      category={movementLabel(movement)}
+                      type={movement.direction === 'IN' ? 'income' : 'expense'}
+                      amount={formatSignedMoney(movement.amountCents, movement.direction)}
+                      date={formatTime(movement.createdAt)}
+                      status={
+                        movement.type === 'PAYMENT' ? 'paid' : movement.direction === 'IN' ? 'paid' : 'pending'
+                      }
+                    />
+                  ))}
+                </div>
               </>
             )}
           </SectionCard>

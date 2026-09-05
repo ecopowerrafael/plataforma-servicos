@@ -59,6 +59,7 @@ export function PremiumBooking({
     selectDateAndContinue,
     selectedSlot,
     selectSlotAndContinue,
+    availableDates,
     availability,
     availableSlots,
     customerName,
@@ -471,26 +472,36 @@ export function PremiumBooking({
         {step === 'date' ? (
           <>
             <div className="premium-day-strip" role="list">
-              {days.map((day) => {
-                const value = isoFromDate(day);
-                return (
-                  <button
-                    key={value}
-                    className={`premium-day${date === value ? ' is-selected' : ''}`}
-                    type="button"
-                    aria-pressed={date === value}
-                    onClick={() => {
-                      selectDateAndContinue(value);
-                    }}
-                  >
-                    <small>{weekday(day)}</small>
-                    <strong>{day.getDate()}</strong>
-                    <small>
-                      {day.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}
-                    </small>
-                  </button>
-                );
-              })}
+              {availableDates.isPending ? (
+                <span style={{ padding: '12px', textAlign: 'center' }}>Carregando datas...</span>
+              ) : availableDates.data?.dates.length === 0 ? (
+                <span style={{ padding: '12px', textAlign: 'center' }}>
+                  Não há horários disponíveis nos próximos 30 dias.
+                </span>
+              ) : (
+                days.map((day) => {
+                  const value = isoFromDate(day);
+                  const isAvailable = availableDates.data?.dates.includes(value) ?? false;
+                  return (
+                    <button
+                      key={value}
+                      className={`premium-day${date === value ? ' is-selected' : ''}`}
+                      type="button"
+                      aria-pressed={date === value}
+                      disabled={!isAvailable}
+                      onClick={() => {
+                        selectDateAndContinue(value);
+                      }}
+                    >
+                      <small>{weekday(day)}</small>
+                      <strong>{day.getDate()}</strong>
+                      <small>
+                        {day.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}
+                      </small>
+                    </button>
+                  );
+                })
+              )}
             </div>
             <div className="premium-calendar">
               <header>
@@ -535,7 +546,10 @@ export function PremiumBooking({
                       type="button"
                       role="gridcell"
                       aria-pressed={date === isoFromDate(day)}
-                      disabled={isoFromDate(day) < todayIso}
+                      disabled={
+                        isoFromDate(day) < todayIso ||
+                        !(availableDates.data?.dates.includes(isoFromDate(day)) ?? false)
+                      }
                       onClick={() => {
                         selectDateAndContinue(isoFromDate(day));
                       }}

@@ -1,5 +1,6 @@
 import {
   AvailabilityResponseSchema,
+  AvailableDatesResponseSchema,
   CustomerAuthResponseSchema,
   CustomerProfileResponseSchema,
   CustomerPasswordSchema,
@@ -293,6 +294,40 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
     enabled: professionalPublicId !== '',
     retry: false,
   });
+  const fromDate = new Date();
+  fromDate.setHours(0, 0, 0, 0);
+  const toDate = new Date(fromDate);
+  toDate.setDate(toDate.getDate() + 30);
+  const fromIso = fromDate.toISOString().split('T')[0];
+  const toIso = toDate.toISOString().split('T')[0];
+
+  const availableDates = useQuery({
+    queryKey: [
+      'public-booking',
+      slug,
+      'available-dates',
+      servicePublicId,
+      comboPublicId,
+      professionalPublicId,
+      unitPublicId,
+    ],
+    queryFn: () => {
+      const query = new URLSearchParams({ professionalPublicId, from: fromIso, to: toIso });
+      if (servicePublicId !== '') query.set('servicePublicId', servicePublicId);
+      if (comboPublicId !== '') query.set('comboPublicId', comboPublicId);
+      if (unitPublicId !== '') query.set('unitPublicId', unitPublicId);
+      return httpClient.request(`/public/sites/${slug}/available-dates?${query.toString()}`, {
+        schema: AvailableDatesResponseSchema,
+      });
+    },
+    enabled:
+      step === 'date' &&
+      (servicePublicId !== '' || comboPublicId !== '') &&
+      professionalPublicId !== '' &&
+      (site.units.length <= 1 || unitPublicId !== ''),
+    retry: false,
+  });
+
   const availability = useQuery({
     queryKey: [
       'public-booking',
@@ -549,6 +584,7 @@ export function usePublicBooking(slug: string, site: Site, initialEntry?: Public
     selectedSlot,
     setSelectedSlot,
     selectSlotAndContinue,
+    availableDates,
     availability,
     availableSlots,
     customerName: effectiveName,

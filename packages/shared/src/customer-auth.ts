@@ -36,6 +36,11 @@ export const CustomerResetPasswordRequestSchema = z
 
 export const CustomerAuthResponseSchema = z.object({ customer: CustomerAuthPublicSchema });
 
+export const CustomerGoogleAuthRequestSchema = z
+  .object({ credential: z.string().min(1).max(10000) })
+  .strict();
+export const CustomerGoogleAuthResponseSchema = CustomerAuthResponseSchema;
+
 export type CustomerRegisterRequest = z.infer<typeof CustomerRegisterRequestSchema>;
 export type CustomerLoginRequest = z.infer<typeof CustomerLoginRequestSchema>;
 export type CustomerForgotPasswordRequest = z.infer<typeof CustomerForgotPasswordRequestSchema>;

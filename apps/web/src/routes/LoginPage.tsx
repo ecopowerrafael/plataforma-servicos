@@ -11,6 +11,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AuthLayout } from '../components/AuthLayout.js';
+import { loadGoogleIdentityServices } from '../lib/google-identity.js';
 import { HttpError, httpClient } from '../lib/http.js';
 import { clearSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
 
@@ -74,10 +75,22 @@ export function LoginPage() {
   });
 
   useEffect(() => {
-    if (!googleInitializedRef.current && window.google) {
-      googleInitializedRef.current = true;
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
-      if (clientId) {
+    if (googleInitializedRef.current) return;
+
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+    if (!clientId) {
+      if (import.meta.env.DEV) {
+        console.warn('[Google Auth] VITE_GOOGLE_CLIENT_ID not configured');
+      }
+      return;
+    }
+
+    googleInitializedRef.current = true;
+
+    loadGoogleIdentityServices()
+      .then(() => {
+        if (!window.google?.accounts?.id) return;
+
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: async (response: { credential?: string } | unknown) => {
@@ -99,6 +112,7 @@ export function LoginPage() {
             }
           },
         });
+
         if (googleButtonRef.current) {
           window.google.accounts.id.renderButton(googleButtonRef.current, {
             theme: 'outline',
@@ -107,8 +121,12 @@ export function LoginPage() {
             text: 'continue_with',
           });
         }
-      }
-    }
+      })
+      .catch((error) => {
+        if (import.meta.env.DEV) {
+          console.error('[Google Auth] Failed to load Google Identity Services:', error);
+        }
+      });
   }, [form]);
 
   return (
@@ -117,7 +135,6 @@ export function LoginPage() {
       description="Use o e-mail e a senha vinculados ao seu estabelecimento."
       footer={<><Link to="/forgot-password">Esqueci minha senha</Link><Link to={`/cadastro${params.toString() === '' ? '' : `?${params.toString()}`}`}>Ainda não tem uma conta? Criar conta</Link><div style={{ marginTop: '16px', fontSize: '12px', opacity: 0.7 }}><Link to="/privacidade" style={{ marginRight: '16px' }}>Privacidade</Link><Link to="/termos">Termos</Link></div></>}
     >
-      <script src="https://accounts.google.com/gsi/client" async defer />
       <form className="auth-form" onSubmit={(event) => void submit(event)} noValidate>
         <label>
           E-mail

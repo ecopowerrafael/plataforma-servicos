@@ -2124,6 +2124,7 @@ model Customer {
   source                String                      @default("MANUAL") @db.VarChar(64)
   acceptsCommunications Boolean                     @default(false) @map("accepts_communications")
   passwordHash          String?                     @map("password_hash") @db.VarChar(255)
+  googleSub             String?                     @map("google_sub") @db.VarChar(255)
   photoPath             String?                     @map("photo_path") @db.VarChar(512)
   customFields          Json?                       @map("custom_fields")
   createdAt             DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
@@ -2150,6 +2151,7 @@ model Customer {
 
   @@unique([tenantId, phone])
   @@unique([tenantId, email])
+  @@unique([tenantId, googleSub])
   @@index([tenantId, status, name])
   @@index([tenantId, primaryUnitId])
   @@map("customers")

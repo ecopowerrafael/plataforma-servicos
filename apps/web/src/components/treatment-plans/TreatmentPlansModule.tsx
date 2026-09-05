@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { getTreatmentPlansLabels } from './treatment-plans-labels.js';
 import { TreatmentPlanFollowUpSection } from './TreatmentPlanFollowUpSection.js';
+import { TreatmentPlanCheckpointsSection } from './TreatmentPlanCheckpointsSection.js';
 import { TreatmentPlanEditDialog } from './TreatmentPlanEditDialog.js';
 import { TreatmentPlanScheduleSessionDialog } from './TreatmentPlanScheduleSessionDialog.js';
 import { formatMoneyCents, formatShortDate } from '../customers/customer-crm.js';
@@ -261,11 +262,37 @@ export function TreatmentPlansModule({
   );
 }
 
+type EditableFields = ('title' | 'billingMode' | 'amount' | 'sessions' | 'interval' | 'notes')[];
+
+function getEditableFields(plan: TreatmentPlanPublic): EditableFields {
+  if (plan.status === 'PENDING') {
+    return ['title', 'billingMode', 'amount', 'sessions', 'interval', 'notes'];
+  }
+  if (plan.status === 'APPROVED') {
+    // APPROVED sem nenhuma sessão iniciada e sem pagamento
+    const hasPayment = (plan.paidCents ?? 0) > 0;
+    const hasSessionStarted = plan.sessions.some(s => s.status !== 'CANCELED');
+
+    if (!hasPayment && !hasSessionStarted) {
+      return ['title', 'billingMode', 'amount', 'sessions', 'interval', 'notes'];
+    }
+    // APPROVED com sessão futura mas nenhuma concluída - restringir
+    return ['title', 'interval', 'notes'];
+  }
+  if (plan.status === 'IN_PROGRESS') {
+    // IN_PROGRESS - apenas administrativo
+    return ['title', 'interval', 'notes'];
+  }
+  return [];
+}
+
 function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBack: () => void }) {
   const queryClient = useQueryClient();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
-  const canEdit = plan.status === 'PENDING';
+
+  const editableFields = getEditableFields(plan);
+  const canEdit = editableFields.length > 0;
   const canScheduleSession =
     (plan.status === 'APPROVED' && plan.sessionsCompleted === 0) ||
     (plan.status === 'IN_PROGRESS' && plan.sessionsCompleted < plan.sessionsPlanned);
@@ -395,6 +422,8 @@ function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBa
         )}
       </div>
 
+      <TreatmentPlanCheckpointsSection plan={plan} />
+
       <TreatmentPlanFollowUpSection
         treatmentPlanPublicId={plan.publicId}
         canUpdate={plan.status === 'PENDING' || plan.status === 'APPROVED'}
@@ -418,6 +447,7 @@ function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBa
             setShowEditDialog(false);
             refetchPlan();
           }}
+          allowedFields={editableFields}
         />
       )}
 

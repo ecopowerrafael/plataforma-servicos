@@ -11,6 +11,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { ProfessionalForm } from './ProfessionalForm.js';
 import { ProfessionalAccessForm } from './ProfessionalAccessForm.js';
+import { ProfessionalHeader, ProfessionalCard } from './ProfessionalUIComponents.js';
 import {
   AccessOverview,
   CommissionOverview,
@@ -48,6 +49,7 @@ export function ProfessionalModule({
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<'profile' | 'commission' | 'access' | null>(null);
   const [savedMessage, setSavedMessage] = useState(false);
+  const [search, setSearch] = useState('');
   const list = useQuery({
     queryKey: ['tenant', tenantPublicId, 'professionals'],
     queryFn: () =>
@@ -130,22 +132,10 @@ export function ProfessionalModule({
   if (selected === null)
     return (
       <section className="sessions-panel professional-workspace">
-        <header className="professional-workspace-header">
-          <div>
-            <p className="eyebrow">Equipe</p>
-            <h2>{`${terminology}s`}</h2>
-            <p>Perfis, especialidades e acesso da sua equipe.</p>
-          </div>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => {
-              setCreating((value) => !value);
-            }}
-          >
-            {creating ? 'Fechar criação' : `Adicionar ${terminology.toLowerCase()}`}
-          </button>
-        </header>
+        <ProfessionalHeader
+          onSearch={(value) => setSearch(value)}
+          onNewClick={() => setCreating((value) => !value)}
+        />
         {creating && (
           <ProfessionalForm
             busy={mutation.isPending}
@@ -173,43 +163,49 @@ export function ProfessionalModule({
             </button>
           </div>
         ) : (
-          <div className="professional-card-grid">
-            {list.data?.items.map((professional) => (
-              <article className="professional-card" key={professional.publicId}>
-                <TenantProfessionalPhoto
+          <div className="professional-grid">
+            {(list.data?.items ?? [])
+              .filter(
+                (p) =>
+                  !search ||
+                  p.publicName.toLowerCase().includes(search.toLowerCase()) ||
+                  (p.specialties.length > 0 &&
+                    p.specialties.some((s) => s.toLowerCase().includes(search.toLowerCase())))
+              )
+              .map((professional) => (
+                <ProfessionalCard
+                  key={professional.publicId}
                   name={professional.publicName}
-                  professionalPublicId={professional.publicId}
-                  tenantPublicId={tenantPublicId}
-                  version={professional.updatedAt}
-                />
-                <span>
-                  <strong>{professional.publicName}</strong>
-                  <small>
-                    {professional.specialties.length > 0
-                      ? professional.specialties.join(' · ')
-                      : 'Sem especialidades'}
-                  </small>
-                </span>
-                <span
-                  className={`status-badge ${professional.active ? 'status-active' : 'status-muted'}`}
-                >
-                  {professional.active ? 'Ativo' : 'Inativo'}
-                </span>
-                <button
-                  className="professional-card-link"
-                  type="button"
+                  specialty={
+                    professional.specialties.length > 0
+                      ? professional.specialties[0]
+                      : undefined
+                  }
+                  appointments={0}
+                  status={professional.active ? 'active' : 'inactive'}
                   onClick={() => {
                     void navigate(`/app/equipe/profissionais/${professional.publicId}`);
                   }}
-                >
-                  Ver perfil
-                </button>
-              </article>
-            ))}
-            {list.data?.items.length === 0 && (
+                />
+              ))}
+            {(list.data?.items ?? []).filter(
+              (p) =>
+                !search ||
+                p.publicName.toLowerCase().includes(search.toLowerCase()) ||
+                (p.specialties.length > 0 &&
+                  p.specialties.some((s) => s.toLowerCase().includes(search.toLowerCase())))
+            ).length === 0 && (
               <div className="empty-state">
-                <strong>Nenhum profissional cadastrado</strong>
-                <span>Adicione o primeiro perfil da sua equipe.</span>
+                <strong>
+                  {list.data?.items.length === 0
+                    ? 'Nenhum profissional cadastrado'
+                    : 'Nenhum resultado encontrado'}
+                </strong>
+                <span>
+                  {list.data?.items.length === 0
+                    ? 'Adicione o primeiro perfil da sua equipe.'
+                    : 'Tente ajustar sua busca.'}
+                </span>
               </div>
             )}
           </div>

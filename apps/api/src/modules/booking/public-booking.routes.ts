@@ -1,6 +1,8 @@
 import {
   AvailabilityQuerySchema,
   AvailabilityResponseSchema,
+  AvailableDatesQuerySchema,
+  AvailableDatesResponseSchema,
   CreatePublicBookingRequestSchema,
   PublicBookingConfirmationSchema,
   PublicBookingServiceParamsSchema,
@@ -69,6 +71,18 @@ export const publicBookingRoutes: FastifyPluginAsyncZod<{
       },
     },
     (request) => options.service.availability(request.params.slug, request.query),
+  );
+  app.get(
+    '/public/sites/:slug/available-dates',
+    {
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: PublicBookingSlugParamsSchema,
+        querystring: AvailableDatesQuerySchema,
+        response: { 200: AvailableDatesResponseSchema },
+      },
+    },
+    async (request) => options.service.availableDates(request.params.slug, request.query),
   );
   app.post(
     '/public/sites/:slug/bookings',

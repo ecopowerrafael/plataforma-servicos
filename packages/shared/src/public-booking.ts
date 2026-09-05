@@ -96,5 +96,29 @@ export const PublicProfessionalServicesParamsSchema = PublicBookingSlugParamsSch
   professionalPublicId: z.uuid(),
 }).strict();
 
+export const AvailableDatesQuerySchema = z
+  .object({
+    professionalPublicId: z.uuid(),
+    servicePublicId: z.uuid().optional(),
+    comboPublicId: z.uuid().optional(),
+    unitPublicId: z.uuid().optional(),
+    from: z.string().date(),
+    to: z.string().date(),
+  })
+  .strict()
+  .refine(
+    (value) => (value.servicePublicId ?? null) !== null || (value.comboPublicId ?? null) !== null,
+    'Informe servicePublicId ou comboPublicId.',
+  )
+  .refine(
+    (value) => !((value.servicePublicId ?? null) !== null && (value.comboPublicId ?? null) !== null),
+    'Informe apenas um de servicePublicId ou comboPublicId.',
+  );
+
+export const AvailableDatesResponseSchema = z.object({
+  dates: z.array(z.string().date()),
+});
+
 export type CreatePublicBookingRequest = z.infer<typeof CreatePublicBookingRequestSchema>;
 export type PublicBookingConfirmation = z.infer<typeof PublicBookingConfirmationSchema>;
+export type AvailableDatesQuery = z.infer<typeof AvailableDatesQuerySchema>;

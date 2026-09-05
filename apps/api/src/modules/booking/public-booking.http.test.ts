@@ -373,3 +373,56 @@ describe('Image URL format regression', () => {
     expect(data.services[0].imageUrl).toBe('/public/services/11111111-1111-4111-8111-111111111111/image?variant=thumbnail');
   });
 });
+
+describe('GET /public/sites/:slug/available-dates', () => {
+  it('validates XOR constraint - both service and combo', async () => {
+    const { app, slug, serviceId, professionalId } = await fixture();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/public/sites/${slug}/available-dates?servicePublicId=${serviceId}&comboPublicId=99999999-9999-4999-8999-999999999999&professionalPublicId=${professionalId}&from=2026-09-05&to=2026-09-15`,
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('requires at least one of servicePublicId or comboPublicId', async () => {
+    const { app, slug, professionalId } = await fixture();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/public/sites/${slug}/available-dates?professionalPublicId=${professionalId}&from=2026-09-05&to=2026-09-15`,
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('accepts valid request with service', async () => {
+    const { app, slug, serviceId, professionalId } = await fixture();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/public/sites/${slug}/available-dates?servicePublicId=${serviceId}&professionalPublicId=${professionalId}&from=2026-09-05&to=2026-09-15`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const data = JSON.parse(response.body);
+    expect(data).toHaveProperty('dates');
+    expect(Array.isArray(data.dates)).toBe(true);
+  });
+
+  it('accepts valid request with combo', async () => {
+    const { app, slug, professionalId } = await fixture();
+    const comboId = '99999999-9999-4999-8999-999999999999';
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/public/sites/${slug}/available-dates?comboPublicId=${comboId}&professionalPublicId=${professionalId}&from=2026-09-05&to=2026-09-15`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const data = JSON.parse(response.body);
+    expect(data).toHaveProperty('dates');
+    expect(Array.isArray(data.dates)).toBe(true);
+  });
+});

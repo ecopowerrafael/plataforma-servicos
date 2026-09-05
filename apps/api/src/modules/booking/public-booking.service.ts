@@ -1,5 +1,6 @@
 import {
   type AvailabilityQuery,
+  type AvailableDatesQuery,
   type CreatePublicBookingRequest,
   PublicBookingConfirmationSchema,
   PublicServiceProfessionalsResponseSchema,
@@ -166,6 +167,38 @@ export class PublicBookingService {
   public async availability(slug: string, query: AvailabilityQuery) {
     const tenant = await this.resolveTenant(slug);
     return this.slots.available(tenant.id, query);
+  }
+
+  public async availableDates(slug: string, query: AvailableDatesQuery) {
+    const tenant = await this.resolveTenant(slug);
+    const fromDate = new Date(`${query.from}T00:00:00.000Z`);
+    const toDate = new Date(`${query.to}T00:00:00.000Z`);
+    const dates: string[] = [];
+    const currentDate = new Date(fromDate);
+
+    while (currentDate <= toDate) {
+      const isoDate = currentDate.toISOString().split('T')[0];
+      if (isoDate === undefined) break;
+      try {
+        const result = await this.slots.available(tenant.id, {
+          servicePublicId: query.servicePublicId,
+          comboPublicId: query.comboPublicId,
+          professionalPublicId: query.professionalPublicId,
+          unitPublicId: query.unitPublicId,
+          date: isoDate,
+        });
+        const hasAvailable = result.slots.some((slot) => slot.state === 'AVAILABLE');
+        if (hasAvailable) {
+          dates.push(isoDate);
+        }
+      } catch {
+        // Date not available due to error (e.g., professional inactive, combo invalid)
+        // Skip this date
+      }
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    }
+
+    return { dates };
   }
 
   public async createBooking(slug: string, input: CreatePublicBookingRequest) {

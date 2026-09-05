@@ -8,6 +8,7 @@ import './styles/app-shell.css';
 import './styles/header-sidebar.css';
 import './styles/components.css';
 import './styles/modules.css';
+import './styles/dashboard.css';
 import './styles.css';
 import './app-design-system.css';
 import './public-premium.css';

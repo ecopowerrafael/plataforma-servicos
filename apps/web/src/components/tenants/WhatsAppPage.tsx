@@ -3,6 +3,7 @@ import { httpClient } from '../../lib/http.js';
 import { WhatsAppConnectionCard } from './WhatsAppConnectionCard.js';
 import { WhatsAppAssistantConfigCard } from './WhatsAppAssistantConfigCard.js';
 import { WhatsAppMessagesCard } from './WhatsAppMessagesCard.js';
+import '../../styles/settings.css';
 
 export function WhatsAppPage({
   tenantPublicId,
@@ -25,7 +26,7 @@ export function WhatsAppPage({
   const whatsappConnected = whatsappStatus?.connected ?? false;
 
   return (
-    <main className="settings-layout">
+    <main className="settings-layout whatsapp-page--redesigned">
       <section className="settings-section">
         <div className="settings-header">
           <div>

@@ -14,6 +14,7 @@ import { type z } from 'zod';
 import { TreatmentPlansConfigSection } from '../treatment-plans/TreatmentPlansConfigSection.js';
 import { TreatmentPlansReminderConfigSection } from '../treatment-plans/TreatmentPlansReminderConfigSection.js';
 import { httpClient } from '../../lib/http.js';
+import '../../styles/settings.css';
 
 type Input = z.input<typeof TenantSettingsInputSchema>;
 
@@ -75,7 +76,7 @@ export function TenantSettingsModule({
   }, [reset, settingsQuery.data]);
 
   return (
-    <section className="module-card">
+    <section className="module-card tenant-settings--redesigned">
       <h2>Configurações do estabelecimento</h2>
       {settingsQuery.isPending ? <p>Carregando configurações…</p> : null}
       {settingsQuery.error instanceof Error ? (

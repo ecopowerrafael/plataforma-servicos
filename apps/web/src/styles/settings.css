@@ -1,0 +1,267 @@
+/* ============================================
+   SETTINGS MODULES
+   ============================================ */
+
+/* ============================================
+   TENANT SETTINGS MODULE (REDESIGNED)
+   ============================================ */
+
+.tenant-settings--redesigned {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tenant-settings--redesigned h2 {
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tenant-settings--redesigned .form-error,
+.tenant-settings--redesigned .form-note {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 0;
+}
+
+.tenant-settings--redesigned .form-error {
+  background: rgba(229, 57, 53, 0.1);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+}
+
+.tenant-settings--redesigned .form-note {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+}
+
+.tenant-settings--redesigned .platform-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tenant-settings--redesigned fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tenant-settings--redesigned label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tenant-settings--redesigned label strong {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tenant-settings--redesigned input,
+.tenant-settings--redesigned select,
+.tenant-settings--redesigned textarea {
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+}
+
+.tenant-settings--redesigned input:focus,
+.tenant-settings--redesigned select:focus,
+.tenant-settings--redesigned textarea:focus {
+  outline: none;
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+/* ============================================
+   TENANT SUBSCRIPTION MODULE (REDESIGNED)
+   ============================================ */
+
+.tenant-subscription--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.tenant-subscription--redesigned .app-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tenant-subscription--redesigned .subscription-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tenant-subscription--redesigned .subscription-card-header > div {
+  flex: 1;
+}
+
+.tenant-subscription--redesigned .ds-eyebrow {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+}
+
+.tenant-subscription--redesigned .subscription-card-header h3 {
+  color: var(--color-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tenant-subscription--redesigned .subscription-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.tenant-subscription--redesigned .subscription-price strong {
+  color: var(--color-accent-primary);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.tenant-subscription--redesigned .subscription-price span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.tenant-subscription--redesigned .subscription-details {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--color-border-default);
+  padding-top: 12px;
+}
+
+.tenant-subscription--redesigned .subscription-details dt {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tenant-subscription--redesigned .subscription-details dd {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  margin: 0 0 12px 0;
+}
+
+.tenant-subscription--redesigned .section-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+/* ============================================
+   WHATSAPP PAGE (REDESIGNED)
+   ============================================ */
+
+.whatsapp-page--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.whatsapp-page--redesigned .settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.whatsapp-page--redesigned .settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--color-border-default);
+}
+
+.whatsapp-page--redesigned .settings-header > div {
+  flex: 1;
+}
+
+.whatsapp-page--redesigned .eyebrow {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+}
+
+.whatsapp-page--redesigned h1 {
+  color: var(--color-text-primary);
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* WhatsApp cards styling */
+.whatsapp-page--redesigned .app-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.whatsapp-page--redesigned .app-card h3 {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.whatsapp-page--redesigned .app-card > p {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .tenant-settings--redesigned {
+    padding: 16px;
+  }
+
+  .tenant-subscription--redesigned .app-card {
+    padding: 16px;
+  }
+
+  .whatsapp-page--redesigned .settings-header {
+    flex-direction: column;
+  }
+
+  .whatsapp-page--redesigned .app-card {
+    padding: 16px;
+  }
+}

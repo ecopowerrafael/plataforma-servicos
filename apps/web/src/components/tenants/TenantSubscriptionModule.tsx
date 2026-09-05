@@ -15,6 +15,7 @@ import {
   UsageProgress,
   type BadgeTone,
 } from '../ui/AppUi.js';
+import '../../styles/settings.css';
 
 const statusLabels: Record<string, string> = {
   TRIALING: 'Em teste',
@@ -103,7 +104,7 @@ export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: s
   const excluded = features.filter((limit) => limit.booleanValue !== true);
 
   return (
-    <div className="ds-stack" aria-label="Minha assinatura">
+    <div className="ds-stack tenant-subscription--redesigned" aria-label="Minha assinatura">
       <PageHeader
         eyebrow="Assinatura"
         title="Minha assinatura"

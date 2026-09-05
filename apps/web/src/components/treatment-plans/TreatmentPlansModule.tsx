@@ -39,11 +39,14 @@ export function TreatmentPlansModule({
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
+  const treatmentPlansLabels = getTreatmentPlansLabels();
+
   const plans = useQuery({
     queryKey: ['treatmentPlans', tenantPublicId],
     queryFn: () =>
       httpClient.request('/tenant/treatment-plans', {
         schema: TreatmentPlanListResponseSchema,
+        tenantPublicId,
       }),
   });
 

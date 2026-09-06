@@ -5,6 +5,8 @@ import { type PlatformService, type PlatformAuthContext } from './platform.servi
 import {
   CommercialAccountService,
   CommercialRegionService,
+  CommercialCommissionService,
+  CommercialCommissionRuleService,
 } from '../commercial/index.js';
 import { AppError } from '../../errors/AppError.js';
 import { type PrismaClient } from '../../database-client/client.js';
@@ -94,6 +96,19 @@ const PaginationSchema = z.object({
   managerPublicId: z.string().uuid().optional(),
 });
 
+const CreateCommissionRuleRequestSchema = z.object({
+  planPublicId: z.string().uuid().optional(),
+  percentageBps: z.number().int().min(0).max(10000),
+  effectiveFrom: z.string().datetime().optional(),
+  effectiveUntil: z.string().datetime().optional(),
+});
+
+const UpdateCommissionRuleRequestSchema = z.object({
+  percentageBps: z.number().int().min(0).max(10000).optional(),
+  effectiveUntil: z.string().datetime().optional(),
+  active: z.boolean().optional(),
+});
+
 async function resolveUserIdFromInput(
   input: { userPublicId?: string | undefined; email?: string | undefined; name?: string | undefined },
   prisma: PrismaClient,
@@ -120,6 +135,8 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
 ) => {
   const accountService = new CommercialAccountService(options.prisma);
   const regionService = new CommercialRegionService(options.prisma);
+  const commissionService = new CommercialCommissionService(options.prisma);
+  const ruleService = new CommercialCommissionRuleService(options.prisma);
 
   const allow = (request: { platformAuth: PlatformAuthContext }, permission: string) => {
     options.service.requirePermission(request.platformAuth, permission as any);
@@ -585,6 +602,170 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
           }),
         ),
       };
+    },
+  );
+
+  app.get(
+    '/platform/commercial/accounts/:publicId/commissions',
+    {
+      schema: {
+        params: PublicIdParamsSchema,
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.read');
+
+      const account = await accountService.getAccountByPublicId(request.params.publicId);
+      if (!account) {
+        throw new AppError({ code: 'ACCOUNT_NOT_FOUND', message: 'Conta comercial não encontrada', statusCode: 404 });
+      }
+
+      return commissionService.getCommissions(account.id);
+    },
+  );
+
+  app.get(
+    '/platform/commercial/accounts/:publicId/commission-rules',
+    {
+      schema: {
+        params: PublicIdParamsSchema,
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.read');
+
+      const account = await accountService.getAccountByPublicId(request.params.publicId);
+      if (!account) {
+        throw new AppError({ code: 'ACCOUNT_NOT_FOUND', message: 'Conta comercial não encontrada', statusCode: 404 });
+      }
+
+      return ruleService.getRules(account.id);
+    },
+  );
+
+  app.post(
+    '/platform/commercial/accounts/:publicId/commission-rules',
+    {
+      schema: {
+        params: PublicIdParamsSchema,
+        body: CreateCommissionRuleRequestSchema,
+      },
+    },
+    async (request, reply) => {
+      allow(request, 'platform.commercial.manage');
+
+      const account = await accountService.getAccountByPublicId(request.params.publicId);
+      if (!account) {
+        throw new AppError({ code: 'ACCOUNT_NOT_FOUND', message: 'Conta comercial não encontrada', statusCode: 404 });
+      }
+
+      let planId: bigint | null = null;
+      if (request.body.planPublicId) {
+        const plan = await options.prisma.commercialPlan.findUnique({
+          where: { publicId: request.body.planPublicId },
+        });
+        if (!plan) {
+          throw new AppError({ code: 'PLAN_NOT_FOUND', message: 'Plano não encontrado', statusCode: 404 });
+        }
+        planId = plan.id;
+      }
+
+      const rule = await ruleService.createRule(
+        account.id,
+        planId,
+        request.body.percentageBps,
+        request.body.effectiveFrom ? new Date(request.body.effectiveFrom) : new Date(),
+      );
+
+      if (request.body.effectiveUntil) {
+        await ruleService.updateRule(rule.id, {
+          effectiveUntil: new Date(request.body.effectiveUntil),
+        });
+      }
+
+      return reply.status(201).send({
+        publicId: rule.publicId,
+        commercialAccountId: rule.commercialAccountId,
+        planId: rule.planId,
+        percentageBps: rule.percentageBps,
+        effectiveFrom: rule.effectiveFrom,
+        effectiveUntil: rule.effectiveUntil,
+        active: rule.active,
+        createdAt: rule.createdAt,
+      });
+    },
+  );
+
+  app.patch(
+    '/platform/commercial/commission-rules/:publicId',
+    {
+      schema: {
+        params: PublicIdParamsSchema,
+        body: UpdateCommissionRuleRequestSchema,
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.manage');
+
+      const rule = await options.prisma.commercialCommissionRule.findUnique({
+        where: { publicId: request.params.publicId },
+      });
+      if (!rule) {
+        throw new AppError({
+          code: 'RULE_NOT_FOUND',
+          message: 'Regra de comissão não encontrada',
+          statusCode: 404,
+        });
+      }
+
+      const updates: any = {};
+      if (request.body.percentageBps !== undefined) updates.percentageBps = request.body.percentageBps;
+      if (request.body.effectiveUntil !== undefined) updates.effectiveUntil = new Date(request.body.effectiveUntil);
+      if (request.body.active !== undefined) updates.active = request.body.active;
+
+      const updated = await options.prisma.commercialCommissionRule.update({
+        where: { id: rule.id },
+        data: updates,
+      });
+
+      return {
+        publicId: updated.publicId,
+        commercialAccountId: updated.commercialAccountId,
+        planId: updated.planId,
+        percentageBps: updated.percentageBps,
+        effectiveFrom: updated.effectiveFrom,
+        effectiveUntil: updated.effectiveUntil,
+        active: updated.active,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      };
+    },
+  );
+
+  app.delete(
+    '/platform/commercial/commission-rules/:publicId',
+    {
+      schema: {
+        params: PublicIdParamsSchema,
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.manage');
+
+      const rule = await options.prisma.commercialCommissionRule.findUnique({
+        where: { publicId: request.params.publicId },
+      });
+      if (!rule) {
+        throw new AppError({
+          code: 'RULE_NOT_FOUND',
+          message: 'Regra de comissão não encontrada',
+          statusCode: 404,
+        });
+      }
+
+      await ruleService.deactivateRule(rule.id);
+
+      return { success: true };
     },
   );
 };

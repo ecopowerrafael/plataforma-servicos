@@ -60,9 +60,15 @@
 }
 
 /* ============================================
-   NAVIGATION SIDEBAR
+   NAVIGATION SIDEBAR — REAL COMPONENT
    ============================================ */
 
+.app-sidebar {
+  grid-column: 1 / 2;
+  grid-row: 1 / 3;
+}
+
+/* Legacy .app-navigation (deprecated, kept for compatibility) */
 .app-navigation {
   grid-column: 1 / 2;
   grid-row: 1 / -1;

@@ -6,8 +6,10 @@ import { PageHeader, ErrorState } from '../platform/PlatformUi.js';
 import { CommercialDashboardTab } from './CommercialDashboardTab.js';
 import { CommercialClientsTab } from './CommercialClientsTab.js';
 import { CommercialTeamTab } from './CommercialTeamTab.js';
+import { WalletTab } from './WalletTab.js';
+import { CommissionsTab } from './CommissionsTab.js';
 
-type CommercialTab = 'dashboard' | 'clients' | 'team';
+type CommercialTab = 'dashboard' | 'clients' | 'team' | 'wallet' | 'commissions';
 
 export function CommercialManagerModule() {
   const [activeTab, setActiveTab] = useState<CommercialTab>('dashboard');
@@ -79,6 +81,18 @@ export function CommercialManagerModule() {
           Dashboard
         </button>
         <button
+          className={`tab-button ${activeTab === 'wallet' ? 'active' : ''}`}
+          onClick={() => setActiveTab('wallet')}
+        >
+          Carteira
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'commissions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('commissions')}
+        >
+          Comissões
+        </button>
+        <button
           className={`tab-button ${activeTab === 'clients' ? 'active' : ''}`}
           onClick={() => setActiveTab('clients')}
         >
@@ -94,6 +108,8 @@ export function CommercialManagerModule() {
 
       <div className="module-content">
         {activeTab === 'dashboard' && <CommercialDashboardTab role={account.role} />}
+        {activeTab === 'wallet' && <WalletTab />}
+        {activeTab === 'commissions' && <CommissionsTab />}
         {activeTab === 'clients' && <CommercialClientsTab />}
         {activeTab === 'team' && <CommercialTeamTab role={account.role} />}
       </div>
@@ -156,6 +172,7 @@ export function CommercialManagerModule() {
           gap: 8px;
           margin: 20px 0;
           border-bottom: 1px solid var(--border-color);
+          overflow-x: auto;
         }
 
         .tab-button {
@@ -168,6 +185,7 @@ export function CommercialManagerModule() {
           color: var(--text-secondary);
           cursor: pointer;
           transition: all 0.2s;
+          white-space: nowrap;
         }
 
         .tab-button:hover {
@@ -198,6 +216,101 @@ export function CommercialManagerModule() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
+        }
+
+        .wallet-tab, .commissions-tab {
+          padding: 20px 0;
+        }
+
+        .wallet-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 16px;
+          margin-bottom: 30px;
+        }
+
+        .wallet-card {
+          padding: 20px;
+          background: var(--bg-secondary);
+          border-radius: 8px;
+          border-left: 4px solid var(--primary);
+        }
+
+        .card-label {
+          display: block;
+          font-size: 12px;
+          color: var(--text-secondary);
+          text-transform: uppercase;
+          margin-bottom: 8px;
+        }
+
+        .card-value {
+          display: block;
+          font-size: 24px;
+          font-weight: 700;
+          color: var(--primary);
+        }
+
+        .wallet-ledger, .commissions-tab {
+          margin-top: 20px;
+        }
+
+        .wallet-ledger h3, .commissions-tab h3 {
+          margin-bottom: 16px;
+          font-size: 18px;
+          color: var(--text-primary);
+        }
+
+        .ledger-table, .commissions-table {
+          width: 100%;
+          border-collapse: collapse;
+          background: var(--bg-secondary);
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .ledger-table thead th, .commissions-table thead th {
+          padding: 12px;
+          text-align: left;
+          font-weight: 600;
+          font-size: 12px;
+          color: var(--text-secondary);
+          border-bottom: 1px solid var(--border-color);
+        }
+
+        .ledger-table tbody td, .commissions-table tbody td {
+          padding: 12px;
+          border-bottom: 1px solid var(--border-color);
+          font-size: 14px;
+        }
+
+        .ledger-table tbody tr:hover, .commissions-table tbody tr:hover {
+          background: var(--bg-primary);
+        }
+
+        .ledger-table .positive {
+          color: rgb(34, 197, 94);
+          font-weight: 500;
+        }
+
+        .ledger-table .negative {
+          color: rgb(239, 68, 68);
+          font-weight: 500;
+        }
+
+        .commissions-table .status-pending {
+          color: rgb(59, 130, 246);
+          font-weight: 500;
+        }
+
+        .commissions-table .status-available {
+          color: rgb(34, 197, 94);
+          font-weight: 500;
+        }
+
+        .commissions-table .status-reversed {
+          color: rgb(107, 114, 128);
+          text-decoration: line-through;
         }
       `}</style>
     </div>

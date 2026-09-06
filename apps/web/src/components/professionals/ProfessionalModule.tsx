@@ -183,6 +183,7 @@ export function ProfessionalModule({
                   }
                   appointments={0}
                   status={professional.active ? 'active' : 'inactive'}
+                  image={professional.photoUrl}
                   onClick={() => {
                     void navigate(`/app/equipe/profissionais/${professional.publicId}`);
                   }}

@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { IconSearch, IconPlus, IconPhone, IconCalendar } from '@tabler/icons-react';
+import { environment } from '../../config/environment.js';
 
 /* ============================================
    PROFESSIONAL HEADER
@@ -57,10 +58,12 @@ export function ProfessionalCard({
   actions,
   onClick,
 }: ProfessionalCardProps) {
+  const photoUrl = image ? (image.startsWith('http') ? image : `${environment.apiUrl}${image}`) : null;
+
   return (
     <div className={`professional-card ${status === 'inactive' ? 'is-inactive' : ''}`} onClick={onClick}>
-      {image ? (
-        <img src={image} alt={name} className="professional-photo" />
+      {photoUrl ? (
+        <img src={photoUrl} alt={name} className="professional-photo" />
       ) : (
         <div className="professional-avatar">{name.charAt(0).toUpperCase()}</div>
       )}

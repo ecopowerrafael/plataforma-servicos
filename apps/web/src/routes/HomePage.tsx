@@ -1375,6 +1375,8 @@ export function HomePage() {
       <AppSidebar
         tenantName={me.data.currentTenant?.tenant.displayName ?? 'Agendei'}
         groups={menuGroups as any}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       <nav className="app-mobile-nav" aria-label="Navegação móvel">
         <NavLink to="/app" end>

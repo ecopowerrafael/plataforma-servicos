@@ -27,7 +27,7 @@
 }
 
 .app-header-menu-btn {
-  display: none;
+  display: flex;
   width: 40px;
   height: 40px;
   background: transparent;
@@ -38,6 +38,12 @@
   transition: all 0.2s ease-in-out;
   align-items: center;
   justify-content: center;
+}
+
+@media (min-width: 1025px) {
+  .app-header-menu-btn {
+    display: none !important;
+  }
 }
 
 .app-header-menu-btn:hover {
@@ -419,6 +425,27 @@
 
   .app-sidebar-nav::-webkit-scrollbar-thumb:hover {
     background: var(--color-border-strong);
+  }
+}
+
+/* ============================================
+   MOBILE DRAWER
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .app-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: 280px;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+    z-index: 40;
+  }
+
+  .app-sidebar.is-open {
+    transform: translateX(0);
   }
 }
 

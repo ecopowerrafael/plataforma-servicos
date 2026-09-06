@@ -20,6 +20,8 @@ interface AppSidebarProps {
   groups: NavGroup[];
   isCollapsed?: boolean;
   onCollapse?: (collapsed: boolean) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export function AppSidebar({
@@ -27,6 +29,8 @@ export function AppSidebar({
   groups,
   isCollapsed = false,
   onCollapse,
+  isOpen = false,
+  onClose,
 }: AppSidebarProps) {
   const location = useLocation();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -43,7 +47,7 @@ export function AppSidebar({
   };
 
   return (
-    <aside className={`app-sidebar${isCollapsed ? ' is-collapsed' : ''}`}>
+    <aside className={`app-sidebar${isCollapsed ? ' is-collapsed' : ''}${isOpen ? ' is-open' : ''}`}>
       <div className="app-sidebar-brand">
         <strong>{tenantName}</strong>
       </div>

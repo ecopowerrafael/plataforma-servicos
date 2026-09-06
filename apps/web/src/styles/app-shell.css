@@ -189,7 +189,7 @@
    MAIN CONTENT AREA — AUTO-PLACEMENT FIX
    ============================================ */
 
-.app-shell > :not(.app-header):not(.app-sidebar):not(.app-mobile-nav):not(.onboarding-overlay):not(.onboarding-checklist):not(.onboarding-resume) {
+.app-shell > :not(.app-header):not(.app-sidebar):not(.app-mobile-nav):not(.app-sidebar-backdrop):not(.onboarding-overlay):not(.onboarding-checklist):not(.onboarding-resume) {
   grid-column: 2 / 3;
   grid-row: 2 / 3;
   padding: 32px;

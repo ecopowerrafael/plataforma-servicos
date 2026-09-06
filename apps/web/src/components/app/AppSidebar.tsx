@@ -53,7 +53,7 @@ export function AppSidebar({
       </div>
 
       <nav className="app-sidebar-nav">
-        <NavLink to="/app" end className="nav-item nav-home">
+        <NavLink to="/app" end className="nav-item nav-home" onClick={onClose}>
           <span className="nav-icon">⌂</span>
           <span className="nav-label">Início</span>
         </NavLink>
@@ -106,6 +106,7 @@ export function AppSidebar({
                               to={subitem.to}
                               end
                               className="nav-item nav-subitem"
+                              onClick={onClose}
                             >
                               <span className="nav-label">{subitem.label}</span>
                             </NavLink>
@@ -120,6 +121,7 @@ export function AppSidebar({
                       key={item.to}
                       to={item.to}
                       className="nav-item"
+                      onClick={onClose}
                     >
                       {item.icon && <span className="nav-icon">{item.icon}</span>}
                       <span className="nav-label">{item.label}</span>

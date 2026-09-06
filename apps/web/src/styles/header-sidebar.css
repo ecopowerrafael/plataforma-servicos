@@ -450,6 +450,26 @@
 }
 
 /* ============================================
+   SIDEBAR BACKDROP
+   ============================================ */
+
+.app-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 25, 23, 0.35);
+  border: 0;
+  padding: 0;
+  z-index: 28;
+  cursor: pointer;
+}
+
+@media (min-width: 1025px) {
+  .app-sidebar-backdrop {
+    display: none !important;
+  }
+}
+
+/* ============================================
    DARK MODE (preparado)
    ============================================ */
 

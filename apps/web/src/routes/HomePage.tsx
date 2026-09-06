@@ -911,8 +911,28 @@ export function HomePage() {
   const guidedStep = guidedData?.onboardingStep ?? 'WELCOME';
   const guidedStepIndex = Math.max(0, GUIDED_STEPS.indexOf(guidedStep));
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [sidebarOpen]);
+
   return (
     <main className={`app-shell${guidedActive && !guidedPaused ? ' is-onboarding' : ''}`}>
+      {sidebarOpen && (
+        <button
+          className="app-sidebar-backdrop"
+          aria-label="Fechar menu"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       <AppHeader
         title={pageTitle}
         subtitle={activeMenuGroup === undefined ? 'Início' : `Início / ${activeMenuGroup.label}`}

@@ -918,7 +918,7 @@ export function HomePage() {
         subtitle={activeMenuGroup === undefined ? 'Início' : `Início / ${activeMenuGroup.label}`}
         tenantName={me.data.currentTenant?.tenant.displayName ?? 'Selecione um estabelecimento'}
         showMobileMenu={true}
-        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+        onMenuClick={() => setSidebarOpen((open) => !open)}
         onLogout={() => {
           void httpClient
             .request('/auth/logout', { method: 'POST', body: {}, schema: SuccessResponseSchema })

@@ -3,6 +3,7 @@ import { AppError } from '../../errors/AppError.js';
 import type { PrismaClient } from '../../database-client/client.js';
 import { CommercialWalletService } from './commercial-wallet.service.js';
 import { CommercialCommissionService } from './commercial-commission.service.js';
+import { calculateRenewalPeriod } from '../tenants/billing-period.helper.js';
 
 export class CommercialManualPaymentService {
   private walletService: CommercialWalletService;
@@ -25,9 +26,18 @@ export class CommercialManualPaymentService {
     tenantPublicId: string,
   ) {
 
-    // Execute full payment transaction
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Resolve tenant
+    // Execute full payment transaction with account lock (prevents race condition on balance)
+    return this.prisma.$transaction(
+      async (tx) => {
+        // 0. Lock manager account to serialize payments on same wallet
+        // This prevents: two concurrent payments both seeing sufficient balance
+        await tx.$executeRaw`
+          SELECT * FROM commercial_accounts
+          WHERE id = ${managerAccountId}
+          FOR UPDATE
+        `;
+
+        // 1. Resolve tenant
       const tenant = await tx.tenant.findUnique({
         where: { publicId: tenantPublicId },
       });
@@ -106,7 +116,24 @@ export class CommercialManualPaymentService {
         });
       }
 
-      // 6. Create wallet debit entry
+      // 6. Generate idempotency key (deterministic based on period)
+      const idempotencyKey = [
+        managerAccountId,
+        subscription.id,
+        subscription.currentPeriodStartsAt.getTime(),
+        subscription.currentPeriodEndsAt.getTime(),
+      ].join(':');
+
+      // 6b. Check if already paid in this period (idempotency at DB level)
+      const existingPayment = await tx.commercialManualPayment.findUnique({
+        where: { idempotencyKey },
+      });
+
+      if (existingPayment) {
+        return this.buildPaymentResponse(existingPayment);
+      }
+
+      // 7. Create wallet debit entry
       await tx.commercialWalletEntry.create({
         data: {
           publicId: randomUUID(),
@@ -120,7 +147,7 @@ export class CommercialManualPaymentService {
         },
       });
 
-      // 7. Record manual payment
+      // 8. Record manual payment
       const manualPayment = await tx.commercialManualPayment.create({
         data: {
           publicId: randomUUID(),
@@ -134,30 +161,11 @@ export class CommercialManualPaymentService {
         },
       });
 
-      // 8. Generate idempotency key (deterministic based on period)
-      const idempotencyKey = [
-        managerAccountId,
-        subscription.id,
-        subscription.currentPeriodStartsAt.getTime(),
-        subscription.currentPeriodEndsAt.getTime(),
-      ].join(':');
-
-      // 8b. Check if already paid in this period (idempotency at DB level)
-      const existingPayment = await tx.commercialManualPayment.findUnique({
-        where: { idempotencyKey },
-      });
-
-      if (existingPayment) {
-        return this.buildPaymentResponse(existingPayment);
-      }
-
-      // 9. Calculate new period end based on billing cycle
-      const newPeriodEnd = new Date(subscription.currentPeriodEndsAt);
-      const monthsToAdd = subscription.billingCycle === 'ANNUAL' ? 12
-        : subscription.billingCycle === 'SEMIANNUAL' ? 6
-        : subscription.billingCycle === 'QUARTERLY' ? 3
-        : 1; // MONTHLY default
-      newPeriodEnd.setMonth(newPeriodEnd.getMonth() + monthsToAdd);
+      // 9. Calculate renewal period using shared helper
+      const { periodStartsAt, periodEndsAt } = calculateRenewalPeriod(
+        subscription.currentPeriodEndsAt,
+        subscription.billingCycle,
+      );
 
       // 10. Update subscription status to paid
       await tx.tenantSubscription.update({
@@ -165,8 +173,8 @@ export class CommercialManualPaymentService {
         data: {
           status: 'ACTIVE',
           paidAt: new Date(),
-          currentPeriodStartsAt: subscription.currentPeriodEndsAt, // New period starts where old ended
-          currentPeriodEndsAt: newPeriodEnd,
+          currentPeriodStartsAt: periodStartsAt,
+          currentPeriodEndsAt: periodEndsAt,
         },
       });
 

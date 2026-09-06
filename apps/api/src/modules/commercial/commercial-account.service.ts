@@ -1,4 +1,4 @@
-import { CommercialRole, Prisma } from '../../database-client/client.js';
+import { CommercialRole } from '../../database-client/client.js';
 import { randomUUID } from 'crypto';
 
 interface CreateAccountInput {
@@ -12,14 +12,13 @@ export class CommercialAccountService {
   constructor(private prisma: any) {}
 
   async createManager(
-    input: CreateAccountInput,
+    input: Omit<CreateAccountInput, 'role' | 'parentId'>,
     creatorUserId: bigint,
   ) {
     return this.createAccount(
       {
         ...input,
         role: CommercialRole.MANAGER,
-        parentId: undefined,
       },
       creatorUserId,
     );
@@ -155,5 +154,66 @@ export class CommercialAccountService {
       where: { id: accountId },
       data: { defaultCommissionBps: bps },
     });
+  }
+
+  async getAccountByPublicId(publicId: string) {
+    return this.prisma.commercialAccount.findUnique({
+      where: { publicId },
+      include: { user: true, parent: true, children: { include: { user: true } } },
+    });
+  }
+
+  async listAllAccounts(filters?: { role?: string; active?: boolean; managerPublicId?: string }) {
+    const where: any = {};
+
+    if (filters?.role) {
+      where.role = filters.role;
+    }
+    if (filters?.active !== undefined) {
+      where.active = filters.active;
+    }
+    if (filters?.managerPublicId) {
+      const manager = await this.prisma.commercialAccount.findUnique({
+        where: { publicId: filters.managerPublicId },
+      });
+      if (manager) {
+        where.OR = [
+          { id: manager.id },
+          { parentId: manager.id },
+          { parent: { parentId: manager.id } },
+        ];
+      }
+    }
+
+    return this.prisma.commercialAccount.findMany({
+      where,
+      include: { user: true, parent: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async updateAccountStatus(accountId: bigint, active: boolean): Promise<void> {
+    await this.prisma.commercialAccount.update({
+      where: { id: accountId },
+      data: { active },
+    });
+  }
+
+  async getAccountStats(accountId: bigint) {
+    const account = await this.prisma.commercialAccount.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!account) return null;
+
+    const [regionsCount, clientsCount, teamCount] = await Promise.all([
+      this.prisma.commercialRegion.count({ where: { managerId: accountId } }),
+      this.prisma.tenantCommercialAssignment.count({
+        where: { managerId: accountId },
+      }),
+      this.prisma.commercialAccount.count({ where: { parentId: accountId } }),
+    ]);
+
+    return { regionsCount, clientsCount, teamCount };
   }
 }

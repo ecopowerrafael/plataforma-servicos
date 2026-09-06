@@ -118,4 +118,27 @@ export class CommercialRegionService {
       throw new Error('INVALID_STATE');
     }
   }
+
+  async getRegionByPublicId(publicId: string) {
+    return this.prisma.commercialRegion.findUnique({
+      where: { publicId },
+      include: { manager: true, cities: true },
+    });
+  }
+
+  async updateRegionStatus(regionId: bigint, active: boolean) {
+    return this.prisma.commercialRegion.update({
+      where: { id: regionId },
+      data: { active },
+      include: { manager: true, cities: true },
+    });
+  }
+
+  async addCitiesToRegion(regionId: bigint, cities: Array<{ ibgeCode: string; city: string; state: string }>) {
+    const results = [];
+    for (const city of cities) {
+      results.push(await this.assignCity({ regionId, ...city }));
+    }
+    return results;
+  }
 }

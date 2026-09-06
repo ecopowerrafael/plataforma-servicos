@@ -1,5 +1,5 @@
 import { CommercialAssignmentSource, CommercialRole } from '../../database-client/client.js';
-import { getCommercialScopeForUser, getManagerAncestor } from './commercial-scope.helper.js';
+import { getCommercialScopeForUser } from './commercial-scope.helper.js';
 
 interface AssignmentInput {
   tenantId: bigint;

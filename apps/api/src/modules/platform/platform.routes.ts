@@ -83,6 +83,7 @@ import { platformComboRoutes } from './platform.combo-routes.js';
 import { platformScheduleRoutes } from './platform.schedule-routes.js';
 import { platformUnitsRoutes } from './platform.units-routes.js';
 import { platformProfessionalUnitsRoutes } from './platform.professional-units-routes.js';
+import { platformCommercialRoutes } from './platform.commercial-routes.js';
 import type { PlatformBillingService } from './platform-billing.service.js';
 import { type PlatformAuthContext, type PlatformService } from './platform.service.js';
 import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
@@ -172,6 +173,12 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       professionalUnitLinkService: options.professionalUnitLinkService,
     });
   }
+
+  await app.register(platformCommercialRoutes, {
+    service: options.service,
+    prisma: options.service.getPrismaClient(),
+  });
+
   const allow = (
     request: { platformAuth: PlatformAuthContext },
     permission: PlatformPermissionCode,

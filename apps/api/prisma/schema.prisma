@@ -4131,8 +4131,10 @@ model CommercialAccount {
   parent                  CommercialAccount? @relation("CommercialAccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children                CommercialAccount[] @relation("CommercialAccountHierarchy")
   createdByUser           User      @relation("CommercialAccountCreator", fields: [createdByUserId], references: [id])
-  regions                 CommercialRegion[]
-  tenantAssignments       TenantCommercialAssignment[]
+  regions                 CommercialRegion[] @relation("managerRegions")
+  managerAssignments      TenantCommercialAssignment[] @relation("assignmentManager")
+  representativeAssignments TenantCommercialAssignment[] @relation("assignmentRepresentative")
+  sellerAssignments       TenantCommercialAssignment[] @relation("assignmentSeller")
 
   @@index([userId])
   @@index([parentId])
@@ -4145,12 +4147,12 @@ model CommercialRegion {
   id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   publicId                String    @unique @db.Char(36)
   managerId               BigInt    @db.UnsignedBigInt
-  name                    String    @db.Varchar(120)
+  name                    String    @db.VarChar(120)
   active                  Boolean   @default(true)
   createdAt               DateTime  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
 
-  manager                 CommercialAccount @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  manager                 CommercialAccount @relation("managerRegions", fields: [managerId], references: [id], onDelete: Cascade)
   cities                  CommercialRegionCity[]
 
   @@index([managerId])
@@ -4162,7 +4164,7 @@ model CommercialRegionCity {
   id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   regionId                BigInt    @db.UnsignedBigInt
   ibgeCode                String    @unique @db.Char(7)
-  city                    String    @db.Varchar(120)
+  city                    String    @db.VarChar(120)
   state                   String    @db.Char(2)
   createdAt               DateTime  @default(now()) @map("created_at") @db.DateTime(3)
 
@@ -4184,9 +4186,9 @@ model TenantCommercialAssignment {
   assignedByUserId        BigInt?   @map("assigned_by_user_id") @db.UnsignedBigInt
 
   tenant                  Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  manager                 CommercialAccount? @relation(fields: [managerId], references: [id], onDelete: SetNull)
-  representative          CommercialAccount? @relation(fields: [representativeId], references: [id], onDelete: SetNull)
-  seller                  CommercialAccount? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  manager                 CommercialAccount? @relation("assignmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  representative          CommercialAccount? @relation("assignmentRepresentative", fields: [representativeId], references: [id], onDelete: SetNull)
+  seller                  CommercialAccount? @relation("assignmentSeller", fields: [sellerId], references: [id], onDelete: SetNull)
   assignedByUser          User?     @relation(fields: [assignedByUserId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])

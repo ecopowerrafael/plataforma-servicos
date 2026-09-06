@@ -55,6 +55,8 @@ const platformPermissions = [
   'platform.metrics.read',
   'platform.commercial_policy.read',
   'platform.commercial_policy.manage',
+  'platform.commercial.read',
+  'platform.commercial.manage',
   'platform.prospecting.read',
   'platform.prospecting.update',
   'platform.worker.execute',
@@ -507,6 +509,10 @@ export class PlatformService {
       });
       return created ? 'created' : 'promoted';
     });
+  }
+
+  public getPrismaClient(): PrismaClient {
+    return this.client;
   }
 
   public async getMe(context: PlatformAuthContext) {

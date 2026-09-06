@@ -42,6 +42,16 @@ const CreateManagerRequestSchema = z.object({
   password: z.string().min(8).optional(),
   defaultCommissionBps: z.number().int().min(0).max(10000),
   active: z.boolean().optional().default(true),
+  region: z.object({
+    name: z.string().min(1),
+    cities: z.array(
+      z.object({
+        ibgeCode: z.string().regex(/^\d{7}$/),
+        city: z.string().min(1),
+        state: z.string().length(2).toUpperCase(),
+      }),
+    ).optional().default([]),
+  }).optional(),
 });
 
 const UpdateManagerRequestSchema = z.object({
@@ -213,6 +223,36 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
   );
 
   app.get(
+    '/platform/commercial/cities/:state',
+    {
+      schema: {
+        params: z.object({ state: z.string().length(2).toUpperCase() }),
+        response: {
+          200: z.array(
+            z.object({
+              ibgeCode: z.string(),
+              city: z.string(),
+              state: z.string(),
+            }),
+          ),
+        },
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.read');
+
+      const cities = await options.prisma.commercialRegionCity.findMany({
+        where: { state: request.params.state },
+        select: { ibgeCode: true, city: true, state: true },
+        distinct: ['ibgeCode'],
+        orderBy: { city: 'asc' },
+      });
+
+      return cities;
+    },
+  );
+
+  app.get(
     '/platform/commercial/user-lookup',
     {
       schema: {
@@ -313,6 +353,42 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         } as any,
         request.platformAuth.user.id,
       );
+
+      if (request.body.region && request.body.region.cities.length > 0) {
+        const cities = request.body.region.cities;
+
+        for (const city of cities) {
+          const existingCity = await options.prisma.commercialRegionCity.findFirst({
+            where: { ibgeCode: city.ibgeCode, region: { active: true } },
+            include: { region: { include: { manager: { include: { user: true } } } } },
+          });
+
+          if (existingCity) {
+            throw new AppError({
+              code: 'CITY_ALREADY_ASSIGNED',
+              message: `Esta cidade já está atribuída ao gerente ${existingCity.region.manager.user.email}`,
+              statusCode: 400,
+            });
+          }
+        }
+
+        await options.prisma.commercialRegion.create({
+          data: {
+            publicId: randomUUID(),
+            managerId: account.id,
+            name: request.body.region.name,
+            active: true,
+            cities: {
+              create: cities.map((c) => ({
+                publicId: randomUUID(),
+                ibgeCode: c.ibgeCode,
+                city: c.city,
+                state: c.state,
+              })),
+            },
+          },
+        });
+      }
 
       return reply.status(201).send({
         publicId: account.publicId,

@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { type PlatformService, type PlatformAuthContext } from './platform.service.js';
+import { type PasswordService } from '../auth/password.service.js';
 import {
   CommercialAccountService,
   CommercialRegionService,
@@ -15,15 +17,29 @@ import { type PrismaClient } from '../../database-client/client.js';
 interface PlatformCommercialRoutesOptions {
   service: PlatformService;
   prisma: PrismaClient;
+  passwordService: PasswordService;
 }
 
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const RegionPublicIdParamsSchema = z.object({ regionPublicId: z.uuid() });
 
+const UserLookupResponseSchema = z.object({
+  exists: z.boolean(),
+  user: z.object({
+    publicId: z.string().uuid(),
+    name: z.string().nullable(),
+    email: z.string().email(),
+    phone: z.string().nullable(),
+    hasCommercialAccount: z.boolean(),
+    commercialRole: z.string().nullable(),
+  }).nullable(),
+});
+
 const CreateManagerRequestSchema = z.object({
-  userPublicId: z.string().uuid().optional(),
-  email: z.string().email().optional(),
+  email: z.string().email(),
   name: z.string().min(1).optional(),
+  phone: z.string().optional(),
+  password: z.string().min(8).optional(),
   defaultCommissionBps: z.number().int().min(0).max(10000),
   active: z.boolean().optional().default(true),
 });
@@ -196,6 +212,48 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
     },
   );
 
+  app.get(
+    '/platform/commercial/user-lookup',
+    {
+      schema: {
+        querystring: z.object({
+          email: z.string().email(),
+        }),
+        response: {
+          200: UserLookupResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.read');
+
+      const normalizedEmail = request.query.email.toLowerCase();
+      const user = await options.prisma.user.findUnique({
+        where: { normalizedEmail },
+      });
+
+      if (!user) {
+        return { exists: false, user: null };
+      }
+
+      const commercialAccount = await options.prisma.commercialAccount.findFirst({
+        where: { userId: user.id },
+      });
+
+      return {
+        exists: true,
+        user: {
+          publicId: user.publicId,
+          name: user.email.split('@')[0] || null,
+          email: user.email,
+          phone: null,
+          hasCommercialAccount: !!commercialAccount,
+          commercialRole: commercialAccount?.role ?? null,
+        },
+      };
+    },
+  );
+
   app.post(
     '/platform/commercial/managers',
     {
@@ -207,13 +265,45 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
     async (request, reply) => {
       allow(request, 'platform.commercial.manage');
 
-      const userId = await resolveUserIdFromInput(request.body, options.prisma);
-      if (!userId) {
-        throw new AppError({
-          code: 'INVALID_INPUT',
-          message: 'Informe userPublicId ou email',
-          statusCode: 400,
+      const normalizedEmail = request.body.email.toLowerCase();
+      const existingUser = await options.prisma.user.findUnique({
+        where: { normalizedEmail },
+      });
+
+      let userId = existingUser?.id;
+
+      if (!existingUser) {
+        if (!request.body.password) {
+          throw new AppError({
+            code: 'PASSWORD_REQUIRED',
+            message: 'Senha obrigatória para novo usuário',
+            statusCode: 400,
+          });
+        }
+
+        const passwordHash = await options.passwordService.hash(request.body.password);
+        const newUser = await options.prisma.user.create({
+          data: {
+            publicId: randomUUID(),
+            email: request.body.email,
+            normalizedEmail,
+            passwordHash,
+            status: 'ACTIVE',
+            emailVerifiedAt: new Date(),
+          },
         });
+        userId = newUser.id;
+      } else {
+        const existingCommercialAccount = await options.prisma.commercialAccount.findFirst({
+          where: { userId: existingUser.id },
+        });
+        if (existingCommercialAccount) {
+          throw new AppError({
+            code: 'USER_ALREADY_COMMERCIAL',
+            message: `Este usuário já é ${existingCommercialAccount.role} comercial`,
+            statusCode: 400,
+          });
+        }
       }
 
       const account = await accountService.createManager(

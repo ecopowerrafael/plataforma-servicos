@@ -177,6 +177,7 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
   await app.register(platformCommercialRoutes, {
     service: options.service,
     prisma: options.service.getPrismaClient(),
+    passwordService: options.passwordService,
   });
 
   const allow = (

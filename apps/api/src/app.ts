@@ -83,6 +83,7 @@ import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { receiptRoutes } from './modules/payments/receipt.routes.js';
 import { platformBillingWebhookRoutes } from './modules/platform/platform-billing-webhook.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
+import { commercialRoutes } from './modules/commercial/commercial.routes.js';
 import { wapiConfigRoutes } from './modules/platform/wapi-config.routes.js';
 import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
 import { directoryRoutes, publicDirectoryRoutes } from './modules/platform/directory.routes.js';
@@ -1018,6 +1019,10 @@ export async function buildApp(options: BuildAppOptions) {
         ? { comboService: options.database.combos }
         : {}),
       tenantService,
+    });
+
+    await app.register(commercialRoutes, {
+      prisma: options.database.client,
     });
   }
   if (options.database.platformBilling)

@@ -16,6 +16,7 @@ import {
   IconUserCheck,
   IconWallet,
   IconX,
+  IconUsers,
 } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -26,6 +27,7 @@ export type PlatformSection =
   | 'plans'
   | 'subscriptions'
   | 'finance'
+  | 'comercial'
   | 'commercial-policy'
   | 'audit'
   | 'directory'
@@ -38,6 +40,7 @@ const items: { id: PlatformSection; label: string; icon: typeof IconLayoutDashbo
   { id: 'plans', label: 'Planos', icon: IconStack2 },
   { id: 'subscriptions', label: 'Assinaturas', icon: IconReceipt2 },
   { id: 'finance', label: 'Financeiro', icon: IconWallet },
+  { id: 'comercial', label: 'Hierarquia Comercial', icon: IconUsers },
   { id: 'commercial-policy', label: 'Política comercial', icon: IconScale },
   { id: 'audit', label: 'Auditoria', icon: IconScript },
   { id: 'directory', label: 'Diretório', icon: IconCompass },

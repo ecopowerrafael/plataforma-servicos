@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { AuditModule } from '../components/platform/AuditModule.js';
+import { CommercialModule } from '../components/platform/CommercialModule.js';
 import { CommercialPolicyModule } from '../components/platform/CommercialPolicyModule.js';
 import { FinanceModule } from '../components/platform/FinanceModule.js';
 import { PlanModule } from '../components/platform/PlanModule.js';
@@ -44,6 +45,7 @@ export function PlatformPageRebuild() {
     'plans',
     'subscriptions',
     'finance',
+    'comercial',
     'commercial-policy',
     'audit',
     'directory',
@@ -117,6 +119,8 @@ export function PlatformPageRebuild() {
         />
       ) : section === 'finance' ? (
         <FinanceModule />
+      ) : section === 'comercial' ? (
+        <CommercialModule />
       ) : section === 'commercial-policy' ? (
         <CommercialPolicyModule />
       ) : section === 'directory' ? (

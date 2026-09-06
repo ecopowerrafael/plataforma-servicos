@@ -6,7 +6,7 @@ import { httpClient } from '../../lib/http.js';
 import { CommercialManagersTab } from './CommercialManagersTab.js';
 import { CommercialRegionsTab } from './CommercialRegionsTab.js';
 
-type CommercialTab = 'managers' | 'regions' | 'payments';
+type CommercialTab = 'managers' | 'regions' | 'payments' | 'commissions';
 
 const paymentsSchema = z.object({
   data: z.array(z.object({
@@ -18,6 +18,23 @@ const paymentsSchema = z.object({
     createdAt: z.string(),
   })),
   pagination: z.object({ page: z.number(), limit: z.number(), total: z.number() }),
+});
+
+const commissionsSchema = z.object({
+  commissions: z.array(z.object({
+    publicId: z.string(),
+    commercialAccountId: z.bigint(),
+    tenant: z.object({ publicId: z.string(), displayName: z.string() }),
+    subscription: z.object({ publicId: z.string() }),
+    baseAmountCents: z.bigint(),
+    percentageBpsSnapshot: z.number(),
+    commissionAmountCents: z.bigint(),
+    roleSnapshot: z.string(),
+    paymentSource: z.string().optional(),
+    paymentId: z.string().optional(),
+    status: z.string(),
+    createdAt: z.string(),
+  })),
 });
 
 interface CommercialModuleProps {
@@ -37,6 +54,15 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
         schema: paymentsSchema,
       }),
     enabled: activeTab === 'payments',
+  });
+
+  const commissions = useQuery({
+    queryKey: ['admin', 'commissions'],
+    queryFn: () =>
+      httpClient.request('/platform/commercial/commissions?limit=100', {
+        schema: commissionsSchema,
+      }),
+    enabled: activeTab === 'commissions',
   });
 
   const handleReverse = async () => {
@@ -77,6 +103,12 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
           onClick={() => setActiveTab('payments')}
         >
           Pagamentos
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'commissions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('commissions')}
+        >
+          Comissões
         </button>
       </div>
 
@@ -122,6 +154,59 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
                           </button>
                         )}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+        {activeTab === 'commissions' && (
+          <div className="commissions-section">
+            <h3>Comissões por Origem</h3>
+            {commissions.isPending && <div>Carregando...</div>}
+            {commissions.error && <ErrorState message="Erro ao carregar comissões" />}
+            {commissions.data && (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Papel</th>
+                    <th>Origem</th>
+                    <th>Payment ID</th>
+                    <th>Valor Base</th>
+                    <th>Percentual</th>
+                    <th>Comissão</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {commissions.data.commissions.map((c) => (
+                    <tr key={c.publicId}>
+                      <td>{c.tenant.displayName}</td>
+                      <td>{c.roleSnapshot}</td>
+                      <td>
+                        {c.paymentSource
+                          ? {
+                              GATEWAY: 'Gateway',
+                              PIX: 'PIX',
+                              CARD: 'Cartão',
+                              COMMERCIAL_WALLET: 'Carteira Comercial',
+                              MANUAL_ADMIN: 'Manual Admin',
+                            }[c.paymentSource] || c.paymentSource
+                          : '—'}
+                      </td>
+                      <td className="mono">{c.paymentId || '—'}</td>
+                      <td>R$ {(Number(c.baseAmountCents) / 100).toFixed(2)}</td>
+                      <td>{(c.percentageBpsSnapshot / 100).toFixed(2)}%</td>
+                      <td>R$ {(Number(c.commissionAmountCents) / 100).toFixed(2)}</td>
+                      <td>
+                        <span className={`status-badge status-${c.status.toLowerCase()}`}>
+                          {c.status}
+                        </span>
+                      </td>
+                      <td>{new Date(c.createdAt).toLocaleDateString('pt-BR')}</td>
                     </tr>
                   ))}
                 </tbody>

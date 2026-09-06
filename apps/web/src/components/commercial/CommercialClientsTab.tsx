@@ -1,9 +1,22 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { ErrorState } from '../platform/PlatformUi.js';
+import { PaymentModal } from './PaymentModal.js';
 
 export function CommercialClientsTab() {
+  const [selectedTenant, setSelectedTenant] = useState<{ publicId: string; name: string } | null>(null);
+
+  const me = useQuery({
+    queryKey: ['commercial', 'me'],
+    queryFn: () =>
+      httpClient.request('/commercial/me', {
+        schema: z.object({ role: z.string() }),
+      }),
+    retry: false,
+  });
+
   const clients = useQuery({
     queryKey: ['commercial', 'clients'],
     queryFn: () =>
@@ -69,6 +82,7 @@ export function CommercialClientsTab() {
               <th>Status</th>
               <th>Representante</th>
               <th>Vendedor</th>
+              {me.data?.role === 'MANAGER' && <th>Ações</th>}
             </tr>
           </thead>
           <tbody>
@@ -86,11 +100,30 @@ export function CommercialClientsTab() {
                 </td>
                 <td>{client.representativeId ? '✓ Atribuído' : '—'}</td>
                 <td>{client.sellerId ? '✓ Atribuído' : '—'}</td>
+                {me.data?.role === 'MANAGER' && (
+                  <td>
+                    <button
+                      className="btn-mark-paid"
+                      onClick={() => setSelectedTenant({ publicId: client.tenantPublicId, name: client.tenantName })}
+                    >
+                      Marcar como pago
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {selectedTenant && (
+        <PaymentModal
+          tenantPublicId={selectedTenant.publicId}
+          tenantName={selectedTenant.name}
+          onClose={() => setSelectedTenant(null)}
+          onSuccess={() => clients.refetch()}
+        />
+      )}
 
       <style>{`
         .clients-content {
@@ -188,6 +221,22 @@ export function CommercialClientsTab() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
+        }
+
+        .btn-mark-paid {
+          padding: 6px 12px;
+          background: var(--primary);
+          color: white;
+          border: none;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-mark-paid:hover {
+          opacity: 0.9;
         }
       `}</style>
     </div>

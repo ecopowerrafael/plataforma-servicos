@@ -575,6 +575,7 @@ model Tenant {
   collectionAttempts           CollectionAttempt[]
   paymentPromises               PaymentPromise[]
   debtPaymentAllocations        DebtPaymentAllocation[]
+  commercialAssignment          TenantCommercialAssignment?
 
   @@index([status])
   @@map("tenants")
@@ -1184,6 +1185,9 @@ model User {
   stockMovementsPerformed       StockMovement[]
   productSales                  ProductSale[]
   debtsCreated                  Debt[]
+  commercialAccounts            CommercialAccount[]
+  commercialAccountsCreated     CommercialAccount[]           @relation("CommercialAccountCreator")
+  commercialAssignmentsCreated  TenantCommercialAssignment[]
 
   @@index([status])
   @@map("users")
@@ -4090,5 +4094,105 @@ model ProspectingFlowResponse {
   @@index([executionId])
   @@index([stepId])
   @@map("prospecting_flow_responses")
+}
+
+// ============================================
+// COMERCIAL (HIERARQUIA REPRESENTANTES)
+// ============================================
+
+enum CommercialRole {
+  MANAGER
+  REPRESENTATIVE
+  SELLER
+}
+
+enum CommercialAssignmentSource {
+  REGION_AUTO
+  CREATED_BY_MANAGER
+  CREATED_BY_REPRESENTATIVE
+  CREATED_BY_SELLER
+  GLOBAL_ADMIN
+  MANUAL_OVERRIDE
+}
+
+model CommercialAccount {
+  id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String    @unique @db.Char(36)
+  userId                  BigInt    @db.UnsignedBigInt
+  role                    CommercialRole
+  parentId                BigInt?   @db.UnsignedBigInt
+  active                  Boolean   @default(true)
+  defaultCommissionBps    Int       @default(0)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  createdByUserId         BigInt    @map("created_by_user_id") @db.UnsignedBigInt
+
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent                  CommercialAccount? @relation("CommercialAccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children                CommercialAccount[] @relation("CommercialAccountHierarchy")
+  createdByUser           User      @relation("CommercialAccountCreator", fields: [createdByUserId], references: [id])
+  regions                 CommercialRegion[]
+  tenantAssignments       TenantCommercialAssignment[]
+
+  @@index([userId])
+  @@index([parentId])
+  @@index([createdByUserId])
+  @@index([role])
+  @@map("commercial_accounts")
+}
+
+model CommercialRegion {
+  id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String    @unique @db.Char(36)
+  managerId               BigInt    @db.UnsignedBigInt
+  name                    String    @db.Varchar(120)
+  active                  Boolean   @default(true)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  manager                 CommercialAccount @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  cities                  CommercialRegionCity[]
+
+  @@index([managerId])
+  @@index([active])
+  @@map("commercial_regions")
+}
+
+model CommercialRegionCity {
+  id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  regionId                BigInt    @db.UnsignedBigInt
+  ibgeCode                String    @unique @db.Char(7)
+  city                    String    @db.Varchar(120)
+  state                   String    @db.Char(2)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  region                  CommercialRegion @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@index([regionId])
+  @@index([ibgeCode])
+  @@map("commercial_region_cities")
+}
+
+model TenantCommercialAssignment {
+  id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenantId                BigInt    @unique @db.UnsignedBigInt
+  managerId               BigInt?   @db.UnsignedBigInt
+  representativeId        BigInt?   @db.UnsignedBigInt
+  sellerId                BigInt?   @db.UnsignedBigInt
+  source                  CommercialAssignmentSource @default(REGION_AUTO)
+  assignedAt              DateTime  @default(now()) @map("assigned_at") @db.DateTime(3)
+  assignedByUserId        BigInt?   @map("assigned_by_user_id") @db.UnsignedBigInt
+
+  tenant                  Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  manager                 CommercialAccount? @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  representative          CommercialAccount? @relation(fields: [representativeId], references: [id], onDelete: SetNull)
+  seller                  CommercialAccount? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  assignedByUser          User?     @relation(fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([managerId])
+  @@index([representativeId])
+  @@index([sellerId])
+  @@map("tenant_commercial_assignments")
 }
 

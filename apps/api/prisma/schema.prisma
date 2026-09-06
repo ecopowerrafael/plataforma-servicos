@@ -576,6 +576,8 @@ model Tenant {
   paymentPromises               PaymentPromise[]
   debtPaymentAllocations        DebtPaymentAllocation[]
   commercialAssignment          TenantCommercialAssignment?
+  walletEntries                CommercialWalletEntry[]
+  commissions                  CommercialCommission[]
 
   @@index([status])
   @@map("tenants")
@@ -1188,6 +1190,7 @@ model User {
   commercialAccounts            CommercialAccount[]
   commercialAccountsCreated     CommercialAccount[]           @relation("CommercialAccountCreator")
   commercialAssignmentsCreated  TenantCommercialAssignment[]
+  walletEntriesCreated          CommercialWalletEntry[]       @relation("WalletEntryCreator")
 
   @@index([status])
   @@map("users")
@@ -3068,6 +3071,7 @@ model CommercialPlan {
   billingOptions   PlanBillingOption[]
   subscriptions    TenantSubscription[]
   scheduledSubscriptions TenantSubscription[] @relation("ScheduledSubscriptionPlan")
+  commissionRules  CommercialCommissionRule[]
 
   @@index([status, sortOrder])
   @@index([billingCycle])
@@ -3152,6 +3156,8 @@ model TenantSubscription {
   scheduledPlan         CommercialPlan?       @relation("ScheduledSubscriptionPlan", fields: [scheduledPlanId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   history               SubscriptionHistory[]
   platformCharges       PlatformSubscriptionCharge[]
+  walletEntries         CommercialWalletEntry[]
+  commissions           CommercialCommission[]
 
   @@unique([tenantId, effectiveKey])
   @@index([status, currentPeriodEndsAt])
@@ -4135,6 +4141,9 @@ model CommercialAccount {
   managerAssignments      TenantCommercialAssignment[] @relation("assignmentManager")
   representativeAssignments TenantCommercialAssignment[] @relation("assignmentRepresentative")
   sellerAssignments       TenantCommercialAssignment[] @relation("assignmentSeller")
+  walletEntries           CommercialWalletEntry[]
+  commissions             CommercialCommission[]
+  commissionRules         CommercialCommissionRule[]
 
   @@index([userId])
   @@index([parentId])
@@ -4196,5 +4205,99 @@ model TenantCommercialAssignment {
   @@index([representativeId])
   @@index([sellerId])
   @@map("tenant_commercial_assignments")
+}
+
+// ============================================
+// COMERCIAL WALLET & COMMISSIONS (FASE 2)
+// ============================================
+
+enum CommercialWalletEntryType {
+  COMMISSION_CREDIT
+  PLAN_PAYMENT_DEBIT
+  ADJUSTMENT_CREDIT
+  ADJUSTMENT_DEBIT
+  REVERSAL
+}
+
+enum CommercialCommissionStatus {
+  PENDING
+  AVAILABLE
+  REVERSED
+}
+
+model CommercialWalletEntry {
+  id                    BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                          @unique @db.Char(36)
+  commercialAccountId   BigInt                          @db.UnsignedBigInt
+  type                  CommercialWalletEntryType
+  amountCents           BigInt
+  tenantId              BigInt?                         @db.UnsignedBigInt
+  subscriptionId        BigInt?                         @db.UnsignedBigInt
+  commissionId          BigInt?                         @db.UnsignedBigInt
+  description           String                          @db.VarChar(255)
+  metadata              Json?
+  createdByUserId       BigInt?                         @db.UnsignedBigInt
+  createdAt             DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
+
+  commercialAccount     CommercialAccount               @relation(fields: [commercialAccountId], references: [id], onDelete: Cascade)
+  tenant                Tenant?                         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  subscription          TenantSubscription?             @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  commission            CommercialCommission?           @relation(fields: [commissionId], references: [id], onDelete: SetNull)
+  createdByUser         User?                           @relation("WalletEntryCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([commercialAccountId, createdAt])
+  @@index([type, createdAt])
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@index([commissionId])
+  @@map("commercial_wallet_entries")
+}
+
+model CommercialCommission {
+  id                      BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                String                          @unique @db.Char(36)
+  commercialAccountId     BigInt                          @db.UnsignedBigInt
+  tenantId                BigInt                          @db.UnsignedBigInt
+  subscriptionId          BigInt                          @db.UnsignedBigInt
+  baseAmountCents         BigInt                          @db.UnsignedBigInt
+  percentageBpsSnapshot   Int                             @db.UnsignedSmallInt
+  commissionAmountCents   BigInt                          @db.UnsignedBigInt
+  roleSnapshot            String                          @db.VarChar(32)
+  status                  CommercialCommissionStatus      @default(PENDING)
+  createdAt               DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
+  reversedAt              DateTime?                       @map("reversed_at") @db.DateTime(3)
+
+  commercialAccount       CommercialAccount               @relation(fields: [commercialAccountId], references: [id], onDelete: Cascade)
+  tenant                  Tenant                          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription            TenantSubscription              @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  walletEntries           CommercialWalletEntry[]
+
+  @@unique([commercialAccountId, subscriptionId, createdAt], map: "ucc_account_subscription_date")
+  @@index([commercialAccountId, status])
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@index([createdAt])
+  @@map("commercial_commissions")
+}
+
+model CommercialCommissionRule {
+  id                    BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                          @unique @db.Char(36)
+  commercialAccountId   BigInt                          @db.UnsignedBigInt
+  planId                BigInt?                         @db.UnsignedBigInt
+  percentageBps         Int                             @db.UnsignedSmallInt
+  effectiveFrom         DateTime                        @map("effective_from") @db.DateTime(3)
+  effectiveUntil        DateTime?                       @map("effective_until") @db.DateTime(3)
+  active                Boolean                         @default(true)
+  createdAt             DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                        @updatedAt @map("updated_at") @db.DateTime(3)
+
+  commercialAccount     CommercialAccount               @relation(fields: [commercialAccountId], references: [id], onDelete: Cascade)
+  plan                  CommercialPlan?                 @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([commercialAccountId, planId, effectiveFrom], map: "uccr_account_plan_date")
+  @@index([commercialAccountId, active])
+  @@index([planId])
+  @@map("commercial_commission_rules")
 }
 

@@ -187,6 +187,24 @@
   font-size: 13px;
 }
 
+@media (max-width: 430px) {
+  .combo-module--redesigned .combo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .combo-module--redesigned .combo-header {
+    flex-direction: column;
+  }
+
+  .combo-module--redesigned .combo-form {
+    padding: 12px;
+  }
+
+  .combo-module--redesigned .combo-card-actions button {
+    min-width: auto;
+  }
+}
+
 @media (max-width: 768px) {
   .combo-module--redesigned .combo-grid {
     grid-template-columns: 1fr;

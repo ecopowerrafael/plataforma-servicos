@@ -189,6 +189,30 @@
   color: #e53935;
 }
 
+@media (max-width: 430px) {
+  .product-stock--redesigned .stock-section,
+  .product-movements--redesigned .movement-section {
+    padding: 12px;
+  }
+
+  .product-stock--redesigned .stock-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .product-stock--redesigned .stock-table,
+  .product-movements--redesigned .movement-table {
+    font-size: 11px;
+    overflow-x: auto;
+  }
+
+  .product-stock--redesigned .stock-table th,
+  .product-stock--redesigned .stock-table td,
+  .product-movements--redesigned .movement-table th,
+  .product-movements--redesigned .movement-table td {
+    padding: 6px 8px;
+  }
+}
+
 @media (max-width: 768px) {
   .product-stock--redesigned .stock-section,
   .product-movements--redesigned .movement-section {

@@ -278,6 +278,28 @@
   flex-wrap: wrap;
 }
 
+@media (max-width: 430px) {
+  .members-module--redesigned .members-header {
+    flex-direction: column;
+  }
+
+  .members-module--redesigned .members-search {
+    max-width: 100%;
+  }
+
+  .members-module--redesigned .members-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .members-module--redesigned .member-card {
+    padding: 12px;
+  }
+
+  .tenant-pwa--redesigned .pwa-section {
+    padding: 12px;
+  }
+}
+
 @media (max-width: 768px) {
   .members-module--redesigned .members-header {
     flex-direction: column;

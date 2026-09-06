@@ -190,6 +190,24 @@
   font-weight: 600;
 }
 
+@media (max-width: 430px) {
+  .subscribers-module--redesigned .subscribers-header {
+    flex-direction: column;
+  }
+
+  .subscribers-module--redesigned .subscribers-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-module--redesigned .usage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-module--redesigned .usage-section {
+    padding: 12px;
+  }
+}
+
 @media (max-width: 768px) {
   .subscribers-module--redesigned .subscribers-header {
     flex-direction: column;

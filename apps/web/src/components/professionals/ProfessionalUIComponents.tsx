@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { IconSearch, IconPlus, IconPhone, IconCalendar } from '@tabler/icons-react';
-import { environment } from '../../config/environment.js';
+import { TenantProfessionalPhoto } from './TenantProfessionalPhoto.js';
 
 /* ============================================
    PROFESSIONAL HEADER
@@ -43,7 +43,9 @@ interface ProfessionalCardProps {
   phone?: string;
   appointments: number;
   status: 'active' | 'inactive';
-  image?: string;
+  professionalPublicId: string;
+  tenantPublicId: string;
+  updatedAt?: string;
   actions?: ReactNode;
   onClick?: () => void;
 }
@@ -54,19 +56,21 @@ export function ProfessionalCard({
   phone,
   appointments,
   status,
-  image,
+  professionalPublicId,
+  tenantPublicId,
+  updatedAt,
   actions,
   onClick,
 }: ProfessionalCardProps) {
-  const photoUrl = image ? (image.startsWith('http') ? image : `${environment.apiUrl}${image}`) : null;
-
   return (
     <div className={`professional-card ${status === 'inactive' ? 'is-inactive' : ''}`} onClick={onClick}>
-      {photoUrl ? (
-        <img src={photoUrl} alt={name} className="professional-photo" />
-      ) : (
-        <div className="professional-avatar">{name.charAt(0).toUpperCase()}</div>
-      )}
+      <TenantProfessionalPhoto
+        name={name}
+        professionalPublicId={professionalPublicId}
+        tenantPublicId={tenantPublicId}
+        size="small"
+        version={updatedAt}
+      />
 
       <div className="professional-content">
         <h3>{name}</h3>

@@ -505,6 +505,7 @@
   width: 120px;
   height: 120px;
   min-width: 120px;
+  aspect-ratio: 1;
   font-size: 48px;
   flex-shrink: 0;
 }

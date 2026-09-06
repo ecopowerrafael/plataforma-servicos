@@ -1394,6 +1394,56 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     },
   );
 
+  // GET /commercial/clients - Listar clientes do gerente
+  app.get(
+    '/commercial/clients',
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'NOT_MANAGER',
+          message: 'Acesso negado',
+          statusCode: 403,
+        });
+      }
+
+      const manager = await options.prisma.commercialAccount.findUnique({
+        where: { id: scope.accountId },
+      });
+
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({
+          code: 'NOT_MANAGER',
+          message: 'Apenas gerentes podem listar clientes',
+          statusCode: 403,
+        });
+      }
+
+      const assignments = await options.prisma.tenantCommercialAssignment.findMany({
+        where: { managerId: manager.id },
+        include: { tenant: { include: { subscriptions: { orderBy: { createdAt: 'desc' as const }, take: 1 } } } },
+      });
+
+      return {
+        clients: assignments.map((a) => ({
+          tenantPublicId: a.tenant.publicId,
+          tenantName: a.tenant.displayName,
+          subscription: a.tenant.subscriptions[0],
+          assignedAt: a.assignedAt.toISOString(),
+        })),
+      };
+    },
+  );
+
   // POST /commercial/team/:sellerPublicId/move - Move seller
   app.post(
     '/commercial/team/:sellerPublicId/move',

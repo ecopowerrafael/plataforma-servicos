@@ -496,6 +496,19 @@ export function HomePage() {
     APP_ICON: null,
   });
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [sidebarOpen]);
+
   const uploadBrandAsset = useMutation({
     mutationFn: ({ kind, file }: { kind: 'LOGO' | 'SPLASH' | 'APP_ICON'; file: File }) => {
       if (selectedTenant === undefined)
@@ -910,19 +923,6 @@ export function HomePage() {
     guidedData?.onboardingCompletedAt === null;
   const guidedStep = guidedData?.onboardingStep ?? 'WELCOME';
   const guidedStepIndex = Math.max(0, GUIDED_STEPS.indexOf(guidedStep));
-
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!sidebarOpen) return;
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSidebarOpen(false);
-    };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [sidebarOpen]);
 
   return (
     <main className={`app-shell${guidedActive && !guidedPaused ? ' is-onboarding' : ''}`}>

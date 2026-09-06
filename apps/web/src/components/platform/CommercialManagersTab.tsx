@@ -643,6 +643,26 @@ export function CommercialManagersTab() {
           background: var(--bg-tertiary);
         }
 
+        .section-header .action-button {
+          flex: none;
+          width: auto;
+          min-width: auto;
+          padding: 10px 18px;
+          white-space: nowrap;
+        }
+
+        @media (max-width: 640px) {
+          .section-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+          }
+
+          .section-header .action-button {
+            width: 100%;
+          }
+        }
+
         .table-container {
           overflow-x: auto;
         }

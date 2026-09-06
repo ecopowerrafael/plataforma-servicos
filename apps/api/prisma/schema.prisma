@@ -4126,11 +4126,11 @@ enum CommercialAssignmentSource {
 model CommercialAccount {
   id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
   publicId                String    @unique @map("public_id") @db.Char(36)
-  userId                  BigInt    @db.UnsignedBigInt
+  userId                  BigInt    @map("user_id") @db.UnsignedBigInt
   role                    CommercialRole
-  parentId                BigInt?   @db.UnsignedBigInt
+  parentId                BigInt?   @map("parent_id") @db.UnsignedBigInt
   active                  Boolean   @default(true)
-  defaultCommissionBps    Int       @default(0)
+  defaultCommissionBps    Int       @default(0) @map("default_commission_bps")
   createdAt               DateTime  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
   createdByUserId         BigInt    @map("created_by_user_id") @db.UnsignedBigInt
@@ -4157,8 +4157,8 @@ model CommercialAccount {
 
 model CommercialRegion {
   id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId                String    @unique @db.Char(36)
-  managerId               BigInt    @db.UnsignedBigInt
+  publicId                String    @unique @map("public_id") @db.Char(36)
+  managerId               BigInt    @map("manager_id") @db.UnsignedBigInt
   name                    String    @db.VarChar(120)
   active                  Boolean   @default(true)
   createdAt               DateTime  @default(now()) @map("created_at") @db.DateTime(3)
@@ -4174,8 +4174,8 @@ model CommercialRegion {
 
 model CommercialRegionCity {
   id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
-  regionId                BigInt    @db.UnsignedBigInt
-  ibgeCode                String    @unique @db.Char(7)
+  regionId                BigInt    @map("region_id") @db.UnsignedBigInt
+  ibgeCode                String    @unique @map("ibge_code") @db.Char(7)
   city                    String    @db.VarChar(120)
   state                   String    @db.Char(2)
   createdAt               DateTime  @default(now()) @map("created_at") @db.DateTime(3)
@@ -4189,10 +4189,10 @@ model CommercialRegionCity {
 
 model TenantCommercialAssignment {
   id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
-  tenantId                BigInt    @unique @db.UnsignedBigInt
-  managerId               BigInt?   @db.UnsignedBigInt
-  representativeId        BigInt?   @db.UnsignedBigInt
-  sellerId                BigInt?   @db.UnsignedBigInt
+  tenantId                BigInt    @unique @map("tenant_id") @db.UnsignedBigInt
+  managerId               BigInt?   @map("manager_id") @db.UnsignedBigInt
+  representativeId        BigInt?   @map("representative_id") @db.UnsignedBigInt
+  sellerId                BigInt?   @map("seller_id") @db.UnsignedBigInt
   source                  CommercialAssignmentSource @default(REGION_AUTO)
   assignedAt              DateTime  @default(now()) @map("assigned_at") @db.DateTime(3)
   assignedByUserId        BigInt?   @map("assigned_by_user_id") @db.UnsignedBigInt
@@ -4230,16 +4230,16 @@ enum CommercialCommissionStatus {
 
 model CommercialWalletEntry {
   id                    BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId              String                          @unique @db.Char(36)
-  commercialAccountId   BigInt                          @db.UnsignedBigInt
+  publicId              String                          @unique @map("public_id") @db.Char(36)
+  commercialAccountId   BigInt                          @map("commercial_account_id") @db.UnsignedBigInt
   type                  CommercialWalletEntryType
-  amountCents           BigInt
-  tenantId              BigInt?                         @db.UnsignedBigInt
-  subscriptionId        BigInt?                         @db.UnsignedBigInt
-  commissionId          BigInt?                         @db.UnsignedBigInt
+  amountCents           BigInt                          @map("amount_cents")
+  tenantId              BigInt?                         @map("tenant_id") @db.UnsignedBigInt
+  subscriptionId        BigInt?                         @map("subscription_id") @db.UnsignedBigInt
+  commissionId          BigInt?                         @map("commission_id") @db.UnsignedBigInt
   description           String                          @db.VarChar(255)
   metadata              Json?
-  createdByUserId       BigInt?                         @db.UnsignedBigInt
+  createdByUserId       BigInt?                         @map("created_by_user_id") @db.UnsignedBigInt
   createdAt             DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
 
   commercialAccount     CommercialAccount               @relation(fields: [commercialAccountId], references: [id], onDelete: Cascade)
@@ -4258,14 +4258,14 @@ model CommercialWalletEntry {
 
 model CommercialCommission {
   id                      BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId                String                          @unique @db.Char(36)
-  commercialAccountId     BigInt                          @db.UnsignedBigInt
-  tenantId                BigInt                          @db.UnsignedBigInt
-  subscriptionId          BigInt                          @db.UnsignedBigInt
-  baseAmountCents         BigInt                          @db.UnsignedBigInt
-  percentageBpsSnapshot   Int                             @db.UnsignedSmallInt
-  commissionAmountCents   BigInt                          @db.UnsignedBigInt
-  roleSnapshot            String                          @db.VarChar(32)
+  publicId                String                          @unique @map("public_id") @db.Char(36)
+  commercialAccountId     BigInt                          @map("commercial_account_id") @db.UnsignedBigInt
+  tenantId                BigInt                          @map("tenant_id") @db.UnsignedBigInt
+  subscriptionId          BigInt                          @map("subscription_id") @db.UnsignedBigInt
+  baseAmountCents         BigInt                          @map("base_amount_cents") @db.UnsignedBigInt
+  percentageBpsSnapshot   Int                             @map("percentage_bps_snapshot") @db.UnsignedSmallInt
+  commissionAmountCents   BigInt                          @map("commission_amount_cents") @db.UnsignedBigInt
+  roleSnapshot            String                          @map("role_snapshot") @db.VarChar(32)
   status                  CommercialCommissionStatus      @default(PENDING)
   paymentId               String?                         @map("payment_id") @db.VarChar(255)
   paymentSource           String?                         @map("payment_source") @db.VarChar(32)
@@ -4288,10 +4288,10 @@ model CommercialCommission {
 
 model CommercialCommissionRule {
   id                    BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId              String                          @unique @db.Char(36)
-  commercialAccountId   BigInt                          @db.UnsignedBigInt
-  planId                BigInt?                         @db.UnsignedBigInt
-  percentageBps         Int                             @db.UnsignedSmallInt
+  publicId              String                          @unique @map("public_id") @db.Char(36)
+  commercialAccountId   BigInt                          @map("commercial_account_id") @db.UnsignedBigInt
+  planId                BigInt?                         @map("plan_id") @db.UnsignedBigInt
+  percentageBps         Int                             @map("percentage_bps") @db.UnsignedSmallInt
   effectiveFrom         DateTime                        @map("effective_from") @db.DateTime(3)
   effectiveUntil        DateTime?                       @map("effective_until") @db.DateTime(3)
   active                Boolean                         @default(true)
@@ -4310,11 +4310,11 @@ model CommercialCommissionRule {
 model CommercialManualPayment {
   id                    BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
   publicId              String                          @unique @map("public_id") @db.Char(36)
-  tenantId              BigInt                          @db.UnsignedBigInt
-  subscriptionId        BigInt                          @db.UnsignedBigInt
-  managerAccountId      BigInt                          @db.UnsignedBigInt
-  amountCents           BigInt                          @db.UnsignedBigInt
-  idempotencyKey        String                          @db.Char(36)
+  tenantId              BigInt                          @map("tenant_id") @db.UnsignedBigInt
+  subscriptionId        BigInt                          @map("subscription_id") @db.UnsignedBigInt
+  managerAccountId      BigInt                          @map("manager_account_id") @db.UnsignedBigInt
+  amountCents           BigInt                          @map("amount_cents") @db.UnsignedBigInt
+  idempotencyKey        String                          @map("idempotency_key") @db.Char(36)
   status                String                          @default("PROCESSED") @db.Char(20)
   createdAt             DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
   processedAt           DateTime?                       @map("processed_at") @db.DateTime(3)

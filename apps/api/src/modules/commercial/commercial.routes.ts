@@ -3,6 +3,8 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { type AuthRequestContext } from '../auth/identity.repository.js';
 import { type PasswordService } from '../auth/password.service.js';
+import { requestMetadata } from '../auth/request-context.js';
+import { auditData } from '../platform/platform.service.js';
 import {
   CommercialAccountService,
   CommercialCommissionService,
@@ -1470,12 +1472,35 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         sellerId = seller.id;
       }
 
+      // Capturar assignment anterior para auditoria
+      const previous = await options.prisma.tenantCommercialAssignment.findUnique({
+        where: { tenantId: tenant.id },
+      });
+
       await options.prisma.tenantCommercialAssignment.update({
         where: { tenantId: tenant.id },
         data: {
           representativeId,
           sellerId,
         },
+      });
+
+      // Registrar auditoria
+      await options.prisma.auditLog.create({
+        data: auditData({
+          action: 'commercial.tenant_assignment.changed',
+          targetType: 'tenant_assignment',
+          targetPublicId: tenantPublicId,
+          tenantId: tenant.id,
+          userId: auth.user.id,
+          metadata: {
+            previous_representative: previous?.representativeId?.toString() || null,
+            previous_seller: previous?.sellerId?.toString() || null,
+            new_representative: representativeId?.toString() || null,
+            new_seller: sellerId?.toString() || null,
+          },
+          request: requestMetadata(request),
+        }),
       });
 
       return { success: true };

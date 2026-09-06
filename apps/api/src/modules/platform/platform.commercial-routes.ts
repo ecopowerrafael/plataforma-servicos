@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
-import { type PlatformService, type PlatformAuthContext } from './platform.service.js';
+import { type PlatformService, type PlatformAuthContext, auditData } from './platform.service.js';
 import { type PasswordService } from '../auth/password.service.js';
+import { requestMetadata } from '../auth/request-context.js';
 import {
   CommercialAccountService,
   CommercialRegionService,
@@ -1125,6 +1126,11 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         sellerId = seller.id;
       }
 
+      // Capturar assignment anterior para auditoria
+      const previous = await options.prisma.tenantCommercialAssignment.findUnique({
+        where: { tenantId: tenant.id },
+      });
+
       // Upsert assignment
       await options.prisma.tenantCommercialAssignment.upsert({
         where: { tenantId: tenant.id },
@@ -1140,6 +1146,26 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
           representativeId,
           sellerId,
         },
+      });
+
+      // Registrar auditoria
+      const action = previous ? 'commercial.tenant_assignment.changed' : 'commercial.tenant_assignment.created';
+      await options.prisma.auditLog.create({
+        data: auditData({
+          action,
+          targetType: 'tenant_assignment',
+          targetPublicId: request.body.tenantPublicId,
+          tenantId: tenant.id,
+          metadata: {
+            previous_manager: previous?.managerId?.toString() || null,
+            previous_representative: previous?.representativeId?.toString() || null,
+            previous_seller: previous?.sellerId?.toString() || null,
+            new_manager: manager.id.toString(),
+            new_representative: representativeId?.toString() || null,
+            new_seller: sellerId?.toString() || null,
+          },
+          request: requestMetadata(request),
+        }),
       });
 
       reply.status(201);
@@ -1162,6 +1188,18 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         });
         if (manager) where.managerId = manager.id;
       }
+      if ((request.query as any).representativePublicId) {
+        const rep = await options.prisma.commercialAccount.findUnique({
+          where: { publicId: (request.query as any).representativePublicId },
+        });
+        if (rep) where.representativeId = rep.id;
+      }
+      if ((request.query as any).sellerPublicId) {
+        const seller = await options.prisma.commercialAccount.findUnique({
+          where: { publicId: (request.query as any).sellerPublicId },
+        });
+        if (seller) where.sellerId = seller.id;
+      }
       if ((request.query as any).subscriptionStatus) {
         where.tenant = { subscriptions: { some: { status: (request.query as any).subscriptionStatus } } };
       }
@@ -1173,9 +1211,9 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
           take: limit,
           include: {
             tenant: { include: { subscriptions: { orderBy: { createdAt: 'desc' as const }, take: 1 } } },
-            manager: true,
-            representative: true,
-            seller: true,
+            manager: { include: { user: true } },
+            representative: { include: { user: true } },
+            seller: { include: { user: true } },
           },
         }),
         options.prisma.tenantCommercialAssignment.count({ where }),
@@ -1186,14 +1224,90 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
           tenantPublicId: a.tenant.publicId,
           tenantName: a.tenant.displayName,
           subscription: a.tenant.subscriptions[0],
-          manager: { publicId: a.manager?.publicId, displayName: a.manager?.displayName, email: a.manager ? 'system' : null },
-          representative: a.representative
-            ? { publicId: a.representative.publicId, displayName: a.representative.displayName }
-            : null,
-          seller: a.seller ? { publicId: a.seller.publicId, displayName: a.seller.displayName } : null,
+          manager: a.manager ? {
+            publicId: a.manager.publicId,
+            displayName: a.manager.displayName,
+            email: a.manager.user.email,
+          } : null,
+          representative: a.representative ? {
+            publicId: a.representative.publicId,
+            displayName: a.representative.displayName,
+            email: a.representative.user.email,
+          } : null,
+          seller: a.seller ? {
+            publicId: a.seller.publicId,
+            displayName: a.seller.displayName,
+            email: a.seller.user.email,
+          } : null,
           assignedAt: a.assignedAt.toISOString(),
         })),
         pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      };
+    },
+  );
+
+  // GET /platform/commercial/managers/:managerPublicId/team - Obter equipe de um gerente
+  app.get(
+    '/platform/commercial/managers/:managerPublicId/team',
+    {
+      schema: {
+        params: z.object({ managerPublicId: z.string().uuid() }),
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.read');
+
+      const manager = await options.prisma.commercialAccount.findUnique({
+        where: { publicId: request.params.managerPublicId },
+        include: { user: true },
+      });
+
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({
+          code: 'MANAGER_NOT_FOUND',
+          message: 'Gerente não encontrado',
+          statusCode: 404,
+        });
+      }
+
+      const representatives = await options.prisma.commercialAccount.findMany({
+        where: { parentId: manager.id, role: 'REPRESENTATIVE' },
+        include: {
+          user: true,
+          children: { where: { role: 'SELLER' }, include: { user: true } },
+        },
+      });
+
+      const directSellers = await options.prisma.commercialAccount.findMany({
+        where: { parentId: manager.id, role: 'SELLER' },
+        include: { user: true },
+      });
+
+      return {
+        manager: {
+          publicId: manager.publicId,
+          displayName: manager.displayName,
+          email: manager.user.email,
+          role: manager.role,
+        },
+        representatives: representatives.map((r) => ({
+          publicId: r.publicId,
+          displayName: r.displayName,
+          email: r.user.email,
+          role: r.role,
+          sellers: r.children.map((s) => ({
+            publicId: s.publicId,
+            displayName: s.displayName,
+            email: s.user.email,
+            role: s.role,
+          })),
+        })),
+        directSellers: directSellers.map((s) => ({
+          publicId: s.publicId,
+          displayName: s.displayName,
+          email: s.user.email,
+          role: s.role,
+        })),
       };
     },
   );

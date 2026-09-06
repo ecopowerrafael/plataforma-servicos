@@ -102,7 +102,7 @@ function periodEnd(start: Date, cycle: string): Date {
   return end;
 }
 
-function auditData(input: {
+export function auditData(input: {
   action: string;
   targetType: string;
   targetPublicId?: string;

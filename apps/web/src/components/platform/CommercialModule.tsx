@@ -5,8 +5,9 @@ import { PageHeader, ErrorState } from './PlatformUi.js';
 import { httpClient } from '../../lib/http.js';
 import { CommercialManagersTab } from './CommercialManagersTab.js';
 import { CommercialRegionsTab } from './CommercialRegionsTab.js';
+import { PlatformCommercialClientsTab } from './PlatformCommercialClientsTab.js';
 
-type CommercialTab = 'managers' | 'regions' | 'payments' | 'commissions';
+type CommercialTab = 'managers' | 'regions' | 'clients' | 'payments' | 'commissions';
 
 const paymentsSchema = z.object({
   data: z.array(z.object({
@@ -99,6 +100,12 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
           Regiões
         </button>
         <button
+          className={`tab-button ${activeTab === 'clients' ? 'active' : ''}`}
+          onClick={() => setActiveTab('clients')}
+        >
+          Clientes
+        </button>
+        <button
           className={`tab-button ${activeTab === 'payments' ? 'active' : ''}`}
           onClick={() => setActiveTab('payments')}
         >
@@ -115,6 +122,7 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
       <div className="module-content">
         {activeTab === 'managers' && <CommercialManagersTab />}
         {activeTab === 'regions' && <CommercialRegionsTab />}
+        {activeTab === 'clients' && <PlatformCommercialClientsTab />}
         {activeTab === 'payments' && (
           <div className="payments-section">
             <h3>Pagamentos Manuais</h3>

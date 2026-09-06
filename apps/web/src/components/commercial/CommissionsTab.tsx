@@ -10,6 +10,7 @@ const commissionSchema = z.object({
   percentageBpsSnapshot: z.number(),
   commissionAmountCents: z.bigint(),
   roleSnapshot: z.string(),
+  paymentSource: z.string().optional(),
   status: z.string(),
   createdAt: z.string(),
 });
@@ -17,6 +18,14 @@ const commissionSchema = z.object({
 const commissionsSchema = z.object({
   commissions: z.array(commissionSchema),
 });
+
+const sourceLabels: Record<string, string> = {
+  GATEWAY: 'Gateway',
+  PIX: 'PIX',
+  CARD: 'Cartão',
+  COMMERCIAL_WALLET: 'Carteira Comercial',
+  MANUAL_ADMIN: 'Manual Admin',
+};
 
 export function CommissionsTab() {
   const commissions = useQuery({
@@ -41,6 +50,7 @@ export function CommissionsTab() {
           <tr>
             <th>Data</th>
             <th>Papel</th>
+            <th>Origem</th>
             <th>Base</th>
             <th>Percentual</th>
             <th>Comissão</th>
@@ -52,6 +62,7 @@ export function CommissionsTab() {
             <tr key={commission.publicId}>
               <td>{new Date(commission.createdAt).toLocaleDateString('pt-BR')}</td>
               <td>{commission.roleSnapshot}</td>
+              <td>{commission.paymentSource ? sourceLabels[commission.paymentSource] || commission.paymentSource : '-'}</td>
               <td>R$ {(Number(commission.baseAmountCents) / 100).toFixed(2)}</td>
               <td>{(commission.percentageBpsSnapshot / 100).toFixed(2)}%</td>
               <td>R$ {(Number(commission.commissionAmountCents) / 100).toFixed(2)}</td>

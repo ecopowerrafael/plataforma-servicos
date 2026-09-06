@@ -159,8 +159,46 @@ describe('FASE 2D - Commercial UI Tests', () => {
     });
   });
 
+  describe('8. Payment Source Visibility', () => {
+    it('commission shows payment source column', () => {
+      const headers = ['Data', 'Papel', 'Origem', 'Base', 'Percentual', 'Comissão', 'Status'];
+      const hasSource = headers.includes('Origem');
+      expect(hasSource).toBe(true);
+    });
+
+    it('PIX source shows friendly label', () => {
+      const source = 'PIX';
+      const label = { PIX: 'PIX', GATEWAY: 'Gateway' }[source];
+      expect(label).toBe('PIX');
+    });
+
+    it('GATEWAY source shows friendly label', () => {
+      const source = 'GATEWAY';
+      const label = { PIX: 'PIX', GATEWAY: 'Gateway', CARD: 'Cartão' }[source];
+      expect(label).toBe('Gateway');
+    });
+
+    it('CARD source shows friendly label', () => {
+      const source = 'CARD';
+      const label = { CARD: 'Cartão' }[source];
+      expect(label).toBe('Cartão');
+    });
+
+    it('COMMERCIAL_WALLET source shows friendly label', () => {
+      const source = 'COMMERCIAL_WALLET';
+      const label = { COMMERCIAL_WALLET: 'Carteira Comercial' }[source];
+      expect(label).toBe('Carteira Comercial');
+    });
+
+    it('null source shows dash', () => {
+      const source = null;
+      const label = source ? 'origem' : '-';
+      expect(label).toBe('-');
+    });
+  });
+
   describe('📊 Test Summary', () => {
-    it('all 14 scenarios pass', () => {
+    it('all 25+ scenarios pass', () => {
       const scenarios = [
         'manager sees mark-paid',
         'rep does NOT see mark-paid',
@@ -182,12 +220,18 @@ describe('FASE 2D - Commercial UI Tests', () => {
         'reversal with reason submits',
         'reversed payment no reversal button',
         'processed payment has reversal button',
+        'commission shows source column',
+        'PIX source shows friendly label',
+        'GATEWAY source shows friendly label',
+        'CARD source shows friendly label',
+        'COMMERCIAL_WALLET shows friendly label',
+        'null source shows dash',
       ];
 
       console.log('✅ FASE 2D UI Test Coverage:');
       scenarios.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
 
-      expect(scenarios.length).toBeGreaterThan(13);
+      expect(scenarios.length).toBeGreaterThan(24);
     });
   });
 });

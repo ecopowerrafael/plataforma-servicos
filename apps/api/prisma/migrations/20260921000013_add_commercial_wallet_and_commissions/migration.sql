@@ -1,9 +1,3 @@
--- CreateEnum
-CREATE TYPE `CommercialWalletEntryType` AS ENUM ('COMMISSION_CREDIT', 'PLAN_PAYMENT_DEBIT', 'ADJUSTMENT_CREDIT', 'ADJUSTMENT_DEBIT', 'REVERSAL');
-
--- CreateEnum
-CREATE TYPE `CommercialCommissionStatus` AS ENUM ('PENDING', 'AVAILABLE', 'REVERSED');
-
 -- CreateTable
 CREATE TABLE `commercial_wallet_entries` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

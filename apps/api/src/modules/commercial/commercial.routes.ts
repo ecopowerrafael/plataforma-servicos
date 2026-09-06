@@ -813,4 +813,428 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     },
   );
 
+  // FASE 5: Team Management
+  app.get(
+    '/commercial/team',
+    {
+      schema: {
+        response: {
+          200: z.object({
+            manager: z.object({
+              publicId: z.string(),
+              email: z.string(),
+              role: z.string(),
+              active: z.boolean(),
+              defaultCommissionBps: z.number(),
+              createdAt: z.string(),
+            }),
+            representatives: z.array(z.object({
+              publicId: z.string(),
+              email: z.string(),
+              role: z.string(),
+              active: z.boolean(),
+              defaultCommissionBps: z.number(),
+              createdAt: z.string(),
+              sellers: z.array(z.object({
+                publicId: z.string(),
+                email: z.string(),
+                role: z.string(),
+                active: z.boolean(),
+                defaultCommissionBps: z.number(),
+                createdAt: z.string(),
+              })),
+            })),
+            directSellers: z.array(z.object({
+              publicId: z.string(),
+              email: z.string(),
+              role: z.string(),
+              active: z.boolean(),
+              defaultCommissionBps: z.number(),
+              createdAt: z.string(),
+            })),
+          }),
+        },
+      },
+    },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'NOT_MANAGER',
+          message: 'Acesso negado',
+          statusCode: 403,
+        });
+      }
+
+      const manager = await options.prisma.commercialAccount.findUnique({
+        where: { id: scope.accountId },
+        include: { user: true },
+      });
+
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({
+          code: 'NOT_MANAGER',
+          message: 'Apenas gerentes podem acessar equipe',
+          statusCode: 403,
+        });
+      }
+
+      const representatives = await options.prisma.commercialAccount.findMany({
+        where: { parentId: scope.accountId, role: 'REPRESENTATIVE', active: true },
+        include: { user: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const directSellers = await options.prisma.commercialAccount.findMany({
+        where: { parentId: scope.accountId, role: 'SELLER', active: true },
+        include: { user: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const reps = await Promise.all(
+        representatives.map(async (rep) => {
+          const sellers = await options.prisma.commercialAccount.findMany({
+            where: { parentId: rep.id, role: 'SELLER', active: true },
+            include: { user: true },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          return {
+            publicId: rep.publicId,
+            email: rep.user.email,
+            role: rep.role,
+            active: rep.active,
+            defaultCommissionBps: rep.defaultCommissionBps,
+            createdAt: rep.createdAt.toISOString(),
+            sellers: sellers.map((s) => ({
+              publicId: s.publicId,
+              email: s.user.email,
+              role: s.role,
+              active: s.active,
+              defaultCommissionBps: s.defaultCommissionBps,
+              createdAt: s.createdAt.toISOString(),
+            })),
+          };
+        }),
+      );
+
+      return {
+        manager: {
+          publicId: manager.publicId,
+          email: manager.user.email,
+          role: manager.role,
+          active: manager.active,
+          defaultCommissionBps: manager.defaultCommissionBps,
+          createdAt: manager.createdAt.toISOString(),
+        },
+        representatives: reps,
+        directSellers: directSellers.map((s) => ({
+          publicId: s.publicId,
+          email: s.user.email,
+          role: s.role,
+          active: s.active,
+          defaultCommissionBps: s.defaultCommissionBps,
+          createdAt: s.createdAt.toISOString(),
+        })),
+      };
+    },
+  );
+
+  app.post(
+    '/commercial/team/representatives',
+    {
+      schema: {
+        body: z.object({
+          email: z.string().email(),
+          name: z.string().min(1).optional(),
+          phone: z.string().optional(),
+          password: z.string().min(8).optional(),
+          defaultCommissionBps: z.number().int().min(0).max(10000),
+        }),
+        response: {
+          201: z.object({
+            publicId: z.string(),
+            email: z.string(),
+            role: z.string(),
+          }),
+        },
+      },
+    },
+    async (request, reply) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'NOT_MANAGER',
+          message: 'Acesso negado',
+          statusCode: 403,
+        });
+      }
+
+      const manager = await options.prisma.commercialAccount.findUnique({
+        where: { id: scope.accountId },
+      });
+
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({
+          code: 'NOT_MANAGER',
+          message: 'Apenas gerentes podem criar representantes',
+          statusCode: 403,
+        });
+      }
+
+      const normalized = request.body.email.toLowerCase();
+      const existingUser = await options.prisma.user.findUnique({
+        where: { normalizedEmail: normalized },
+      });
+
+      if (existingUser) {
+        const existing = await options.prisma.commercialAccount.findFirst({
+          where: { userId: existingUser.id },
+        });
+        if (existing) {
+          throw new AppError({
+            code: 'USER_ALREADY_HAS_COMMERCIAL_ACCOUNT',
+            message: 'Este usuário já possui vínculo comercial',
+            statusCode: 409,
+          });
+        }
+      }
+
+      const result = await options.prisma.$transaction(async (tx) => {
+        let user = existingUser;
+
+        if (!user) {
+          if (!request.body.password) {
+            throw new AppError({
+              code: 'PASSWORD_REQUIRED',
+              message: 'Senha obrigatória para novo usuário',
+              statusCode: 400,
+            });
+          }
+
+          const passwordService = options.passwordService;
+          if (!passwordService) {
+            throw new AppError({
+              code: 'PASSWORD_SERVICE_UNAVAILABLE',
+              message: 'Serviço de senha não disponível',
+              statusCode: 500,
+            });
+          }
+
+          const passwordHash = await passwordService.hash(request.body.password);
+
+          user = await tx.user.create({
+            data: {
+              email: request.body.email,
+              normalizedEmail: normalized,
+              passwordHash,
+              publicId: crypto.randomUUID(),
+              status: 'ACTIVE',
+              emailVerifiedAt: new Date(),
+            },
+          });
+        }
+
+        const representative = await tx.commercialAccount.create({
+          data: {
+            publicId: crypto.randomUUID(),
+            userId: user.id,
+            role: 'REPRESENTATIVE',
+            parentId: manager.id,
+            active: true,
+            defaultCommissionBps: request.body.defaultCommissionBps,
+            createdByUserId: auth.user.id,
+          },
+          include: { user: true },
+        });
+
+        return representative;
+      });
+
+      reply.status(201);
+      return {
+        publicId: result.publicId,
+        email: result.user.email,
+        role: result.role,
+      };
+    },
+  );
+
+  app.post(
+    '/commercial/team/sellers',
+    {
+      schema: {
+        body: z.object({
+          email: z.string().email(),
+          name: z.string().min(1).optional(),
+          phone: z.string().optional(),
+          password: z.string().min(8).optional(),
+          defaultCommissionBps: z.number().int().min(0).max(10000),
+          representativePublicId: z.string().uuid().optional(),
+        }),
+        response: {
+          201: z.object({
+            publicId: z.string(),
+            email: z.string(),
+            role: z.string(),
+          }),
+        },
+      },
+    },
+    async (request, reply) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'NOT_MANAGER',
+          message: 'Acesso negado',
+          statusCode: 403,
+        });
+      }
+
+      const manager = await options.prisma.commercialAccount.findUnique({
+        where: { id: scope.accountId },
+      });
+
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({
+          code: 'NOT_MANAGER',
+          message: 'Apenas gerentes podem criar vendedores',
+          statusCode: 403,
+        });
+      }
+
+      let parentId = manager.id;
+
+      if (request.body.representativePublicId) {
+        const representative = await options.prisma.commercialAccount.findUnique({
+          where: { publicId: request.body.representativePublicId },
+        });
+
+        if (!representative) {
+          throw new AppError({
+            code: 'REPRESENTATIVE_NOT_FOUND',
+            message: 'Representante não encontrado',
+            statusCode: 404,
+          });
+        }
+
+        if (representative.role !== 'REPRESENTATIVE' || representative.parentId !== manager.id || !representative.active) {
+          throw new AppError({
+            code: 'INVALID_REPRESENTATIVE',
+            message: 'Representante inválido ou inativo',
+            statusCode: 403,
+          });
+        }
+
+        parentId = representative.id;
+      }
+
+      const normalized = request.body.email.toLowerCase();
+      const existingUser = await options.prisma.user.findUnique({
+        where: { normalizedEmail: normalized },
+      });
+
+      if (existingUser) {
+        const existing = await options.prisma.commercialAccount.findFirst({
+          where: { userId: existingUser.id },
+        });
+        if (existing) {
+          throw new AppError({
+            code: 'USER_ALREADY_HAS_COMMERCIAL_ACCOUNT',
+            message: 'Este usuário já possui vínculo comercial',
+            statusCode: 409,
+          });
+        }
+      }
+
+      const result = await options.prisma.$transaction(async (tx) => {
+        let user = existingUser;
+
+        if (!user) {
+          if (!request.body.password) {
+            throw new AppError({
+              code: 'PASSWORD_REQUIRED',
+              message: 'Senha obrigatória para novo usuário',
+              statusCode: 400,
+            });
+          }
+
+          const passwordService = options.passwordService;
+          if (!passwordService) {
+            throw new AppError({
+              code: 'PASSWORD_SERVICE_UNAVAILABLE',
+              message: 'Serviço de senha não disponível',
+              statusCode: 500,
+            });
+          }
+
+          const passwordHash = await passwordService.hash(request.body.password);
+
+          user = await tx.user.create({
+            data: {
+              email: request.body.email,
+              normalizedEmail: normalized,
+              passwordHash,
+              publicId: crypto.randomUUID(),
+              status: 'ACTIVE',
+              emailVerifiedAt: new Date(),
+            },
+          });
+        }
+
+        const seller = await tx.commercialAccount.create({
+          data: {
+            publicId: crypto.randomUUID(),
+            userId: user.id,
+            role: 'SELLER',
+            parentId,
+            active: true,
+            defaultCommissionBps: request.body.defaultCommissionBps,
+            createdByUserId: auth.user.id,
+          },
+          include: { user: true },
+        });
+
+        return seller;
+      });
+
+      reply.status(201);
+      return {
+        publicId: result.publicId,
+        email: result.user.email,
+        role: result.role,
+      };
+    },
+  );
+
 };

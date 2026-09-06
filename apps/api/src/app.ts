@@ -1023,6 +1023,7 @@ export async function buildApp(options: BuildAppOptions) {
 
     await app.register(commercialRoutes, {
       prisma: options.database.client,
+      passwordService,
     });
   }
   if (options.database.platformBilling)

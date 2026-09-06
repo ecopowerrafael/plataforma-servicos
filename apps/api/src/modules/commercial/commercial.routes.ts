@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { type AuthRequestContext } from '../auth/identity.repository.js';
+import { type PasswordService } from '../auth/password.service.js';
 import {
   CommercialAccountService,
   CommercialCommissionService,
@@ -16,6 +17,7 @@ import { type PrismaClient } from '../../database-client/client.js';
 
 interface CommercialRoutesOptions {
   prisma: PrismaClient;
+  passwordService?: PasswordService;
 }
 
 const CreateRepresentativeRequestSchema = z.object({

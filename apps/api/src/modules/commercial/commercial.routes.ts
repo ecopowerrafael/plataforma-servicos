@@ -823,6 +823,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
             manager: z.object({
               publicId: z.string(),
               email: z.string(),
+              displayName: z.string().nullable(),
+              phone: z.string().nullable(),
               role: z.string(),
               active: z.boolean(),
               defaultCommissionBps: z.number(),
@@ -831,6 +833,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
             representatives: z.array(z.object({
               publicId: z.string(),
               email: z.string(),
+              displayName: z.string().nullable(),
+              phone: z.string().nullable(),
               role: z.string(),
               active: z.boolean(),
               defaultCommissionBps: z.number(),
@@ -838,6 +842,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
               sellers: z.array(z.object({
                 publicId: z.string(),
                 email: z.string(),
+                displayName: z.string().nullable(),
+                phone: z.string().nullable(),
                 role: z.string(),
                 active: z.boolean(),
                 defaultCommissionBps: z.number(),
@@ -847,6 +853,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
             directSellers: z.array(z.object({
               publicId: z.string(),
               email: z.string(),
+              displayName: z.string().nullable(),
+              phone: z.string().nullable(),
               role: z.string(),
               active: z.boolean(),
               defaultCommissionBps: z.number(),
@@ -912,6 +920,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
           return {
             publicId: rep.publicId,
             email: rep.user.email,
+            displayName: rep.displayName,
+            phone: rep.phone,
             role: rep.role,
             active: rep.active,
             defaultCommissionBps: rep.defaultCommissionBps,
@@ -919,6 +929,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
             sellers: sellers.map((s) => ({
               publicId: s.publicId,
               email: s.user.email,
+              displayName: s.displayName,
+              phone: s.phone,
               role: s.role,
               active: s.active,
               defaultCommissionBps: s.defaultCommissionBps,
@@ -932,6 +944,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         manager: {
           publicId: manager.publicId,
           email: manager.user.email,
+          displayName: manager.displayName,
+          phone: manager.phone,
           role: manager.role,
           active: manager.active,
           defaultCommissionBps: manager.defaultCommissionBps,
@@ -941,6 +955,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         directSellers: directSellers.map((s) => ({
           publicId: s.publicId,
           email: s.user.email,
+          displayName: s.displayName,
+          phone: s.phone,
           role: s.role,
           active: s.active,
           defaultCommissionBps: s.defaultCommissionBps,
@@ -1055,16 +1071,20 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
           });
         }
 
+        const repData: any = {
+          publicId: crypto.randomUUID(),
+          userId: user.id,
+          role: 'REPRESENTATIVE',
+          parentId: manager.id,
+          active: true,
+          defaultCommissionBps: request.body.defaultCommissionBps,
+          createdByUserId: auth.user.id,
+        };
+        if (request.body.name) repData.displayName = request.body.name;
+        if (request.body.phone) repData.phone = request.body.phone;
+
         const representative = await tx.commercialAccount.create({
-          data: {
-            publicId: crypto.randomUUID(),
-            userId: user.id,
-            role: 'REPRESENTATIVE',
-            parentId: manager.id,
-            active: true,
-            defaultCommissionBps: request.body.defaultCommissionBps,
-            createdByUserId: auth.user.id,
-          },
+          data: repData,
           include: { user: true },
         });
 
@@ -1212,16 +1232,20 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
           });
         }
 
+        const sellerData: any = {
+          publicId: crypto.randomUUID(),
+          userId: user.id,
+          role: 'SELLER',
+          parentId,
+          active: true,
+          defaultCommissionBps: request.body.defaultCommissionBps,
+          createdByUserId: auth.user.id,
+        };
+        if (request.body.name) sellerData.displayName = request.body.name;
+        if (request.body.phone) sellerData.phone = request.body.phone;
+
         const seller = await tx.commercialAccount.create({
-          data: {
-            publicId: crypto.randomUUID(),
-            userId: user.id,
-            role: 'SELLER',
-            parentId,
-            active: true,
-            defaultCommissionBps: request.body.defaultCommissionBps,
-            createdByUserId: auth.user.id,
-          },
+          data: sellerData,
           include: { user: true },
         });
 
@@ -1234,6 +1258,200 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         email: result.user.email,
         role: result.role,
       };
+    },
+  );
+
+  // PATCH /commercial/team/:accountPublicId - Edit account
+  app.patch(
+    '/commercial/team/:accountPublicId',
+    {
+      schema: {
+        body: z.object({
+          displayName: z.string().optional(),
+          phone: z.string().optional(),
+          defaultCommissionBps: z.number().int().min(0).max(10000).optional(),
+          active: z.boolean().optional(),
+        }),
+        response: { 200: z.object({ success: z.boolean() }) },
+      },
+    },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({ code: 'NOT_MANAGER', message: 'Acesso negado', statusCode: 403 });
+      }
+
+      const manager = await options.prisma.commercialAccount.findUnique({
+        where: { id: scope.accountId },
+      });
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({ code: 'NOT_MANAGER', message: 'Apenas gerentes podem editar equipe', statusCode: 403 });
+      }
+
+      const accountPublicId = (request.params as any).accountPublicId;
+      const account = await options.prisma.commercialAccount.findUnique({
+        where: { publicId: accountPublicId },
+      });
+      if (!account) {
+        throw new AppError({ code: 'ACCOUNT_NOT_FOUND', message: 'Conta não encontrada', statusCode: 404 });
+      }
+
+      // Validate ownership: account must be in manager's hierarchy
+      let isManaged = account.id === manager.id;
+      if (!isManaged && account.parentId) {
+        let parent = await options.prisma.commercialAccount.findUnique({ where: { id: account.parentId } });
+        while (parent && !isManaged) {
+          if (parent.id === manager.id) isManaged = true;
+          else if (parent.parentId) parent = await options.prisma.commercialAccount.findUnique({ where: { id: parent.parentId } });
+          else break;
+        }
+      }
+      if (!isManaged) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Acesso negado', statusCode: 403 });
+      }
+
+      const updateData: any = {};
+      if (request.body.displayName !== undefined) updateData.displayName = request.body.displayName;
+      if (request.body.phone !== undefined) updateData.phone = request.body.phone;
+      if (request.body.defaultCommissionBps !== undefined) updateData.defaultCommissionBps = request.body.defaultCommissionBps;
+      if (request.body.active !== undefined) updateData.active = request.body.active;
+
+      await options.prisma.commercialAccount.update({
+        where: { id: account.id },
+        data: updateData,
+      });
+
+      return { success: true };
+    },
+  );
+
+  // POST /commercial/team/:accountPublicId/reset-password
+  app.post(
+    '/commercial/team/:accountPublicId/reset-password',
+    {
+      schema: {
+        body: z.object({ newPassword: z.string().min(8) }),
+        response: { 200: z.object({ success: z.boolean() }) },
+      },
+    },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+      if (!auth?.user?.id) {
+        throw new AppError({ code: 'AUTH_REQUIRED', message: 'Autenticação obrigatória', statusCode: 401 });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({ code: 'NOT_MANAGER', message: 'Acesso negado', statusCode: 403 });
+      }
+
+      const manager = await options.prisma.commercialAccount.findUnique({ where: { id: scope.accountId } });
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({ code: 'NOT_MANAGER', message: 'Apenas gerentes podem editar equipe', statusCode: 403 });
+      }
+
+      const accountPublicId = (request.params as any).accountPublicId;
+      const account = await options.prisma.commercialAccount.findUnique({ where: { publicId: accountPublicId } });
+      if (!account) {
+        throw new AppError({ code: 'ACCOUNT_NOT_FOUND', message: 'Conta não encontrada', statusCode: 404 });
+      }
+
+      // Validate ownership
+      let isManaged = account.id === manager.id;
+      if (!isManaged && account.parentId) {
+        let parent = await options.prisma.commercialAccount.findUnique({ where: { id: account.parentId } });
+        while (parent && !isManaged) {
+          if (parent.id === manager.id) isManaged = true;
+          else if (parent.parentId) parent = await options.prisma.commercialAccount.findUnique({ where: { id: parent.parentId } });
+          else break;
+        }
+      }
+      if (!isManaged) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Acesso negado', statusCode: 403 });
+      }
+
+      const passwordService = options.passwordService;
+      if (!passwordService) {
+        throw new AppError({ code: 'PASSWORD_SERVICE_UNAVAILABLE', message: 'Serviço não disponível', statusCode: 500 });
+      }
+
+      const passwordHash = await passwordService.hash(request.body.newPassword);
+      await options.prisma.user.update({
+        where: { id: account.userId },
+        data: { passwordHash },
+      });
+
+      return { success: true };
+    },
+  );
+
+  // POST /commercial/team/:sellerPublicId/move - Move seller
+  app.post(
+    '/commercial/team/:sellerPublicId/move',
+    {
+      schema: {
+        body: z.object({ representativePublicId: z.string().uuid().nullable() }),
+        response: { 200: z.object({ success: z.boolean() }) },
+      },
+    },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+      if (!auth?.user?.id) {
+        throw new AppError({ code: 'AUTH_REQUIRED', message: 'Autenticação obrigatória', statusCode: 401 });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({ code: 'NOT_MANAGER', message: 'Acesso negado', statusCode: 403 });
+      }
+
+      const manager = await options.prisma.commercialAccount.findUnique({ where: { id: scope.accountId } });
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({ code: 'NOT_MANAGER', message: 'Apenas gerentes podem mover vendedores', statusCode: 403 });
+      }
+
+      const sellerPublicId = (request.params as any).sellerPublicId;
+      const seller = await options.prisma.commercialAccount.findUnique({
+        where: { publicId: sellerPublicId },
+      });
+      if (!seller || seller.role !== 'SELLER') {
+        throw new AppError({ code: 'NOT_SELLER', message: 'Vendedor não encontrado', statusCode: 404 });
+      }
+
+      // Validate seller belongs to manager
+      if (seller.parentId !== manager.id) {
+        const parent = await options.prisma.commercialAccount.findUnique({ where: { id: seller.parentId! } });
+        if (!parent || parent.role !== 'REPRESENTATIVE' || parent.parentId !== manager.id) {
+          throw new AppError({ code: 'FORBIDDEN', message: 'Acesso negado', statusCode: 403 });
+        }
+      }
+
+      let newParentId = manager.id;
+      if (request.body.representativePublicId) {
+        const rep = await options.prisma.commercialAccount.findUnique({
+          where: { publicId: request.body.representativePublicId },
+        });
+        if (!rep || rep.role !== 'REPRESENTATIVE' || rep.parentId !== manager.id || !rep.active) {
+          throw new AppError({ code: 'INVALID_REPRESENTATIVE', message: 'Representante inválido', statusCode: 403 });
+        }
+        newParentId = rep.id;
+      }
+
+      await options.prisma.commercialAccount.update({
+        where: { id: seller.id },
+        data: { parentId: newParentId },
+      });
+
+      return { success: true };
     },
   );
 

@@ -865,4 +865,23 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       );
     },
   );
+
+  // Get all commissions with source tracking (admin view)
+  app.get(
+    '/platform/commercial/commissions',
+    async (request: any) => {
+      allow(request, 'platform.commercial.read');
+
+      const commissions = await options.prisma.commercialCommission.findMany({
+        include: {
+          tenant: { select: { publicId: true, displayName: true } },
+          subscription: { select: { publicId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: (request.query?.limit || 100) as number,
+      });
+
+      return { commissions };
+    },
+  );
 };

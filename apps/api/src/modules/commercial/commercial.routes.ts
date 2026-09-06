@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
@@ -704,12 +703,10 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
       }
 
       const paymentService = new CommercialManualPaymentService(options.prisma);
-      const idempotencyKey = randomUUID();
 
       return paymentService.markSubscriptionPaid(
         scope.accountId,
         request.params.tenantPublicId,
-        idempotencyKey,
       );
     },
   );

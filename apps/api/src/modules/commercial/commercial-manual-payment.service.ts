@@ -16,20 +16,14 @@ export class CommercialManualPaymentService {
   /**
    * Pay subscription using manager's wallet balance
    * Transaction-based, idempotent, with anti-cycle commission logic
+   *
+   * Idempotency: deterministic key based on manager + subscription + period
+   * (uniqueness enforced by DB constraint, not by pre-check)
    */
   async markSubscriptionPaid(
     managerAccountId: bigint,
     tenantPublicId: string,
-    idempotencyKey: string,
   ) {
-    // Check for existing payment with same idempotency key
-    const existing = await this.prisma.commercialManualPayment.findUnique({
-      where: { idempotencyKey },
-    });
-
-    if (existing) {
-      return this.buildPaymentResponse(existing);
-    }
 
     // Execute full payment transaction
     return this.prisma.$transaction(async (tx) => {
@@ -140,17 +134,43 @@ export class CommercialManualPaymentService {
         },
       });
 
-      // 8. Update subscription status to paid
+      // 8. Generate idempotency key (deterministic based on period)
+      const idempotencyKey = [
+        managerAccountId,
+        subscription.id,
+        subscription.currentPeriodStartsAt.getTime(),
+        subscription.currentPeriodEndsAt.getTime(),
+      ].join(':');
+
+      // 8b. Check if already paid in this period (idempotency at DB level)
+      const existingPayment = await tx.commercialManualPayment.findUnique({
+        where: { idempotencyKey },
+      });
+
+      if (existingPayment) {
+        return this.buildPaymentResponse(existingPayment);
+      }
+
+      // 9. Calculate new period end based on billing cycle
+      const newPeriodEnd = new Date(subscription.currentPeriodEndsAt);
+      const monthsToAdd = subscription.billingCycle === 'ANNUAL' ? 12
+        : subscription.billingCycle === 'SEMIANNUAL' ? 6
+        : subscription.billingCycle === 'QUARTERLY' ? 3
+        : 1; // MONTHLY default
+      newPeriodEnd.setMonth(newPeriodEnd.getMonth() + monthsToAdd);
+
+      // 10. Update subscription status to paid
       await tx.tenantSubscription.update({
         where: { id: subscription.id },
         data: {
           status: 'ACTIVE',
           paidAt: new Date(),
-          currentPeriodEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Renew 30 days
+          currentPeriodStartsAt: subscription.currentPeriodEndsAt, // New period starts where old ended
+          currentPeriodEndsAt: newPeriodEnd,
         },
       });
 
-      // 9. Generate commissions for eligible subordinates (ANTI-CYCLE: manager excluded)
+      // 11. Generate commissions for eligible subordinates (ANTI-CYCLE: manager excluded)
       // Find all subordinates of this manager assigned to this tenant
       const managerAccount = await tx.commercialAccount.findUnique({
         where: { id: managerAccountId },

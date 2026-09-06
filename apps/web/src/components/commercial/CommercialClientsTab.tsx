@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
@@ -6,6 +6,7 @@ import { ErrorState } from '../platform/PlatformUi.js';
 import { PaymentModal } from './PaymentModal.js';
 
 export function CommercialClientsTab() {
+  const queryClient = useQueryClient();
   const [selectedTenant, setSelectedTenant] = useState<{ publicId: string; name: string } | null>(null);
 
   const me = useQuery({
@@ -121,7 +122,13 @@ export function CommercialClientsTab() {
           tenantPublicId={selectedTenant.publicId}
           tenantName={selectedTenant.name}
           onClose={() => setSelectedTenant(null)}
-          onSuccess={() => clients.refetch()}
+          onSuccess={() => {
+            clients.refetch();
+            queryClient.invalidateQueries({ queryKey: ['commercial', 'wallet'] });
+            queryClient.invalidateQueries({ queryKey: ['commercial', 'wallet', 'entries'] });
+            queryClient.invalidateQueries({ queryKey: ['commercial', 'commissions'] });
+            queryClient.invalidateQueries({ queryKey: ['commercial', 'dashboard'] });
+          }}
         />
       )}
 

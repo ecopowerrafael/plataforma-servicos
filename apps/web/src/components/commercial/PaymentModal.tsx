@@ -42,6 +42,25 @@ export function PaymentModal({ tenantPublicId, tenantName, onClose, onSuccess }:
       }),
   });
 
+  const getErrorMessage = (error: any): string => {
+    if (error?.code === 'COMMERCIAL_WALLET_INSUFFICIENT_BALANCE') {
+      return 'Saldo insuficiente na carteira para este pagamento';
+    }
+    if (error?.code === 'COMMERCIAL_TENANT_ACCESS_DENIED') {
+      return 'Você não tem acesso a este cliente';
+    }
+    if (error?.code === 'COMMERCIAL_SUBSCRIPTION_NOT_FOUND') {
+      return 'Assinatura ativa não encontrada para este cliente';
+    }
+    if (error?.code === 'COMMERCIAL_SUBSCRIPTION_ALREADY_PAID') {
+      return 'Esta assinatura já foi paga neste período';
+    }
+    if (error?.code === 'COMMERCIAL_MANUAL_PAYMENT_ALREADY_PROCESSED') {
+      return 'Este pagamento já foi processado';
+    }
+    return 'Erro ao processar pagamento. Tente novamente.';
+  };
+
   const paymentMutation = useMutation({
     mutationFn: async () => {
       setLoading(true);
@@ -54,7 +73,7 @@ export function PaymentModal({ tenantPublicId, tenantName, onClose, onSuccess }:
       onSuccess();
       onClose();
     },
-    onError: () => {
+    onError: (error: any) => {
       setLoading(false);
     },
   });
@@ -155,7 +174,7 @@ export function PaymentModal({ tenantPublicId, tenantName, onClose, onSuccess }:
 
         {paymentMutation.error && (
           <div className="error-message">
-            Erro ao processar pagamento. Tente novamente.
+            {getErrorMessage(paymentMutation.error)}
           </div>
         )}
 

@@ -775,6 +775,79 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
     },
   );
 
+  app.get(
+    '/platform/commercial/manual-payments',
+    {
+      schema: {
+        querystring: z.object({
+          limit: z.coerce.number().int().min(1).max(100).default(50),
+          page: z.coerce.number().int().min(1).default(1),
+        }),
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.read');
+
+      const limit = request.query.limit;
+      const page = request.query.page;
+      const skip = (page - 1) * limit;
+
+      const [payments, total] = await Promise.all([
+        options.prisma.commercialManualPayment.findMany({
+          include: {
+            tenant: true,
+            managerAccount: { include: { user: true } },
+            subscription: { include: { plan: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        options.prisma.commercialManualPayment.count(),
+      ]);
+
+      return {
+        data: payments.map((p) => ({
+          publicId: p.publicId,
+          tenant: { publicId: p.tenant.publicId, name: p.tenant.displayName },
+          manager: { publicId: p.managerAccount.publicId, email: p.managerAccount.user.email },
+          amountCents: Number(p.amountCents),
+          status: p.status,
+          createdAt: p.createdAt,
+          processedAt: p.processedAt,
+        })),
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      };
+    },
+  );
+
+  app.get(
+    '/platform/commercial/accounts/:publicId/wallet',
+    {
+      schema: {
+        params: PublicIdParamsSchema,
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.read');
+
+      const account = await accountService.getAccountByPublicId(request.params.publicId);
+      if (!account) {
+        throw new AppError({ code: 'ACCOUNT_NOT_FOUND', message: 'Conta não encontrada', statusCode: 404 });
+      }
+
+      const balance = await options.prisma.commercialWalletEntry.aggregate({
+        where: { commercialAccountId: account.id },
+        _sum: { amountCents: true },
+      });
+
+      return {
+        publicId: account.publicId,
+        balance: Number(balance._sum.amountCents || 0),
+      };
+    },
+  );
+
   app.post(
     '/platform/commercial/manual-payments/:publicId/reverse',
     {

@@ -312,6 +312,8 @@ export const router = createBrowserRouter([
   { path: '/app', element: lazyPage(HomePage) },
   { path: '/comercial', element: lazyPage(CommercialPage) },
   { path: '/comercial/dashboard', element: lazyPage(CommercialPage) },
+  { path: '/comercial/carteira', element: lazyPage(CommercialPage) },
+  { path: '/comercial/comissoes', element: lazyPage(CommercialPage) },
   { path: '/comercial/clientes', element: lazyPage(CommercialPage) },
   { path: '/comercial/equipe', element: lazyPage(CommercialPage) },
   { path: '/public/:slug/profissional/login', element: lazyPage(ProfessionalTenantLoginPage) },

@@ -485,6 +485,14 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
 
   app.get(
     '/commercial/wallet/entries',
+    {
+      schema: {
+        querystring: z.object({
+          limit: z.coerce.number().int().min(1).max(100).default(50),
+          page: z.coerce.number().int().min(1).default(1),
+        }),
+      },
+    },
     async (request) => {
       const auth = request.auth as AuthRequestContext;
 
@@ -506,11 +514,21 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         });
       }
 
-      const entries = await options.prisma.commercialWalletEntry.findMany({
-        where: { commercialAccountId: scope.accountId },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
+      const limit = Math.min(request.query.limit, 100);
+      const page = Math.max(request.query.page, 1);
+      const skip = (page - 1) * limit;
+
+      const [entries, total] = await Promise.all([
+        options.prisma.commercialWalletEntry.findMany({
+          where: { commercialAccountId: scope.accountId },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        options.prisma.commercialWalletEntry.count({
+          where: { commercialAccountId: scope.accountId },
+        }),
+      ]);
 
       return {
         entries: entries.map((e) => ({
@@ -520,6 +538,13 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
           description: e.description,
           createdAt: e.createdAt,
         })),
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+          hasNextPage: page < Math.ceil(total / limit),
+        },
       };
     },
   );

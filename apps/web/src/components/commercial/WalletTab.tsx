@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
@@ -18,19 +19,29 @@ const entrySchema = z.object({
 
 const entriesSchema = z.object({
   entries: z.array(entrySchema),
-  pagination: z.object({ total: z.number(), limit: z.number() }).optional(),
+  pagination: z.object({
+    page: z.number(),
+    limit: z.number(),
+    total: z.number(),
+    pages: z.number(),
+    hasNextPage: z.boolean(),
+  }),
 });
 
 export function WalletTab() {
+  const [page, setPage] = useState(1);
+
   const wallet = useQuery({
     queryKey: ['commercial', 'wallet'],
     queryFn: () => httpClient.request('/commercial/wallet', { schema: walletSchema }),
   });
 
   const entries = useQuery({
-    queryKey: ['commercial', 'wallet', 'entries'],
+    queryKey: ['commercial', 'wallet', 'entries', page],
     queryFn: () =>
-      httpClient.request('/commercial/wallet/entries?limit=50', { schema: entriesSchema }),
+      httpClient.request(`/commercial/wallet/entries?page=${page}&limit=50`, {
+        schema: entriesSchema,
+      }),
   });
 
   if (wallet.isPending || entries.isPending) {
@@ -88,7 +99,148 @@ export function WalletTab() {
             ))}
           </tbody>
         </table>
+
+        {entries.data?.pagination && (
+          <div className="pagination-controls">
+            <button
+              onClick={() => setPage(page - 1)}
+              disabled={page === 1 || entries.isPending}
+            >
+              ← Anterior
+            </button>
+            <span className="pagination-info">
+              Página {entries.data.pagination.page} de {entries.data.pagination.pages}
+              ({entries.data.pagination.total} transações)
+            </span>
+            <button
+              onClick={() => setPage(page + 1)}
+              disabled={!entries.data.pagination.hasNextPage || entries.isPending}
+            >
+              Próxima →
+            </button>
+          </div>
+        )}
       </div>
+
+      <style>{`
+        .wallet-tab {
+          padding: 20px 0;
+        }
+
+        .wallet-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 16px;
+          margin-bottom: 30px;
+        }
+
+        .wallet-card {
+          padding: 20px;
+          background: var(--bg-secondary);
+          border-radius: 8px;
+          border-left: 4px solid var(--primary);
+        }
+
+        .card-label {
+          display: block;
+          font-size: 12px;
+          color: var(--text-secondary);
+          text-transform: uppercase;
+          margin-bottom: 8px;
+        }
+
+        .card-value {
+          display: block;
+          font-size: 24px;
+          font-weight: 700;
+          color: var(--primary);
+        }
+
+        .wallet-ledger {
+          margin-top: 20px;
+        }
+
+        .wallet-ledger h3 {
+          margin-bottom: 16px;
+          font-size: 18px;
+          color: var(--text-primary);
+        }
+
+        .ledger-table {
+          width: 100%;
+          border-collapse: collapse;
+          background: var(--bg-secondary);
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .ledger-table thead th {
+          padding: 12px;
+          text-align: left;
+          font-weight: 600;
+          font-size: 12px;
+          color: var(--text-secondary);
+          border-bottom: 1px solid var(--border-color);
+        }
+
+        .ledger-table tbody td {
+          padding: 12px;
+          border-bottom: 1px solid var(--border-color);
+          font-size: 14px;
+        }
+
+        .ledger-table tbody tr:hover {
+          background: var(--bg-primary);
+        }
+
+        .ledger-table .positive {
+          color: rgb(34, 197, 94);
+          font-weight: 500;
+        }
+
+        .ledger-table .negative {
+          color: rgb(239, 68, 68);
+          font-weight: 500;
+        }
+
+        .pagination-controls {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 12px;
+          background: var(--bg-secondary);
+          border-top: 1px solid var(--border-color);
+          border-radius: 0 0 8px 8px;
+          gap: 12px;
+        }
+
+        .pagination-controls button {
+          padding: 8px 12px;
+          background: var(--primary);
+          color: white;
+          border: none;
+          border-radius: 4px;
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .pagination-controls button:hover:not(:disabled) {
+          opacity: 0.9;
+        }
+
+        .pagination-controls button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .pagination-info {
+          font-size: 13px;
+          color: var(--text-secondary);
+          flex: 1;
+          text-align: center;
+        }
+      `}</style>
     </div>
   );
 }

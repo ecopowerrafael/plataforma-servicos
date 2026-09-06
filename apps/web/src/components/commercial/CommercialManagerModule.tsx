@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { httpClient, HttpError } from '../../lib/http.js';
 import { PageHeader, ErrorState } from '../platform/PlatformUi.js';
@@ -12,7 +13,29 @@ import { CommissionsTab } from './CommissionsTab.js';
 type CommercialTab = 'dashboard' | 'clients' | 'team' | 'wallet' | 'commissions';
 
 export function CommercialManagerModule() {
-  const [activeTab, setActiveTab] = useState<CommercialTab>('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getActiveTabFromPath = (): CommercialTab => {
+    if (location.pathname.includes('carteira')) return 'wallet';
+    if (location.pathname.includes('comissoes')) return 'commissions';
+    if (location.pathname.includes('clientes')) return 'clients';
+    if (location.pathname.includes('equipe')) return 'team';
+    return 'dashboard';
+  };
+
+  const activeTab = getActiveTabFromPath();
+
+  const handleTabChange = (tab: CommercialTab) => {
+    const paths: Record<CommercialTab, string> = {
+      dashboard: '/comercial/dashboard',
+      wallet: '/comercial/carteira',
+      commissions: '/comercial/comissoes',
+      clients: '/comercial/clientes',
+      team: '/comercial/equipe',
+    };
+    navigate(paths[tab]);
+  };
 
   const me = useQuery({
     queryKey: ['commercial', 'me'],
@@ -76,31 +99,31 @@ export function CommercialManagerModule() {
       <div className="module-tabs">
         <button
           className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-          onClick={() => setActiveTab('dashboard')}
+          onClick={() => handleTabChange('dashboard')}
         >
           Dashboard
         </button>
         <button
           className={`tab-button ${activeTab === 'wallet' ? 'active' : ''}`}
-          onClick={() => setActiveTab('wallet')}
+          onClick={() => handleTabChange('wallet')}
         >
           Carteira
         </button>
         <button
           className={`tab-button ${activeTab === 'commissions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('commissions')}
+          onClick={() => handleTabChange('commissions')}
         >
           Comissões
         </button>
         <button
           className={`tab-button ${activeTab === 'clients' ? 'active' : ''}`}
-          onClick={() => setActiveTab('clients')}
+          onClick={() => handleTabChange('clients')}
         >
           Clientes
         </button>
         <button
           className={`tab-button ${activeTab === 'team' ? 'active' : ''}`}
-          onClick={() => setActiveTab('team')}
+          onClick={() => handleTabChange('team')}
         >
           Equipe
         </button>

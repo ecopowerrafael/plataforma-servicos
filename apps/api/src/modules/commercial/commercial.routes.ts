@@ -7,6 +7,7 @@ import {
   CommercialCommissionService,
   CommercialCommissionRuleService,
   CommercialManualPaymentService,
+  CommercialWalletService,
   getCommercialScopeForUser,
   buildCommercialTenantWhere,
 } from './index.js';
@@ -448,6 +449,80 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
   );
 
   // FASE 2B: Commission endpoints
+
+  app.get(
+    '/commercial/wallet',
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'NOT_COMMERCIAL_USER',
+          message: 'Usuário não tem conta comercial',
+          statusCode: 403,
+        });
+      }
+
+      const walletService = new CommercialWalletService(options.prisma);
+      const balance = await walletService.getBalance(scope.accountId);
+
+      return {
+        publicId: scope.accountId.toString(),
+        balance: Number(balance),
+      };
+    },
+  );
+
+  app.get(
+    '/commercial/wallet/entries',
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'NOT_COMMERCIAL_USER',
+          message: 'Usuário não tem conta comercial',
+          statusCode: 403,
+        });
+      }
+
+      const entries = await options.prisma.commercialWalletEntry.findMany({
+        where: { commercialAccountId: scope.accountId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+
+      return {
+        entries: entries.map((e) => ({
+          publicId: e.publicId,
+          type: e.type,
+          amountCents: Number(e.amountCents),
+          description: e.description,
+          createdAt: e.createdAt,
+        })),
+      };
+    },
+  );
 
   app.get(
     '/commercial/commissions',

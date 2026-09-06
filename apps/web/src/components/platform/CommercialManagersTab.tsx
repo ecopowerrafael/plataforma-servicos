@@ -25,7 +25,7 @@ export function CommercialManagersTab() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
-    defaultCommissionBps: 500,
+    defaultCommissionBps: 5000,
   });
 
   const managers = useQuery({
@@ -61,7 +61,7 @@ export function CommercialManagersTab() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['platform', 'commercial', 'accounts'] });
       setShowForm(false);
-      setFormData({ email: '', defaultCommissionBps: 500 });
+      setFormData({ email: '', defaultCommissionBps: 5000 });
     },
   });
 
@@ -105,18 +105,19 @@ export function CommercialManagersTab() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="commission">Comissão Padrão (bps)</label>
+            <label htmlFor="commission">Comissão padrão (%)</label>
             <input
               id="commission"
               type="number"
               min="0"
-              max="10000"
-              value={formData.defaultCommissionBps}
+              max="100"
+              step="0.01"
+              value={formData.defaultCommissionBps / 100}
               onChange={(e) =>
-                setFormData({ ...formData, defaultCommissionBps: parseInt(e.target.value) })
+                setFormData({ ...formData, defaultCommissionBps: Math.round(parseFloat(e.target.value) * 100) })
               }
             />
-            <small>Basis points: 0-10000 = 0-100%</small>
+            <small>Percentual de comissão do gerente.</small>
           </div>
 
           <button type="submit" className="action-button" disabled={createManager.isPending}>

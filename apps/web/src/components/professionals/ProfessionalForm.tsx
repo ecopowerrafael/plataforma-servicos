@@ -196,10 +196,20 @@ export function ProfessionalForm({
           </label>
           <label>
             Status
-            <select {...register('active', { setValueAs: (value) => value === 'true' })}>
-              <option value="true">Ativo</option>
-              <option value="false">Inativo</option>
-            </select>
+            <Controller
+              control={control}
+              name="active"
+              render={({ field }) => (
+                <select
+                  value={field.value ? 'true' : 'false'}
+                  onChange={(e) => field.onChange(e.target.value === 'true')}
+                  onBlur={field.onBlur}
+                >
+                  <option value="true">Ativo</option>
+                  <option value="false">Inativo</option>
+                </select>
+              )}
+            />
           </label>
           <label>
             Unidade principal

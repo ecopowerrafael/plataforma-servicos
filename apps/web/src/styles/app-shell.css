@@ -30,6 +30,8 @@
   justify-content: space-between;
   gap: 24px;
   box-shadow: 0 1px 3px -1px rgba(28, 25, 23, 0.01);
+  width: 100%;
+  min-width: 0;
 }
 
 .app-header > div {

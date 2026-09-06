@@ -4,7 +4,7 @@ import { httpClient } from '../../lib/http.js';
 import { ErrorState } from './PlatformUi.js';
 import { z } from 'zod';
 
-type FormStep = 'email' | 'user-info' | 'commission' | 'confirm';
+type FormStep = 'email' | 'user-info' | 'commission' | 'region' | 'confirm';
 
 interface UserLookup {
   exists: boolean;
@@ -25,6 +25,9 @@ interface FormData {
   password: string;
   passwordConfirm: string;
   defaultCommissionBps: number;
+  regionName: string;
+  regionState: string;
+  regionCities: Array<{ ibgeCode: string; city: string; state: string }>;
 }
 
 export function CommercialManagersTab() {
@@ -42,6 +45,9 @@ export function CommercialManagersTab() {
     password: '',
     passwordConfirm: '',
     defaultCommissionBps: 5000,
+    regionName: '',
+    regionState: '',
+    regionCities: [],
   });
 
   const managers = useQuery({
@@ -138,6 +144,16 @@ export function CommercialManagersTab() {
 
   const handleCommissionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setStep('region');
+  };
+
+  const handleRegionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.regionName || formData.regionCities.length === 0) {
+      setLookupError('Região e ao menos uma cidade são obrigatórias');
+      return;
+    }
+    setLookupError(null);
     setStep('confirm');
   };
 
@@ -155,6 +171,13 @@ export function CommercialManagersTab() {
       payload.phone = formData.phone || undefined;
     }
 
+    if (formData.regionCities.length > 0) {
+      payload.region = {
+        name: formData.regionName,
+        cities: formData.regionCities,
+      };
+    }
+
     createManager.mutate(payload);
   };
 
@@ -170,6 +193,9 @@ export function CommercialManagersTab() {
       password: '',
       passwordConfirm: '',
       defaultCommissionBps: 5000,
+      regionName: '',
+      regionState: '',
+      regionCities: [],
     });
   };
 
@@ -315,6 +341,64 @@ export function CommercialManagersTab() {
             </form>
           )}
 
+          {step === 'region' && (
+            <form onSubmit={handleRegionSubmit}>
+              <h4>Passo 4: Território</h4>
+              <div className="form-group">
+                <label htmlFor="regionName">Nome da Região</label>
+                <input
+                  id="regionName"
+                  type="text"
+                  value={formData.regionName}
+                  onChange={(e) => setFormData({ ...formData, regionName: e.target.value })}
+                  placeholder="Ex: Sorocaba"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="regionState">Estado</label>
+                <input
+                  id="regionState"
+                  type="text"
+                  value={formData.regionState}
+                  onChange={(e) => setFormData({ ...formData, regionState: e.target.value.toUpperCase() })}
+                  placeholder="SP"
+                  maxLength={2}
+                />
+              </div>
+              {formData.regionCities.length > 0 && (
+                <div className="cities-list">
+                  <h5>Cidades Selecionadas:</h5>
+                  {formData.regionCities.map((city, idx) => (
+                    <div key={idx} className="city-item">
+                      <span>{city.city} - {city.state}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            regionCities: formData.regionCities.filter((_, i) => i !== idx),
+                          })
+                        }
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {lookupError && <div className="error-message">{lookupError}</div>}
+              <div className="form-actions">
+                <button type="button" className="secondary-button" onClick={() => setStep('commission')}>
+                  Voltar
+                </button>
+                <button type="submit" className="action-button">
+                  Revisar
+                </button>
+              </div>
+            </form>
+          )}
+
           {step === 'confirm' && (
             <form onSubmit={handleConfirmSubmit}>
               <h4>Passo 4: Confirmação</h4>
@@ -343,6 +427,18 @@ export function CommercialManagersTab() {
                   <span className="label">Comissão:</span>
                   <span className="value">{(formData.defaultCommissionBps / 100).toFixed(2)}%</span>
                 </div>
+                {formData.regionName && (
+                  <>
+                    <div className="summary-item">
+                      <span className="label">Região:</span>
+                      <span className="value">{formData.regionName}</span>
+                    </div>
+                    <div className="summary-item">
+                      <span className="label">Cidades:</span>
+                      <span className="value">{formData.regionCities.length} cidades</span>
+                    </div>
+                  </>
+                )}
               </div>
               {createManager.error && <div className="error-message">{String(createManager.error)}</div>}
               <div className="form-actions">
@@ -613,6 +709,47 @@ export function CommercialManagersTab() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
+        }
+
+        .cities-list {
+          margin: 12px 0;
+          padding: 12px;
+          background: var(--bg-primary);
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+        }
+
+        .cities-list h5 {
+          margin: 0 0 8px 0;
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-secondary);
+        }
+
+        .city-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 6px;
+          margin: 4px 0;
+          font-size: 13px;
+          border-bottom: 1px solid var(--border-color);
+        }
+
+        .city-item button {
+          padding: 2px 6px;
+          font-size: 11px;
+          background: transparent;
+          border: 1px solid var(--border-color);
+          border-radius: 3px;
+          color: var(--text-secondary);
+          cursor: pointer;
+        }
+
+        .city-item button:hover {
+          background: rgba(239, 68, 68, 0.1);
+          border-color: rgb(239, 68, 68);
+          color: rgb(239, 68, 68);
         }
       `}</style>
     </div>

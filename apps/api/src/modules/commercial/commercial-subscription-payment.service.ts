@@ -79,7 +79,18 @@ export class CommercialSubscriptionPaymentService {
         assignmentData,
       );
 
-      // 5. Create wallet entries for audit trail
+      // 5. Update commissions with paymentId and paymentSource
+      for (const commission of commissions) {
+        await tx.commercialCommission.update({
+          where: { id: commission.id },
+          data: {
+            paymentId: input.paymentId,
+            paymentSource: input.source,
+          },
+        });
+      }
+
+      // 6. Create wallet entries for audit trail
       for (const commission of commissions) {
         await tx.commercialWalletEntry.create({
           data: {
@@ -102,47 +113,54 @@ export class CommercialSubscriptionPaymentService {
 
   /**
    * Revert commissions when payment is refunded
+   * Idempotent by paymentId - multiple refund webhooks create only 1 reversal
    */
   async reverseSubscriptionPayment(input: {
     paymentId: string;
     reason: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
-      const entries = await tx.commercialWalletEntry.findMany({
+      // Find commissions by paymentId
+      const commissions = await tx.commercialCommission.findMany({
         where: {
-          description: { contains: `payment_${input.paymentId}` },
-          type: 'COMMISSION_CREDIT',
+          paymentId: input.paymentId,
+          status: { in: ['AVAILABLE', 'PENDING'] },
         },
-        include: { commission: true },
       });
 
       let reversed = 0;
 
-      for (const entry of entries) {
-        if (entry.commission?.status !== 'AVAILABLE') continue;
+      for (const commission of commissions) {
+        // Check if already reversed (idempotency)
+        const existingReversal = await tx.commercialWalletEntry.findFirst({
+          where: {
+            commissionId: commission.id,
+            type: 'REVERSAL',
+          },
+        });
+
+        if (existingReversal) continue; // Already reversed
 
         // Create reversal entry
         await tx.commercialWalletEntry.create({
           data: {
             publicId: randomUUID(),
-            commercialAccountId: entry.commercialAccountId,
+            commercialAccountId: commission.commercialAccountId,
             type: 'REVERSAL',
-            amountCents: -entry.amountCents,
-            tenantId: entry.tenantId,
-            subscriptionId: entry.subscriptionId,
-            commissionId: entry.commissionId,
+            amountCents: -BigInt(commission.commissionAmountCents),
+            tenantId: commission.tenantId,
+            subscriptionId: commission.subscriptionId,
+            commissionId: commission.id,
             description: `Estorno comissão: ${input.reason}`,
             createdByUserId: null,
           },
         });
 
         // Mark commission as reversed
-        if (entry.commission) {
-          await tx.commercialCommission.update({
-            where: { id: entry.commission.id },
-            data: { status: 'REVERSED', reversedAt: new Date() },
-          });
-        }
+        await tx.commercialCommission.update({
+          where: { id: commission.id },
+          data: { status: 'REVERSED', reversedAt: new Date() },
+        });
 
         reversed++;
       }

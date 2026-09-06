@@ -196,7 +196,78 @@ export class PlatformBillingService {
       console.error('[CommercialPayment]', 'Commission generation failed for charge', id, error);
     }
   }
-  public async webhook(provider:string,rawBody:string,headers:Record<string,string>){const config=await this.client.platformPaymentConfig.findUnique({where:{provider}});const adapter=this.registry.get(provider);if(!config?.active||!config.credentialsCiphertext||!this.cipher||!adapter)throw new AppError({code:'PLATFORM_WEBHOOK_UNAVAILABLE',message:'Webhook indisponível.',statusCode:404});const credentials=this.cipher.decrypt(config.credentialsCiphertext);if(!adapter.verifyWebhookSignature(credentials,config.environment,rawBody,headers))throw new AppError({code:'PLATFORM_WEBHOOK_INVALID',message:'Assinatura do webhook inválida.',statusCode:401});const event=adapter.parseWebhookEvent(rawBody);if(!event.externalId)return {received:true};const charge=await this.client.platformSubscriptionCharge.findFirst({where:{provider,externalId:event.externalId}});if(!charge)return {received:true};const remote=await adapter.getCharge(credentials,config.environment,event.externalId);if(remote.status==='PAID')await this.markPaid(charge.id,{userId:null,sessionId:null},'Pagamento confirmado pelo Mercado Pago');else await this.client.platformSubscriptionCharge.update({where:{id:charge.id},data:{status:remote.status}});return {received:true};}
+  public async webhook(provider: string, rawBody: string, headers: Record<string, string>) {
+    const config = await this.client.platformPaymentConfig.findUnique({ where: { provider } });
+    const adapter = this.registry.get(provider);
+
+    if (!config?.active || !config.credentialsCiphertext || !this.cipher || !adapter) {
+      throw new AppError({
+        code: 'PLATFORM_WEBHOOK_UNAVAILABLE',
+        message: 'Webhook indisponível.',
+        statusCode: 404,
+      });
+    }
+
+    const credentials = this.cipher.decrypt(config.credentialsCiphertext);
+    if (!adapter.verifyWebhookSignature(credentials, config.environment, rawBody, headers)) {
+      throw new AppError({
+        code: 'PLATFORM_WEBHOOK_INVALID',
+        message: 'Assinatura do webhook inválida.',
+        statusCode: 401,
+      });
+    }
+
+    const event = adapter.parseWebhookEvent(rawBody);
+    if (!event.externalId) return { received: true };
+
+    const charge = await this.client.platformSubscriptionCharge.findFirst({
+      where: { provider, externalId: event.externalId },
+    });
+
+    if (!charge) return { received: true };
+
+    const remote = await adapter.getCharge(credentials, config.environment, event.externalId);
+
+    if (remote.status === 'PAID') {
+      // Payment confirmed
+      await this.markPaid(charge.id, { userId: null, sessionId: null }, 'Pagamento confirmado pelo ' + provider);
+    } else if (remote.status === 'REFUNDED' || remote.status === 'CANCELED') {
+      // Payment refunded/canceled
+      await this.handleRefund(charge.id, remote.status);
+    } else {
+      // Other status update
+      await this.client.platformSubscriptionCharge.update({
+        where: { id: charge.id },
+        data: { status: remote.status },
+      });
+    }
+
+    return { received: true };
+  }
+
+  private async handleRefund(chargeId: bigint, refundStatus: string) {
+    const charge = await this.client.platformSubscriptionCharge.findUniqueOrThrow({
+      where: { id: chargeId },
+      include: { subscription: true },
+    });
+
+    // Update charge status (cast to enum)
+    await this.client.platformSubscriptionCharge.update({
+      where: { id: chargeId },
+      data: { status: refundStatus as any },
+    });
+
+    // Reverse commissions
+    try {
+      await this.commercialPaymentService.reverseSubscriptionPayment({
+        paymentId: charge.publicId,
+        reason: `Pagamento ${refundStatus.toLowerCase()} via ${charge.provider}`,
+      });
+    } catch (error) {
+      console.error('[CommercialPayment]', 'Refund reversal failed for charge', chargeId, error);
+      // Continue anyway - refund is recorded in database
+    }
+  }
   private async subscriptionForTenant(tenantId:bigint){const value=await this.client.tenantSubscription.findFirst({where:{tenantId,effectiveKey:'EFFECTIVE'},orderBy:{createdAt:'desc'}})??await this.client.tenantSubscription.findFirst({where:{tenantId},orderBy:{createdAt:'desc'}});if(!value)throw new AppError({code:'TENANT_SUBSCRIPTION_NOT_FOUND',message:'Assinatura não encontrada.',statusCode:404});return value;}
 
   // -------------------------------------------------------------------

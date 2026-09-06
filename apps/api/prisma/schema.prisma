@@ -4267,6 +4267,8 @@ model CommercialCommission {
   commissionAmountCents   BigInt                          @db.UnsignedBigInt
   roleSnapshot            String                          @db.VarChar(32)
   status                  CommercialCommissionStatus      @default(PENDING)
+  paymentId               String?                         @db.VarChar(255)
+  paymentSource           String?                         @db.VarChar(32)
   createdAt               DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
   reversedAt              DateTime?                       @map("reversed_at") @db.DateTime(3)
 
@@ -4279,6 +4281,7 @@ model CommercialCommission {
   @@index([commercialAccountId, status])
   @@index([tenantId])
   @@index([subscriptionId])
+  @@index([paymentId])
   @@index([createdAt])
   @@map("commercial_commissions")
 }

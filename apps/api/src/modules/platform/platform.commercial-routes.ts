@@ -1146,4 +1146,55 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       return { success: true };
     },
   );
+
+  // GET /platform/commercial/clients - Listar todos os clientes
+  app.get(
+    '/platform/commercial/clients',
+    async (request) => {
+      const page = parseInt((request.query as any).page || '1');
+      const limit = Math.min(parseInt((request.query as any).limit || '50'), 100);
+      const skip = (page - 1) * limit;
+
+      const where: any = {};
+      if ((request.query as any).managerPublicId) {
+        const manager = await options.prisma.commercialAccount.findUnique({
+          where: { publicId: (request.query as any).managerPublicId },
+        });
+        if (manager) where.managerId = manager.id;
+      }
+      if ((request.query as any).subscriptionStatus) {
+        where.tenant = { subscriptions: { some: { status: (request.query as any).subscriptionStatus } } };
+      }
+
+      const [assignments, total] = await Promise.all([
+        options.prisma.tenantCommercialAssignment.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            tenant: { include: { subscriptions: { orderBy: { createdAt: 'desc' as const }, take: 1 } } },
+            manager: true,
+            representative: true,
+            seller: true,
+          },
+        }),
+        options.prisma.tenantCommercialAssignment.count({ where }),
+      ]);
+
+      return {
+        clients: assignments.map((a) => ({
+          tenantPublicId: a.tenant.publicId,
+          tenantName: a.tenant.displayName,
+          subscription: a.tenant.subscriptions[0],
+          manager: { publicId: a.manager?.publicId, displayName: a.manager?.displayName, email: a.manager ? 'system' : null },
+          representative: a.representative
+            ? { publicId: a.representative.publicId, displayName: a.representative.displayName }
+            : null,
+          seller: a.seller ? { publicId: a.seller.publicId, displayName: a.seller.displayName } : null,
+          assignedAt: a.assignedAt.toISOString(),
+        })),
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      };
+    },
+  );
 };

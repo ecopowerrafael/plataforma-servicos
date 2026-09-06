@@ -1505,4 +1505,86 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     },
   );
 
+  // PATCH /commercial/clients/:tenantPublicId/assignment - Reatribuir cliente
+  app.patch(
+    '/commercial/clients/:tenantPublicId/assignment',
+    {
+      schema: {
+        body: z.object({
+          representativePublicId: z.string().uuid().nullable().optional(),
+          sellerPublicId: z.string().uuid().nullable().optional(),
+        }),
+        response: { 200: z.object({ success: z.boolean() }) },
+      },
+    },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+      if (!auth?.user?.id) {
+        throw new AppError({ code: 'AUTH_REQUIRED', message: 'Autenticação obrigatória', statusCode: 401 });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({ code: 'NOT_MANAGER', message: 'Acesso negado', statusCode: 403 });
+      }
+
+      const manager = await options.prisma.commercialAccount.findUnique({ where: { id: scope.accountId } });
+      if (!manager || manager.role !== 'MANAGER') {
+        throw new AppError({ code: 'NOT_MANAGER', message: 'Apenas gerentes', statusCode: 403 });
+      }
+
+      const tenantPublicId = (request.params as any).tenantPublicId;
+      const tenant = await options.prisma.tenant.findUnique({ where: { publicId: tenantPublicId } });
+      if (!tenant) {
+        throw new AppError({ code: 'TENANT_NOT_FOUND', message: 'Tenant não encontrado', statusCode: 404 });
+      }
+
+      const assignment = await options.prisma.tenantCommercialAssignment.findUnique({
+        where: { tenantId: tenant.id },
+      });
+      if (!assignment || assignment.managerId !== manager.id) {
+        throw new AppError({ code: 'FORBIDDEN', message: 'Acesso negado', statusCode: 403 });
+      }
+
+      let representativeId: bigint | null = null;
+      if (request.body.representativePublicId) {
+        const rep = await options.prisma.commercialAccount.findUnique({
+          where: { publicId: request.body.representativePublicId },
+        });
+        if (!rep || rep.role !== 'REPRESENTATIVE' || rep.parentId !== manager.id) {
+          throw new AppError({ code: 'INVALID_REPRESENTATIVE', message: 'Invalid', statusCode: 400 });
+        }
+        representativeId = rep.id;
+      }
+
+      let sellerId: bigint | null = null;
+      if (request.body.sellerPublicId) {
+        const seller = await options.prisma.commercialAccount.findUnique({
+          where: { publicId: request.body.sellerPublicId },
+        });
+        if (!seller || seller.role !== 'SELLER') {
+          throw new AppError({ code: 'INVALID_SELLER', message: 'Invalid', statusCode: 400 });
+        }
+
+        if (seller.parentId === manager.id && representativeId) {
+          throw new AppError({ code: 'INVALID_CHAIN', message: 'Inconsistent', statusCode: 400 });
+        }
+        if (seller.parentId !== manager.id && (!representativeId || representativeId !== seller.parentId)) {
+          throw new AppError({ code: 'INVALID_CHAIN', message: 'Inconsistent', statusCode: 400 });
+        }
+        sellerId = seller.id;
+      }
+
+      await options.prisma.tenantCommercialAssignment.update({
+        where: { tenantId: tenant.id },
+        data: {
+          representativeId,
+          sellerId,
+        },
+      });
+
+      return { success: true };
+    },
+  );
+
 };

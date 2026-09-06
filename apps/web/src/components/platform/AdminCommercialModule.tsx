@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { PageHeader, ErrorState } from './PlatformUi.js';
 import { httpClient } from '../../lib/http.js';
-import { CommercialManagersTab } from './CommercialManagersTab.js';
-import { CommercialRegionsTab } from './CommercialRegionsTab.js';
+import { PageHeader, ErrorState } from './PlatformUi.js';
 
-type CommercialTab = 'managers' | 'regions' | 'payments';
+type AdminTab = 'wallets' | 'commissions' | 'payments';
 
 const paymentsSchema = z.object({
   data: z.array(z.object({
@@ -20,12 +18,8 @@ const paymentsSchema = z.object({
   pagination: z.object({ page: z.number(), limit: z.number(), total: z.number() }),
 });
 
-interface CommercialModuleProps {
-  initialTab?: CommercialTab;
-}
-
-export function CommercialModule({ initialTab = 'managers' }: CommercialModuleProps) {
-  const [activeTab, setActiveTab] = useState<CommercialTab>(initialTab);
+export function AdminCommercialModule() {
+  const [activeTab, setActiveTab] = useState<AdminTab>('payments');
   const [reversalId, setReversalId] = useState<string | null>(null);
   const [reversalReason, setReversalReason] = useState('');
   const queryClient = useQueryClient();
@@ -36,7 +30,6 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
       httpClient.request('/platform/commercial/manual-payments?limit=50&page=1', {
         schema: paymentsSchema,
       }),
-    enabled: activeTab === 'payments',
   });
 
   const handleReverse = async () => {
@@ -49,28 +42,30 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
       });
       setReversalId(null);
       setReversalReason('');
-      await payments.refetch();
+      payments.refetch();
+      queryClient.invalidateQueries({ queryKey: ['admin', 'wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'commissions'] });
     } catch (error) {
       console.error('Reversal error:', error);
     }
   };
 
   return (
-    <div className="module-container">
-      <PageHeader title="Hierarquia Comercial" subtitle="Gerenciar gerentes, representantes e vendedores" />
+    <div className="admin-module">
+      <PageHeader title="Comercial - Admin" subtitle="Gerenciamento financeiro" />
 
       <div className="module-tabs">
         <button
-          className={`tab-button ${activeTab === 'managers' ? 'active' : ''}`}
-          onClick={() => setActiveTab('managers')}
+          className={`tab-button ${activeTab === 'wallets' ? 'active' : ''}`}
+          onClick={() => setActiveTab('wallets')}
         >
-          Gerentes
+          Carteiras
         </button>
         <button
-          className={`tab-button ${activeTab === 'regions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('regions')}
+          className={`tab-button ${activeTab === 'commissions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('commissions')}
         >
-          Regiões
+          Comissões
         </button>
         <button
           className={`tab-button ${activeTab === 'payments' ? 'active' : ''}`}
@@ -81,8 +76,6 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
       </div>
 
       <div className="module-content">
-        {activeTab === 'managers' && <CommercialManagersTab />}
-        {activeTab === 'regions' && <CommercialRegionsTab />}
         {activeTab === 'payments' && (
           <div className="payments-section">
             <h3>Pagamentos Manuais</h3>
@@ -129,6 +122,20 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
             )}
           </div>
         )}
+
+        {activeTab === 'commissions' && (
+          <div className="commissions-section">
+            <h3>Comissões</h3>
+            <p>Comissões - em desenvolvimento</p>
+          </div>
+        )}
+
+        {activeTab === 'wallets' && (
+          <div className="wallets-section">
+            <h3>Carteiras</h3>
+            <p>Carteiras - em desenvolvimento</p>
+          </div>
+        )}
       </div>
 
       {reversalId && (
@@ -161,7 +168,7 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
       )}
 
       <style>{`
-        .module-container {
+        .admin-module {
           padding: 20px;
           background: var(--bg-primary);
         }
@@ -183,10 +190,6 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
           color: var(--text-secondary);
           cursor: pointer;
           transition: all 0.2s;
-        }
-
-        .tab-button:hover {
-          color: var(--text-primary);
         }
 
         .tab-button.active {
@@ -295,7 +298,6 @@ export function CommercialModule({ initialTab = 'managers' }: CommercialModulePr
           border-radius: 4px;
           font-family: inherit;
           min-height: 100px;
-          box-sizing: border-box;
         }
 
         .modal-footer {

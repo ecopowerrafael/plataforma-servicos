@@ -4267,8 +4267,8 @@ model CommercialCommission {
   commissionAmountCents   BigInt                          @db.UnsignedBigInt
   roleSnapshot            String                          @db.VarChar(32)
   status                  CommercialCommissionStatus      @default(PENDING)
-  paymentId               String?                         @db.VarChar(255)
-  paymentSource           String?                         @db.VarChar(32)
+  paymentId               String?                         @map("payment_id") @db.VarChar(255)
+  paymentSource           String?                         @map("payment_source") @db.VarChar(32)
   createdAt               DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
   reversedAt              DateTime?                       @map("reversed_at") @db.DateTime(3)
 

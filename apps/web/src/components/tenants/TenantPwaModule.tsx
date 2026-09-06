@@ -13,6 +13,7 @@ import { environment } from '../../config/environment.js';
 import { httpClient, HttpError } from '../../lib/http.js';
 import { BrandAssetCard } from '../branding/BrandAssetCard.js';
 import { InlineAlert, ListSkeleton, PageHeader, SectionCard, StatusBadge } from '../ui/AppUi.js';
+import '../../styles/tenants-additional.css';
 
 const CHECKLIST_LABELS: Record<string, string> = {
   appName: 'Nome do aplicativo',
@@ -122,7 +123,7 @@ export function TenantPwaModule({
   const published = data?.status === 'PUBLISHED';
 
   return (
-    <div className="ds-stack" aria-label="Aplicativo">
+    <div className="ds-stack tenant-pwa--redesigned" aria-label="Aplicativo">
       <PageHeader
         eyebrow="Minha empresa"
         title="Aplicativo"

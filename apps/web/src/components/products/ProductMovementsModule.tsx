@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { StockMovementList } from './StockMovementList.js';
 import { httpClient } from '../../lib/http.js';
 import { PageHeader } from '../ui/AppUi.js';
+import '../../styles/products-additional.css';
 
 export function ProductMovementsModule({ tenantPublicId }: { tenantPublicId: string }) {
   const [product, setProduct] = useState('');
@@ -18,7 +19,7 @@ export function ProductMovementsModule({ tenantPublicId }: { tenantPublicId: str
     retry: false,
   });
   return (
-    <section className="sessions-panel product-movements">
+    <section className="product-movements--redesigned">
       <PageHeader
         eyebrow="Estoque"
         title="Movimentações"

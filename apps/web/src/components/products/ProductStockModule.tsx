@@ -8,6 +8,7 @@ import { StockStatusBadge } from './StockStatusBadge.js';
 import { httpClient } from '../../lib/http.js';
 import { UnitSelect } from '../tenants/UnitSelect.js';
 import { EmptyState, ListSkeleton, PageHeader, PageToolbar, Pagination } from '../ui/AppUi.js';
+import '../../styles/products-additional.css';
 
 /** Painel de reposição: parte de "estoque baixo", sempre filtrado no backend. */
 export function ProductStockModule({
@@ -46,7 +47,7 @@ export function ProductStockModule({
   const multiUnit = (units.data?.units ?? []).filter((item) => item.status === 'ACTIVE').length > 1;
   const items = products.data?.items ?? [];
   return (
-    <section className="sessions-panel product-catalog">
+    <section className="product-stock--redesigned">
       <PageHeader
         eyebrow="Estoque"
         title="Situação do estoque"

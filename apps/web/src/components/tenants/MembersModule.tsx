@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { httpClient, HttpError } from '../../lib/http.js';
+import '../../styles/tenants-additional.css';
 
 const assignableRoles = ['MANAGER', 'RECEPTIONIST', 'PROFESSIONAL'] as const;
 const roleLabel: Record<(typeof assignableRoles)[number] | 'OWNER', string> = {
@@ -115,7 +116,7 @@ export function MembersModule({
         : null;
 
   return (
-    <section className="app-card members-module" aria-label="Membros do estabelecimento">
+    <section className="members-module--redesigned" aria-label="Membros do estabelecimento">
       <h3>Membros</h3>
       {members.isPending ? <p>Carregando membros…</p> : null}
       {members.error instanceof Error ? (

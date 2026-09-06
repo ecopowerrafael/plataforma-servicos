@@ -19,6 +19,7 @@ import {
   SectionCard,
   StatusBadge,
 } from '../ui/AppUi.js';
+import '../../styles/professionals-modules.css';
 
 const weekdayLabel = [
   'Domingo',
@@ -202,7 +203,7 @@ export function MyAvailabilityModule({ tenantPublicId }: { tenantPublicId: strin
   const items = unavailabilities.data?.items ?? [];
 
   return (
-    <div className="ds-stack" aria-label="Minha disponibilidade">
+    <div className="ds-stack my-availability--redesigned" aria-label="Minha disponibilidade">
       <PageHeader
         eyebrow="Agenda"
         title="Disponibilidade"

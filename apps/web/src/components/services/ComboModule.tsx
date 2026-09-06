@@ -21,6 +21,7 @@ import {
   PageHeader,
   StatusBadge,
 } from '../ui/AppUi.js';
+import '../../styles/combos.css';
 
 export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
   const client = useQueryClient();
@@ -149,7 +150,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
     });
   };
   return (
-    <section aria-labelledby="combo-title" className="sessions-panel">
+    <section aria-labelledby="combo-title" className="combo-module--redesigned">
       <PageHeader
         eyebrow="Catálogo"
         title="Combos"

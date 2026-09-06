@@ -1,0 +1,218 @@
+/* ============================================
+   SUBSCRIPTIONS ADDITIONAL MODULES (REDESIGNED)
+   ============================================ */
+
+/* ============================================
+   SUBSCRIBERS MODULE (REDESIGNED)
+   ============================================ */
+
+.subscribers-module--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.subscribers-module--redesigned .subscribers-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.subscribers-module--redesigned .subscribers-header h2 {
+  color: var(--color-text-primary);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.subscribers-module--redesigned .subscribers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.subscribers-module--redesigned .subscriber-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.2s ease;
+}
+
+.subscribers-module--redesigned .subscriber-card:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.1);
+}
+
+.subscribers-module--redesigned .subscriber-card h3 {
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.subscribers-module--redesigned .subscriber-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subscribers-module--redesigned .subscriber-info dt {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.subscribers-module--redesigned .subscriber-info dd {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.subscribers-module--redesigned .subscriber-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.subscribers-module--redesigned .subscriber-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.subscribers-module--redesigned .subscriber-table th {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.subscribers-module--redesigned .subscriber-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.subscribers-module--redesigned .subscriber-table tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+/* ============================================
+   USAGE MODULE (REDESIGNED)
+   ============================================ */
+
+.usage-module--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.usage-module--redesigned .usage-section {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.usage-module--redesigned .usage-section h3 {
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.usage-module--redesigned .usage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.usage-module--redesigned .usage-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.usage-module--redesigned .usage-card h4 {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.usage-module--redesigned .usage-bar {
+  height: 8px;
+  background: var(--color-border-default);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.usage-module--redesigned .usage-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-accent-primary), var(--color-accent-light));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.usage-module--redesigned .usage-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.usage-module--redesigned .usage-info label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.usage-module--redesigned .usage-info strong {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .subscribers-module--redesigned .subscribers-header {
+    flex-direction: column;
+  }
+
+  .subscribers-module--redesigned .subscribers-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .subscribers-module--redesigned .subscriber-table {
+    font-size: 12px;
+  }
+
+  .subscribers-module--redesigned .subscriber-table th,
+  .subscribers-module--redesigned .subscriber-table td {
+    padding: 8px 12px;
+  }
+
+  .usage-module--redesigned .usage-section {
+    padding: 16px;
+  }
+
+  .usage-module--redesigned .usage-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import './CustomerMembershipPlansModule.css';
+import '../../styles/subscriptions-additional.css';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader } from '../ui/AppUi.js';
 import { CustomerMembershipSubscribersSection } from './CustomerMembershipSubscribersSection.js';
@@ -240,7 +241,7 @@ export function CustomerMembershipPlansModule({
   // Usage section (still placeholder)
   if (section === 'usage')
     return (
-      <section className="sessions-panel membership-plans-module">
+      <section className="sessions-panel membership-plans-module usage-module--redesigned">
         <PageHeader
           eyebrow="Assinaturas"
           title="Consumo"
@@ -254,7 +255,7 @@ export function CustomerMembershipPlansModule({
     );
 
   return (
-    <section className="sessions-panel membership-plans-module">
+    <section className="sessions-panel membership-plans-module usage-module--redesigned">
       <PageHeader
         eyebrow="Assinaturas"
         title={section === 'overview' ? 'Visão geral' : 'Planos'}

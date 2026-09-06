@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, StatusBadge } from '../ui/AppUi.js';
+import '../../styles/subscriptions-additional.css';
 
 interface Props {
   tenantPublicId: string;
@@ -88,7 +89,7 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans }: 
   };
 
   return (
-    <section className="sessions-panel membership-plans-module">
+    <section className="sessions-panel membership-plans-module subscribers-module--redesigned">
       <PageHeader
         eyebrow="Assinaturas"
         title="Assinantes"

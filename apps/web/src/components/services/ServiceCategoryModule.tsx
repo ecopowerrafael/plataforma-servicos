@@ -11,6 +11,7 @@ import { type ZodType } from 'zod';
 import { ServiceCategoryForm } from './ServiceCategoryForm.js';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, StatusBadge } from '../ui/AppUi.js';
+import '../../styles/service-categories.css';
 
 export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: string }) {
   const client = useQueryClient();
@@ -67,7 +68,7 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
     setCreating(false);
   };
   return (
-    <section className="sessions-panel category-catalog">
+    <section className="service-categories--redesigned">
       <PageHeader
         eyebrow="Catálogo"
         title="Categorias"

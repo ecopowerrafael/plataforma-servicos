@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom';
+import '../../styles/bot-cobra.css';
 import { BotCobraOverviewSection } from './sections/BotCobraOverviewSection.js';
 import { BotCobraDebtsSection } from './sections/BotCobraDebtsSection.js';
 import { BotCobraNewDebtSection } from './sections/BotCobraNewDebtSection.js';

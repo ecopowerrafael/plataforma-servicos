@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
@@ -6,6 +7,7 @@ import {
   CommercialAccountService,
   CommercialCommissionService,
   CommercialCommissionRuleService,
+  CommercialManualPaymentService,
   getCommercialScopeForUser,
   buildCommercialTenantWhere,
 } from './index.js';
@@ -31,6 +33,10 @@ const CreateSellerRequestSchema = z.object({
 
 const UpdateCommissionRequestSchema = z.object({
   defaultCommissionBps: z.number().int().min(0).max(10000),
+});
+
+const TenantParamsSchema = z.object({
+  tenantPublicId: z.string().uuid(),
 });
 
 async function resolveUserIdFromInput(
@@ -615,6 +621,96 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         publicId: updated.publicId,
         defaultCommissionBps: updated.defaultCommissionBps,
       };
+    },
+  );
+
+  app.get(
+    '/commercial/clients/:tenantPublicId/payment-preview',
+    {
+      schema: {
+        params: TenantParamsSchema,
+      },
+    },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'COMMERCIAL_ACCOUNT_NOT_FOUND',
+          message: 'Você não possui conta comercial',
+          statusCode: 403,
+        });
+      }
+
+      // Only MANAGER can see preview
+      if (scope.type !== 'MANAGER') {
+        throw new AppError({
+          code: 'COMMERCIAL_INSUFFICIENT_ROLE',
+          message: 'Apenas gerentes podem ver prévia de pagamento',
+          statusCode: 403,
+        });
+      }
+
+      const paymentService = new CommercialManualPaymentService(options.prisma);
+      return paymentService.getPaymentPreview(scope.accountId, request.params.tenantPublicId);
+    },
+  );
+
+  app.post(
+    '/commercial/clients/:tenantPublicId/mark-paid',
+    {
+      schema: {
+        params: TenantParamsSchema,
+      },
+    },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'COMMERCIAL_ACCOUNT_NOT_FOUND',
+          message: 'Você não possui conta comercial',
+          statusCode: 403,
+        });
+      }
+
+      // Only MANAGER can mark paid
+      if (scope.type !== 'MANAGER') {
+        throw new AppError({
+          code: 'COMMERCIAL_INSUFFICIENT_ROLE',
+          message: 'Apenas gerentes podem marcar como pago',
+          statusCode: 403,
+        });
+      }
+
+      const paymentService = new CommercialManualPaymentService(options.prisma);
+      const idempotencyKey = randomUUID();
+
+      return paymentService.markSubscriptionPaid(
+        scope.accountId,
+        request.params.tenantPublicId,
+        idempotencyKey,
+      );
     },
   );
 };

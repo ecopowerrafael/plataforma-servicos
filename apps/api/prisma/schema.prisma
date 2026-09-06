@@ -578,6 +578,7 @@ model Tenant {
   commercialAssignment          TenantCommercialAssignment?
   walletEntries                CommercialWalletEntry[]
   commissions                  CommercialCommission[]
+  manualPayments               CommercialManualPayment[]
 
   @@index([status])
   @@map("tenants")
@@ -3158,6 +3159,7 @@ model TenantSubscription {
   platformCharges       PlatformSubscriptionCharge[]
   walletEntries         CommercialWalletEntry[]
   commissions           CommercialCommission[]
+  manualPayments        CommercialManualPayment[]
 
   @@unique([tenantId, effectiveKey])
   @@index([status, currentPeriodEndsAt])
@@ -4144,6 +4146,7 @@ model CommercialAccount {
   walletEntries           CommercialWalletEntry[]
   commissions             CommercialCommission[]
   commissionRules         CommercialCommissionRule[]
+  manualPayments          CommercialManualPayment[]
 
   @@index([userId])
   @@index([parentId])
@@ -4299,5 +4302,29 @@ model CommercialCommissionRule {
   @@index([commercialAccountId, active])
   @@index([planId])
   @@map("commercial_commission_rules")
+}
+
+model CommercialManualPayment {
+  id                    BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId              String                          @unique @db.Char(36)
+  tenantId              BigInt                          @db.UnsignedBigInt
+  subscriptionId        BigInt                          @db.UnsignedBigInt
+  managerAccountId      BigInt                          @db.UnsignedBigInt
+  amountCents           BigInt                          @db.UnsignedBigInt
+  idempotencyKey        String                          @db.Char(36)
+  status                String                          @default("PROCESSED") @db.Char(20)
+  createdAt             DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
+  processedAt           DateTime?                       @map("processed_at") @db.DateTime(3)
+
+  tenant                Tenant                          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription          TenantSubscription              @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  managerAccount        CommercialAccount               @relation(fields: [managerAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([idempotencyKey], map: "ucmp_idempotency_key")
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@index([managerAccountId])
+  @@index([createdAt])
+  @@map("commercial_manual_payments")
 }
 

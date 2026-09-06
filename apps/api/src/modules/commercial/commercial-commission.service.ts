@@ -224,6 +224,53 @@ export class CommercialCommissionService {
   }
 
   /**
+   * Create commission for a specific subordinate (used for manual wallet payments with anti-cycle)
+   * Manager who paid does NOT receive commission
+   */
+  async createFromSubscriptionWithExclusion(
+    subordinateAccountId: bigint,
+    subscriptionId: bigint,
+    planId: bigint,
+  ) {
+    const subscription = await this.prisma.tenantSubscription.findUnique({
+      where: { id: subscriptionId },
+      include: { plan: true },
+    });
+
+    if (!subscription || !subscription.plan) {
+      return null;
+    }
+
+    const subordinateCommissionBps = await this.resolveCommissionBps(
+      subordinateAccountId,
+      planId,
+    );
+
+    const commissionAmountCents =
+      (subscription.plan.priceCents * BigInt(subordinateCommissionBps)) / 10000n;
+
+    if (commissionAmountCents <= 0n) {
+      return null; // No commission if percentage is 0
+    }
+
+    const commission = await this.prisma.commercialCommission.create({
+      data: {
+        publicId: randomUUID(),
+        commercialAccountId: subordinateAccountId,
+        tenantId: subscription.tenantId,
+        subscriptionId,
+        baseAmountCents: subscription.plan.priceCents,
+        percentageBpsSnapshot: subordinateCommissionBps,
+        commissionAmountCents,
+        roleSnapshot: 'SELLER', // Default to SELLER, actual role determined by hierarchy
+        status: 'AVAILABLE',
+      },
+    });
+
+    return commission;
+  }
+
+  /**
    * Mark commissions as available (usually called after subscription confirmation)
    */
   async markAvailable(

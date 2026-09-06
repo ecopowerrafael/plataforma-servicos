@@ -4,6 +4,7 @@ export { TenantCommercialAssignmentService } from './tenant-commercial-assignmen
 export { CommercialWalletService } from './commercial-wallet.service.js';
 export { CommercialCommissionService } from './commercial-commission.service.js';
 export { CommercialCommissionRuleService } from './commercial-commission-rule.service.js';
+export { CommercialManualPaymentService } from './commercial-manual-payment.service.js';
 export {
   getCommercialScopeForUser,
   getManagerAncestor,

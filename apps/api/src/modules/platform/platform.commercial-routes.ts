@@ -7,6 +7,7 @@ import {
   CommercialRegionService,
   CommercialCommissionService,
   CommercialCommissionRuleService,
+  CommercialManualPaymentService,
 } from '../commercial/index.js';
 import { AppError } from '../../errors/AppError.js';
 import { type PrismaClient } from '../../database-client/client.js';
@@ -109,6 +110,10 @@ const UpdateCommissionRuleRequestSchema = z.object({
   active: z.boolean().optional(),
 });
 
+const ReverseManualPaymentRequestSchema = z.object({
+  reason: z.string().min(1).max(500),
+});
+
 async function resolveUserIdFromInput(
   input: { userPublicId?: string | undefined; email?: string | undefined; name?: string | undefined },
   prisma: PrismaClient,
@@ -137,6 +142,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
   const regionService = new CommercialRegionService(options.prisma);
   const commissionService = new CommercialCommissionService(options.prisma);
   const ruleService = new CommercialCommissionRuleService(options.prisma);
+  const manualPaymentService = new CommercialManualPaymentService(options.prisma);
 
   const allow = (request: { platformAuth: PlatformAuthContext }, permission: string) => {
     options.service.requirePermission(request.platformAuth, permission as any);
@@ -766,6 +772,24 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       await ruleService.deactivateRule(rule.id);
 
       return { success: true };
+    },
+  );
+
+  app.post(
+    '/platform/commercial/manual-payments/:publicId/reverse',
+    {
+      schema: {
+        params: PublicIdParamsSchema,
+        body: ReverseManualPaymentRequestSchema,
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.commercial.manage');
+
+      return manualPaymentService.reversePayment(
+        request.params.publicId,
+        request.body.reason,
+      );
     },
   );
 };

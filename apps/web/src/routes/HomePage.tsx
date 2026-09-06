@@ -912,26 +912,20 @@ export function HomePage() {
   const guidedStepIndex = Math.max(0, GUIDED_STEPS.indexOf(guidedStep));
 
   return (
-    <div className={`app-shell${guidedActive && !guidedPaused ? ' is-onboarding' : ''}`}>
-      <AppSidebar
-        tenantName={me.data.currentTenant?.tenant.displayName ?? 'Agendei'}
-        groups={menuGroups as any}
+    <main className={`app-shell${guidedActive && !guidedPaused ? ' is-onboarding' : ''}`}>
+      <AppHeader
+        title={pageTitle}
+        subtitle={activeMenuGroup === undefined ? 'Início' : `Início / ${activeMenuGroup.label}`}
+        tenantName={me.data.currentTenant?.tenant.displayName ?? 'Selecione um estabelecimento'}
+        showMobileMenu={true}
+        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+        onLogout={() => {
+          void httpClient
+            .request('/auth/logout', { method: 'POST', body: {}, schema: SuccessResponseSchema })
+            .finally(finishSession);
+        }}
+        onTenantSelect={() => void navigate('/select-tenant')}
       />
-      <div className="app-workspace">
-        <AppHeader
-          title={pageTitle}
-          subtitle={activeMenuGroup === undefined ? 'Início' : `Início / ${activeMenuGroup.label}`}
-          tenantName={me.data.currentTenant?.tenant.displayName ?? 'Selecione um estabelecimento'}
-          showMobileMenu={true}
-          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-          onLogout={() => {
-            void httpClient
-              .request('/auth/logout', { method: 'POST', body: {}, schema: SuccessResponseSchema })
-              .finally(finishSession);
-          }}
-          onTenantSelect={() => void navigate('/select-tenant')}
-        />
-        <main className="app-content">
       {guidedActive && guidedPaused && (
         <button
           className="onboarding-resume"
@@ -1378,6 +1372,10 @@ export function HomePage() {
           </section>
         </div>
       )}
+      <AppSidebar
+        tenantName={me.data.currentTenant?.tenant.displayName ?? 'Agendei'}
+        groups={menuGroups as any}
+      />
       <nav className="app-mobile-nav" aria-label="Navegação móvel">
         <NavLink to="/app" end>
           <span aria-hidden="true">⌂</span>Início
@@ -1956,8 +1954,6 @@ export function HomePage() {
           </Suspense>
         </ErrorBoundary>
       )}
-        </main>
-      </div>
-    </div>
+    </main>
   );
 }

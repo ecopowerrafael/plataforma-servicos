@@ -4,6 +4,8 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { type AuthRequestContext } from '../auth/identity.repository.js';
 import {
   CommercialAccountService,
+  CommercialCommissionService,
+  CommercialCommissionRuleService,
   getCommercialScopeForUser,
   buildCommercialTenantWhere,
 } from './index.js';
@@ -25,6 +27,10 @@ const CreateSellerRequestSchema = z.object({
   email: z.string().email().optional(),
   representativePublicId: z.string().uuid().optional(),
   defaultCommissionBps: z.number().int().min(0).max(10000).optional(),
+});
+
+const UpdateCommissionRequestSchema = z.object({
+  defaultCommissionBps: z.number().int().min(0).max(10000),
 });
 
 async function resolveUserIdFromInput(
@@ -66,6 +72,15 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     },
     async (request) => {
       const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
       const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
 
       if (!scope || scope.type === 'GLOBAL') {
@@ -103,6 +118,15 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     '/commercial/dashboard',
     async (request) => {
       const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
       const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
 
       if (!scope || scope.type === 'GLOBAL') {
@@ -161,6 +185,15 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     '/commercial/clients',
     async (request) => {
       const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
       const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
 
       if (!scope || scope.type === 'GLOBAL') {
@@ -206,6 +239,15 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     '/commercial/team',
     async (request) => {
       const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
       const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
 
       if (!scope || scope.type === 'GLOBAL') {
@@ -253,6 +295,15 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     },
     async (request, reply) => {
       const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
       const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
 
       if (!scope || scope.type === 'GLOBAL') {
@@ -309,6 +360,15 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     },
     async (request, reply) => {
       const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
       const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
 
       if (!scope || scope.type === 'GLOBAL') {
@@ -379,6 +439,182 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         active: account.active,
         defaultCommissionBps: account.defaultCommissionBps,
       });
+    },
+  );
+
+  // FASE 2B: Commission endpoints
+
+  app.get(
+    '/commercial/commissions',
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'NOT_COMMERCIAL_USER',
+          message: 'Usuário não tem conta comercial',
+          statusCode: 403,
+        });
+      }
+
+      const commissionService = new CommercialCommissionService(options.prisma);
+      const { commissions, total } = await commissionService.getCommissions(
+        scope.accountId,
+        50,
+        0,
+      );
+
+      return { commissions, total };
+    },
+  );
+
+  app.get(
+    '/commercial/team/commissions',
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+
+      if (!scope || scope.type === 'GLOBAL' || scope.type === 'SELLER') {
+        throw new AppError({
+          code: 'INSUFFICIENT_ROLE',
+          message: 'Apenas gerentes e representantes podem ver comissões da equipe',
+          statusCode: 403,
+        });
+      }
+
+      const commissionService = new CommercialCommissionService(options.prisma);
+      const commissions = await commissionService.getTeamCommissions(scope.accountId);
+
+      return { commissions };
+    },
+  );
+
+  app.get(
+    '/commercial/commission-rules',
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+
+      if (!scope || scope.type === 'GLOBAL') {
+        throw new AppError({
+          code: 'NOT_COMMERCIAL_USER',
+          message: 'Usuário não tem conta comercial',
+          statusCode: 403,
+        });
+      }
+
+      const ruleService = new CommercialCommissionRuleService(options.prisma);
+      const rules = await ruleService.getRules(scope.accountId);
+
+      return { rules };
+    },
+  );
+
+  app.patch(
+    '/commercial/team/:accountPublicId/commission',
+    {
+      schema: {
+        params: z.object({ accountPublicId: z.string().uuid() }),
+        body: UpdateCommissionRequestSchema,
+      },
+    },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+
+      if (!auth?.user?.id) {
+        throw new AppError({
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação obrigatória',
+          statusCode: 401,
+        });
+      }
+
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+
+      if (!scope || scope.type === 'GLOBAL' || scope.type === 'SELLER') {
+        throw new AppError({
+          code: 'INSUFFICIENT_ROLE',
+          message: 'Apenas gerentes e representantes podem alterar comissões',
+          statusCode: 403,
+        });
+      }
+
+      // Find subordinate account
+      const subordinate = await options.prisma.commercialAccount.findUnique({
+        where: { publicId: request.params.accountPublicId },
+      });
+
+      if (!subordinate) {
+        throw new AppError({
+          code: 'ACCOUNT_NOT_FOUND',
+          message: 'Conta não encontrada',
+          statusCode: 404,
+        });
+      }
+
+      // Verify subordinate belongs to manager
+      if (subordinate.parentId !== scope.accountId) {
+        throw new AppError({
+          code: 'INVALID_SUBORDINATE',
+          message: 'Este usuário não é subordinado seu',
+          statusCode: 403,
+        });
+      }
+
+      // Validate limit
+      const ruleService = new CommercialCommissionRuleService(options.prisma);
+      const validation = await ruleService.validateSubordinateCommissionLimit(
+        scope.accountId,
+      );
+
+      if (!validation.valid) {
+        throw new AppError({
+          code: 'COMMISSION_LIMIT_EXCEEDED',
+          message: validation.message || 'Limite de comissão excedido',
+          statusCode: 400,
+        });
+      }
+
+      // Update defaultCommissionBps
+      const updated = await options.prisma.commercialAccount.update({
+        where: { id: subordinate.id },
+        data: {
+          defaultCommissionBps: request.body.defaultCommissionBps,
+        },
+      });
+
+      return {
+        publicId: updated.publicId,
+        defaultCommissionBps: updated.defaultCommissionBps,
+      };
     },
   );
 };

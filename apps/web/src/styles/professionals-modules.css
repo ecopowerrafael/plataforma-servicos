@@ -111,6 +111,28 @@
   background: var(--color-border-default);
 }
 
+@media (max-width: 430px) {
+  .my-availability--redesigned .availability-section {
+    padding: 12px;
+  }
+
+  .my-availability--redesigned .availability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-availability--redesigned .availability-slot {
+    padding: 10px;
+  }
+
+  .my-availability--redesigned .availability-actions {
+    flex-direction: column;
+  }
+
+  .my-availability--redesigned .availability-actions button {
+    width: 100%;
+  }
+}
+
 @media (max-width: 768px) {
   .my-availability--redesigned .availability-section {
     padding: 16px;

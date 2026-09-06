@@ -16,6 +16,7 @@ import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 import { type PaymentGatewayProviderRegistry } from '../payments/gateway/provider-registry.js';
+import { CommercialSubscriptionPaymentService } from '../commercial/commercial-subscription-payment.service.js';
 
 export const monthlyFactor: Record<string, number> = {
   MONTHLY: 1,
@@ -93,7 +94,11 @@ const providers=['pix-local','mercadopago'] as const;
 const months:Record<string,number>={MONTHLY:1,QUARTERLY:3,SEMIANNUAL:6,ANNUAL:12,CUSTOM:1};
 
 export class PlatformBillingService {
-  public constructor(private readonly client:PrismaClient,private readonly registry:PaymentGatewayProviderRegistry,private readonly cipher:CredentialsCipher|undefined){}
+  private readonly commercialPaymentService: CommercialSubscriptionPaymentService;
+
+  public constructor(private readonly client:PrismaClient,private readonly registry:PaymentGatewayProviderRegistry,private readonly cipher:CredentialsCipher|undefined){
+    this.commercialPaymentService = new CommercialSubscriptionPaymentService(client);
+  }
   private publicCharge(charge:{publicId:string;subscription:{publicId:string};provider:string;environment:PaymentGatewayEnvironment;externalId:string|null;status:string;amountCents:bigint;currency:string;pixCopyPaste:string|null;paidAt:Date|null;createdAt:Date}){return {publicId:charge.publicId,subscriptionPublicId:charge.subscription.publicId,provider:charge.provider,environment:charge.environment,externalId:charge.externalId,status:charge.status,amountCents:charge.amountCents.toString(),currency:charge.currency,pixCopyPaste:charge.pixCopyPaste,paidAt:charge.paidAt?.toISOString()??null,createdAt:charge.createdAt.toISOString()};}
   public async overview(){const configs=await this.client.platformPaymentConfig.findMany();const items=providers.map(provider=>{const config=configs.find(c=>c.provider===provider);const visible=config?.credentialsCiphertext&&this.cipher?this.cipher.decrypt(config.credentialsCiphertext):{};return {provider,active:config?.active??false,environment:config?.environment??'SANDBOX',hasCredentials:config?.credentialsCiphertext!==null&&config!==undefined,keyType:typeof visible.keyType==='string'?visible.keyType:null,receiverName:typeof visible.receiverName==='string'?visible.receiverName:null,city:typeof visible.city==='string'?visible.city:null,updatedAt:(config?.updatedAt??new Date(0)).toISOString()};});return PlatformFinanceOverviewSchema.parse({configs:items,manualActivationEnabled:configs.find(c=>c.provider==='manual')?.active??true});}
   public async upsert(provider:string,input:{active:boolean;environment:PaymentGatewayEnvironment;credentials?:Record<string,unknown>},actor:Actor){if(!providers.includes(provider as typeof providers[number]))throw new AppError({code:'PLATFORM_PAYMENT_PROVIDER_INVALID',message:'Método de pagamento inválido.',statusCode:400});let encrypted:string|undefined;if(input.credentials){if(!this.cipher)throw new AppError({code:'GATEWAY_ENCRYPTION_NOT_CONFIGURED',message:'A criptografia de credenciais não está configurada.',statusCode:503});encrypted=this.cipher.encrypt(input.credentials);}const config=await this.client.platformPaymentConfig.upsert({where:{provider},create:{publicId:randomUUID(),provider,active:input.active,environment:input.environment,...(encrypted?{credentialsCiphertext:encrypted}:{})},update:{active:input.active,environment:input.environment,...(encrypted?{credentialsCiphertext:encrypted}:{})}});await this.client.auditLog.create({data:{publicId:randomUUID(),userId:actor.userId,sessionId:actor.sessionId,action:'platform.billing.config_updated',targetType:'platform_payment_config',targetPublicId:config.publicId,metadata:{provider,active:input.active,credentialsReplaced:encrypted!==undefined}}});return this.overview();}
@@ -105,7 +110,92 @@ export class PlatformBillingService {
   public async createTenantCharge(tenantId:bigint,provider:string){const subscription=await this.subscriptionForTenant(tenantId);return this.createCharge(subscription.publicId,provider);}
   public async createCharge(subscriptionPublicId:string,provider:string){const subscription=await this.client.tenantSubscription.findUnique({where:{publicId:subscriptionPublicId},include:{plan:{include:{billingOptions:true}}}});if(!subscription)throw new AppError({code:'PLATFORM_SUBSCRIPTION_NOT_FOUND',message:'Assinatura não encontrada.',statusCode:404});const option=subscription.plan.billingOptions.find(o=>o.billingCycle===subscription.billingCycle&&o.active);if(!option)throw new AppError({code:'BILLING_OPTION_UNAVAILABLE',message:'A opção de cobrança da assinatura não está disponível.',statusCode:409});const config=await this.client.platformPaymentConfig.findUnique({where:{provider}});if(!config?.active||!config.credentialsCiphertext||!this.cipher)throw new AppError({code:'PLATFORM_PAYMENT_METHOD_UNAVAILABLE',message:'Este método de pagamento não está disponível.',statusCode:409});const adapter=this.registry.get(provider);if(!adapter)throw new AppError({code:'GATEWAY_PROVIDER_NOT_IMPLEMENTED',message:'Gateway não implementado.',statusCode:501});const idempotencyKey=`platform:${subscription.publicId}:${randomUUID()}`;const result=await adapter.createCharge(this.cipher.decrypt(config.credentialsCiphertext),config.environment,{amountCents:option.priceCents,currency:subscription.currency,description:`Assinatura ${subscription.plan.name}`,idempotencyKey});const charge=await this.client.platformSubscriptionCharge.create({data:{publicId:randomUUID(),subscriptionId:subscription.id,provider,environment:config.environment,externalId:result.externalId,status:result.status,amountCents:option.priceCents,currency:subscription.currency,idempotencyKey,pixCopyPaste:result.pixCopyPaste??null},include:{subscription:{select:{publicId:true}}}});return PlatformChargeResponseSchema.parse({charge:this.publicCharge(charge),...(charge.pixCopyPaste?{qrCodeDataUrl:await QRCode.toDataURL(charge.pixCopyPaste)}:{})});}
   public async confirm(chargePublicId:string,actor:Actor){const charge=await this.client.platformSubscriptionCharge.findUnique({where:{publicId:chargePublicId}});if(!charge)throw new AppError({code:'PLATFORM_CHARGE_NOT_FOUND',message:'Cobrança não encontrada.',statusCode:404});await this.markPaid(charge.id,actor,'Confirmação manual de pagamento');return this.client.platformSubscriptionCharge.findUniqueOrThrow({where:{id:charge.id},include:{subscription:{select:{publicId:true}}}}).then(c=>PlatformChargeResponseSchema.parse({charge:this.publicCharge(c)}));}
-  private async markPaid(id:bigint,actor:Actor,reason:string){await this.client.$transaction(async tx=>{const charge=await tx.platformSubscriptionCharge.findUniqueOrThrow({where:{id},include:{subscription:true}});if(charge.status==='PAID')return;const start=new Date(Math.max(Date.now(),charge.subscription.currentPeriodEndsAt.getTime()));const end=new Date(start);end.setUTCMonth(end.getUTCMonth()+(months[charge.subscription.billingCycle]??1));await tx.platformSubscriptionCharge.update({where:{id},data:{status:'PAID',paidAt:new Date()}});await tx.tenantSubscription.update({where:{id:charge.subscriptionId},data:{status:'ACTIVE',effectiveKey:'EFFECTIVE',currentPeriodStartsAt:start,currentPeriodEndsAt:end,suspendedAt:null}});await tx.subscriptionHistory.create({data:{publicId:randomUUID(),subscriptionId:charge.subscriptionId,tenantId:charge.subscription.tenantId,action:'PAYMENT_CONFIRMED',previousStatus:charge.subscription.status,newStatus:'ACTIVE',previousPlanId:charge.subscription.planId,newPlanId:charge.subscription.planId,reason,performedByUserId:actor.userId}});await tx.auditLog.create({data:{publicId:randomUUID(),tenantId:charge.subscription.tenantId,userId:actor.userId,sessionId:actor.sessionId,action:'platform.subscription.payment_confirmed',targetType:'platform_subscription_charge',targetPublicId:charge.publicId,metadata:{provider:charge.provider,amountCents:charge.amountCents.toString()}}});});}
+  private async markPaid(id: bigint, actor: Actor, reason: string) {
+    await this.client.$transaction(async (tx) => {
+      const charge = await tx.platformSubscriptionCharge.findUniqueOrThrow({
+        where: { id },
+        include: { subscription: true },
+      });
+
+      if (charge.status === 'PAID') return;
+
+      const start = new Date(Math.max(Date.now(), charge.subscription.currentPeriodEndsAt.getTime()));
+      const end = new Date(start);
+      end.setUTCMonth(end.getUTCMonth() + (months[charge.subscription.billingCycle] ?? 1));
+
+      // Mark charge as paid
+      await tx.platformSubscriptionCharge.update({
+        where: { id },
+        data: { status: 'PAID', paidAt: new Date() },
+      });
+
+      // Update subscription to next period
+      await tx.tenantSubscription.update({
+        where: { id: charge.subscriptionId },
+        data: {
+          status: 'ACTIVE',
+          effectiveKey: 'EFFECTIVE',
+          currentPeriodStartsAt: start,
+          currentPeriodEndsAt: end,
+          suspendedAt: null,
+        },
+      });
+
+      // Record subscription history
+      await tx.subscriptionHistory.create({
+        data: {
+          publicId: randomUUID(),
+          subscriptionId: charge.subscriptionId,
+          tenantId: charge.subscription.tenantId,
+          action: 'PAYMENT_CONFIRMED',
+          previousStatus: charge.subscription.status,
+          newStatus: 'ACTIVE',
+          previousPlanId: charge.subscription.planId,
+          newPlanId: charge.subscription.planId,
+          reason,
+          performedByUserId: actor.userId,
+        },
+      });
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          publicId: randomUUID(),
+          tenantId: charge.subscription.tenantId,
+          userId: actor.userId,
+          sessionId: actor.sessionId,
+          action: 'platform.subscription.payment_confirmed',
+          targetType: 'platform_subscription_charge',
+          targetPublicId: charge.publicId,
+          metadata: {
+            provider: charge.provider,
+            amountCents: charge.amountCents.toString(),
+          },
+        },
+      });
+    });
+
+    // FASE 3: Generate commissions for subscription payment (outside transaction)
+    // Try to generate commissions, but don't fail the payment if this fails
+    try {
+      const charge = await this.client.platformSubscriptionCharge.findUniqueOrThrow({
+        where: { id },
+        include: { subscription: true },
+      });
+
+      await this.commercialPaymentService.confirmSubscriptionPayment({
+        tenantId: charge.subscription.tenantId,
+        subscriptionId: charge.subscriptionId,
+        paymentId: charge.publicId,
+        amountCents: charge.amountCents,
+        source: (charge.provider === 'pix-local' ? 'PIX' : charge.provider.toUpperCase()) as 'GATEWAY' | 'PIX' | 'CARD',
+        paidAt: charge.paidAt ?? new Date(),
+      });
+    } catch (error) {
+      // Log but don't fail payment confirmation
+      console.error('[CommercialPayment]', 'Commission generation failed for charge', id, error);
+    }
+  }
   public async webhook(provider:string,rawBody:string,headers:Record<string,string>){const config=await this.client.platformPaymentConfig.findUnique({where:{provider}});const adapter=this.registry.get(provider);if(!config?.active||!config.credentialsCiphertext||!this.cipher||!adapter)throw new AppError({code:'PLATFORM_WEBHOOK_UNAVAILABLE',message:'Webhook indisponível.',statusCode:404});const credentials=this.cipher.decrypt(config.credentialsCiphertext);if(!adapter.verifyWebhookSignature(credentials,config.environment,rawBody,headers))throw new AppError({code:'PLATFORM_WEBHOOK_INVALID',message:'Assinatura do webhook inválida.',statusCode:401});const event=adapter.parseWebhookEvent(rawBody);if(!event.externalId)return {received:true};const charge=await this.client.platformSubscriptionCharge.findFirst({where:{provider,externalId:event.externalId}});if(!charge)return {received:true};const remote=await adapter.getCharge(credentials,config.environment,event.externalId);if(remote.status==='PAID')await this.markPaid(charge.id,{userId:null,sessionId:null},'Pagamento confirmado pelo Mercado Pago');else await this.client.platformSubscriptionCharge.update({where:{id:charge.id},data:{status:remote.status}});return {received:true};}
   private async subscriptionForTenant(tenantId:bigint){const value=await this.client.tenantSubscription.findFirst({where:{tenantId,effectiveKey:'EFFECTIVE'},orderBy:{createdAt:'desc'}})??await this.client.tenantSubscription.findFirst({where:{tenantId},orderBy:{createdAt:'desc'}});if(!value)throw new AppError({code:'TENANT_SUBSCRIPTION_NOT_FOUND',message:'Assinatura não encontrada.',statusCode:404});return value;}
 

@@ -46,6 +46,8 @@ const platformPermissions = [
   'platform.subscription.status.manage',
   'platform.audit.read',
   'platform.metrics.read',
+  'platform.commercial.read',
+  'platform.commercial.manage',
 ] as const;
 
 const tenantPermissions = ['tenant.read', 'tenant.update', 'tenant.subscription.read'] as const;

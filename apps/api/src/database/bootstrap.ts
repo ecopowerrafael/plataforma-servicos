@@ -268,6 +268,8 @@ const platformPermissions = [
   ['platform.subscription.status.manage', 'Gerenciar status de assinaturas comerciais.'],
   ['platform.audit.read', 'Consultar auditoria global.'],
   ['platform.metrics.read', 'Consultar métricas globais.'],
+  ['platform.commercial.read', 'Consultar hierarquia comercial, comissões e pagamentos.'],
+  ['platform.commercial.manage', 'Gerenciar gerentes, representantes, vendedores, comissões e pagamentos comerciais.'],
   ['platform.commercial_policy.read', 'Consultar a política comercial global.'],
   ['platform.commercial_policy.manage', 'Gerenciar a política comercial global.'],
   ['platform.prospecting.read', 'Consultar configuração de prospecção.'],

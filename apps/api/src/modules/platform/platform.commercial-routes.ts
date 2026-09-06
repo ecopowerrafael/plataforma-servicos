@@ -179,11 +179,11 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       return {
         data: paginated.map((a: any) => ({
           publicId: a.publicId,
-          userId: a.userId,
+          userId: a.userId.toString(),
           role: a.role,
           active: a.active,
           defaultCommissionBps: a.defaultCommissionBps,
-          parentId: a.parentId,
+          parentId: a.parentId ? a.parentId.toString() : null,
           createdAt: a.createdAt,
         })),
         pagination: {
@@ -872,16 +872,36 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
     async (request: any) => {
       allow(request, 'platform.commercial.read');
 
+      const limit = Math.min(parseInt(request.query?.limit || '100', 10), 500);
       const commissions = await options.prisma.commercialCommission.findMany({
         include: {
           tenant: { select: { publicId: true, displayName: true } },
           subscription: { select: { publicId: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take: (request.query?.limit || 100) as number,
+        take: limit,
       });
 
-      return { commissions };
+      // Convert BigInt fields to strings for JSON serialization
+      return {
+        commissions: commissions.map((c: any) => ({
+          publicId: c.publicId,
+          commercialAccountId: c.commercialAccountId.toString(),
+          tenantId: c.tenantId.toString(),
+          subscriptionId: c.subscriptionId.toString(),
+          baseAmountCents: c.baseAmountCents.toString(),
+          percentageBpsSnapshot: c.percentageBpsSnapshot,
+          commissionAmountCents: c.commissionAmountCents.toString(),
+          roleSnapshot: c.roleSnapshot,
+          status: c.status,
+          paymentSource: c.paymentSource,
+          paymentId: c.paymentId,
+          createdAt: c.createdAt,
+          reversedAt: c.reversedAt,
+          tenant: c.tenant,
+          subscription: c.subscription,
+        })),
+      };
     },
   );
 };

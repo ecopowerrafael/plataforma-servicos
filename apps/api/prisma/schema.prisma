@@ -4125,7 +4125,7 @@ enum CommercialAssignmentSource {
 
 model CommercialAccount {
   id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId                String    @unique @db.Char(36)
+  publicId                String    @unique @map("public_id") @db.Char(36)
   userId                  BigInt    @db.UnsignedBigInt
   role                    CommercialRole
   parentId                BigInt?   @db.UnsignedBigInt
@@ -4309,7 +4309,7 @@ model CommercialCommissionRule {
 
 model CommercialManualPayment {
   id                    BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
-  publicId              String                          @unique @db.Char(36)
+  publicId              String                          @unique @map("public_id") @db.Char(36)
   tenantId              BigInt                          @db.UnsignedBigInt
   subscriptionId        BigInt                          @db.UnsignedBigInt
   managerAccountId      BigInt                          @db.UnsignedBigInt

@@ -22,6 +22,9 @@ const LoginPage = lazy(async () => ({
 const NotFoundPage = lazy(async () => ({
   default: (await import('./routes/NotFoundPage.js')).NotFoundPage,
 }));
+const CommercialPage = lazy(async () => ({
+  default: (await import('./routes/CommercialPage.js')).CommercialPage,
+}));
 const PlatformPageRebuild = lazy(async () => ({
   default: (await import('./routes/PlatformPageRebuild.js')).PlatformPageRebuild,
 }));
@@ -307,6 +310,10 @@ export const router = createBrowserRouter([
   { path: '/login', element: lazyPage(LoginPage) },
   { path: '/cadastro', element: lazyPage(RegisterPage) },
   { path: '/app', element: lazyPage(HomePage) },
+  { path: '/comercial', element: lazyPage(CommercialPage) },
+  { path: '/comercial/dashboard', element: lazyPage(CommercialPage) },
+  { path: '/comercial/clientes', element: lazyPage(CommercialPage) },
+  { path: '/comercial/equipe', element: lazyPage(CommercialPage) },
   { path: '/public/:slug/profissional/login', element: lazyPage(ProfessionalTenantLoginPage) },
   { path: '/public/:slug/profissional', element: lazyPage(ProfessionalAppPage) },
   {

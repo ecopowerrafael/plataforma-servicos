@@ -1,9 +1,9 @@
+import { IconBriefcase2, IconBuildingStore, IconCoins, IconLayoutDashboard, IconUsersGroup, IconWallet } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { httpClient, HttpError } from '../../lib/http.js';
-import { PageHeader, ErrorState } from '../platform/PlatformUi.js';
+import { ErrorState } from '../platform/PlatformUi.js';
 import { CommercialDashboardTab } from './CommercialDashboardTab.js';
 import { CommercialClientsTab } from './CommercialClientsTab.js';
 import { CommercialTeamTab } from './CommercialTeamTab.js';
@@ -11,331 +11,39 @@ import { WalletTab } from './WalletTab.js';
 import { CommissionsTab } from './CommissionsTab.js';
 
 type CommercialTab = 'dashboard' | 'clients' | 'team' | 'wallet' | 'commissions';
+const tabs: Array<{ id: CommercialTab; label: string; icon: typeof IconLayoutDashboard }> = [
+  { id: 'dashboard', label: 'Visão geral', icon: IconLayoutDashboard }, { id: 'wallet', label: 'Carteira', icon: IconWallet }, { id: 'commissions', label: 'Comissões', icon: IconCoins }, { id: 'clients', label: 'Clientes', icon: IconBuildingStore }, { id: 'team', label: 'Equipe', icon: IconUsersGroup },
+];
+const roleLabels: Record<string, string> = { MANAGER: 'Gerente comercial', REPRESENTATIVE: 'Representante comercial', SELLER: 'Consultor comercial' };
 
 export function CommercialManagerModule() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  const getActiveTabFromPath = (): CommercialTab => {
-    if (location.pathname.includes('carteira')) return 'wallet';
-    if (location.pathname.includes('comissoes')) return 'commissions';
-    if (location.pathname.includes('clientes')) return 'clients';
-    if (location.pathname.includes('equipe')) return 'team';
-    return 'dashboard';
-  };
-
-  const activeTab = getActiveTabFromPath();
-
-  const handleTabChange = (tab: CommercialTab) => {
-    const paths: Record<CommercialTab, string> = {
-      dashboard: '/comercial/dashboard',
-      wallet: '/comercial/carteira',
-      commissions: '/comercial/comissoes',
-      clients: '/comercial/clientes',
-      team: '/comercial/equipe',
-    };
-    navigate(paths[tab]);
-  };
-
-  const me = useQuery({
-    queryKey: ['commercial', 'me'],
-    queryFn: () =>
-      httpClient.request('/commercial/me', {
-        schema: z.object({
-          publicId: z.string(),
-          email: z.string(),
-          role: z.string(),
-          active: z.boolean(),
-          defaultCommissionBps: z.number(),
-        }),
-      }),
-    retry: false,
-  });
-
+  const activeTab: CommercialTab = location.pathname.includes('carteira') ? 'wallet' : location.pathname.includes('comissoes') ? 'commissions' : location.pathname.includes('clientes') ? 'clients' : location.pathname.includes('equipe') ? 'team' : 'dashboard';
+  const handleTabChange = (tab: CommercialTab) => navigate({ dashboard: '/comercial/dashboard', wallet: '/comercial/carteira', commissions: '/comercial/comissoes', clients: '/comercial/clientes', team: '/comercial/equipe' }[tab]);
+  const me = useQuery({ queryKey: ['commercial', 'me'], queryFn: () => httpClient.request('/commercial/me', { schema: z.object({ publicId: z.string(), email: z.string(), role: z.string(), active: z.boolean(), defaultCommissionBps: z.number() }) }), retry: false });
   const deniedStatus = me.error instanceof HttpError ? me.error.status : undefined;
-  if (deniedStatus === 403) {
-    return <ErrorState message="Você não tem acesso ao painel comercial" />;
-  }
-
-  if (me.isPending) {
-    return (
-      <div className="loading">
-        <div className="skeleton-line" />
-        <div className="skeleton-line" />
-      </div>
-    );
-  }
-
-  if (me.error instanceof Error || me.data === undefined) {
-    return <ErrorState message="Erro ao carregar dados comerciais" />;
-  }
-
+  if (deniedStatus === 403) return <ErrorState message="Você não tem acesso ao painel comercial" />;
+  if (me.isPending) return <div className="commercial-loading"><div /><div /></div>;
+  if (me.error instanceof Error || me.data === undefined) return <ErrorState message="Erro ao carregar dados comerciais" />;
   const account = me.data;
-
-  return (
-    <div className="module-container">
-      <PageHeader
-        title={`Painel Comercial - ${account.role}`}
-        subtitle={`Gerenciado por ${account.email}`}
-      />
-
-      <div className="account-info">
-        <div className="info-item">
-          <span className="label">Função:</span>
-          <span className="value">{account.role}</span>
-        </div>
-        <div className="info-item">
-          <span className="label">Comissão Padrão:</span>
-          <span className="value">{(account.defaultCommissionBps / 100).toFixed(2)}%</span>
-        </div>
-        <div className="info-item">
-          <span className="label">Status:</span>
-          <span className={`status-badge ${account.active ? 'active' : 'inactive'}`}>
-            {account.active ? 'Ativo' : 'Inativo'}
-          </span>
-        </div>
-      </div>
-
-      <div className="module-tabs">
-        <button
-          className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-          onClick={() => handleTabChange('dashboard')}
-        >
-          Dashboard
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'wallet' ? 'active' : ''}`}
-          onClick={() => handleTabChange('wallet')}
-        >
-          Carteira
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'commissions' ? 'active' : ''}`}
-          onClick={() => handleTabChange('commissions')}
-        >
-          Comissões
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'clients' ? 'active' : ''}`}
-          onClick={() => handleTabChange('clients')}
-        >
-          Clientes
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'team' ? 'active' : ''}`}
-          onClick={() => handleTabChange('team')}
-        >
-          Equipe
-        </button>
-      </div>
-
-      <div className="module-content">
-        {activeTab === 'dashboard' && <CommercialDashboardTab role={account.role} />}
-        {activeTab === 'wallet' && <WalletTab />}
-        {activeTab === 'commissions' && <CommissionsTab />}
-        {activeTab === 'clients' && <CommercialClientsTab />}
-        {activeTab === 'team' && <CommercialTeamTab role={account.role} />}
-      </div>
-
-      <style>{`
-        .module-container {
-          padding: 20px;
-          background: var(--bg-primary);
-        }
-
-        .account-info {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 16px;
-          margin: 20px 0;
-          padding: 16px;
-          background: var(--bg-secondary);
-          border-radius: 8px;
-          border-left: 4px solid var(--primary);
-        }
-
-        .info-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .info-item .label {
-          font-weight: 500;
-          color: var(--text-secondary);
-          font-size: 14px;
-        }
-
-        .info-item .value {
-          font-weight: 600;
-          color: var(--text-primary);
-          font-size: 14px;
-        }
-
-        .status-badge {
-          display: inline-block;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: 500;
-        }
-
-        .status-badge.active {
-          background: rgba(34, 197, 94, 0.1);
-          color: rgb(34, 197, 94);
-        }
-
-        .status-badge.inactive {
-          background: rgba(239, 68, 68, 0.1);
-          color: rgb(239, 68, 68);
-        }
-
-        .module-tabs {
-          display: flex;
-          gap: 8px;
-          margin: 20px 0;
-          border-bottom: 1px solid var(--border-color);
-          overflow-x: auto;
-        }
-
-        .tab-button {
-          padding: 12px 16px;
-          background: transparent;
-          border: none;
-          border-bottom: 2px solid transparent;
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--text-secondary);
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
-        }
-
-        .tab-button:hover {
-          color: var(--text-primary);
-        }
-
-        .tab-button.active {
-          color: var(--primary);
-          border-bottom-color: var(--primary);
-        }
-
-        .module-content {
-          margin-top: 20px;
-        }
-
-        .loading {
-          padding: 20px;
-        }
-
-        .skeleton-line {
-          height: 20px;
-          background: var(--bg-secondary);
-          border-radius: 4px;
-          margin-bottom: 10px;
-          animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-
-        .wallet-tab, .commissions-tab {
-          padding: 20px 0;
-        }
-
-        .wallet-cards {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 16px;
-          margin-bottom: 30px;
-        }
-
-        .wallet-card {
-          padding: 20px;
-          background: var(--bg-secondary);
-          border-radius: 8px;
-          border-left: 4px solid var(--primary);
-        }
-
-        .card-label {
-          display: block;
-          font-size: 12px;
-          color: var(--text-secondary);
-          text-transform: uppercase;
-          margin-bottom: 8px;
-        }
-
-        .card-value {
-          display: block;
-          font-size: 24px;
-          font-weight: 700;
-          color: var(--primary);
-        }
-
-        .wallet-ledger, .commissions-tab {
-          margin-top: 20px;
-        }
-
-        .wallet-ledger h3, .commissions-tab h3 {
-          margin-bottom: 16px;
-          font-size: 18px;
-          color: var(--text-primary);
-        }
-
-        .ledger-table, .commissions-table {
-          width: 100%;
-          border-collapse: collapse;
-          background: var(--bg-secondary);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-
-        .ledger-table thead th, .commissions-table thead th {
-          padding: 12px;
-          text-align: left;
-          font-weight: 600;
-          font-size: 12px;
-          color: var(--text-secondary);
-          border-bottom: 1px solid var(--border-color);
-        }
-
-        .ledger-table tbody td, .commissions-table tbody td {
-          padding: 12px;
-          border-bottom: 1px solid var(--border-color);
-          font-size: 14px;
-        }
-
-        .ledger-table tbody tr:hover, .commissions-table tbody tr:hover {
-          background: var(--bg-primary);
-        }
-
-        .ledger-table .positive {
-          color: rgb(34, 197, 94);
-          font-weight: 500;
-        }
-
-        .ledger-table .negative {
-          color: rgb(239, 68, 68);
-          font-weight: 500;
-        }
-
-        .commissions-table .status-pending {
-          color: rgb(59, 130, 246);
-          font-weight: 500;
-        }
-
-        .commissions-table .status-available {
-          color: rgb(34, 197, 94);
-          font-weight: 500;
-        }
-
-        .commissions-table .status-reversed {
-          color: rgb(107, 114, 128);
-          text-decoration: line-through;
-        }
-      `}</style>
-    </div>
-  );
+  const roleLabel = roleLabels[account.role] ?? 'Profissional comercial';
+  const commission = `${(account.defaultCommissionBps / 100).toFixed(2).replace('.', ',')}%`;
+  return <div className="commercial-shell">
+    <header className="commercial-header"><div className="commercial-header-inner">
+      <button className="commercial-brand" type="button" onClick={() => handleTabChange('dashboard')} aria-label="Agendei Comercial — início"><img src="/brand/logo-agendei.png" alt="Agendei" /></button>
+      <div className="commercial-header-divider" /><div className="commercial-header-title"><IconBriefcase2 size={17} /> Comercial</div>
+      <div className="commercial-profile"><span className={`commercial-profile-status ${account.active ? 'active' : 'inactive'}`} /><div><strong>{roleLabel}</strong><span>{account.email}</span></div></div>
+    </div></header>
+    <main className="commercial-workspace">
+      <section className="commercial-welcome"><div><p className="commercial-eyebrow">ÁREA COMERCIAL</p><h1>Seu espaço para acompanhar resultados e oportunidades.</h1><p>Organize sua carteira, acompanhe comissões e mantenha sua operação comercial em movimento.</p></div><div className="commercial-account-card"><span>Comissão padrão</span><strong>{commission}</strong><small>{account.active ? 'Conta ativa e pronta para operar' : 'Conta temporariamente inativa'}</small></div></section>
+      <nav className="commercial-tabs" aria-label="Navegação comercial">{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={`commercial-tab ${activeTab === id ? 'active' : ''}`} onClick={() => handleTabChange(id)}><Icon size={18} stroke={1.8} />{label}</button>)}</nav>
+      <div className="commercial-content">{activeTab === 'dashboard' && <CommercialDashboardTab role={account.role} />}{activeTab === 'wallet' && <WalletTab />}{activeTab === 'commissions' && <CommissionsTab />}{activeTab === 'clients' && <CommercialClientsTab />}{activeTab === 'team' && <CommercialTeamTab role={account.role} />}</div>
+    </main>
+    <style>{`
+      .commercial-shell{min-height:100vh;background:#f7f8fa;color:#172033}.commercial-header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid #e7eaf0;backdrop-filter:blur(14px)}.commercial-header-inner{max-width:1360px;min-height:72px;padding:0 28px;margin:0 auto;display:flex;align-items:center;gap:18px}.commercial-brand{padding:0;border:0;background:transparent;cursor:pointer;display:flex}.commercial-brand img{display:block;width:auto;height:33px;max-width:158px;object-fit:contain}.commercial-header-divider{width:1px;height:26px;background:#dfe4ec}.commercial-header-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#586174;letter-spacing:.02em}.commercial-profile{display:flex;align-items:center;gap:10px;margin-left:auto;min-width:0}.commercial-profile-status{width:9px;height:9px;border-radius:99px;flex:0 0 auto}.commercial-profile-status.active{background:#20a66a;box-shadow:0 0 0 4px #e3f7ed}.commercial-profile-status.inactive{background:#d35a5a;box-shadow:0 0 0 4px #fdeaea}.commercial-profile strong,.commercial-profile span:not(.commercial-profile-status){display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.commercial-profile strong{max-width:210px;font-size:12px;color:#2a3345}.commercial-profile span:not(.commercial-profile-status){max-width:210px;margin-top:2px;font-size:12px;color:#8790a0}
+      .commercial-workspace{max-width:1360px;padding:36px 28px 56px;margin:0 auto}.commercial-welcome{display:flex;align-items:stretch;justify-content:space-between;gap:28px;padding:34px 38px;border-radius:20px;color:#fff;background:radial-gradient(circle at 82% -10%,#4675c7 0,transparent 34%),linear-gradient(118deg,#172541 0%,#223b68 55%,#285081 100%);box-shadow:0 18px 40px rgba(23,37,65,.18)}.commercial-welcome>div:first-child{max-width:720px}.commercial-eyebrow{margin:0 0 10px;color:#b9d4ff;font-size:11px;font-weight:800;letter-spacing:.14em}.commercial-welcome h1{max-width:670px;margin:0;font-size:clamp(24px,3vw,34px);line-height:1.15;letter-spacing:-.025em}.commercial-welcome p:not(.commercial-eyebrow){margin:13px 0 0;color:#d6e3f8;max-width:610px;font-size:15px;line-height:1.55}.commercial-account-card{flex:0 0 210px;display:flex;flex-direction:column;justify-content:center;padding:20px 22px;border:1px solid rgba(255,255,255,.2);border-radius:14px;background:rgba(255,255,255,.1)}.commercial-account-card span{color:#cfddf5;font-size:12px;font-weight:600}.commercial-account-card strong{margin:3px 0 10px;font-size:30px;letter-spacing:-.035em}.commercial-account-card small{color:#c5d8f4;font-size:11px;line-height:1.4}
+      .commercial-tabs{display:flex;gap:8px;margin:28px 0 24px;padding:7px;overflow-x:auto;border:1px solid #e5e9f0;border-radius:14px;background:#fff;box-shadow:0 3px 12px rgba(33,47,71,.04)}.commercial-tab{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 14px;border:0;border-radius:9px;background:transparent;color:#687286;font:inherit;font-size:13px;font-weight:650;white-space:nowrap;cursor:pointer;transition:background .18s,color .18s,box-shadow .18s}.commercial-tab:hover{color:#1f3d6d;background:#f2f6fc}.commercial-tab.active{color:#fff;background:#24477e;box-shadow:0 4px 9px rgba(36,71,126,.2)}.commercial-content{min-width:0}.commercial-loading{padding:40px}.commercial-loading div{height:20px;margin-bottom:12px;border-radius:6px;background:#e8ecf2;animation:commercial-pulse 1.6s infinite}@keyframes commercial-pulse{50%{opacity:.45}}@media(max-width:700px){.commercial-header-inner{min-height:62px;padding:0 18px;gap:12px}.commercial-brand img{height:28px}.commercial-header-divider,.commercial-header-title{display:none}.commercial-profile strong,.commercial-profile span:not(.commercial-profile-status){max-width:170px}.commercial-workspace{padding:22px 16px 42px}.commercial-welcome{display:block;padding:26px 24px;border-radius:16px}.commercial-account-card{margin-top:24px}.commercial-tabs{margin:20px 0}.commercial-tab{padding:10px 12px}}
+    `}</style>
+  </div>;
 }

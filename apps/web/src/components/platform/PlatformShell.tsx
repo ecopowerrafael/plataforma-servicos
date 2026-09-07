@@ -11,7 +11,6 @@ import {
   IconSend2,
   IconSettings,
   IconShieldCheck,
-  IconSparkles,
   IconStack2,
   IconUserCheck,
   IconWallet,
@@ -110,19 +109,12 @@ export function PlatformShell({
             <button
               className="platform-brand"
               type="button"
+              aria-label="Agendei Platform — início"
               onClick={() => {
                 handleSelect('dashboard');
               }}
             >
-              <span className="platform-brand-mark" aria-hidden="true">
-                <span className="platform-brand-mark-inner">
-                  <IconSparkles size={16} stroke={1.75} />
-                </span>
-              </span>
-              <span className="platform-brand-text">
-                <span className="platform-brand-name">AGENDEI</span>
-                <span className="platform-brand-suffix">PLATFORM</span>
-              </span>
+              <img className="platform-brand-logo" src="/brand/logo-agendei.png" alt="Agendei" />
             </button>
 
             <span className="platform-header-tag">

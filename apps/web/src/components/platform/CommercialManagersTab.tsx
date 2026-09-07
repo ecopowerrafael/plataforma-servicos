@@ -30,6 +30,22 @@ interface FormData {
   regionCities: Array<{ ibgeCode: string; city: string; state: string }>;
 }
 
+const BRAZILIAN_STATES = [
+  ['AC', 'Acre'], ['AL', 'Alagoas'], ['AP', 'Amapá'], ['AM', 'Amazonas'], ['BA', 'Bahia'],
+  ['CE', 'Ceará'], ['DF', 'Distrito Federal'], ['ES', 'Espírito Santo'], ['GO', 'Goiás'],
+  ['MA', 'Maranhão'], ['MT', 'Mato Grosso'], ['MS', 'Mato Grosso do Sul'], ['MG', 'Minas Gerais'],
+  ['PA', 'Pará'], ['PB', 'Paraíba'], ['PR', 'Paraná'], ['PE', 'Pernambuco'], ['PI', 'Piauí'],
+  ['RJ', 'Rio de Janeiro'], ['RN', 'Rio Grande do Norte'], ['RS', 'Rio Grande do Sul'],
+  ['RO', 'Rondônia'], ['RR', 'Roraima'], ['SC', 'Santa Catarina'], ['SP', 'São Paulo'],
+  ['SE', 'Sergipe'], ['TO', 'Tocantins'],
+] as const;
+
+const CanonicalCitySchema = z.object({
+  ibgeCode: z.string(),
+  city: z.string(),
+  state: z.string(),
+});
+
 export function CommercialManagersTab() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -37,6 +53,7 @@ export function CommercialManagersTab() {
   const [userLookup, setUserLookup] = useState<UserLookup | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [citySearch, setCitySearch] = useState('');
 
   const [formData, setFormData] = useState<FormData>({
     email: '',
@@ -68,6 +85,16 @@ export function CommercialManagersTab() {
           }),
         })
         .then((r) => r.data.filter((m) => m.role === 'MANAGER')),
+  });
+
+  const citySuggestions = useQuery({
+    queryKey: ['platform', 'locations', 'cities', formData.regionState, citySearch],
+    enabled: formData.regionState.length === 2 && citySearch.trim().length >= 2,
+    queryFn: () =>
+      httpClient.request(
+        `/platform/locations/cities?state=${formData.regionState}&search=${encodeURIComponent(citySearch.trim())}`,
+        { schema: z.array(CanonicalCitySchema) },
+      ),
   });
 
   const createManager = useMutation({
@@ -149,11 +176,16 @@ export function CommercialManagersTab() {
 
   const handleRegionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.regionName || formData.regionCities.length === 0) {
-      setLookupError('Região e ao menos uma cidade são obrigatórias');
+    if (!formData.regionName.trim()) {
+      setLookupError('Informe o nome da região.');
+      return;
+    }
+    if (formData.regionCities.length === 0) {
+      setLookupError('Selecione ao menos uma cidade para o território.');
       return;
     }
     setLookupError(null);
+    setCitySearch('');
     setStep('confirm');
   };
 
@@ -357,14 +389,60 @@ export function CommercialManagersTab() {
               </div>
               <div className="form-group">
                 <label htmlFor="regionState">Estado</label>
-                <input
+                <select
                   id="regionState"
-                  type="text"
                   value={formData.regionState}
-                  onChange={(e) => setFormData({ ...formData, regionState: e.target.value.toUpperCase() })}
-                  placeholder="SP"
-                  maxLength={2}
+                  onChange={(e) => {
+                    setFormData({ ...formData, regionState: e.target.value, regionCities: [] });
+                    setCitySearch('');
+                    setLookupError(null);
+                  }}
+                >
+                  <option value="">Selecione o estado</option>
+                  {BRAZILIAN_STATES.map(([code, name]) => (
+                    <option key={code} value={code}>{code} — {name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group city-autocomplete">
+                <label htmlFor="regionCity">Cidade</label>
+                <input
+                  id="regionCity"
+                  type="search"
+                  value={citySearch}
+                  disabled={!formData.regionState}
+                  onChange={(e) => {
+                    setCitySearch(e.target.value);
+                    setLookupError(null);
+                  }}
+                  placeholder={formData.regionState ? 'Digite ao menos 2 letras' : 'Selecione o estado primeiro'}
+                  autoComplete="off"
                 />
+                <small>Escolha uma cidade da lista oficial. Texto digitado não é salvo como território.</small>
+                {citySuggestions.isLoading && <div className="city-suggestions">Buscando cidades…</div>}
+                {citySuggestions.data && citySearch.trim().length >= 2 && (
+                  <div className="city-suggestions" role="listbox" aria-label="Cidades encontradas">
+                    {citySuggestions.data.length === 0 ? (
+                      <span>Nenhuma cidade encontrada.</span>
+                    ) : (
+                      citySuggestions.data.map((city) => (
+                        <button
+                          key={city.ibgeCode}
+                          type="button"
+                          onClick={() => {
+                            if (!formData.regionCities.some((selected) => selected.ibgeCode === city.ibgeCode)) {
+                              setFormData({ ...formData, regionCities: [...formData.regionCities, city] });
+                            }
+                            setCitySearch('');
+                            setLookupError(null);
+                          }}
+                        >
+                          {city.city} — {city.state}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
               {formData.regionCities.length > 0 && (
                 <div className="cities-list">
@@ -531,7 +609,8 @@ export function CommercialManagersTab() {
           font-size: 14px;
         }
 
-        .form-group input {
+        .form-group input,
+        .form-group select {
           width: 100%;
           padding: 8px 12px;
           border: 1px solid var(--border-color);
@@ -543,6 +622,38 @@ export function CommercialManagersTab() {
         .form-group input:disabled {
           background: var(--bg-tertiary);
           cursor: not-allowed;
+        }
+
+        .city-autocomplete {
+          position: relative;
+        }
+
+        .city-suggestions {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          max-height: 220px;
+          overflow-y: auto;
+          margin-top: 6px;
+          padding: 8px;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          background: var(--bg-primary);
+          font-size: 14px;
+        }
+
+        .city-suggestions button {
+          padding: 8px;
+          border: 0;
+          border-radius: 3px;
+          background: transparent;
+          color: var(--text-primary);
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .city-suggestions button:hover {
+          background: var(--bg-tertiary);
         }
 
         .form-group small {

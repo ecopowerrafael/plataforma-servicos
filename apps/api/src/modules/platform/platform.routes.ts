@@ -131,6 +131,50 @@ interface PlatformRoutesOptions {
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const TenantParamsSchema = z.object({ tenantPublicId: z.uuid() });
 const CustomFieldParamsSchema = TenantParamsSchema.extend({ fieldPublicId: z.uuid() });
+const BrazilianStateSchema = z.enum([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA',
+  'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+]);
+const PlatformCityQuerySchema = z.object({
+  state: BrazilianStateSchema,
+  search: z.string().trim().min(2).max(120),
+});
+const PlatformCityResponseSchema = z.array(
+  z.object({ ibgeCode: z.string(), city: z.string(), state: BrazilianStateSchema }),
+);
+
+type CanonicalCity = z.infer<typeof PlatformCityResponseSchema>[number];
+
+const municipalitiesByState = new Map<string, Promise<CanonicalCity[]>>();
+
+const normalizeCitySearch = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+
+const getCanonicalCities = (state: z.infer<typeof BrazilianStateSchema>) => {
+  const cached = municipalitiesByState.get(state);
+  if (cached) return cached;
+
+  const request = fetch(
+    `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${state}/municipios`,
+    { signal: AbortSignal.timeout(5_000) },
+  )
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`IBGE respondeu ${response.status}`);
+      const municipalities = (await response.json()) as Array<{ id: number; nome: string }>;
+      return municipalities.map((municipality) => ({
+        ibgeCode: String(municipality.id),
+        city: municipality.nome,
+        state,
+      }));
+    })
+    .catch((error) => {
+      municipalitiesByState.delete(state);
+      throw error;
+    });
+
+  municipalitiesByState.set(state, request);
+  return request;
+};
 
 export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = async (
   app,
@@ -186,6 +230,22 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
   ) => {
     options.service.requirePermission(request.platformAuth, permission);
   };
+
+  app.get(
+    '/platform/locations/cities',
+    {
+      schema: {
+        querystring: PlatformCityQuerySchema,
+        response: { 200: PlatformCityResponseSchema },
+      },
+    },
+    async (request) => {
+      allow(request, 'platform.tenant.read');
+      const search = normalizeCitySearch(request.query.search);
+      const cities = await getCanonicalCities(request.query.state);
+      return cities.filter((city) => normalizeCitySearch(city.city).includes(search)).slice(0, 30);
+    },
+  );
 
   app.get('/platform/me', { schema: { response: { 200: PlatformMeResponseSchema } } }, (request) =>
     options.service.getMe(request.platformAuth),

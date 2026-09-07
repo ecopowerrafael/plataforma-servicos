@@ -35,6 +35,7 @@ import { TenantCustomFieldsResolver } from '../tenants/tenant-custom-fields.reso
 import { TenantExperienceResolver } from '../tenants/tenant-experience.resolver.js';
 import { TenantFeaturesResolver } from '../tenants/tenant-features.resolver.js';
 import { TenantService } from '../tenants/tenant.service.js';
+import { TenantTerritoryAssignmentService } from '../commercial/tenant-territory-assignment.service.js';
 
 const effectiveStatuses = new Set(['TRIALING', 'ACTIVE', 'PAST_DUE', 'SUSPENDED']);
 const platformPermissions = [
@@ -2183,7 +2184,7 @@ export class PlatformService {
   ) {
     const normalizedEmail = input.ownerEmail.trim().toLowerCase();
     try {
-      return await this.client.$transaction(
+      const result = await this.client.$transaction(
         async (transaction) => {
           const [plan, ownerRole] = await Promise.all([
             transaction.commercialPlan.findUnique({
@@ -2399,6 +2400,7 @@ export class PlatformService {
             }),
           });
           return {
+            tenantId: tenant.id,
             tenant: {
               publicId: tenant.publicId,
               slug: tenant.slug,
@@ -2414,6 +2416,9 @@ export class PlatformService {
         },
         { isolationLevel: 'Serializable' },
       );
+      await new TenantTerritoryAssignmentService(this.client).assignTenantByTerritory(result.tenantId);
+      const { tenantId: _tenantId, ...response } = result;
+      return response;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
         throw appError(

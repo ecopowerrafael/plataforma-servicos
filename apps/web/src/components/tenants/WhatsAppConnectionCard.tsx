@@ -39,6 +39,33 @@ const prettyPhone = (phone: string | null) => {
   return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${rest.slice(0, rest.length - 4)}-${rest.slice(-4)}`;
 };
 
+type ProviderId = 'WAPI' | 'META';
+type ProviderCardOption = {
+  provider: ProviderId;
+  available: boolean;
+};
+
+export function whatsappProviderBadge(item: ProviderCardOption, selectedProvider: ProviderId) {
+  if (selectedProvider === item.provider) return 'Selecionado';
+  return item.available ? 'Disponível' : 'Indisponível';
+}
+
+export function whatsappProviderBadgeState(item: ProviderCardOption, selectedProvider: ProviderId) {
+  if (selectedProvider === item.provider) return 'is-selected';
+  return item.available ? 'is-available' : 'is-unavailable';
+}
+
+export function whatsappProviderDraftMessage(selectedProvider: ProviderId, activeProvider: ProviderId) {
+  if (selectedProvider === activeProvider) return null;
+  return selectedProvider === 'META'
+    ? 'Meta ainda não configurada. Salve a Meta Cloud API para tornar este método ativo.'
+    : 'W-API selecionada apenas para visualização. Clique em Usar W-API para reativar este método.';
+}
+
+export function shouldShowWapiActivation(selectedProvider: ProviderId, activeProvider: ProviderId) {
+  return selectedProvider === 'WAPI' && activeProvider !== 'WAPI';
+}
+
 /**
  * Conexão do WhatsApp pelo painel: criar a instância, ler o QR, acompanhar o
  * status, desconectar e reconectar. Nenhuma credencial do provedor passa por
@@ -88,8 +115,9 @@ export function WhatsAppConnectionCard({
   const activeProvider = connection.data?.provider ?? 'WAPI';
   const available = connection.data?.available ?? true;
   const provisioned = connection.data?.provisioned ?? false;
-  const currentProvider = selectedProvider === activeProvider ? activeProvider : selectedProvider;
-  const selectedProviderOption = providers.data?.items.find((item) => item.provider === currentProvider);
+  const selectedProviderOption = providers.data?.items.find((item) => item.provider === selectedProvider);
+  const selectedProviderIsActive = selectedProvider === activeProvider;
+  const draftMessage = whatsappProviderDraftMessage(selectedProvider, activeProvider);
 
   useEffect(() => {
     if (connection.data?.provider !== undefined) setSelectedProvider(connection.data.provider);
@@ -118,7 +146,7 @@ export function WhatsAppConnectionCard({
       httpClient.request('/tenant/integrations/whatsapp/provider', {
         method: 'PUT',
         body: UpdateWhatsAppProviderSchema.parse(
-          currentProvider === 'WAPI'
+          selectedProvider === 'WAPI'
               ? { provider: 'WAPI' }
             : {
                 provider: 'META',
@@ -132,7 +160,7 @@ export function WhatsAppConnectionCard({
         tenantPublicId,
       }),
     onSuccess: async () => {
-      setNotice(currentProvider === 'META' ? 'Configuração Meta salva.' : 'Método W-API selecionado.');
+      setNotice(selectedProvider === 'META' ? 'Configuração Meta salva.' : 'Método W-API selecionado.');
       await refresh();
     },
   });
@@ -192,7 +220,7 @@ export function WhatsAppConnectionCard({
           <button
             key={item.provider}
             type="button"
-            className={`whatsapp-provider-option ${currentProvider === item.provider ? 'is-selected' : ''}`}
+            className={`whatsapp-provider-option ${selectedProvider === item.provider ? 'is-selected' : ''}`}
             disabled={!item.available}
             onClick={() => {
               if (!item.available) return;
@@ -200,24 +228,32 @@ export function WhatsAppConnectionCard({
               setQrCode(null);
             }}
           >
-            <span>{item.label}</span>
+            <span className="whatsapp-provider-option__label">{item.label}</span>
             <strong>{item.provider === 'META' ? 'Meta Cloud API' : 'W-API'}</strong>
             <small>{item.description}</small>
-            <em>{item.available ? 'Disponível' : 'Indisponível no momento'}</em>
+            <em
+              className={`whatsapp-provider-option__badge ${whatsappProviderBadgeState(item, selectedProvider)}`}
+            >
+              {whatsappProviderBadge(item, selectedProvider)}
+            </em>
           </button>
         ))}
       </div>
       {selectedProviderOption?.available === false ? (
-        <p className="ds-form-hint">Este método ainda não está disponível no servidor.</p>
+        <p className="ds-form-hint">Meta Cloud API ainda não configurada no servidor.</p>
       ) : null}
-      <p className="whatsapp-card__status">
-        <span aria-hidden="true">{STATE_DOT[state] ?? '⚪'}</span>
-        <strong>{STATE_LABEL[state] ?? 'Não conectado'}</strong>
-      </p>
-      {connection.data?.legacy === true && state !== 'CONNECTED' ? (
+      {selectedProviderIsActive ? (
+        <p className="whatsapp-card__status">
+          <span aria-hidden="true">{STATE_DOT[state] ?? '⚪'}</span>
+          <strong>{STATE_LABEL[state] ?? 'Não conectado'}</strong>
+        </p>
+      ) : (
+        <p className="whatsapp-card__draft-status">{draftMessage}</p>
+      )}
+      {selectedProviderIsActive && connection.data?.legacy === true && state !== 'CONNECTED' ? (
         <p className="ds-form-hint">Configuração existente. Verifique o status para confirmar.</p>
       ) : null}
-      {state === 'CONNECTED' && connection.data !== undefined ? (
+      {selectedProviderIsActive && state === 'CONNECTED' && connection.data !== undefined ? (
         <div className="whatsapp-card__connected">
           {connection.data.connectedPhone === null ? null : (
             <p>
@@ -242,7 +278,7 @@ export function WhatsAppConnectionCard({
           <small>Atendimento automático ativo.</small>
         </div>
       ) : null}
-      {currentProvider === 'META' ? (
+      {selectedProvider === 'META' ? (
         <div className="whatsapp-meta-form">
           <label>
             Phone Number ID
@@ -281,13 +317,13 @@ export function WhatsAppConnectionCard({
           </p>
         </div>
       ) : null}
-      {currentProvider === 'WAPI' && state === 'NOT_CREATED' ? (
+      {selectedProvider === 'WAPI' && selectedProviderIsActive && state === 'NOT_CREATED' ? (
         <p className="ds-form-hint">
           Você conecta seu número escaneando um QR Code. Não é necessário criar conta em outro
           serviço.
         </p>
       ) : null}
-      {currentProvider === 'WAPI' && state === 'CREATED' ? (
+      {selectedProvider === 'WAPI' && selectedProviderIsActive && state === 'CREATED' ? (
         <p className="ds-form-hint">
           Agora conecte o WhatsApp que será usado pelo estabelecimento.
         </p>
@@ -303,7 +339,7 @@ export function WhatsAppConnectionCard({
       )}
       {canManage ? (
         <div className="form-row whatsapp-card__actions">
-          {currentProvider === 'META' ? (
+          {selectedProvider === 'META' ? (
             <button
               className="primary-button"
               type="button"
@@ -315,7 +351,7 @@ export function WhatsAppConnectionCard({
               {updateProvider.isPending ? 'Salvando Meta…' : 'Salvar Meta Cloud API'}
             </button>
           ) : null}
-          {currentProvider === 'META' && activeProvider === 'META' ? (
+          {selectedProvider === 'META' && activeProvider === 'META' ? (
             <button
               className="secondary-button"
               type="button"
@@ -327,7 +363,7 @@ export function WhatsAppConnectionCard({
               {createInstance.isPending ? 'Validando configuração…' : 'Validar configuração'}
             </button>
           ) : null}
-          {currentProvider === 'WAPI' && activeProvider !== 'WAPI' ? (
+          {shouldShowWapiActivation(selectedProvider, activeProvider) ? (
             <button
               className="secondary-button"
               type="button"
@@ -339,7 +375,7 @@ export function WhatsAppConnectionCard({
               Usar W-API
             </button>
           ) : null}
-          {currentProvider === 'WAPI' && state === 'NOT_CREATED' ? (
+          {selectedProvider === 'WAPI' && selectedProviderIsActive && state === 'NOT_CREATED' ? (
             <button
               className="primary-button"
               type="button"
@@ -351,7 +387,7 @@ export function WhatsAppConnectionCard({
               {createInstance.isPending ? 'Criando conexão…' : 'Conectar WhatsApp'}
             </button>
           ) : null}
-          {currentProvider === 'WAPI' && (state === 'CREATED' || state === 'WAITING_QR') ? (
+          {selectedProvider === 'WAPI' && selectedProviderIsActive && (state === 'CREATED' || state === 'WAITING_QR') ? (
             <button
               className="primary-button"
               type="button"
@@ -363,7 +399,7 @@ export function WhatsAppConnectionCard({
               {requestQr.isPending ? 'Gerando QR Code…' : 'Gerar QR Code'}
             </button>
           ) : null}
-          {currentProvider === 'WAPI' && (state === 'DISCONNECTED' || state === 'ERROR') ? (
+          {selectedProvider === 'WAPI' && selectedProviderIsActive && (state === 'DISCONNECTED' || state === 'ERROR') ? (
             <button
               className="primary-button"
               type="button"
@@ -375,7 +411,7 @@ export function WhatsAppConnectionCard({
               {requestQr.isPending ? 'Gerando QR Code…' : 'Reconectar'}
             </button>
           ) : null}
-          {provisioned ? (
+          {selectedProviderIsActive && provisioned ? (
             <button
               className="secondary-button"
               type="button"
@@ -388,7 +424,7 @@ export function WhatsAppConnectionCard({
               {connection.isFetching ? 'Atualizando…' : 'Atualizar status'}
             </button>
           ) : null}
-          {state === 'CONNECTED' ? (
+          {selectedProviderIsActive && state === 'CONNECTED' ? (
             <button
               className="text-button"
               type="button"

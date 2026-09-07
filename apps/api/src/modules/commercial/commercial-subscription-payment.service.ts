@@ -44,6 +44,12 @@ export class CommercialSubscriptionPaymentService {
         return { generated: 0, reason: 'No commercial assignment' };
       }
 
+      // A carteira só participa de pagamentos confirmados a partir do vínculo.
+      // Isso impede que a atribuição tardia de um tenant gere comissão sobre histórico anterior.
+      if (input.paidAt < assignment.assignedAt) {
+        return { generated: 0, reason: 'Payment predates commercial assignment', skipped: true };
+      }
+
       // 2. Get subscription & plan
       const subscription = await tx.tenantSubscription.findUnique({
         where: { id: input.subscriptionId },

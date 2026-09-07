@@ -47,6 +47,16 @@ const TenantParamsSchema = z.object({
   tenantPublicId: z.string().uuid(),
 });
 
+function assertCommissionWithinCap(requestedBps: number, capBps: number): void {
+  if (requestedBps > capBps) {
+    throw new AppError({
+      code: 'COMMISSION_LIMIT_EXCEEDED',
+      message: `A comissão informada não pode exceder ${(Math.max(0, capBps) / 100).toFixed(2)}%, o limite disponível nesta hierarquia.`,
+      statusCode: 400,
+    });
+  }
+}
+
 async function resolveUserIdFromInput(
   input: { userPublicId?: string | undefined; email?: string | undefined },
   prisma: PrismaClient,
@@ -71,6 +81,16 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
   await app.register(authenticationPlugin, {
     service: options.authService,
     cookieName: options.cookieName,
+  });
+
+  app.get('/commercial/region', async (request) => {
+    const auth = request.auth as AuthRequestContext;
+    if (!auth?.user?.id) throw new AppError({ code: 'AUTH_REQUIRED', message: 'Autenticação obrigatória', statusCode: 401 });
+    const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+    if (!scope || scope.type === 'GLOBAL') throw new AppError({ code: 'NOT_COMMERCIAL_USER', message: 'Usuário não tem conta comercial', statusCode: 403 });
+    const region = await options.prisma.commercialRegion.findFirst({ where: { managerId: scope.managerId, active: true }, include: { cities: { orderBy: { city: 'asc' }, take: 1 } }, orderBy: { name: 'asc' } });
+    const city = region?.cities[0];
+    return { city: city?.city ?? null, state: city?.state ?? null };
   });
 
   app.get(
@@ -923,6 +943,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         });
       }
 
+      assertCommissionWithinCap(request.body.defaultCommissionBps, manager.defaultCommissionBps);
+
       const normalized = request.body.email.toLowerCase();
       const existingUser = await options.prisma.user.findUnique({
         where: { normalizedEmail: normalized },
@@ -1059,6 +1081,7 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
       }
 
       let parentId = manager.id;
+      let representativeCommissionBps = 0;
 
       if (request.body.representativePublicId) {
         const representative = await options.prisma.commercialAccount.findUnique({
@@ -1082,7 +1105,13 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         }
 
         parentId = representative.id;
+        representativeCommissionBps = representative.defaultCommissionBps;
       }
+
+      assertCommissionWithinCap(
+        request.body.defaultCommissionBps,
+        manager.defaultCommissionBps - representativeCommissionBps,
+      );
 
       const normalized = request.body.email.toLowerCase();
       const existingUser = await options.prisma.user.findUnique({
@@ -1222,6 +1251,26 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
       }
       if (!isManaged) {
         throw new AppError({ code: 'FORBIDDEN', message: 'Acesso negado', statusCode: 403 });
+      }
+
+      if (request.body.defaultCommissionBps !== undefined && account.id !== manager.id) {
+        let capBps = manager.defaultCommissionBps;
+
+        if (account.role === 'SELLER' && account.parentId) {
+          const parent = await options.prisma.commercialAccount.findUnique({ where: { id: account.parentId } });
+          if (parent?.role === 'REPRESENTATIVE') capBps -= parent.defaultCommissionBps;
+        }
+
+        if (account.role === 'REPRESENTATIVE') {
+          const sellers = await options.prisma.commercialAccount.findMany({
+            where: { parentId: account.id, role: 'SELLER' },
+            select: { defaultCommissionBps: true },
+          });
+          const largestSellerBps = Math.max(0, ...sellers.map((seller) => seller.defaultCommissionBps));
+          capBps -= largestSellerBps;
+        }
+
+        assertCommissionWithinCap(request.body.defaultCommissionBps, capBps);
       }
 
       const updateData: any = {};

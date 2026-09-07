@@ -28,6 +28,7 @@ import { canAccessUnit } from './unit-scope.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { TenantTerritoryAssignmentService } from '../commercial/tenant-territory-assignment.service.js';
 
 interface TenantRoutesOptions {
   service: TenantService;
@@ -249,6 +250,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
         request.body,
         actor(request),
       );
+      await new TenantTerritoryAssignmentService(options.client).assignTenantByTerritory(request.tenant.id);
       return reply.status(201).send({ unit });
     },
   );
@@ -272,6 +274,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
         request.body,
         actor(request),
       );
+      await new TenantTerritoryAssignmentService(options.client).assignTenantByTerritory(request.tenant.id);
       return { unit };
     },
   );

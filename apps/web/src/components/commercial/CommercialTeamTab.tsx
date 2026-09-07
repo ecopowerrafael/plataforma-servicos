@@ -202,6 +202,14 @@ export function CommercialTeamTab({ role }: CommercialTeamTabProps) {
 
   const data = team.data as TeamData;
   const isEmpty = data.representatives.length === 0 && data.directSellers.length === 0;
+  const managerCommission = data.manager.defaultCommissionBps / 100;
+  const maximumForAccount = (account: TeamMember) => {
+    const parentRep = data.representatives.find((rep) => rep.sellers.some((seller) => seller.publicId === account.publicId));
+    if (account.role === 'REPRESENTATIVE') {
+      return managerCommission - Math.max(0, ...data.representatives.find((rep) => rep.publicId === account.publicId)?.sellers.map((seller) => seller.defaultCommissionBps / 100) ?? [0]);
+    }
+    return parentRep ? managerCommission - (parentRep.defaultCommissionBps / 100) : managerCommission;
+  };
 
   const getName = (m: TeamMember) => m.displayName || m.email;
 
@@ -365,6 +373,7 @@ export function CommercialTeamTab({ role }: CommercialTeamTabProps) {
       {showCreateRep && (
         <CreateModal
           title="Novo Representante"
+          maxCommission={managerCommission}
           isLoading={isLoading}
           error={createError}
           onClose={() => setShowCreateRep(false)}
@@ -376,6 +385,7 @@ export function CommercialTeamTab({ role }: CommercialTeamTabProps) {
       {showCreateSeller && (
         <CreateSellerModal
           representatives={data.representatives}
+          managerCommission={managerCommission}
           isLoading={isLoading}
           error={createError}
           onClose={() => setShowCreateSeller(false)}
@@ -386,6 +396,7 @@ export function CommercialTeamTab({ role }: CommercialTeamTabProps) {
       {editingAccount && (
         <EditModal
           account={editingAccount}
+          maxCommission={maximumForAccount(editingAccount)}
           isLoading={isLoading}
           error={actionError}
           onClose={() => setEditingAccount(null)}
@@ -478,6 +489,7 @@ function CreateModal({
   error,
   onClose,
   onSubmit,
+  maxCommission,
   showParentSelector = false,
 }: {
   title: string;
@@ -485,13 +497,14 @@ function CreateModal({
   error: string;
   onClose: () => void;
   onSubmit: (data: any) => void;
+  maxCommission: number;
   showParentSelector?: boolean;
 }) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [commission, setCommission] = useState(10);
+  const [commission, setCommission] = useState(Math.min(10, maxCommission));
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -503,8 +516,8 @@ function CreateModal({
         <input type="tel" placeholder="Telefone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading} />
         <input type="password" placeholder="Senha (mín. 8 caracteres)" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
         <div>
-          <label>Comissão: {commission.toFixed(2)}%</label>
-          <input type="range" min="0" max="100" step="0.01" value={commission} onChange={(e) => setCommission(parseFloat(e.target.value))} disabled={isLoading} />
+          <label>Comissão: {commission.toFixed(2)}% (máximo: {maxCommission.toFixed(2)}%)</label>
+          <input type="range" min="0" max={maxCommission} step="0.01" value={commission} onChange={(e) => setCommission(parseFloat(e.target.value))} disabled={isLoading} />
         </div>
         <div className="modal-actions">
           <button onClick={onClose} disabled={isLoading}>Cancelar</button>
@@ -520,12 +533,14 @@ function CreateModal({
 
 function CreateSellerModal({
   representatives,
+  managerCommission,
   isLoading,
   error,
   onClose,
   onSubmit,
 }: {
   representatives: any[];
+  managerCommission: number;
   isLoading: boolean;
   error: string;
   onClose: () => void;
@@ -538,6 +553,10 @@ function CreateSellerModal({
   const [commission, setCommission] = useState(5);
   const [parentType, setParentType] = useState<'direct' | 'representative'>('direct');
   const [selectedRep, setSelectedRep] = useState('');
+  const selectedRepresentative = representatives.find((rep) => rep.publicId === selectedRep);
+  const maxCommission = parentType === 'representative' && selectedRepresentative
+    ? Math.max(0, managerCommission - selectedRepresentative.defaultCommissionBps / 100)
+    : managerCommission;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -549,8 +568,8 @@ function CreateSellerModal({
         <input type="tel" placeholder="Telefone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading} />
         <input type="password" placeholder="Senha (mín. 8 caracteres)" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
         <div>
-          <label>Comissão: {commission.toFixed(2)}%</label>
-          <input type="range" min="0" max="100" step="0.01" value={commission} onChange={(e) => setCommission(parseFloat(e.target.value))} disabled={isLoading} />
+          <label>Comissão: {Math.min(commission, maxCommission).toFixed(2)}% (máximo: {maxCommission.toFixed(2)}%)</label>
+          <input type="range" min="0" max={maxCommission} step="0.01" value={Math.min(commission, maxCommission)} onChange={(e) => setCommission(parseFloat(e.target.value))} disabled={isLoading} />
         </div>
         <div>
           <label>Vinculado a:</label>
@@ -572,7 +591,7 @@ function CreateSellerModal({
         <div className="modal-actions">
           <button onClick={onClose} disabled={isLoading}>Cancelar</button>
           <button
-            onClick={() => onSubmit({ email, name, phone, password, commission, parentType, representativePublicId: selectedRep || undefined })}
+            onClick={() => onSubmit({ email, name, phone, password, commission: Math.min(commission, maxCommission), parentType, representativePublicId: selectedRep || undefined })}
             disabled={isLoading || !email || !password || (parentType === 'representative' && !selectedRep)}
             className="btn-primary"
           >
@@ -591,16 +610,18 @@ function EditModal({
   error,
   onClose,
   onSubmit,
+  maxCommission,
 }: {
   account: any;
   isLoading: boolean;
   error: string;
   onClose: () => void;
   onSubmit: (data: any) => void;
+  maxCommission: number;
 }) {
   const [displayName, setDisplayName] = useState(account.displayName || '');
   const [phone, setPhone] = useState(account.phone || '');
-  const [commission, setCommission] = useState(account.defaultCommissionBps / 100);
+  const [commission, setCommission] = useState(Math.min(account.defaultCommissionBps / 100, maxCommission));
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -610,8 +631,8 @@ function EditModal({
         <input type="text" placeholder="Nome" value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={isLoading} />
         <input type="tel" placeholder="Telefone" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isLoading} />
         <div>
-          <label>Comissão: {commission.toFixed(2)}%</label>
-          <input type="range" min="0" max="100" step="0.01" value={commission} onChange={(e) => setCommission(parseFloat(e.target.value))} disabled={isLoading} />
+          <label>Comissão: {commission.toFixed(2)}% (máximo: {maxCommission.toFixed(2)}%)</label>
+          <input type="range" min="0" max={maxCommission} step="0.01" value={commission} onChange={(e) => setCommission(parseFloat(e.target.value))} disabled={isLoading} />
         </div>
         <div className="modal-actions">
           <button onClick={onClose} disabled={isLoading}>Cancelar</button>

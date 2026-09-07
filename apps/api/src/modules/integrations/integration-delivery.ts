@@ -5,6 +5,7 @@ import { isIP } from 'node:net';
 import { mapWapiConnectionResponse, mapWapiTransportError, type WhatsAppConnectionResult } from './whatsapp-connection.js';
 import { sanitizePayload } from './whatsapp-inbound.js';
 import { type WhatsAppMessageStatus } from './whatsapp-message-status.js';
+import { type WhatsAppDeliveryProvider, WAPI_WHATSAPP_CAPABILITIES } from './whatsapp-provider.js';
 import { WapiSendTextClient } from './wapi-send-text-client.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
@@ -60,7 +61,7 @@ export interface WhatsAppOperationResult {
   queuedId: string | null;
 }
 
-export interface WhatsAppDelivery {
+export interface WhatsAppDelivery extends WhatsAppDeliveryProvider {
   send(tenantId: bigint, to: string, text: string): Promise<void>;
   testConnection(tenantId: bigint, input?: {instanceId?:string|undefined;token?:string|undefined}): Promise<WhatsAppConnectionResult>;
   sendInteractiveButtons(
@@ -187,6 +188,9 @@ function mapOperationTransportError(error: unknown): WhatsAppOperationResult {
 }
 
 export class WApiWhatsAppDelivery implements WhatsAppDelivery {
+  public readonly provider = 'WAPI' as const;
+  public readonly capabilities = WAPI_WHATSAPP_CAPABILITIES;
+
   private readonly wapiClient: WapiSendTextClient;
 
   public constructor(

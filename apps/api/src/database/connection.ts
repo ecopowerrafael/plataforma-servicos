@@ -47,6 +47,11 @@ import { IntegrationRepository } from '../modules/integrations/integration.repos
 import { IntegrationService } from '../modules/integrations/integration.service.js';
 import { WApiIntegrationService, type WapiCredentialProvider } from '../modules/integrations/wapi-integration.service.js';
 import { WapiMasterCredentialProvider } from '../modules/integrations/wapi-master-credential-provider.js';
+import { WhatsAppConnectionService } from '../modules/integrations/whatsapp-connection.service.js';
+import { MetaWhatsAppConnection } from '../modules/integrations/meta-whatsapp-connection.js';
+import { MetaWhatsAppDelivery } from '../modules/integrations/meta-whatsapp-delivery.js';
+import { ProviderResolvedWhatsAppDelivery } from '../modules/integrations/whatsapp-provider-delivery.js';
+import { WhatsAppProviderResolver } from '../modules/integrations/whatsapp-provider-resolver.js';
 import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
 import { WapiConfigService } from '../modules/platform/wapi-config.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
@@ -190,6 +195,7 @@ export interface DatabaseConnection {
   readonly prospectingRepository?: ProspectingRepository;
   readonly prospectingWhatsAppConfig?: ProspectingWhatsAppConfigService;
   readonly whatsappProvisioning?: WhatsAppProvisioningService;
+  readonly whatsappConnection?: WhatsAppConnectionService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
   readonly appointmentReminderConfig?: AppointmentReminderConfigService;
@@ -385,6 +391,7 @@ export function createDatabaseConnection(
       ? undefined
       : new CredentialsCipher(customerAuthOptions.paymentGatewayEncryptionKey);
   const whatsappDelivery = new WApiWhatsAppDelivery(client, credentialsCipher);
+  const metaWhatsAppDelivery = new MetaWhatsAppDelivery(client, credentialsCipher);
   // Provisionamento da instância: chave mestra resolvida dinamicamente em runtime
   const wapiCredentialProvider: WapiCredentialProvider = new WapiMasterCredentialProvider(
     client,
@@ -397,6 +404,15 @@ export function createDatabaseConnection(
     credentialsCipher,
     customerAuthOptions?.appWebUrl,
   );
+  const whatsappProviderResolver = new WhatsAppProviderResolver(client, {
+    delivery: whatsappDelivery,
+    provisioning: whatsappProvisioning,
+  }, {
+    delivery: metaWhatsAppDelivery,
+    provisioning: new MetaWhatsAppConnection(client, credentialsCipher),
+  });
+  const providerResolvedWhatsAppDelivery = new ProviderResolvedWhatsAppDelivery(whatsappProviderResolver);
+  const whatsappConnection = new WhatsAppConnectionService(whatsappProviderResolver, client, credentialsCipher);
   const wapiConfigService = new WapiConfigService(
     client,
     credentialsCipher,
@@ -405,7 +421,7 @@ export function createDatabaseConnection(
   const notifications = new NotificationService(client, {
     email: emailDelivery,
     push: pushDelivery,
-    whatsapp: whatsappDelivery,
+    whatsapp: providerResolvedWhatsAppDelivery,
     webhook: new WebhookDelivery(client, credentialsCipher),
   });
   const notificationTemplates = new NotificationTemplateService(client);
@@ -499,7 +515,7 @@ export function createDatabaseConnection(
   const treatmentPlanReminders = new TreatmentPlanReminderService(
     new TreatmentPlanReminderRepository(client),
     new IntegrationRepository(client),
-    whatsappDelivery,
+    providerResolvedWhatsAppDelivery,
   );
   // Injeta o serviço de lembretes no serviço de planos
   treatmentPlans.setReminderService(treatmentPlanReminders);
@@ -578,6 +594,7 @@ export function createDatabaseConnection(
     prospectingRepository: new ProspectingRepository(client),
     ...(credentialsCipher ? { prospectingWhatsAppConfig: new ProspectingWhatsAppConfigService(client, credentialsCipher) } : {}),
     whatsappProvisioning,
+    whatsappConnection,
     appointmentNotifications: appointmentNotifications,
     treatmentPlanNotifications,
     appointmentReminderConfig: appointmentReminderConfig,
@@ -606,7 +623,7 @@ export function createDatabaseConnection(
     integrations: new IntegrationService(
       new IntegrationRepository(client),
       credentialsCipher,
-      whatsappDelivery,
+      providerResolvedWhatsAppDelivery,
       appointments,
       availability,
       tenantWhiteLabel,
@@ -619,6 +636,7 @@ export function createDatabaseConnection(
       client,
       credentialsCipher ? new ProspectingWhatsAppConfigService(client, credentialsCipher) : undefined,
       environment,
+      whatsappProviderResolver,
     ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,

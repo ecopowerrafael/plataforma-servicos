@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import test from 'node:test';
+import { test } from 'vitest';
 
 import { type IntegrationRepository } from './integration.repository.js';
 import { routeAction } from './whatsapp-action-router.js';
@@ -8,14 +8,19 @@ import {
   conversationExpiresAt,
   conversationIsUsable,
   greetingMessage,
-  MAIN_MENU_ACTIONS,
 } from './whatsapp-assistant.js';
+import { DEFAULT_WHATSAPP_ASSISTANT_CONFIG } from './whatsapp-assistant-config.js';
 import { WhatsAppAssistantService } from './whatsapp-assistant.service.js';
 import { normalizeWApiWebhook } from './whatsapp-inbound.js';
 import { AppointmentService } from '../appointments/appointment.service.js';
 import { IntegrationService } from './integration.service.js';
 
 import type { WhatsAppDelivery } from './integration-delivery.js';
+
+const defaultMenuActionIds = DEFAULT_WHATSAPP_ASSISTANT_CONFIG.menu.buttons
+  .filter((button) => button.enabled)
+  .sort((a, b) => a.order - b.order)
+  .map((button) => button.actionId);
 
 /** Acesso indexado com verificação, para não espalhar optional chaining. */
 const at = <T>(items: T[], index: number): T => {
@@ -220,7 +225,8 @@ void test('mensagem nova cria conversa e envia saudação com o menu', async () 
   assert.equal(at(conversations, 0).status, 'ACTIVE');
   assert.equal(at(conversations, 0).currentFlow, 'MAIN_MENU');
   assert.equal(sent.length, 1);
-  assert.equal(at(sent, 0).buttons, MAIN_MENU_ACTIONS.length);
+  assert.equal(at(sent, 0).buttons, defaultMenuActionIds.length);
+  assert.deepEqual(at(sent, 0).actionIds, defaultMenuActionIds);
   assert.equal(at(sent, 0).message.includes('Studio Bela'), true);
 });
 
@@ -266,7 +272,8 @@ void test('conversa expirada abre sessão nova com saudação', async () => {
   await handle(new WhatsAppAssistantService(repository, delivery));
   assert.equal(conversations.length, 2);
   assert.equal(at(conversations, 0).status, 'CLOSED');
-  assert.equal(at(sent, 0).buttons, MAIN_MENU_ACTIONS.length);
+  assert.equal(at(sent, 0).buttons, defaultMenuActionIds.length);
+  assert.deepEqual(at(sent, 0).actionIds, defaultMenuActionIds);
 });
 
 void test('conversa de outro tenant não é reaproveitada', async () => {

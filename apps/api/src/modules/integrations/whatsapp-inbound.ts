@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { type WhatsAppInboundNormalizer, WAPI_WHATSAPP_CAPABILITIES } from './whatsapp-provider.js';
+
 /**
  * Normalização e sanitização dos webhooks de WhatsApp.
  *
@@ -87,6 +89,7 @@ export function mapStatusValue(value: string | null): WhatsAppEventType | null {
 }
 
 export interface NormalizedWhatsAppEvent {
+  provider: 'WAPI' | 'META';
   /** Tipo interno. `null` quando o evento não é de nosso interesse. */
   eventType: WhatsAppEventType | null;
   /** Nome cru do evento, guardado só para diagnóstico. */
@@ -151,6 +154,7 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
   const index = reply.selectedIndex;
 
   return {
+    provider: 'WAPI',
     eventType,
     providerEvent,
     instanceId: text(root.instanceId, 80),
@@ -172,6 +176,15 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
     }),
     payload,
   };
+}
+
+export class WApiInboundNormalizer implements WhatsAppInboundNormalizer {
+  public readonly provider = 'WAPI' as const;
+  public readonly capabilities = WAPI_WHATSAPP_CAPABILITIES;
+
+  public normalize(raw: unknown): NormalizedWhatsAppEvent {
+    return normalizeWApiWebhook(raw);
+  }
 }
 
 /**

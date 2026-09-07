@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { expect, test } from 'vitest';
 
 import { IntegrationService } from './integration.service.js';
 
@@ -98,11 +97,11 @@ void test('clique numa mensagem de cobrança roteia para handleWhatsAppResponse,
 
   const result = await service.ingestWhatsappInbound(buttonClick(2));
 
-  assert.equal(result.accepted, true);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0]?.tenantId, 7n);
-  assert.equal(calls[0]?.collectionAttemptPublicId, 'attempt-public-id');
-  assert.equal(calls[0]?.actionId, 'COLLECTION_HUMAN_SUPPORT');
+  expect(result.accepted).toBe(true);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.tenantId).toBe(7n);
+  expect(calls[0]?.collectionAttemptPublicId).toBe('attempt-public-id');
+  expect(calls[0]?.actionId).toBe('COLLECTION_HUMAN_SUPPORT');
 });
 
 void test('clique numa mensagem que não é de cobrança segue o fluxo normal (assistente), sem chamar handleWhatsAppResponse', async () => {
@@ -159,8 +158,8 @@ void test('clique numa mensagem que não é de cobrança segue o fluxo normal (a
 
   const result = await service.ingestWhatsappInbound(buttonClick(0));
 
-  assert.equal(result.accepted, true);
-  assert.equal('collectionResponseHandled' in result, false);
+  expect(result.accepted).toBe(true);
+  expect('collectionResponseHandled' in result).toBe(false);
 });
 
 void test('clique em resposta imediata (collection_reply) roteia para handleWhatsAppDebtResponse com debtPublicId', async () => {
@@ -182,9 +181,9 @@ void test('clique em resposta imediata (collection_reply) roteia para handleWhat
 
   const result = await service.ingestWhatsappInbound(buttonClick(1));
 
-  assert.equal(result.accepted, true);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0]?.tenantId, 7n);
-  assert.equal(calls[0]?.debtPublicId, 'debt-public-id-123');
-  assert.equal(calls[0]?.actionId, 'COLLECTION_PARTIAL_30');
+  expect(result.accepted).toBe(true);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.tenantId).toBe(7n);
+  expect(calls[0]?.debtPublicId).toBe('debt-public-id-123');
+  expect(calls[0]?.actionId).toBe('COLLECTION_PARTIAL_30');
 });

@@ -5,6 +5,7 @@ import {
   WApiProviderError,
   type WApiIntegrationService,
 } from './wapi-integration.service.js';
+import { type WhatsAppProvisioningProvider, WAPI_WHATSAPP_CAPABILITIES } from './whatsapp-provider.js';
 import { whatsappWebhookPath } from './whatsapp-webhook.routes.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -21,6 +22,7 @@ export type WhatsAppConnectionState =
   | 'ERROR';
 
 export interface WhatsAppConnectionView {
+  provider: 'WAPI' | 'META';
   available: boolean;
   provisioned: boolean;
   state: WhatsAppConnectionState;
@@ -63,10 +65,13 @@ function friendly(error: unknown): AppError {
  * segredo da instância é gravado cifrado com a mesma chave das demais
  * credenciais.
  */
-export class WhatsAppProvisioningService {
+export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider {
+  public readonly provider = 'WAPI' as const;
+  public readonly capabilities = WAPI_WHATSAPP_CAPABILITIES;
+
   public constructor(
     private readonly client: PrismaClient,
-    private readonly provider: WApiIntegrationService,
+    private readonly wapiProvider: WApiIntegrationService,
     private readonly cipher: CredentialsCipher | undefined,
     private readonly appWebUrl = process.env.APP_WEB_URL ?? 'http://localhost:5173',
   ) {}
@@ -106,6 +111,7 @@ export class WhatsAppProvisioningService {
     if (config === null)
       return {
         available,
+        provider: 'WAPI',
         provisioned: false,
         state: 'NOT_CREATED',
         connectedPhone: null,
@@ -116,6 +122,7 @@ export class WhatsAppProvisioningService {
       };
     return {
       available,
+      provider: 'WAPI',
       provisioned: true,
       state: (config.connectionStatus as WhatsAppConnectionState | null) ?? 'CREATED',
       connectedPhone: config.connectedPhone,
@@ -158,7 +165,7 @@ export class WhatsAppProvisioningService {
         where: { id: tenantId },
         select: { slug: true, displayName: true },
       });
-      const instance = await this.provider.createInstance({
+      const instance = await this.wapiProvider.createInstance({
         instanceName: `agendei-${tenant?.slug ?? tenantId.toString()}`,
         webhookUrl: `${this.appWebUrl.replace(/\/+$/u, '')}${whatsappWebhookPath}`,
       });
@@ -191,7 +198,7 @@ export class WhatsAppProvisioningService {
     const config = await this.requireConfig(tenantId);
     const { instanceId, token } = this.credentials(config);
     try {
-      const qrCode = await this.provider.getQrCode(instanceId, token);
+      const qrCode = await this.wapiProvider.getQrCode(instanceId, token);
       const updated = await this.client.tenantWhatsAppConfig.update({
         where: { tenantId },
         data: { connectionStatus: 'WAITING_QR' },
@@ -210,7 +217,7 @@ export class WhatsAppProvisioningService {
     const { instanceId, token } = this.credentials(config);
     const now = new Date();
     try {
-      const status = await this.provider.getInstanceStatus(instanceId, token);
+      const status = await this.wapiProvider.getInstanceStatus(instanceId, token);
       if (!status.connected) {
         const updated = await this.client.tenantWhatsAppConfig.update({
           where: { tenantId },
@@ -223,7 +230,7 @@ export class WhatsAppProvisioningService {
         });
         return this.view(updated, true);
       }
-      const device = await this.provider.getDevice(instanceId, token).catch(() => ({
+      const device = await this.wapiProvider.getDevice(instanceId, token).catch(() => ({
         connectedPhone: null,
         name: null,
       }));
@@ -255,7 +262,7 @@ export class WhatsAppProvisioningService {
     const config = await this.requireConfig(tenantId);
     const { instanceId, token } = this.credentials(config);
     try {
-      await this.provider.disconnect(instanceId, token);
+      await this.wapiProvider.disconnect(instanceId, token);
     } catch (error) {
       // Já desconectado no provedor: o estado local ainda precisa refletir.
       if (!(error instanceof WApiProviderError)) throw friendly(error);

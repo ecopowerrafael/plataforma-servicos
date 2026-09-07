@@ -447,9 +447,9 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.integrations !== undefined) {
     await app.register(integrationRoutes, {
       service: options.database.integrations,
-      ...(options.database.whatsappProvisioning === undefined
+      ...(options.database.whatsappConnection === undefined
         ? {}
-        : { provisioning: options.database.whatsappProvisioning }),
+        : { provisioning: options.database.whatsappConnection }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

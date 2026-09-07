@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { WhatsAppConnectionSchema } from '@plataforma/shared';
 import { httpClient } from '../../lib/http.js';
 import { WhatsAppConnectionCard } from './WhatsAppConnectionCard.js';
 import { WhatsAppAssistantConfigCard } from './WhatsAppAssistantConfigCard.js';
@@ -16,14 +17,15 @@ export function WhatsAppPage({
     queryKey: ['tenant', tenantPublicId, 'whatsapp-status'],
     queryFn: async () => {
       const response = await httpClient.request('/tenant/integrations/whatsapp/status', {
+        schema: WhatsAppConnectionSchema,
         tenantPublicId,
       });
-      return response as { connected: boolean };
+      return response;
     },
     retry: false,
   });
 
-  const whatsappConnected = whatsappStatus?.connected ?? false;
+  const whatsappConnected = whatsappStatus?.state === 'CONNECTED';
 
   return (
     <main className="settings-layout whatsapp-page--redesigned">

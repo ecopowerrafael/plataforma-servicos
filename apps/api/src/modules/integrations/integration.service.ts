@@ -15,6 +15,8 @@ import {
   type WhatsAppMessageStatus,
 } from './whatsapp-message-status.js';
 import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
+import { type WhatsAppProviderResolver } from './whatsapp-provider-resolver.js';
+import { type WhatsAppProviderId } from './whatsapp-provider.js';
 import { type Prisma } from '../../database-client/client.js';
 import { type Environment } from '../../config/environment.js';
 import { AppError } from '../../errors/AppError.js';
@@ -39,6 +41,9 @@ interface Actor {
   // uma FK nullable; nunca inventar um id de sessão que não exista).
   sessionId: bigint | null;
 }
+type WhatsAppConfigByInstance = NonNullable<
+  Awaited<ReturnType<IntegrationRepository['whatsappByInstanceId']>>
+>;
 const whatsappPublic = (
   item: {
     active: boolean;
@@ -104,6 +109,7 @@ export class IntegrationService {
     client?: any, // PrismaClient
     prospectingConfigService?: ProspectingWhatsAppConfigService,
     private readonly environment?: Environment | null,
+    private readonly providerResolver?: WhatsAppProviderResolver,
   ) {
     this.assistant = new WhatsAppAssistantService(
       repository,
@@ -375,46 +381,46 @@ export class IntegrationService {
    * erroneamente para tenant quando instanceId pertence a Prospecting.
    */
   public async ingestWhatsappInbound(raw: unknown) {
-    const event = normalizeWApiWebhook(raw);
+    const received = normalizeWApiWebhook(raw);
 
     // Log de diagnóstico do webhook recebido
     console.log('[WebhookIngest]', {
-      eventType: event.eventType,
-      providerEvent: event.providerEvent,
-      messageType: event.messageType,
-      text: event.text ? event.text.slice(0, 50) : null,
-      phone: event.phone,
-      fromMe: event.fromMe,
-      selectedIndex: event.selectedIndex,
-      selectedDisplayText: event.selectedDisplayText,
+      eventType: received.eventType,
+      providerEvent: received.providerEvent,
+      messageType: received.messageType,
+      text: received.text ? received.text.slice(0, 50) : null,
+      phone: received.phone,
+      fromMe: received.fromMe,
+      selectedIndex: received.selectedIndex,
+      selectedDisplayText: received.selectedDisplayText,
     });
 
-    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
+    if (received.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
 
     // ROTEAMENTO PROSPECTING: checar instância de Prospecting PRIMEIRO
     if (this.prospectingInbound) {
       // Verificar se instância pertence à Prospecção
       const prosConfig = await this.prospectingInbound.getConfig?.();
-      const isProspectingInstance = prosConfig && prosConfig.instanceId === event.instanceId;
+      const isProspectingInstance = prosConfig && prosConfig.instanceId === received.instanceId;
 
       console.log('[WebhookRoute]', {
         toProspecting: true,
-        normalizedEventType: event.eventType,
-        instanceId: event.instanceId,
+        normalizedEventType: received.eventType,
+        instanceId: received.instanceId,
         isProspectingInstance,
       });
 
       if (isProspectingInstance) {
         const prospectingResult = await this.prospectingInbound.processInbound({
-          instanceId: event.instanceId || null,
-          externalMessageId: event.externalMessageId || null,
-          fromPhone: event.phone || null,
-          body: event.text ?? event.selectedDisplayText ?? undefined,
-          fromMe: event.fromMe,
-          timestamp: event.timestamp || undefined,
-          eventType: event.eventType || null,
-          referencedMessageId: event.referencedMessageId ?? null,
-          selectedIndex: event.selectedIndex ?? null,
+          instanceId: received.instanceId || null,
+          externalMessageId: received.externalMessageId || null,
+          fromPhone: received.phone || null,
+          body: received.text ?? received.selectedDisplayText ?? undefined,
+          fromMe: received.fromMe,
+          timestamp: received.timestamp || undefined,
+          eventType: received.eventType || null,
+          referencedMessageId: received.referencedMessageId ?? null,
+          selectedIndex: received.selectedIndex ?? null,
         });
 
         // Se foi processado por Prospecting, retornar resultado
@@ -439,8 +445,41 @@ export class IntegrationService {
     }
 
     // FLUXO TENANT: continuar com comportamento anterior
+    const config = await this.repository.whatsappByInstanceId(received.instanceId);
+    if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN' } as const;
+    const provider = typeof config.provider === 'string' ? config.provider : 'WAPI';
+    const event =
+      this.providerResolver === undefined
+        ? received
+        : this.providerResolver.inbound(provider).normalize(raw);
+    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
+    return this.processTenantWhatsappInbound(config, event);
+  }
+
+  public async ingestWhatsappInboundForProvider(provider: WhatsAppProviderId, raw: unknown) {
+    if (provider === 'WAPI') return this.ingestWhatsappInbound(raw);
+    if (this.providerResolver === undefined)
+      throw new AppError({
+        code: 'WHATSAPP_PROVIDER_NOT_SUPPORTED',
+        message: 'Resolver de provider de WhatsApp indisponivel.',
+        statusCode: 400,
+      });
+    const event = this.providerResolver.inbound(provider).normalize(raw);
+    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
     const config = await this.repository.whatsappByInstanceId(event.instanceId);
     if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN' } as const;
+    const configuredProvider = typeof config.provider === 'string' ? config.provider : 'WAPI';
+    if (configuredProvider !== provider)
+      return { accepted: false, reason: 'PROVIDER_MISMATCH' } as const;
+    return this.processTenantWhatsappInbound(config, event);
+  }
+
+  private async processTenantWhatsappInbound(
+    config: WhatsAppConfigByInstance,
+    event: NormalizedWhatsAppEvent,
+  ) {
+    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
+    if (event.phone === null) return { accepted: false, reason: 'PHONE_MISSING' } as const;
     const tenantId = config.tenantId;
     const existing = await this.repository.inboundEventByFingerprint(tenantId, event.fingerprint);
     if (existing !== null) return { accepted: true, duplicated: true } as const;

@@ -79,6 +79,10 @@ describe('NotificationService enqueue idempotency', () => {
       subject: 'Agendamento criado',
       body: 'Seu agendamento foi criado ✅',
       status: 'PENDING',
+      whatsappButtons: [
+        { actionKey: 'CONFIRM_APPOINTMENT', label: 'Confirmar agendamento', enabled: true, order: 1 },
+        { actionKey: 'RESCHEDULE_APPOINTMENT', label: 'Reagendar', enabled: true, order: 2 },
+      ],
     };
     const sendInteractiveButtons = vi.fn().mockResolvedValue({
       externalMessageId: 'message-1', status: 'SENT', errorCode: null,

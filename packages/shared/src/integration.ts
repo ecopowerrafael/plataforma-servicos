@@ -1,5 +1,38 @@
 import { z } from 'zod';
 
+export const WhatsAppProviderIdSchema = z.enum(['WAPI', 'META']);
+export const WhatsAppProviderCapabilitiesSchema = z.object({
+  qrCode: z.boolean(),
+  autoProvision: z.boolean(),
+  interactiveMessages: z.boolean(),
+  templates: z.boolean(),
+  official: z.boolean(),
+});
+export const WhatsAppProviderOptionSchema = z.object({
+  provider: WhatsAppProviderIdSchema,
+  label: z.string(),
+  description: z.string(),
+  available: z.boolean(),
+  capabilities: WhatsAppProviderCapabilitiesSchema,
+});
+export const WhatsAppProvidersResponseSchema = z.object({
+  items: z.array(WhatsAppProviderOptionSchema),
+});
+export const WhatsAppProviderSelectionResponseSchema = z.object({
+  provider: WhatsAppProviderIdSchema,
+  capabilities: WhatsAppProviderCapabilitiesSchema,
+  connection: z.unknown(),
+});
+export const UpdateWhatsAppProviderSchema = z
+  .object({
+    provider: WhatsAppProviderIdSchema,
+    phoneNumberId: z.string().trim().min(3).max(80).optional(),
+    businessAccountId: z.string().trim().min(3).max(80).optional(),
+    accessToken: z.string().trim().min(20).max(4096).optional(),
+    apiVersion: z.string().trim().min(2).max(16).optional(),
+  })
+  .strict();
+
 export const UpsertWhatsAppConfigSchema = z
   .object({
     active: z.boolean(),
@@ -29,6 +62,7 @@ export const WhatsAppConnectionStateSchema = z.enum([
   'ERROR',
 ]);
 export const WhatsAppConnectionSchema = z.object({
+  provider: WhatsAppProviderIdSchema.default('WAPI'),
   available: z.boolean(),
   provisioned: z.boolean(),
   state: WhatsAppConnectionStateSchema,
@@ -38,6 +72,9 @@ export const WhatsAppConnectionSchema = z.object({
   lastStatusCheckAt: z.iso.datetime({ offset: true }).nullable(),
   /** Instância configurada manualmente antes do provisionamento automático. */
   legacy: z.boolean(),
+});
+export const WhatsAppProviderSelectionResultSchema = WhatsAppProviderSelectionResponseSchema.extend({
+  connection: WhatsAppConnectionSchema,
 });
 /** QR é temporário: vem na resposta e não é persistido em lugar nenhum. */
 export const WhatsAppQrCodeSchema = z.object({

@@ -12055,6 +12055,56 @@ h1 {
   gap: 0.45rem;
   margin: 0 0 0.5rem;
 }
+.whatsapp-provider-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 0.85rem 0;
+}
+.whatsapp-provider-option {
+  background: var(--ds-bg-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: 0.5rem;
+  color: inherit;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem;
+  text-align: left;
+}
+.whatsapp-provider-option.is-selected {
+  border-color: var(--ds-color-primary);
+  box-shadow: 0 0 0 1px var(--ds-color-primary);
+}
+.whatsapp-provider-option span {
+  color: var(--ds-text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+.whatsapp-provider-option strong {
+  font-size: 1rem;
+}
+.whatsapp-provider-option small {
+  color: var(--ds-text-muted);
+}
+.whatsapp-provider-option em {
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 700;
+}
+.whatsapp-meta-form {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+}
+.whatsapp-meta-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+.whatsapp-meta-form input {
+  border: 1px solid var(--ds-border);
+  border-radius: 0.5rem;
+  padding: 0.7rem 0.8rem;
+}
 .whatsapp-card__connected {
   display: grid;
   gap: 0.3rem;

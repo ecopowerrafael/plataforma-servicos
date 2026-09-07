@@ -4,6 +4,7 @@ import {
   SuccessResponseSchema,
   UpsertExternalIntegrationSchema,
   UpsertWhatsAppConfigSchema,
+  UpdateWhatsAppProviderSchema,
   WhatsAppButtonTestRequestSchema,
   WhatsAppButtonTestResponseSchema,
   WhatsAppConfigSchema,
@@ -14,14 +15,16 @@ import {
   WhatsAppInstanceDiagnosticsSchema,
   WhatsAppQrCodeSchema,
   WhatsAppLastInboundEventSchema,
+  WhatsAppProviderSelectionResultSchema,
+  WhatsAppProvidersResponseSchema,
   WhatsAppWebhookConfigResponseSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { type IntegrationService } from './integration.service.js';
-import { type WhatsAppProvisioningService } from './whatsapp-provisioning.service.js';
-import { whatsappWebhookPath } from './whatsapp-webhook.routes.js';
+import { type WhatsAppConnectionService } from './whatsapp-connection.service.js';
+import { canonicalWapiWhatsAppWebhookPath } from './whatsapp-webhook.routes.js';
 import { whatsappAssistantConfigRoutes } from './whatsapp-assistant-config.routes.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -35,7 +38,7 @@ const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } 
 });
 export const integrationRoutes: FastifyPluginAsyncZod<{
   service: IntegrationService;
-  provisioning?: WhatsAppProvisioningService;
+  provisioning?: WhatsAppConnectionService;
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
@@ -66,6 +69,27 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
     async (request) => {
       options.authService.requirePermission(request.tenant, 'integration.manage');
       return options.service.updateWhatsapp(request.tenant.id, request.body, actor(request));
+    },
+  );
+  app.get(
+    '/tenant/integrations/whatsapp/providers',
+    { schema: { response: { 200: WhatsAppProvidersResponseSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.read');
+      return provisioning().providers();
+    },
+  );
+  app.put(
+    '/tenant/integrations/whatsapp/provider',
+    {
+      schema: {
+        body: UpdateWhatsAppProviderSchema,
+        response: { 200: WhatsAppProviderSelectionResultSchema },
+      },
+    },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      return provisioning().selectProvider(request.tenant.id, request.body);
     },
   );
   /**
@@ -161,7 +185,7 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
         (typeof forwardedProto === 'string' ? forwardedProto.split(',')[0]?.trim() : undefined) ??
         request.protocol;
       const host = request.headers.host ?? '';
-      const url = `${protocol}://${host}${whatsappWebhookPath}`;
+      const url = `${protocol}://${host}${canonicalWapiWhatsAppWebhookPath}`;
       const result = await options.service.configureWhatsappWebhook(
         request.tenant.id,
         url,

@@ -105,6 +105,10 @@ export function CommercialManagersTab() {
       httpClient.request(`/platform/commercial/managers/${data.publicId}`, { method: 'PATCH', body: data, schema: z.any() }),
     onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['platform', 'commercial', 'accounts'] }); setEditingManager(null); },
   });
+  const deleteManager = useMutation({
+    mutationFn: (publicId: string) => httpClient.request(`/platform/commercial/managers/${publicId}`, { method: 'DELETE', schema: z.object({ success: z.boolean(), mode: z.string() }) }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['platform', 'commercial', 'accounts'] }),
+  });
 
   const citySuggestions = useQuery({
     queryKey: ['platform', 'locations', 'cities', formData.regionState, citySearch],
@@ -570,7 +574,7 @@ export function CommercialManagersTab() {
       <div className="manager-list">
         {managers.data.map((manager) => <article key={manager.publicId}>
           <div><h4>{manager.displayName || manager.email}</h4><p>{manager.email}{manager.phone ? ` · ${manager.phone}` : ''}</p><span className={`status-badge ${manager.active ? 'status-active' : 'status-inactive'}`}>{manager.active ? 'Ativo' : 'Inativo'}</span><p>Comissão: {(manager.defaultCommissionBps / 100).toFixed(2)}% · {manager.regionsCount} regiões · {manager.citiesCount} cidades · {manager.clientsCount} clientes · {manager.representativesCount} representantes · {manager.sellersCount} vendedores</p></div>
-          <div className="manager-actions"><button onClick={() => setEditingManager(manager)}>Editar</button><button onClick={() => setSelectedManager(selectedManager === manager.publicId ? null : manager.publicId)}>Ver equipe</button><button onClick={() => setEditingManager({ ...manager, active: !manager.active })}>{manager.active ? 'Desativar' : 'Ativar'}</button></div>
+          <div className="manager-actions"><button onClick={() => setEditingManager(manager)}>Editar</button><button onClick={() => setSelectedManager(selectedManager === manager.publicId ? null : manager.publicId)}>Ver equipe</button><button onClick={() => setEditingManager({ ...manager, active: !manager.active })}>{manager.active ? 'Desativar' : 'Ativar'}</button><button className="delete-button" onClick={() => { if (confirm(`Excluir gerente ${manager.displayName || manager.email}? Esta ação o desativará para novos vínculos e preservará clientes e histórico.`)) deleteManager.mutate(manager.publicId); }}>Excluir</button></div>
           {selectedManager === manager.publicId && <div className="manager-detail"><strong>Equipe</strong><span>{managerTeam.isPending ? 'Carregando…' : `${managerTeam.data?.representatives.length || 0} representantes · ${managerTeam.data?.directSellers.length || 0} vendedores diretos`}</span><span>Regiões e clientes podem ser consultados nas abas correspondentes.</span></div>}
         </article>)}
       </div>

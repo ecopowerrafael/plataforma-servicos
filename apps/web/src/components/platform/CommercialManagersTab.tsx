@@ -54,6 +54,8 @@ export function CommercialManagersTab() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [citySearch, setCitySearch] = useState('');
+  const [selectedManager, setSelectedManager] = useState<string | null>(null);
+  const [editingManager, setEditingManager] = useState<any | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     email: '',
@@ -77,6 +79,9 @@ export function CommercialManagersTab() {
               z.object({
                 publicId: z.string(),
                 email: z.string(),
+                displayName: z.string().nullable(),
+                phone: z.string().nullable(),
+                regionsCount: z.number(), citiesCount: z.number(), clientsCount: z.number(), representativesCount: z.number(), sellersCount: z.number(),
                 role: z.string(),
                 active: z.boolean(),
                 defaultCommissionBps: z.number(),
@@ -85,6 +90,20 @@ export function CommercialManagersTab() {
           }),
         })
         .then((r) => r.data.filter((m) => m.role === 'MANAGER')),
+  });
+
+  const managerTeam = useQuery({
+    queryKey: ['platform', 'commercial', 'team', selectedManager],
+    enabled: Boolean(selectedManager),
+    queryFn: () => httpClient.request(`/platform/commercial/managers/${selectedManager}/team`, {
+      schema: z.object({ manager: z.any(), representatives: z.array(z.any()), directSellers: z.array(z.any()) }),
+    }),
+  });
+
+  const updateManager = useMutation({
+    mutationFn: (data: { publicId: string; displayName: string; phone: string; defaultCommissionBps: number; active: boolean }) =>
+      httpClient.request(`/platform/commercial/managers/${data.publicId}`, { method: 'PATCH', body: data, schema: z.any() }),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['platform', 'commercial', 'accounts'] }); setEditingManager(null); },
   });
 
   const citySuggestions = useQuery({
@@ -532,6 +551,30 @@ export function CommercialManagersTab() {
         </div>
       )}
 
+      <div className="manager-summary">
+        <div><strong>{managers.data.length}</strong><span>Gerentes</span></div>
+        <div><strong>{managers.data.filter((manager) => manager.active).length}</strong><span>Ativos</span></div>
+      </div>
+
+      {editingManager && (
+        <form className="form-card" onSubmit={(event) => { event.preventDefault(); updateManager.mutate(editingManager); }}>
+          <h4>Editar gerente</h4>
+          <div className="form-group"><label>Nome comercial</label><input value={editingManager.displayName || ''} onChange={(event) => setEditingManager({ ...editingManager, displayName: event.target.value })} /></div>
+          <div className="form-group"><label>Telefone</label><input value={editingManager.phone || ''} onChange={(event) => setEditingManager({ ...editingManager, phone: event.target.value })} /></div>
+          <div className="form-group"><label>Comissão (%)</label><input type="number" min="0" max="100" step="0.01" value={editingManager.defaultCommissionBps / 100} onChange={(event) => setEditingManager({ ...editingManager, defaultCommissionBps: Math.round(Number(event.target.value) * 100) })} /></div>
+          <label className="inline-check"><input type="checkbox" checked={editingManager.active} onChange={(event) => setEditingManager({ ...editingManager, active: event.target.checked })} /> Ativo</label>
+          <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setEditingManager(null)}>Cancelar</button><button className="action-button" disabled={updateManager.isPending}>Salvar alterações</button></div>
+        </form>
+      )}
+
+      <div className="manager-list">
+        {managers.data.map((manager) => <article key={manager.publicId}>
+          <div><h4>{manager.displayName || manager.email}</h4><p>{manager.email}{manager.phone ? ` · ${manager.phone}` : ''}</p><span className={`status-badge ${manager.active ? 'status-active' : 'status-inactive'}`}>{manager.active ? 'Ativo' : 'Inativo'}</span><p>Comissão: {(manager.defaultCommissionBps / 100).toFixed(2)}% · {manager.regionsCount} regiões · {manager.citiesCount} cidades · {manager.clientsCount} clientes · {manager.representativesCount} representantes · {manager.sellersCount} vendedores</p></div>
+          <div className="manager-actions"><button onClick={() => setEditingManager(manager)}>Editar</button><button onClick={() => setSelectedManager(selectedManager === manager.publicId ? null : manager.publicId)}>Ver equipe</button><button onClick={() => setEditingManager({ ...manager, active: !manager.active })}>{manager.active ? 'Desativar' : 'Ativar'}</button></div>
+          {selectedManager === manager.publicId && <div className="manager-detail"><strong>Equipe</strong><span>{managerTeam.isPending ? 'Carregando…' : `${managerTeam.data?.representatives.length || 0} representantes · ${managerTeam.data?.directSellers.length || 0} vendedores diretos`}</span><span>Regiões e clientes podem ser consultados nas abas correspondentes.</span></div>}
+        </article>)}
+      </div>
+
       {!managers.data || managers.data.length === 0 ? (
         <div className="empty-state">
           <p>Nenhum gerente cadastrado</p>
@@ -582,6 +625,18 @@ export function CommercialManagersTab() {
           font-size: 18px;
           font-weight: 600;
         }
+
+        .manager-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 180px)); gap: 12px; }
+        .manager-summary div, .manager-list article { padding: 14px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); }
+        .manager-summary strong, .manager-summary span { display: block; }
+        .manager-summary strong { font-size: 24px; }
+        .manager-summary span, .manager-list p { color: var(--text-secondary); }
+        .manager-list { display: grid; gap: 10px; }
+        .manager-list article { display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+        .manager-list h4 { margin: 0; }
+        .manager-actions { display: flex; align-items: start; gap: 6px; flex-wrap: wrap; }
+        .manager-detail { grid-column: 1 / -1; display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--border-color); }
+        .inline-check { display: flex; gap: 8px; align-items: center; }
 
         .form-card {
           border: 1px solid var(--border-color);
@@ -772,6 +827,8 @@ export function CommercialManagersTab() {
           .section-header .action-button {
             width: 100%;
           }
+          .manager-list article { grid-template-columns: 1fr; }
+          .manager-summary { grid-template-columns: 1fr 1fr; }
         }
 
         .table-container {

@@ -56,6 +56,8 @@ const CreateManagerRequestSchema = z.object({
 });
 
 const UpdateManagerRequestSchema = z.object({
+  displayName: z.string().trim().min(1).max(255).optional(),
+  phone: z.string().trim().max(32).nullable().optional(),
   active: z.boolean().optional(),
   defaultCommissionBps: z.number().int().min(0).max(10000).optional(),
 });
@@ -121,6 +123,12 @@ const CommercialAccountListItemSchema = z.object({
   userId: z.string(),
   email: z.string().email(),
   displayName: z.string().nullable(),
+  phone: z.string().nullable(),
+  regionsCount: z.number(),
+  citiesCount: z.number(),
+  clientsCount: z.number(),
+  representativesCount: z.number(),
+  sellersCount: z.number(),
   role: z.string(),
   active: z.boolean(),
   defaultCommissionBps: z.number(),
@@ -209,6 +217,24 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       if (request.query.managerPublicId) filters.managerPublicId = request.query.managerPublicId;
 
       const accounts = await accountService.listAllAccounts(filters);
+      const managerIds = accounts.filter((account: any) => account.role === 'MANAGER').map((account: any) => account.id);
+      const [regionCounts, cityCounts, clientCounts, representativeCounts, sellerCounts] = await Promise.all([
+        options.prisma.commercialRegion.groupBy({ by: ['managerId'], where: { managerId: { in: managerIds } }, _count: true }),
+        options.prisma.commercialRegionCity.groupBy({ by: ['regionId'], _count: true }),
+        options.prisma.tenantCommercialAssignment.groupBy({ by: ['managerId'], where: { managerId: { in: managerIds } }, _count: true }),
+        options.prisma.commercialAccount.groupBy({ by: ['parentId'], where: { parentId: { in: managerIds }, role: 'REPRESENTATIVE' }, _count: true }),
+        options.prisma.commercialAccount.groupBy({ by: ['parentId'], where: { parentId: { in: managerIds }, role: 'SELLER' }, _count: true }),
+      ]);
+      const countBy = (groups: Array<any>, field: string) => new Map(groups.map((group) => [group[field]?.toString(), group._count]));
+      const regionByManager = countBy(regionCounts, 'managerId');
+      const clientsByManager = countBy(clientCounts, 'managerId');
+      const representativesByManager = countBy(representativeCounts, 'parentId');
+      const sellersByManager = countBy(sellerCounts, 'parentId');
+      const cityByRegion = countBy(cityCounts, 'regionId');
+      const citiesByManager = new Map<string, number>();
+      for (const region of regionCounts) citiesByManager.set(region.managerId.toString(), 0);
+      const regionsForCities = await options.prisma.commercialRegion.findMany({ where: { managerId: { in: managerIds } }, select: { id: true, managerId: true } });
+      for (const region of regionsForCities) citiesByManager.set(region.managerId.toString(), (citiesByManager.get(region.managerId.toString()) || 0) + (cityByRegion.get(region.id.toString()) || 0));
 
       const page = request.query.page;
       const limit = request.query.limit;
@@ -221,6 +247,12 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
           userId: a.userId.toString(),
           email: a.user.email,
           displayName: a.displayName,
+          phone: a.phone,
+          regionsCount: regionByManager.get(a.id.toString()) || 0,
+          citiesCount: citiesByManager.get(a.id.toString()) || 0,
+          clientsCount: clientsByManager.get(a.id.toString()) || 0,
+          representativesCount: representativesByManager.get(a.id.toString()) || 0,
+          sellersCount: sellersByManager.get(a.id.toString()) || 0,
           role: a.role,
           active: a.active,
           defaultCommissionBps: a.defaultCommissionBps,
@@ -474,6 +506,8 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       }
 
       const updates: any = {};
+      if (request.body.displayName !== undefined) updates.displayName = request.body.displayName;
+      if (request.body.phone !== undefined) updates.phone = request.body.phone;
       if (request.body.active !== undefined) updates.active = request.body.active;
       if (request.body.defaultCommissionBps !== undefined) {
         accountService['validateCommissionBps'](request.body.defaultCommissionBps);
@@ -494,6 +528,32 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         defaultCommissionBps: updated.defaultCommissionBps,
         parentId: updated.parentId,
         createdAt: updated.createdAt,
+      };
+    },
+  );
+
+  app.get(
+    '/platform/commercial/regions',
+    async (request) => {
+      allow(request, 'platform.commercial.read');
+      const regions = await options.prisma.commercialRegion.findMany({
+        include: { manager: { include: { user: true } }, cities: true },
+        orderBy: { name: 'asc' },
+      });
+      return {
+        data: regions.map((region) => ({
+          publicId: region.publicId,
+          name: region.name,
+          active: region.active,
+          manager: {
+            publicId: region.manager.publicId,
+            displayName: region.manager.displayName,
+            email: region.manager.user.email,
+          },
+          cities: region.cities.map((city) => ({
+            id: city.id.toString(), ibgeCode: city.ibgeCode, city: city.city, state: city.state,
+          })),
+        })),
       };
     },
   );

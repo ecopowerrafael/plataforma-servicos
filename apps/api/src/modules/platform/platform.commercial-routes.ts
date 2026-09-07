@@ -520,7 +520,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         include: { user: true },
       });
       await options.prisma.auditLog.create({
-        data: auditData({ action: 'commercial.manager.updated', targetType: 'commercial_manager', targetPublicId: updated.publicId, userId: request.platformAuth.user.id, metadata: { previous: { active: account.active, displayName: account.displayName, phone: account.phone, defaultCommissionBps: account.defaultCommissionBps }, next: updates }, request: requestMetadata(request) }),
+        data: auditData({ action: 'commercial.manager.updated', targetType: 'commercial_manager', targetPublicId: updated.publicId, userId: request.platformAuth.user.id, metadata: { previous: JSON.stringify({ active: account.active, displayName: account.displayName, phone: account.phone, defaultCommissionBps: account.defaultCommissionBps }), next: JSON.stringify(updates) }, request: requestMetadata(request) }),
       });
 
       return {
@@ -542,7 +542,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
     await options.prisma.$transaction(async (transaction) => {
       await transaction.commercialAccount.update({ where: { id: manager.id }, data: { active: false } });
       await transaction.commercialRegion.updateMany({ where: { managerId: manager.id, active: true }, data: { active: false } });
-      await transaction.auditLog.create({ data: auditData({ action: 'commercial.manager.deactivated', targetType: 'commercial_manager', targetPublicId: manager.publicId, userId: request.platformAuth.user.id, metadata: { regionsDeactivated: await transaction.commercialRegion.count({ where: { managerId: manager.id } }) }, request: requestMetadata(request) }) });
+      await transaction.auditLog.create({ data: auditData({ action: 'commercial.manager.deactivated', targetType: 'commercial_manager', targetPublicId: manager.publicId, userId: request.platformAuth.user.id, metadata: { regionsDeactivated: String(await transaction.commercialRegion.count({ where: { managerId: manager.id } })) }, request: requestMetadata(request) }) });
     });
     return { success: true, mode: 'deactivated' };
   });

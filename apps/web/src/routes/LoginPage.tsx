@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { z } from 'zod';
 
 import { AuthLayout } from '../components/AuthLayout.js';
 import { loadGoogleIdentityServices } from '../lib/google-identity.js';
@@ -52,6 +53,19 @@ export function LoginPage() {
             ? `/public/${availableTenant.tenant.slug}/profissional`
             : `/app${continuation}`,
         );
+      } else if (response.tenants.length === 0) {
+        try {
+          const commercial = await httpClient.request('/commercial/me', {
+            schema: z.object({ role: z.string(), active: z.boolean() }),
+          });
+          if (commercial.active) {
+            await navigate('/comercial');
+            return;
+          }
+        } catch (error) {
+          if (!(error instanceof HttpError) || error.status !== 403) throw error;
+        }
+        await navigate(`/select-tenant${continuation}`);
       } else {
         await navigate(`/select-tenant${continuation}`);
       }

@@ -324,9 +324,6 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       const existingUser = await options.prisma.user.findUnique({
         where: { normalizedEmail },
       });
-
-      let userId = existingUser?.id;
-
       if (!existingUser) {
         if (!request.body.password) {
           throw new AppError({
@@ -335,49 +332,46 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
             statusCode: 400,
           });
         }
-
-        const passwordHash = await options.passwordService.hash(request.body.password);
-        const newUser = await options.prisma.user.create({
-          data: {
-            publicId: randomUUID(),
-            email: request.body.email,
-            normalizedEmail,
-            passwordHash,
-            status: 'ACTIVE',
-            emailVerifiedAt: new Date(),
-          },
-        });
-        userId = newUser.id;
-      } else {
-        const existingCommercialAccount = await options.prisma.commercialAccount.findFirst({
-          where: { userId: existingUser.id },
-        });
-        if (existingCommercialAccount) {
-          throw new AppError({
-            code: 'USER_ALREADY_COMMERCIAL',
-            message: `Este usuário já é ${existingCommercialAccount.role} comercial`,
-            statusCode: 400,
-          });
-        }
       }
 
-      const account = await accountService.createManager(
-        {
-          userId,
-          defaultCommissionBps: request.body.defaultCommissionBps,
-        } as any,
-        request.platformAuth.user.id,
-      );
+      const passwordHash = request.body.password
+        ? await options.passwordService.hash(request.body.password)
+        : undefined;
+      const account = await options.prisma.$transaction(async (transaction) => {
+        const user = await transaction.user.findUnique({ where: { normalizedEmail } });
+        let userId = user?.id;
 
-      if (request.body.region && request.body.region.cities.length > 0) {
-        const cities = request.body.region.cities;
+        if (!user) {
+          const newUser = await transaction.user.create({
+            data: {
+              publicId: randomUUID(),
+              email: request.body.email,
+              normalizedEmail,
+              passwordHash: passwordHash!,
+              status: 'ACTIVE',
+              emailVerifiedAt: new Date(),
+            },
+          });
+          userId = newUser.id;
+        } else {
+          const existingCommercialAccount = await transaction.commercialAccount.findFirst({
+            where: { userId: user.id },
+          });
+          if (existingCommercialAccount) {
+            throw new AppError({
+              code: 'USER_ALREADY_COMMERCIAL',
+              message: `Este usuário já é ${existingCommercialAccount.role} comercial`,
+              statusCode: 400,
+            });
+          }
+        }
 
+        const cities = request.body.region?.cities ?? [];
         for (const city of cities) {
-          const existingCity = await options.prisma.commercialRegionCity.findFirst({
+          const existingCity = await transaction.commercialRegionCity.findFirst({
             where: { ibgeCode: city.ibgeCode, region: { active: true } },
             include: { region: { include: { manager: { include: { user: true } } } } },
           });
-
           if (existingCity) {
             throw new AppError({
               code: 'CITY_ALREADY_ASSIGNED',
@@ -387,23 +381,32 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
           }
         }
 
-        await options.prisma.commercialRegion.create({
-          data: {
-            publicId: randomUUID(),
-            managerId: account.id,
-            name: request.body.region.name,
-            active: true,
-            cities: {
-              create: cities.map((c) => ({
-                publicId: randomUUID(),
-                ibgeCode: c.ibgeCode,
-                city: c.city,
-                state: c.state,
-              })),
+        const transactionAccountService = new CommercialAccountService(transaction);
+        const manager = await transactionAccountService.createManager(
+          { userId: userId!, defaultCommissionBps: request.body.defaultCommissionBps } as any,
+          request.platformAuth.user.id,
+        );
+
+        if (request.body.region && cities.length > 0) {
+          await transaction.commercialRegion.create({
+            data: {
+              publicId: randomUUID(),
+              managerId: manager.id,
+              name: request.body.region.name,
+              active: true,
+              cities: {
+                create: cities.map((city) => ({
+                  ibgeCode: city.ibgeCode,
+                  city: city.city,
+                  state: city.state,
+                })),
+              },
             },
-          },
-        });
-      }
+          });
+        }
+
+        return manager;
+      });
 
       return reply.status(201).send({
         publicId: account.publicId,

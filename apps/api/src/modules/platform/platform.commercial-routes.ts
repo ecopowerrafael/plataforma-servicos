@@ -744,6 +744,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       return {
         manager: {
           publicId: manager.publicId,
+          displayName: manager.displayName,
           email: manager.user.email,
           role: manager.role,
           active: manager.active,
@@ -757,6 +758,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
             });
             return {
               publicId: rep.publicId,
+              displayName: rep.displayName,
               email: rep.user.email,
               role: rep.role,
               active: rep.active,
@@ -764,6 +766,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
               clients: repClients,
               sellers: rep.children.map((seller) => ({
                 publicId: seller.publicId,
+                displayName: seller.displayName,
                 email: seller.user.email,
                 role: seller.role,
                 active: seller.active,
@@ -780,6 +783,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
             });
             return {
               publicId: seller.publicId,
+              displayName: seller.displayName,
               email: seller.user.email,
               role: seller.role,
               active: seller.active,
@@ -1260,69 +1264,4 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
     },
   );
 
-  // GET /platform/commercial/managers/:managerPublicId/team - Obter equipe de um gerente
-  app.get(
-    '/platform/commercial/managers/:managerPublicId/team',
-    {
-      schema: {
-        params: z.object({ managerPublicId: z.string().uuid() }),
-      },
-    },
-    async (request) => {
-      allow(request, 'platform.commercial.read');
-
-      const manager = await options.prisma.commercialAccount.findUnique({
-        where: { publicId: request.params.managerPublicId },
-        include: { user: true },
-      });
-
-      if (!manager || manager.role !== 'MANAGER') {
-        throw new AppError({
-          code: 'MANAGER_NOT_FOUND',
-          message: 'Gerente não encontrado',
-          statusCode: 404,
-        });
-      }
-
-      const representatives = await options.prisma.commercialAccount.findMany({
-        where: { parentId: manager.id, role: 'REPRESENTATIVE' },
-        include: {
-          user: true,
-          children: { where: { role: 'SELLER' }, include: { user: true } },
-        },
-      });
-
-      const directSellers = await options.prisma.commercialAccount.findMany({
-        where: { parentId: manager.id, role: 'SELLER' },
-        include: { user: true },
-      });
-
-      return {
-        manager: {
-          publicId: manager.publicId,
-          displayName: manager.displayName,
-          email: manager.user.email,
-          role: manager.role,
-        },
-        representatives: representatives.map((r) => ({
-          publicId: r.publicId,
-          displayName: r.displayName,
-          email: r.user.email,
-          role: r.role,
-          sellers: r.children.map((s) => ({
-            publicId: s.publicId,
-            displayName: s.displayName,
-            email: s.user.email,
-            role: s.role,
-          })),
-        })),
-        directSellers: directSellers.map((s) => ({
-          publicId: s.publicId,
-          displayName: s.displayName,
-          email: s.user.email,
-          role: s.role,
-        })),
-      };
-    },
-  );
 };

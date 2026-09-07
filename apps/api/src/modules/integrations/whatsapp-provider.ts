@@ -56,6 +56,7 @@ export interface WhatsAppProvisioningProvider extends WhatsAppProvider {
 
 export interface WhatsAppInboundNormalizer extends WhatsAppProvider {
   normalize(raw: unknown): NormalizedWhatsAppEvent;
+  normalizeMany?(raw: unknown): NormalizedWhatsAppEvent[];
 }
 
 export const WAPI_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {

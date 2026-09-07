@@ -110,4 +110,53 @@ describe('MetaInboundNormalizer', () => {
       messageType: null,
     });
   });
+
+  it('normalizes all messages and statuses in a batched Meta webhook', () => {
+    const events = normalizer.normalizeMany(
+      metaPayload({
+        messages: [
+          { from: '5511999999999', id: 'wamid.a', timestamp: '1788800000', type: 'text', text: { body: 'A' } },
+          { from: '5511888888888', id: 'wamid.b', timestamp: '1788800001', type: 'text', text: { body: 'B' } },
+        ],
+        statuses: [
+          { id: 'wamid.c', recipient_id: '5511777777777', status: 'delivered', timestamp: '1788800002' },
+          { id: 'wamid.c', recipient_id: '5511777777777', status: 'read', timestamp: '1788800003' },
+        ],
+      }),
+    );
+
+    expect(events.map((event) => event.eventType)).toEqual([
+      'MESSAGE_RECEIVED',
+      'MESSAGE_RECEIVED',
+      'MESSAGE_DELIVERED',
+      'MESSAGE_READ',
+    ]);
+    expect(new Set(events.map((event) => event.fingerprint)).size).toBe(4);
+  });
+
+  it('extracts Meta button context id as referencedMessageId', () => {
+    const event = normalizer.normalize(
+      metaPayload({
+        messages: [
+          {
+            from: '5511999999999',
+            id: 'wamid.reply',
+            timestamp: '1788800000',
+            type: 'interactive',
+            context: { id: 'wamid.original' },
+            interactive: {
+              type: 'button_reply',
+              button_reply: { id: 'BOOKING_CONFIRM', title: 'Confirmar' },
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(event).toMatchObject({
+      actionId: 'BOOKING_CONFIRM',
+      referencedMessageId: 'wamid.original',
+      selectedDisplayText: 'Confirmar',
+    });
+  });
 });

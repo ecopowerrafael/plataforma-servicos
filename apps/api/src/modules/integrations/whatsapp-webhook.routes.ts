@@ -29,7 +29,7 @@ const verifyMetaSignature = (
   signatureHeader: string | string[] | undefined,
 ) => {
   const appSecret = process.env.META_WHATSAPP_APP_SECRET;
-  if (appSecret === undefined || appSecret.trim() === '') return true;
+  if (appSecret === undefined || appSecret.trim() === '') return false;
   const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
   if (signature === undefined || !signature.startsWith('sha256=')) return false;
   const expected = createHmac('sha256', appSecret).update(rawBody ?? metaRawPayload(body)).digest('hex');

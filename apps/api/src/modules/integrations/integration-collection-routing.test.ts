@@ -1,6 +1,7 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 import { IntegrationService } from './integration.service.js';
+import { MetaInboundNormalizer } from './meta-whatsapp-inbound.js';
 
 import type { CollectionAttemptExecutionService } from '../collections/collection-attempt-execution.service.js';
 import type { IntegrationRepository } from './integration.repository.js';
@@ -141,6 +142,7 @@ void test('clique numa mensagem que não é de cobrança segue o fluxo normal (a
     sendPlainText: () =>
       Promise.resolve({ externalMessageId: 'MSG-OUT', status: 'SENT' as const, httpStatus: 200, errorCode: null, message: 'ok' }),
   };
+  const normalizer = new MetaInboundNormalizer();
   const service = new IntegrationService(
     repository,
     undefined,
@@ -186,4 +188,141 @@ void test('clique em resposta imediata (collection_reply) roteia para handleWhat
   expect(calls[0]?.tenantId).toBe(7n);
   expect(calls[0]?.debtPublicId).toBe('debt-public-id-123');
   expect(calls[0]?.actionId).toBe('COLLECTION_PARTIAL_30');
+});
+
+const metaButtonWebhook = (buttonId: string) => ({
+  object: 'whatsapp_business_account',
+  entry: [
+    {
+      changes: [
+        {
+          field: 'messages',
+          value: {
+            metadata: { phone_number_id: 'META-PHONE' },
+            messages: [
+              {
+                from: '5511999999999',
+                id: 'wamid.reply',
+                timestamp: '1788800000',
+                type: 'interactive',
+                context: { id: 'wamid.original' },
+                interactive: {
+                  type: 'button_reply',
+                  button_reply: { id: buttonId, title: 'Texto visível ignorado' },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ],
+});
+
+void test('botão Meta de agendamento resolve actionId pelo id do botão vinculado ao outbound', async () => {
+  const createInboundEvent = vi.fn().mockResolvedValue({});
+  const repository = {
+    client: { tenantSubscription: { findFirst: () => Promise.resolve(null) } },
+    selectedWhatsappProvider: () => Promise.resolve('META'),
+    whatsappByInstanceId: () => Promise.resolve({ tenantId: 7n, phoneNumberId: 'META-PHONE', provider: 'META' }),
+    inboundEventByFingerprint: () => Promise.resolve(null),
+    createInboundEvent,
+    outboundByExternalMessageId: () =>
+      Promise.resolve({
+        actionIds: ['BOOKING_CONFIRM', 'BOOKING_CANCEL'],
+        status: 'DELIVERED',
+        notification: { targetType: 'appointment', targetPublicId: 'appointment-public-id' },
+      }),
+    updateOutboundStatus: () => Promise.resolve({}),
+    customerByPhone: () => Promise.resolve(null),
+    conversationFor: () => Promise.resolve(null),
+    createConversation: (data: Record<string, unknown>) =>
+      Promise.resolve({ id: 1n, publicId: 'conv-1', status: 'ACTIVE', currentFlow: 'MAIN_MENU', ...data }),
+    updateConversation: vi.fn().mockResolvedValue({}),
+    closeConversation: () => Promise.resolve({}),
+    createOutboundMessage: () => Promise.resolve({}),
+    tenantName: () => Promise.resolve({ displayName: 'Studio Bela', timezone: 'America/Sao_Paulo', currency: 'BRL' }),
+    tenantSlug: () => Promise.resolve({ slug: 'studio-bela' }),
+    customerName: () => Promise.resolve(null),
+    whatsappAssistantConfig: () => Promise.resolve(null),
+  } as unknown as IntegrationRepository;
+  const normalizer = new MetaInboundNormalizer();
+  const service = new IntegrationService(
+    repository,
+    undefined,
+    {
+      sendInteractiveButtons: () => Promise.resolve({ externalMessageId: 'out', status: 'SENT', httpStatus: 200, errorCode: null, message: 'ok' }),
+      sendPlainText: () => Promise.resolve({ externalMessageId: 'out', status: 'SENT', httpStatus: 200, errorCode: null, message: 'ok' }),
+    } as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    { inbound: () => normalizer } as never,
+  );
+
+  const result = await service.ingestWhatsappInboundForProvider('META', metaButtonWebhook('BOOKING_CONFIRM'));
+
+  expect(result).toMatchObject({ received: true, processed: 1, rejected: 0 });
+  expect(createInboundEvent).toHaveBeenCalledWith(expect.objectContaining({
+    actionId: 'BOOKING_CONFIRM',
+    referencedMessageId: 'wamid.original',
+  }));
+});
+
+void test('botão Meta de cobrança resolve collection_reply sem confiar no label', async () => {
+  const calls: Array<{ debtPublicId: string; actionId: string | null }> = [];
+  const collectionAttemptExecution = {
+    handleWhatsAppDebtResponse: (_tenantId: bigint, debtPublicId: string, actionId: string | null) => {
+      calls.push({ debtPublicId, actionId });
+      return Promise.resolve({ handled: true });
+    },
+  } as unknown as CollectionAttemptExecutionService;
+  const repository = {
+    client: {},
+    selectedWhatsappProvider: () => Promise.resolve('META'),
+    whatsappByInstanceId: () => Promise.resolve({ tenantId: 7n, phoneNumberId: 'META-PHONE', provider: 'META' }),
+    inboundEventByFingerprint: () => Promise.resolve(null),
+    createInboundEvent: () => Promise.resolve({}),
+    outboundByExternalMessageId: () =>
+      Promise.resolve({
+        actionIds: ['COLLECTION_PARTIAL_20', 'COLLECTION_PARTIAL_30'],
+        status: 'DELIVERED',
+        notification: { targetType: 'collection_reply', targetPublicId: 'debt-public-id' },
+      }),
+    updateOutboundStatus: () => Promise.resolve({}),
+    customerByPhone: () => Promise.resolve(null),
+  } as unknown as IntegrationRepository;
+  const normalizer = new MetaInboundNormalizer();
+  const service = new IntegrationService(
+    repository,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    collectionAttemptExecution,
+    undefined,
+    undefined,
+    undefined,
+    { inbound: () => normalizer } as never,
+  );
+
+  const result = await service.ingestWhatsappInboundForProvider('META', metaButtonWebhook('COLLECTION_PARTIAL_30'));
+
+  expect(result).toMatchObject({ received: true, processed: 1, rejected: 0 });
+  expect(calls).toEqual([{ debtPublicId: 'debt-public-id', actionId: 'COLLECTION_PARTIAL_30' }]);
 });

@@ -185,6 +185,10 @@ export class WApiInboundNormalizer implements WhatsAppInboundNormalizer {
   public normalize(raw: unknown): NormalizedWhatsAppEvent {
     return normalizeWApiWebhook(raw);
   }
+
+  public normalizeMany(raw: unknown): NormalizedWhatsAppEvent[] {
+    return [this.normalize(raw)];
+  }
 }
 
 /**

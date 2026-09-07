@@ -86,6 +86,21 @@ describe('whatsappWebhookRoutes', () => {
     await app.close();
   });
 
+  it('rejects Meta POST fail-closed when app secret is not configured', async () => {
+    delete process.env.META_WHATSAPP_APP_SECRET;
+    const { app, service } = await build();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: canonicalMetaWhatsAppWebhookPath,
+      payload: { entry: [] },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(service.ingestWhatsappInboundForProvider).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it('routes a valid Meta payload through the Meta provider normalizer path', async () => {
     process.env.META_WHATSAPP_APP_SECRET = 'meta-secret';
     const { app, service } = await build();

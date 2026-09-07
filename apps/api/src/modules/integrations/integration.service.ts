@@ -448,6 +448,10 @@ export class IntegrationService {
     const config = await this.repository.whatsappByInstanceId(received.instanceId);
     if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN' } as const;
     const provider = typeof config.provider === 'string' ? config.provider : 'WAPI';
+    const selectedProvider = this.repository.selectedWhatsappProvider === undefined
+      ? provider
+      : await this.repository.selectedWhatsappProvider(config.tenantId);
+    if (provider !== selectedProvider) return { accepted: false, reason: 'PROVIDER_MISMATCH' } as const;
     const event =
       this.providerResolver === undefined
         ? received
@@ -464,14 +468,33 @@ export class IntegrationService {
         message: 'Resolver de provider de WhatsApp indisponivel.',
         statusCode: 400,
       });
-    const event = this.providerResolver.inbound(provider).normalize(raw);
-    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
-    const config = await this.repository.whatsappByInstanceId(event.instanceId);
-    if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN' } as const;
-    const configuredProvider = typeof config.provider === 'string' ? config.provider : 'WAPI';
-    if (configuredProvider !== provider)
-      return { accepted: false, reason: 'PROVIDER_MISMATCH' } as const;
-    return this.processTenantWhatsappInbound(config, event);
+    const normalizer = this.providerResolver.inbound(provider);
+    const events = normalizer.normalizeMany?.(raw) ?? [normalizer.normalize(raw)];
+    const summary = { received: true, processed: 0, duplicated: 0, rejected: 0 };
+    for (const event of events) {
+      if (event.instanceId === null) {
+        summary.rejected += 1;
+        continue;
+      }
+      const config = await this.repository.whatsappByInstanceId(event.instanceId);
+      if (config === null) {
+        summary.rejected += 1;
+        continue;
+      }
+      const configuredProvider = typeof config.provider === 'string' ? config.provider : 'WAPI';
+      const selectedProvider = this.repository.selectedWhatsappProvider === undefined
+        ? configuredProvider
+        : await this.repository.selectedWhatsappProvider(config.tenantId);
+      if (configuredProvider !== provider || selectedProvider !== provider) {
+        summary.rejected += 1;
+        continue;
+      }
+      const result = await this.processTenantWhatsappInbound(config, event);
+      if (result.accepted && result.duplicated) summary.duplicated += 1;
+      else if (result.accepted) summary.processed += 1;
+      else summary.rejected += 1;
+    }
+    return summary;
   }
 
   private async processTenantWhatsappInbound(
@@ -570,13 +593,17 @@ export class IntegrationService {
    * nem o id gerado pelo provedor.
    */
   private async resolveActionId(tenantId: bigint, event: NormalizedWhatsAppEvent) {
-    if (event.referencedMessageId === null || event.selectedIndex === null) return null;
+    if (event.referencedMessageId === null) return null;
     const outbound = await this.repository.outboundByExternalMessageId(
       tenantId,
       event.referencedMessageId,
     );
     const actionIds = Array.isArray(outbound?.actionIds) ? outbound.actionIds : [];
-    const matched = actionIds[event.selectedIndex];
+    const matched = event.provider === 'META'
+      ? actionIds.find((actionId): actionId is string => typeof actionId === 'string' && actionId === event.actionId)
+      : event.selectedIndex === null
+        ? null
+        : actionIds[event.selectedIndex];
     if (typeof matched !== 'string') return null;
     const appointmentPublicId =
       outbound?.notification?.targetType === 'appointment' &&

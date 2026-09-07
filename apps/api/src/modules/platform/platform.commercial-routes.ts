@@ -519,6 +519,9 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         data: updates,
         include: { user: true },
       });
+      await options.prisma.auditLog.create({
+        data: auditData({ action: 'commercial.manager.updated', targetType: 'commercial_manager', targetPublicId: updated.publicId, userId: request.platformAuth.user.id, metadata: { previous: { active: account.active, displayName: account.displayName, phone: account.phone, defaultCommissionBps: account.defaultCommissionBps }, next: updates }, request: requestMetadata(request) }),
+      });
 
       return {
         publicId: updated.publicId,
@@ -531,6 +534,18 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       };
     },
   );
+
+  app.delete('/platform/commercial/managers/:publicId', { schema: { params: PublicIdParamsSchema } }, async (request) => {
+    allow(request, 'platform.commercial.manage');
+    const manager = await accountService.getAccountByPublicId(request.params.publicId);
+    if (!manager) throw new AppError({ code: 'MANAGER_NOT_FOUND', message: 'Gerente não encontrado', statusCode: 404 });
+    await options.prisma.$transaction(async (transaction) => {
+      await transaction.commercialAccount.update({ where: { id: manager.id }, data: { active: false } });
+      await transaction.commercialRegion.updateMany({ where: { managerId: manager.id, active: true }, data: { active: false } });
+      await transaction.auditLog.create({ data: auditData({ action: 'commercial.manager.deactivated', targetType: 'commercial_manager', targetPublicId: manager.publicId, userId: request.platformAuth.user.id, metadata: { regionsDeactivated: await transaction.commercialRegion.count({ where: { managerId: manager.id } }) }, request: requestMetadata(request) }) });
+    });
+    return { success: true, mode: 'deactivated' };
+  });
 
   app.get(
     '/platform/commercial/regions',
@@ -632,6 +647,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
           where: { id: { in: request.body.removeCityIds }, regionId: region.id },
         });
       }
+      await options.prisma.auditLog.create({ data: auditData({ action: 'commercial.region.updated', targetType: 'commercial_region', targetPublicId: region.publicId, userId: request.platformAuth.user.id, metadata: { updates }, request: requestMetadata(request) }) });
 
       return {
         publicId: updated.publicId,
@@ -655,7 +671,10 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         throw new AppError({ code: 'REGION_NOT_FOUND', message: 'Região não encontrada', statusCode: 404 });
       }
 
-      await regionService.deleteRegion(region.id);
+      await options.prisma.$transaction(async (transaction) => {
+        await transaction.commercialRegion.delete({ where: { id: region.id } });
+        await transaction.auditLog.create({ data: auditData({ action: 'commercial.region.deleted', targetType: 'commercial_region', targetPublicId: region.publicId, userId: request.platformAuth.user.id, metadata: { managerId: region.managerId.toString(), cities: region.cities.length, assignmentsPreserved: true }, request: requestMetadata(request) }) });
+      });
 
       return { success: true };
     },

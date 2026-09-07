@@ -6,7 +6,7 @@ import {
   WhatsAppQrCodeSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
 
@@ -89,6 +89,11 @@ export function WhatsAppConnectionCard({
   const available = connection.data?.available ?? true;
   const provisioned = connection.data?.provisioned ?? false;
   const currentProvider = selectedProvider === activeProvider ? activeProvider : selectedProvider;
+  const selectedProviderOption = providers.data?.items.find((item) => item.provider === currentProvider);
+
+  useEffect(() => {
+    if (connection.data?.provider !== undefined) setSelectedProvider(connection.data.provider);
+  }, [connection.data?.provider]);
 
   // Derivado: assim que a conexão é detectada, o QR sai da tela sozinho.
   const visibleQrCode = qrCode !== null && state !== 'CONNECTED' ? qrCode : null;
@@ -114,12 +119,12 @@ export function WhatsAppConnectionCard({
         method: 'PUT',
         body: UpdateWhatsAppProviderSchema.parse(
           currentProvider === 'WAPI'
-            ? { provider: 'WAPI' }
+              ? { provider: 'WAPI' }
             : {
                 provider: 'META',
                 phoneNumberId: metaForm.phoneNumberId,
                 businessAccountId: metaForm.businessAccountId,
-                accessToken: metaForm.accessToken,
+                ...(metaForm.accessToken.trim() === '' ? {} : { accessToken: metaForm.accessToken }),
                 apiVersion: metaForm.apiVersion,
               },
         ),
@@ -188,7 +193,9 @@ export function WhatsAppConnectionCard({
             key={item.provider}
             type="button"
             className={`whatsapp-provider-option ${currentProvider === item.provider ? 'is-selected' : ''}`}
+            disabled={!item.available}
             onClick={() => {
+              if (!item.available) return;
               setSelectedProvider(item.provider);
               setQrCode(null);
             }}
@@ -196,10 +203,13 @@ export function WhatsAppConnectionCard({
             <span>{item.label}</span>
             <strong>{item.provider === 'META' ? 'Meta Cloud API' : 'W-API'}</strong>
             <small>{item.description}</small>
-            <em>{item.available ? 'Disponível' : 'Em configuração'}</em>
+            <em>{item.available ? 'Disponível' : 'Indisponível no momento'}</em>
           </button>
         ))}
       </div>
+      {selectedProviderOption?.available === false ? (
+        <p className="ds-form-hint">Este método ainda não está disponível no servidor.</p>
+      ) : null}
       <p className="whatsapp-card__status">
         <span aria-hidden="true">{STATE_DOT[state] ?? '⚪'}</span>
         <strong>{STATE_LABEL[state] ?? 'Não conectado'}</strong>
@@ -297,7 +307,7 @@ export function WhatsAppConnectionCard({
             <button
               className="primary-button"
               type="button"
-              disabled={busy}
+              disabled={busy || selectedProviderOption?.available === false}
               onClick={() => {
                 updateProvider.mutate();
               }}

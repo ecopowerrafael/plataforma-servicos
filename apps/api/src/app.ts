@@ -1024,6 +1024,8 @@ export async function buildApp(options: BuildAppOptions) {
     await app.register(commercialRoutes, {
       prisma: options.database.client,
       passwordService,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
     });
   }
   if (options.database.platformBilling)

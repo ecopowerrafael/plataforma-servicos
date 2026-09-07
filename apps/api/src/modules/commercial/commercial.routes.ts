@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { type AuthRequestContext } from '../auth/identity.repository.js';
+import { authenticationPlugin } from '../auth/authentication.plugin.js';
+import { type AuthService } from '../auth/auth.service.js';
 import { type PasswordService } from '../auth/password.service.js';
 import { requestMetadata } from '../auth/request-context.js';
 import { auditData } from '../platform/platform.service.js';
@@ -20,6 +22,8 @@ import { type PrismaClient } from '../../database-client/client.js';
 interface CommercialRoutesOptions {
   prisma: PrismaClient;
   passwordService?: PasswordService;
+  authService: AuthService;
+  cookieName: string;
 }
 
 const CreateRepresentativeRequestSchema = z.object({
@@ -64,6 +68,10 @@ async function resolveUserIdFromInput(
 }
 
 export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = async (app, options) => {
+  await app.register(authenticationPlugin, {
+    service: options.authService,
+    cookieName: options.cookieName,
+  });
 
   app.get(
     '/commercial/me',

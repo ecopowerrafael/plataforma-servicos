@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WhatsAppConnectionService } from './whatsapp-connection.service.js';
 
@@ -25,7 +25,7 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
   const resolver = {
     capabilities: vi.fn((providerId: string) =>
       providerId === 'META'
-        ? { qrCode: false, autoProvision: false, interactiveMessages: true, templates: true, official: true }
+        ? { qrCode: false, autoProvision: false, interactiveMessages: true, templates: false, official: true }
         : capabilities,
     ),
     provisioningForTenant: vi.fn().mockResolvedValue(provider),
@@ -39,6 +39,10 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
       Promise.resolve({ ...data, connectedPhone: null, connectedName: null, connectedAt: null, lastStatusCheckAt: new Date('2026-09-07T12:00:00.000Z') }),
     ),
   };
+  const tenantWhatsAppSettings = {
+    findUnique: vi.fn().mockResolvedValue(null),
+    upsert: vi.fn().mockResolvedValue({ selectedProvider: 'WAPI' }),
+  };
   const cipher = { encrypt: vi.fn((value: unknown) => `enc:${JSON.stringify(value)}`) };
   return {
     provider,
@@ -47,13 +51,19 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
     cipher,
     service: new WhatsAppConnectionService(
       resolver as never,
-      { tenantWhatsAppConfig } as never,
+      { tenantWhatsAppConfig, tenantWhatsAppSettings } as never,
       cipher as never,
     ),
+    tenantWhatsAppSettings,
   };
 }
 
 describe('WhatsAppConnectionService', () => {
+  afterEach(() => {
+    delete process.env.META_WHATSAPP_VERIFY_TOKEN;
+    delete process.env.META_WHATSAPP_APP_SECRET;
+  });
+
   it('returns provider options with capabilities without making META operational yet', () => {
     const { service } = subject();
     expect(service.providers()).toEqual({
@@ -61,8 +71,8 @@ describe('WhatsAppConnectionService', () => {
         expect.objectContaining({ provider: 'WAPI', available: true, capabilities }),
         expect.objectContaining({
           provider: 'META',
-          available: true,
-          capabilities: expect.objectContaining({ qrCode: false, templates: true, official: true }),
+          available: false,
+          capabilities: expect.objectContaining({ qrCode: false, templates: false, official: true }),
         }),
       ],
     });
@@ -107,6 +117,8 @@ describe('WhatsAppConnectionService', () => {
 
   it('stores Meta credentials encrypted and exposes Meta capabilities', async () => {
     const { service, tenantWhatsAppConfig, cipher } = subject();
+    process.env.META_WHATSAPP_VERIFY_TOKEN = 'verify-token';
+    process.env.META_WHATSAPP_APP_SECRET = 'app-secret';
     await expect(
       service.selectProvider(7n, {
         provider: 'META',
@@ -117,7 +129,7 @@ describe('WhatsAppConnectionService', () => {
       }),
     ).resolves.toMatchObject({
       provider: 'META',
-      capabilities: { qrCode: false, templates: true, official: true },
+      capabilities: { qrCode: false, templates: false, official: true },
       connection: { provisioned: true, state: 'CREATED' },
     });
     expect(cipher.encrypt).toHaveBeenCalledWith({ accessToken: 'token-meta-com-tamanho-suficiente' });
@@ -152,7 +164,7 @@ describe('WhatsAppConnectionService', () => {
   });
 
   it('switches from a disconnected Meta config back to WAPI before the next connection action', async () => {
-    const { service, tenantWhatsAppConfig, resolver } = subject();
+    const { service, tenantWhatsAppConfig, tenantWhatsAppSettings, resolver } = subject();
     tenantWhatsAppConfig.findUnique.mockResolvedValue({
       provider: 'META',
       active: false,
@@ -162,21 +174,15 @@ describe('WhatsAppConnectionService', () => {
     await expect(service.selectProvider(7n, { provider: 'WAPI' })).resolves.toMatchObject({
       provider: 'WAPI',
       capabilities: { qrCode: true, official: false },
-      connection: { provider: 'WAPI', provisioned: false, state: 'NOT_CREATED' },
+      connection: { state: 'CONNECTED' },
     });
 
-    expect(tenantWhatsAppConfig.update).toHaveBeenCalledWith(
+    expect(tenantWhatsAppSettings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { tenantId: 7n },
-        data: expect.objectContaining({
-          active: false,
-          provider: 'WAPI',
-          businessAccountId: 'internal',
-          apiVersion: 'v1',
-          connectionStatus: 'NOT_CREATED',
-        }),
+        update: { selectedProvider: 'WAPI' },
       }),
     );
-    expect(resolver.provisioningForTenant).not.toHaveBeenCalled();
+    expect(resolver.provisioningForTenant).toHaveBeenCalledWith(7n);
   });
 });

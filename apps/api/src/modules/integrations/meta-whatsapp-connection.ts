@@ -9,7 +9,7 @@ export const META_WHATSAPP_CAPABILITIES = {
   qrCode: false,
   autoProvision: false,
   interactiveMessages: true,
-  templates: true,
+  templates: false,
   official: true,
 } as const;
 
@@ -53,7 +53,7 @@ export class MetaWhatsAppConnection implements WhatsAppProvisioningProvider {
   }
 
   private async config(tenantId: bigint): Promise<MetaConfig> {
-    const config = await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } });
+    const config = await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId_provider: { tenantId, provider: 'META' } } });
     if (config === null || config.provider !== 'META') {
       throw new AppError({
         code: 'WHATSAPP_NOT_CONFIGURED',
@@ -85,7 +85,7 @@ export class MetaWhatsAppConnection implements WhatsAppProvisioningProvider {
   }
 
   public async current(tenantId: bigint): Promise<WhatsAppConnectionView> {
-    return this.view(await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } }));
+    return this.view(await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId_provider: { tenantId, provider: 'META' } } }));
   }
 
   public connect(tenantId: bigint): Promise<WhatsAppConnectionView> {
@@ -100,7 +100,7 @@ export class MetaWhatsAppConnection implements WhatsAppProvisioningProvider {
       const response = await this.metaClient.phoneNumber(config.apiVersion, config.phoneNumberId, accessToken);
       if (!response.ok) {
         const updated = await this.client.tenantWhatsAppConfig.update({
-          where: { tenantId },
+          where: { tenantId_provider: { tenantId, provider: 'META' } },
           data: {
             active: false,
             connectionStatus: 'ERROR',
@@ -112,7 +112,7 @@ export class MetaWhatsAppConnection implements WhatsAppProvisioningProvider {
         return this.view(updated);
       }
       const updated = await this.client.tenantWhatsAppConfig.update({
-        where: { tenantId },
+        where: { tenantId_provider: { tenantId, provider: 'META' } },
         data: {
           active: true,
           connectionStatus: 'CONNECTED',
@@ -127,7 +127,7 @@ export class MetaWhatsAppConnection implements WhatsAppProvisioningProvider {
       return this.view(updated);
     } catch {
       const updated = await this.client.tenantWhatsAppConfig.update({
-        where: { tenantId },
+        where: { tenantId_provider: { tenantId, provider: 'META' } },
         data: {
           active: false,
           connectionStatus: 'ERROR',
@@ -143,7 +143,7 @@ export class MetaWhatsAppConnection implements WhatsAppProvisioningProvider {
   public async disconnect(tenantId: bigint): Promise<WhatsAppConnectionView> {
     const config = await this.config(tenantId);
     const updated = await this.client.tenantWhatsAppConfig.update({
-      where: { tenantId },
+      where: { tenantId_provider: { tenantId, provider: 'META' } },
       data: {
         active: false,
         connectionStatus: 'DISCONNECTED',

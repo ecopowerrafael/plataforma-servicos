@@ -9,11 +9,18 @@ import {
 } from './integration-delivery.js';
 import { type WhatsAppConnectionResult } from './whatsapp-connection.js';
 import { type WhatsAppProviderResolver } from './whatsapp-provider-resolver.js';
-import { WAPI_WHATSAPP_CAPABILITIES } from './whatsapp-provider.js';
+import { type WhatsAppProviderCapabilities } from './whatsapp-provider.js';
 
 export class ProviderResolvedWhatsAppDelivery implements WhatsAppDelivery {
-  public readonly provider = 'WAPI' as const;
-  public readonly capabilities = WAPI_WHATSAPP_CAPABILITIES;
+  /** Facade dinâmica: o provider real é resolvido por tenant a cada chamada. */
+  public readonly provider = 'DYNAMIC' as const;
+  public readonly capabilities: WhatsAppProviderCapabilities = {
+    qrCode: false,
+    autoProvision: false,
+    interactiveMessages: true,
+    templates: false,
+    official: false,
+  };
 
   public constructor(private readonly resolver: WhatsAppProviderResolver) {}
 

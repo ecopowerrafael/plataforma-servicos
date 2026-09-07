@@ -74,11 +74,19 @@ export class WhatsAppProviderResolver {
   }
 
   public async providerForTenant(tenantId: bigint): Promise<WhatsAppProviderId> {
-    const config = await this.client.tenantWhatsAppConfig.findUnique({
+    const settings = await this.client.tenantWhatsAppSettings?.findUnique({
+      where: { tenantId },
+      select: { selectedProvider: true },
+    });
+    if (settings != null) return settings.selectedProvider;
+    const legacy = this.client.tenantWhatsAppConfig.findFirst === undefined
+      ? await this.client.tenantWhatsAppConfig.findUnique?.({ where: { tenantId }, select: { provider: true } } as never)
+      : await this.client.tenantWhatsAppConfig.findFirst({
       where: { tenantId },
       select: { provider: true },
+      orderBy: { id: 'asc' },
     });
-    return config?.provider ?? 'WAPI';
+    return legacy?.provider ?? 'WAPI';
   }
 
   public async deliveryForTenant(tenantId: bigint): Promise<WhatsAppDeliveryProvider> {

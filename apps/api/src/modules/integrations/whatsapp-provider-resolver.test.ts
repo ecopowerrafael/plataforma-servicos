@@ -19,8 +19,11 @@ const provisioning = delivery;
 
 function resolver(provider: string | null) {
   const client = {
+    tenantWhatsAppSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     tenantWhatsAppConfig: {
-      findUnique: vi.fn().mockResolvedValue(provider === null ? null : { provider }),
+      findFirst: vi.fn().mockResolvedValue(provider === null ? null : { provider }),
     },
   };
   return {
@@ -49,7 +52,7 @@ describe('WhatsAppProviderResolver', () => {
     await expect(subject.providerForTenant(1n)).resolves.toBe('META');
     expect(subject.capabilities('META')).toMatchObject({
       qrCode: false,
-      templates: true,
+      templates: false,
       official: true,
     });
     await expect(subject.deliveryForTenant(1n)).rejects.toBeInstanceOf(WhatsAppProviderNotSupportedError);
@@ -60,8 +63,11 @@ describe('WhatsAppProviderResolver', () => {
 
   it('resolves META delivery and provisioning when Meta adapters are registered', async () => {
     const client = {
+      tenantWhatsAppSettings: {
+        findUnique: vi.fn().mockResolvedValue({ selectedProvider: 'META' }),
+      },
       tenantWhatsAppConfig: {
-        findUnique: vi.fn().mockResolvedValue({ provider: 'META' }),
+        findFirst: vi.fn().mockResolvedValue({ provider: 'META' }),
       },
     };
     const meta = { delivery: { provider: 'META' }, provisioning: { provider: 'META' } };
@@ -73,8 +79,11 @@ describe('WhatsAppProviderResolver', () => {
 
   it('accepts an additional provider without changing integration consumers', async () => {
     const client = {
+      tenantWhatsAppSettings: {
+        findUnique: vi.fn().mockResolvedValue({ selectedProvider: 'EVOLUTION' }),
+      },
       tenantWhatsAppConfig: {
-        findUnique: vi.fn().mockResolvedValue({ provider: 'EVOLUTION' }),
+        findFirst: vi.fn().mockResolvedValue({ provider: 'EVOLUTION' }),
       },
     };
     const extraCapabilities = {
@@ -159,7 +168,7 @@ describe('WhatsAppProviderResolver', () => {
   });
 
   it('does not fallback to WAPI when a tenant config points to an unsupported provider', async () => {
-    const providerResolver = new WhatsAppProviderResolver({ tenantWhatsAppConfig: { findUnique: vi.fn() } } as never, {
+    const providerResolver = new WhatsAppProviderResolver({ tenantWhatsAppSettings: { findUnique: vi.fn().mockResolvedValue(null) }, tenantWhatsAppConfig: { findFirst: vi.fn().mockResolvedValue({ provider: 'OTHER' }) } } as never, {
       delivery,
       provisioning,
     });

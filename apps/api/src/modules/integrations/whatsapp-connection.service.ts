@@ -25,6 +25,7 @@ export class WhatsAppConnectionService {
   ) {}
 
   public providers(): { items: WhatsAppProviderOption[] } {
+    const metaAvailable = this.metaAvailable();
     return {
       items: [
         {
@@ -38,11 +39,43 @@ export class WhatsAppConnectionService {
           provider: 'META',
           label: 'WhatsApp Oficial',
           description: 'Integracao oficial da Meta Cloud API.',
-          available: true,
+          available: metaAvailable,
           capabilities: this.resolver.capabilities('META'),
         },
       ],
     };
+  }
+
+  private metaAvailable() {
+    return this.cipher !== undefined && Boolean(process.env.META_WHATSAPP_VERIFY_TOKEN) && Boolean(process.env.META_WHATSAPP_APP_SECRET);
+  }
+
+  private async selectedProvider(tenantId: bigint): Promise<SupportedWhatsAppProviderId> {
+    const settings = await this.client.tenantWhatsAppSettings?.findUnique({ where: { tenantId } });
+    if (settings != null) return settings.selectedProvider as SupportedWhatsAppProviderId;
+    const legacy = this.client.tenantWhatsAppConfig.findFirst === undefined
+      ? await this.client.tenantWhatsAppConfig.findUnique?.({ where: { tenantId }, select: { provider: true } } as never)
+      : await this.client.tenantWhatsAppConfig.findFirst({
+      where: { tenantId },
+      select: { provider: true },
+      orderBy: { id: 'asc' },
+    });
+    return (legacy?.provider ?? 'WAPI') as SupportedWhatsAppProviderId;
+  }
+
+  private providerConfig(tenantId: bigint, provider: SupportedWhatsAppProviderId) {
+    return this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId_provider: { tenantId, provider } } }).catch?.(() =>
+      this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } } as never),
+    ) ?? this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId_provider: { tenantId, provider } } });
+  }
+
+  private async setSelectedProvider(tenantId: bigint, provider: SupportedWhatsAppProviderId) {
+    if (this.client.tenantWhatsAppSettings === undefined) return null;
+    return this.client.tenantWhatsAppSettings.upsert({
+      where: { tenantId },
+      create: { publicId: randomUUID(), tenantId, selectedProvider: provider },
+      update: { selectedProvider: provider },
+    });
   }
 
   public async selectProvider(
@@ -55,10 +88,11 @@ export class WhatsAppConnectionService {
       apiVersion?: string | undefined;
     },
   ): Promise<{ provider: SupportedWhatsAppProviderId; capabilities: WhatsAppProviderCapabilities; connection: WhatsAppConnectionView }> {
-    const current = await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } });
+    const selectedProvider = await this.selectedProvider(tenantId);
+    const current = await this.providerConfig(tenantId, selectedProvider);
     if (
       current !== null &&
-      current.provider !== input.provider &&
+      selectedProvider !== input.provider &&
       (current.active || current.connectionStatus === 'CONNECTED')
     ) {
       throw new AppError({
@@ -69,42 +103,20 @@ export class WhatsAppConnectionService {
     }
 
     if (input.provider === 'WAPI') {
-      if (current !== null && current.provider !== 'WAPI') {
-        const saved = await this.client.tenantWhatsAppConfig.update({
-          where: { tenantId },
-          data: {
-            active: false,
-            provider: 'WAPI',
-            businessAccountId: 'internal',
-            apiVersion: 'v1',
-            connectionStatus: 'NOT_CREATED',
-            connectedPhone: null,
-            connectedName: null,
-            connectedAt: null,
-            lastStatusCheckAt: new Date(),
-          },
-        });
-        return {
-          provider: 'WAPI',
-          capabilities: this.resolver.capabilities('WAPI'),
-          connection: {
-            provider: 'WAPI',
-            available: true,
-            provisioned: false,
-            state: (saved.connectionStatus as WhatsAppConnectionView['state']) ?? 'NOT_CREATED',
-            connectedPhone: null,
-            connectedName: null,
-            connectedAt: null,
-            lastStatusCheckAt: saved.lastStatusCheckAt?.toISOString() ?? null,
-            legacy: false,
-          },
-        };
-      }
+      await this.setSelectedProvider(tenantId, 'WAPI');
       return {
         provider: 'WAPI',
         capabilities: this.resolver.capabilities('WAPI'),
         connection: await this.current(tenantId),
       };
+    }
+
+    if (!this.metaAvailable()) {
+      throw new AppError({
+        code: 'WHATSAPP_PROVIDER_UNAVAILABLE',
+        message: 'A Meta Cloud API ainda nao esta disponivel neste ambiente.',
+        statusCode: 503,
+      });
     }
 
     if (this.cipher === undefined) {
@@ -120,7 +132,7 @@ export class WhatsAppConnectionService {
     const accessToken = input.accessToken?.trim();
     const apiVersion = input.apiVersion?.trim() ?? 'v23.0';
     if (
-      (current === null || current.provider !== 'META') &&
+      (await this.providerConfig(tenantId, 'META')) === null &&
       (phoneNumberId === undefined || businessAccountId === undefined || accessToken === undefined)
     ) {
       throw new AppError({
@@ -131,7 +143,7 @@ export class WhatsAppConnectionService {
     }
 
     const saved = await this.client.tenantWhatsAppConfig.upsert({
-      where: { tenantId },
+      where: { tenantId_provider: { tenantId, provider: 'META' } },
       create: {
         publicId: randomUUID(),
         tenantId,
@@ -145,7 +157,6 @@ export class WhatsAppConnectionService {
       },
       update: {
         active: false,
-        provider: 'META',
         ...(phoneNumberId === undefined ? {} : { phoneNumberId }),
         ...(businessAccountId === undefined ? {} : { businessAccountId }),
         ...(accessToken === undefined ? {} : { encryptedAccessToken: this.cipher.encrypt({ accessToken }) }),
@@ -153,6 +164,7 @@ export class WhatsAppConnectionService {
         connectionStatus: 'CREATED',
       },
     });
+    await this.setSelectedProvider(tenantId, 'META');
 
     return {
       provider: 'META',

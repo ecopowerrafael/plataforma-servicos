@@ -211,7 +211,11 @@ export class WApiWhatsAppDelivery implements WhatsAppDelivery {
     } catch {
       throw new IntegrationUnavailableError('WhatsApp indisponivel no plano atual.');
     }
-    const config = await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } });
+    const settings = await this.client.tenantWhatsAppSettings.findUnique({ where: { tenantId } });
+    if (settings?.selectedProvider !== undefined && settings.selectedProvider !== 'WAPI') {
+      throw new IntegrationUnavailableError('W-API nao e o provider selecionado para o tenant.');
+    }
+    const config = await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId_provider: { tenantId, provider: 'WAPI' } } });
     if (config === null || (requireActive && !config.active))
       throw new IntegrationUnavailableError('WhatsApp nao configurado ou inativo para o tenant.');
     const stored = credentials(this.cipher, config.encryptedAccessToken);

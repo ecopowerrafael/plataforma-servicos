@@ -95,6 +95,7 @@ describe('NotificationService enqueue idempotency', () => {
         findUniqueOrThrow: vi.fn().mockResolvedValue(log),
         update: vi.fn().mockResolvedValue({}),
       },
+      tenantWhatsAppSettings: { findUnique: vi.fn().mockResolvedValue({ selectedProvider: 'WAPI' }) },
       tenantWhatsAppConfig: { findUnique: vi.fn().mockResolvedValue({ phoneNumberId: 'INST' }) },
       whatsAppOutboundMessage: { create: outboundCreate },
     } as unknown as PrismaClient;

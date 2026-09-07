@@ -385,8 +385,10 @@ export class CollectionAttemptExecutionService {
       'whatsapp.enabled',
     );
     if (!entitled) return false;
+    const settings = await this.client.tenantWhatsAppSettings.findUnique({ where: { tenantId } });
+    const selectedProvider = settings?.selectedProvider ?? 'WAPI';
     const config = await this.client.tenantWhatsAppConfig.findUnique({
-      where: { tenantId },
+      where: { tenantId_provider: { tenantId, provider: selectedProvider } },
       select: { active: true },
     });
     return config?.active === true;

@@ -108,9 +108,7 @@ describe('provisionamento — criação da instância', () => {
     expect(urlOf(url ?? '')).toBe('https://api.w-api.app/v1/client/create-instance');
     const body = JSON.parse(bodyOf(init)) as Record<string, string>;
     expect(body.apiKey).toBe(MASTER_KEY);
-    expect(body.webhookReceivedUrl).toBe(
-      'https://app.agendei.test/public/integrations/whatsapp/webhook',
-    );
+    expect(body.webhookReceivedUrl).toBe('https://app.agendei.test/webhooks/whatsapp/wapi');
     // Sem `lite`: a instância nasce PRO, exigida pelas mensagens interativas.
     expect(body.lite).toBeUndefined();
     const created = whatsapp.create.mock.calls[0]?.[0] as { data: Record<string, string> };

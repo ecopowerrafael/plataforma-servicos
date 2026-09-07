@@ -350,8 +350,9 @@ export class NotificationService {
             log.body,
             mappedButtons,
           );
+          const settings = await this.client.tenantWhatsAppSettings.findUnique({ where: { tenantId: log.tenantId } });
           const config = await this.client.tenantWhatsAppConfig.findUnique({
-            where: { tenantId: log.tenantId },
+            where: { tenantId_provider: { tenantId: log.tenantId, provider: settings?.selectedProvider ?? 'WAPI' } },
             select: { phoneNumberId: true },
           });
           await this.client.whatsAppOutboundMessage.create({

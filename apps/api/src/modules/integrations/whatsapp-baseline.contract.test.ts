@@ -73,7 +73,8 @@ describe('WhatsApp W-API baseline before provider abstraction', () => {
 
   it('keeps provider resolution explicit with no silent fallback from META or unknown providers to WAPI', () => {
     expect(providerResolver).toContain('providerForTenant');
-    expect(providerResolver).toContain("config?.provider ?? 'WAPI'");
+    expect(providerResolver).toContain('selectedProvider');
+    expect(providerResolver).toContain("legacy?.provider ?? 'WAPI'");
     expect(providerResolver).toContain('WHATSAPP_PROVIDER_NOT_SUPPORTED');
     expect(providerResolver).toContain('private readonly providers: Record');
     expect(providerResolver).toContain('WAPI: {');

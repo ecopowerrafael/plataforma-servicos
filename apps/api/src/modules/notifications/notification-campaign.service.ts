@@ -122,7 +122,12 @@ export class NotificationCampaignService {
 
   private async assertWhatsApp(tenantId: bigint): Promise<void> {
     await this.entitlements.assertFeatureEnabledForTenant(this.client, tenantId, 'whatsapp.enabled');
-    const config = await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId }, select: { active: true } });
+    const settings = await this.client.tenantWhatsAppSettings.findUnique({ where: { tenantId } });
+    const selectedProvider = settings?.selectedProvider ?? 'WAPI';
+    const config = await this.client.tenantWhatsAppConfig.findUnique({
+      where: { tenantId_provider: { tenantId, provider: selectedProvider } },
+      select: { active: true },
+    });
     if (config?.active !== true) throw new AppError({ code: 'WHATSAPP_NOT_CONFIGURED', message: 'Configure o WhatsApp em Integrações antes de enviar.', statusCode: 409 });
   }
 

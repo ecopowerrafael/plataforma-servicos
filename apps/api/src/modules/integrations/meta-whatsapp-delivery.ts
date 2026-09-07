@@ -25,7 +25,11 @@ export class MetaWhatsAppDelivery implements WhatsAppDelivery {
   ) {}
 
   private async config(tenantId: bigint) {
-    const config = await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } });
+    const settings = await this.client.tenantWhatsAppSettings?.findUnique({ where: { tenantId } });
+    if (settings != null && settings.selectedProvider !== 'META') {
+      throw new IntegrationUnavailableError('Meta WhatsApp nao e o provider selecionado para o tenant.');
+    }
+    const config = await this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId_provider: { tenantId, provider: 'META' } } });
     if (config === null || config.provider !== 'META' || !config.active) {
       throw new IntegrationUnavailableError('Meta WhatsApp nao configurado ou inativo para o tenant.');
     }
@@ -50,12 +54,13 @@ export class MetaWhatsAppDelivery implements WhatsAppDelivery {
       const messages = Array.isArray(response.payload.messages) ? response.payload.messages : [];
       const first = messages[0] as Record<string, unknown> | undefined;
       const externalMessageId = typeof first?.id === 'string' ? first.id : null;
+      const graphError = response.payload.error && typeof response.payload.error === 'object' ? response.payload.error as Record<string, unknown> : {};
       return {
         externalMessageId: response.ok ? externalMessageId : null,
         status: response.ok ? 'SENT' : 'FAILED',
         httpStatus: response.status,
-        errorCode: response.ok ? null : String(response.status),
-        message: response.ok ? 'Mensagem enviada pela Meta.' : 'A Meta recusou o envio.',
+        errorCode: response.ok ? null : String(graphError.code ?? graphError.type ?? response.status),
+        message: response.ok ? 'Mensagem enviada pela Meta.' : String(graphError.message ?? 'A Meta recusou o envio.').slice(0, 500),
       };
     } catch {
       return {

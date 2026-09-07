@@ -66,8 +66,8 @@ export class CustomerNotificationDispatcher {
       customer.whatsapp === null || !whatsappEntitled
         ? false
         : (
-            await this.client.tenantWhatsAppConfig.findUnique({
-              where: { tenantId },
+            await this.client.tenantWhatsAppConfig.findFirst({
+              where: { tenantId, active: true },
               select: { active: true },
             })
           )?.active === true;

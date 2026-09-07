@@ -6,7 +6,7 @@ import {
   type WApiIntegrationService,
 } from './wapi-integration.service.js';
 import { type WhatsAppProvisioningProvider, WAPI_WHATSAPP_CAPABILITIES } from './whatsapp-provider.js';
-import { whatsappWebhookPath } from './whatsapp-webhook.routes.js';
+import { canonicalWapiWhatsAppWebhookPath } from './whatsapp-webhook.routes.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
@@ -85,7 +85,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
   }
 
   private config(tenantId: bigint) {
-    return this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } });
+    return this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId_provider: { tenantId, provider: 'WAPI' } } });
   }
 
   /** Credencial da instância do próprio tenant — nunca vinda do frontend. */
@@ -167,7 +167,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
       });
       const instance = await this.wapiProvider.createInstance({
         instanceName: `agendei-${tenant?.slug ?? tenantId.toString()}`,
-        webhookUrl: `${this.appWebUrl.replace(/\/+$/u, '')}${whatsappWebhookPath}`,
+        webhookUrl: `${this.appWebUrl.replace(/\/+$/u, '')}${canonicalWapiWhatsAppWebhookPath}`,
       });
       return this.client.tenantWhatsAppConfig.create({
         data: {
@@ -200,7 +200,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
     try {
       const qrCode = await this.wapiProvider.getQrCode(instanceId, token);
       const updated = await this.client.tenantWhatsAppConfig.update({
-        where: { tenantId },
+        where: { tenantId_provider: { tenantId, provider: 'WAPI' } },
         data: { connectionStatus: 'WAITING_QR' },
       });
       // O QR é temporário: vai direto para a resposta, sem persistência.
@@ -220,7 +220,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
       const status = await this.wapiProvider.getInstanceStatus(instanceId, token);
       if (!status.connected) {
         const updated = await this.client.tenantWhatsAppConfig.update({
-          where: { tenantId },
+          where: { tenantId_provider: { tenantId, provider: 'WAPI' } },
           data: {
             // Instância que nunca conectou continua apenas criada/aguardando.
             connectionStatus: config.connectedAt === null ? config.connectionStatus : 'DISCONNECTED',
@@ -235,7 +235,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
         name: null,
       }));
       const updated = await this.client.tenantWhatsAppConfig.update({
-        where: { tenantId },
+        where: { tenantId_provider: { tenantId, provider: 'WAPI' } },
         data: {
           connectionStatus: 'CONNECTED',
           active: true,
@@ -268,7 +268,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
       if (!(error instanceof WApiProviderError)) throw friendly(error);
     }
     const updated = await this.client.tenantWhatsAppConfig.update({
-      where: { tenantId },
+      where: { tenantId_provider: { tenantId, provider: 'WAPI' } },
       data: {
         connectionStatus: 'DISCONNECTED',
         active: false,
@@ -296,7 +296,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
 
   /** Mesma trava usada na agenda: serializa a criação por tenant. */
   private async withTenantLock<T>(tenantId: bigint, run: () => Promise<T>): Promise<T> {
-    const lockName = `whatsapp-instance:${tenantId.toString()}`;
+    const lockName = `whatsapp-instance:${tenantId.toString()}:WAPI`;
     const lock = await this.client.$queryRaw<{ acquired: number | bigint | null }[]>`
       SELECT GET_LOCK(${lockName}, 5) AS acquired
     `;

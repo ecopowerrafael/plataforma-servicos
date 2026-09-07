@@ -16,6 +16,9 @@ const subject = (sendMessage = vi.fn().mockResolvedValue({
   payload: { messages: [{ id: 'wamid.sent' }] },
 })) => {
   const client = {
+    tenantWhatsAppSettings: {
+      findUnique: vi.fn().mockResolvedValue({ selectedProvider: 'META' }),
+    },
     tenantWhatsAppConfig: {
       findUnique: vi.fn().mockResolvedValue(tenantConfig),
     },
@@ -89,7 +92,7 @@ describe('MetaWhatsAppDelivery', () => {
       externalMessageId: null,
       status: 'FAILED',
       httpStatus: 400,
-      errorCode: '400',
+      errorCode: '131000',
     });
   });
 

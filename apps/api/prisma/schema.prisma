@@ -562,7 +562,8 @@ model Tenant {
   loyaltyRules                 LoyaltyRule[]
   loyaltyLedgerEntries         LoyaltyLedgerEntry[]
   domains                      TenantDomain[]
-  whatsappConfig               TenantWhatsAppConfig?
+  whatsappConfigs              TenantWhatsAppConfig[]
+  whatsappSettings             TenantWhatsAppSettings?
   whatsappInboundEvents        WhatsAppInboundEvent[]
   whatsappOutboundMessages     WhatsAppOutboundMessage[]
   whatsappConversations        WhatsAppConversation[]
@@ -1004,7 +1005,7 @@ model DirectoryImportItem {
 model TenantWhatsAppConfig {
   id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
   publicId             String   @unique @map("public_id") @db.Char(36)
-  tenantId             BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
+  tenantId             BigInt   @map("tenant_id") @db.UnsignedBigInt
   active               Boolean  @default(false)
   /** Provedor da instancia; hoje sempre W-API. */
   provider             String   @default("WAPI") @db.VarChar(32)
@@ -1027,7 +1028,23 @@ model TenantWhatsAppConfig {
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  @@unique([tenantId, provider], map: "tenant_whatsapp_configs_tenant_provider_key")
+  @@index([provider])
   @@map("tenant_whatsapp_configs")
+}
+
+model TenantWhatsAppSettings {
+  id               BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId         String   @unique @map("public_id") @db.Char(36)
+  tenantId         BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
+  selectedProvider String   @default("WAPI") @map("selected_provider") @db.VarChar(32)
+  assistantConfig  Json?    @map("assistant_config")
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([selectedProvider])
+  @@map("tenant_whatsapp_settings")
 }
 
 /// Eventos recebidos do provedor de WhatsApp. Guarda apenas o payload já

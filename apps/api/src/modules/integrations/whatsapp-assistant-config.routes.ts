@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
@@ -35,17 +37,24 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
     async (r) => {
       o.authService.requirePermission(r.tenant, 'integration.read');
 
-      const config = await client?.tenantWhatsAppConfig.findUnique({
+      const settings = await client.tenantWhatsAppSettings.findUnique({
         where: { tenantId: r.tenant.id },
         select: { assistantConfig: true },
       });
+      const legacyConfig = settings === null
+        ? await client.tenantWhatsAppConfig.findFirst({
+            where: { tenantId: r.tenant.id },
+            select: { assistantConfig: true },
+            orderBy: { id: 'asc' },
+          })
+        : null;
 
-      const assistantConfig = config?.assistantConfig;
+      const assistantConfig = settings?.assistantConfig ?? legacyConfig?.assistantConfig;
       const resolved = resolveAssistantConfig(assistantConfig);
 
       return {
         config: resolved,
-        isCustomized: assistantConfig !== null,
+        isCustomized: assistantConfig !== null && assistantConfig !== undefined,
       };
     },
   );
@@ -80,11 +89,15 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
         throw new Error('Pelo menos um botão do menu deve estar habilitado');
       }
 
-      await client?.tenantWhatsAppConfig.update({
+      const legacy = await client.tenantWhatsAppConfig.findFirst({
         where: { tenantId: r.tenant.id },
-        data: {
-          assistantConfig: config,
-        },
+        select: { provider: true },
+        orderBy: { id: 'asc' },
+      });
+      await client.tenantWhatsAppSettings.upsert({
+        where: { tenantId: r.tenant.id },
+        create: { publicId: randomUUID(), tenantId: r.tenant.id, selectedProvider: legacy?.provider ?? 'WAPI', assistantConfig: config },
+        update: { assistantConfig: config },
       });
 
       return { success: true as const };
@@ -101,11 +114,15 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
     async (r) => {
       o.authService.requirePermission(r.tenant, 'integration.manage');
 
-      await client.tenantWhatsAppConfig.update({
+      const legacy = await client.tenantWhatsAppConfig.findFirst({
         where: { tenantId: r.tenant.id },
-        data: {
-          assistantConfig: Prisma.DbNull,
-        },
+        select: { provider: true },
+        orderBy: { id: 'asc' },
+      });
+      await client.tenantWhatsAppSettings.upsert({
+        where: { tenantId: r.tenant.id },
+        create: { publicId: randomUUID(), tenantId: r.tenant.id, selectedProvider: legacy?.provider ?? 'WAPI', assistantConfig: Prisma.DbNull },
+        update: { assistantConfig: Prisma.DbNull },
       });
 
       return { success: true as const };

@@ -1565,16 +1565,18 @@ export class WhatsAppAssistantService {
     phone: string,
     conversationId: bigint,
   ) {
-    const [tenant, customer, whatsappConfig] = await Promise.all([
+    const [tenant, customer, assistantConfig] = await Promise.all([
       this.repository.tenantName(input.tenantId),
       input.customerId === null
         ? Promise.resolve(null)
         : this.repository.customerName(input.customerId),
-      this.repository.whatsapp(input.tenantId),
+      this.repository.whatsappAssistantConfig === undefined
+        ? this.repository.whatsapp(input.tenantId).then((config) => config?.assistantConfig)
+        : this.repository.whatsappAssistantConfig(input.tenantId),
     ]);
 
     const tenantName = tenant?.displayName ?? 'nossa equipe';
-    const config = resolveAssistantConfig(whatsappConfig?.assistantConfig);
+    const config = resolveAssistantConfig(assistantConfig);
 
     // Escolher template baseado em customer conhecido ou novo
     let greeting: string;

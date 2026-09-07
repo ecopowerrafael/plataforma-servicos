@@ -1,11 +1,69 @@
 import { randomUUID } from 'node:crypto';
 
-import { type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { Prisma, type PrismaClient } from '../../database-client/client.js';
+import { type WhatsAppProviderId } from './whatsapp-provider.js';
 
 export class IntegrationRepository {
   public constructor(public readonly client: PrismaClient) {}
+
+  public whatsappSettings(tenantId: bigint) {
+    return this.client.tenantWhatsAppSettings.findUnique({ where: { tenantId } });
+  }
+
+  public async selectedWhatsappProvider(tenantId: bigint): Promise<WhatsAppProviderId> {
+    const settings = await this.whatsappSettings(tenantId);
+    if (settings !== null) return settings.selectedProvider;
+    const legacy = await this.client.tenantWhatsAppConfig.findFirst({
+      where: { tenantId },
+      select: { provider: true },
+      orderBy: { id: 'asc' },
+    });
+    return legacy?.provider ?? 'WAPI';
+  }
+
+  public async ensureWhatsappSettings(tenantId: bigint, data: { selectedProvider?: string; assistantConfig?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput } = {}) {
+    const legacy = await this.client.tenantWhatsAppConfig.findFirst({
+      where: { tenantId },
+      select: { provider: true, assistantConfig: true },
+      orderBy: { id: 'asc' },
+    });
+    return this.client.tenantWhatsAppSettings.upsert({
+      where: { tenantId },
+      create: {
+        publicId: randomUUID(),
+        tenantId,
+        selectedProvider: data.selectedProvider ?? legacy?.provider ?? 'WAPI',
+        assistantConfig: data.assistantConfig ?? legacy?.assistantConfig ?? Prisma.DbNull,
+      },
+      update: data,
+    });
+  }
+
+  public whatsappProviderConfig(tenantId: bigint, provider: WhatsAppProviderId) {
+    return this.client.tenantWhatsAppConfig.findUnique({
+      where: { tenantId_provider: { tenantId, provider } },
+    });
+  }
+
+  public activeWhatsappProviderConfig(tenantId: bigint) {
+    return this.selectedWhatsappProvider(tenantId).then((provider) =>
+      this.whatsappProviderConfig(tenantId, provider),
+    );
+  }
+
+  public async whatsappAssistantConfig(tenantId: bigint) {
+    const settings = await this.whatsappSettings(tenantId);
+    if (settings !== null) return settings.assistantConfig;
+    const legacy = await this.client.tenantWhatsAppConfig.findFirst({
+      where: { tenantId },
+      select: { assistantConfig: true },
+      orderBy: { id: 'asc' },
+    });
+    return legacy?.assistantConfig;
+  }
+
   public whatsapp(tenantId: bigint) {
-    return this.client.tenantWhatsAppConfig.findUnique({ where: { tenantId } });
+    return this.activeWhatsappProviderConfig(tenantId);
   }
   public upsertWhatsapp(
     tenantId: bigint,
@@ -29,14 +87,14 @@ export class IntegrationRepository {
       ...(data.phoneNumber === undefined ? {} : { connectedPhone: data.phoneNumber }),
     };
     return this.client.tenantWhatsAppConfig.upsert({
-      where: { tenantId },
-      create: { publicId: randomUUID(), tenantId, ...stored },
+      where: { tenantId_provider: { tenantId, provider: 'WAPI' } },
+      create: { publicId: randomUUID(), tenantId, provider: 'WAPI', ...stored },
       update: stored,
     });
   }
   public updateWhatsappValidation(tenantId: bigint, status: string, at: Date) {
     return this.client.tenantWhatsAppConfig.update({
-      where: { tenantId },
+      where: { tenantId_provider: { tenantId, provider: 'WAPI' } },
       data: { lastValidationStatus: status, lastValidatedAt: at },
     });
   }

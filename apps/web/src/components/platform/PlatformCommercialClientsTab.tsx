@@ -1,231 +1,29 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PlatformTenantListResponseSchema } from '@plataforma/shared';
+import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { ErrorState } from './PlatformUi.js';
-import { z } from 'zod';
 
-export function PlatformCommercialClientsTab() {
-  const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState({
-    managerPublicId: '',
-    representativePublicId: '',
-    sellerPublicId: '',
-    subscriptionStatus: '',
-  });
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<any>(null);
+const account = z.object({ publicId:z.string(), email:z.string(), displayName:z.string().nullable().optional(), role:z.string(), active:z.boolean() });
+const team = z.object({ representatives:z.array(z.object({ publicId:z.string(), email:z.string(), displayName:z.string().nullable().optional(), sellers:z.array(z.object({ publicId:z.string(),email:z.string(),displayName:z.string().nullable().optional() })) })), directSellers:z.array(z.object({ publicId:z.string(),email:z.string(),displayName:z.string().nullable().optional() })) });
+const clientsSchema=z.object({clients:z.array(z.object({tenantPublicId:z.string(),tenantName:z.string(),subscription:z.any(),manager:z.object({publicId:z.string(),displayName:z.string().nullable(),email:z.string()}).nullable(),representative:z.object({publicId:z.string(),displayName:z.string().nullable(),email:z.string()}).nullable(),seller:z.object({publicId:z.string(),displayName:z.string().nullable(),email:z.string()}).nullable(),assignedAt:z.string()})),pagination:z.object({page:z.number(),limit:z.number(),total:z.number(),pages:z.number()})});
+type Client=z.infer<typeof clientsSchema>['clients'][number]; type Account=z.infer<typeof account>;
+const person=(value:{displayName?:string|null,email:string})=>value.displayName||value.email;
+const errorText=(value:unknown)=>value instanceof Error?value.message:'Não foi possível concluir a solicitação.';
 
-  const clients = useQuery({
-    queryKey: ['platform', 'commercial', 'clients', page, filters],
-    queryFn: () => {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '50',
-        ...(filters.managerPublicId && { managerPublicId: filters.managerPublicId }),
-        ...(filters.representativePublicId && { representativePublicId: filters.representativePublicId }),
-        ...(filters.sellerPublicId && { sellerPublicId: filters.sellerPublicId }),
-        ...(filters.subscriptionStatus && { subscriptionStatus: filters.subscriptionStatus }),
-      });
-      return httpClient.request(`/platform/commercial/clients?${params}`, {
-        schema: z.object({
-          clients: z.array(z.object({
-            tenantPublicId: z.string(),
-            tenantName: z.string(),
-            subscription: z.any(),
-            manager: z.object({ publicId: z.string(), displayName: z.string().nullable(), email: z.string() }).nullable(),
-            representative: z.object({ publicId: z.string(), displayName: z.string().nullable(), email: z.string() }).nullable(),
-            seller: z.object({ publicId: z.string(), displayName: z.string().nullable(), email: z.string() }).nullable(),
-            assignedAt: z.string(),
-          })),
-          pagination: z.object({ page: z.number(), limit: z.number(), total: z.number(), pages: z.number() }),
-        }),
-      });
-    },
-  });
-
-  const assignMutation = useMutation({
-    mutationFn: (data: any) =>
-      httpClient.request('/platform/commercial/assign-tenant', {
-        method: 'POST',
-        body: data,
-        schema: z.object({ success: z.boolean() }),
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['platform', 'commercial', 'clients'] });
-      setShowAssignModal(false);
-      setSelectedClient(null);
-    },
-  });
-
-  if (clients.isPending) {
-    return <div className="tab-content"><p>Carregando clientes...</p></div>;
-  }
-
-  if (clients.error instanceof Error) {
-    return <ErrorState message="Erro ao carregar clientes" />;
-  }
-
-  const data = clients.data;
-
-  return (
-    <div className="tab-content">
-      <div className="section-header">
-        <h3>Clientes Comerciais</h3>
-        <button className="action-button" onClick={() => { setSelectedClient(null); setShowAssignModal(true); }}>
-          + Atribuir Cliente
-        </button>
-      </div>
-
-      <div className="filters-section">
-        <input
-          type="text"
-          placeholder="Filtrar por gerente..."
-          value={filters.managerPublicId}
-          onChange={(e) => { setFilters({ ...filters, managerPublicId: e.target.value }); setPage(1); }}
-          style={{ flex: 1, marginRight: '8px' }}
-        />
-        <select
-          value={filters.subscriptionStatus}
-          onChange={(e) => { setFilters({ ...filters, subscriptionStatus: e.target.value }); setPage(1); }}
-          style={{ marginRight: '8px' }}
-        >
-          <option value="">Todos os status</option>
-          <option value="ACTIVE">Ativo</option>
-          <option value="INACTIVE">Inativo</option>
-        </select>
-      </div>
-
-      {data.clients.length === 0 ? (
-        <div className="empty-state">
-          <p>Nenhum cliente comercial atribuído</p>
-        </div>
-      ) : (
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Plano</th>
-                <th>Status</th>
-                <th>Gerente</th>
-                <th>Representante</th>
-                <th>Vendedor</th>
-                <th>Data do Vínculo</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.clients.map((client: any) => (
-                <tr key={client.tenantPublicId}>
-                  <td><strong>{client.tenantName}</strong></td>
-                  <td>{client.subscription?.plan?.code || '-'}</td>
-                  <td>{client.subscription?.status || 'INACTIVE'}</td>
-                  <td>{client.manager?.displayName || client.manager?.email || '-'}</td>
-                  <td>{client.representative?.displayName || client.representative?.email || '-'}</td>
-                  <td>{client.seller?.displayName || client.seller?.email || '-'}</td>
-                  <td>{new Date(client.assignedAt).toLocaleDateString()}</td>
-                  <td>
-                    <button
-                      style={{ fontSize: '12px', padding: '4px 8px' }}
-                      onClick={() => { setSelectedClient(client); setShowAssignModal(true); }}
-                    >
-                      Reatribuir
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {data.pagination.pages > 1 && (
-        <div style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
-            Anterior
-          </button>
-          <span>{page} de {data.pagination.pages}</span>
-          <button onClick={() => setPage(p => Math.min(data.pagination.pages, p + 1))} disabled={page === data.pagination.pages}>
-            Próxima
-          </button>
-        </div>
-      )}
-
-      {showAssignModal && (
-        <AssignModal
-          client={selectedClient}
-          onClose={() => setShowAssignModal(false)}
-          onAssign={(payload) => assignMutation.mutate(payload)}
-          isLoading={assignMutation.isPending}
-          error={assignMutation.error}
-        />
-      )}
-
-      <style>{`
-        .filters-section {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-        .filters-section input,
-        .filters-section select {
-          padding: 8px 12px;
-          border: 1px solid var(--border-color);
-          border-radius: 4px;
-          font-size: 14px;
-        }
-      `}</style>
-    </div>
-  );
+export function PlatformCommercialClientsTab(){
+ const cache=useQueryClient(); const [page,setPage]=useState(1); const [filters,setFilters]=useState({managerPublicId:'',representativePublicId:'',sellerPublicId:'',subscriptionStatus:''}); const [modal,setModal]=useState(false); const [selected,setSelected]=useState<Client|null>(null);
+ const managers=useQuery({queryKey:['platform','commercial','accounts','managers'],queryFn:()=>httpClient.request('/platform/commercial/accounts?role=MANAGER&active=true&limit=100',{schema:z.object({data:z.array(account)})}).then(r=>r.data)});
+ const filterTeam=useQuery({queryKey:['platform','commercial','team',filters.managerPublicId],queryFn:()=>httpClient.request(`/platform/commercial/managers/${filters.managerPublicId}/team`,{schema:team}),enabled:!!filters.managerPublicId});
+ const clients=useQuery({queryKey:['platform','commercial','clients',page,filters],queryFn:()=>{const q=new URLSearchParams({page:String(page),limit:'50',...Object.fromEntries(Object.entries(filters).filter(([,v])=>v))});return httpClient.request(`/platform/commercial/clients?${q}`,{schema:clientsSchema});}});
+ const assign=useMutation({mutationFn:(body:unknown)=>httpClient.request('/platform/commercial/assign-tenant',{method:'POST',body,schema:z.object({success:z.boolean()})}),onSuccess:()=>{void cache.invalidateQueries({queryKey:['platform','commercial','clients']});setModal(false);setSelected(null);}});
+ const update=(next:Partial<typeof filters>)=>{setFilters(old=>({...old,...next}));setPage(1)}; const reps=filterTeam.data?.representatives??[]; const selectedRep=reps.find(rep=>rep.publicId===filters.representativePublicId); const sellers=selectedRep?.sellers??filterTeam.data?.directSellers??[];
+ if(clients.isPending||managers.isPending)return <div className="tab-content"><p>Carregando clientes...</p></div>; if(clients.error||managers.error)return <ErrorState message={errorText(clients.error||managers.error)}/>; const data=clients.data;
+ return <div className="tab-content commercial-clients-admin"><div className="section-header"><h3>Clientes Comerciais</h3><button className="action-button" onClick={()=>{setSelected(null);setModal(true)}}>+ Atribuir Cliente</button></div>
+ <div className="filters-section"><select value={filters.managerPublicId} onChange={e=>update({managerPublicId:e.target.value,representativePublicId:'',sellerPublicId:''})}><option value="">Todos os gerentes</option>{managers.data?.map(x=><option key={x.publicId} value={x.publicId}>{x.email}</option>)}</select><select value={filters.representativePublicId} disabled={!filters.managerPublicId||filterTeam.isPending} onChange={e=>update({representativePublicId:e.target.value,sellerPublicId:''})}><option value="">Todos os representantes</option>{reps.map(x=><option key={x.publicId} value={x.publicId}>{person(x)}</option>)}</select><select value={filters.sellerPublicId} disabled={!filters.managerPublicId||filterTeam.isPending} onChange={e=>update({sellerPublicId:e.target.value})}><option value="">Todos os vendedores</option>{sellers.map(x=><option key={x.publicId} value={x.publicId}>{person(x)}</option>)}</select><select value={filters.subscriptionStatus} onChange={e=>update({subscriptionStatus:e.target.value})}><option value="">Todos os status</option><option value="ACTIVE">Ativo</option><option value="TRIALING">Teste</option><option value="PAST_DUE">Vencido</option><option value="INACTIVE">Inativo</option></select></div>
+ {data.clients.length===0?<div className="empty-state"><p>Nenhum cliente comercial atribuído</p></div>:<><div className="table-container"><table className="data-table"><thead><tr><th>Cliente</th><th>Plano</th><th>Status</th><th>Valor</th><th>Gerente</th><th>Representante</th><th>Vendedor</th><th>Data vínculo</th><th>Ações</th></tr></thead><tbody>{data.clients.map(c=><tr key={c.tenantPublicId}><td><strong>{c.tenantName}</strong></td><td>{c.subscription?.plan?.code||'-'}</td><td>{c.subscription?.status||'INACTIVE'}</td><td>{c.subscription?.priceCents==null?'-':`R$ ${(Number(c.subscription.priceCents)/100).toFixed(2)}`}</td><td>{c.manager?person(c.manager):'-'}</td><td>{c.representative?person(c.representative):'-'}</td><td>{c.seller?person(c.seller):'-'}</td><td>{new Date(c.assignedAt).toLocaleDateString('pt-BR')}</td><td><button onClick={()=>{setSelected(c);setModal(true)}}>Reatribuir</button></td></tr>)}</tbody></table></div><div className="client-cards">{data.clients.map(c=><article key={c.tenantPublicId}><strong>{c.tenantName}</strong><span>Plano: {c.subscription?.plan?.code||'-'}</span><span>Status: {c.subscription?.status||'INACTIVE'}</span><span>Gerente: {c.manager?person(c.manager):'-'}</span><span>Representante: {c.representative?person(c.representative):'-'}</span><span>Vendedor: {c.seller?person(c.seller):'-'}</span><button onClick={()=>{setSelected(c);setModal(true)}}>Reatribuir</button></article>)}</div></>}
+ {data.pagination.pages>1&&<div className="pagination"><button onClick={()=>setPage(x=>Math.max(1,x-1))} disabled={page===1}>Anterior</button><span>{page} de {data.pagination.pages}</span><button onClick={()=>setPage(x=>Math.min(data.pagination.pages,x+1))} disabled={page===data.pagination.pages}>Próxima</button></div>}{modal&&<AssignModal client={selected} managers={managers.data??[]} close={()=>setModal(false)} save={body=>assign.mutate(body)} loading={assign.isPending} error={assign.error}/>}<style>{css}</style></div>
 }
-
-function AssignModal({ client, onClose, onAssign, isLoading, error }: any) {
-  const [tenantPublicId, setTenantPublicId] = useState(client?.tenantPublicId || '');
-  const [managerPublicId, setManagerPublicId] = useState(client?.manager?.publicId || '');
-  const [representativePublicId, setRepresentativePublicId] = useState(client?.representative?.publicId || '');
-  const [sellerPublicId, setSellerPublicId] = useState(client?.seller?.publicId || '');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onAssign({
-      tenantPublicId,
-      managerPublicId,
-      representativePublicId: representativePublicId || undefined,
-      sellerPublicId: sellerPublicId || undefined,
-    });
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3>{client ? 'Reatribuir Cliente' : 'Atribuir Cliente'}</h3>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {!client && (
-            <div>
-              <label>Cliente*</label>
-              <input type="text" placeholder="Selecione ou digite o cliente" required value={tenantPublicId} onChange={(e) => setTenantPublicId(e.target.value)} />
-            </div>
-          )}
-          <div>
-            <label>Gerente*</label>
-            <input type="text" placeholder="UUID do gerente" required value={managerPublicId} onChange={(e) => { setManagerPublicId(e.target.value); setRepresentativePublicId(''); setSellerPublicId(''); }} />
-          </div>
-          <div>
-            <label>Representante (opcional)</label>
-            <input type="text" placeholder="UUID do representante" value={representativePublicId} onChange={(e) => setRepresentativePublicId(e.target.value)} />
-          </div>
-          <div>
-            <label>Vendedor (opcional)</label>
-            <input type="text" placeholder="UUID do vendedor" value={sellerPublicId} onChange={(e) => setSellerPublicId(e.target.value)} />
-          </div>
-          {error && <div style={{ color: 'red', fontSize: '14px' }}>{String(error)}</div>}
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="action-button" disabled={isLoading}>{isLoading ? 'Salvando...' : 'Salvar'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+function AssignModal({client,managers,close,save,loading,error}:{client:Client|null,managers:Account[],close:()=>void,save:(body:unknown)=>void,loading:boolean,error:unknown}){const [tenantId,setTenantId]=useState(client?.tenantPublicId||'');const [search,setSearch]=useState('');const [managerId,setManagerId]=useState(client?.manager?.publicId||'');const [repId,setRepId]=useState(client?.representative?.publicId||'');const [sellerId,setSellerId]=useState(client?.seller?.publicId||'');const tenants=useQuery({queryKey:['platform','tenants','commercial-picker',search],queryFn:()=>httpClient.request(`/platform/tenants?${new URLSearchParams({page:'1',limit:'100',orderBy:'name',direction:'asc',...(search.trim()?{search:search.trim()}: {})})}`,{schema:PlatformTenantListResponseSchema}),enabled:!client});const members=useQuery({queryKey:['platform','commercial','team',managerId],queryFn:()=>httpClient.request(`/platform/commercial/managers/${managerId}/team`,{schema:team}),enabled:!!managerId});const reps=members.data?.representatives??[];const rep=reps.find(x=>x.publicId===repId);const sellers=rep?.sellers??members.data?.directSellers??[];return <div className="modal-overlay" onClick={close}><div className="modal-content" onClick={e=>e.stopPropagation()}><h3>{client?'Reatribuir Cliente':'Atribuir Cliente'}</h3><form className="assignment-form" onSubmit={e=>{e.preventDefault();if(!loading)save({tenantPublicId:tenantId,managerPublicId:managerId,representativePublicId:repId||undefined,sellerPublicId:sellerId||undefined})}}>{client?<div><label>Cliente</label><input value={client.tenantName} disabled/></div>:<div><label>Cliente*</label><input placeholder="Buscar estabelecimento" value={search} onChange={e=>setSearch(e.target.value)}/><select required value={tenantId} onChange={e=>setTenantId(e.target.value)}><option value="">Selecione um cliente</option>{tenants.data?.items.map(x=><option key={x.publicId} value={x.publicId}>{x.displayName}{x.slug?` — ${x.slug}`:''}</option>)}</select></div>}<div><label>Gerente*</label><select required value={managerId} onChange={e=>{setManagerId(e.target.value);setRepId('');setSellerId('')}}><option value="">Selecione um gerente</option>{managers.map(x=><option key={x.publicId} value={x.publicId}>{x.email}</option>)}</select></div><div><label>Representante</label><select value={repId} disabled={!managerId||members.isPending} onChange={e=>{setRepId(e.target.value);setSellerId('')}}><option value="">Nenhum (direto ao gerente)</option>{reps.map(x=><option key={x.publicId} value={x.publicId}>{person(x)}</option>)}</select></div><div><label>Vendedor</label><select value={sellerId} disabled={!managerId||members.isPending} onChange={e=>setSellerId(e.target.value)}><option value="">Nenhum</option>{sellers.map(x=><option key={x.publicId} value={x.publicId}>{person(x)}</option>)}</select></div>{error&&<div className="error-message">{errorText(error)}</div>}<div className="modal-actions"><button type="button" onClick={close} disabled={loading}>Cancelar</button><button className="action-button" disabled={loading||!tenantId||!managerId}>{loading?'Salvando...':'Salvar'}</button></div></form></div></div>}
+const css=`.filters-section{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}.filters-section select,.assignment-form select,.assignment-form input{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border-color);border-radius:5px;background:var(--bg-primary);color:var(--text-primary)}.assignment-form{display:grid;gap:16px}.assignment-form label{display:block;margin-bottom:6px;font-weight:500}.modal-actions{display:flex;gap:12px}.client-cards{display:none}.pagination{display:flex;gap:8px;justify-content:center;margin-top:20px}@media(max-width:760px){.filters-section{grid-template-columns:1fr}.commercial-clients-admin .table-container{display:none}.client-cards{display:grid;gap:12px}.client-cards article{display:grid;gap:6px;padding:14px;border:1px solid var(--border-color);border-radius:8px}.client-cards button{margin-top:6px}.modal-content{width:calc(100% - 32px)!important;max-width:520px!important;max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box}}`;

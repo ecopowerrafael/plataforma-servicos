@@ -1327,7 +1327,11 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
 
       const assignments = await options.prisma.tenantCommercialAssignment.findMany({
         where: { managerId: manager.id },
-        include: { tenant: { include: { subscriptions: { orderBy: { createdAt: 'desc' as const }, take: 1 } } } },
+        include: {
+          tenant: { include: { subscriptions: { orderBy: { createdAt: 'desc' as const }, take: 1 } } },
+          representative: { include: { user: true } },
+          seller: { include: { user: true } },
+        },
       });
 
       return {
@@ -1335,6 +1339,16 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
           tenantPublicId: a.tenant.publicId,
           tenantName: a.tenant.displayName,
           subscription: a.tenant.subscriptions[0],
+          representative: a.representative ? {
+            publicId: a.representative.publicId,
+            displayName: a.representative.displayName,
+            email: a.representative.user.email,
+          } : null,
+          seller: a.seller ? {
+            publicId: a.seller.publicId,
+            displayName: a.seller.displayName,
+            email: a.seller.user.email,
+          } : null,
           assignedAt: a.assignedAt.toISOString(),
         })),
       };

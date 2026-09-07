@@ -116,6 +116,18 @@ const CommercialAccountResponseSchema = z.object({
   createdAt: z.date(),
 });
 
+const CommercialAccountListItemSchema = z.object({
+  publicId: z.string(),
+  userId: z.string(),
+  email: z.string().email(),
+  displayName: z.string().nullable(),
+  role: z.string(),
+  active: z.boolean(),
+  defaultCommissionBps: z.number(),
+  parentId: z.string().nullable(),
+  createdAt: z.string(),
+});
+
 const PaginationSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
@@ -182,7 +194,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         querystring: PaginationSchema,
         response: {
           200: z.object({
-            data: z.array(CommercialAccountResponseSchema),
+            data: z.array(CommercialAccountListItemSchema),
             pagination: z.object({ page: z.number(), limit: z.number(), total: z.number(), totalPages: z.number() }),
           }),
         },
@@ -207,11 +219,13 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
         data: paginated.map((a: any) => ({
           publicId: a.publicId,
           userId: a.userId.toString(),
+          email: a.user.email,
+          displayName: a.displayName,
           role: a.role,
           active: a.active,
           defaultCommissionBps: a.defaultCommissionBps,
           parentId: a.parentId ? a.parentId.toString() : null,
-          createdAt: a.createdAt,
+          createdAt: a.createdAt.toISOString(),
         })),
         pagination: {
           page,

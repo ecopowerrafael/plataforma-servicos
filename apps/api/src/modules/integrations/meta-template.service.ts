@@ -26,9 +26,13 @@ type MetaTemplateRemote = {
   name: string;
   language: string;
   category: string;
-      status: TemplateStatus;
+  status: TemplateStatus;
   rejectionReason: string | null;
 };
+
+type CreateTemplateResult =
+  | { ok: true; remote: MetaTemplateRemote }
+  | { ok: false; failure: { code: string; message: string; statusCode: number } };
 
 export class MetaTemplateService {
   public constructor(
@@ -69,7 +73,7 @@ export class MetaTemplateService {
         continue;
       }
       const created = await this.createRemote(config, accessToken, definition);
-      if (created === null) {
+      if (!created.ok) {
         summary.failed += 1;
         await this.upsertLocal(tenantId, config.id, definition, {
           id: local?.metaTemplateId ?? null,
@@ -77,12 +81,12 @@ export class MetaTemplateService {
           language: definition.language,
           category: definition.category,
           status: 'UNKNOWN',
-          rejectionReason: 'Falha sanitizada ao criar template na Meta.',
+          rejectionReason: created.failure.message,
         }, now);
         continue;
       }
       summary.created += 1;
-      await this.upsertLocal(tenantId, config.id, definition, created, now);
+      await this.upsertLocal(tenantId, config.id, definition, created.remote, now);
     }
 
     return { ...(await this.list(tenantId)), summary };
@@ -139,15 +143,18 @@ export class MetaTemplateService {
 
   private async createRemote(config: MetaConfig, accessToken: string, definition: MetaTemplateDefinition) {
     const response = await this.metaClient.createTemplate(config.apiVersion, config.businessAccountId, accessToken, this.payload(definition));
-    if (!response.ok) return null;
+    if (!response.ok) return { ok: false, failure: this.createError(response.status) } satisfies CreateTemplateResult;
     return {
-      id: typeof response.payload.id === 'string' ? response.payload.id : null,
-      name: definition.name,
-      language: definition.language,
-      category: definition.category,
-      status: this.status(typeof response.payload.status === 'string' ? response.payload.status : 'PENDING'),
-      rejectionReason: null,
-    };
+      ok: true,
+      remote: {
+        id: typeof response.payload.id === 'string' ? response.payload.id : null,
+        name: definition.name,
+        language: definition.language,
+        category: definition.category,
+        status: this.status(typeof response.payload.status === 'string' ? response.payload.status : 'PENDING'),
+        rejectionReason: null,
+      },
+    } satisfies CreateTemplateResult;
   }
 
   private payload(definition: MetaTemplateDefinition) {
@@ -249,5 +256,41 @@ export class MetaTemplateService {
     const code = status === 429 ? 'META_RATE_LIMIT' : status === 401 || status === 403 ? 'META_AUTH_FAILED' : status >= 500 ? 'META_UNAVAILABLE' : 'META_TEMPLATE_SYNC_FAILED';
     const message = status === 429 ? 'A Meta limitou temporariamente as chamadas. Tente novamente em alguns minutos.' : 'Não foi possível sincronizar templates com a Meta.';
     return new AppError({ code, message, statusCode: status === 429 ? 429 : 502 });
+  }
+
+  private createError(status: number) {
+    if (status === 401 || status === 403) {
+      return {
+        code: 'META_AUTH_FAILED',
+        message: 'Credenciais Meta sem permissão para criar templates.',
+        statusCode: 403,
+      };
+    }
+    if (status === 429) {
+      return {
+        code: 'META_RATE_LIMIT',
+        message: 'Limite temporário da Meta atingido.',
+        statusCode: 429,
+      };
+    }
+    if (status === 400 || status === 422) {
+      return {
+        code: 'META_TEMPLATE_INVALID',
+        message: 'Meta rejeitou a criação do template.',
+        statusCode: 400,
+      };
+    }
+    if (status >= 500) {
+      return {
+        code: 'META_UNAVAILABLE',
+        message: 'Meta indisponível temporariamente.',
+        statusCode: 502,
+      };
+    }
+    return {
+      code: 'META_TEMPLATE_CREATE_FAILED',
+      message: 'Falha ao criar template na Meta.',
+      statusCode: 502,
+    };
   }
 }

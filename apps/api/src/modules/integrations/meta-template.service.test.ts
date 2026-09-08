@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { MetaTemplateService } from './meta-template.service.js';
+import { MetaWhatsAppClient } from './meta-whatsapp-client.js';
 
 const metaConfig = (tenantId = 7n) => ({
   id: tenantId,
@@ -93,6 +94,17 @@ describe('MetaTemplateService', () => {
     expect(local.some((item) => item.templateName === 'agendei_payment_reminder_v1' && item.metaTemplateId === 'remote-id')).toBe(true);
   });
 
+  it('does not duplicate a standard template returned from a later Meta page', async () => {
+    const { service, metaClient } = subject([
+      { id: 'page-1-template', name: 'external_template', language: 'pt_BR', category: 'UTILITY', status: 'APPROVED' },
+      { id: 'page-2-payment', name: 'agendei_payment_reminder_v1', language: 'pt_BR', category: 'UTILITY', status: 'APPROVED' },
+    ]);
+    const result = await service.provisionDefaults(7n);
+    const createdNames = metaClient.createTemplate.mock.calls.map((call) => call[3]?.name);
+    expect(createdNames).not.toContain('agendei_payment_reminder_v1');
+    expect(result.summary).toMatchObject({ requested: 6, created: 5, existing: 1, failed: 0 });
+  });
+
   it('refresh updates PENDING to APPROVED and then REJECTED with reason', async () => {
     const remote = [{ id: 'remote-id', name: 'agendei_payment_reminder_v1', language: 'pt_BR', category: 'UTILITY', status: 'APPROVED' }];
     const { service, local, metaClient } = subject(remote);
@@ -122,5 +134,73 @@ describe('MetaTemplateService', () => {
     metaClient.createTemplate.mockResolvedValueOnce({ ok: false, status: 500, payload: {} });
     const result = await service.provisionDefaults(7n);
     expect(result.summary).toMatchObject({ requested: 6, created: 5, existing: 0, failed: 1 });
+    expect(JSON.stringify(result)).not.toContain('token-7');
+    expect(JSON.stringify(result)).not.toContain('Authorization');
+  });
+
+  it.each([
+    [401, 'META_AUTH_FAILED', 'Credenciais Meta sem permissão para criar templates.'],
+    [403, 'META_AUTH_FAILED', 'Credenciais Meta sem permissão para criar templates.'],
+    [429, 'META_RATE_LIMIT', 'Limite temporário da Meta atingido.'],
+    [400, 'META_TEMPLATE_INVALID', 'Meta rejeitou a criação do template.'],
+    [422, 'META_TEMPLATE_INVALID', 'Meta rejeitou a criação do template.'],
+    [500, 'META_UNAVAILABLE', 'Meta indisponível temporariamente.'],
+  ])('maps create status %i to sanitized local failure %s', async (status, _code, message) => {
+    const { service, metaClient, local } = subject();
+    metaClient.createTemplate.mockResolvedValueOnce({ ok: false, status, payload: { error: { message: 'raw token secret Authorization' } } });
+    const result = await service.provisionDefaults(7n);
+    expect(result.summary).toMatchObject({ requested: 6, created: 5, existing: 0, failed: 1 });
+    expect(local[0].rejectionReason).toBe(message);
+    expect(JSON.stringify(result)).not.toContain('raw token secret Authorization');
+    expect(local.some((item) => item.rejectionReason === 'raw token secret Authorization')).toBe(false);
+  });
+});
+
+describe('MetaWhatsAppClient templates pagination', () => {
+  const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  it('returns templates from two Graph pages', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        data: [{ id: 'a', name: 'template_a', language: 'pt_BR' }],
+        paging: { next: 'https://graph.facebook.com/v23.0/waba/message_templates?after=page-2' },
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        data: [{ id: 'b', name: 'agendei_payment_reminder_v1', language: 'pt_BR' }],
+      }));
+    const client = new MetaWhatsAppClient(fetcher as never);
+    const result = await client.listTemplates('v23.0', 'waba', 'tenant-token');
+    expect(result.ok).toBe(true);
+    expect(result.payload.data).toEqual([
+      { id: 'a', name: 'template_a', language: 'pt_BR' },
+      { id: 'b', name: 'agendei_payment_reminder_v1', language: 'pt_BR' },
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(result)).not.toContain('tenant-token');
+  });
+
+  it('interrupts repeated paging.next URLs with a safe error', async () => {
+    const next = 'https://graph.facebook.com/v23.0/waba/message_templates?after=same';
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({ data: [], paging: { next } })));
+    const client = new MetaWhatsAppClient(fetcher as never);
+    const result = await client.listTemplates('v23.0', 'waba', 'tenant-token');
+    expect(result).toMatchObject({ ok: false, status: 508, payload: { error: 'META_TEMPLATE_PAGING_LOOP' } });
+    expect(JSON.stringify(result)).not.toContain('tenant-token');
+  });
+
+  it('interrupts pagination above the defensive page limit', async () => {
+    let page = 0;
+    const fetcher = vi.fn().mockImplementation(() => {
+      page += 1;
+      return Promise.resolve(jsonResponse({ data: [], paging: { next: `https://graph.facebook.com/v23.0/waba/message_templates?after=${page}` } }));
+    });
+    const client = new MetaWhatsAppClient(fetcher as never);
+    const result = await client.listTemplates('v23.0', 'waba', 'tenant-token');
+    expect(result).toMatchObject({ ok: false, status: 508, payload: { error: 'META_TEMPLATE_PAGING_LIMIT' } });
+    expect(fetcher).toHaveBeenCalledTimes(100);
   });
 });

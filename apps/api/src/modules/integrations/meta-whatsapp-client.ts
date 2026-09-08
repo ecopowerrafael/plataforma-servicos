@@ -5,6 +5,8 @@ export interface MetaWhatsAppClientResult {
 }
 
 export class MetaWhatsAppClient {
+  private readonly maxTemplatePages = 100;
+
   public constructor(
     private readonly fetcher: typeof fetch = fetch,
     private readonly baseUrl = 'https://graph.facebook.com',
@@ -56,15 +58,27 @@ export class MetaWhatsAppClient {
     businessAccountId: string,
     accessToken: string,
   ): Promise<MetaWhatsAppClientResult> {
-    const response = await this.fetcher(
-      `${this.baseUrl}/${apiVersion}/${encodeURIComponent(businessAccountId)}/message_templates?fields=id,name,language,category,status,rejected_reason`,
-      { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15_000) },
-    );
-    return {
-      ok: response.ok,
-      status: response.status,
-      payload: (await response.json().catch(() => ({}))) as Record<string, unknown>,
-    };
+    let nextUrl: string | null = `${this.baseUrl}/${apiVersion}/${encodeURIComponent(businessAccountId)}/message_templates?fields=id,name,language,category,status,rejected_reason`;
+    const visited = new Set<string>();
+    const data: unknown[] = [];
+
+    for (let page = 0; nextUrl !== null; page += 1) {
+      if (page >= this.maxTemplatePages) return { ok: false, status: 508, payload: { error: 'META_TEMPLATE_PAGING_LIMIT' } };
+      if (visited.has(nextUrl)) return { ok: false, status: 508, payload: { error: 'META_TEMPLATE_PAGING_LOOP' } };
+      visited.add(nextUrl);
+
+      const response = await this.fetcher(
+        nextUrl,
+        { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15_000) },
+      );
+      const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!response.ok) return { ok: false, status: response.status, payload: {} };
+      if (Array.isArray(payload.data)) data.push(...payload.data);
+
+      nextUrl = this.nextPageUrl(payload);
+    }
+
+    return { ok: true, status: 200, payload: { data } };
   }
 
   public async createTemplate(
@@ -90,5 +104,21 @@ export class MetaWhatsAppClient {
       status: response.status,
       payload: (await response.json().catch(() => ({}))) as Record<string, unknown>,
     };
+  }
+
+  private nextPageUrl(payload: Record<string, unknown>): string | null {
+    const paging = payload.paging;
+    if (paging === null || typeof paging !== 'object' || Array.isArray(paging)) return null;
+    const next = (paging as Record<string, unknown>).next;
+    if (typeof next !== 'string' || next.trim() === '') return null;
+
+    try {
+      const parsedNext = new URL(next);
+      const graphHost = new URL(this.baseUrl).hostname;
+      if (parsedNext.hostname !== graphHost) return null;
+      return parsedNext.toString();
+    } catch {
+      return null;
+    }
   }
 }

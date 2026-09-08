@@ -183,6 +183,56 @@ describe('MetaWhatsAppClient templates pagination', () => {
     expect(JSON.stringify(result)).not.toContain('tenant-token');
   });
 
+  it('accepts a trusted https graph.facebook.com paging.next URL', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        data: [{ id: 'a', name: 'template_a', language: 'pt_BR' }],
+        paging: { next: 'https://graph.facebook.com/v23.0/waba/message_templates?after=page-2' },
+      }))
+      .mockResolvedValueOnce(jsonResponse({ data: [{ id: 'b', name: 'template_b', language: 'pt_BR' }] }));
+    const client = new MetaWhatsAppClient(fetcher as never);
+    const result = await client.listTemplates('v23.0', 'waba', 'tenant-token');
+    expect(result.ok).toBe(true);
+    expect(fetcher).toHaveBeenNthCalledWith(2, 'https://graph.facebook.com/v23.0/waba/message_templates?after=page-2', expect.anything());
+  });
+
+  it('rejects http graph paging.next before fetching it', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        data: [],
+        paging: { next: 'http://graph.facebook.com/v23.0/waba/message_templates?after=page-2' },
+      }));
+    const client = new MetaWhatsAppClient(fetcher as never);
+    const result = await client.listTemplates('v23.0', 'waba', 'tenant-token');
+    expect(result).toMatchObject({ ok: false, status: 508, payload: { error: 'META_TEMPLATE_PAGING_UNTRUSTED_URL' } });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects external paging.next before fetching it', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        data: [],
+        paging: { next: 'https://evil.example/v23.0/waba/message_templates?after=page-2' },
+      }));
+    const client = new MetaWhatsAppClient(fetcher as never);
+    const result = await client.listTemplates('v23.0', 'waba', 'tenant-token');
+    expect(result).toMatchObject({ ok: false, status: 508, payload: { error: 'META_TEMPLATE_PAGING_UNTRUSTED_URL' } });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls.some(([url, init]) => String(url).includes('evil.example') && JSON.stringify(init).includes('tenant-token'))).toBe(false);
+  });
+
+  it('rejects invalid paging.next URLs', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        data: [],
+        paging: { next: 'not a valid url' },
+      }));
+    const client = new MetaWhatsAppClient(fetcher as never);
+    const result = await client.listTemplates('v23.0', 'waba', 'tenant-token');
+    expect(result).toMatchObject({ ok: false, status: 508, payload: { error: 'META_TEMPLATE_PAGING_INVALID_URL' } });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it('interrupts repeated paging.next URLs with a safe error', async () => {
     const next = 'https://graph.facebook.com/v23.0/waba/message_templates?after=same';
     const fetcher = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({ data: [], paging: { next } })));

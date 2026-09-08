@@ -4,6 +4,10 @@ export interface MetaWhatsAppClientResult {
   payload: Record<string, unknown>;
 }
 
+type MetaTemplateNextPage =
+  | { ok: true; url: string | null }
+  | { ok: false; error: 'META_TEMPLATE_PAGING_INVALID_URL' | 'META_TEMPLATE_PAGING_UNTRUSTED_URL' };
+
 export class MetaWhatsAppClient {
   private readonly maxTemplatePages = 100;
 
@@ -75,7 +79,9 @@ export class MetaWhatsAppClient {
       if (!response.ok) return { ok: false, status: response.status, payload: {} };
       if (Array.isArray(payload.data)) data.push(...payload.data);
 
-      nextUrl = this.nextPageUrl(payload);
+      const nextPage = this.nextPageUrl(payload);
+      if (!nextPage.ok) return { ok: false, status: 508, payload: { error: nextPage.error } };
+      nextUrl = nextPage.url;
     }
 
     return { ok: true, status: 200, payload: { data } };
@@ -106,19 +112,21 @@ export class MetaWhatsAppClient {
     };
   }
 
-  private nextPageUrl(payload: Record<string, unknown>): string | null {
+  private nextPageUrl(payload: Record<string, unknown>): MetaTemplateNextPage {
     const paging = payload.paging;
-    if (paging === null || typeof paging !== 'object' || Array.isArray(paging)) return null;
+    if (paging === null || typeof paging !== 'object' || Array.isArray(paging)) return { ok: true, url: null };
     const next = (paging as Record<string, unknown>).next;
-    if (typeof next !== 'string' || next.trim() === '') return null;
+    if (typeof next !== 'string' || next.trim() === '') return { ok: true, url: null };
 
     try {
       const parsedNext = new URL(next);
       const graphHost = new URL(this.baseUrl).hostname;
-      if (parsedNext.hostname !== graphHost) return null;
-      return parsedNext.toString();
+      if (parsedNext.protocol !== 'https:' || parsedNext.hostname !== graphHost) {
+        return { ok: false, error: 'META_TEMPLATE_PAGING_UNTRUSTED_URL' };
+      }
+      return { ok: true, url: parsedNext.toString() };
     } catch {
-      return null;
+      return { ok: false, error: 'META_TEMPLATE_PAGING_INVALID_URL' };
     }
   }
 }

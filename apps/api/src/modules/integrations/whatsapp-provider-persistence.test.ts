@@ -38,6 +38,9 @@ const metaConfig = {
   businessAccountId: 'WABA',
   apiVersion: 'v23.0',
   connectionStatus: 'CREATED',
+  encryptedAppSecret: 'enc:{"appSecret":"meta-secret"}',
+  encryptedVerifyToken: 'enc:{"verifyToken":"verify-token"}',
+  webhookPublicId: 'meta-webhook-public-id',
 };
 
 describe('WhatsApp provider persistence hardening', () => {
@@ -80,9 +83,10 @@ describe('WhatsApp provider persistence hardening', () => {
         : { qrCode: true, autoProvision: true, interactiveMessages: true, templates: false, official: false }),
       provisioningForTenant: vi.fn().mockResolvedValue({ current: vi.fn().mockResolvedValue({ provider: 'WAPI', state: 'DISCONNECTED' }) }),
     };
-    const cipher = { encrypt: vi.fn((value) => `enc:${JSON.stringify(value)}`) };
-    process.env.META_WHATSAPP_VERIFY_TOKEN = 'verify-token';
-    process.env.META_WHATSAPP_APP_SECRET = 'app-secret';
+    const cipher = {
+      encrypt: vi.fn((value) => `enc:${JSON.stringify(value)}`),
+      decrypt: vi.fn((value: string) => JSON.parse(value.replace(/^enc:/u, '')) as Record<string, unknown>),
+    };
     const service = new WhatsAppConnectionService(
       resolver as never,
       { tenantWhatsAppSettings, tenantWhatsAppConfig } as never,
@@ -94,6 +98,7 @@ describe('WhatsApp provider persistence hardening', () => {
       phoneNumberId: 'META-PHONE',
       businessAccountId: 'WABA',
       accessToken: 'meta-token-com-tamanho-suficiente',
+      appSecret: 'tenant-meta-secret',
     });
     await service.selectProvider(7n, { provider: 'WAPI' });
 
@@ -107,8 +112,6 @@ describe('WhatsApp provider persistence hardening', () => {
     expect(tenantWhatsAppConfig.findUnique).toHaveBeenCalledWith({
       where: { tenantId_provider: { tenantId: 7n, provider: 'WAPI' } },
     });
-    delete process.env.META_WHATSAPP_VERIFY_TOKEN;
-    delete process.env.META_WHATSAPP_APP_SECRET;
   });
 
   it('first WAPI creates once and second connect reuses the created config', async () => {

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -25,7 +25,6 @@ export class WhatsAppConnectionService {
   ) {}
 
   public providers(): { items: WhatsAppProviderOption[] } {
-    const metaAvailable = this.metaAvailable();
     return {
       items: [
         {
@@ -39,15 +38,11 @@ export class WhatsAppConnectionService {
           provider: 'META',
           label: 'WhatsApp Oficial',
           description: 'Integracao oficial da Meta Cloud API.',
-          available: metaAvailable,
+          available: true,
           capabilities: this.resolver.capabilities('META'),
         },
       ],
     };
-  }
-
-  private metaAvailable() {
-    return this.cipher !== undefined && Boolean(process.env.META_WHATSAPP_VERIFY_TOKEN) && Boolean(process.env.META_WHATSAPP_APP_SECRET);
   }
 
   private async selectedProvider(tenantId: bigint): Promise<SupportedWhatsAppProviderId> {
@@ -85,6 +80,7 @@ export class WhatsAppConnectionService {
       phoneNumberId?: string | undefined;
       businessAccountId?: string | undefined;
       accessToken?: string | undefined;
+      appSecret?: string | undefined;
       apiVersion?: string | undefined;
     },
   ): Promise<{ provider: SupportedWhatsAppProviderId; capabilities: WhatsAppProviderCapabilities; connection: WhatsAppConnectionView }> {
@@ -111,14 +107,6 @@ export class WhatsAppConnectionService {
       };
     }
 
-    if (!this.metaAvailable()) {
-      throw new AppError({
-        code: 'WHATSAPP_PROVIDER_UNAVAILABLE',
-        message: 'A Meta Cloud API ainda nao esta disponivel neste ambiente.',
-        statusCode: 503,
-      });
-    }
-
     if (this.cipher === undefined) {
       throw new AppError({
         code: 'WHATSAPP_PROVIDER_UNAVAILABLE',
@@ -130,17 +118,28 @@ export class WhatsAppConnectionService {
     const phoneNumberId = input.phoneNumberId?.trim();
     const businessAccountId = input.businessAccountId?.trim();
     const accessToken = input.accessToken?.trim();
+    const appSecret = input.appSecret?.trim();
     const apiVersion = input.apiVersion?.trim() ?? 'v23.0';
-    if (
-      (await this.providerConfig(tenantId, 'META')) === null &&
-      (phoneNumberId === undefined || businessAccountId === undefined || accessToken === undefined)
-    ) {
+    const existingMeta = await this.providerConfig(tenantId, 'META');
+    if (existingMeta === null && (phoneNumberId === undefined || businessAccountId === undefined || accessToken === undefined || appSecret === undefined)) {
       throw new AppError({
         code: 'META_WHATSAPP_CREDENTIALS_REQUIRED',
-        message: 'Informe Phone Number ID, WhatsApp Business Account ID e Access Token.',
+        message: 'Informe Phone Number ID, WhatsApp Business Account ID, Access Token e App Secret.',
         statusCode: 400,
       });
     }
+    if (existingMeta !== null && existingMeta.encryptedAppSecret === null && appSecret === undefined) {
+      throw new AppError({
+        code: 'META_WHATSAPP_CREDENTIALS_REQUIRED',
+        message: 'Informe o App Secret da Meta.',
+        statusCode: 400,
+      });
+    }
+
+    const webhookPublicId = existingMeta?.webhookPublicId ?? randomUUID();
+    const verifyToken = existingMeta?.encryptedVerifyToken === null || existingMeta === null
+      ? randomBytes(32).toString('hex')
+      : this.decryptString(existingMeta.encryptedVerifyToken, 'verifyToken');
 
     const saved = await this.client.tenantWhatsAppConfig.upsert({
       where: { tenantId_provider: { tenantId, provider: 'META' } },
@@ -152,6 +151,9 @@ export class WhatsAppConnectionService {
         phoneNumberId: phoneNumberId!,
         businessAccountId: businessAccountId!,
         encryptedAccessToken: this.cipher.encrypt({ accessToken }),
+        encryptedAppSecret: this.cipher.encrypt({ appSecret }),
+        encryptedVerifyToken: this.cipher.encrypt({ verifyToken }),
+        webhookPublicId,
         apiVersion,
         connectionStatus: 'CREATED',
       },
@@ -160,6 +162,9 @@ export class WhatsAppConnectionService {
         ...(phoneNumberId === undefined ? {} : { phoneNumberId }),
         ...(businessAccountId === undefined ? {} : { businessAccountId }),
         ...(accessToken === undefined ? {} : { encryptedAccessToken: this.cipher.encrypt({ accessToken }) }),
+        ...(appSecret === undefined ? {} : { encryptedAppSecret: this.cipher.encrypt({ appSecret }) }),
+        encryptedVerifyToken: existingMeta?.encryptedVerifyToken ?? this.cipher.encrypt({ verifyToken }),
+        webhookPublicId,
         apiVersion,
         connectionStatus: 'CREATED',
       },
@@ -179,8 +184,25 @@ export class WhatsAppConnectionService {
         connectedAt: saved.connectedAt?.toISOString() ?? null,
         lastStatusCheckAt: saved.lastStatusCheckAt?.toISOString() ?? null,
         legacy: false,
+        webhookUrl: this.metaWebhookUrl(saved.webhookPublicId),
+        verifyToken,
+        tokenConfigured: saved.encryptedAccessToken.trim() !== '',
+        appSecretConfigured: saved.encryptedAppSecret !== null && saved.encryptedAppSecret.trim() !== '',
       },
     };
+  }
+
+  private decryptString(ciphertext: string, key: string) {
+    if (this.cipher === undefined) return '';
+    const stored = this.cipher.decrypt(ciphertext);
+    const value = stored[key];
+    return typeof value === 'string' ? value : '';
+  }
+
+  private metaWebhookUrl(webhookPublicId: string | null) {
+    if (webhookPublicId === null) return null;
+    const base = process.env.APP_WEB_URL?.trim() || 'https://agendei.site';
+    return `${base.replace(/\/$/u, '')}/webhooks/whatsapp/meta/${webhookPublicId}`;
   }
 
   public async current(tenantId: bigint): Promise<WhatsAppConnectionView> {

@@ -37,7 +37,7 @@ describe('WhatsApp W-API baseline before provider abstraction', () => {
     expect(routes).toContain('whatsappAssistantConfigRoutes');
     expect(webhookRoutes).toContain("'/public/integrations/whatsapp/webhook'");
     expect(webhookRoutes).toContain("'/webhooks/whatsapp/wapi'");
-    expect(webhookRoutes).toContain("'/webhooks/whatsapp/meta'");
+    expect(webhookRoutes).toContain("'/webhooks/whatsapp/meta/:webhookPublicId'");
     expect(routes).toContain('canonicalWapiWhatsAppWebhookPath');
   });
 

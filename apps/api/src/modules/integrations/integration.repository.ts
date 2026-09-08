@@ -102,6 +102,11 @@ export class IntegrationRepository {
   public whatsappByInstanceId(instanceId: string) {
     return this.client.tenantWhatsAppConfig.findFirst({ where: { phoneNumberId: instanceId } });
   }
+  public metaWhatsappByWebhookPublicId(webhookPublicId: string) {
+    return this.client.tenantWhatsAppConfig.findFirst({
+      where: { provider: 'META', webhookPublicId },
+    });
+  }
   public createInboundEvent(data: {
     tenantId: bigint;
     instanceId: string;

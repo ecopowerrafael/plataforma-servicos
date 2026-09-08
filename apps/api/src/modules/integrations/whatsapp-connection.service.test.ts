@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { WhatsAppConnectionService } from './whatsapp-connection.service.js';
 
@@ -43,7 +43,10 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
     findUnique: vi.fn().mockResolvedValue(null),
     upsert: vi.fn().mockResolvedValue({ selectedProvider: 'WAPI' }),
   };
-  const cipher = { encrypt: vi.fn((value: unknown) => `enc:${JSON.stringify(value)}`) };
+  const cipher = {
+    encrypt: vi.fn((value: unknown) => `enc:${JSON.stringify(value)}`),
+    decrypt: vi.fn((value: string) => JSON.parse(value.replace(/^enc:/u, '')) as Record<string, unknown>),
+  };
   return {
     provider,
     resolver,
@@ -59,19 +62,14 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
 }
 
 describe('WhatsAppConnectionService', () => {
-  afterEach(() => {
-    delete process.env.META_WHATSAPP_VERIFY_TOKEN;
-    delete process.env.META_WHATSAPP_APP_SECRET;
-  });
-
-  it('returns provider options with capabilities without making META operational yet', () => {
+  it('returns Meta available without global server credentials', () => {
     const { service } = subject();
     expect(service.providers()).toEqual({
       items: [
         expect.objectContaining({ provider: 'WAPI', available: true, capabilities }),
         expect.objectContaining({
           provider: 'META',
-          available: false,
+          available: true,
           capabilities: expect.objectContaining({ qrCode: false, templates: false, official: true }),
         }),
       ],
@@ -117,22 +115,22 @@ describe('WhatsAppConnectionService', () => {
 
   it('stores Meta credentials encrypted and exposes Meta capabilities', async () => {
     const { service, tenantWhatsAppConfig, cipher } = subject();
-    process.env.META_WHATSAPP_VERIFY_TOKEN = 'verify-token';
-    process.env.META_WHATSAPP_APP_SECRET = 'app-secret';
     await expect(
       service.selectProvider(7n, {
         provider: 'META',
         phoneNumberId: '1234567890',
         businessAccountId: '9876543210',
         accessToken: 'token-meta-com-tamanho-suficiente',
+        appSecret: 'app-secret-tenant-a',
         apiVersion: 'v23.0',
       }),
     ).resolves.toMatchObject({
       provider: 'META',
       capabilities: { qrCode: false, templates: false, official: true },
-      connection: { provisioned: true, state: 'CREATED' },
+      connection: { provisioned: true, state: 'CREATED', tokenConfigured: true, appSecretConfigured: true },
     });
     expect(cipher.encrypt).toHaveBeenCalledWith({ accessToken: 'token-meta-com-tamanho-suficiente' });
+    expect(cipher.encrypt).toHaveBeenCalledWith({ appSecret: 'app-secret-tenant-a' });
     expect(tenantWhatsAppConfig.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
@@ -140,6 +138,38 @@ describe('WhatsAppConnectionService', () => {
           phoneNumberId: '1234567890',
           businessAccountId: '9876543210',
           encryptedAccessToken: expect.stringContaining('enc:'),
+          encryptedAppSecret: expect.stringContaining('enc:'),
+          encryptedVerifyToken: expect.stringContaining('enc:'),
+          webhookPublicId: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it('preserves existing Meta secrets when update leaves secret fields empty', async () => {
+    const { service, tenantWhatsAppConfig } = subject();
+    tenantWhatsAppConfig.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce({
+      provider: 'META',
+      active: false,
+      connectionStatus: 'CREATED',
+      encryptedAccessToken: 'enc:{"accessToken":"old"}',
+      encryptedAppSecret: 'enc:{"appSecret":"old-secret"}',
+      encryptedVerifyToken: 'enc:{"verifyToken":"verify-old"}',
+      webhookPublicId: 'hook-old',
+    });
+
+    await service.selectProvider(7n, {
+      provider: 'META',
+      phoneNumberId: '1234567890',
+      businessAccountId: '9876543210',
+      apiVersion: 'v23.0',
+    });
+
+    expect(tenantWhatsAppConfig.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.not.objectContaining({
+          encryptedAccessToken: expect.anything(),
+          encryptedAppSecret: expect.anything(),
         }),
       }),
     );

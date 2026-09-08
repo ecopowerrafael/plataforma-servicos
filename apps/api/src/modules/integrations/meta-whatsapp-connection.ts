@@ -49,7 +49,17 @@ export class MetaWhatsAppConnection implements WhatsAppProvisioningProvider {
       connectedAt: config.connectedAt?.toISOString() ?? null,
       lastStatusCheckAt: config.lastStatusCheckAt?.toISOString() ?? null,
       legacy: false,
+      webhookUrl: config.webhookPublicId === null ? null : `${(process.env.APP_WEB_URL?.trim() || 'https://agendei.site').replace(/\/$/u, '')}/webhooks/whatsapp/meta/${config.webhookPublicId}`,
+      verifyToken: this.verifyToken(config),
+      tokenConfigured: config.encryptedAccessToken.trim() !== '',
+      appSecretConfigured: config.encryptedAppSecret !== null && config.encryptedAppSecret.trim() !== '',
     };
+  }
+
+  private verifyToken(config: MetaConfig) {
+    if (this.cipher === undefined || config.encryptedVerifyToken === null) return null;
+    const stored = this.cipher.decrypt(config.encryptedVerifyToken);
+    return typeof stored.verifyToken === 'string' ? stored.verifyToken : null;
   }
 
   private async config(tenantId: bigint): Promise<MetaConfig> {

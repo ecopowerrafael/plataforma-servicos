@@ -29,6 +29,7 @@ export const UpdateWhatsAppProviderSchema = z
     phoneNumberId: z.string().trim().min(3).max(80).optional(),
     businessAccountId: z.string().trim().min(3).max(80).optional(),
     accessToken: z.string().trim().min(20).max(4096).optional(),
+    appSecret: z.string().trim().min(8).max(4096).optional(),
     apiVersion: z.string().trim().min(2).max(16).optional(),
   })
   .strict();
@@ -72,6 +73,10 @@ export const WhatsAppConnectionSchema = z.object({
   lastStatusCheckAt: z.iso.datetime({ offset: true }).nullable(),
   /** Instância configurada manualmente antes do provisionamento automático. */
   legacy: z.boolean(),
+  webhookUrl: z.url().nullable().optional(),
+  verifyToken: z.string().nullable().optional(),
+  tokenConfigured: z.boolean().optional(),
+  appSecretConfigured: z.boolean().optional(),
 });
 export const WhatsAppProviderSelectionResultSchema = WhatsAppProviderSelectionResponseSchema.extend({
   connection: WhatsAppConnectionSchema,

@@ -87,6 +87,7 @@ export function WhatsAppConnectionCard({
     phoneNumberId: '',
     businessAccountId: '',
     accessToken: '',
+    appSecret: '',
     apiVersion: 'v23.0',
   });
   const queryKey = ['tenant', tenantPublicId, 'whatsapp', 'connection'];
@@ -153,6 +154,7 @@ export function WhatsAppConnectionCard({
                 phoneNumberId: metaForm.phoneNumberId,
                 businessAccountId: metaForm.businessAccountId,
                 ...(metaForm.accessToken.trim() === '' ? {} : { accessToken: metaForm.accessToken }),
+                ...(metaForm.appSecret.trim() === '' ? {} : { appSecret: metaForm.appSecret }),
                 apiVersion: metaForm.apiVersion,
               },
         ),
@@ -302,9 +304,20 @@ export function WhatsAppConnectionCard({
               type="password"
               value={metaForm.accessToken}
               onChange={(event) => setMetaForm((value) => ({ ...value, accessToken: event.target.value }))}
-              placeholder="Token da Meta"
+              placeholder={connection.data?.tokenConfigured === true ? 'Token configurado — deixe vazio para manter' : 'Token da Meta'}
             />
           </label>
+          {connection.data?.tokenConfigured === true ? <span className="whatsapp-secret-badge">Token configurado</span> : null}
+          <label>
+            App Secret
+            <input
+              type="password"
+              value={metaForm.appSecret}
+              onChange={(event) => setMetaForm((value) => ({ ...value, appSecret: event.target.value }))}
+              placeholder={connection.data?.appSecretConfigured === true ? 'App Secret configurado — deixe vazio para manter' : 'App Secret do aplicativo Meta'}
+            />
+          </label>
+          {connection.data?.appSecretConfigured === true ? <span className="whatsapp-secret-badge">App Secret configurado</span> : null}
           <label>
             Versão API
             <input
@@ -315,6 +328,34 @@ export function WhatsAppConnectionCard({
           <p className="ds-form-hint">
             A Meta não usa QR Code. As credenciais ficam cifradas no backend e o envio será ativado pelo adapter oficial.
           </p>
+          {connection.data?.webhookUrl !== undefined && connection.data.webhookUrl !== null && connection.data.verifyToken !== undefined && connection.data.verifyToken !== null ? (
+            <div className="whatsapp-webhook-box">
+              <h4>Configuração do webhook</h4>
+              <p>Use estes dados na configuração de Webhooks do seu aplicativo Meta.</p>
+              <label>
+                URL de retorno
+                <input readOnly value={connection.data.webhookUrl} />
+              </label>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => void navigator.clipboard?.writeText(connection.data?.webhookUrl ?? '')}
+              >
+                Copiar URL
+              </button>
+              <label>
+                Verify Token
+                <input readOnly value={connection.data.verifyToken} />
+              </label>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => void navigator.clipboard?.writeText(connection.data?.verifyToken ?? '')}
+              >
+                Copiar Verify Token
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {selectedProvider === 'WAPI' && selectedProviderIsActive && state === 'NOT_CREATED' ? (

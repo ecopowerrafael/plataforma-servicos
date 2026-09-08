@@ -1020,6 +1020,9 @@ model TenantWhatsAppConfig {
   lastStatusCheckAt    DateTime? @map("last_status_check_at") @db.DateTime(3)
   businessAccountId    String   @map("business_account_id") @db.VarChar(80)
   encryptedAccessToken String   @map("encrypted_access_token") @db.Text
+  encryptedAppSecret   String?  @map("encrypted_app_secret") @db.Text
+  encryptedVerifyToken String?  @map("encrypted_verify_token") @db.Text
+  webhookPublicId      String?  @unique @map("webhook_public_id") @db.Char(36)
   apiVersion           String   @default("v23.0") @map("api_version") @db.VarChar(16)
   lastValidationStatus String?  @map("last_validation_status") @db.VarChar(32)
   lastValidatedAt      DateTime? @map("last_validated_at") @db.DateTime(3)

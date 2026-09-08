@@ -12157,6 +12157,37 @@ h1 {
   border-radius: 0.5rem;
   padding: 0.7rem 0.8rem;
 }
+.whatsapp-secret-badge {
+  align-self: start;
+  background: color-mix(in srgb, #16a34a 12%, transparent);
+  border-radius: 999px;
+  color: #15803d;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.25rem 0.55rem;
+}
+.whatsapp-webhook-box {
+  background: color-mix(in srgb, var(--ds-color-primary) 7%, var(--ds-bg-surface));
+  border: 1px solid color-mix(in srgb, var(--ds-color-primary) 28%, var(--ds-border));
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+  padding: 1rem;
+}
+.whatsapp-webhook-box h4,
+.whatsapp-webhook-box p {
+  margin: 0;
+}
+.whatsapp-webhook-box p {
+  color: var(--ds-text-muted);
+  font-size: 0.9rem;
+}
+.whatsapp-webhook-box input {
+  background: var(--ds-bg-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+}
 .whatsapp-card__connected {
   display: grid;
   gap: 0.3rem;

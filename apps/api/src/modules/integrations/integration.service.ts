@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 
 import { type WhatsAppDelivery } from './integration-delivery.js';
 import { type IntegrationRepository } from './integration.repository.js';
@@ -17,6 +17,7 @@ import {
 import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
 import { type WhatsAppProviderResolver } from './whatsapp-provider-resolver.js';
 import { type WhatsAppProviderId } from './whatsapp-provider.js';
+import { MetaInboundNormalizer } from './meta-whatsapp-inbound.js';
 import { type Prisma } from '../../database-client/client.js';
 import { type Environment } from '../../config/environment.js';
 import { AppError } from '../../errors/AppError.js';
@@ -495,6 +496,63 @@ export class IntegrationService {
       else summary.rejected += 1;
     }
     return summary;
+  }
+
+  public async verifyMetaWebhook(webhookPublicId: string, query: { mode?: string | undefined; verifyToken?: string | undefined; challenge?: string | undefined }) {
+    if (query.mode !== 'subscribe') return null;
+    const config = await this.repository.metaWhatsappByWebhookPublicId(webhookPublicId);
+    if (config === null || config.encryptedVerifyToken === null || this.cipher === undefined) return null;
+    const stored = this.cipher.decrypt(config.encryptedVerifyToken);
+    const expected = typeof stored.verifyToken === 'string' ? stored.verifyToken : null;
+    if (expected === null || query.verifyToken === undefined) return null;
+    const expectedBuffer = Buffer.from(expected);
+    const receivedBuffer = Buffer.from(query.verifyToken);
+    if (expectedBuffer.length !== receivedBuffer.length || !timingSafeEqual(expectedBuffer, receivedBuffer)) return null;
+    return query.challenge ?? '';
+  }
+
+  public async ingestMetaWebhook(webhookPublicId: string, rawBody: string | undefined, body: unknown, signatureHeader: string | string[] | undefined) {
+    const config = await this.repository.metaWhatsappByWebhookPublicId(webhookPublicId);
+    if (config === null) return { statusCode: 404, body: { code: 'META_WEBHOOK_NOT_FOUND' } } as const;
+    if (this.cipher === undefined || config.encryptedAppSecret === null) {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_APP_SECRET_REQUIRED' } } as const;
+    }
+    const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
+    if (signature === undefined || !signature.startsWith('sha256=')) {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_SIGNATURE_REQUIRED' } } as const;
+    }
+    const stored = this.cipher.decrypt(config.encryptedAppSecret);
+    const appSecret = typeof stored.appSecret === 'string' ? stored.appSecret : null;
+    if (appSecret === null || appSecret.trim() === '') {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_APP_SECRET_REQUIRED' } } as const;
+    }
+    const payload = rawBody ?? (typeof body === 'string' ? body : JSON.stringify(body ?? {}));
+    const expected = createHmac('sha256', appSecret).update(payload).digest('hex');
+    const received = signature.slice('sha256='.length);
+    const expectedBuffer = Buffer.from(expected, 'hex');
+    const receivedBuffer = Buffer.from(received, 'hex');
+    if (expectedBuffer.length !== receivedBuffer.length || !timingSafeEqual(expectedBuffer, receivedBuffer)) {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_SIGNATURE_INVALID' } } as const;
+    }
+    const normalizer = new MetaInboundNormalizer();
+    const events = normalizer.normalizeMany(body);
+    if (events.length === 0 || events.some((event) => event.instanceId !== config.phoneNumberId)) {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_PHONE_NUMBER_MISMATCH' } } as const;
+    }
+    const selectedProvider = this.repository.selectedWhatsappProvider === undefined
+      ? 'META'
+      : await this.repository.selectedWhatsappProvider(config.tenantId);
+    if (selectedProvider !== 'META') {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_PROVIDER_MISMATCH' } } as const;
+    }
+    const summary = { received: true, processed: 0, duplicated: 0, rejected: 0 };
+    for (const event of events) {
+      const result = await this.processTenantWhatsappInbound(config, event);
+      if (result.accepted && result.duplicated) summary.duplicated += 1;
+      else if (result.accepted) summary.processed += 1;
+      else summary.rejected += 1;
+    }
+    return { statusCode: 200, body: summary } as const;
   }
 
   private async processTenantWhatsappInbound(

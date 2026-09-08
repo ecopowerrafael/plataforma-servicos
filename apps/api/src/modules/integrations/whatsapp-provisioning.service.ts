@@ -32,6 +32,10 @@ export interface WhatsAppConnectionView {
   lastStatusCheckAt: string | null;
   /** Configuração anterior ao provisionamento automático. */
   legacy: boolean;
+  webhookUrl?: string | null;
+  verifyToken?: string | null;
+  tokenConfigured?: boolean;
+  appSecretConfigured?: boolean;
 }
 
 type ConfigRow = NonNullable<

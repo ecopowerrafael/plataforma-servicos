@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Readable } from 'node:stream';
 
 import { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -9,11 +8,9 @@ import { type IntegrationService } from './integration.service.js';
 /** Caminho público do webhook — compartilhado com a rota que registra a URL na instância. */
 export const whatsappWebhookPath = '/public/integrations/whatsapp/webhook';
 export const canonicalWapiWhatsAppWebhookPath = '/webhooks/whatsapp/wapi';
-export const canonicalMetaWhatsAppWebhookPath = '/webhooks/whatsapp/meta';
+export const canonicalMetaWhatsAppWebhookPath = '/webhooks/whatsapp/meta/:webhookPublicId';
 export const wapiWhatsAppWebhookPath = '/public/webhooks/whatsapp/wapi';
-export const metaWhatsAppWebhookPath = '/public/webhooks/whatsapp/meta';
-
-const metaRawPayload = (body: unknown) => (typeof body === 'string' ? body : JSON.stringify(body ?? {}));
+export const metaWhatsAppWebhookPath = '/public/webhooks/whatsapp/meta/:webhookPublicId';
 
 interface RawBodyRequest {
   rawBody?: string;
@@ -21,23 +18,7 @@ interface RawBodyRequest {
 
 const isMetaWebhookPost = (method: string, url: string) =>
   method === 'POST' &&
-  (url === canonicalMetaWhatsAppWebhookPath || url === metaWhatsAppWebhookPath);
-
-const verifyMetaSignature = (
-  rawBody: string | undefined,
-  body: unknown,
-  signatureHeader: string | string[] | undefined,
-) => {
-  const appSecret = process.env.META_WHATSAPP_APP_SECRET;
-  if (appSecret === undefined || appSecret.trim() === '') return false;
-  const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
-  if (signature === undefined || !signature.startsWith('sha256=')) return false;
-  const expected = createHmac('sha256', appSecret).update(rawBody ?? metaRawPayload(body)).digest('hex');
-  const received = signature.slice('sha256='.length);
-  const expectedBuffer = Buffer.from(expected, 'hex');
-  const receivedBuffer = Buffer.from(received, 'hex');
-  return expectedBuffer.length === receivedBuffer.length && timingSafeEqual(expectedBuffer, receivedBuffer);
-};
+  (url.startsWith('/webhooks/whatsapp/meta/') || url.startsWith('/public/webhooks/whatsapp/meta/'));
 
 /**
  * Recepção do webhook de WhatsApp. Responde 2xx sempre que o corpo é legível,
@@ -81,28 +62,30 @@ export const whatsappWebhookRoutes: FastifyPluginAsyncZod<{ service: Integration
       'hub.verify_token'?: string;
       'hub.challenge'?: string;
     };
-    const verifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN;
-    if (
-      query['hub.mode'] === 'subscribe' &&
-      verifyToken !== undefined &&
-      query['hub.verify_token'] === verifyToken
-    ) {
-      return reply.status(200).send(query['hub.challenge'] ?? '');
-    }
+    const params = request.params as { webhookPublicId: string };
+    const challenge = await options.service.verifyMetaWebhook(params.webhookPublicId, {
+      mode: query['hub.mode'],
+      verifyToken: query['hub.verify_token'],
+      challenge: query['hub.challenge'],
+    });
+    if (challenge !== null) return reply.status(200).send(challenge);
     return reply.status(403).send({ code: 'META_WEBHOOK_VERIFY_FAILED' });
   };
 
   const ingestMeta = async (request: FastifyRequest, reply: FastifyReply) => {
     const rawBody = (request as FastifyRequest & RawBodyRequest).rawBody;
-    if (!verifyMetaSignature(rawBody, request.body, request.headers['x-hub-signature-256'])) {
-      return reply.status(403).send({ code: 'META_WEBHOOK_SIGNATURE_INVALID' });
-    }
-    const result = await options.service.ingestWhatsappInboundForProvider('META', request.body);
+    const params = request.params as { webhookPublicId: string };
+    const result = await options.service.ingestMetaWebhook(
+      params.webhookPublicId,
+      rawBody,
+      request.body,
+      request.headers['x-hub-signature-256'],
+    );
     request.log.info(
-      { operation: 'whatsapp_meta_webhook_received', ...result },
+      { operation: 'whatsapp_meta_webhook_received', webhookPublicId: params.webhookPublicId, statusCode: result.statusCode },
       'Evento de WhatsApp Meta recebido',
     );
-    return reply.status(200).send({ received: true, ...result });
+    return reply.status(result.statusCode).send(result.body);
   };
 
   app.get(canonicalMetaWhatsAppWebhookPath, verifyMetaWebhook);

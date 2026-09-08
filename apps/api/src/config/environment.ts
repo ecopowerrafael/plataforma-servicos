@@ -60,8 +60,6 @@ const environmentSchema = z
     WAPI_MASTER_API_KEY: z.string().trim().min(8).optional(),
     /** Base opcional; o cliente da W-API já usa a URL oficial por padrão. */
     WAPI_BASE_URL: z.url().optional(),
-    META_WHATSAPP_VERIFY_TOKEN: z.string().trim().min(8).optional(),
-    META_WHATSAPP_APP_SECRET: z.string().trim().min(8).optional(),
     AUTH_COOKIE_NAME: z
       .string()
       .trim()

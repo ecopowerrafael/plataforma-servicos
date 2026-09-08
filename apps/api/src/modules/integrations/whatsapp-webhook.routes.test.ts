@@ -1,7 +1,5 @@
-import { createHmac } from 'node:crypto';
-
 import Fastify from 'fastify';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { type ZodTypeProvider } from 'fastify-type-provider-zod';
 
 import {
@@ -12,25 +10,21 @@ import {
   whatsappWebhookRoutes,
 } from './whatsapp-webhook.routes.js';
 
+const canonicalMeta = (id: string) => canonicalMetaWhatsAppWebhookPath.replace(':webhookPublicId', id);
+const legacyMeta = (id: string) => metaWhatsAppWebhookPath.replace(':webhookPublicId', id);
+
 const build = async () => {
   const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
   const service = {
     ingestWhatsappInbound: vi.fn().mockResolvedValue({ accepted: true, provider: 'WAPI' }),
-    ingestWhatsappInboundForProvider: vi.fn().mockResolvedValue({ accepted: true, provider: 'META' }),
+    verifyMetaWebhook: vi.fn().mockResolvedValue('abc123'),
+    ingestMetaWebhook: vi.fn().mockResolvedValue({ statusCode: 200, body: { received: true, processed: 1, duplicated: 0, rejected: 0 } }),
   };
   await app.register(whatsappWebhookRoutes, { service: service as never });
   return { app, service };
 };
 
 describe('whatsappWebhookRoutes', () => {
-  const previousVerifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN;
-  const previousAppSecret = process.env.META_WHATSAPP_APP_SECRET;
-
-  afterEach(() => {
-    process.env.META_WHATSAPP_VERIFY_TOKEN = previousVerifyToken;
-    process.env.META_WHATSAPP_APP_SECRET = previousAppSecret;
-  });
-
   it('keeps the legacy WAPI webhook and exposes the canonical WAPI route', async () => {
     const { app, service } = await build();
 
@@ -51,95 +45,46 @@ describe('whatsappWebhookRoutes', () => {
     await app.close();
   });
 
-  it('answers Meta verification challenge only when verify token matches', async () => {
-    process.env.META_WHATSAPP_VERIFY_TOKEN = 'verify-token';
-    const { app } = await build();
+  it('passes Meta verification to the tenant-scoped webhook public id', async () => {
+    const { app, service } = await build();
 
     const accepted = await app.inject({
       method: 'GET',
-      url: `${canonicalMetaWhatsAppWebhookPath}?hub.mode=subscribe&hub.verify_token=verify-token&hub.challenge=abc123`,
+      url: `${canonicalMeta('hook-a')}?hub.mode=subscribe&hub.verify_token=verify-a&hub.challenge=abc123`,
     });
+    service.verifyMetaWebhook.mockResolvedValueOnce(null);
     const rejected = await app.inject({
       method: 'GET',
-      url: `${metaWhatsAppWebhookPath}?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=abc123`,
+      url: `${legacyMeta('hook-a')}?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=abc123`,
     });
 
     expect(accepted.statusCode).toBe(200);
     expect(accepted.body).toBe('abc123');
     expect(rejected.statusCode).toBe(403);
-    await app.close();
-  });
-
-  it('rejects Meta payloads with invalid signature when app secret is configured', async () => {
-    process.env.META_WHATSAPP_APP_SECRET = 'meta-secret';
-    const { app, service } = await build();
-
-    const response = await app.inject({
-      method: 'POST',
-      url: canonicalMetaWhatsAppWebhookPath,
-      payload: { entry: [] },
-      headers: { 'x-hub-signature-256': 'sha256=bad' },
+    expect(service.verifyMetaWebhook).toHaveBeenCalledWith('hook-a', {
+      mode: 'subscribe',
+      verifyToken: 'verify-a',
+      challenge: 'abc123',
     });
-
-    expect(response.statusCode).toBe(403);
-    expect(service.ingestWhatsappInboundForProvider).not.toHaveBeenCalled();
     await app.close();
   });
 
-  it('rejects Meta POST fail-closed when app secret is not configured', async () => {
-    delete process.env.META_WHATSAPP_APP_SECRET;
-    const { app, service } = await build();
-
-    const response = await app.inject({
-      method: 'POST',
-      url: canonicalMetaWhatsAppWebhookPath,
-      payload: { entry: [] },
-    });
-
-    expect(response.statusCode).toBe(403);
-    expect(service.ingestWhatsappInboundForProvider).not.toHaveBeenCalled();
-    await app.close();
-  });
-
-  it('routes a valid Meta payload through the Meta provider normalizer path', async () => {
-    process.env.META_WHATSAPP_APP_SECRET = 'meta-secret';
-    const { app, service } = await build();
-    const payload = { entry: [{ changes: [] }] };
-    const body = JSON.stringify(payload);
-    const signature = createHmac('sha256', 'meta-secret').update(body).digest('hex');
-
-    const response = await app.inject({
-      method: 'POST',
-      url: canonicalMetaWhatsAppWebhookPath,
-      payload,
-      headers: { 'x-hub-signature-256': `sha256=${signature}` },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(service.ingestWhatsappInboundForProvider).toHaveBeenCalledWith('META', payload);
-    await app.close();
-  });
-
-  it('validates Meta signatures against the exact raw request body', async () => {
-    process.env.META_WHATSAPP_APP_SECRET = 'meta-secret';
+  it('passes the exact raw body and signature to tenant-scoped Meta ingestion', async () => {
     const { app, service } = await build();
     const rawBody = '{\n  "entry": [\n    { "changes": [] }\n  ]\n}';
-    const signature = createHmac('sha256', 'meta-secret').update(rawBody).digest('hex');
 
     const response = await app.inject({
       method: 'POST',
-      url: canonicalMetaWhatsAppWebhookPath,
+      url: canonicalMeta('hook-a'),
       payload: rawBody,
       headers: {
         'content-type': 'application/json',
-        'x-hub-signature-256': `sha256=${signature}`,
+        'x-hub-signature-256': 'sha256=signature-a',
       },
     });
 
     expect(response.statusCode).toBe(200);
-    expect(service.ingestWhatsappInboundForProvider).toHaveBeenCalledWith('META', {
-      entry: [{ changes: [] }],
-    });
+    expect(service.ingestMetaWebhook).toHaveBeenCalledWith('hook-a', rawBody, { entry: [{ changes: [] }] }, 'sha256=signature-a');
     await app.close();
   });
 });

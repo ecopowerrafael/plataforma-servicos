@@ -405,12 +405,12 @@ export function CustomerModule({
         </button>
       </div>
 
-      <div className="crm-chips" role="group" aria-label="Segmentos">
+      <div className="crm-segment-chips" role="group" aria-label="Segmentos">
         {SEGMENT_CHIPS.map((chip) => (
           <button
             key={chip.label}
             type="button"
-            className={segment === chip.value ? 'is-active' : ''}
+            className={`crm-segment-chip${segment === chip.value ? ' is-active' : ''}`}
             aria-pressed={segment === chip.value}
             onClick={() => {
               reset();

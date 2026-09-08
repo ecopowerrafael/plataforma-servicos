@@ -5019,6 +5019,40 @@ a {
 .app-filter-bar label:last-of-type input {
   width: min(100%, 22.5rem);
 }
+.crm-segment-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 1rem;
+}
+.app-shell .crm-segment-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #dbe4f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: normal;
+  white-space: nowrap;
+  box-shadow: none;
+  aspect-ratio: auto;
+}
+.app-shell .crm-segment-chip.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+}
+.app-shell .crm-segment-chip:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
 .dashboard-module {
   display: block !important;
 }

@@ -450,6 +450,9 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.whatsappConnection === undefined
         ? {}
         : { provisioning: options.database.whatsappConnection }),
+      ...(options.database.metaTemplates === undefined
+        ? {}
+        : { metaTemplates: options.database.metaTemplates }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

@@ -15,6 +15,7 @@ import {
   WhatsAppInstanceDiagnosticsSchema,
   WhatsAppQrCodeSchema,
   WhatsAppLastInboundEventSchema,
+  TenantMetaTemplatesResponseSchema,
   WhatsAppProviderSelectionResultSchema,
   WhatsAppProvidersResponseSchema,
   WhatsAppWebhookConfigResponseSchema,
@@ -23,6 +24,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { type IntegrationService } from './integration.service.js';
+import { type MetaTemplateService } from './meta-template.service.js';
 import { type WhatsAppConnectionService } from './whatsapp-connection.service.js';
 import { canonicalWapiWhatsAppWebhookPath } from './whatsapp-webhook.routes.js';
 import { whatsappAssistantConfigRoutes } from './whatsapp-assistant-config.routes.js';
@@ -39,6 +41,7 @@ const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } 
 export const integrationRoutes: FastifyPluginAsyncZod<{
   service: IntegrationService;
   provisioning?: WhatsAppConnectionService;
+  metaTemplates?: MetaTemplateService;
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
@@ -275,6 +278,56 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
     async (request) => {
       options.authService.requirePermission(request.tenant, 'integration.read');
       return options.service.lastWhatsappInboundEvent(request.tenant.id);
+    },
+  );
+  const metaTemplates = () => {
+    if (options.metaTemplates === undefined)
+      throw new AppError({
+        code: 'META_TEMPLATES_UNAVAILABLE',
+        message: 'Templates da Meta indisponíveis no momento.',
+        statusCode: 503,
+      });
+    return options.metaTemplates;
+  };
+  app.get(
+    '/tenant/integrations/whatsapp/meta/templates',
+    { schema: { response: { 200: TenantMetaTemplatesResponseSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.read');
+      return metaTemplates().list(request.tenant.id);
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/meta/templates/provision',
+    { schema: { response: { 200: TenantMetaTemplatesResponseSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      const result = await metaTemplates().provisionDefaults(request.tenant.id);
+      request.log.info(
+        {
+          operation: 'meta_templates_provision',
+          tenantPublicId: request.tenant.publicId,
+          requested: result.summary?.requested,
+          created: result.summary?.created,
+          existing: result.summary?.existing,
+          failed: result.summary?.failed,
+        },
+        'Provisionamento sanitizado de templates Meta',
+      );
+      return result;
+    },
+  );
+  app.post(
+    '/tenant/integrations/whatsapp/meta/templates/refresh',
+    { schema: { response: { 200: TenantMetaTemplatesResponseSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      const result = await metaTemplates().refresh(request.tenant.id);
+      request.log.info(
+        { operation: 'meta_templates_refresh', tenantPublicId: request.tenant.publicId },
+        'Atualização sanitizada de templates Meta',
+      );
+      return result;
     },
   );
   app.get(

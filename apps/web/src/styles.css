@@ -12188,6 +12188,69 @@ h1 {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.82rem;
 }
+.whatsapp-templates-box {
+  border: 1px solid var(--ds-border);
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+.whatsapp-templates-box h4,
+.whatsapp-templates-box p {
+  margin: 0;
+}
+.whatsapp-templates-box p {
+  color: var(--ds-text-muted);
+}
+.whatsapp-template-list {
+  display: grid;
+  gap: 0.55rem;
+}
+.whatsapp-template-item {
+  align-items: center;
+  background: var(--ds-bg-surface);
+  border: 1px solid color-mix(in srgb, var(--ds-border) 82%, var(--ds-color-primary));
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: minmax(0, 1.3fr) auto auto auto;
+  padding: 0.75rem;
+}
+.whatsapp-template-item strong,
+.whatsapp-template-item small {
+  display: block;
+}
+.whatsapp-template-item small,
+.whatsapp-template-item p {
+  color: var(--ds-text-muted);
+  font-size: 0.8rem;
+}
+.whatsapp-template-item span,
+.whatsapp-template-item em {
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+  padding: 0.28rem 0.5rem;
+}
+.whatsapp-template-item span {
+  background: color-mix(in srgb, var(--ds-color-primary) 10%, transparent);
+  color: var(--ds-color-primary);
+}
+.whatsapp-template-item em {
+  background: color-mix(in srgb, var(--ds-border) 45%, transparent);
+}
+.whatsapp-template-item em span {
+  background: transparent;
+  color: inherit;
+  padding: 0 0.25rem 0 0;
+}
+@media (max-width: 720px) {
+  .whatsapp-template-item {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+}
 .whatsapp-card__connected {
   display: grid;
   gap: 0.3rem;

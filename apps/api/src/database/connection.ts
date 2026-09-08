@@ -50,6 +50,7 @@ import { WapiMasterCredentialProvider } from '../modules/integrations/wapi-maste
 import { WhatsAppConnectionService } from '../modules/integrations/whatsapp-connection.service.js';
 import { MetaWhatsAppConnection } from '../modules/integrations/meta-whatsapp-connection.js';
 import { MetaWhatsAppDelivery } from '../modules/integrations/meta-whatsapp-delivery.js';
+import { MetaTemplateService } from '../modules/integrations/meta-template.service.js';
 import { ProviderResolvedWhatsAppDelivery } from '../modules/integrations/whatsapp-provider-delivery.js';
 import { WhatsAppProviderResolver } from '../modules/integrations/whatsapp-provider-resolver.js';
 import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
@@ -196,6 +197,7 @@ export interface DatabaseConnection {
   readonly prospectingWhatsAppConfig?: ProspectingWhatsAppConfigService;
   readonly whatsappProvisioning?: WhatsAppProvisioningService;
   readonly whatsappConnection?: WhatsAppConnectionService;
+  readonly metaTemplates?: MetaTemplateService;
   readonly appointmentNotifications?: AppointmentNotificationService;
   readonly treatmentPlanNotifications?: TreatmentPlanNotificationService;
   readonly appointmentReminderConfig?: AppointmentReminderConfigService;
@@ -413,6 +415,7 @@ export function createDatabaseConnection(
   });
   const providerResolvedWhatsAppDelivery = new ProviderResolvedWhatsAppDelivery(whatsappProviderResolver);
   const whatsappConnection = new WhatsAppConnectionService(whatsappProviderResolver, client, credentialsCipher);
+  const metaTemplates = new MetaTemplateService(client, credentialsCipher);
   const wapiConfigService = new WapiConfigService(
     client,
     credentialsCipher,
@@ -595,6 +598,7 @@ export function createDatabaseConnection(
     ...(credentialsCipher ? { prospectingWhatsAppConfig: new ProspectingWhatsAppConfigService(client, credentialsCipher) } : {}),
     whatsappProvisioning,
     whatsappConnection,
+    metaTemplates,
     appointmentNotifications: appointmentNotifications,
     treatmentPlanNotifications,
     appointmentReminderConfig: appointmentReminderConfig,

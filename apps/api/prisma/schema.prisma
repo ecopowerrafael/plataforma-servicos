@@ -564,6 +564,7 @@ model Tenant {
   domains                      TenantDomain[]
   whatsappConfigs              TenantWhatsAppConfig[]
   whatsappSettings             TenantWhatsAppSettings?
+  whatsappMetaTemplates        TenantWhatsAppMetaTemplate[]
   whatsappInboundEvents        WhatsAppInboundEvent[]
   whatsappOutboundMessages     WhatsAppOutboundMessage[]
   whatsappConversations        WhatsAppConversation[]
@@ -1048,6 +1049,29 @@ model TenantWhatsAppSettings {
 
   @@index([selectedProvider])
   @@map("tenant_whatsapp_settings")
+}
+
+model TenantWhatsAppMetaTemplate {
+  id                 BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId           String    @unique @map("public_id") @db.Char(36)
+  tenantId           BigInt    @map("tenant_id") @db.UnsignedBigInt
+  whatsappConfigId   BigInt    @map("whatsapp_config_id") @db.UnsignedBigInt
+  purpose            String    @db.VarChar(48)
+  templateName       String    @map("template_name") @db.VarChar(128)
+  language           String    @db.VarChar(16)
+  category           String    @db.VarChar(32)
+  metaTemplateId     String?   @map("meta_template_id") @db.VarChar(128)
+  status             String    @default("UNKNOWN") @db.VarChar(32)
+  rejectionReason    String?   @map("rejection_reason") @db.VarChar(500)
+  lastCheckedAt      DateTime? @map("last_checked_at") @db.DateTime(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, purpose, templateName], map: "tenant_meta_template_unique")
+  @@index([tenantId, status], map: "tenant_meta_template_status_idx")
+  @@index([whatsappConfigId], map: "tenant_meta_template_config_idx")
+  @@map("tenant_whatsapp_meta_templates")
 }
 
 /// Eventos recebidos do provedor de WhatsApp. Guarda apenas o payload já

@@ -50,4 +50,45 @@ export class MetaWhatsAppClient {
       payload: (await response.json().catch(() => ({}))) as Record<string, unknown>,
     };
   }
+
+  public async listTemplates(
+    apiVersion: string,
+    businessAccountId: string,
+    accessToken: string,
+  ): Promise<MetaWhatsAppClientResult> {
+    const response = await this.fetcher(
+      `${this.baseUrl}/${apiVersion}/${encodeURIComponent(businessAccountId)}/message_templates?fields=id,name,language,category,status,rejected_reason`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15_000) },
+    );
+    return {
+      ok: response.ok,
+      status: response.status,
+      payload: (await response.json().catch(() => ({}))) as Record<string, unknown>,
+    };
+  }
+
+  public async createTemplate(
+    apiVersion: string,
+    businessAccountId: string,
+    accessToken: string,
+    payload: Record<string, unknown>,
+  ): Promise<MetaWhatsAppClientResult> {
+    const response = await this.fetcher(
+      `${this.baseUrl}/${apiVersion}/${encodeURIComponent(businessAccountId)}/message_templates`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    return {
+      ok: response.ok,
+      status: response.status,
+      payload: (await response.json().catch(() => ({}))) as Record<string, unknown>,
+    };
+  }
 }

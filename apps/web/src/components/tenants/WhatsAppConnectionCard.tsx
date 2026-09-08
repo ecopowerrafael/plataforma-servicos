@@ -1,5 +1,6 @@
 import {
   UpdateWhatsAppProviderSchema,
+  TenantMetaTemplatesResponseSchema,
   WhatsAppConnectionSchema,
   WhatsAppProviderSelectionResultSchema,
   WhatsAppProvidersResponseSchema,
@@ -27,6 +28,27 @@ const STATE_DOT: Record<string, string> = {
   DISCONNECTED: '🔴',
   ERROR: '🔴',
 };
+const TEMPLATE_STATUS_DOT: Record<string, string> = {
+  PENDING: '🟡',
+  APPROVED: '🟢',
+  REJECTED: '🔴',
+  PAUSED: '🟠',
+  DISABLED: '⚫',
+  UNKNOWN: '⚪',
+};
+
+export function metaTemplateStatusIcon(status: string) {
+  return TEMPLATE_STATUS_DOT[status] ?? '⚪';
+}
+
+export function metaTemplateProvisionButtonLabel(items: Array<{ exists: boolean }> | undefined, loading: boolean) {
+  if (loading) return 'Criando templates…';
+  return items?.some((item) => item.exists) === true ? 'Completar templates padrão' : 'Criar templates padrão';
+}
+
+export function allMetaTemplatesCreated(items: Array<{ exists: boolean }> | undefined) {
+  return items !== undefined && items.length > 0 && items.every((item) => item.exists);
+}
 
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -112,6 +134,16 @@ export function WhatsAppConnectionCard({
     refetchInterval: qrCode === null ? false : 4000,
     retry: false,
   });
+  const metaTemplates = useQuery({
+    queryKey: ['tenant', tenantPublicId, 'whatsapp', 'meta', 'templates'],
+    queryFn: () =>
+      httpClient.request('/tenant/integrations/whatsapp/meta/templates', {
+        schema: TenantMetaTemplatesResponseSchema,
+        tenantPublicId,
+      }),
+    enabled: selectedProvider === 'META',
+    retry: false,
+  });
   const state = connection.data?.state ?? 'NOT_CREATED';
   const activeProvider = connection.data?.provider ?? 'WAPI';
   const available = connection.data?.available ?? true;
@@ -166,6 +198,32 @@ export function WhatsAppConnectionCard({
       await refresh();
     },
   });
+  const provisionTemplates = useMutation({
+    mutationFn: () =>
+      httpClient.request('/tenant/integrations/whatsapp/meta/templates/provision', {
+        method: 'POST',
+        body: {},
+        schema: TenantMetaTemplatesResponseSchema,
+        tenantPublicId,
+      }),
+    onSuccess: async (data) => {
+      setNotice(`Templates Meta: ${data.summary?.created ?? 0} criados, ${data.summary?.existing ?? 0} já existentes, ${data.summary?.failed ?? 0} falhas.`);
+      await client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'whatsapp', 'meta', 'templates'] });
+    },
+  });
+  const refreshTemplates = useMutation({
+    mutationFn: () =>
+      httpClient.request('/tenant/integrations/whatsapp/meta/templates/refresh', {
+        method: 'POST',
+        body: {},
+        schema: TenantMetaTemplatesResponseSchema,
+        tenantPublicId,
+      }),
+    onSuccess: async () => {
+      setNotice('Status dos templates Meta atualizado.');
+      await client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'whatsapp', 'meta', 'templates'] });
+    },
+  });
   const requestQr = useMutation({
     mutationFn: (path: 'qr' | 'reconnect') =>
       httpClient.request(`/tenant/integrations/whatsapp/${path}`, {
@@ -195,8 +253,8 @@ export function WhatsAppConnectionCard({
     },
   });
 
-  const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || updateProvider.isPending;
-  const error = [createInstance.error, requestQr.error, disconnect.error, updateProvider.error, connection.error, providers.error].find(
+  const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
+  const error = [createInstance.error, requestQr.error, disconnect.error, updateProvider.error, provisionTemplates.error, refreshTemplates.error, connection.error, providers.error, metaTemplates.error].find(
     (item): item is Error => item instanceof Error,
   );
 
@@ -356,6 +414,53 @@ export function WhatsAppConnectionCard({
               </button>
             </div>
           ) : null}
+          <div className="whatsapp-templates-box">
+            <div>
+              <h4>Templates Meta</h4>
+              <p>Crie e acompanhe os templates padrão do Agendei na sua própria WABA.</p>
+            </div>
+            {metaTemplates.isLoading ? <p className="ds-form-hint">Carregando templates…</p> : null}
+            <div className="whatsapp-template-list">
+              {(metaTemplates.data?.items ?? []).map((template) => (
+                <article key={template.templateName} className="whatsapp-template-item">
+                  <div>
+                    <strong>{template.friendlyName}</strong>
+                    <small>{template.templateName}</small>
+                  </div>
+                  <span>{template.category}</span>
+                  <em>
+                    <span aria-hidden="true">{metaTemplateStatusIcon(template.status)}</span>
+                    {template.statusLabel}
+                  </em>
+                  <small>
+                    {template.lastCheckedAt === null ? 'Ainda não verificado' : `Verificado às ${timeOf(template.lastCheckedAt)}`}
+                  </small>
+                  {template.rejectionReason === null ? null : <p>{template.rejectionReason}</p>}
+                </article>
+              ))}
+            </div>
+            {allMetaTemplatesCreated(metaTemplates.data?.items) ? (
+              <p className="success-message">Todos os templates padrão já foram criados.</p>
+            ) : null}
+            <div className="form-row whatsapp-card__actions">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={() => provisionTemplates.mutate()}
+              >
+                {metaTemplateProvisionButtonLabel(metaTemplates.data?.items, provisionTemplates.isPending)}
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={busy}
+                onClick={() => refreshTemplates.mutate()}
+              >
+                {refreshTemplates.isPending ? 'Atualizando status…' : 'Atualizar status'}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
       {selectedProvider === 'WAPI' && selectedProviderIsActive && state === 'NOT_CREATED' ? (

@@ -81,6 +81,30 @@ export const WhatsAppConnectionSchema = z.object({
 export const WhatsAppProviderSelectionResultSchema = WhatsAppProviderSelectionResponseSchema.extend({
   connection: WhatsAppConnectionSchema,
 });
+export const TenantMetaTemplateStatusSchema = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PAUSED', 'DISABLED', 'UNKNOWN']);
+export const TenantMetaTemplateSchema = z.object({
+  publicId: z.uuid().nullable(),
+  purpose: z.string(),
+  friendlyName: z.string(),
+  templateName: z.string(),
+  language: z.string(),
+  category: z.string(),
+  metaTemplateId: z.string().nullable(),
+  status: TenantMetaTemplateStatusSchema,
+  statusLabel: z.string(),
+  rejectionReason: z.string().nullable(),
+  lastCheckedAt: z.iso.datetime({ offset: true }).nullable(),
+  exists: z.boolean(),
+});
+export const TenantMetaTemplatesResponseSchema = z.object({
+  items: z.array(TenantMetaTemplateSchema),
+  summary: z.object({
+    requested: z.number().int(),
+    created: z.number().int(),
+    existing: z.number().int(),
+    failed: z.number().int(),
+  }).optional(),
+});
 /** QR é temporário: vem na resposta e não é persistido em lugar nenhum. */
 export const WhatsAppQrCodeSchema = z.object({
   qrCode: z.string().min(1),

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   shouldShowWapiActivation,
+  allMetaTemplatesCreated,
+  metaTemplateProvisionButtonLabel,
+  metaTemplateStatusIcon,
   whatsappProviderBadge,
   whatsappProviderBadgeState,
   whatsappProviderDraftMessage,
@@ -46,5 +49,25 @@ describe('WhatsAppConnectionCard provider switching state', () => {
   it('resets draft messaging when backend active provider is selected again after reload', () => {
     expect(whatsappProviderDraftMessage('META', 'WAPI')).not.toBeNull();
     expect(whatsappProviderDraftMessage('WAPI', 'WAPI')).toBeNull();
+  });
+
+  it('maps Meta template status to friendly visual icons', () => {
+    expect(metaTemplateStatusIcon('APPROVED')).toBe('🟢');
+    expect(metaTemplateStatusIcon('PENDING')).toBe('🟡');
+    expect(metaTemplateStatusIcon('REJECTED')).toBe('🔴');
+    expect(metaTemplateStatusIcon('UNKNOWN_STATUS')).toBe('⚪');
+  });
+
+  it('labels provision button for empty, partial, complete and loading states', () => {
+    expect(metaTemplateProvisionButtonLabel(undefined, false)).toBe('Criar templates padrão');
+    expect(metaTemplateProvisionButtonLabel([{ exists: false }], false)).toBe('Criar templates padrão');
+    expect(metaTemplateProvisionButtonLabel([{ exists: true }, { exists: false }], false)).toBe('Completar templates padrão');
+    expect(metaTemplateProvisionButtonLabel([{ exists: true }], true)).toBe('Criando templates…');
+  });
+
+  it('detects when all standard Meta templates already exist', () => {
+    expect(allMetaTemplatesCreated(undefined)).toBe(false);
+    expect(allMetaTemplatesCreated([{ exists: true }, { exists: true }])).toBe(true);
+    expect(allMetaTemplatesCreated([{ exists: true }, { exists: false }])).toBe(false);
   });
 });

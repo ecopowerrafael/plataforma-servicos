@@ -15,10 +15,8 @@ import { useNavigate } from 'react-router-dom';
 import { money } from './product-format.js';
 import { ProductForm, type ProductSubmission } from './ProductForm.js';
 import { ProductSaleDrawer } from './ProductSaleDrawer.js';
-import { ProductHeader, ProductRow } from './ProductUIComponents.js';
-import { StockStatusBadge } from './StockStatusBadge.js';
+import { ProductRow } from './ProductUIComponents.js';
 import { httpClient } from '../../lib/http.js';
-import { TenantServiceImage } from '../services/TenantServiceImage.js';
 import { UnitSelect } from '../tenants/UnitSelect.js';
 import {
   EmptyState,
@@ -48,6 +46,7 @@ export function ProductCatalog({
   const [unit, setUnit] = useState('');
   const [creating, setCreating] = useState(false);
   const [selling, setSelling] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const query = new URLSearchParams({ page: String(page), limit: '20' });
   if (search.trim() !== '') query.set('search', search.trim());
   if (active !== '') query.set('active', active);
@@ -96,9 +95,11 @@ export function ProductCatalog({
     mutationFn: async ({
       body,
       initialStock,
+      image,
     }: {
       body: ProductSubmission;
       initialStock: number;
+      image: File | null;
     }) => {
       const product = await httpClient.request('/tenant/products', {
         method: 'POST',
@@ -121,11 +122,31 @@ export function ProductCatalog({
             reason: 'Estoque inicial do cadastro.',
           }),
         });
-      return product;
+      let imageUploadFailed = false;
+      if (image !== null) {
+        const imageBody = new FormData();
+        imageBody.set('file', image, image.name);
+        await httpClient
+          .request(`/tenant/products/${product.publicId}/image`, {
+            method: 'PUT',
+            tenantPublicId,
+            schema: ProductPublicSchema,
+            body: imageBody,
+          })
+          .catch(() => {
+            imageUploadFailed = true;
+          });
+      }
+      return { product, imageUploadFailed };
     },
-    onSuccess: async (product) => {
+    onSuccess: async ({ product, imageUploadFailed }) => {
       await queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'products'] });
+      setSelectedImage(null);
       setCreating(false);
+      if (imageUploadFailed)
+        window.alert(
+          'Produto salvo, mas a imagem não pôde ser enviada. Você pode tentar novamente na página de detalhe do produto.',
+        );
       void navigate(`/app/produtos/${product.publicId}`);
     },
   });
@@ -184,40 +205,50 @@ export function ProductCatalog({
         )}
       </div>
       {creating && (
-        <ProductForm
-          busy={create.isPending}
-          error={
-            create.error instanceof Error
-              ? create.error.message
-              : null
-          }
-          categories={categories.data?.items ?? []}
-          showInitialStock={activeUnits.length > 0}
-          onSave={(body, initialStock) =>
-            create.mutateAsync({ body, initialStock }).then(() => undefined)
-          }
-        />
+        <div className="product-create-backdrop" role="presentation">
+          <aside
+            aria-label="Novo produto"
+            aria-modal="true"
+            className="product-create-drawer"
+            role="dialog"
+          >
+            <header className="product-create-drawer-header">
+              <div>
+                <p className="ds-eyebrow">Catálogo</p>
+                <h2>Novo produto</h2>
+                <span>Cadastre informações, estoque inicial e imagem em um único fluxo.</span>
+              </div>
+              <button
+                aria-label="Fechar cadastro de produto"
+                className="platform-drawer-close"
+                disabled={create.isPending}
+                type="button"
+                onClick={() => {
+                  setCreating(false);
+                  setSelectedImage(null);
+                }}
+              >
+                ×
+              </button>
+            </header>
+            <ProductForm
+              busy={create.isPending}
+              categories={categories.data?.items ?? []}
+              error={create.error instanceof Error ? create.error.message : null}
+              selectedImage={selectedImage}
+              showInitialStock={activeUnits.length > 0}
+              onCancel={() => {
+                setCreating(false);
+                setSelectedImage(null);
+              }}
+              onImageChange={setSelectedImage}
+              onSave={(body, initialStock) =>
+                create.mutateAsync({ body, initialStock, image: selectedImage }).then(() => undefined)
+              }
+            />
+          </aside>
+        </div>
       )}
-      {creating && (
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => {
-            setCreating(false);
-          }}
-        >
-          Cancelar
-        </button>
-      )}
-      <ProductHeader
-        onSearch={(value) => {
-          setPage(1);
-          setSearch(value);
-        }}
-        onNewClick={() => {
-          if (canManage) setCreating(true);
-        }}
-      />
       <PageToolbar>
         <label className="ds-field--wide">
           Busca
@@ -311,6 +342,7 @@ export function ProductCatalog({
           action={
             canManage ? (
               <button
+                className="primary-button"
                 onClick={() => {
                   setCreating(true);
                 }}
@@ -332,6 +364,10 @@ export function ProductCatalog({
                 price={money(product.salePriceCents)}
                 stock={product.stockQuantity}
                 status={product.active ? 'active' : 'inactive'}
+                imageAlt={product.imageAlt ?? product.name}
+                imageUrl={product.imageUrl}
+                tenantPublicId={tenantPublicId}
+                publicId={product.publicId}
                 onClick={() => void navigate(`/app/produtos/${product.publicId}`)}
               />
             ))}

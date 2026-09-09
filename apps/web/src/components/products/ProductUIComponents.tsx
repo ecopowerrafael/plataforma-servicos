@@ -1,5 +1,13 @@
 import { ReactNode } from 'react';
-import { IconSearch, IconPlus, IconBoxSeam, IconCoin, IconPackage } from '@tabler/icons-react';
+import {
+  IconBoxSeam,
+  IconCoin,
+  IconPackage,
+  IconPlus,
+  IconSearch,
+} from '@tabler/icons-react';
+
+import { TenantServiceImage } from '../services/TenantServiceImage.js';
 
 /* ============================================
    PRODUCT HEADER
@@ -79,7 +87,7 @@ export function ProductCard({
 
         <div className="product-stats">
           <div className="stat">
-            <IconDollarSign size={14} />
+            <IconCoin size={14} />
             <span className="price">{price}</span>
           </div>
           <div className="stat">
@@ -105,32 +113,54 @@ export function ProductCard({
    ============================================ */
 
 interface ProductRowProps {
+  publicId: string;
   name: string;
   code?: string;
   category: string;
   price: string;
   stock: number;
+  imageAlt: string;
+  imageUrl: string | null;
   status: 'active' | 'inactive';
+  tenantPublicId: string;
   actions?: ReactNode;
   onClick?: () => void;
 }
 
 export function ProductRow({
+  publicId,
   name,
   code,
   category,
   price,
   stock,
+  imageAlt,
+  imageUrl,
   status,
+  tenantPublicId,
   actions,
   onClick,
 }: ProductRowProps) {
   return (
     <div className={`product-row ${status === 'inactive' ? 'is-inactive' : ''}`} onClick={onClick}>
+      <span className="product-row-thumb" aria-hidden={imageUrl === null ? 'true' : undefined}>
+        {imageUrl === null ? (
+          <i>{name.slice(0, 1).toUpperCase()}</i>
+        ) : (
+          <TenantServiceImage
+            alt={imageAlt}
+            kind="products"
+            servicePublicId={publicId}
+            tenantPublicId={tenantPublicId}
+          />
+        )}
+      </span>
       <div className="product-row-main">
         <p className="product-row-name">{name}</p>
-        {code && <span className="product-row-code">{code}</span>}
-        <span className="product-row-category">{category}</span>
+        <div className="product-row-meta">
+          <span className="product-row-category">{category}</span>
+          {code && <span className="product-row-code">{code}</span>}
+        </div>
       </div>
 
       <div className="product-row-price">{price}</div>

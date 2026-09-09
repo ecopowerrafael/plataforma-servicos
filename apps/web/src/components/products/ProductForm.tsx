@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 
 import { money } from './product-format.js';
+import { validateProductImageFile } from './ProductImageUpload.js';
 
 import type { z } from 'zod';
 
@@ -86,6 +87,9 @@ export function ProductForm({
   product,
   categories = [],
   showInitialStock = false,
+  selectedImage = null,
+  onCancel,
+  onImageChange,
   onSave,
 }: {
   busy: boolean;
@@ -93,10 +97,15 @@ export function ProductForm({
   product?: ProductPublic;
   categories?: Category[];
   showInitialStock?: boolean;
+  selectedImage?: File | null;
+  onCancel?: () => void;
+  onImageChange?: (file: File | null) => void;
   onSave: (value: ProductSubmission, initialStock: number) => Promise<void>;
 }) {
   const [advanced, setAdvanced] = useState(false);
   const [initialStock, setInitialStock] = useState('0');
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const form = useForm<ProductInput, unknown, ProductSubmission>({
     defaultValues: defaults(product),
     resolver: zodResolver(CreateProductRequestSchema),
@@ -116,6 +125,28 @@ export function ProductForm({
   useEffect(() => {
     reset(defaults(product));
   }, [reset, product]);
+  useEffect(() => {
+    if (selectedImage === null) {
+      setImagePreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(selectedImage);
+    setImagePreview(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedImage]);
+  const chooseImage = (file: File | undefined) => {
+    if (file === undefined || onImageChange === undefined) return;
+    const validationError = validateProductImageFile(file);
+    if (validationError !== null) {
+      setImageError(validationError);
+      onImageChange(null);
+      return;
+    }
+    setImageError(null);
+    onImageChange(file);
+  };
   return (
     <form
       className="platform-form product-form"
@@ -124,128 +155,184 @@ export function ProductForm({
         void handleSubmit((value) => onSave(value, Number(initialStock) || 0))();
       }}
     >
-      <label>
-        Nome
-        <input {...register('name')} placeholder="Ex.: Pomada modeladora" />
-      </label>
-      <div className="product-form-grid">
-        <MoneyField
-          label="Preço de venda"
-          value={asCents(salePriceCents)}
-          onChange={(cents) => {
-            setValue('salePriceCents', cents, { shouldDirty: true });
-          }}
-        />
-        {showInitialStock && (
+      {onImageChange !== undefined && (
+        <section className="product-form-section product-form-image-section">
+          <div>
+            <p className="ds-eyebrow">Imagem</p>
+            <h3>Foto do produto</h3>
+            <small>JPEG, PNG ou WebP até 5 MB. A imagem será enviada após salvar.</small>
+          </div>
+          <div className="product-image-picker">
+            <div className="product-image-picker-preview">
+              {imagePreview === null ? (
+                <span aria-hidden="true">+</span>
+              ) : (
+                <img alt="Pré-visualização da imagem do produto" src={imagePreview} />
+              )}
+            </div>
+            <div className="product-image-picker-actions">
+              <label className="secondary-button">
+                {selectedImage === null ? 'Escolher imagem' : 'Trocar imagem'}
+                <input
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={busy}
+                  type="file"
+                  onChange={(event) => {
+                    chooseImage(event.target.files?.[0]);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+              {selectedImage !== null && (
+                <button
+                  className="text-button"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => {
+                    setImageError(null);
+                    onImageChange(null);
+                  }}
+                >
+                  Remover imagem selecionada
+                </button>
+              )}
+            </div>
+          </div>
+          {imageError !== null && (
+            <p className="form-error" role="alert">
+              {imageError}
+            </p>
+          )}
+        </section>
+      )}
+      <section className="product-form-section">
+        <h3>Informações</h3>
+        <div className="product-form-grid">
           <label>
-            Estoque inicial
-            <input
-              min="0"
-              type="number"
-              value={initialStock}
-              onChange={(event) => {
-                setInitialStock(event.target.value);
-              }}
-            />
-            <small>Registrado como entrada no histórico.</small>
+            Nome *
+            <input {...register('name')} placeholder="Ex.: Pomada modeladora" />
           </label>
-        )}
-      </div>
-      <button
-        className="secondary-button product-form-toggle"
-        type="button"
-        onClick={() => {
-          setAdvanced((value) => !value);
-        }}
-      >
-        {advanced ? 'Ocultar configurações complementares' : 'Configurações complementares'}
-      </button>
-      {advanced && (
-        <>
-          <div className="product-form-grid">
-            <MoneyField
-              label="Preço de custo"
-              value={asCents(costPriceCents)}
-              onChange={(cents) => {
-                setValue('costPriceCents', cents, { shouldDirty: true });
-              }}
-            />
-            <label>
-              Categoria
-              <select
-                {...register('categoryPublicId', {
-                  setValueAs: (value: string) => (value === '' ? null : value),
-                })}
-              >
-                <option value="">Sem categoria</option>
-                {categories
-                  .filter(
-                    (category) => category.active || category.publicId === product?.categoryPublicId,
-                  )
-                  .map((category) => (
-                    <option key={category.publicId} value={category.publicId}>
-                      {category.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
-          <div className="product-form-grid">
-            <label>
-              SKU
-              <input
-                {...register('sku', { setValueAs: (v: string) => (v === '' ? null : v) })}
-              />
-            </label>
-            <label>
-              Código de barras
-              <input
-                {...register('barcode', { setValueAs: (v: string) => (v === '' ? null : v) })}
-              />
-            </label>
-          </div>
           <label>
+            Categoria
+            <select
+              {...register('categoryPublicId', {
+                setValueAs: (value: string) => (value === '' ? null : value),
+              })}
+            >
+              <option value="">Sem categoria</option>
+              {categories
+                .filter(
+                  (category) => category.active || category.publicId === product?.categoryPublicId,
+                )
+                .map((category) => (
+                  <option key={category.publicId} value={category.publicId}>
+                    {category.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </div>
+        <label>
             Descrição
             <textarea
               {...register('description', { setValueAs: (v: string) => (v === '' ? null : v) })}
             />
-          </label>
-          <label>
-            Texto alternativo da imagem
-            <input
-              {...register('imageAlt', { setValueAs: (v: string) => (v === '' ? null : v) })}
-            />
-          </label>
-          <div className="product-form-grid">
+        </label>
+      </section>
+      <section className="product-form-section">
+        <h3>Venda e estoque</h3>
+        <div className="product-form-grid">
+          <MoneyField
+            label="Preço de venda *"
+            value={asCents(salePriceCents)}
+            onChange={(cents) => {
+              setValue('salePriceCents', cents, { shouldDirty: true });
+            }}
+          />
+          {showInitialStock && (
             <label>
-              Comissão
-              <select
-                {...register('commissionType', {
-                  setValueAs: (value: string) => (value === '' ? null : value),
-                })}
-              >
-                <option value="">Sem comissão</option>
-                <option value="PERCENTAGE">Percentual</option>
-                <option value="FIXED">Valor fixo</option>
-              </select>
-            </label>
-            <label>
-              Valor da comissão
+              Estoque inicial
               <input
                 min="0"
                 type="number"
-                {...register('commissionValue', {
-                  setValueAs: (value: string) => (value === '' ? null : Number(value)),
-                })}
+                value={initialStock}
+                onChange={(event) => {
+                  setInitialStock(event.target.value);
+                }}
+              />
+              <small>Registrado como entrada no histórico.</small>
+            </label>
+          )}
+          <MoneyField
+            label="Preço de custo"
+            value={asCents(costPriceCents)}
+            onChange={(cents) => {
+              setValue('costPriceCents', cents, { shouldDirty: true });
+            }}
+          />
+        </div>
+      </section>
+      <section className="product-form-section">
+        <button
+          className="secondary-button product-form-toggle"
+          type="button"
+          onClick={() => {
+            setAdvanced((value) => !value);
+          }}
+        >
+          {advanced ? 'Ocultar configurações complementares' : 'Configurações complementares'}
+        </button>
+        {advanced && (
+          <>
+            <div className="product-form-grid">
+              <label>
+                SKU
+                <input
+                  {...register('sku', { setValueAs: (v: string) => (v === '' ? null : v) })}
+                />
+              </label>
+              <label>
+                Código de barras
+                <input
+                  {...register('barcode', { setValueAs: (v: string) => (v === '' ? null : v) })}
+                />
+              </label>
+              <label>
+                Comissão
+                <select
+                  {...register('commissionType', {
+                    setValueAs: (value: string) => (value === '' ? null : value),
+                  })}
+                >
+                  <option value="">Sem comissão</option>
+                  <option value="PERCENTAGE">Percentual</option>
+                  <option value="FIXED">Valor fixo</option>
+                </select>
+              </label>
+              <label>
+                Valor da comissão
+                <input
+                  min="0"
+                  type="number"
+                  {...register('commissionValue', {
+                    setValueAs: (value: string) => (value === '' ? null : Number(value)),
+                  })}
+                />
+              </label>
+            </div>
+            <label>
+              Texto alternativo da imagem
+              <input
+                {...register('imageAlt', { setValueAs: (v: string) => (v === '' ? null : v) })}
               />
             </label>
-          </div>
-          <label className="product-form-check">
-            <input type="checkbox" {...register('active')} />
-            Produto ativo
-          </label>
-        </>
-      )}
+            <label className="product-form-check">
+              <input type="checkbox" {...register('active')} />
+              Produto ativo
+            </label>
+          </>
+        )}
+      </section>
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">
           Revise os campos informados.
@@ -256,9 +343,16 @@ export function ProductForm({
           {error}
         </p>
       )}
-      <button className="primary-button" disabled={busy} type="submit">
-        {busy ? 'Salvando…' : 'Salvar produto'}
-      </button>
+      <footer className="product-form-footer">
+        {onCancel !== undefined && (
+          <button className="secondary-button" disabled={busy} type="button" onClick={onCancel}>
+            Cancelar
+          </button>
+        )}
+        <button className="primary-button" disabled={busy} type="submit">
+          {busy ? 'Salvando…' : 'Salvar produto'}
+        </button>
+      </footer>
     </form>
   );
 }

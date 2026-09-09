@@ -1,7 +1,15 @@
 import { useState } from 'react';
 
-const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const maxBytes = 5 * 1024 * 1024;
+export const PRODUCT_IMAGE_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const PRODUCT_IMAGE_VALIDATION_MESSAGE =
+  'Selecione uma imagem JPEG, PNG ou WebP de até 5 MB.';
+
+export function validateProductImageFile(file: File): string | null {
+  if (!PRODUCT_IMAGE_ALLOWED_TYPES.has(file.type) || file.size > PRODUCT_IMAGE_MAX_BYTES)
+    return PRODUCT_IMAGE_VALIDATION_MESSAGE;
+  return null;
+}
 
 /** Envio/remoção da imagem do produto; a validação real acontece no backend. */
 export function ProductImageUpload({
@@ -19,8 +27,9 @@ export function ProductImageUpload({
   const [error, setError] = useState<string | null>(null);
   const choose = (file: File | undefined) => {
     if (file === undefined) return;
-    if (!allowedTypes.has(file.type) || file.size > maxBytes) {
-      setError('Selecione uma imagem JPEG, PNG ou WebP de até 5 MB.');
+    const validationError = validateProductImageFile(file);
+    if (validationError !== null) {
+      setError(validationError);
       return;
     }
     setError(null);

@@ -160,7 +160,7 @@ export function ProductForm({
           <div>
             <p className="ds-eyebrow">Imagem</p>
             <h3>Foto do produto</h3>
-            <small>JPEG, PNG ou WebP até 5 MB. A imagem será enviada após salvar.</small>
+            <small>JPEG, PNG ou WebP • máximo 5 MB. A imagem será enviada após salvar.</small>
           </div>
           <div className="product-image-picker">
             <div className="product-image-picker-preview">

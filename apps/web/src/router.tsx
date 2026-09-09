@@ -368,6 +368,7 @@ export const router = createBrowserRouter([
   { path: '/app/produtos', element: lazyPage(HomePage) },
   { path: '/app/produtos/estoque', element: lazyPage(HomePage) },
   { path: '/app/produtos/movimentacoes', element: lazyPage(HomePage) },
+  { path: '/app/produtos/novo', element: lazyPage(HomePage) },
   { path: '/app/produtos/:id', element: lazyPage(HomePage) },
   { path: '/app/marketing', element: lazyPage(HomePage) },
   { path: '/app/marketing/automacoes', element: lazyPage(HomePage) },

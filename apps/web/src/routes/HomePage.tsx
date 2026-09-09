@@ -158,6 +158,10 @@ const PaymentOptionsModule = load(
   'PaymentOptionsModule',
 );
 const ProductCatalog = load(import('../components/products/ProductCatalog.js'), 'ProductCatalog');
+const ProductCreatePage = load(
+  import('../components/products/ProductCreatePage.js'),
+  'ProductCreatePage',
+);
 const ProductProfile = load(import('../components/products/ProductProfile.js'), 'ProductProfile');
 const ProductStockModule = load(
   import('../components/products/ProductStockModule.js'),
@@ -1673,6 +1677,11 @@ export function HomePage() {
                   canSell={canSellProducts}
                 />
               )}
+            {isRoute('/app/produtos/novo') &&
+              canManageProducts &&
+              planFeatureEnabled('products.enabled') && (
+                <ProductCreatePage tenantPublicId={selectedTenant} />
+              )}
             {isRoute('/app/produtos/estoque') &&
               canReadProducts &&
               planFeatureEnabled('products.enabled') && (
@@ -1684,7 +1693,11 @@ export function HomePage() {
                 <ProductMovementsModule tenantPublicId={selectedTenant} />
               )}
             {location.pathname.startsWith('/app/produtos/') &&
-              !isRoute('/app/produtos/estoque', '/app/produtos/movimentacoes') &&
+              !isRoute(
+                '/app/produtos/novo',
+                '/app/produtos/estoque',
+                '/app/produtos/movimentacoes',
+              ) &&
               canReadProducts &&
               planFeatureEnabled('products.enabled') && (
                 <ProductProfile

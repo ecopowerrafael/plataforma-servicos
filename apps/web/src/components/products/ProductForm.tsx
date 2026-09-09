@@ -89,6 +89,7 @@ export function ProductForm({
   showInitialStock = false,
   selectedImage = null,
   onCancel,
+  onCreateCategory,
   onImageChange,
   onSave,
 }: {
@@ -99,6 +100,7 @@ export function ProductForm({
   showInitialStock?: boolean;
   selectedImage?: File | null;
   onCancel?: () => void;
+  onCreateCategory?: (name: string) => Promise<Category>;
   onImageChange?: (file: File | null) => void;
   onSave: (value: ProductSubmission, initialStock: number) => Promise<void>;
 }) {
@@ -106,6 +108,10 @@ export function ProductForm({
   const [initialStock, setInitialStock] = useState('0');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [categoryName, setCategoryName] = useState('');
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [categoryBusy, setCategoryBusy] = useState(false);
   const form = useForm<ProductInput, unknown, ProductSubmission>({
     defaultValues: defaults(product),
     resolver: zodResolver(CreateProductRequestSchema),
@@ -146,6 +152,28 @@ export function ProductForm({
     }
     setImageError(null);
     onImageChange(file);
+  };
+  const createCategory = async () => {
+    const name = categoryName.trim();
+    if (onCreateCategory === undefined) return;
+    if (name.length < 2) {
+      setCategoryError('Informe um nome com pelo menos 2 caracteres.');
+      return;
+    }
+    setCategoryBusy(true);
+    setCategoryError(null);
+    try {
+      const category = await onCreateCategory(name);
+      setValue('categoryPublicId', category.publicId, { shouldDirty: true });
+      setCategoryName('');
+      setCreatingCategory(false);
+    } catch (caught) {
+      setCategoryError(
+        caught instanceof Error ? caught.message : 'Não foi possível criar a categoria.',
+      );
+    } finally {
+      setCategoryBusy(false);
+    }
   };
   return (
     <form
@@ -211,22 +239,76 @@ export function ProductForm({
           </label>
           <label>
             Categoria
-            <select
-              {...register('categoryPublicId', {
-                setValueAs: (value: string) => (value === '' ? null : value),
-              })}
-            >
-              <option value="">Sem categoria</option>
-              {categories
-                .filter(
-                  (category) => category.active || category.publicId === product?.categoryPublicId,
-                )
-                .map((category) => (
-                  <option key={category.publicId} value={category.publicId}>
-                    {category.name}
-                  </option>
-                ))}
-            </select>
+            <span className="product-category-select-row">
+              <select
+                {...register('categoryPublicId', {
+                  setValueAs: (value: string) => (value === '' ? null : value),
+                })}
+              >
+                <option value="">Sem categoria</option>
+                {categories
+                  .filter(
+                    (category) => category.active || category.publicId === product?.categoryPublicId,
+                  )
+                  .map((category) => (
+                    <option key={category.publicId} value={category.publicId}>
+                      {category.name}
+                    </option>
+                  ))}
+              </select>
+              {onCreateCategory !== undefined && (
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => {
+                    setCreatingCategory(true);
+                  }}
+                >
+                  + Nova categoria
+                </button>
+              )}
+            </span>
+            {creatingCategory && onCreateCategory !== undefined && (
+              <span className="product-inline-category">
+                <strong>Nova categoria</strong>
+                <input
+                  placeholder="Nome"
+                  value={categoryName}
+                  onChange={(event) => {
+                    setCategoryName(event.target.value);
+                  }}
+                />
+                {categoryError !== null && (
+                  <small className="form-error" role="alert">
+                    {categoryError}
+                  </small>
+                )}
+                <span>
+                  <button
+                    className="secondary-button"
+                    disabled={categoryBusy}
+                    type="button"
+                    onClick={() => {
+                      setCategoryName('');
+                      setCategoryError(null);
+                      setCreatingCategory(false);
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={categoryBusy}
+                    type="button"
+                    onClick={() => {
+                      void createCategory();
+                    }}
+                  >
+                    {categoryBusy ? 'Criando…' : 'Criar categoria'}
+                  </button>
+                </span>
+              </span>
+            )}
           </label>
         </div>
         <label>

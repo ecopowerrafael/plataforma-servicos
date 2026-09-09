@@ -1,7 +1,9 @@
 import {
+  CreateProductCategoryRequestSchema,
   CreateProductRequestSchema,
   CreateStockMovementRequestSchema,
   ProductCategoryListResponseSchema,
+  ProductCategoryPublicSchema,
   ProductPublicSchema,
   StockMovementPublicSchema,
   TenantUnitsResponseSchema,
@@ -98,6 +100,23 @@ export function ProductCreatePage({ tenantPublicId }: { tenantPublicId: string }
       void navigate(`/app/produtos/${product.publicId}`);
     },
   });
+  const createCategory = useMutation({
+    mutationFn: (name: string) =>
+      httpClient.request('/tenant/product-categories', {
+        method: 'POST',
+        tenantPublicId,
+        schema: ProductCategoryPublicSchema,
+        body: CreateProductCategoryRequestSchema.parse({
+          name,
+          active: true,
+        }),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['tenant', tenantPublicId, 'product-categories'],
+      });
+    },
+  });
 
   if (categories.isPending || units.isPending)
     return (
@@ -143,6 +162,7 @@ export function ProductCreatePage({ tenantPublicId }: { tenantPublicId: string }
         onCancel={() => {
           void navigate('/app/produtos');
         }}
+        onCreateCategory={(name) => createCategory.mutateAsync(name)}
         onImageChange={setSelectedImage}
         onSave={(body, initialStock) =>
           create.mutateAsync({ body, initialStock, image: selectedImage }).then(() => undefined)

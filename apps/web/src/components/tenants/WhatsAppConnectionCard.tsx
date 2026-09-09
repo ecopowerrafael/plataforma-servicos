@@ -343,6 +343,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
           <dl className="whatsapp-current-card__facts">
             <div><dt>Número</dt><dd>{prettyPhone(connection.data?.connectedPhone) ?? 'Ainda não identificado'}</dd></div>
             <div><dt>Última verificação</dt><dd>{connection.data?.lastStatusCheckAt == null ? 'Ainda não verificada' : timeOf(connection.data.lastStatusCheckAt)}</dd></div>
+            <div><dt>Status</dt><dd>{STATE_LABEL[state] ?? 'Não configurado'}</dd></div>
           </dl>
         </div>
         <div className="whatsapp-current-card__actions">

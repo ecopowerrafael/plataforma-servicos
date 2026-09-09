@@ -177,7 +177,7 @@ export function ProductForm({
   };
   return (
     <form
-      className="platform-form product-form"
+      className="product-form"
       onSubmit={(event) => {
         event.preventDefault();
         void handleSubmit((value) => onSave(value, Number(initialStock) || 0))();
@@ -232,7 +232,7 @@ export function ProductForm({
       )}
       <section className="product-form-section">
         <h3>Informações do produto</h3>
-        <div className="product-form-grid">
+        <div className="product-form-grid product-info-fields">
           <label>
             Nome *
             <input {...register('name')} placeholder="Ex.: Pomada modeladora" />
@@ -311,7 +311,7 @@ export function ProductForm({
             )}
           </label>
         </div>
-        <label>
+        <label className="product-description-field">
             Descrição
             <textarea
               {...register('description', { setValueAs: (v: string) => (v === '' ? null : v) })}

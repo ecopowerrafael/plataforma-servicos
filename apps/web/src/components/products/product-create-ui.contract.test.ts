@@ -60,16 +60,27 @@ describe('product creation UI contract', () => {
   });
 
   it('keeps the create form vertical and uses only inner grids for product information', () => {
-    expect(productStylesSource).toContain(
-      '.app-shell .product-create-page .platform-form.product-form',
-    );
-    expect(productStylesSource).toContain('grid-template-columns: minmax(0, 1fr)');
+    expect(formSource).toContain('className="product-form"');
+    expect(formSource).not.toContain('className="platform-form product-form"');
+    expect(productStylesSource).toContain('.product-form {');
+    expect(productStylesSource).toContain('display: flex;');
+    expect(productStylesSource).toContain('flex-direction: column;');
+    expect(productStylesSource).toContain('max-width: 1100px;');
     expect(productStylesSource).toContain('.product-form-section');
     expect(productStylesSource).toContain('grid-column: 1 / -1');
-    expect(productStylesSource).toContain(
-      'grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr)',
+    expect(formSource.indexOf('product-form-image-section')).toBeLessThan(
+      formSource.indexOf('Informações do produto'),
     );
-    expect(productStylesSource).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
+    expect(formSource.indexOf('Informações do produto')).toBeLessThan(
+      formSource.indexOf('Preços e estoque'),
+    );
+    expect(formSource.indexOf('Preços e estoque')).toBeLessThan(
+      formSource.indexOf('Configurações complementares'),
+    );
+    expect(productStylesSource).toContain(
+      'grid-template-columns: minmax(400px, 2fr) minmax(260px, 1fr) !important',
+    );
+    expect(productStylesSource).toContain('grid-template-columns: repeat(3, minmax(0, 1fr)) !important');
     expect(productStylesSource).not.toContain('repeat(4');
   });
 

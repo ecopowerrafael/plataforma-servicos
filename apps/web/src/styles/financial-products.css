@@ -1132,17 +1132,60 @@
   font-size: 15px;
 }
 
-.product-create-page .product-form {
-  display: grid;
+.product-form {
+  display: flex;
+  flex-direction: column;
   align-content: start;
-  grid-template-columns: minmax(0, 1fr);
   gap: 0;
-  width: min(100%, 1040px);
+  width: 100%;
+  max-width: 1100px;
+  margin-left: 0;
 }
 
-.app-shell .product-create-page .platform-form.product-form {
-  grid-template-columns: minmax(0, 1fr);
-  max-width: 100%;
+.product-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.product-form :where(input, select, textarea) {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font: inherit;
+  padding: 0 12px;
+}
+
+.product-form textarea {
+  min-height: 104px;
+  padding-top: 12px;
+  resize: vertical;
+}
+
+.product-form :where(input, select, textarea):focus {
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+.product-form small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.product-form :where(button, .secondary-button) {
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 700;
 }
 
 .product-form-section {
@@ -1170,17 +1213,23 @@
   align-items: start;
 }
 
-.product-create-page .product-form-grid {
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+.product-info-fields {
+  grid-template-columns: minmax(400px, 2fr) minmax(260px, 1fr) !important;
   gap: 20px;
 }
 
-.product-create-page .product-form label {
-  min-width: 0;
+.product-description-field {
+  grid-column: 1 / -1;
 }
 
-.product-create-page .product-form :where(input, select, textarea) {
-  width: 100%;
+.product-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.product-form .product-form-grid select {
+  max-width: none;
 }
 
 .product-image-picker {
@@ -1270,16 +1319,20 @@
 }
 
 .product-form-price-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
 }
 
 @media (max-width: 720px) {
   .product-form-image-section,
   .product-form-grid,
   .product-form-price-grid,
-  .product-create-page .product-form-grid,
+  .product-info-fields,
   .product-category-select-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+  }
+
+  .product-description-field {
+    grid-column: auto;
   }
 
   .product-image-picker {

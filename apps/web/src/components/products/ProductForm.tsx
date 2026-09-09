@@ -157,11 +157,7 @@ export function ProductForm({
     >
       {onImageChange !== undefined && (
         <section className="product-form-section product-form-image-section">
-          <div>
-            <p className="ds-eyebrow">Imagem</p>
-            <h3>Foto do produto</h3>
-            <small>JPEG, PNG ou WebP • máximo 5 MB. A imagem será enviada após salvar.</small>
-          </div>
+          <h3>Imagem</h3>
           <div className="product-image-picker">
             <div className="product-image-picker-preview">
               {imagePreview === null ? (
@@ -183,6 +179,7 @@ export function ProductForm({
                   }}
                 />
               </label>
+              <small>JPEG, PNG ou WebP • até 5 MB</small>
               {selectedImage !== null && (
                 <button
                   className="text-button"
@@ -206,7 +203,7 @@ export function ProductForm({
         </section>
       )}
       <section className="product-form-section">
-        <h3>Informações</h3>
+        <h3>Informações do produto</h3>
         <div className="product-form-grid">
           <label>
             Nome *
@@ -240,13 +237,20 @@ export function ProductForm({
         </label>
       </section>
       <section className="product-form-section">
-        <h3>Venda e estoque</h3>
-        <div className="product-form-grid">
+        <h3>Preços e estoque</h3>
+        <div className="product-form-grid product-form-price-grid">
           <MoneyField
             label="Preço de venda *"
             value={asCents(salePriceCents)}
             onChange={(cents) => {
               setValue('salePriceCents', cents, { shouldDirty: true });
+            }}
+          />
+          <MoneyField
+            label="Preço de custo"
+            value={asCents(costPriceCents)}
+            onChange={(cents) => {
+              setValue('costPriceCents', cents, { shouldDirty: true });
             }}
           />
           {showInitialStock && (
@@ -263,16 +267,10 @@ export function ProductForm({
               <small>Registrado como entrada no histórico.</small>
             </label>
           )}
-          <MoneyField
-            label="Preço de custo"
-            value={asCents(costPriceCents)}
-            onChange={(cents) => {
-              setValue('costPriceCents', cents, { shouldDirty: true });
-            }}
-          />
         </div>
       </section>
       <section className="product-form-section">
+        <h3>Configurações complementares</h3>
         <button
           className="secondary-button product-form-toggle"
           type="button"

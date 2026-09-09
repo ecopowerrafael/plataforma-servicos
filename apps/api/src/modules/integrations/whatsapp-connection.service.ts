@@ -14,6 +14,14 @@ export interface WhatsAppProviderOption {
   label: string;
   description: string;
   available: boolean;
+  configured?: boolean;
+  phoneNumberId?: string | null;
+  businessAccountId?: string | null;
+  apiVersion?: string | null;
+  webhookUrl?: string | null;
+  verifyToken?: string | null;
+  tokenConfigured?: boolean;
+  appSecretConfigured?: boolean;
   capabilities: WhatsAppProviderCapabilities;
 }
 
@@ -24,7 +32,11 @@ export class WhatsAppConnectionService {
     private readonly cipher: CredentialsCipher | undefined,
   ) {}
 
-  public providers(): { items: WhatsAppProviderOption[] } {
+  public async providers(tenantId: bigint): Promise<{ items: WhatsAppProviderOption[] }> {
+    const [wapiConfig, metaConfig] = await Promise.all([
+      this.providerConfig(tenantId, 'WAPI'),
+      this.providerConfig(tenantId, 'META'),
+    ]);
     return {
       items: [
         {
@@ -32,6 +44,7 @@ export class WhatsAppConnectionService {
           label: 'API não oficial',
           description: 'Conexão por QR Code.',
           available: true,
+          configured: wapiConfig !== null,
           capabilities: this.resolver.capabilities('WAPI'),
         },
         {
@@ -39,6 +52,14 @@ export class WhatsAppConnectionService {
           label: 'API Oficial',
           description: 'Meta Cloud API.',
           available: true,
+          configured: metaConfig !== null,
+          phoneNumberId: metaConfig?.phoneNumberId ?? null,
+          businessAccountId: metaConfig?.businessAccountId ?? null,
+          apiVersion: metaConfig?.apiVersion ?? null,
+          webhookUrl: metaConfig === null ? null : this.metaWebhookUrl(metaConfig.webhookPublicId),
+          verifyToken: metaConfig?.encryptedVerifyToken == null ? null : this.decryptString(metaConfig.encryptedVerifyToken, 'verifyToken'),
+          tokenConfigured: metaConfig !== null && metaConfig.encryptedAccessToken.trim() !== '',
+          appSecretConfigured: metaConfig?.encryptedAppSecret != null && metaConfig.encryptedAppSecret.trim() !== '',
           capabilities: this.resolver.capabilities('META'),
         },
       ],

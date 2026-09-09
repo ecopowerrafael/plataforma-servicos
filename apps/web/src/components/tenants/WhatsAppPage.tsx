@@ -35,15 +35,15 @@ export function WhatsAppPage({
     <main className="settings-layout whatsapp-page--redesigned">
       <section className="settings-section">
         <div className="settings-header">
-          <div>
-            <p className="eyebrow">Integrações</p>
-            <h1>WhatsApp</h1>
-            <p className="settings-subtitle">
-              {mode === 'connection'
-                ? 'Conecte e gerencie a API ativa do WhatsApp.'
-                : 'Personalize o comportamento do assistente e as mensagens automáticas.'}
-            </p>
-          </div>
+          {mode === 'connection' ? null : (
+            <div>
+              <p className="eyebrow">WhatsApp</p>
+              <h1>Mensagens</h1>
+              <p className="settings-subtitle">
+                Personalize o comportamento do assistente e as mensagens automáticas.
+              </p>
+            </div>
+          )}
         </div>
 
         {mode === 'connection' ? (

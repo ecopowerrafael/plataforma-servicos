@@ -13,6 +13,14 @@ export const WhatsAppProviderOptionSchema = z.object({
   label: z.string(),
   description: z.string(),
   available: z.boolean(),
+  configured: z.boolean().optional(),
+  phoneNumberId: z.string().nullable().optional(),
+  businessAccountId: z.string().nullable().optional(),
+  apiVersion: z.string().nullable().optional(),
+  webhookUrl: z.url().nullable().optional(),
+  verifyToken: z.string().nullable().optional(),
+  tokenConfigured: z.boolean().optional(),
+  appSecretConfigured: z.boolean().optional(),
   capabilities: WhatsAppProviderCapabilitiesSchema,
 });
 export const WhatsAppProvidersResponseSchema = z.object({

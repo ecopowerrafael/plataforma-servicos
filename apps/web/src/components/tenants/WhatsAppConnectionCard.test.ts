@@ -12,37 +12,37 @@ import {
 
 describe('WhatsAppConnectionCard provider switching state', () => {
   it('marks Meta as available when backend says it is available', () => {
-    expect(whatsappProviderBadge({ provider: 'META', available: true }, 'WAPI')).toBe('Configurado');
-    expect(whatsappProviderBadgeState({ provider: 'META', available: true }, 'WAPI')).toBe('is-available');
+    expect(whatsappProviderBadge({ provider: 'META', available: true, configured: false }, 'WAPI')).toBe('NÃO CONFIGURADA');
+    expect(whatsappProviderBadgeState({ provider: 'META', available: true, configured: false }, 'WAPI')).toBe('is-not-configured');
   });
 
   it('keeps Meta visible as unavailable when backend says it is unavailable', () => {
-    expect(whatsappProviderBadge({ provider: 'META', available: false }, 'WAPI')).toBe('Não configurado');
-    expect(whatsappProviderBadgeState({ provider: 'META', available: false }, 'WAPI')).toBe('is-unavailable');
+    expect(whatsappProviderBadge({ provider: 'META', available: false, configured: false }, 'WAPI')).toBe('NÃO CONFIGURADA');
+    expect(whatsappProviderBadgeState({ provider: 'META', available: false, configured: false }, 'WAPI')).toBe('is-not-configured');
   });
 
   it('shows WAPI selected when WAPI is the active visual provider', () => {
-    expect(whatsappProviderBadge({ provider: 'WAPI', available: true }, 'WAPI')).toBe('Configurando');
-    expect(whatsappProviderBadgeState({ provider: 'WAPI', available: true }, 'WAPI')).toBe('is-selected');
+    expect(whatsappProviderBadge({ provider: 'WAPI', available: true, configured: true }, 'WAPI')).toBe('EM USO');
+    expect(whatsappProviderBadgeState({ provider: 'WAPI', available: true, configured: true }, 'WAPI')).toBe('is-active');
     expect(whatsappProviderDraftMessage('WAPI', 'WAPI')).toBeNull();
   });
 
   it('shows Meta selected when Meta is the active visual provider', () => {
-    expect(whatsappProviderBadge({ provider: 'META', available: true }, 'META')).toBe('Configurando');
-    expect(whatsappProviderBadgeState({ provider: 'META', available: true }, 'META')).toBe('is-selected');
+    expect(whatsappProviderBadge({ provider: 'META', available: true, configured: true }, 'META')).toBe('EM USO');
+    expect(whatsappProviderBadgeState({ provider: 'META', available: true, configured: true }, 'META')).toBe('is-active');
     expect(whatsappProviderDraftMessage('META', 'META')).toBeNull();
   });
 
   it('treats clicking Meta from WAPI as draft selection until save', () => {
     expect(whatsappProviderDraftMessage('META', 'WAPI')).toBe(
-      'API Oficial aberta para configuração. A conexão ativa só muda quando você clicar em Usar API Oficial.',
+      'Você está gerenciando uma opção diferente da conexão atual. A troca só acontece pelo botão de uso explícito.',
     );
   });
 
   it('shows the WAPI activation action when Meta is active and WAPI is selected', () => {
     expect(shouldShowWapiActivation('WAPI', 'META')).toBe(true);
     expect(whatsappProviderDraftMessage('WAPI', 'META')).toBe(
-      'API não oficial aberta para configuração. A conexão ativa só muda quando você clicar em Usar API não oficial.',
+      'Você está gerenciando uma opção diferente da conexão atual. A troca só acontece pelo botão de uso explícito.',
     );
   });
 
@@ -52,10 +52,10 @@ describe('WhatsAppConnectionCard provider switching state', () => {
   });
 
   it('maps Meta template status to friendly visual icons', () => {
-    expect(metaTemplateStatusIcon('APPROVED')).toBe('🟢');
-    expect(metaTemplateStatusIcon('PENDING')).toBe('🟡');
-    expect(metaTemplateStatusIcon('REJECTED')).toBe('🔴');
-    expect(metaTemplateStatusIcon('UNKNOWN_STATUS')).toBe('⚪');
+    expect(metaTemplateStatusIcon('APPROVED')).toBe('Aprovado');
+    expect(metaTemplateStatusIcon('PENDING')).toBe('Em análise');
+    expect(metaTemplateStatusIcon('REJECTED')).toBe('Rejeitado');
+    expect(metaTemplateStatusIcon('UNKNOWN_STATUS')).toBe('Desconhecido');
   });
 
   it('labels provision button for empty, partial, complete and loading states', () => {

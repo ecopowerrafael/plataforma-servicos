@@ -62,15 +62,49 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
 }
 
 describe('WhatsAppConnectionService', () => {
-  it('returns Meta available without global server credentials', () => {
+  it('returns Meta available without global server credentials', async () => {
     const { service } = subject();
-    expect(service.providers()).toEqual({
+    await expect(service.providers(7n)).resolves.toEqual({
       items: [
-        expect.objectContaining({ provider: 'WAPI', available: true, capabilities }),
+        expect.objectContaining({ provider: 'WAPI', available: true, configured: false, capabilities }),
         expect.objectContaining({
           provider: 'META',
           available: true,
+          configured: false,
           capabilities: expect.objectContaining({ qrCode: false, templates: false, official: true }),
+        }),
+      ],
+    });
+  });
+
+  it('exposes saved Meta summary without plaintext access token or app secret', async () => {
+    const { service, tenantWhatsAppConfig } = subject();
+    tenantWhatsAppConfig.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        provider: 'META',
+        phoneNumberId: '1234567890',
+        businessAccountId: '9876543210',
+        apiVersion: 'v23.0',
+        webhookPublicId: 'hook-public-id',
+        encryptedVerifyToken: 'enc:{"verifyToken":"verify-token"}',
+        encryptedAccessToken: 'enc:{"accessToken":"secret-access-token"}',
+        encryptedAppSecret: 'enc:{"appSecret":"secret-app"}',
+      });
+
+    await expect(service.providers(7n)).resolves.toEqual({
+      items: [
+        expect.objectContaining({ provider: 'WAPI', configured: false }),
+        expect.objectContaining({
+          provider: 'META',
+          configured: true,
+          phoneNumberId: '1234567890',
+          businessAccountId: '9876543210',
+          apiVersion: 'v23.0',
+          webhookUrl: 'http://localhost:5173/webhooks/whatsapp/meta/hook-public-id',
+          verifyToken: 'verify-token',
+          tokenConfigured: true,
+          appSecretConfigured: true,
         }),
       ],
     });

@@ -79,7 +79,7 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
     { schema: { response: { 200: WhatsAppProvidersResponseSchema } } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'integration.read');
-      return provisioning().providers();
+      return provisioning().providers(request.tenant.id);
     },
   );
   app.put(

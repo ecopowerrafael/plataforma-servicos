@@ -28,24 +28,33 @@ describe('WhatsApp connection and messages UX separation', () => {
   });
 
   it('makes provider switching explicit instead of changing on card click', () => {
-    expect(connectionSource).toContain('apenas abre a configuração; a troca de API exige uma ação explícita');
+    expect(connectionSource).toContain('Alterar conexão do WhatsApp?');
     expect(connectionSource).toContain('Usar API Oficial');
     expect(connectionSource).toContain('Usar API não oficial');
-    expect(connectionSource).toContain('setSelectedProvider(item.provider)');
+    expect(connectionSource).toContain('managedProvider');
+    expect(connectionSource).toContain('setConfirmSwitch(item.provider)');
   });
 
   it('hydrates non-secret Meta fields and only shows configured secret status', () => {
-    expect(connectionSource).toContain("phoneNumberId: connection.data?.phoneNumberId ?? ''");
-    expect(connectionSource).toContain("businessAccountId: connection.data?.businessAccountId ?? ''");
-    expect(connectionSource).toContain("apiVersion: connection.data?.apiVersion ?? 'v23.0'");
-    expect(connectionSource).toContain('✓ Token configurado');
-    expect(connectionSource).toContain('✓ App Secret configurado');
-    expect(connectionSource).toContain('•••••••••••• — deixe vazio para manter o atual');
+    expect(connectionSource).toContain('metaConnectionDetails');
+    expect(connectionSource).toContain("phoneNumberId: selectedProviderOption?.phoneNumberId");
+    expect(connectionSource).toContain("businessAccountId: selectedProviderOption?.businessAccountId");
+    expect(connectionSource).toContain("apiVersion: selectedProviderOption?.apiVersion");
+    expect(connectionSource).toContain('Token configurado');
+    expect(connectionSource).toContain('App Secret configurado');
+    expect(connectionSource).toContain('••••••••••••••••••••');
   });
 
   it('keeps Meta templates in connection infrastructure copy', () => {
     expect(connectionSource).toContain('Templates da API Oficial');
-    expect(connectionSource).toContain('Infraestrutura da Meta');
-    expect(connectionSource).toContain('Não é a personalização do assistente');
+    expect(connectionSource).toContain('Templates necessários para mensagens automáticas enviadas fora da janela de atendimento.');
+    expect(connectionSource).toContain('Não foi possível atualizar os templates agora.');
+  });
+
+  it('renders compact horizontal Meta tabs', () => {
+    expect(connectionSource).toContain('role="tablist"');
+    expect(connectionSource).toContain("['account', 'Dados da conta']");
+    expect(connectionSource).toContain("['webhook', 'Webhook']");
+    expect(connectionSource).toContain("['templates', 'Templates']");
   });
 });

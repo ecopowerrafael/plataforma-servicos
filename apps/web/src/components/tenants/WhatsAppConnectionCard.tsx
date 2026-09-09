@@ -61,12 +61,13 @@ const PROVIDER_PRESENTATION: Record<
   WAPI: {
     name: 'API não oficial',
     subtitle: 'Conexão por QR Code',
-    description: 'Conecte seu número de forma rápida usando o QR Code do WhatsApp.',
-    advantages: ['Configuração simples', 'Conexão rápida por QR Code', 'Não exige configuração na Meta', 'Boa opção para começar rapidamente'],
+    description: 'Conecte rapidamente usando o QR Code do WhatsApp, sem precisar configurar uma conta na Meta.',
+    advantages: ['Configuração simples por QR Code', 'Conexão rápida', 'Não exige configuração na Meta', 'Boa opção para começar rapidamente'],
     considerations: [
       'Pode exigir nova leitura do QR Code em caso de desconexão',
       'Depende do funcionamento do WhatsApp Web',
       'Atualizações do WhatsApp podem afetar temporariamente a conexão',
+      'Não é uma integração oficial homologada pela Meta',
     ],
   },
   META: {
@@ -82,9 +83,9 @@ const PROVIDER_PRESENTATION: Record<
     ],
     considerations: [
       'Configuração inicial exige conta/aplicativo Meta',
-      'Algumas mensagens precisam de templates aprovados',
-      'A aprovação depende da Meta',
-      'A Meta pode aplicar cobranças conforme suas regras vigentes',
+      'Algumas mensagens precisam utilizar templates aprovados',
+      'A aprovação dos templates depende da Meta',
+      'Podem existir cobranças da Meta conforme regras vigentes',
     ],
   },
 };
@@ -366,13 +367,14 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
             return (
               <article key={item.provider} className={`whatsapp-provider-option ${isManaged ? 'is-selected' : ''} ${isActive ? 'is-active-provider' : ''}`}>
                 <button type="button" className="whatsapp-provider-option__body" disabled={!item.available} onClick={() => item.available && openProvider(item.provider)}>
-                  <div className="whatsapp-provider-option__top">
+                  <div className="whatsapp-provider-option__header">
                     <span className="whatsapp-provider-icon" aria-hidden="true"><ProviderIcon provider={item.provider} /></span>
+                    <span className="whatsapp-provider-option__title"><strong>{presentation.name}</strong><small>{presentation.subtitle}</small></span>
                     <StatusBadge tone={isActive ? 'primary' : 'neutral'}>{whatsappProviderBadge(item, activeProvider)}</StatusBadge>
                   </div>
-                  <span className="whatsapp-provider-option__label">{presentation.name}</span>
-                  <strong>{presentation.subtitle}</strong>
-                  <small>{presentation.description}</small>
+                  {isManaged ? <span className="whatsapp-provider-option__managed">Configuração aberta</span> : null}
+                  <p className="whatsapp-provider-option__description">{presentation.description}</p>
+                  <div className="whatsapp-provider-option__divider" />
                   <div className="whatsapp-provider-option__lists">
                     <div>
                       <span>Vantagens</span>
@@ -382,7 +384,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                     </div>
                     <div>
                       <span>Pontos a considerar</span>
-                      <ul>{presentation.considerations.map((consideration) => <li key={consideration}>{consideration}</li>)}</ul>
+                      <ul className="whatsapp-info-list">{presentation.considerations.map((consideration) => <li key={consideration}><IconInfoCircle size={15} aria-hidden="true" />{consideration}</li>)}</ul>
                     </div>
                   </div>
                   {item.provider === 'WAPI' ? (
@@ -390,7 +392,12 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                       <IconInfoCircle size={16} aria-hidden="true" />
                       Esta conexão utiliza uma integração não oficial do WhatsApp. O Agendei trabalha para manter a conexão estável, porém eventuais limitações ou bloqueios aplicados pelo WhatsApp não estão sob nosso controle.
                     </p>
-                  ) : null}
+                  ) : (
+                    <p className="whatsapp-provider-note whatsapp-provider-note--official">
+                      <IconInfoCircle size={16} aria-hidden="true" />
+                      <span><strong>Recomendado para</strong> Operações profissionais, maior volume de mensagens e uso de templates oficiais.</span>
+                    </p>
+                  )}
                 </button>
                 {canManage ? (
                   <div className="whatsapp-provider-option__footer">

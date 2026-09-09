@@ -57,4 +57,14 @@ describe('WhatsApp connection and messages UX separation', () => {
     expect(connectionSource).toContain("['webhook', 'Webhook']");
     expect(connectionSource).toContain("['templates', 'Templates']");
   });
+
+  it('keeps providers as vertical comparison cards with aligned footers', () => {
+    expect(connectionSource).toContain('whatsapp-provider-grid');
+    expect(connectionSource).toContain('whatsapp-provider-option');
+    expect(connectionSource).toContain('whatsapp-provider-option__header');
+    expect(connectionSource).toContain('whatsapp-provider-option__footer');
+    expect(connectionSource).toContain('Configuração aberta');
+    expect(connectionSource).toContain('Não é uma integração oficial homologada pela Meta');
+    expect(connectionSource).toContain('Recomendado para');
+  });
 });

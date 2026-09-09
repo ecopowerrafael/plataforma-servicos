@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const loginPage = readFileSync(new URL('../../../../web/src/routes/LoginPage.tsx', import.meta.url), 'utf8');
+const tenantSelection = readFileSync(new URL('../../../../web/src/lib/tenant-selection.ts', import.meta.url), 'utf8');
 const commercialRoutes = readFileSync(new URL('../commercial/commercial.routes.ts', import.meta.url), 'utf8');
 
 describe('login de usuário somente comercial', () => {
@@ -12,7 +13,8 @@ describe('login de usuário somente comercial', () => {
   });
 
   it('mantém seleção de tenant apenas para múltiplos tenants', () => {
-    expect(loginPage).toContain('response.tenants.length === 1');
+    expect(loginPage).toContain('selectSingleTenantIfAvailable(response.tenants)');
+    expect(tenantSelection).toContain('if (tenants.length !== 1) return null;');
     expect(loginPage).toContain('await navigate(`/select-tenant${continuation}`);');
   });
 

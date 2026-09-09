@@ -32,7 +32,7 @@ import { AppHeader } from '../components/app/AppHeader.js';
 import { AppSidebar } from '../components/app/AppSidebar.js';
 import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
-import { clearSelectedTenant, readSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
+import { clearSelectedTenant, readSelectedTenant, selectSingleTenantIfAvailable, selectTenant } from '../lib/tenant-selection.js';
 
 // Dynamic module boundaries keep inactive product areas out of the initial panel bundle.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -267,6 +267,7 @@ export function HomePage() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const selectedTenant = readSelectedTenant();
+  const [, refreshTenantSelection] = useState(0);
   const [profile, setProfile] = useState('GENERIC');
   const [customBusinessType, setCustomBusinessType] = useState('');
   const [selectedOperatingModel, setSelectedOperatingModel] =
@@ -295,6 +296,14 @@ export function HomePage() {
       }),
     retry: false,
   });
+  useEffect(() => {
+    if (selectedTenant !== undefined || me.data === undefined) return;
+    const destination = selectSingleTenantIfAvailable(me.data.tenants);
+    if (destination === null) return;
+    refreshTenantSelection((value) => value + 1);
+    void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+    void navigate(destination, { replace: true });
+  }, [me.data, navigate, queryClient, selectedTenant]);
   useEffect(() => {
     if (me.data?.currentTenant?.membership.roleCode === 'PROFESSIONAL')
       void navigate(`/public/${me.data.currentTenant.tenant.slug}/profissional`, { replace: true });

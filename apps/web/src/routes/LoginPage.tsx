@@ -14,7 +14,7 @@ import { z } from 'zod';
 import { AuthLayout } from '../components/AuthLayout.js';
 import { loadGoogleIdentityServices } from '../lib/google-identity.js';
 import { HttpError, httpClient } from '../lib/http.js';
-import { clearSelectedTenant, selectTenant } from '../lib/tenant-selection.js';
+import { clearSelectedTenant, selectSingleTenantIfAvailable } from '../lib/tenant-selection.js';
 
 declare global {
   interface Window {
@@ -43,15 +43,10 @@ export function LoginPage() {
       : `?plan=${encodeURIComponent(params.get('plan') ?? '')}&billing=${encodeURIComponent(params.get('billing') ?? '')}`;
     if (result && typeof result === 'object' && 'tenants' in result) {
       const response = result as { tenants: Array<{ tenant: { publicId: string; slug: string }; membership: { roleCode: string } }> };
-      if (response.tenants.length === 1) {
-        const availableTenant = response.tenants[0];
-        if (availableTenant === undefined)
-          throw new Error('O tenant disponível não foi encontrado.');
-        selectTenant(availableTenant.tenant.publicId);
+      const singleTenantDestination = selectSingleTenantIfAvailable(response.tenants);
+      if (singleTenantDestination !== null) {
         await navigate(
-          availableTenant.membership.roleCode === 'PROFESSIONAL'
-            ? `/public/${availableTenant.tenant.slug}/profissional`
-            : `/app${continuation}`,
+          singleTenantDestination === '/app' ? `/app${continuation}` : singleTenantDestination,
         );
       } else if (response.tenants.length === 0) {
         try {

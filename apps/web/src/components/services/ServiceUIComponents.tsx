@@ -94,6 +94,7 @@ interface ServiceRowProps {
   duration: string;
   price: string;
   active: boolean;
+  thumbnail?: ReactNode;
   actions?: ReactNode;
   onClick?: () => void;
 }
@@ -104,11 +105,18 @@ export function ServiceRow({
   duration,
   price,
   active,
+  thumbnail,
   actions,
   onClick,
 }: ServiceRowProps) {
+  const fallbackInitial = name.trim().charAt(0).toLocaleUpperCase('pt-BR') || 'S';
   return (
     <div className={`service-row${!active ? ' is-inactive' : ''}`} onClick={onClick}>
+      <span className="service-row-thumbnail" aria-hidden={thumbnail === undefined ? 'true' : undefined}>
+        <span className="service-row-thumbnail-fallback">{fallbackInitial}</span>
+        {thumbnail}
+      </span>
+
       <div className="service-row-main">
         <p className="service-row-name">{name}</p>
         {category && <span className="service-row-category">{category}</span>}

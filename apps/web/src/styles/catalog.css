@@ -352,10 +352,11 @@
 
 .service-row {
   display: grid;
-  grid-template-columns: 1fr 100px 100px auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto auto;
   gap: 12px;
   align-items: center;
-  padding: 12px 16px;
+  min-height: 68px;
+  padding: 8px 16px;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
@@ -373,10 +374,40 @@
   opacity: 0.6;
 }
 
-.service-row-main {
-  display: flex;
+.service-row-thumbnail {
   align-items: center;
-  gap: 8px;
+  align-self: center;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 800;
+  height: 48px;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  width: 48px;
+}
+
+.service-row-thumbnail .service-thumbnail {
+  border-radius: inherit;
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  position: absolute;
+  width: 100%;
+}
+
+.service-row-thumbnail-fallback {
+  line-height: 1;
+}
+
+.service-row-main {
+  display: grid;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -391,6 +422,7 @@
 }
 
 .service-row-category {
+  justify-self: start;
   font-size: 11px;
   background: var(--color-bg-muted);
   color: var(--color-text-secondary);
@@ -404,6 +436,7 @@
   gap: 12px;
   font-size: 13px;
   color: var(--color-text-secondary);
+  white-space: nowrap;
 }
 
 .service-row-price {
@@ -648,9 +681,17 @@
 
 @media (max-width: 640px) {
   .treatment-plan-row,
-  .service-row,
   .professional-row {
     display: none;
+  }
+
+  .service-row {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .service-row-info,
+  .service-row-actions {
+    grid-column: 2;
   }
 
   .service-grid,

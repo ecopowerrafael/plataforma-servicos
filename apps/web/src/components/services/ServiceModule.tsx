@@ -165,6 +165,15 @@ export function ServiceModule({
                 duration={`${service.durationMinutes} min`}
                 price={money(service.priceCents)}
                 active={service.active}
+                thumbnail={
+                  service.imageUrl === null ? undefined : (
+                    <TenantServiceImage
+                      alt={service.imageAlt ?? service.name}
+                      servicePublicId={service.publicId}
+                      tenantPublicId={tenantPublicId}
+                    />
+                  )
+                }
                 onClick={() => void navigate(`/app/servicos/${service.publicId}`)}
               />
             ))}

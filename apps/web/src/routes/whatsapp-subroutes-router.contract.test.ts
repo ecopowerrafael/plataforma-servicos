@@ -19,6 +19,7 @@ describe('WhatsApp app subroutes router registration', () => {
 
   it('redirects both WhatsApp base paths to the connection subroute', () => {
     expect(homePageSource).toContain('<Navigate to="/app/whatsapp/conexao" replace />');
+    expect(routerSource).toContain("path: '/app/whatsapp', element: <Navigate replace to=\"/app/whatsapp/conexao\" />");
     expect(routerSource).toContain("path: '/app/whatsapp/'");
     expect(routerSource).toContain('<Navigate replace to="/app/whatsapp/conexao" />');
   });

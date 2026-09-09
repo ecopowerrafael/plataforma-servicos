@@ -1,5 +1,8 @@
 /* /app/agenda/agendamentos — central de gestão e pesquisa de atendimentos. */
 .appointments-console {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
 }
 .appointments-filters {
@@ -35,19 +38,32 @@
 
 /* Chips de filtro rápido */
 .appointments-chips {
+  align-items: center;
+  align-content: flex-start;
+  align-self: start;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 8px;
+  height: auto;
+  margin: 0;
+  min-height: 36px;
 }
 .app-shell .appointments-chips button {
+  align-items: center;
   background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: 999px;
   color: var(--app-muted);
-  font-size: 0.8rem;
+  display: inline-flex;
+  font-size: 13px;
   font-weight: 700;
-  min-height: 2.1rem;
-  padding: 0.3rem 0.85rem;
+  height: 36px;
+  justify-content: center;
+  line-height: 1;
+  max-height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
+  white-space: nowrap;
 }
 .app-shell .appointments-chips button:hover {
   border-color: var(--app-border-strong);
@@ -364,9 +380,9 @@
     width: 100%;
   }
   .appointments-chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 0.2rem;
+    flex-wrap: wrap;
+    overflow-x: visible;
+    padding-bottom: 0;
   }
   .app-shell .appointments-chips button {
     flex: none;

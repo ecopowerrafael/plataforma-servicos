@@ -1993,7 +1993,7 @@ export function HomePage() {
           <Suspense fallback={<p>Carregando E-mails automáticos…</p>}>
             <EmailTemplateModule
               tenantPublicId={selectedTenant}
-              canManage={canManageNotifications}
+              canManage={canManageNotificationTemplates}
             />
           </Suspense>
         </ErrorBoundary>

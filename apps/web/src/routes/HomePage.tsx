@@ -13,7 +13,7 @@ import {
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import { persistLayoutAndAdvance } from './onboarding-flow.js';
@@ -887,7 +887,8 @@ export function HomePage() {
       label: 'WhatsApp',
       path: '/app/whatsapp',
       items: [
-        { label: 'WhatsApp', to: '/app/whatsapp', visible: planFeatureEnabled('whatsapp.enabled') },
+        { label: 'Conexão', to: '/app/whatsapp/conexao', visible: planFeatureEnabled('whatsapp.enabled') },
+        { label: 'Mensagens', to: '/app/whatsapp/mensagens', visible: planFeatureEnabled('whatsapp.enabled') },
       ],
     },
     {
@@ -1982,9 +1983,27 @@ export function HomePage() {
         </section>
       )}
       {isRoute('/app/whatsapp') && planFeatureEnabled('whatsapp.enabled') && (
+        <Navigate to="/app/whatsapp/conexao" replace />
+      )}
+      {isRoute('/app/whatsapp/conexao') && planFeatureEnabled('whatsapp.enabled') && (
         <ErrorBoundary key={selectedTenant}>
           <Suspense fallback={<p>Carregando WhatsApp…</p>}>
-            <WhatsAppPage tenantPublicId={selectedTenant} canManage={canManageIntegrations} />
+            <WhatsAppPage
+              tenantPublicId={selectedTenant}
+              canManage={canManageIntegrations}
+              mode="connection"
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      {isRoute('/app/whatsapp/mensagens') && planFeatureEnabled('whatsapp.enabled') && (
+        <ErrorBoundary key={selectedTenant}>
+          <Suspense fallback={<p>Carregando mensagens do WhatsApp…</p>}>
+            <WhatsAppPage
+              tenantPublicId={selectedTenant}
+              canManage={canManageIntegrations}
+              mode="messages"
+            />
           </Suspense>
         </ErrorBoundary>
       )}

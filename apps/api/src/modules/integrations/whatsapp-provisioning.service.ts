@@ -26,6 +26,9 @@ export interface WhatsAppConnectionView {
   available: boolean;
   provisioned: boolean;
   state: WhatsAppConnectionState;
+  phoneNumberId?: string | null;
+  businessAccountId?: string | null;
+  apiVersion?: string | null;
   connectedPhone: string | null;
   connectedName: string | null;
   connectedAt: string | null;

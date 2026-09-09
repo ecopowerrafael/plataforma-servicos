@@ -6,12 +6,16 @@ import { WhatsAppAssistantConfigCard } from './WhatsAppAssistantConfigCard.js';
 import { WhatsAppMessagesCard } from './WhatsAppMessagesCard.js';
 import '../../styles/settings.css';
 
+type WhatsAppPageMode = 'connection' | 'messages';
+
 export function WhatsAppPage({
   tenantPublicId,
   canManage,
+  mode = 'connection',
 }: {
   tenantPublicId: string;
   canManage: boolean;
+  mode?: WhatsAppPageMode;
 }) {
   const { data: whatsappStatus } = useQuery({
     queryKey: ['tenant', tenantPublicId, 'whatsapp-status'],
@@ -34,20 +38,30 @@ export function WhatsAppPage({
           <div>
             <p className="eyebrow">Integrações</p>
             <h1>WhatsApp</h1>
+            <p className="settings-subtitle">
+              {mode === 'connection'
+                ? 'Conecte e gerencie a API ativa do WhatsApp.'
+                : 'Personalize o comportamento do assistente e as mensagens automáticas.'}
+            </p>
           </div>
         </div>
 
-        <WhatsAppConnectionCard tenantPublicId={tenantPublicId} canManage={canManage} />
-        <WhatsAppAssistantConfigCard
-          tenantPublicId={tenantPublicId}
-          canManage={canManage}
-          whatsappConnected={whatsappConnected}
-        />
-        <WhatsAppMessagesCard
-          tenantPublicId={tenantPublicId}
-          canManage={canManage}
-          whatsappConnected={whatsappConnected}
-        />
+        {mode === 'connection' ? (
+          <WhatsAppConnectionCard tenantPublicId={tenantPublicId} canManage={canManage} />
+        ) : (
+          <>
+            <WhatsAppAssistantConfigCard
+              tenantPublicId={tenantPublicId}
+              canManage={canManage}
+              whatsappConnected={whatsappConnected}
+            />
+            <WhatsAppMessagesCard
+              tenantPublicId={tenantPublicId}
+              canManage={canManage}
+              whatsappConnected={whatsappConnected}
+            />
+          </>
+        )}
       </section>
     </main>
   );

@@ -36,6 +36,50 @@ const TEMPLATE_STATUS_DOT: Record<string, string> = {
   DISABLED: '⚫',
   UNKNOWN: '⚪',
 };
+const PROVIDER_PRESENTATION: Record<ProviderId, {
+  name: string;
+  subtitle: string;
+  description: string;
+  advantages: string[];
+  considerations: string[];
+}> = {
+  WAPI: {
+    name: 'API não oficial',
+    subtitle: 'Conexão por QR Code',
+    description: 'Uma alternativa prática para conectar seu WhatsApp sem passar pela configuração da Meta.',
+    advantages: [
+      'Conexão simples por QR Code',
+      'Configuração mais rápida',
+      'Não exige criação de aplicativo na Meta',
+      'Boa opção para começar rapidamente',
+      'Maior flexibilidade para mensagens comuns',
+    ],
+    considerations: [
+      'Pode exigir nova leitura do QR Code em caso de desconexão',
+      'Depende do funcionamento do WhatsApp Web',
+      'Pode sofrer alterações quando o WhatsApp é atualizado',
+      'Não é uma integração oficial homologada pela Meta',
+    ],
+  },
+  META: {
+    name: 'API Oficial',
+    subtitle: 'Meta Cloud API',
+    description: 'Conecte seu WhatsApp Business diretamente pela API oficial da Meta.',
+    advantages: [
+      'Integração oficial da Meta',
+      'Maior estabilidade para operação profissional',
+      'Webhooks oficiais',
+      'Melhor opção para volume e escala',
+      'Templates oficiais para comunicações automáticas',
+    ],
+    considerations: [
+      'Configuração inicial exige conta/aplicativo da Meta',
+      'Algumas mensagens precisam utilizar templates aprovados',
+      'Aprovação de templates depende da Meta',
+      'Podem existir cobranças da Meta conforme regras vigentes',
+    ],
+  },
+};
 
 export function metaTemplateStatusIcon(status: string) {
   return TEMPLATE_STATUS_DOT[status] ?? '⚪';
@@ -68,8 +112,8 @@ type ProviderCardOption = {
 };
 
 export function whatsappProviderBadge(item: ProviderCardOption, selectedProvider: ProviderId) {
-  if (selectedProvider === item.provider) return 'Selecionado';
-  return item.available ? 'Disponível' : 'Indisponível';
+  if (selectedProvider === item.provider) return 'Configurando';
+  return item.available ? 'Configurado' : 'Não configurado';
 }
 
 export function whatsappProviderBadgeState(item: ProviderCardOption, selectedProvider: ProviderId) {
@@ -80,8 +124,8 @@ export function whatsappProviderBadgeState(item: ProviderCardOption, selectedPro
 export function whatsappProviderDraftMessage(selectedProvider: ProviderId, activeProvider: ProviderId) {
   if (selectedProvider === activeProvider) return null;
   return selectedProvider === 'META'
-    ? 'Meta ainda não configurada. Salve a Meta Cloud API para tornar este método ativo.'
-    : 'W-API selecionada apenas para visualização. Clique em Usar W-API para reativar este método.';
+    ? 'API Oficial aberta para configuração. A conexão ativa só muda quando você clicar em Usar API Oficial.'
+    : 'API não oficial aberta para configuração. A conexão ativa só muda quando você clicar em Usar API não oficial.';
 }
 
 export function shouldShowWapiActivation(selectedProvider: ProviderId, activeProvider: ProviderId) {
@@ -151,10 +195,28 @@ export function WhatsAppConnectionCard({
   const selectedProviderOption = providers.data?.items.find((item) => item.provider === selectedProvider);
   const selectedProviderIsActive = selectedProvider === activeProvider;
   const draftMessage = whatsappProviderDraftMessage(selectedProvider, activeProvider);
+  const activePresentation = PROVIDER_PRESENTATION[activeProvider];
 
   useEffect(() => {
     if (connection.data?.provider !== undefined) setSelectedProvider(connection.data.provider);
   }, [connection.data?.provider]);
+
+  useEffect(() => {
+    if (connection.data?.provider !== 'META') return;
+    setMetaForm((value) => ({
+      ...value,
+      phoneNumberId: connection.data?.phoneNumberId ?? '',
+      businessAccountId: connection.data?.businessAccountId ?? '',
+      apiVersion: connection.data?.apiVersion ?? 'v23.0',
+      accessToken: '',
+      appSecret: '',
+    }));
+  }, [
+    connection.data?.provider,
+    connection.data?.phoneNumberId,
+    connection.data?.businessAccountId,
+    connection.data?.apiVersion,
+  ]);
 
   // Derivado: assim que a conexão é detectada, o QR sai da tela sozinho.
   const visibleQrCode = qrCode !== null && state !== 'CONNECTED' ? qrCode : null;
@@ -192,9 +254,9 @@ export function WhatsAppConnectionCard({
         ),
         schema: WhatsAppProviderSelectionResultSchema,
         tenantPublicId,
-      }),
+    }),
     onSuccess: async () => {
-      setNotice(selectedProvider === 'META' ? 'Configuração Meta salva.' : 'Método W-API selecionado.');
+      setNotice(selectedProvider === 'META' ? 'API Oficial salva.' : 'API não oficial selecionada.');
       await refresh();
     },
   });
@@ -271,16 +333,32 @@ export function WhatsAppConnectionCard({
 
   return (
     <fieldset className="whatsapp-card">
-      <legend>WhatsApp</legend>
+      <legend>WhatsApp › Conexão</legend>
       <p className="whatsapp-card__intro">
-        Automatize seus agendamentos e o atendimento pelo WhatsApp.
+        Escolha e gerencie a API usada para envio e atendimento pelo WhatsApp. Clicar em um card
+        apenas abre a configuração; a troca de API exige uma ação explícita.
       </p>
+      <section className="whatsapp-current-connection" aria-label="Sua conexão atual">
+        <div>
+          <span className="whatsapp-current-connection__check" aria-hidden="true">✓</span>
+          <p>Sua conexão atual</p>
+          <h3>{activePresentation.name}</h3>
+          <strong>{activePresentation.subtitle}</strong>
+          <span>
+            {STATE_LABEL[state] ?? 'Não conectado'}
+            {connection.data?.connectedPhone === null || connection.data?.connectedPhone === undefined
+              ? ''
+              : ` · ${prettyPhone(connection.data.connectedPhone)}`}
+          </span>
+        </div>
+        <em>Em uso</em>
+      </section>
       <div className="whatsapp-provider-grid" role="list" aria-label="Método de conexão">
         {(providers.data?.items ?? []).map((item) => (
           <button
             key={item.provider}
             type="button"
-            className={`whatsapp-provider-option ${selectedProvider === item.provider ? 'is-selected' : ''}`}
+            className={`whatsapp-provider-option ${selectedProvider === item.provider ? 'is-selected' : ''} ${activeProvider === item.provider ? 'is-active-provider' : ''}`}
             disabled={!item.available}
             onClick={() => {
               if (!item.available) return;
@@ -288,13 +366,34 @@ export function WhatsAppConnectionCard({
               setQrCode(null);
             }}
           >
-            <span className="whatsapp-provider-option__label">{item.label}</span>
-            <strong>{item.provider === 'META' ? 'Meta Cloud API' : 'W-API'}</strong>
-            <small>{item.description}</small>
+            <span className="whatsapp-provider-option__label">{PROVIDER_PRESENTATION[item.provider].name}</span>
+            <strong>{PROVIDER_PRESENTATION[item.provider].subtitle}</strong>
+            <small>{PROVIDER_PRESENTATION[item.provider].description}</small>
+            <div className="whatsapp-provider-option__lists" aria-hidden="true">
+              <span>Vantagens</span>
+              <ul>
+                {PROVIDER_PRESENTATION[item.provider].advantages.slice(0, 3).map((advantage) => (
+                  <li key={advantage}>{advantage}</li>
+                ))}
+              </ul>
+              <span>Pontos a considerar</span>
+              <ul>
+                {PROVIDER_PRESENTATION[item.provider].considerations.slice(0, 2).map((consideration) => (
+                  <li key={consideration}>{consideration}</li>
+                ))}
+              </ul>
+            </div>
             <em
               className={`whatsapp-provider-option__badge ${whatsappProviderBadgeState(item, selectedProvider)}`}
             >
-              {whatsappProviderBadge(item, selectedProvider)}
+              {activeProvider === item.provider ? 'Em uso' : whatsappProviderBadge(item, selectedProvider)}
+            </em>
+            <em className={`whatsapp-provider-option__status is-${item.provider === activeProvider ? state.toLowerCase().replace('_', '-') : 'available'}`}>
+              {item.provider === activeProvider
+                ? (STATE_LABEL[state] ?? 'Não conectado')
+                : item.available
+                  ? 'Configurável'
+                  : 'Não configurado'}
             </em>
           </button>
         ))}
@@ -340,6 +439,24 @@ export function WhatsAppConnectionCard({
       ) : null}
       {selectedProvider === 'META' ? (
         <div className="whatsapp-meta-form">
+          <div className="whatsapp-provider-detail">
+            <h3>API Oficial</h3>
+            <p>Configuração da Meta Cloud API para operação profissional com webhooks e templates oficiais.</p>
+            <div className="whatsapp-provider-detail__columns">
+              <div>
+                <strong>Vantagens</strong>
+                <ul>
+                  {PROVIDER_PRESENTATION.META.advantages.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+              <div>
+                <strong>Pontos a considerar</strong>
+                <ul>
+                  {PROVIDER_PRESENTATION.META.considerations.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
           <label>
             Phone Number ID
             <input
@@ -362,20 +479,20 @@ export function WhatsAppConnectionCard({
               type="password"
               value={metaForm.accessToken}
               onChange={(event) => setMetaForm((value) => ({ ...value, accessToken: event.target.value }))}
-              placeholder={connection.data?.tokenConfigured === true ? 'Token configurado — deixe vazio para manter' : 'Token da Meta'}
+              placeholder={connection.data?.tokenConfigured === true ? '•••••••••••• — deixe vazio para manter o atual' : 'Token da Meta'}
             />
           </label>
-          {connection.data?.tokenConfigured === true ? <span className="whatsapp-secret-badge">Token configurado</span> : null}
+          {connection.data?.tokenConfigured === true ? <span className="whatsapp-secret-badge">✓ Token configurado</span> : null}
           <label>
             App Secret
             <input
               type="password"
               value={metaForm.appSecret}
               onChange={(event) => setMetaForm((value) => ({ ...value, appSecret: event.target.value }))}
-              placeholder={connection.data?.appSecretConfigured === true ? 'App Secret configurado — deixe vazio para manter' : 'App Secret do aplicativo Meta'}
+              placeholder={connection.data?.appSecretConfigured === true ? '•••••••••••• — deixe vazio para manter o atual' : 'App Secret do aplicativo Meta'}
             />
           </label>
-          {connection.data?.appSecretConfigured === true ? <span className="whatsapp-secret-badge">App Secret configurado</span> : null}
+          {connection.data?.appSecretConfigured === true ? <span className="whatsapp-secret-badge">✓ App Secret configurado</span> : null}
           <label>
             Versão API
             <input
@@ -388,7 +505,7 @@ export function WhatsAppConnectionCard({
           </p>
           {connection.data?.webhookUrl !== undefined && connection.data.webhookUrl !== null && connection.data.verifyToken !== undefined && connection.data.verifyToken !== null ? (
             <div className="whatsapp-webhook-box">
-              <h4>Configuração do webhook</h4>
+              <h4>Webhook</h4>
               <p>Use estes dados na configuração de Webhooks do seu aplicativo Meta.</p>
               <label>
                 URL de retorno
@@ -416,9 +533,17 @@ export function WhatsAppConnectionCard({
           ) : null}
           <div className="whatsapp-templates-box">
             <div>
-              <h4>Templates Meta</h4>
-              <p>Crie e acompanhe os templates padrão do Agendei na sua própria WABA.</p>
+              <h4>Templates da API Oficial</h4>
+              <p>Infraestrutura da Meta para comunicações automáticas. Não é a personalização do assistente.</p>
             </div>
+            {metaTemplates.data !== undefined ? (
+              <p className="whatsapp-template-summary">
+                {metaTemplates.data.items.length} templates ·{' '}
+                {metaTemplates.data.items.filter((item) => item.category === 'UTILITY').length} Utility ·{' '}
+                {metaTemplates.data.items.filter((item) => item.category === 'MARKETING').length} Marketing ·{' '}
+                {metaTemplates.data.items.filter((item) => item.status === 'APPROVED').length} aprovados
+              </p>
+            ) : null}
             {metaTemplates.isLoading ? <p className="ds-form-hint">Carregando templates…</p> : null}
             <div className="whatsapp-template-list">
               {(metaTemplates.data?.items ?? []).map((template) => (
@@ -463,16 +588,36 @@ export function WhatsAppConnectionCard({
           </div>
         </div>
       ) : null}
-      {selectedProvider === 'WAPI' && selectedProviderIsActive && state === 'NOT_CREATED' ? (
-        <p className="ds-form-hint">
-          Você conecta seu número escaneando um QR Code. Não é necessário criar conta em outro
-          serviço.
-        </p>
-      ) : null}
-      {selectedProvider === 'WAPI' && selectedProviderIsActive && state === 'CREATED' ? (
-        <p className="ds-form-hint">
-          Agora conecte o WhatsApp que será usado pelo estabelecimento.
-        </p>
+      {selectedProvider === 'WAPI' ? (
+        <div className="whatsapp-provider-detail">
+          <h3>API não oficial</h3>
+          <p>Uma alternativa prática para conectar seu WhatsApp sem passar pela configuração da Meta.</p>
+          <div className="whatsapp-provider-detail__columns">
+            <div>
+              <strong>Vantagens</strong>
+              <ul>
+                {PROVIDER_PRESENTATION.WAPI.advantages.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+            <div>
+              <strong>Pontos a considerar</strong>
+              <ul>
+                {PROVIDER_PRESENTATION.WAPI.considerations.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          </div>
+          <p className="whatsapp-provider-detail__note">
+            O uso de integrações não oficiais está sujeito às regras do WhatsApp. O Agendei mantém
+            mecanismos de conexão e monitoramento, mas não pode garantir disponibilidade contínua
+            nem se responsabilizar por eventuais limitações ou bloqueios aplicados pelo WhatsApp.
+          </p>
+          {selectedProviderIsActive && state === 'NOT_CREATED' ? (
+            <p className="ds-form-hint">Você conecta seu número escaneando um QR Code.</p>
+          ) : null}
+          {selectedProviderIsActive && state === 'CREATED' ? (
+            <p className="ds-form-hint">Agora conecte o WhatsApp que será usado pelo estabelecimento.</p>
+          ) : null}
+        </div>
       ) : null}
       {justConnected ? (
         <p className="success-message">{'✓ WhatsApp conectado com sucesso'}</p>
@@ -494,7 +639,7 @@ export function WhatsAppConnectionCard({
                 updateProvider.mutate();
               }}
             >
-              {updateProvider.isPending ? 'Salvando Meta…' : 'Salvar Meta Cloud API'}
+              {updateProvider.isPending ? 'Salvando API Oficial…' : activeProvider === 'META' ? 'Salvar API Oficial' : 'Usar API Oficial'}
             </button>
           ) : null}
           {selectedProvider === 'META' && activeProvider === 'META' ? (
@@ -506,7 +651,7 @@ export function WhatsAppConnectionCard({
                 createInstance.mutate();
               }}
             >
-              {createInstance.isPending ? 'Validando configuração…' : 'Validar configuração'}
+              {createInstance.isPending ? 'Validando configuração…' : 'Validar API Oficial'}
             </button>
           ) : null}
           {shouldShowWapiActivation(selectedProvider, activeProvider) ? (
@@ -518,7 +663,7 @@ export function WhatsAppConnectionCard({
                 updateProvider.mutate();
               }}
             >
-              Usar W-API
+              Usar API não oficial
             </button>
           ) : null}
           {selectedProvider === 'WAPI' && selectedProviderIsActive && state === 'NOT_CREATED' ? (

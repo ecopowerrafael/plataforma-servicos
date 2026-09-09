@@ -124,8 +124,8 @@ function MarketingFooter() {
         </div>
         <div>
           <strong>Empresa</strong>
-          <Link to="/termos">Termos</Link>
-          <Link to="/privacidade">Privacidade</Link>
+          <a href="/termos-de-servico.html">Termos</a>
+          <a href="/politica-de-privacidade.html">Privacidade</a>
           <span>Contato</span>
         </div>
         <div>

@@ -213,19 +213,19 @@ const DEFAULT_TEMPLATES: Record<NotificationKind, TemplateContent> = {
     ctaLabel: 'Ver agendamento',
   },
   'appointment.day_before_reminder': {
-    subject: 'Lembrete: seu agendamento é amanhã — {{tenantName}}',
-    body: 'Olá, {{customerName}}. Seu agendamento está marcado para amanhã!\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nHorário: {{time}}\nProtocolo: {{protocol}}',
-    title: 'Lembrete: agendamento amanhã',
-    intro: 'Olá, {{customerName}}. Seu agendamento é amanhã!',
-    afterText: 'Confirme comparecimento ou reagende pelo aplicativo, se necessário.',
+    subject: 'Lembrete do seu agendamento — {{tenantName}}',
+    body: 'Olá, {{customerName}}!\n\nEste é um lembrete do seu agendamento para amanhã.\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nData/hora: {{when}}\nProtocolo: {{protocol}}\n\nSe precisar, você pode acompanhar, reagendar ou cancelar pelo aplicativo.',
+    title: 'Seu agendamento é amanhã',
+    intro: 'Olá, {{customerName}}! Passando para lembrar que seu atendimento está marcado para amanhã.',
+    afterText: 'Se precisar alterar o horário, acesse seus agendamentos pelo aplicativo.',
     ctaLabel: 'Ver agendamento',
   },
   'appointment.upcoming_reminder': {
-    subject: 'Seu agendamento começa em breve — {{tenantName}}',
-    body: 'Olá, {{customerName}}. Seu agendamento está começando!\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nHorário: {{time}}\nProtocolo: {{protocol}}',
-    title: 'Agendamento começando agora',
-    intro: 'Olá, {{customerName}}. Seu agendamento está começando!',
-    afterText: 'Acesse o aplicativo para mais detalhes ou contate o estabelecimento.',
+    subject: 'Seu atendimento está próximo — {{tenantName}}',
+    body: 'Olá, {{customerName}}!\n\nSeu atendimento está próximo.\n\nServiço: {{serviceName}}\nProfissional: {{professionalName}}\nData/hora: {{when}}\nProtocolo: {{protocol}}\n\nEsperamos você em breve.',
+    title: 'Seu atendimento está próximo',
+    intro: 'Olá, {{customerName}}! Seu horário está chegando.',
+    afterText: 'Se precisar de ajuda, consulte seus agendamentos pelo aplicativo.',
     ctaLabel: 'Ver agendamento',
   },
   'customer.recovery.inactive': {
@@ -404,8 +404,13 @@ export class NotificationTemplateService {
       select: { id: true },
     });
     const fallback = DEFAULT_TEMPLATES[kind];
+    const shouldStoreRichEmail =
+      input.title !== undefined ||
+      input.intro !== undefined ||
+      input.afterText !== undefined ||
+      input.ctaLabel !== undefined;
     const storedBody =
-      kind === 'appointment.booking_confirmed'
+      shouldStoreRichEmail
         ? `${EMAIL_TEMPLATE_PREFIX}${JSON.stringify({
             body: input.body,
             title: input.title ?? fallback.title,

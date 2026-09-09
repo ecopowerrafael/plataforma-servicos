@@ -12,7 +12,17 @@ import '../../styles/marketing.css';
 
 const kindLabels: Record<string, string> = {
   'appointment.booking_confirmed': 'Novo agendamento confirmado',
+  'appointment.day_before_reminder': 'Lembrete do dia anterior',
+  'appointment.upcoming_reminder': 'Lembrete antes do atendimento',
   'appointment.booking_canceled': 'Cancelamento de agendamento',
+};
+
+const kindDescriptions: Record<string, string> = {
+  'appointment.booking_confirmed': 'Enviada quando um novo agendamento é confirmado.',
+  'appointment.day_before_reminder':
+    'Enviada no dia anterior ao atendimento, no horário configurado.',
+  'appointment.upcoming_reminder': 'Enviada alguns minutos antes do horário marcado.',
+  'appointment.booking_canceled': 'Enviada quando um agendamento é cancelado.',
 };
 
 function EmailTemplateEditor({
@@ -32,7 +42,7 @@ function EmailTemplateEditor({
   const [afterText, setAfterText] = useState(entry.afterText);
   const [ctaLabel, setCtaLabel] = useState(entry.ctaLabel);
 
-  const editableFullEmail = entry.kind === 'appointment.booking_confirmed';
+  const editableFullEmail = emailKinds.includes(entry.kind);
 
   const save = useMutation({
     mutationFn: () =>
@@ -74,6 +84,7 @@ function EmailTemplateEditor({
         {kindLabels[entry.kind] ?? entry.kind}
         {entry.isCustom ? ' (personalizado)' : ' (padrão)'}
       </legend>
+      <p className="muted">{kindDescriptions[entry.kind] ?? 'Template de e-mail automático.'}</p>
       <label>
         Assunto
         <input
@@ -199,7 +210,12 @@ function EmailTemplateEditor({
   );
 }
 
-const emailKinds = ['appointment.booking_confirmed', 'appointment.booking_canceled'];
+const emailKinds = [
+  'appointment.booking_confirmed',
+  'appointment.day_before_reminder',
+  'appointment.upcoming_reminder',
+  'appointment.booking_canceled',
+];
 
 export function EmailTemplateModule({
   tenantPublicId,

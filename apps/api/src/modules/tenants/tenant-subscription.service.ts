@@ -124,8 +124,12 @@ export class TenantSubscriptionService {
     if (!option || !current) throw new AppError({ code: 'BILLING_OPTION_UNAVAILABLE', message: 'A periodicidade escolhida não está disponível.', statusCode: 409 });
     const classification = classifySubscriptionChange({ currentPlanId: current.planId, currentPlanSortOrder: (await this.client.commercialPlan.findUniqueOrThrow({ where: { id: current.planId }, select: { sortOrder: true } })).sortOrder, currentBillingCycle: current.billingCycle as any, currentPriceCents: current.priceCents, targetPlanId: target.id, targetPlanSortOrder: target.sortOrder, targetBillingCycle: cycle as any, targetPriceCents: option.priceCents });
     if (classification === 'NO_CHANGE') throw new AppError({ code: 'PLAN_ALREADY_ACTIVE', message: 'Este plano e esta periodicidade já estão ativos.', statusCode: 409 });
-    const pending = await this.client.subscriptionPlanChange.findFirst({ where: { subscriptionId: current.id, status: { in: ['PENDING_PAYMENT', 'SCHEDULED'] } } });
-    if (pending) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_ALREADY_PENDING', message: 'Já existe uma alteração de assinatura pendente.', statusCode: 409 });
+    const pending = await this.client.subscriptionPlanChange.findFirst({ where: { subscriptionId: current.id, status: { in: ['PENDING_PAYMENT', 'SCHEDULED'] } }, orderBy: { createdAt: 'desc' } });
+    if (pending?.status === 'PENDING_PAYMENT' && pending.expiresAt <= new Date()) {
+      await this.client.subscriptionPlanChange.updateMany({ where: { id: pending.id, status: 'PENDING_PAYMENT', expiresAt: { lte: new Date() } }, data: { status: 'EXPIRED' } });
+    } else if (pending) {
+      throw new AppError({ code: 'SUBSCRIPTION_CHANGE_ALREADY_PENDING', message: 'Já existe uma alteração de assinatura pendente.', statusCode: 409 });
+    }
     const now = new Date();
     const paid = await resolveCurrentCyclePaidAmount(this.client, { subscriptionId: current.id, periodStartsAt: current.currentPeriodStartsAt, periodEndsAt: current.currentPeriodEndsAt, historicalPriceCents: current.priceCents });
     const sourcePaid = paid.amountCents;
@@ -142,6 +146,29 @@ export class TenantSubscriptionService {
       status = 'APPLIED';
     }
     return SubscriptionChangePreviewSchema.parse({ ...preview, changePublicId: change.publicId, status, sourcePaidAmountCents: sourcePaid.toString(), unusedCreditCents: credit.toString(), amountDueCents: amountDue.toString(), expiresAt: expiresAt.toISOString() });
+  }
+
+  public async getActiveChange(tenantId: bigint) {
+    const subscription = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' } });
+    if (!subscription) throw new AppError({ code: 'TENANT_SUBSCRIPTION_NOT_FOUND', message: 'Nenhuma assinatura foi encontrada para este estabelecimento.', statusCode: 404 });
+    const change = await this.client.subscriptionPlanChange.findFirst({ where: { subscriptionId: subscription.id, status: { in: ['PENDING_PAYMENT', 'SCHEDULED'] } }, orderBy: { createdAt: 'desc' }, include: { currentPlan: true, targetPlan: true } });
+    if (!change) return null;
+    if (change.status === 'PENDING_PAYMENT' && change.expiresAt <= new Date()) {
+      await this.client.subscriptionPlanChange.updateMany({ where: { id: change.id, status: 'PENDING_PAYMENT', expiresAt: { lte: new Date() } }, data: { status: 'EXPIRED' } });
+      return null;
+    }
+    return SubscriptionChangePreviewSchema.parse({ changeType: change.targetPlan.sortOrder >= change.currentPlan.sortOrder ? 'UPGRADE' : 'DOWNGRADE', effectiveAt: change.effectiveAt?.toISOString() ?? null, changePublicId: change.publicId, status: change.status, sourcePaidAmountCents: change.sourcePaidAmountCents.toString(), unusedCreditCents: change.unusedCreditCents.toString(), amountDueCents: change.amountDueCents.toString(), expiresAt: change.expiresAt.toISOString(), currentPlan: { publicId: change.currentPlan.publicId, name: change.currentPlan.name, billingCycle: change.currentBillingCycle, priceCents: change.sourcePaidAmountCents.toString(), currency: change.currency }, targetPlan: { publicId: change.targetPlan.publicId, name: change.targetPlan.name, billingCycle: change.targetBillingCycle, priceCents: change.targetPriceCents.toString(), currency: change.currency }, gainedFeatures: [], lostFeatures: [], increasedLimits: [], reducedLimits: [], usageConflicts: [] });
+  }
+
+  public async cancelChange(tenantId: bigint, changePublicId: string) {
+    return this.client.$transaction(async (tx) => {
+      const change = await tx.subscriptionPlanChange.findUnique({ where: { publicId: changePublicId } });
+      if (!change || change.tenantId !== tenantId) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_FOUND', message: 'Alteração de assinatura não encontrada.', statusCode: 404 });
+      if (!['PENDING_PAYMENT', 'SCHEDULED'].includes(change.status)) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_CANCELLABLE', message: 'Esta alteração não pode mais ser cancelada.', statusCode: 409 });
+      await tx.subscriptionPlanChange.update({ where: { id: change.id }, data: { status: 'CANCELED' } });
+      if (change.status === 'SCHEDULED') await tx.tenantSubscription.update({ where: { id: change.subscriptionId }, data: { scheduledPlanId: null, scheduledBillingCycle: null, scheduledEffectiveAt: null } });
+      return { status: 'CANCELED' as const, publicId: change.publicId };
+    });
   }
 
   private async usageByKey(tenantId: bigint, periodStartsAt: Date, periodEndsAt: Date) {

@@ -56,6 +56,15 @@ export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (a
     if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode alterar o plano.');
     return options.service.requestChange(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
   });
+  app.get('/tenant/subscription/changes/current', { schema: { response: { 200: SubscriptionChangePreviewSchema.nullable() } } }, (r) => {
+    options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+    return options.service.getActiveChange(r.tenant.id);
+  });
+  app.post('/tenant/subscription/changes/:publicId/cancel', { schema: { params: z.object({ publicId: z.uuid() }), response: { 200: z.object({ status: z.literal('CANCELED'), publicId: z.uuid() }) } } }, (r) => {
+    options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+    if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode cancelar a alteração.');
+    return options.service.cancelChange(r.tenant.id, r.params.publicId);
+  });
   app.post('/tenant/subscription/changes/:publicId/confirm-manual', {
     schema: { params: z.object({ publicId: z.uuid() }), response: { 200: z.object({ status: z.string(), publicId: z.uuid() }) } },
   }, async (r) => {

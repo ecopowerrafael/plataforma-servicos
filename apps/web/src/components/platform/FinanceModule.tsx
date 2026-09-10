@@ -728,7 +728,7 @@ function FinanceReportsTab() {
 /* Configurações (conteúdo original do FinanceModule, movido para cá)  */
 /* ------------------------------------------------------------------ */
 
-type Provider = 'pix-local' | 'mercadopago';
+type Provider = 'pix-local' | 'mercadopago' | 'stripe';
 
 function FinanceSettingsTab() {
   const client = useQueryClient();
@@ -817,7 +817,7 @@ function FinanceSettingsTab() {
                   <dd>{config.environment === 'PRODUCTION' ? 'Produção' : 'Sandbox'}</dd>
                 </div>
               </dl>
-              {config.provider === 'stripe' ? <small>Configure as variáveis Stripe no ambiente do backend e cadastre o webhook no Dashboard Stripe.</small> : <button onClick={() => { configure(config.provider); }} type="button">Configurar</button>}
+              <button onClick={() => { configure(config.provider); }} type="button">Configurar</button>
             </article>
           ))}
           <article className="platform-panel">
@@ -857,7 +857,7 @@ function FinanceSettingsTab() {
             >
               ×
             </button>
-            <h3>{open === 'pix-local' ? 'Configurar PIX' : 'Configurar Mercado Pago'}</h3>
+            <h3>{open === 'pix-local' ? 'Configurar PIX' : open === 'mercadopago' ? 'Configurar Mercado Pago' : 'Configurar Stripe Billing'}</h3>
             <div className="platform-form">
               <label>
                 <input
@@ -920,7 +920,7 @@ function FinanceSettingsTab() {
                     />
                   </label>
                 </>
-              ) : (
+              ) : open === 'mercadopago' ? (
                 <>
                   <label>
                     Access token
@@ -946,6 +946,18 @@ function FinanceSettingsTab() {
                       placeholder="Vazio mantém o atual"
                     />
                   </label>
+                </>
+              ) : (
+                <>
+                  <label>
+                    Secret Key
+                    <input autoComplete="new-password" type="password" value={fields.secretKey ?? ''} onChange={(e) => { setFields({ ...fields, secretKey: e.target.value }); }} placeholder="Vazio mantém a atual" />
+                  </label>
+                  <label>
+                    Signing Secret do webhook
+                    <input autoComplete="new-password" type="password" value={fields.webhookSecret ?? ''} onChange={(e) => { setFields({ ...fields, webhookSecret: e.target.value }); }} placeholder="Vazio mantém o atual" />
+                  </label>
+                  <small>As credenciais são enviadas somente ao backend e armazenadas criptografadas.</small>
                 </>
               )}
               <button

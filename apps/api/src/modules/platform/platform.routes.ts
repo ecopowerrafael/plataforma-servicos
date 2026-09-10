@@ -1525,7 +1525,7 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
       '/platform/finance/providers/:provider',
       {
         schema: {
-          params: z.object({ provider: z.enum(['pix-local', 'mercadopago']) }),
+          params: z.object({ provider: z.enum(['pix-local', 'mercadopago', 'stripe']) }),
           body: PlatformPaymentConfigInputSchema,
           response: { 200: PlatformFinanceOverviewSchema },
         },

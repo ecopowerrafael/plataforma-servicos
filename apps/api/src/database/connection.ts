@@ -503,14 +503,29 @@ export function createDatabaseConnection(
     payments,
     tenantWhiteLabelRepository,
   );
+  const stripeBilling = new StripeBillingService(
+    client,
+    process.env.STRIPE_SECRET_KEY ?? 'sk_test_admin_configured_later',
+    process.env.STRIPE_WEBHOOK_SECRET ?? 'whsec_admin_configured_later',
+    process.env.APP_WEB_URL ?? 'http://localhost:5173',
+  );
+  const storedStripe = await client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } });
+  if (storedStripe?.credentialsCiphertext && credentialsCipher) {
+    try {
+      const credentials = credentialsCipher.decrypt(storedStripe.credentialsCiphertext);
+      if (typeof credentials.secretKey === 'string' && typeof credentials.webhookSecret === 'string') {
+        stripeBilling.reconfigure(credentials.secretKey, credentials.webhookSecret);
+      }
+    } catch {
+      // The admin UI will report the integration as unconfigured until credentials are replaced.
+    }
+  }
   const platformBilling = new PlatformBillingService(
     client,
     paymentGatewayRegistry,
     credentialsCipher,
+    stripeBilling,
   );
-  const stripeBilling = process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET
-    ? new StripeBillingService(client, process.env.STRIPE_SECRET_KEY, process.env.STRIPE_WEBHOOK_SECRET, process.env.APP_WEB_URL ?? 'http://localhost:5173')
-    : undefined;
   const directorySeo = new DirectorySeoService(client, {
     ...(process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL === undefined ? {} : { siteUrl: process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL }),
     ...(process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON === undefined ? {} : { serviceAccountJson: process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }),
@@ -541,7 +556,7 @@ export function createDatabaseConnection(
     directorySeo,
     directory: new DirectoryService(client, directorySeo),
     platformBilling,
-    ...(stripeBilling === undefined ? {} : { stripeBilling }),
+    stripeBilling,
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client),
     customers: customers,

@@ -12,10 +12,14 @@ const cycle = (value: string): { interval: 'month' | 'year'; interval_count: num
 };
 
 export class StripeBillingService {
-  public readonly stripe: Stripe;
-  public constructor(private readonly client: PrismaClient, secretKey: string, private readonly webhookSecret: string, private readonly appWebUrl: string) {
+  public stripe: Stripe;
+  private webhookSecret: string;
+  public constructor(private readonly client: PrismaClient, secretKey: string, webhookSecret: string, private readonly appWebUrl: string) {
     this.stripe = new Stripe(secretKey);
+    this.webhookSecret = webhookSecret;
   }
+
+  public reconfigure(secretKey: string, webhookSecret: string) { this.stripe = new Stripe(secretKey); this.webhookSecret = webhookSecret; }
 
   public async checkout(tenantId: bigint, planPublicId: string, billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL', email: string) {
     const plan = await this.client.commercialPlan.findUnique({ where: { publicId: planPublicId }, include: { billingOptions: true } });

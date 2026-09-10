@@ -8,6 +8,7 @@ import { MyAgendaModule } from '../components/professionals/MyAgendaModule.js';
 import { MyCommissionsModule } from '../components/professionals/MyCommissionsModule.js';
 import { TenantProfessionalPhoto } from '../components/professionals/TenantProfessionalPhoto.js';
 import { PwaInstall } from '../components/public/PwaInstall.js';
+import { environment } from '../config/environment.js';
 import { httpClient } from '../lib/http.js';
 import { clearSelectedTenant } from '../lib/tenant-selection.js';
 
@@ -44,6 +45,28 @@ export function ProfessionalAppPage({ section = 'agenda' }: { section?: Section 
     mutationFn: () => httpClient.request('/auth/logout', { method: 'POST', body: {}, schema: SuccessResponseSchema }),
     onSuccess: () => { clearSelectedTenant(); void navigate('/login'); },
   });
+  useEffect(() => {
+    const faviconAsset = site.data?.assets.find(
+      (asset) => asset.kind === 'FAVICON' || asset.kind === 'APP_ICON',
+    );
+    const favicon = document.head.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (faviconAsset === undefined) {
+      favicon?.remove();
+      return () => {
+        const commercialFavicon = document.createElement('link');
+        commercialFavicon.rel = 'icon';
+        commercialFavicon.href = '/agendei-favicon.jpeg';
+        document.head.append(commercialFavicon);
+      };
+    }
+    const link = favicon ?? document.createElement('link');
+    link.rel = 'icon';
+    link.href = `${environment.apiUrl}${faviconAsset.url}`;
+    if (favicon === null) document.head.append(link);
+    return () => {
+      link.href = '/agendei-favicon.jpeg';
+    };
+  }, [site.data]);
   useEffect(() => {
     let manifest = document.head.querySelector<HTMLLinkElement>('link[data-professional-manifest]');
     if (manifest === null) {

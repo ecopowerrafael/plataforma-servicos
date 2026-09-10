@@ -89,15 +89,13 @@ export function PublicTenantPage() {
     const faviconAsset = site.data.assets.find(
       (asset) => asset.kind === 'FAVICON' || asset.kind === 'APP_ICON',
     );
-    if (faviconAsset !== undefined) {
-      let favicon = document.head.querySelector<HTMLLinkElement>('link[rel="icon"]');
-      if (favicon === null) {
-        favicon = document.createElement('link');
-        favicon.rel = 'icon';
-        document.head.append(favicon);
-      }
-      favicon.href = mediaUrl(faviconAsset.url);
+    let favicon = document.head.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (favicon === null) {
+      favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      document.head.append(favicon);
     }
+    favicon.href = faviconAsset === undefined ? '/agendei-favicon.jpeg' : mediaUrl(faviconAsset.url);
     const embedded = new URLSearchParams(window.location.search).get('preview') === '1';
     if (!embedded && window.matchMedia('(display-mode: standalone)').matches) {
       const timer = window.setTimeout(() => {
@@ -107,7 +105,9 @@ export function PublicTenantPage() {
         window.clearTimeout(timer);
       };
     }
-    return undefined;
+    return () => {
+      favicon?.setAttribute('href', '/agendei-favicon.jpeg');
+    };
   }, [site.data]);
   // Calculado antes dos retornos antecipados: a fonte do tema é um hook.
   const activeTheme =

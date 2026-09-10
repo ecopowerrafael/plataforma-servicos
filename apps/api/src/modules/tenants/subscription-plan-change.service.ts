@@ -13,7 +13,9 @@ export class SubscriptionPlanChangeService {
       if (!change) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_FOUND', message: 'Alteração de assinatura não encontrada.', statusCode: 404 });
       if (change.status === 'APPLIED') return change;
       if (change.status !== 'PAID') throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_PAID', message: 'A alteração ainda não foi paga.', statusCode: 409 });
+      await tx.$queryRaw`SELECT id FROM tenant_subscriptions WHERE id = ${change.subscriptionId} FOR UPDATE`;
       const subscription = await tx.tenantSubscription.findUniqueOrThrow({ where: { id: change.subscriptionId } });
+      if (subscription.planId !== change.currentPlanId || subscription.billingCycle !== change.currentBillingCycle || subscription.currentPeriodStartsAt.getTime() !== change.currentPeriodStartsAt.getTime() || subscription.currentPeriodEndsAt.getTime() !== change.currentPeriodEndsAt.getTime()) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_STALE', message: 'A assinatura mudou desde a criação desta alteração. Solicite uma nova cotação.', statusCode: 409 });
       const option = change.targetPlan.billingOptions.find((item) => item.active && item.billingCycle === change.targetBillingCycle);
       if (!option) throw new AppError({ code: 'BILLING_OPTION_UNAVAILABLE', message: 'A opção de cobrança não está disponível.', statusCode: 409 });
       const startsAt = change.appliedAt ?? new Date();

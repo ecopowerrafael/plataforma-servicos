@@ -797,13 +797,15 @@ function FinanceSettingsTab() {
           {query.data?.configs.map((config) => (
             <article className="platform-panel" key={config.provider}>
               <header>
-                <h3>{config.provider === 'pix-local' ? 'PIX' : 'Mercado Pago'}</h3>
+              <h3>{config.provider === 'pix-local' ? 'PIX' : config.provider === 'mercadopago' ? 'Mercado Pago' : 'Stripe Billing'}</h3>
                 <StatusBadge value={config.active ? 'ACTIVE' : 'INACTIVE'} />
               </header>
               <p>
                 {config.provider === 'pix-local'
                   ? 'PIX próprio com confirmação administrativa.'
-                  : 'Pagamento processado e confirmado pelo Mercado Pago.'}
+                  : config.provider === 'mercadopago'
+                    ? 'Pagamento processado e confirmado pelo Mercado Pago.'
+                    : 'Assinaturas recorrentes, Checkout hospedado, renovação automática e Customer Portal.'}
               </p>
               <dl className="platform-details">
                 <div>
@@ -815,14 +817,7 @@ function FinanceSettingsTab() {
                   <dd>{config.environment === 'PRODUCTION' ? 'Produção' : 'Sandbox'}</dd>
                 </div>
               </dl>
-              <button
-                onClick={() => {
-                  configure(config.provider);
-                }}
-                type="button"
-              >
-                Configurar
-              </button>
+              {config.provider === 'stripe' ? <small>Configure as variáveis Stripe no ambiente do backend e cadastre o webhook no Dashboard Stripe.</small> : <button onClick={() => { configure(config.provider); }} type="button">Configurar</button>}
             </article>
           ))}
           <article className="platform-panel">

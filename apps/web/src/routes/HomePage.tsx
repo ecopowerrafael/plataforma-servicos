@@ -1683,16 +1683,25 @@ export function HomePage() {
               planFeatureEnabled('products.enabled') && (
                 <ProductCreatePage tenantPublicId={selectedTenant} />
               )}
+            {isRoute('/app/produtos/novo') && canManageProducts && !planFeatureEnabled('products.enabled') && (
+              <section className="sessions-panel"><PageHeader eyebrow="Catálogo" title="Recurso não incluído" description="Este recurso não está incluído no seu plano atual." actions={<button className="btn btn-primary" type="button" onClick={() => void navigate('/app/plano')}>Ver planos</button>} /></section>
+            )}
             {isRoute('/app/produtos/estoque') &&
               canReadProducts &&
-              planFeatureEnabled('products.enabled') && (
+              planFeatureEnabled('stock.enabled') && (
                 <ProductStockModule tenantPublicId={selectedTenant} canManage={canManageProducts} />
               )}
+            {isRoute('/app/produtos/estoque') && canReadProducts && !planFeatureEnabled('stock.enabled') && (
+              <section className="sessions-panel"><PageHeader eyebrow="Estoque" title="Recurso não incluído" description="Estoque não está incluído no seu plano atual." actions={<button className="btn btn-primary" type="button" onClick={() => void navigate('/app/plano')}>Ver planos</button>} /></section>
+            )}
             {isRoute('/app/produtos/movimentacoes') &&
               canReadProducts &&
-              planFeatureEnabled('products.enabled') && (
+              planFeatureEnabled('stock.enabled') && (
                 <ProductMovementsModule tenantPublicId={selectedTenant} />
               )}
+            {isRoute('/app/produtos/movimentacoes') && canReadProducts && !planFeatureEnabled('stock.enabled') && (
+              <section className="sessions-panel"><PageHeader eyebrow="Estoque" title="Recurso não incluído" description="Movimentações não estão incluídas no seu plano atual." actions={<button className="btn btn-primary" type="button" onClick={() => void navigate('/app/plano')}>Ver planos</button>} /></section>
+            )}
             {location.pathname.startsWith('/app/produtos/') &&
               !isRoute(
                 '/app/produtos/novo',

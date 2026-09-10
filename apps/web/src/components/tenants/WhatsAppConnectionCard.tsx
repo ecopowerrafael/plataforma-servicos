@@ -20,6 +20,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
+import { ConnectionStatusBanner } from './ConnectionStatusBanner.js';
+import { ConnectionTypeSelector } from './ConnectionTypeSelector.js';
+import { ComparisonModal } from './ComparisonModal.js';
 
 const STATE_LABEL: Record<string, string> = {
   NOT_CREATED: 'Não configurado',
@@ -160,6 +163,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [confirmSwitch, setConfirmSwitch] = useState<ProviderId | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [managedProvider, setManagedProvider] = useState<ProviderId>('WAPI');
   const [metaTab, setMetaTab] = useState<MetaTab>('account');
   const [metaForm, setMetaForm] = useState({ phoneNumberId: '', businessAccountId: '', accessToken: '', appSecret: '', apiVersion: 'v23.0' });
@@ -355,7 +359,20 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
         </div>
       </section>
 
-      <section className="whatsapp-section-block">
+      <ConnectionStatusBanner
+        state={state}
+        provider={activeProvider}
+        phone={prettyPhone(connection.data?.connectedPhone) ?? ''}
+        lastCheck={connection.data?.lastStatusCheckAt == null ? '' : timeOf(connection.data.lastStatusCheckAt)}
+        onTest={() => void refresh()}
+        onChange={() => openProvider(activeProvider)}
+        disabled={busy || connection.isFetching}
+      />
+
+      <ConnectionTypeSelector selected={managedProvider} active={activeProvider} onSelect={openProvider} onCompare={() => setIsComparisonOpen(true)} />
+      <ComparisonModal open={isComparisonOpen} onClose={() => setIsComparisonOpen(false)} />
+
+      <section className="whatsapp-section-block whatsapp-legacy-provider-selector">
         <div className="whatsapp-section-heading">
           <h2>Formas de conexão</h2>
           <p>Escolha a opção mais adequada para a operação do seu estabelecimento.</p>

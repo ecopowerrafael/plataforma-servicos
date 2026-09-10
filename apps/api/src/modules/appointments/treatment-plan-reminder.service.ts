@@ -2,12 +2,15 @@ import { type TreatmentPlanReminderRepository } from './treatment-plan-reminder.
 import { type IntegrationRepository } from '../integrations/integration.repository.js';
 import { type WhatsAppDelivery } from '../integrations/integration-delivery.js';
 import { AppError } from '../../errors/AppError.js';
+import type { PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 export class TreatmentPlanReminderService {
   public constructor(
     private readonly reminderRepo: TreatmentPlanReminderRepository,
     private readonly integrationRepo: IntegrationRepository,
     private readonly whatsappDelivery?: WhatsAppDelivery,
+    private readonly database?: PrismaClient,
   ) {}
 
   async initializeForPendingPlan(tenantId: bigint, treatmentPlanId: bigint): Promise<void> {
@@ -180,6 +183,12 @@ export class TreatmentPlanReminderService {
         message: 'Canal de envio não suportado.',
         statusCode: 400,
       });
+    }
+
+    // The reminder worker must enforce the commercial plan too; HTTP route
+    // guards cannot protect messages already queued before a downgrade.
+    if (this.database) {
+      await new PlanEntitlementService().assertFeatureEnabledForTenant(this.database, state.tenantId, 'whatsapp.enabled');
     }
 
     const whatsappConfig = await this.integrationRepo.whatsapp(state.tenantId);

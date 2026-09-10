@@ -529,6 +529,7 @@ export function createDatabaseConnection(
     new TreatmentPlanReminderRepository(client),
     new IntegrationRepository(client),
     providerResolvedWhatsAppDelivery,
+    client,
   );
   // Injeta o serviço de lembretes no serviço de planos
   treatmentPlans.setReminderService(treatmentPlanReminders);

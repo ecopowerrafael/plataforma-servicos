@@ -12,12 +12,12 @@ function clientWith(gateway: unknown[] = [], commercial: unknown[] = []) {
 }
 
 describe('current cycle paid amount resolver', () => {
-  it('uses the confirmed discounted amount instead of the plan list price', async () => {
+  it('matches a single confirmed legacy payment without using price as proof of EXACT', async () => {
     const result = await resolveCurrentCyclePaidAmount(clientWith([
       { publicId: 'charge-1', amountCents: 7500n, paidAt: new Date('2026-09-01T00:05:00.000Z') },
     ]), { subscriptionId: 10n, periodStartsAt, periodEndsAt, historicalPriceCents: 10000n });
 
-    expect(result).toEqual({ amountCents: 7500n, confidence: 'EXACT', records: ['gateway:charge-1'] });
+    expect(result).toEqual({ amountCents: 7500n, confidence: 'LEGACY_MATCHED', records: ['gateway:charge-1'] });
   });
 
   it('accepts a confirmed commercial/manual payment as a financial source', async () => {
@@ -38,5 +38,30 @@ describe('current cycle paid amount resolver', () => {
 
     expect(result.confidence).toBe('AMBIGUOUS');
     expect(result.amountCents).toBe(0n);
+  });
+
+  it('matches a legacy payment even when the period start was recreated later', async () => {
+    const result = await resolveCurrentCyclePaidAmount(clientWith([
+      { publicId: 'legacy-charge', amountCents: 99000n, paidAt: new Date('2026-08-18T12:00:00.000Z') },
+    ]), { subscriptionId: 10n, periodStartsAt, periodEndsAt, historicalPriceCents: 99000n });
+
+    expect(result.confidence).toBe('LEGACY_MATCHED');
+    expect(result.amountCents).toBe(99000n);
+  });
+
+  it('does not promote equal price to EXACT', async () => {
+    const result = await resolveCurrentCyclePaidAmount(clientWith([
+      { publicId: 'unlinked', amountCents: 10000n, paidAt: new Date('2026-09-01T00:05:00.000Z') },
+    ]), { subscriptionId: 10n, periodStartsAt, periodEndsAt, historicalPriceCents: 10000n });
+
+    expect(result.confidence).not.toBe('EXACT');
+  });
+
+  it('keeps zero-value records ambiguous', async () => {
+    const result = await resolveCurrentCyclePaidAmount(clientWith([
+      { publicId: 'zero', amountCents: 0n, paidAt: new Date('2026-09-01T00:05:00.000Z') },
+    ]), { subscriptionId: 10n, periodStartsAt, periodEndsAt, historicalPriceCents: 10000n });
+
+    expect(result.confidence).toBe('AMBIGUOUS');
   });
 });

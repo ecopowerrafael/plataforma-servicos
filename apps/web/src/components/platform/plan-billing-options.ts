@@ -12,6 +12,12 @@ export const billingCycleLabels: Record<PlanBillingCycle, string> = {
   ANNUAL: 'Anual',
 };
 
+export function billingCycleLabel(cycle: string | null | undefined): string {
+  return cycle !== undefined && cycle !== null && cycle in billingCycleLabels
+    ? billingCycleLabels[cycle as PlanBillingCycle]
+    : cycle ?? 'Periodicidade';
+}
+
 export function normalizeBillingOptions(options: PlanBillingOptions) {
   return billingCycles.map((billingCycle, sortOrder) => {
     const option = options.find((item) => item.billingCycle === billingCycle);

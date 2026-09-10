@@ -130,7 +130,13 @@ export class TreatmentPlanReminderService {
       try {
         const plan = await this.reminderRepo.getTreatmentPlan(state.treatmentPlanId);
         if (plan === null || plan.status !== 'PENDING') {
-          await this.cancelReminder(state.treatmentPlanId);
+          // We already hold the claimed state. Do not re-query it by plan id:
+          // a concurrent update (or a minimal worker repository) could make
+          // cancelReminder() miss the row and leave the due item active.
+          await this.reminderRepo.updateReminderState(state.id, {
+            status: 'CANCELED',
+            nextReminderAt: null,
+          });
           continue;
         }
 

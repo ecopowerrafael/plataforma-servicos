@@ -105,6 +105,7 @@ describe('TreatmentPlanReminderService', () => {
       const planId = 100n;
       const state = { id: 1n, tenantId, status: 'PAUSED', currentStepIndex: 0 };
       const config = {
+        enabled: true,
         sequence: [{ delayValue: 1, delayUnit: 'DAY' as const, message: 'test' }],
       };
 
@@ -149,7 +150,7 @@ describe('TreatmentPlanReminderService', () => {
   describe('sendManualReminder', () => {
     it('deve enviar lembrete manual via WhatsApp', async () => {
       const planId = 100n;
-      const state = { id: 1n, tenantId: 1n, currentStepIndex: 0 };
+      const state = { id: 1n, tenantId: 1n, currentStepIndex: 0, channel: 'WHATSAPP' };
       const plan = {
         status: 'PENDING',
         customer: { name: 'João', phone: '5511999999999' },
@@ -159,6 +160,7 @@ describe('TreatmentPlanReminderService', () => {
         amountCents: 10000n,
       };
       const config = {
+        enabled: true,
         sequence: [{ delayValue: 1, delayUnit: 'DAY', message: 'Olá {{customerName}}!' }],
       };
 
@@ -183,11 +185,11 @@ describe('TreatmentPlanReminderService', () => {
 
     it('deve falhar se WhatsApp não está configurado', async () => {
       const planId = 100n;
-      const state = { id: 1n, tenantId: 1n };
+      const state = { id: 1n, tenantId: 1n, channel: 'WHATSAPP', currentStepIndex: 0 };
 
       vi.mocked(repo.getByTreatmentPlanId).mockResolvedValue(state as any);
       vi.mocked(repo.getTreatmentPlan).mockResolvedValue({ status: 'PENDING' } as any);
-      vi.mocked(repo.getConfig).mockResolvedValue({ sequence: [{}] } as any);
+      vi.mocked(repo.getConfig).mockResolvedValue({ enabled: true, sequence: [{ message: 'Teste' }] } as any);
       vi.mocked(integrationRepo.whatsapp).mockResolvedValue({ active: false } as any);
 
       await expect(service.sendManualReminder(planId)).rejects.toThrow('WhatsApp');
@@ -217,7 +219,7 @@ describe('TreatmentPlanReminderService', () => {
 
       const config = {
         enabled: true,
-        sequence: [{ delayValue: 1, delayUnit: 'DAY', message: 'Olá {{customerName}}!' }],
+        sequence: [{ enabled: true, delayValue: 1, delayUnit: 'DAY', message: 'Olá {{customerName}}!' }],
       };
 
       vi.mocked(repo.getDueReminders).mockResolvedValue([state as any]);
@@ -225,6 +227,8 @@ describe('TreatmentPlanReminderService', () => {
       vi.mocked(repo.getConfig).mockResolvedValue(config as any);
       vi.mocked(repo.getTenant).mockResolvedValue({ currency: 'BRL', displayName: 'Clínica' } as any);
       vi.mocked(repo.getTenantTerminology).mockResolvedValue({ treatmentPlanSingular: 'Orçamento' } as any);
+      vi.mocked(integrationRepo.whatsapp).mockResolvedValue({ active: true } as any);
+      vi.mocked(whatsappDelivery.send).mockResolvedValue(undefined);
       vi.mocked(repo.createReminderLog).mockResolvedValue({} as any);
       vi.mocked(repo.updateReminderState).mockResolvedValue({} as any);
 

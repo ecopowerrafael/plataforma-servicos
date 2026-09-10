@@ -2,8 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { WhatsAppConnectionSchema } from '@plataforma/shared';
 import { httpClient } from '../../lib/http.js';
 import { WhatsAppConnectionCard } from './WhatsAppConnectionCard.js';
-import { WhatsAppAssistantConfigCard } from './WhatsAppAssistantConfigCard.js';
-import { WhatsAppMessagesCard } from './WhatsAppMessagesCard.js';
+import { WhatsappSettings } from '../../pages/settings/WhatsappSettings/index.js';
 import '../../styles/settings.css';
 
 type WhatsAppPageMode = 'connection' | 'messages';
@@ -49,18 +48,11 @@ export function WhatsAppPage({
         {mode === 'connection' ? (
           <WhatsAppConnectionCard tenantPublicId={tenantPublicId} canManage={canManage} />
         ) : (
-          <>
-            <WhatsAppAssistantConfigCard
-              tenantPublicId={tenantPublicId}
-              canManage={canManage}
-              whatsappConnected={whatsappConnected}
-            />
-            <WhatsAppMessagesCard
-              tenantPublicId={tenantPublicId}
-              canManage={canManage}
-              whatsappConnected={whatsappConnected}
-            />
-          </>
+          <WhatsappSettings
+            tenantPublicId={tenantPublicId}
+            canManage={canManage}
+            whatsappConnected={whatsappConnected}
+          />
         )}
       </section>
     </main>

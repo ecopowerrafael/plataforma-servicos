@@ -22,6 +22,7 @@ export class StripeBillingService {
 
   public reconfigure(secretKey: string, webhookSecret: string) { this.stripe = new Stripe(secretKey); this.webhookSecret = webhookSecret; }
   private async ensureConfigured() {
+    if (!this.cipher || this.client.platformPaymentConfig === undefined) return;
     const config = await this.client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } });
     if (config?.credentialsCiphertext && this.cipher) {
       try { const value = this.cipher.decrypt(config.credentialsCiphertext); const environments = typeof value.environments === 'object' && value.environments !== null ? value.environments as Record<string, unknown> : value; const selected = (environments[config.environment] as Record<string, unknown> | undefined) ?? value; if (typeof selected.secretKey === 'string' && typeof selected.webhookSecret === 'string') this.reconfigure(selected.secretKey, selected.webhookSecret); } catch { /* admin can replace invalid credentials */ }
@@ -83,9 +84,9 @@ export class StripeBillingService {
     const plan = await this.client.commercialPlan.findUnique({ where: { publicId: planPublicId }, include: { billingOptions: true } });
     if (!plan || plan.status !== 'ACTIVE') throw new AppError({ code: 'PLAN_NOT_FOUND', message: 'Plano inválido.', statusCode: 404 });
     const option = plan.billingOptions.find((item) => item.active && item.billingCycle === billingCycle);
-    const config = await this.client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } });
-    const catalog = config ? await this.client.stripePlanCatalog.findUnique({ where: { planId_environment: { planId: plan.id, environment: config.environment } }, include: { prices: true } }) : null;
-    const mappedPrice = option && catalog?.prices.find((price) => price.billingOptionId === option.id && price.status === 'SYNCED');
+    const config = this.client.platformPaymentConfig ? await this.client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } }) : null;
+    const catalog = config && this.client.stripePlanCatalog ? await this.client.stripePlanCatalog.findUnique({ where: { planId_environment: { planId: plan.id, environment: config.environment } }, include: { prices: true } }) : null;
+    const mappedPrice = option && (catalog?.prices.find((price) => price.billingOptionId === option.id && price.status === 'SYNCED') ?? (option.stripePriceId ? { stripePriceId: option.stripePriceId } : null));
     if (!option || !mappedPrice) throw new AppError({ code: 'STRIPE_PRICE_UNAVAILABLE', message: 'O plano ainda não está sincronizado com o Stripe.', statusCode: 409 });
     const subscription = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' } });
     if (subscription?.stripeSubscriptionId && ['ACTIVE', 'TRIALING', 'PAST_DUE'].includes(subscription.status)) throw new AppError({ code: 'STRIPE_SUBSCRIPTION_EXISTS', message: 'Este estabelecimento já possui uma assinatura Stripe.', statusCode: 409 });

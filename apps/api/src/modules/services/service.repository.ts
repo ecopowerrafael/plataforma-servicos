@@ -7,6 +7,7 @@ export type ServiceRecord = Service & {
 };
 
 export interface ServiceRepository {
+  readonly client?: PrismaClient;
   list(
     where: Prisma.ServiceWhereInput,
     page: number,
@@ -27,7 +28,7 @@ export interface ServiceRepository {
 }
 
 export class PrismaServiceRepository implements ServiceRepository {
-  public constructor(private readonly client: PrismaClient) {}
+  public constructor(public readonly client: PrismaClient) {}
 
   public async list(where: Prisma.ServiceWhereInput, page: number, limit: number) {
     const [total, services] = await this.client.$transaction([

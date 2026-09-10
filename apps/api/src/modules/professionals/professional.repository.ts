@@ -8,6 +8,7 @@ export type ProfessionalRecord = Professional & {
   user: { publicId: string } | null;
 };
 export interface ProfessionalRepository {
+  readonly client?: PrismaClient;
   list(
     where: Prisma.ProfessionalWhereInput,
     page: number,
@@ -46,7 +47,7 @@ const include = {
   user: { select: { publicId: true } },
 } as const;
 export class PrismaProfessionalRepository implements ProfessionalRepository {
-  public constructor(private readonly client: PrismaClient) {}
+  public constructor(public readonly client: PrismaClient) {}
   public async list(where: Prisma.ProfessionalWhereInput, page: number, limit: number) {
     const [total, items] = await this.client.$transaction([
       this.client.professional.count({ where }),

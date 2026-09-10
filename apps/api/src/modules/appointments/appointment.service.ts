@@ -16,6 +16,7 @@ import { type TenantCommercialPolicyService } from '../platform/tenant-commercia
 import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
 import { CustomerMembershipBenefitResolver } from '../customers/customer-membership-benefit-resolver.js';
 import { type CustomerMembershipUsageService } from '../customers/customer-membership-usage.service.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 interface Actor {
   userId: bigint | null;
   sessionId: bigint | null;
@@ -315,6 +316,7 @@ export class AppointmentService {
     return this.status(t, id, status, reason, a);
   }
   async create(t: bigint, i: Input, a: Actor) {
+    await new PlanEntitlementService().assertCanCreateAppointment(this.client, t);
     await this.assertCommercialCapability(t, i.source);
     // Sessões de um plano são numeradas sob trava: dois pedidos simultâneos não
     // podem ler o mesmo "último número" e gravar duas sessões iguais.

@@ -11,6 +11,7 @@ import { type ServiceImageStorage } from './service-image.storage.js';
 import { type ServiceRecord, type ServiceRepository } from './service.repository.js';
 import { Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface ServiceListInput {
   page: number;
@@ -104,6 +105,9 @@ export class ServiceService {
   }
 
   public async create(tenantId: bigint, input: CreateServiceRequest, actor?: ServiceAuditActor) {
+    if (this.repository.client !== undefined) {
+      await new PlanEntitlementService().assertCanCreateService(this.repository.client, tenantId);
+    }
     try {
       const categoryId = await this.categoryId(tenantId, input.categoryPublicId);
       const service = await this.repository.create({

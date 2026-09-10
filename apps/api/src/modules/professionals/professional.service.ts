@@ -11,6 +11,7 @@ import { type ProfessionalRecord, type ProfessionalRepository } from './professi
 import { Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type ServiceImageStorage } from '../services/service-image.storage.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 interface Actor {
   userId: bigint;
   sessionId: bigint;
@@ -125,6 +126,9 @@ export class ProfessionalService {
     return item;
   }
   public async create(tenantId: bigint, input: CreateProfessionalRequest, actor?: Actor, passwordService?: any) {
+    if (this.repository.client !== undefined) {
+      await new PlanEntitlementService().assertCanCreateProfessional(this.repository.client, tenantId);
+    }
     // Extrair senha antes de passar para data() - senha não faz parte do modelo
     const password = (input as any).password as string | undefined;
     const data = await this.data(tenantId, input);

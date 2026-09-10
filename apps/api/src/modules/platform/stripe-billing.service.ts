@@ -35,6 +35,16 @@ export class StripeBillingService {
   }
 
   public webhookUrl() { return `${process.env.APP_API_URL ?? process.env.APP_WEB_URL ?? this.appWebUrl}/webhooks/stripe`; }
+  public async integrationStatus(endpointId?: string) {
+    await this.ensureConfigured();
+    let webhookStatus: string | null = endpointId ? 'unknown' : 'not_configured';
+    if (endpointId) {
+      try { webhookStatus = (await this.stripe.webhookEndpoints.retrieve(endpointId)).status ?? 'unknown'; } catch { webhookStatus = 'error'; }
+    }
+    let customerPortalConfigured = false;
+    try { customerPortalConfigured = (await this.stripe.billingPortal.configurations.list({ limit: 1 })).data.length > 0; } catch { customerPortalConfigured = false; }
+    return { webhookStatus, customerPortalConfigured };
+  }
   public async createWebhook() {
     await this.ensureConfigured();
     const endpoint = await this.stripe.webhookEndpoints.create({ url: this.webhookUrl(), enabled_events: ['checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted', 'invoice.paid', 'invoice.payment_failed'] });

@@ -5,6 +5,7 @@ import { type AppointmentReminderConfigService } from './appointment-reminder-co
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 const reminderConfigSchema = z.object({
   dayBeforeEnabled: z.boolean().optional(),
@@ -22,6 +23,7 @@ export const appointmentReminderConfigRoutes: FastifyPluginAsyncZod<{
   client?: PrismaClient;
 }> = async (app, o) => {
   await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
+  const assertWhatsApp = (tenantId: bigint) => o.client === undefined ? Promise.resolve() : new PlanEntitlementService().assertFeatureEnabledForTenant(o.client, tenantId, 'whatsapp.enabled');
 
   app.get(
     '/tenant/integrations/whatsapp/reminder-config',
@@ -41,6 +43,7 @@ export const appointmentReminderConfigRoutes: FastifyPluginAsyncZod<{
     },
     async (r) => {
       o.authService.requirePermission(r.tenant, 'integration.read');
+      await assertWhatsApp(r.tenant.id);
       const config = await o.service.getOrCreate(r.tenant.id);
       return {
         dayBeforeEnabled: config.dayBeforeEnabled,
@@ -63,6 +66,7 @@ export const appointmentReminderConfigRoutes: FastifyPluginAsyncZod<{
     },
     async (r) => {
       o.authService.requirePermission(r.tenant, 'integration.manage');
+      await assertWhatsApp(r.tenant.id);
       const existing = await o.service.getOrCreate(r.tenant.id);
       await o.client?.appointmentReminderConfig.update({
         where: { tenantId: r.tenant.id },

@@ -12,6 +12,7 @@ import {
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
   authService: AuthService;
@@ -21,6 +22,7 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
   await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
 
   const client = o.client;
+  const assertWhatsApp = (tenantId: bigint) => new PlanEntitlementService().assertFeatureEnabledForTenant(client, tenantId, 'whatsapp.enabled');
 
   app.get(
     '/tenant/integrations/whatsapp/assistant-config',
@@ -36,6 +38,7 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
     },
     async (r) => {
       o.authService.requirePermission(r.tenant, 'integration.read');
+      await assertWhatsApp(r.tenant.id);
 
       const settings = await client.tenantWhatsAppSettings.findUnique({
         where: { tenantId: r.tenant.id },
@@ -69,6 +72,7 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
     },
     async (r) => {
       o.authService.requirePermission(r.tenant, 'integration.manage');
+      await assertWhatsApp(r.tenant.id);
 
       const config = r.body;
 
@@ -113,6 +117,7 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
     },
     async (r) => {
       o.authService.requirePermission(r.tenant, 'integration.manage');
+      await assertWhatsApp(r.tenant.id);
 
       const legacy = await client.tenantWhatsAppConfig.findFirst({
         where: { tenantId: r.tenant.id },

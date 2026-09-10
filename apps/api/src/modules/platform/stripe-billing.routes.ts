@@ -7,10 +7,10 @@ import { type StripeBillingService } from './stripe-billing.service.js';
 
 export const stripeBillingRoutes: FastifyPluginAsyncZod<{ service: StripeBillingService; authService: AuthService; cookieName: string; client: PrismaClient }> = async (app, options) => {
   await app.register(tenantContextPlugin, { authService: options.authService, cookieName: options.cookieName, client: options.client });
-  app.post('/tenant/billing/stripe/checkout', { schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']) }).strict(), response: { 200: z.object({ url: z.string().url().nullable() }) } } }, async (request) => {
+  app.post('/tenant/billing/stripe/checkout', { schema: { body: z.object({ changePublicId: z.uuid() }).strict(), response: { 200: z.object({ url: z.string().url().nullable() }) } } }, async (request) => {
     options.authService.requirePermission(request.tenant, 'tenant.subscription.read');
     if (!request.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode assinar o plano.');
-    return options.service.checkout(request.tenant.id, request.body.planPublicId, request.body.billingCycle, request.auth.user.email);
+    return options.service.checkoutChange(request.tenant.id, request.body.changePublicId, request.auth.user.email);
   });
   app.post('/tenant/billing/stripe/portal', { schema: { response: { 200: z.object({ url: z.string().url() }) } } }, async (request) => {
     options.authService.requirePermission(request.tenant, 'tenant.subscription.read');

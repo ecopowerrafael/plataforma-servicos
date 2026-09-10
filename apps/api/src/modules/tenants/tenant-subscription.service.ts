@@ -8,6 +8,10 @@ import { AppError } from '../../errors/AppError.js';
 import { mapPlan, mapSubscription } from '../platform/platform.service.js';
 import { TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
 import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
+import { classifySubscriptionChange } from './subscription-change.classifier.js';
+import { resolveCurrentCyclePaidAmount } from './subscription-payment-resolver.js';
+import { SubscriptionPlanChangeService } from './subscription-plan-change.service.js';
+import { calculateAmountDueCents, calculateUnusedCreditCents } from './subscription-proration.js';
 
 export class TenantSubscriptionService {
   private readonly labels: Record<string,string> = { 'whatsapp.enabled':'WhatsApp','commissions.enabled':'Gestão de comissões','automations.enabled':'Automações','loyalty.enabled':'Fidelidade','products.enabled':'Produtos','stock.enabled':'Estoque','custom_domain.enabled':'Domínio próprio','branding.customization.enabled':'Personalização da marca','professionals.max':'Profissionais','units.max':'Unidades','members.max':'Membros da equipe','services.max':'Serviços','monthly_appointments.max':'Agendamentos por mês' };
@@ -78,13 +82,15 @@ export class TenantSubscriptionService {
     const endsAt = new Date(now);
     endsAt.setMonth(endsAt.getMonth() + (billingCycle === 'ANNUAL' ? 12 : billingCycle === 'SEMIANNUAL' ? 6 : billingCycle === 'QUARTERLY' ? 3 : 1));
     const active = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' }, include: { plan: true } });
-    if (active !== null && active.planId === plan.id)
-      throw new AppError({ code: 'PLAN_ALREADY_ACTIVE', message: 'Este já é o seu plano atual.', statusCode: 409 });
+    if (active !== null && active.planId === plan.id && active.billingCycle === billingCycle)
+      throw new AppError({ code: 'PLAN_ALREADY_ACTIVE', message: 'Este plano e esta periodicidade já estão ativos.', statusCode: 409 });
     if (active !== null && plan.sortOrder < active.plan.sortOrder) {
       await this.client.tenantSubscription.update({ where: { id: active.id }, data: { scheduledPlanId: plan.id, scheduledBillingCycle: billingCycle, scheduledEffectiveAt: active.currentPeriodEndsAt } });
       await this.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: active.id, tenantId, action: 'PLAN_CHANGED', previousPlanId: active.planId, newPlanId: plan.id, previousStatus: active.status, newStatus: active.status, reason: 'Downgrade agendado para o fim do ciclo.' } });
       return this.get(tenantId);
     }
+    if (active !== null)
+      throw new AppError({ code: 'SUBSCRIPTION_CHANGE_REQUIRES_PAYMENT', message: 'A alteração de plano ou periodicidade exige uma cobrança confirmada.', statusCode: 409 });
     const subscription = active === null
       ? await this.client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId, planId: plan.id, status: 'ACTIVE', startsAt: now, currentPeriodStartsAt: now, currentPeriodEndsAt: endsAt, priceCents: option.priceCents, currency: plan.currency, billingCycle, effectiveKey: 'EFFECTIVE' } })
       : await this.client.tenantSubscription.update({ where: { id: active.id }, data: { planId: plan.id, priceCents: option.priceCents, currency: plan.currency, billingCycle, currentPeriodStartsAt: now, currentPeriodEndsAt: endsAt } });
@@ -106,11 +112,39 @@ export class TenantSubscriptionService {
     if (!current) throw new AppError({ code:'TENANT_SUBSCRIPTION_NOT_FOUND',message:'Nenhuma assinatura foi encontrada para este estabelecimento.',statusCode:404 });
     const target = await this.client.commercialPlan.findUnique({ where:{publicId:planPublicId}, include:{limits:true,billingOptions:true} });
     if (!target?.isPublic || target.status !== 'ACTIVE') throw new AppError({code:'PLAN_UNAVAILABLE',message:'O plano escolhido não está disponível.',statusCode:409});
-    if (target.id === current.planId) throw new AppError({code:'PLAN_ALREADY_ACTIVE',message:'Este já é o seu plano atual.',statusCode:409});
     const cycle = billingCycle ?? current.billingCycle; const option=target.billingOptions.find(x=>x.active&&x.billingCycle===cycle); if(!option) throw new AppError({code:'BILLING_OPTION_UNAVAILABLE',message:'A periodicidade escolhida não está disponível.',statusCode:409});
-    const byKey=(items: typeof current.plan.limits)=>new Map(items.map(x=>[x.key,x])); const a=byKey(current.plan.limits), b=byKey(target.limits); const keys=new Set([...a.keys(),...b.keys()]); const usage=await this.usageByKey(tenantId,current.currentPeriodStartsAt,current.currentPeriodEndsAt); const up=target.sortOrder>current.plan.sortOrder;
+    const byKey=(items: typeof current.plan.limits)=>new Map(items.map(x=>[x.key,x])); const a=byKey(current.plan.limits), b=byKey(target.limits); const keys=new Set([...a.keys(),...b.keys()]); const usage=await this.usageByKey(tenantId,current.currentPeriodStartsAt,current.currentPeriodEndsAt); const cycleMonths=(value: string) => value === 'ANNUAL' ? 12 : value === 'SEMIANNUAL' ? 6 : value === 'QUARTERLY' ? 3 : 1; const up=target.sortOrder>current.plan.sortOrder || (target.id === current.planId && cycleMonths(cycle)>cycleMonths(current.billingCycle));
     const gained:any[]=[],lost:any[]=[],inc:any[]=[],red:any[]=[],conf:any[]=[]; for(const key of keys){const x=a.get(key),y=b.get(key),label=this.labels[key]??key;if((x?.valueType==='BOOLEAN'||y?.valueType==='BOOLEAN')){if(x?.booleanValue!==true&&y?.booleanValue===true)gained.push({key,label});if(x?.booleanValue===true&&y?.booleanValue!==true)lost.push({key,label});continue}const cv=x?.integerValue?.toString()??null,tv=y?.integerValue?.toString()??null;if(cv!==null&&tv!==null){if(BigInt(tv)>BigInt(cv))inc.push({key,label,currentValue:cv,targetValue:tv});if(BigInt(tv)<BigInt(cv)){red.push({key,label,currentValue:cv,targetValue:tv});const used=usage.get(key);if(used!==undefined&&used>Number(tv))conf.push({key,label,currentUsage:used,targetLimit:Number(tv)})}}}
     return SubscriptionChangePreviewSchema.parse({changeType:up?'UPGRADE':'DOWNGRADE',effectiveAt:up?null:current.currentPeriodEndsAt.toISOString(),currentPlan:{publicId:current.plan.publicId,name:current.plan.name,billingCycle:current.billingCycle,priceCents:current.priceCents.toString(),currency:current.currency},targetPlan:{publicId:target.publicId,name:target.name,billingCycle:cycle,priceCents:option.priceCents.toString(),currency:target.currency},gainedFeatures:gained,lostFeatures:lost,increasedLimits:inc,reducedLimits:red,usageConflicts:conf});
+  }
+
+  public async requestChange(tenantId: bigint, planPublicId: string, billingCycle?: 'MONTHLY'|'QUARTERLY'|'SEMIANNUAL'|'ANNUAL') {
+    const preview = await this.previewChange(tenantId, planPublicId, billingCycle);
+    const current = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' } });
+    const target = await this.client.commercialPlan.findUniqueOrThrow({ where: { publicId: planPublicId }, include: { billingOptions: true } });
+    const cycle = billingCycle ?? current!.billingCycle;
+    const option = target.billingOptions.find((item) => item.active && item.billingCycle === cycle);
+    if (!option || !current) throw new AppError({ code: 'BILLING_OPTION_UNAVAILABLE', message: 'A periodicidade escolhida não está disponível.', statusCode: 409 });
+    const classification = classifySubscriptionChange({ currentPlanId: current.planId, currentPlanSortOrder: (await this.client.commercialPlan.findUniqueOrThrow({ where: { id: current.planId }, select: { sortOrder: true } })).sortOrder, currentBillingCycle: current.billingCycle as any, currentPriceCents: current.priceCents, targetPlanId: target.id, targetPlanSortOrder: target.sortOrder, targetBillingCycle: cycle as any, targetPriceCents: option.priceCents });
+    if (classification === 'NO_CHANGE') throw new AppError({ code: 'PLAN_ALREADY_ACTIVE', message: 'Este plano e esta periodicidade já estão ativos.', statusCode: 409 });
+    const pending = await this.client.subscriptionPlanChange.findFirst({ where: { subscriptionId: current.id, status: { in: ['PENDING_PAYMENT', 'SCHEDULED'] } } });
+    if (pending) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_ALREADY_PENDING', message: 'Já existe uma alteração de assinatura pendente.', statusCode: 409 });
+    const now = new Date();
+    const paid = await resolveCurrentCyclePaidAmount(this.client, { subscriptionId: current.id, periodStartsAt: current.currentPeriodStartsAt, periodEndsAt: current.currentPeriodEndsAt, historicalPriceCents: current.priceCents });
+    const sourcePaid = paid.amountCents;
+    const credit = calculateUnusedCreditCents({ paidAmountCents: sourcePaid, currentPeriodStartsAt: current.currentPeriodStartsAt, currentPeriodEndsAt: current.currentPeriodEndsAt, now });
+    const amountDue = calculateAmountDueCents(option.priceCents, credit);
+    if (classification === 'IMMEDIATE_PAID_CHANGE' && paid.confidence === 'AMBIGUOUS') throw new AppError({ code: 'CURRENT_PERIOD_PAYMENT_UNVERIFIED', message: 'Não foi possível comprovar o pagamento do período atual para calcular o crédito. Entre em contato com o suporte.', statusCode: 409 });
+    const expiresAt = new Date(now.getTime() + 30 * 60 * 1000);
+    const change = await this.client.subscriptionPlanChange.create({ data: { publicId: randomUUID(), tenantId, subscriptionId: current.id, currentPlanId: current.planId, targetPlanId: target.id, currentBillingCycle: current.billingCycle, targetBillingCycle: cycle, currentPeriodStartsAt: current.currentPeriodStartsAt, currentPeriodEndsAt: current.currentPeriodEndsAt, sourcePaidAmountCents: sourcePaid, unusedCreditCents: credit, targetPriceCents: option.priceCents, amountDueCents: amountDue, currency: target.currency, status: classification === 'SCHEDULED_CHANGE' ? 'SCHEDULED' : 'PENDING_PAYMENT', expiresAt, effectiveAt: preview.effectiveAt ? new Date(preview.effectiveAt) : null, metadata: { paidAmountResolution: paid.confidence, paymentRecords: paid.records } } });
+    if (classification === 'SCHEDULED_CHANGE') await this.client.tenantSubscription.update({ where: { id: current.id }, data: { scheduledPlanId: target.id, scheduledBillingCycle: cycle, scheduledEffectiveAt: current.currentPeriodEndsAt } });
+    let status = change.status;
+    if (classification === 'IMMEDIATE_PAID_CHANGE' && amountDue === 0n) {
+      await this.client.subscriptionPlanChange.update({ where: { id: change.id }, data: { status: 'PAID', paidAt: now, paymentProvider: 'CREDIT' } });
+      await new SubscriptionPlanChangeService(this.client).applyPlanChange(change.publicId);
+      status = 'APPLIED';
+    }
+    return SubscriptionChangePreviewSchema.parse({ ...preview, changePublicId: change.publicId, status, sourcePaidAmountCents: sourcePaid.toString(), unusedCreditCents: credit.toString(), amountDueCents: amountDue.toString(), expiresAt: expiresAt.toISOString() });
   }
 
   private async usageByKey(tenantId: bigint, periodStartsAt: Date, periodEndsAt: Date) {

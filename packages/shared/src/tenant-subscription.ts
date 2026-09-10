@@ -25,6 +25,9 @@ export const TenantSubscriptionResponseSchema = z.object({
 
 export const SubscriptionChangePreviewSchema = z.object({
   changeType: z.enum(['UPGRADE', 'DOWNGRADE']), effectiveAt: z.string().datetime().nullable(),
+  changePublicId: z.uuid().nullable().optional(),
+  status: z.string().optional(),
+  sourcePaidAmountCents: z.string().optional(), unusedCreditCents: z.string().optional(), amountDueCents: z.string().optional(), expiresAt: z.string().datetime().nullable().optional(),
   currentPlan: z.object({ publicId: z.uuid(), name: z.string(), billingCycle: z.string(), priceCents: z.string(), currency: z.string() }),
   targetPlan: z.object({ publicId: z.uuid(), name: z.string(), billingCycle: z.string(), priceCents: z.string(), currency: z.string() }),
   gainedFeatures: z.array(z.object({ key: z.string(), label: z.string() })), lostFeatures: z.array(z.object({ key: z.string(), label: z.string() })),

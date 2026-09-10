@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../errors/AppError.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
+import { SubscriptionPlanChangeService } from '../tenants/subscription-plan-change.service.js';
 
 const cycle = (value: string): { interval: 'month' | 'year'; interval_count: number } => {
   if (value === 'ANNUAL') return { interval: 'year', interval_count: 1 };
@@ -80,23 +81,26 @@ export class StripeBillingService {
   }
 
   public async checkout(tenantId: bigint, planPublicId: string, billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL', email: string) {
+    throw new AppError({ code: 'STRIPE_CHANGE_REFERENCE_REQUIRED', message: 'O checkout de assinatura deve usar uma alteração de plano criada pelo servidor.', statusCode: 409 });
+  }
+
+  public async checkoutChange(tenantId: bigint, changePublicId: string, email: string) {
     await this.ensureConfigured();
-    const plan = await this.client.commercialPlan.findUnique({ where: { publicId: planPublicId }, include: { billingOptions: true } });
-    if (!plan || plan.status !== 'ACTIVE') throw new AppError({ code: 'PLAN_NOT_FOUND', message: 'Plano inválido.', statusCode: 404 });
-    const option = plan.billingOptions.find((item) => item.active && item.billingCycle === billingCycle);
+    const change = await this.client.subscriptionPlanChange.findUnique({ where: { publicId: changePublicId }, include: { subscription: true, targetPlan: true } });
+    if (!change || change.tenantId !== tenantId) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_FOUND', message: 'Alteração de assinatura não encontrada.', statusCode: 404 });
+    if (change.status !== 'PENDING_PAYMENT') throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_PENDING', message: 'A alteração não está pendente de pagamento.', statusCode: 409 });
+    if (change.expiresAt <= new Date()) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_EXPIRED', message: 'A alteração de assinatura expirou.', statusCode: 409 });
+    if (change.amountDueCents <= 0n) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NO_CHARGE', message: 'Esta alteração não requer cobrança.', statusCode: 409 });
     const config = this.client.platformPaymentConfig ? await this.client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } }) : null;
-    const catalog = config && this.client.stripePlanCatalog ? await this.client.stripePlanCatalog.findUnique({ where: { planId_environment: { planId: plan.id, environment: config.environment } }, include: { prices: true } }) : null;
-    const mappedPrice = option && (catalog?.prices.find((price) => price.billingOptionId === option.id && price.status === 'SYNCED') ?? (option.stripePriceId ? { stripePriceId: option.stripePriceId } : null));
-    if (!option || !mappedPrice) throw new AppError({ code: 'STRIPE_PRICE_UNAVAILABLE', message: 'O plano ainda não está sincronizado com o Stripe.', statusCode: 409 });
-    const subscription = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' } });
-    if (subscription?.stripeSubscriptionId && ['ACTIVE', 'TRIALING', 'PAST_DUE'].includes(subscription.status)) throw new AppError({ code: 'STRIPE_SUBSCRIPTION_EXISTS', message: 'Este estabelecimento já possui uma assinatura Stripe.', statusCode: 409 });
+    const subscription = change.subscription;
     let customerId = subscription?.stripeCustomerId;
     if (!customerId) {
       const customer = await this.stripe.customers.create({ email, metadata: { tenantId: tenantId.toString() } }, { idempotencyKey: `agendei:customer:${tenantId}` });
       customerId = customer.id;
       if (subscription) await this.client.tenantSubscription.update({ where: { id: subscription.id }, data: { stripeCustomerId: customerId, billingProvider: 'stripe' } });
     }
-    const session = await this.stripe.checkout.sessions.create({ mode: 'subscription', customer: customerId, line_items: [{ price: mappedPrice.stripePriceId, quantity: 1 }], success_url: `${this.appWebUrl}/planos?checkout=success`, cancel_url: `${this.appWebUrl}/planos?checkout=cancelled`, metadata: { tenantId: tenantId.toString(), planId: plan.id.toString(), billingOptionId: option.id.toString() }, subscription_data: { ...(plan.trialDays && plan.trialDays > 0 ? { trial_period_days: plan.trialDays } : {}), metadata: { tenantId: tenantId.toString(), planId: plan.id.toString(), billingOptionId: option.id.toString() } } }, { idempotencyKey: `agendei:checkout:${tenantId}:${option.id}:${randomUUID()}` });
+    const session = await this.stripe.checkout.sessions.create({ mode: 'payment', customer: customerId, line_items: [{ price_data: { currency: change.currency.toLowerCase(), unit_amount: Number(change.amountDueCents), product_data: { name: `Alteração para ${change.targetPlan.name}` } }, quantity: 1 }], success_url: `${this.appWebUrl}/planos?checkout=success`, cancel_url: `${this.appWebUrl}/planos?checkout=cancelled`, metadata: { tenantId: tenantId.toString(), subscriptionChangePublicId: change.publicId }, payment_intent_data: { metadata: { tenantId: tenantId.toString(), subscriptionChangePublicId: change.publicId } } }, { idempotencyKey: `agendei:change-checkout:${change.publicId}` });
+    await this.client.subscriptionPlanChange.update({ where: { id: change.id }, data: { paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, paymentReference: session.payment_intent?.toString() ?? null } });
     return { url: session.url };
   }
 
@@ -146,6 +150,22 @@ export class StripeBillingService {
     try {
       const object = event.data.object as Stripe.Subscription | Stripe.Invoice | Stripe.Checkout.Session;
       let tenantId = object.metadata?.tenantId;
+      const changePublicId = object.metadata?.subscriptionChangePublicId;
+      if (event.type === 'checkout.session.completed' && changePublicId && ('payment_status' in object ? object.payment_status === 'paid' : true)) {
+        const change = await this.client.subscriptionPlanChange.findUnique({ where: { publicId: changePublicId }, include: { subscription: true, targetPlan: { include: { billingOptions: true } } } });
+        if (change && change.status !== 'APPLIED') {
+          if (change.status === 'PENDING_PAYMENT') await this.client.subscriptionPlanChange.update({ where: { id: change.id }, data: { status: 'PAID', paidAt: new Date(), paymentProvider: 'stripe', paymentReference: 'payment_intent' in object ? object.payment_intent?.toString() ?? null : null } });
+          await new SubscriptionPlanChangeService(this.client).applyPlanChange(change.publicId);
+          if (change.subscription.stripeSubscriptionId) {
+            const option = change.targetPlan.billingOptions.find((item) => item.active && item.billingCycle === change.targetBillingCycle);
+            if (option?.stripePriceId) {
+              const remote = await this.stripe.subscriptions.retrieve(change.subscription.stripeSubscriptionId);
+              const item = remote.items.data[0];
+              if (item) await this.stripe.subscriptions.update(change.subscription.stripeSubscriptionId, { items: [{ id: item.id, price: option.stripePriceId }], proration_behavior: 'none', billing_cycle_anchor: 'now' });
+            }
+          }
+        }
+      }
       let stripeSubscriptionId: string | undefined = 'subscription' in object && typeof object.subscription === 'string' ? object.subscription : undefined;
       if (!tenantId && stripeSubscriptionId) {
         const local = await this.client.tenantSubscription.findUnique({ where: { stripeSubscriptionId }, select: { tenantId: true } });

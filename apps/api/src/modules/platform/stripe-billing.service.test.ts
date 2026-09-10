@@ -2,35 +2,36 @@ import { describe, expect, it, vi } from 'vitest';
 import { StripeBillingService } from './stripe-billing.service.js';
 
 describe('StripeBillingService', () => {
-  it('rejeita checkout para plano inexistente', async () => {
-    const client = { commercialPlan: { findUnique: vi.fn().mockResolvedValue(null) } } as any;
-    const service = new StripeBillingService(client, 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'whsec_test', 'https://app.example');
-    await expect(service.checkout(1n, '00000000-0000-4000-8000-000000000001', 'MONTHLY', 'owner@example.com')).rejects.toMatchObject({ code: 'PLAN_NOT_FOUND' });
+  it('bloqueia checkout direto por plano/ciclo', async () => {
+    const client = {} as any;
+    const service = new StripeBillingService(client, 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'whsec_test', 'https://app.example', { decrypt: () => ({}) } as any);
+    await expect(service.checkout(1n, '00000000-0000-4000-8000-000000000001', 'MONTHLY', 'owner@example.com')).rejects.toMatchObject({ code: 'STRIPE_CHANGE_REFERENCE_REQUIRED' });
   });
 
   it('rejeita webhook sem assinatura válida', () => {
     const client = {} as any;
-    const service = new StripeBillingService(client, 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'whsec_test', 'https://app.example');
+    const service = new StripeBillingService(client, 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'whsec_test', 'https://app.example', { decrypt: () => ({}) } as any);
     expect(() => service.constructEvent('{}', 't=1,v1=invalid')).toThrow();
   });
 
   it('retorna duplicado sem reaplicar evento persistido', async () => {
     const client = { stripeWebhookEvent: { create: vi.fn().mockRejectedValue(new Error('unique')), findUnique: vi.fn().mockResolvedValue({ processingStatus: 'PROCESSED' }), update: vi.fn() } } as any;
-    const service = new StripeBillingService(client, 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'whsec_test', 'https://app.example');
+    const service = new StripeBillingService(client, 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'whsec_test', 'https://app.example', { decrypt: () => ({}) } as any);
     vi.spyOn(service, 'constructEvent').mockReturnValue({ id: 'evt_duplicate', type: 'invoice.paid', data: { object: {} } } as any);
     await expect(service.handleWebhook('{}', 'signature')).resolves.toEqual({ received: true, duplicate: true });
     expect(client.stripeWebhookEvent.update).not.toHaveBeenCalled();
   });
 
-  it('reutiliza Customer Stripe existente ao abrir checkout', async () => {
+  it('reutiliza Customer Stripe existente ao abrir checkout de change', async () => {
     const client = {
-      commercialPlan: { findUnique: vi.fn().mockResolvedValue({ id: 9n, status: 'ACTIVE', billingOptions: [{ id: 3n, billingCycle: 'MONTHLY', active: true, stripePriceId: 'price_test' }] }) },
-      tenantSubscription: { findFirst: vi.fn().mockResolvedValue({ id: 7n, stripeCustomerId: 'cus_existing', stripeSubscriptionId: null, status: 'CANCELED' }), update: vi.fn() },
+      subscriptionPlanChange: { findUnique: vi.fn().mockResolvedValue({ id: 8n, publicId: '00000000-0000-4000-8000-000000000001', tenantId: 1n, status: 'PENDING_PAYMENT', expiresAt: new Date(Date.now() + 60_000), amountDueCents: 85000n, currency: 'BRL', subscription: { id: 7n, stripeCustomerId: 'cus_existing', stripeSubscriptionId: null, status: 'CANCELED' }, targetPlan: { name: 'Pro' } }), update: vi.fn() },
+      platformPaymentConfig: { findUnique: vi.fn().mockResolvedValue({ provider: 'stripe', active: true, environment: 'SANDBOX', credentialsCiphertext: 'encrypted' }) },
+      tenantSubscription: { update: vi.fn() },
     } as any;
     const service = new StripeBillingService(client, 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'whsec_test', 'https://app.example');
-    vi.spyOn(service.stripe.checkout.sessions, 'create').mockResolvedValue({ url: 'https://checkout.stripe.test/session' } as any);
+    vi.spyOn(service.stripe.checkout.sessions, 'create').mockResolvedValue({ id: 'cs_test', url: 'https://checkout.stripe.test/session', payment_intent: 'pi_test' } as any);
     vi.spyOn(service.stripe.customers, 'create');
-    await expect(service.checkout(1n, '00000000-0000-4000-8000-000000000001', 'MONTHLY', 'owner@example.com')).resolves.toEqual({ url: 'https://checkout.stripe.test/session' });
+    await expect(service.checkoutChange(1n, '00000000-0000-4000-8000-000000000001', 'owner@example.com')).resolves.toEqual({ url: 'https://checkout.stripe.test/session' });
     expect(service.stripe.customers.create).not.toHaveBeenCalled();
   });
 

@@ -4,6 +4,7 @@ import type { PrismaClient } from '../../database-client/client.js';
 import { CommercialWalletService } from './commercial-wallet.service.js';
 import { CommercialCommissionService } from './commercial-commission.service.js';
 import { calculateRenewalPeriod } from '../tenants/billing-period.helper.js';
+import { SubscriptionPlanChangeService } from '../tenants/subscription-plan-change.service.js';
 
 export class CommercialManualPaymentService {
   private walletService: CommercialWalletService;
@@ -12,6 +13,25 @@ export class CommercialManualPaymentService {
   constructor(private readonly prisma: PrismaClient) {
     this.walletService = new CommercialWalletService(prisma);
     this.commissionService = new CommercialCommissionService(prisma);
+  }
+
+  /** Debits exactly one pending subscription change from the commercial wallet. */
+  async paySubscriptionChangeWithWallet(managerAccountId: bigint, changePublicId: string) {
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM commercial_accounts WHERE id = ${managerAccountId} FOR UPDATE`;
+      const change = await tx.subscriptionPlanChange.findUnique({ where: { publicId: changePublicId } });
+      if (!change) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_FOUND', message: 'Alteração de assinatura não encontrada', statusCode: 404 });
+      if (change.status !== 'PENDING_PAYMENT') throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_PENDING', message: 'A alteração não está pendente de pagamento', statusCode: 409 });
+      if (change.expiresAt <= new Date()) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_EXPIRED', message: 'A alteração expirou', statusCode: 409 });
+      const existing = await tx.commercialWalletEntry.findFirst({ where: { commercialAccountId: managerAccountId, subscriptionId: change.subscriptionId, description: { contains: `change_${change.publicId}` } } });
+      if (existing) return change;
+      const balance = await tx.commercialWalletEntry.aggregate({ where: { commercialAccountId: managerAccountId }, _sum: { amountCents: true } });
+      if ((balance._sum.amountCents ?? 0n) < change.amountDueCents) throw new AppError({ code: 'COMMERCIAL_WALLET_INSUFFICIENT_BALANCE', message: 'Saldo insuficiente na carteira', statusCode: 402 });
+      await tx.commercialWalletEntry.create({ data: { publicId: randomUUID(), commercialAccountId: managerAccountId, type: 'PLAN_PAYMENT_DEBIT', amountCents: -change.amountDueCents, tenantId: change.tenantId, subscriptionId: change.subscriptionId, description: `Pagamento de change_${change.publicId}`, createdByUserId: managerAccountId } });
+      return tx.subscriptionPlanChange.update({ where: { id: change.id }, data: { status: 'PAID', paidAt: new Date(), paymentProvider: 'COMMERCIAL_WALLET', paymentReference: `wallet:${managerAccountId}` } });
+    });
+    if (result.status === 'PAID') await new SubscriptionPlanChangeService(this.prisma).applyPlanChange(result.publicId, managerAccountId);
+    return result;
   }
 
   /**

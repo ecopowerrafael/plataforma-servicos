@@ -673,7 +673,7 @@ export function HomePage() {
     me.data?.currentTenant?.membership.roleCode === 'OWNER' &&
     (me.data?.currentTenant?.membership.permissions.includes('tenant.update') ?? false);
   const planFeatureEnabled = (key: PlanLimitKey) =>
-    planAccess.data?.limits.find((limit) => limit.key === key)?.booleanValue !== false;
+    planAccess.isSuccess && planAccess.data?.limits.find((limit) => limit.key === key)?.booleanValue === true;
   const menuGroups: AppMenuGroup[] = [
     {
       label: 'Agenda',
@@ -814,12 +814,12 @@ export function HomePage() {
         {
           label: 'Estoque',
           to: '/app/produtos/estoque',
-          visible: canReadProducts && planFeatureEnabled('products.enabled'),
+          visible: canReadProducts && planFeatureEnabled('stock.enabled'),
         },
         {
           label: 'Movimentações',
           to: '/app/produtos/movimentacoes',
-          visible: canReadProducts && planFeatureEnabled('products.enabled'),
+          visible: canReadProducts && planFeatureEnabled('stock.enabled'),
         },
       ],
     },
@@ -1984,6 +1984,15 @@ export function HomePage() {
       )}
       {isRoute('/app/whatsapp') && planFeatureEnabled('whatsapp.enabled') && (
         <Navigate to="/app/whatsapp/conexao" replace />
+      )}
+      {isRoute('/app/whatsapp') && !planFeatureEnabled('whatsapp.enabled') && planAccess.isFetched && (
+        <section className="app-empty-state"><h2>Este recurso não está incluído no seu plano.</h2><p>Consulte os planos disponíveis para habilitar o WhatsApp.</p><button type="button" onClick={() => navigate('/app/plano')}>Ver planos</button></section>
+      )}
+      {isRoute('/app/whatsapp/conexao') && !planFeatureEnabled('whatsapp.enabled') && planAccess.isFetched && (
+        <section className="app-empty-state"><h2>Este recurso não está incluído no seu plano.</h2><p>Consulte os planos disponíveis para habilitar o WhatsApp.</p><button type="button" onClick={() => navigate('/app/plano')}>Ver planos</button></section>
+      )}
+      {isRoute('/app/whatsapp/mensagens') && !planFeatureEnabled('whatsapp.enabled') && planAccess.isFetched && (
+        <section className="app-empty-state"><h2>Este recurso não está incluído no seu plano.</h2><p>Consulte os planos disponíveis para habilitar o WhatsApp.</p><button type="button" onClick={() => navigate('/app/plano')}>Ver planos</button></section>
       )}
       {isRoute('/app/whatsapp/conexao') && planFeatureEnabled('whatsapp.enabled') && (
         <ErrorBoundary key={selectedTenant}>

@@ -417,15 +417,9 @@ export function HomePage() {
         .catch(() => undefined);
       return;
     }
-    void httpClient
-      .request('/tenant/subscription/select-plan', {
-        method: 'POST',
-        tenantPublicId: selectedTenant,
-        body: { planPublicId, billingCycle },
-        schema: TenantSubscriptionResponseSchema,
-      })
-      .then(() => navigate('/app', { replace: true }))
-      .catch(() => undefined);
+    // Existing tenants must enter the quote/checkout flow. Never let a
+    // pricing deep-link activate a plan by calling the legacy endpoint.
+    void navigate('/app/plano', { replace: true });
   }, [location.search, me.data, navigate, selectedTenant]);
   const finishSession = () => {
     clearSelectedTenant();

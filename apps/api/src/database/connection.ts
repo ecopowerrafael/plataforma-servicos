@@ -94,6 +94,7 @@ import { PaymentService } from '../modules/payments/payment.service.js';
 import { ProfessionalCommissionService } from '../modules/payments/professional-commission.service.js';
 import { ReceiptService } from '../modules/payments/receipt.service.js';
 import { PlatformBillingService } from '../modules/platform/platform-billing.service.js';
+import { StripeBillingService } from '../modules/platform/stripe-billing.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
 import { DirectoryService } from '../modules/platform/directory.service.js';
 import { DirectorySeoService } from '../modules/platform/directory-seo.service.js';
@@ -162,6 +163,7 @@ export interface DatabaseConnection {
   readonly directory?: DirectoryService;
   readonly directorySeo?: DirectorySeoService;
   readonly platformBilling?: PlatformBillingService;
+  readonly stripeBilling?: StripeBillingService;
   readonly commercialPolicy?: TenantCommercialPolicyService;
   readonly commercialSweep?: TenantCommercialSweepService;
   readonly customers?: CustomerService;
@@ -506,6 +508,9 @@ export function createDatabaseConnection(
     paymentGatewayRegistry,
     credentialsCipher,
   );
+  const stripeBilling = process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET
+    ? new StripeBillingService(client, process.env.STRIPE_SECRET_KEY, process.env.STRIPE_WEBHOOK_SECRET, process.env.APP_WEB_URL ?? 'http://localhost:5173')
+    : undefined;
   const directorySeo = new DirectorySeoService(client, {
     ...(process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL === undefined ? {} : { siteUrl: process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL }),
     ...(process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON === undefined ? {} : { serviceAccountJson: process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON }),
@@ -532,10 +537,11 @@ export function createDatabaseConnection(
     treatmentPlans,
     treatmentPlanReminders,
     tenants: new PrismaTenantRepository(client),
-    platform: new PlatformService(client),
+    platform: new PlatformService(client, stripeBilling),
     directorySeo,
     directory: new DirectoryService(client, directorySeo),
     platformBilling,
+    ...(stripeBilling === undefined ? {} : { stripeBilling }),
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client),
     customers: customers,

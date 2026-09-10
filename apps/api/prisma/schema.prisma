@@ -3134,6 +3134,7 @@ model PlanBillingOption {
   active       Boolean       @default(true)
   sortOrder    Int           @default(0) @map("sort_order")
   recommended  Boolean       @default(false)
+  stripePriceId String?      @unique @map("stripe_price_id") @db.VarChar(191)
   createdAt    DateTime      @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   plan         CommercialPlan @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -3196,6 +3197,13 @@ model TenantSubscription {
   scheduledPlanId       BigInt?               @map("scheduled_plan_id") @db.UnsignedBigInt
   scheduledBillingCycle BillingCycle?         @map("scheduled_billing_cycle")
   scheduledEffectiveAt  DateTime?             @map("scheduled_effective_at") @db.DateTime(3)
+  billingProvider       String?               @map("billing_provider") @db.VarChar(32)
+  stripeCustomerId      String?               @map("stripe_customer_id") @db.VarChar(191)
+  stripeSubscriptionId  String?               @unique @map("stripe_subscription_id") @db.VarChar(191)
+  stripePriceId         String?               @map("stripe_price_id") @db.VarChar(191)
+  cancelAtPeriodEnd     Boolean               @default(false) @map("cancel_at_period_end")
+  lastPaymentAt         DateTime?             @map("last_payment_at") @db.DateTime(3)
+  lastStripeEventAt     DateTime?             @map("last_stripe_event_at") @db.DateTime(3)
   createdAt             DateTime              @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt             DateTime              @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -3211,6 +3219,19 @@ model TenantSubscription {
   @@index([status, currentPeriodEndsAt])
   @@index([planId, status])
   @@map("tenant_subscriptions")
+}
+
+model StripeWebhookEvent {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  externalEventId   String   @unique @map("external_event_id") @db.VarChar(191)
+  eventType         String   @map("event_type") @db.VarChar(80)
+  processingStatus  String   @default("RECEIVED") @map("processing_status") @db.VarChar(32)
+  receivedAt        DateTime @default(now()) @map("received_at") @db.DateTime(3)
+  processedAt       DateTime? @map("processed_at") @db.DateTime(3)
+  lastError         String?  @map("last_error") @db.Text
+
+  @@index([processingStatus, receivedAt])
+  @@map("stripe_webhook_events")
 }
 
 model PlatformPaymentConfig {

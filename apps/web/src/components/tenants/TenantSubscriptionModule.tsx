@@ -2,6 +2,7 @@ import { SubscriptionChangePreviewSchema, TenantSubscriptionResponseSchema } fro
 import { IconCheck, IconMinus } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { z } from 'zod';
 
 import { TenantSubscriptionPayment } from './TenantSubscriptionPayment.js';
 import { httpClient } from '../../lib/http.js';
@@ -78,6 +79,8 @@ const formatMoney = (cents: string, currency: string) =>
   });
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString('pt-BR');
+const StripeUrlSchema = z.object({ url: z.string().url() });
+const StripeCancelSchema = z.object({ cancelAtPeriodEnd: z.boolean(), currentPeriodEndsAt: z.coerce.date() });
 
 export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: string }) {
   const queryClient = useQueryClient();
@@ -98,6 +101,8 @@ export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: s
   const cancelScheduledChange = useMutation({ mutationFn: () => httpClient.request('/tenant/subscription/cancel-scheduled-change', { method: 'POST', schema: TenantSubscriptionResponseSchema, tenantPublicId }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'subscription'] }) });
   const previewChange = useMutation({ mutationFn: (planPublicId: string) => httpClient.request('/tenant/subscription/change-preview', { method:'POST', body:{planPublicId}, schema: SubscriptionChangePreviewSchema, tenantPublicId }), onSuccess:setPreview });
   const confirmChange = useMutation({ mutationFn: () => { if (!preview) throw new Error('Selecione um plano.'); return httpClient.request('/tenant/subscription/select-plan',{method:'POST',body:{planPublicId:preview.targetPlan.publicId,billingCycle:preview.targetPlan.billingCycle},schema:TenantSubscriptionResponseSchema,tenantPublicId}); }, onSuccess:(result)=>{setFeedback(preview?.changeType==='UPGRADE'?`Seu plano foi atualizado para ${result.plan.name}.`:`Downgrade agendado para ${formatDate(result.scheduledChange?.effectiveAt ?? new Date().toISOString())}.`);setPreview(null);void queryClient.invalidateQueries({queryKey:['tenant',tenantPublicId,'subscription']});} });
+  const stripePortal = useMutation({ mutationFn: () => httpClient.request('/tenant/billing/stripe/portal', { method: 'POST', schema: StripeUrlSchema, tenantPublicId }), onSuccess: (result) => { window.location.assign(result.url); } });
+  const stripeCancel = useMutation({ mutationFn: () => httpClient.request('/tenant/billing/stripe/cancel', { method: 'POST', schema: StripeCancelSchema, tenantPublicId }), onSuccess: () => { setFeedback('Cancelamento agendado para o fim do período atual.'); void queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'subscription'] }); } });
   const quantitative = (data?.limits ?? []).filter((limit) => limit.valueType === 'INTEGER');
   const features = (data?.limits ?? []).filter((limit) => limit.valueType === 'BOOLEAN');
   const included = features.filter((limit) => limit.booleanValue === true);
@@ -177,6 +182,7 @@ export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: s
             </dl>
           </section>
           <TenantSubscriptionPayment tenantPublicId={tenantPublicId}/>
+          {data.subscription.billingProvider === 'stripe' ? <section className="app-card"><h3>Gerenciar cobrança Stripe</h3><p>Atualize seu cartão, consulte faturas ou administre o cancelamento no portal seguro do Stripe.</p><button type="button" disabled={stripePortal.isPending} onClick={() => void stripePortal.mutate()}>{stripePortal.isPending ? 'Abrindo portal…' : 'Abrir Customer Portal'}</button>{data.subscription.status !== 'CANCELED' ? <button type="button" disabled={stripeCancel.isPending || data.subscription.cancelAtPeriodEnd === true} onClick={() => void stripeCancel.mutate()}>{data.subscription.cancelAtPeriodEnd ? 'Cancelamento já agendado' : stripeCancel.isPending ? 'Agendando cancelamento…' : 'Cancelar ao fim do período'}</button> : null}</section> : null}
           {feedback && <InlineAlert tone="success" title={feedback}><button type="button" onClick={()=>setFeedback(null)}>Fechar</button></InlineAlert>}
           {data.scheduledChange !== null && <InlineAlert tone="warning" title={`Mudança agendada para ${formatDate(data.scheduledChange.effectiveAt)}`} action={<button className="secondary-button" type="button" disabled={cancelScheduledChange.isPending} onClick={() => void cancelScheduledChange.mutate()}>Cancelar mudança</button>}>{`Seu plano atual continuará disponível até essa data. Depois, sua assinatura passará para ${data.scheduledChange.plan.name}. Seus dados não serão apagados.`}</InlineAlert>}
           <SectionCard title="Outros planos" description="Compare opções públicas disponíveis para sua assinatura.">{publicPlans.isPending ? <p>Carregando planos…</p> : publicPlans.data?.plans.filter(plan=>plan.publicId!==data.plan.publicId).map(plan=>{const scheduled=data.scheduledChange?.plan.publicId===plan.publicId;return <article className="subscription-usage" key={plan.publicId}><p className="ds-eyebrow">{plan.name}</p><p>{plan.shortDescription ?? plan.description}</p><strong>{formatMoney(plan.priceCents,plan.currency)}</strong><button type="button" disabled={scheduled||previewChange.isPending} onClick={()=>void previewChange.mutate(plan.publicId)}>{scheduled?'Downgrade agendado':previewChange.isPending?'Comparando planos…':'Comparar plano'}</button></article>})}</SectionCard>

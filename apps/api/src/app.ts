@@ -82,6 +82,7 @@ import { paymentMethodRoutes } from './modules/payments/payment-method.routes.js
 import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { receiptRoutes } from './modules/payments/receipt.routes.js';
 import { platformBillingWebhookRoutes } from './modules/platform/platform-billing-webhook.routes.js';
+import { stripeBillingRoutes } from './modules/platform/stripe-billing.routes.js';
 import { platformRoutes } from './modules/platform/platform.routes.js';
 import { commercialRoutes } from './modules/commercial/commercial.routes.js';
 import { wapiConfigRoutes } from './modules/platform/wapi-config.routes.js';
@@ -1033,6 +1034,21 @@ export async function buildApp(options: BuildAppOptions) {
   }
   if (options.database.platformBilling)
     await app.register(platformBillingWebhookRoutes, { service: options.database.platformBilling });
+  if (options.database.stripeBilling) {
+    await app.register(stripeBillingRoutes, {
+      service: options.database.stripeBilling,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+    app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => done(null, body));
+    app.post('/webhooks/stripe', async (request, reply) => {
+      const signature = request.headers['stripe-signature'];
+      if (typeof signature !== 'string') return reply.status(400).send({ error: 'Stripe-Signature ausente.' });
+      const raw = typeof request.body === 'string' ? request.body : JSON.stringify(request.body ?? {});
+      return reply.send(await options.database.stripeBilling!.handleWebhook(raw, signature));
+    });
+  }
   if (options.database.wapiConfig && options.database.platform)
     await app.register(wapiConfigRoutes, {
       wapiConfigService: options.database.wapiConfig,

@@ -65,6 +65,9 @@ export const SubscriptionActionSchema = z.enum([
   'EXPIRED',
   'PRICE_ADJUSTED',
   'PERIOD_ADJUSTED',
+  'TRIAL_EXPIRED_PAST_DUE',
+  'GRACE_EXPIRED_SUSPENDED',
+  'PAYMENT_CONFIRMED',
 ]);
 export const PlanLimitKeys = [
   'units.max',

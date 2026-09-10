@@ -168,6 +168,7 @@ export function mapPlan(plan: {
       }[]
     | undefined;
   billingOptions?: {
+    id: bigint;
     publicId: string;
     billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | 'CUSTOM';
     priceCents: bigint;
@@ -175,6 +176,7 @@ export function mapPlan(plan: {
     sortOrder: number;
     recommended: boolean;
   }[];
+  stripeCatalogs?: { environment: 'SANDBOX' | 'PRODUCTION'; status: string; lastError: string | null; lastSyncedAt: Date | null; prices: { billingOptionId: bigint; status: string }[] }[];
 }) {
   return CommercialPlanPublicSchema.parse({
     ...plan,
@@ -191,6 +193,7 @@ export function mapPlan(plan: {
     billingOptions: (plan.billingOptions ?? [])
       .filter((option) => option.billingCycle !== 'CUSTOM')
       .map((option) => ({ ...option, priceCents: publicMoney(option.priceCents) })),
+    stripeSync: (plan.stripeCatalogs ?? []).map((catalog) => ({ environment: catalog.environment, status: catalog.status, lastError: catalog.lastError, lastSyncedAt: catalog.lastSyncedAt?.toISOString() ?? null, prices: (plan.billingOptions ?? []).filter((option) => option.billingCycle !== 'CUSTOM').map((option) => ({ billingCycle: option.billingCycle, status: catalog.prices.find((price) => price.billingOptionId === option.id)?.status ?? 'PENDING' })) })),
   });
 }
 
@@ -574,6 +577,7 @@ export class PlatformService {
           limits: { orderBy: { key: 'asc' } },
           benefits: { orderBy: { sortOrder: 'asc' } },
           billingOptions: { orderBy: { sortOrder: 'asc' } },
+          stripeCatalogs: { include: { prices: true } },
         },
       }),
     ]);
@@ -605,6 +609,7 @@ export class PlatformService {
         limits: { orderBy: { key: 'asc' } },
         benefits: { orderBy: { sortOrder: 'asc' } },
         billingOptions: { orderBy: { sortOrder: 'asc' } },
+        stripeCatalogs: { include: { prices: true } },
       },
     });
     if (plan === null)
@@ -674,7 +679,8 @@ export class PlatformService {
             include: {
               limits: { orderBy: { key: 'asc' } },
               benefits: { orderBy: { sortOrder: 'asc' } },
-              billingOptions: { orderBy: { sortOrder: 'asc' } },
+        billingOptions: { orderBy: { sortOrder: 'asc' } },
+        stripeCatalogs: { include: { prices: true } },
             },
           });
           await transaction.auditLog.create({

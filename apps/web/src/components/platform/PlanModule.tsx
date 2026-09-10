@@ -351,6 +351,7 @@ export function PlanModule({
                           .map((o) => formatCycle(o.billingCycle))
                           .join(' · ') || formatCycle(plan.billingCycle)}
                       </span>
+                      {plan.stripeSync.length > 0 ? <span>Stripe: {plan.stripeSync.map((sync) => `${sync.environment === 'PRODUCTION' ? 'Prod' : 'Sandbox'} ${sync.status}`).join(' · ')}</span> : null}
                     </td>
                     <td>{plan.isPublic ? 'Publico' : 'Interno'}</td>
                     <td>

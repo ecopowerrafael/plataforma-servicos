@@ -211,6 +211,13 @@ export const PlanBillingOptionInputSchema = z.object({
   sortOrder: z.number().int().min(0).max(100).default(0),
   recommended: z.boolean().default(false),
 });
+export const StripePlanSyncSchema = z.object({
+  environment: z.enum(['SANDBOX', 'PRODUCTION']),
+  status: z.enum(['SYNCED', 'PENDING', 'ERROR']),
+  lastError: z.string().nullable(),
+  lastSyncedAt: IsoDateSchema.nullable(),
+  prices: z.array(z.object({ billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']), status: z.enum(['SYNCED', 'PENDING', 'ERROR']) })),
+});
 export const CommercialPlanPublicSchema = z.object({
   publicId: z.uuid(),
   code: z.string().regex(/^(?:[A-Z][A-Z0-9_]{1,63}|[a-z0-9]+(?:-[a-z0-9]+)*)$/u),
@@ -228,6 +235,7 @@ export const CommercialPlanPublicSchema = z.object({
   monthlyPriceCents: MoneyPublicSchema.nullable().default(null),
   annualPriceCents: MoneyPublicSchema.nullable().default(null),
   billingOptions: z.array(PlanBillingOptionPublicSchema).default([]),
+  stripeSync: z.array(StripePlanSyncSchema).default([]),
   currency: CurrencySchema,
   trialDays: z.number().int().nonnegative().max(3650).nullable(),
   isPublic: z.boolean(),

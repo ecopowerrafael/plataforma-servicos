@@ -380,7 +380,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                     <div>
                       <span>Vantagens</span>
                       <ul className="whatsapp-check-list">
-                        {presentation.advantages.map((advantage) => <li key={advantage}><IconCheck size={15} aria-hidden="true" />{advantage}</li>)}
+                        {presentation.advantages.map((advantage) => <li key={advantage}><span className="whatsapp-check-icon"><IconCheck size={12} aria-hidden="true" /></span>{advantage}</li>)}
                       </ul>
                     </div>
                     <div>

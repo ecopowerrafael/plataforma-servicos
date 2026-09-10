@@ -548,7 +548,7 @@ export function createDatabaseConnection(
     platformBilling,
     stripeBilling,
     commercialPolicy,
-    commercialSweep: new TenantCommercialSweepService(client),
+    commercialSweep: new TenantCommercialSweepService(client, platformBilling),
     customers: customers,
     customerAuth: customerAuth,
     customerProfile: customerProfile,

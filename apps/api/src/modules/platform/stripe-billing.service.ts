@@ -24,7 +24,7 @@ export class StripeBillingService {
   private async ensureConfigured() {
     const config = await this.client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } });
     if (config?.credentialsCiphertext && this.cipher) {
-      try { const value = this.cipher.decrypt(config.credentialsCiphertext); if (typeof value.secretKey === 'string' && typeof value.webhookSecret === 'string') this.reconfigure(value.secretKey, value.webhookSecret); } catch { /* admin can replace invalid credentials */ }
+      try { const value = this.cipher.decrypt(config.credentialsCiphertext); const environments = typeof value.environments === 'object' && value.environments !== null ? value.environments as Record<string, unknown> : value; const selected = (environments[config.environment] as Record<string, unknown> | undefined) ?? value; if (typeof selected.secretKey === 'string' && typeof selected.webhookSecret === 'string') this.reconfigure(selected.secretKey, selected.webhookSecret); } catch { /* admin can replace invalid credentials */ }
     }
   }
 

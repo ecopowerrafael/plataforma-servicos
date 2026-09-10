@@ -34,7 +34,7 @@ export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (a
   );
   app.post(
     '/tenant/subscription/select-plan',
-    { schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']) }).strict(), response: { 200: TenantSubscriptionResponseSchema } } },
+    { schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']) }).strict(), response: { 200: z.union([TenantSubscriptionResponseSchema, SubscriptionChangePreviewSchema]) } } },
     (r) => {
       options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
       if (!r.tenant.membership.isOwner)

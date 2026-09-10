@@ -84,13 +84,11 @@ export class TenantSubscriptionService {
     const active = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' }, include: { plan: true } });
     if (active !== null && active.planId === plan.id && active.billingCycle === billingCycle)
       throw new AppError({ code: 'PLAN_ALREADY_ACTIVE', message: 'Este plano e esta periodicidade já estão ativos.', statusCode: 409 });
-    if (active !== null && plan.sortOrder < active.plan.sortOrder) {
-      await this.client.tenantSubscription.update({ where: { id: active.id }, data: { scheduledPlanId: plan.id, scheduledBillingCycle: billingCycle, scheduledEffectiveAt: active.currentPeriodEndsAt } });
-      await this.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: active.id, tenantId, action: 'PLAN_CHANGED', previousPlanId: active.planId, newPlanId: plan.id, previousStatus: active.status, newStatus: active.status, reason: 'Downgrade agendado para o fim do ciclo.' } });
-      return this.get(tenantId);
-    }
-    if (active !== null)
-      throw new AppError({ code: 'SUBSCRIPTION_CHANGE_REQUIRES_PAYMENT', message: 'A alteração de plano ou periodicidade exige uma cobrança confirmada.', statusCode: 409 });
+    // Keep this legacy endpoint safe for existing clients: once a tenant has
+    // an effective subscription, every change goes through the server-owned
+    // quote/payment flow. This also makes legacy downgrades visible to the
+    // renewal sweep via SubscriptionPlanChange.
+    if (active !== null) return this.requestChange(tenantId, planPublicId, billingCycle);
     const subscription = await this.client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId, planId: plan.id, status: 'ACTIVE', startsAt: now, currentPeriodStartsAt: now, currentPeriodEndsAt: endsAt, priceCents: option.priceCents, currency: plan.currency, billingCycle, effectiveKey: 'EFFECTIVE' } });
     await this.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId, action: 'CREATED', previousPlanId: null, newPlanId: plan.id, previousStatus: null, newStatus: subscription.status, reason: 'Plano selecionado pelo proprietário.' } });
     return this.get(tenantId);
@@ -111,6 +109,7 @@ export class TenantSubscriptionService {
     const target = await this.client.commercialPlan.findUnique({ where:{publicId:planPublicId}, include:{limits:true,billingOptions:true} });
     if (!target?.isPublic || target.status !== 'ACTIVE') throw new AppError({code:'PLAN_UNAVAILABLE',message:'O plano escolhido não está disponível.',statusCode:409});
     const cycle = billingCycle ?? current.billingCycle; const option=target.billingOptions.find(x=>x.active&&x.billingCycle===cycle); if(!option) throw new AppError({code:'BILLING_OPTION_UNAVAILABLE',message:'A periodicidade escolhida não está disponível.',statusCode:409});
+    if (target.id === current.planId && cycle === current.billingCycle) throw new AppError({ code: 'PLAN_ALREADY_ACTIVE', message: 'Este plano e esta periodicidade já estão ativos.', statusCode: 409 });
     const byKey=(items: typeof current.plan.limits)=>new Map(items.map(x=>[x.key,x])); const a=byKey(current.plan.limits), b=byKey(target.limits); const keys=new Set([...a.keys(),...b.keys()]); const usage=await this.usageByKey(tenantId,current.currentPeriodStartsAt,current.currentPeriodEndsAt); const cycleMonths=(value: string) => value === 'ANNUAL' ? 12 : value === 'SEMIANNUAL' ? 6 : value === 'QUARTERLY' ? 3 : 1; const up=target.sortOrder>current.plan.sortOrder || (target.id === current.planId && cycleMonths(cycle)>cycleMonths(current.billingCycle));
     const gained:any[]=[],lost:any[]=[],inc:any[]=[],red:any[]=[],conf:any[]=[]; for(const key of keys){const x=a.get(key),y=b.get(key),label=this.labels[key]??key;if((x?.valueType==='BOOLEAN'||y?.valueType==='BOOLEAN')){if(x?.booleanValue!==true&&y?.booleanValue===true)gained.push({key,label});if(x?.booleanValue===true&&y?.booleanValue!==true)lost.push({key,label});continue}const cv=x?.integerValue?.toString()??null,tv=y?.integerValue?.toString()??null;if(cv!==null&&tv!==null){if(BigInt(tv)>BigInt(cv))inc.push({key,label,currentValue:cv,targetValue:tv});if(BigInt(tv)<BigInt(cv)){red.push({key,label,currentValue:cv,targetValue:tv});const used=usage.get(key);if(used!==undefined&&used>Number(tv))conf.push({key,label,currentUsage:used,targetLimit:Number(tv)})}}}
     return SubscriptionChangePreviewSchema.parse({changeType:up?'UPGRADE':'DOWNGRADE',effectiveAt:up?null:current.currentPeriodEndsAt.toISOString(),currentPlan:{publicId:current.plan.publicId,name:current.plan.name,billingCycle:current.billingCycle,priceCents:current.priceCents.toString(),currency:current.currency},targetPlan:{publicId:target.publicId,name:target.name,billingCycle:cycle,priceCents:option.priceCents.toString(),currency:target.currency},gainedFeatures:gained,lostFeatures:lost,increasedLimits:inc,reducedLimits:red,usageConflicts:conf});

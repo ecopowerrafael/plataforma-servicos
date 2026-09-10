@@ -21,6 +21,8 @@ export class CommercialManualPaymentService {
       await tx.$executeRaw`SELECT id FROM commercial_accounts WHERE id = ${managerAccountId} FOR UPDATE`;
       const change = await tx.subscriptionPlanChange.findUnique({ where: { publicId: changePublicId } });
       if (!change) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_FOUND', message: 'Alteração de assinatura não encontrada', statusCode: 404 });
+      const assignment = await tx.tenantCommercialAssignment.findUnique({ where: { tenantId: change.tenantId } });
+      if (!assignment || assignment.managerId !== managerAccountId) throw new AppError({ code: 'COMMERCIAL_TENANT_ACCESS_DENIED', message: 'Você não tem acesso a este cliente', statusCode: 403 });
       // A retry after the payment/application webhook must be a no-op. The
       // wallet debit is already committed and the plan-change service is
       // itself idempotent for PAID/APPLIED states.

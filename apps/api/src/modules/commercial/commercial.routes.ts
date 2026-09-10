@@ -736,6 +736,18 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         request.params.tenantPublicId,
       );
     },
+    );
+
+  app.post(
+    '/commercial/subscription-changes/:changePublicId/pay-with-wallet',
+    { schema: { params: z.object({ changePublicId: z.string().uuid() }) } },
+    async (request) => {
+      const auth = request.auth as AuthRequestContext;
+      if (!auth?.user?.id) throw new AppError({ code: 'AUTH_REQUIRED', message: 'Autenticação obrigatória', statusCode: 401 });
+      const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+      if (!scope || scope.type !== 'MANAGER') throw new AppError({ code: 'COMMERCIAL_INSUFFICIENT_ROLE', message: 'Apenas gerentes podem pagar alterações de assinatura', statusCode: 403 });
+      return new CommercialManualPaymentService(options.prisma).paySubscriptionChangeWithWallet(scope.accountId, request.params.changePublicId);
+    },
   );
 
   // FASE 5: Team Management

@@ -91,10 +91,8 @@ export class TenantSubscriptionService {
     }
     if (active !== null)
       throw new AppError({ code: 'SUBSCRIPTION_CHANGE_REQUIRES_PAYMENT', message: 'A alteração de plano ou periodicidade exige uma cobrança confirmada.', statusCode: 409 });
-    const subscription = active === null
-      ? await this.client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId, planId: plan.id, status: 'ACTIVE', startsAt: now, currentPeriodStartsAt: now, currentPeriodEndsAt: endsAt, priceCents: option.priceCents, currency: plan.currency, billingCycle, effectiveKey: 'EFFECTIVE' } })
-      : await this.client.tenantSubscription.update({ where: { id: active.id }, data: { planId: plan.id, priceCents: option.priceCents, currency: plan.currency, billingCycle, currentPeriodStartsAt: now, currentPeriodEndsAt: endsAt } });
-    await this.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId, action: active === null ? 'CREATED' : 'PLAN_CHANGED', previousPlanId: active?.planId ?? null, newPlanId: plan.id, previousStatus: active?.status ?? null, newStatus: subscription.status, reason: 'Plano selecionado pelo proprietário.' } });
+    const subscription = await this.client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId, planId: plan.id, status: 'ACTIVE', startsAt: now, currentPeriodStartsAt: now, currentPeriodEndsAt: endsAt, priceCents: option.priceCents, currency: plan.currency, billingCycle, effectiveKey: 'EFFECTIVE' } });
+    await this.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId, action: 'CREATED', previousPlanId: null, newPlanId: plan.id, previousStatus: null, newStatus: subscription.status, reason: 'Plano selecionado pelo proprietário.' } });
     return this.get(tenantId);
   }
 

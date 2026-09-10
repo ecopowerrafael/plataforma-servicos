@@ -21,6 +21,10 @@ export class CommercialManualPaymentService {
       await tx.$executeRaw`SELECT id FROM commercial_accounts WHERE id = ${managerAccountId} FOR UPDATE`;
       const change = await tx.subscriptionPlanChange.findUnique({ where: { publicId: changePublicId } });
       if (!change) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_FOUND', message: 'Alteração de assinatura não encontrada', statusCode: 404 });
+      // A retry after the payment/application webhook must be a no-op. The
+      // wallet debit is already committed and the plan-change service is
+      // itself idempotent for PAID/APPLIED states.
+      if (change.status === 'APPLIED') return change;
       if (change.status !== 'PENDING_PAYMENT') throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_PENDING', message: 'A alteração não está pendente de pagamento', statusCode: 409 });
       if (change.expiresAt <= new Date()) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_EXPIRED', message: 'A alteração expirou', statusCode: 409 });
       const existing = await tx.commercialWalletEntry.findFirst({ where: { commercialAccountId: managerAccountId, subscriptionId: change.subscriptionId, description: { contains: `change_${change.publicId}` } } });

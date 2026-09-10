@@ -81,6 +81,7 @@ export class StripeBillingService {
   }
 
   public async checkout(tenantId: bigint, planPublicId: string, billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL', email: string) {
+    void tenantId; void planPublicId; void billingCycle; void email;
     throw new AppError({ code: 'STRIPE_CHANGE_REFERENCE_REQUIRED', message: 'O checkout de assinatura deve usar uma alteração de plano criada pelo servidor.', statusCode: 409 });
   }
 
@@ -91,7 +92,6 @@ export class StripeBillingService {
     if (change.status !== 'PENDING_PAYMENT') throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_PENDING', message: 'A alteração não está pendente de pagamento.', statusCode: 409 });
     if (change.expiresAt <= new Date()) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_EXPIRED', message: 'A alteração de assinatura expirou.', statusCode: 409 });
     if (change.amountDueCents <= 0n) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NO_CHARGE', message: 'Esta alteração não requer cobrança.', statusCode: 409 });
-    const config = this.client.platformPaymentConfig ? await this.client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } }) : null;
     const subscription = change.subscription;
     let customerId = subscription?.stripeCustomerId;
     if (!customerId) {

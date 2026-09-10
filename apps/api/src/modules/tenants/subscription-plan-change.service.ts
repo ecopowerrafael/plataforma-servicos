@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { CommercialSubscriptionPaymentService } from '../commercial/commercial-subscription-payment.service.js';
 
 const months: Record<string, number> = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUAL: 6, ANNUAL: 12 };
 
@@ -8,7 +9,7 @@ export class SubscriptionPlanChangeService {
   public constructor(private readonly client: PrismaClient) {}
 
   public async applyPlanChange(changePublicId: string, actorId: bigint | null = null) {
-    return this.client.$transaction(async (tx) => {
+    const applied = await this.client.$transaction(async (tx) => {
       const change = await tx.subscriptionPlanChange.findUnique({ where: { publicId: changePublicId }, include: { subscription: true, targetPlan: { include: { billingOptions: true } } } });
       if (!change) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_FOUND', message: 'Alteração de assinatura não encontrada.', statusCode: 404 });
       if (change.status === 'APPLIED') return change;
@@ -26,6 +27,27 @@ export class SubscriptionPlanChangeService {
       await tx.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId: subscription.tenantId, action: 'PLAN_CHANGED', previousPlanId: change.currentPlanId, newPlanId: change.targetPlanId, previousStatus: subscription.status, newStatus: 'ACTIVE', reason: 'Mudança de plano aplicada após confirmação de pagamento.', performedByUserId: actorId, metadata: { changePublicId } } });
       return applied;
     });
+    if (
+      applied.status === 'APPLIED' &&
+      applied.amountDueCents > 0n &&
+      applied.paymentProvider !== 'COMMERCIAL_WALLET' &&
+      this.client.tenantCommercialAssignment !== undefined
+    ) {
+      const source = applied.paymentProvider === 'MANUAL_ADMIN'
+        ? 'MANUAL_ADMIN'
+        : applied.paymentProvider === 'PIX' || applied.paymentProvider === 'pix-local'
+          ? 'PIX'
+          : 'GATEWAY';
+      await new CommercialSubscriptionPaymentService(this.client).confirmSubscriptionPayment({
+        tenantId: applied.tenantId,
+        subscriptionId: applied.subscriptionId,
+        paymentId: `subscription_change:${applied.publicId}`,
+        amountCents: applied.amountDueCents,
+        source,
+        paidAt: applied.paidAt ?? applied.appliedAt ?? new Date(),
+      });
+    }
+    return applied;
   }
 
   public async confirmPaid(changePublicId: string, provider: string, reference: string | null, actorId: bigint | null = null) {

@@ -3119,6 +3119,7 @@ model CommercialPlan {
   subscriptions    TenantSubscription[]
   scheduledSubscriptions TenantSubscription[] @relation("ScheduledSubscriptionPlan")
   commissionRules  CommercialCommissionRule[]
+  stripeCatalogs   StripePlanCatalog[]
 
   @@index([status, sortOrder])
   @@index([billingCycle])
@@ -3138,6 +3139,7 @@ model PlanBillingOption {
   createdAt    DateTime      @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   plan         CommercialPlan @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stripePrices StripePlanPrice[]
 
   @@unique([planId, billingCycle])
   @@index([planId, active, sortOrder])
@@ -3219,6 +3221,43 @@ model TenantSubscription {
   @@index([status, currentPeriodEndsAt])
   @@index([planId, status])
   @@map("tenant_subscriptions")
+}
+
+model StripePlanCatalog {
+  id              BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String                    @unique @map("public_id") @db.Char(36)
+  planId          BigInt                    @map("plan_id") @db.UnsignedBigInt
+  environment     PaymentGatewayEnvironment
+  stripeProductId String                    @map("stripe_product_id") @db.VarChar(191)
+  status          String                    @default("PENDING") @db.VarChar(16)
+  lastError       String?                   @map("last_error") @db.Text
+  lastSyncedAt    DateTime?                 @map("last_synced_at") @db.DateTime(3)
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  plan            CommercialPlan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  prices          StripePlanPrice[]
+  @@unique([planId, environment])
+  @@unique([environment, stripeProductId])
+  @@index([status, environment])
+  @@map("stripe_plan_catalogs")
+}
+
+model StripePlanPrice {
+  id              BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String            @unique @map("public_id") @db.Char(36)
+  catalogId       BigInt            @map("catalog_id") @db.UnsignedBigInt
+  billingOptionId BigInt            @map("billing_option_id") @db.UnsignedBigInt
+  stripePriceId   String            @map("stripe_price_id") @db.VarChar(191)
+  status          String            @default("SYNCED") @db.VarChar(16)
+  amountCents     BigInt            @map("amount_cents") @db.UnsignedBigInt
+  createdAt       DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  catalog         StripePlanCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  billingOption   PlanBillingOption @relation(fields: [billingOptionId], references: [id], onDelete: Cascade)
+  @@unique([catalogId, billingOptionId])
+  @@unique([stripePriceId])
+  @@index([billingOptionId, status])
+  @@map("stripe_plan_prices")
 }
 
 model StripeWebhookEvent {

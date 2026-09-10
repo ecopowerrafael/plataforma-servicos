@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../errors/AppError.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 
 const cycle = (value: string): { interval: 'month' | 'year'; interval_count: number } => {
   if (value === 'ANNUAL') return { interval: 'year', interval_count: 1 };
@@ -14,18 +15,68 @@ const cycle = (value: string): { interval: 'month' | 'year'; interval_count: num
 export class StripeBillingService {
   public stripe: Stripe;
   private webhookSecret: string;
-  public constructor(private readonly client: PrismaClient, secretKey: string, webhookSecret: string, private readonly appWebUrl: string) {
+  public constructor(private readonly client: PrismaClient, secretKey: string, webhookSecret: string, private readonly appWebUrl: string, private readonly cipher?: CredentialsCipher) {
     this.stripe = new Stripe(secretKey);
     this.webhookSecret = webhookSecret;
   }
 
   public reconfigure(secretKey: string, webhookSecret: string) { this.stripe = new Stripe(secretKey); this.webhookSecret = webhookSecret; }
+  private async ensureConfigured() {
+    const config = await this.client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } });
+    if (config?.credentialsCiphertext && this.cipher) {
+      try { const value = this.cipher.decrypt(config.credentialsCiphertext); if (typeof value.secretKey === 'string' && typeof value.webhookSecret === 'string') this.reconfigure(value.secretKey, value.webhookSecret); } catch { /* admin can replace invalid credentials */ }
+    }
+  }
+
+  public async testConnection() {
+    await this.ensureConfigured();
+    const account = await this.stripe.accounts.retrieve('self');
+    return { valid: true, accountId: account.id, businessName: account.business_profile?.name ?? account.settings?.dashboard?.display_name ?? null };
+  }
+
+  public webhookUrl() { return `${process.env.APP_API_URL ?? process.env.APP_WEB_URL ?? this.appWebUrl}/webhooks/stripe`; }
+  public async createWebhook() {
+    await this.ensureConfigured();
+    const endpoint = await this.stripe.webhookEndpoints.create({ url: this.webhookUrl(), enabled_events: ['checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted', 'invoice.paid', 'invoice.payment_failed'] });
+    return { id: endpoint.id, secret: endpoint.secret ?? null, url: endpoint.url, status: endpoint.status ?? null };
+  }
+
+  public async syncCatalog(environment: 'SANDBOX' | 'PRODUCTION') {
+    await this.ensureConfigured();
+    const plans = await this.client.commercialPlan.findMany({ where: { status: 'ACTIVE' }, include: { billingOptions: { where: { active: true } } } });
+    const result: Array<{ planPublicId: string; status: string; lastError: string | null }> = [];
+    for (const plan of plans) {
+      try {
+        let catalog = await this.client.stripePlanCatalog.findUnique({ where: { planId_environment: { planId: plan.id, environment } }, include: { prices: true } });
+        const product = catalog ? await this.stripe.products.update(catalog.stripeProductId, { name: `Agendei - ${plan.name}`, metadata: { planId: plan.id.toString(), environment } }) : await this.stripe.products.create({ name: `Agendei - ${plan.name}`, metadata: { planId: plan.id.toString(), environment } });
+        catalog = catalog ? await this.client.stripePlanCatalog.update({ where: { id: catalog.id }, data: { stripeProductId: product.id, status: 'PENDING', lastError: null }, include: { prices: true } }) : await this.client.stripePlanCatalog.create({ data: { publicId: randomUUID(), planId: plan.id, environment, stripeProductId: product.id }, include: { prices: true } });
+        for (const option of plan.billingOptions) {
+          const current = catalog.prices.find((price) => price.billingOptionId === option.id);
+          if (current && current.amountCents === option.priceCents) continue;
+          if (current) await this.stripe.prices.update(current.stripePriceId, { active: false });
+          const price = await this.stripe.prices.create({ product: product.id, currency: plan.currency.toLowerCase(), unit_amount: Number(option.priceCents), recurring: cycle(option.billingCycle), metadata: { planId: plan.id.toString(), billingOptionId: option.id.toString(), environment } });
+          await this.client.stripePlanPrice.upsert({ where: { catalogId_billingOptionId: { catalogId: catalog.id, billingOptionId: option.id } }, create: { publicId: randomUUID(), catalogId: catalog.id, billingOptionId: option.id, stripePriceId: price.id, amountCents: option.priceCents }, update: { stripePriceId: price.id, amountCents: option.priceCents, status: 'SYNCED' } });
+        }
+        await this.client.stripePlanCatalog.update({ where: { id: catalog.id }, data: { status: 'SYNCED', lastSyncedAt: new Date(), lastError: null } });
+        result.push({ planPublicId: plan.publicId, status: 'SYNCED', lastError: null });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Erro desconhecido';
+        await this.client.stripePlanCatalog.updateMany({ where: { planId: plan.id, environment }, data: { status: 'ERROR', lastError: message } });
+        result.push({ planPublicId: plan.publicId, status: 'ERROR', lastError: message });
+      }
+    }
+    return { environment, items: result };
+  }
 
   public async checkout(tenantId: bigint, planPublicId: string, billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL', email: string) {
+    await this.ensureConfigured();
     const plan = await this.client.commercialPlan.findUnique({ where: { publicId: planPublicId }, include: { billingOptions: true } });
     if (!plan || plan.status !== 'ACTIVE') throw new AppError({ code: 'PLAN_NOT_FOUND', message: 'Plano inválido.', statusCode: 404 });
     const option = plan.billingOptions.find((item) => item.active && item.billingCycle === billingCycle);
-    if (!option) throw new AppError({ code: 'STRIPE_PRICE_UNAVAILABLE', message: 'O plano ainda não está sincronizado com o Stripe.', statusCode: 409 });
+    const config = await this.client.platformPaymentConfig.findUnique({ where: { provider: 'stripe' } });
+    const catalog = config ? await this.client.stripePlanCatalog.findUnique({ where: { planId_environment: { planId: plan.id, environment: config.environment } }, include: { prices: true } }) : null;
+    const mappedPrice = option && catalog?.prices.find((price) => price.billingOptionId === option.id && price.status === 'SYNCED');
+    if (!option || !mappedPrice) throw new AppError({ code: 'STRIPE_PRICE_UNAVAILABLE', message: 'O plano ainda não está sincronizado com o Stripe.', statusCode: 409 });
     const subscription = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' } });
     if (subscription?.stripeSubscriptionId && ['ACTIVE', 'TRIALING', 'PAST_DUE'].includes(subscription.status)) throw new AppError({ code: 'STRIPE_SUBSCRIPTION_EXISTS', message: 'Este estabelecimento já possui uma assinatura Stripe.', statusCode: 409 });
     let customerId = subscription?.stripeCustomerId;
@@ -34,11 +85,12 @@ export class StripeBillingService {
       customerId = customer.id;
       if (subscription) await this.client.tenantSubscription.update({ where: { id: subscription.id }, data: { stripeCustomerId: customerId, billingProvider: 'stripe' } });
     }
-    const session = await this.stripe.checkout.sessions.create({ mode: 'subscription', customer: customerId, line_items: [{ price: option.stripePriceId!, quantity: 1 }], success_url: `${this.appWebUrl}/planos?checkout=success`, cancel_url: `${this.appWebUrl}/planos?checkout=cancelled`, metadata: { tenantId: tenantId.toString(), planId: plan.id.toString(), billingOptionId: option.id.toString() }, subscription_data: { ...(plan.trialDays && plan.trialDays > 0 ? { trial_period_days: plan.trialDays } : {}), metadata: { tenantId: tenantId.toString(), planId: plan.id.toString(), billingOptionId: option.id.toString() } } }, { idempotencyKey: `agendei:checkout:${tenantId}:${option.id}:${randomUUID()}` });
+    const session = await this.stripe.checkout.sessions.create({ mode: 'subscription', customer: customerId, line_items: [{ price: mappedPrice.stripePriceId, quantity: 1 }], success_url: `${this.appWebUrl}/planos?checkout=success`, cancel_url: `${this.appWebUrl}/planos?checkout=cancelled`, metadata: { tenantId: tenantId.toString(), planId: plan.id.toString(), billingOptionId: option.id.toString() }, subscription_data: { ...(plan.trialDays && plan.trialDays > 0 ? { trial_period_days: plan.trialDays } : {}), metadata: { tenantId: tenantId.toString(), planId: plan.id.toString(), billingOptionId: option.id.toString() } } }, { idempotencyKey: `agendei:checkout:${tenantId}:${option.id}:${randomUUID()}` });
     return { url: session.url };
   }
 
   public async cancelAtPeriodEnd(tenantId: bigint) {
+    await this.ensureConfigured();
     const subscription = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' } });
     if (!subscription?.stripeSubscriptionId) throw new AppError({ code: 'STRIPE_SUBSCRIPTION_NOT_FOUND', message: 'Este estabelecimento ainda não possui uma assinatura Stripe.', statusCode: 409 });
     const updated = await this.stripe.subscriptions.update(subscription.stripeSubscriptionId, { cancel_at_period_end: true });
@@ -48,6 +100,7 @@ export class StripeBillingService {
   }
 
   public async portal(tenantId: bigint) {
+    await this.ensureConfigured();
     const subscription = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' } });
     if (!subscription?.stripeCustomerId) throw new AppError({ code: 'STRIPE_CUSTOMER_NOT_FOUND', message: 'Este estabelecimento ainda não possui cliente Stripe.', statusCode: 409 });
     return { url: (await this.stripe.billingPortal.sessions.create({ customer: subscription.stripeCustomerId, return_url: `${this.appWebUrl}/configuracoes/assinatura` })).url };
@@ -70,6 +123,7 @@ export class StripeBillingService {
   }
 
   public async handleWebhook(raw: string, signature: string) {
+    await this.ensureConfigured();
     const event = this.constructEvent(raw, signature);
     try {
       await this.client.stripeWebhookEvent.create({ data: { externalEventId: event.id, eventType: event.type, processingStatus: 'PROCESSING' } });

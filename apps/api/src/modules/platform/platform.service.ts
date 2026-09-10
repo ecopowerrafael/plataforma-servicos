@@ -36,7 +36,6 @@ import { TenantExperienceResolver } from '../tenants/tenant-experience.resolver.
 import { TenantFeaturesResolver } from '../tenants/tenant-features.resolver.js';
 import { TenantService } from '../tenants/tenant.service.js';
 import { TenantTerritoryAssignmentService } from '../commercial/tenant-territory-assignment.service.js';
-import { type StripeBillingService } from './stripe-billing.service.js';
 
 const effectiveStatuses = new Set(['TRIALING', 'ACTIVE', 'PAST_DUE', 'SUSPENDED']);
 const platformPermissions = [
@@ -289,7 +288,7 @@ export class PlatformService {
   private readonly commercialPolicyService: TenantCommercialPolicyService;
   private readonly tenantService: TenantService;
 
-  public constructor(private readonly client: PrismaClient, private readonly stripeBilling?: StripeBillingService) {
+  public constructor(private readonly client: PrismaClient) {
     this.experienceResolver = new TenantExperienceResolver(client);
     this.featuresResolver = new TenantFeaturesResolver(client);
     this.customFieldsResolver = new TenantCustomFieldsResolver(client);
@@ -692,7 +691,6 @@ export class PlatformService {
         },
         { isolationLevel: 'Serializable' },
       );
-      if (this.stripeBilling && process.env.STRIPE_PRODUCT_ID) await this.stripeBilling.syncPlanPrices(plan.id, process.env.STRIPE_PRODUCT_ID);
       return { plan: mapPlan(plan) };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
@@ -809,7 +807,6 @@ export class PlatformService {
         },
         { isolationLevel: 'Serializable' },
       );
-      if (this.stripeBilling && process.env.STRIPE_PRODUCT_ID) await this.stripeBilling.syncPlanPrices(plan.id, process.env.STRIPE_PRODUCT_ID);
       return { plan: mapPlan(plan) };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')

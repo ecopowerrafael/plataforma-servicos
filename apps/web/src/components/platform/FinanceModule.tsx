@@ -7,6 +7,7 @@ import {
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { z } from 'zod';
 
 import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
@@ -771,6 +772,15 @@ function FinanceSettingsTab() {
       await client.invalidateQueries({ queryKey: ['platform', 'finance'] });
     },
   });
+  const stripeTest = useMutation({
+    mutationFn: () => httpClient.request('/platform/finance/stripe/test-connection', { method: 'POST', schema: z.object({ valid: z.boolean(), accountId: z.string(), businessName: z.string().nullable() }) }),
+  });
+  const stripeSync = useMutation({
+    mutationFn: (environment: 'SANDBOX' | 'PRODUCTION') => httpClient.request('/platform/finance/stripe/sync-catalog', { method: 'POST', body: { environment }, schema: z.object({ environment: z.enum(['SANDBOX', 'PRODUCTION']), items: z.array(z.object({ planPublicId: z.string(), status: z.string(), lastError: z.string().nullable() })) }) }),
+  });
+  const stripeWebhook = useMutation({
+    mutationFn: () => httpClient.request('/platform/finance/stripe/configure-webhook', { method: 'POST', schema: z.object({ url: z.string().url(), endpointId: z.string() }) }),
+  });
   const configure = (provider: Provider) => {
     const current = query.data?.configs.find((c) => c.provider === provider);
     setOpen(provider);
@@ -818,6 +828,7 @@ function FinanceSettingsTab() {
                 </div>
               </dl>
               <button onClick={() => { configure(config.provider); }} type="button">Configurar</button>
+              {config.provider === 'stripe' && config.hasCredentials ? <><button disabled={stripeTest.isPending} onClick={() => { void stripeTest.mutateAsync(); }} type="button">{stripeTest.isPending ? 'Testando…' : 'Testar conexão'}</button><button disabled={stripeSync.isPending} onClick={() => { void stripeSync.mutateAsync(config.environment); }} type="button">{stripeSync.isPending ? 'Sincronizando…' : 'Sincronizar catálogo'}</button><button disabled={stripeWebhook.isPending} onClick={() => { void stripeWebhook.mutateAsync(); }} type="button">{stripeWebhook.isPending ? 'Configurando webhook…' : 'Configurar webhook'}</button></> : null}
             </article>
           ))}
           <article className="platform-panel">

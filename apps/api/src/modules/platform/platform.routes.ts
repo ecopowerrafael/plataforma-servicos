@@ -1558,6 +1558,18 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         return billing.setManual(request.body.active, actor(request));
       },
     );
+    app.post('/platform/finance/stripe/test-connection', { schema: { response: { 200: z.object({ valid: z.boolean(), accountId: z.string(), businessName: z.string().nullable() }) } } }, (request) => {
+      allow(request, 'platform.subscription.status.manage');
+      return billing.stripeTestConnection();
+    });
+    app.post('/platform/finance/stripe/configure-webhook', { schema: { response: { 200: z.object({ url: z.string().url(), endpointId: z.string() }) } } }, (request) => {
+      allow(request, 'platform.subscription.status.manage');
+      return billing.stripeConfigureWebhook(actor(request));
+    });
+    app.post('/platform/finance/stripe/sync-catalog', { schema: { body: z.object({ environment: z.enum(['SANDBOX', 'PRODUCTION']) }).strict(), response: { 200: z.object({ environment: z.enum(['SANDBOX', 'PRODUCTION']), items: z.array(z.object({ planPublicId: z.string(), status: z.string(), lastError: z.string().nullable() })) }) } } }, (request) => {
+      allow(request, 'platform.subscription.status.manage');
+      return billing.stripeSyncCatalog(request.body.environment, actor(request));
+    });
     app.get(
       '/platform/subscriptions/:publicId/billing',
       {

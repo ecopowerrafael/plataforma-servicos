@@ -25,7 +25,7 @@ describe('current cycle paid amount resolver', () => {
       { publicId: 'manual-1', amountCents: 9000n, processedAt: new Date('2026-09-01T00:05:00.000Z') },
     ]), { subscriptionId: 10n, periodStartsAt, periodEndsAt, historicalPriceCents: 9000n });
 
-    expect(result.confidence).toBe('EXACT');
+    expect(result.confidence).toBe('LEGACY_MATCHED');
     expect(result.amountCents).toBe(9000n);
   });
 

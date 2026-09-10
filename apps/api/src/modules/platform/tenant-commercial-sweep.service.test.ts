@@ -16,7 +16,7 @@ describe('TenantCommercialSweepService', () => {
       findMany: vi.fn(async (args: any) => args.where.status === 'ACTIVE' ? [subscription] : []),
       update: vi.fn(),
     };
-    const change = { findFirst: vi.fn().mockResolvedValue(scheduled), update: vi.fn() };
+    const change = { findFirst: vi.fn().mockResolvedValue(scheduled), updateMany: vi.fn().mockResolvedValue({ count: 1 }) };
     const transaction = {
       tenantSubscription: { update: vi.fn().mockResolvedValue({ ...subscription, status: 'PAST_DUE' }) },
       subscriptionHistory: { create: vi.fn() },
@@ -38,8 +38,8 @@ describe('TenantCommercialSweepService', () => {
       where: { id: 7n },
       data: expect.objectContaining({ status: 'PAST_DUE' }),
     }));
-    expect(change.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 8n },
+    expect(change.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 8n, status: 'SCHEDULED' },
       data: expect.objectContaining({ status: 'PENDING_PAYMENT' }),
     }));
     expect(billing.createChangeCharge).toHaveBeenCalledWith(11n, 'change-8', 'pix-local');

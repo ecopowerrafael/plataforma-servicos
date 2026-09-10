@@ -59,8 +59,10 @@ export class TenantCommercialSweepService {
       if (scheduled && this.billing) {
         const config = await this.client.platformPaymentConfig.findFirst({ where: { provider: { in: ['stripe', 'pix-local', 'mercadopago'] }, active: true, credentialsCiphertext: { not: null } }, orderBy: { provider: 'asc' } });
         if (config) {
-          await this.client.subscriptionPlanChange.update({ where: { id: scheduled.id }, data: { status: 'PENDING_PAYMENT', expiresAt: new Date(now.getTime() + 60 * 60 * 1000) } });
-          try { await this.billing.createChangeCharge(subscription.tenantId, scheduled.publicId, config.provider); } catch { /* retain PAST_DUE; retry on next sweep */ }
+          const claimed = await this.client.subscriptionPlanChange.updateMany({ where: { id: scheduled.id, status: 'SCHEDULED' }, data: { status: 'PENDING_PAYMENT', expiresAt: new Date(now.getTime() + 60 * 60 * 1000) } });
+          if (claimed.count === 1) {
+            try { await this.billing.createChangeCharge(subscription.tenantId, scheduled.publicId, config.provider); } catch { /* retain PAST_DUE; retry requires explicit recovery of PENDING_PAYMENT */ }
+          }
         }
       }
       pastDued += 1;

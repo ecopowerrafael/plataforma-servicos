@@ -26,5 +26,9 @@ export async function resolveCurrentCyclePaidAmount(client: PrismaClient, input:
   if (candidates.length > 1) return { amountCents: 0n, confidence: 'AMBIGUOUS' as const, records: candidates.map((item) => item.publicId) };
   const candidate = candidates[0]!;
   if (candidate.amountCents <= 0n) return { amountCents: 0n, confidence: 'AMBIGUOUS' as const, records: [candidate.publicId] };
-  return { amountCents: candidate.amountCents, confidence: 'EXACT' as const, records: [candidate.publicId] };
+  return {
+    amountCents: candidate.amountCents,
+    confidence: candidate.amountCents === input.historicalPriceCents ? 'LEGACY_MATCHED' as const : 'EXACT' as const,
+    records: [candidate.publicId],
+  };
 }

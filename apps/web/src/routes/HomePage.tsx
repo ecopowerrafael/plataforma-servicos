@@ -1502,7 +1502,7 @@ export function HomePage() {
                       }}
                     >
                       <summary>{item.label}</summary>
-                      {item.items.map((subitem) => (
+                      {item.items?.map((subitem) => (
                         <NavLink
                           key={subitem.to}
                           to={subitem.to}
@@ -2001,7 +2001,7 @@ export function HomePage() {
         <ErrorBoundary key={selectedTenant}>
           <Suspense fallback={<p>Carregando WhatsApp…</p>}>
             <WhatsAppPage
-              tenantPublicId={selectedTenant}
+              tenantPublicId={selectedTenant!}
               canManage={canManageIntegrations}
               mode="connection"
             />
@@ -2012,7 +2012,7 @@ export function HomePage() {
         <ErrorBoundary key={selectedTenant}>
           <Suspense fallback={<p>Carregando mensagens do WhatsApp…</p>}>
             <WhatsAppPage
-              tenantPublicId={selectedTenant}
+              tenantPublicId={selectedTenant!}
               canManage={canManageIntegrations}
               mode="messages"
             />
@@ -2023,7 +2023,7 @@ export function HomePage() {
         <ErrorBoundary key={selectedTenant}>
           <Suspense fallback={<p>Carregando E-mails automáticos…</p>}>
             <EmailTemplateModule
-              tenantPublicId={selectedTenant}
+              tenantPublicId={selectedTenant!}
               canManage={canManageNotificationTemplates}
             />
           </Suspense>

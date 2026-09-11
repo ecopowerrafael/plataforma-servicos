@@ -1,4 +1,5 @@
 import {
+  normalizeOperatingModel,
   publicSiteDefaultsFor,
   type BusinessProfileCode,
   type UpdateTenantIdentityRequest,
@@ -153,6 +154,7 @@ export async function updateTenantOnboarding(
           onboardingStep: true,
           onboardingCompletedAt: true,
           onboardingChecklistHiddenAt: true,
+          operatingModel: true,
         },
       });
       if (input.displayName !== undefined) {
@@ -191,7 +193,7 @@ export async function updateTenantOnboarding(
         tenantId,
         (input.businessProfile ?? current.businessProfile) as BusinessProfileCode,
       );
-    return result;
+    return { ...result, operatingModel: normalizeOperatingModel(result.operatingModel) };
   } catch (error) {
     if (isUniqueConflict(error)) throw slugConflict(error);
     throw error;

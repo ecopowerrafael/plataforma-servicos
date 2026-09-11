@@ -1422,7 +1422,32 @@ export function HomePage() {
                 </>
               )}
               {onboardingActionError !== undefined && (
-                <p className="form-error">{onboardingActionError.message}</p>
+                <div className="form-error" role="alert">
+                  <p>Não foi possível salvar esta etapa.</p>
+                  <div className="button-row">
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => {
+                        const variables = updateOnboarding.variables;
+                        if (variables !== undefined) updateOnboarding.mutate(variables);
+                        else void onboarding.refetch();
+                      }}
+                    >
+                      Tentar novamente
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => {
+                        updateOnboarding.reset();
+                        pauseGuided(true);
+                      }}
+                    >
+                      Sair do início guiado
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </section>

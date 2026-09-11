@@ -8,6 +8,7 @@ import {
   ComboListResponseSchema,
   ComboPublicSchema,
   UpdateComboRequestSchema,
+  CreateProfessionalRequestSchema,
   CreateServiceRequestSchema,
   ServiceListResponseSchema,
   ServicePublicSchema,
@@ -73,6 +74,8 @@ export function GuidedSetupPage() {
   const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
   const [previewVersion, setPreviewVersion] = useState(0);
   const [editingProfessional, setEditingProfessional] = useState<string | null>(null);
+  const [creatingProfessional, setCreatingProfessional] = useState(false);
+  const [newProfessional, setNewProfessional] = useState({ name: '', publicName: '', bio: '' });
   const [professionalDraft, setProfessionalDraft] = useState<Record<string, { name: string; publicName: string; bio: string }>>({});
   const [professionalPhotoPreview, setProfessionalPhotoPreview] = useState<Record<string, string>>({});
   const [editingCombo, setEditingCombo] = useState<string | null>(null);
@@ -225,6 +228,19 @@ export function GuidedSetupPage() {
       }),
     onSuccess: async () => {
       setEditingProfessional(null);
+      await professionals.refetch();
+    },
+  });
+  const createProfessionalMutation = useMutation({
+    mutationFn: (body: unknown) => httpClient.request('/tenant/professionals', {
+      method: 'POST',
+      body: CreateProfessionalRequestSchema.parse(body),
+      schema: z.object({ publicId: z.string() }),
+      tenantPublicId,
+    }),
+    onSuccess: async () => {
+      setCreatingProfessional(false);
+      setNewProfessional({ name: '', publicName: '', bio: '' });
       await professionals.refetch();
     },
   });
@@ -671,12 +687,13 @@ export function GuidedSetupPage() {
                   </article>;
                 })}
               </div>
-              <button
-                className="secondary-button"
-                onClick={() => void navigate('/app/equipe/profissionais')}
-              >
-                + Adicionar profissional
-              </button>
+              {creatingProfessional ? <div className="guided-setup-card guided-professional-create">
+                <strong>Adicionar profissional</strong>
+                <label>Nome<input value={newProfessional.name} onChange={(event) => setNewProfessional((value) => ({ ...value, name: event.target.value }))} placeholder="Nome completo" /></label>
+                <label>Nome público<input value={newProfessional.publicName} onChange={(event) => setNewProfessional((value) => ({ ...value, publicName: event.target.value }))} placeholder="Como os clientes verão" /></label>
+                <label>Bio<textarea value={newProfessional.bio} onChange={(event) => setNewProfessional((value) => ({ ...value, bio: event.target.value }))} placeholder="Opcional" /></label>
+                <div className="button-row"><button className="secondary-button" onClick={() => setCreatingProfessional(false)}>Cancelar</button><button className="primary-button" disabled={createProfessionalMutation.isPending || newProfessional.name.trim().length < 2 || newProfessional.publicName.trim().length < 2} onClick={() => void createProfessionalMutation.mutateAsync({ name: newProfessional.name, publicName: newProfessional.publicName, bio: newProfessional.bio || null, phone: null, email: null, professionalDocument: null, specialties: [], calendarColor: '#2563EB', sortOrder: professionalCount, primaryUnitPublicId: headquarters?.publicId ?? null, commissionType: 'PERCENTAGE', commissionValue: 0, customFields: {}, active: true })}>{createProfessionalMutation.isPending ? 'Salvando…' : 'Salvar profissional'}</button></div>
+              </div> : <button className="secondary-button" onClick={() => setCreatingProfessional(true)}>+ Adicionar profissional</button>}
             </>
           )}
           {current === 'schedule' && (

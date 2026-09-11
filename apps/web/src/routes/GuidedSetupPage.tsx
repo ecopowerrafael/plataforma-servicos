@@ -16,6 +16,7 @@ import {
   ReplaceBusinessUnitOperatingHoursRequestSchema,
   TenantWhiteLabelResponseSchema,
   UpdateServiceRequestSchema,
+  UpdateProfessionalRequestSchema,
 } from '@plataforma/shared';
 import { BrandPreview } from '../components/branding/BrandPreview.js';
 import { httpClient } from '../lib/http.js';
@@ -45,8 +46,9 @@ export function GuidedSetupPage() {
   const [step, setStep] = useState<GuidedSetupStep | null>(null);
   const [slugDraft, setSlugDraft] = useState('');
   const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [editingProfessional, setEditingProfessional] = useState<string | null>(null);
+  const [professionalDraft, setProfessionalDraft] = useState<Record<string, { name: string; publicName: string; bio: string }>>({});
   const [editingService, setEditingService] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState<
     Record<number, { active: boolean; startsAt: string; endsAt: string }>
   >({});
@@ -181,6 +183,19 @@ export function GuidedSetupPage() {
       }),
     onSuccess: async () => {
       await services.refetch();
+    },
+  });
+  const professionalMutation = useMutation({
+    mutationFn: (input: { id: string; body: unknown }) =>
+      httpClient.request(`/tenant/professionals/${input.id}`, {
+        method: 'PATCH',
+        body: UpdateProfessionalRequestSchema.parse(input.body),
+        schema: z.object({ publicId: z.string() }),
+        tenantPublicId,
+      }),
+    onSuccess: async () => {
+      setEditingProfessional(null);
+      await professionals.refetch();
     },
   });
   const serviceImageMutation = useMutation({
@@ -403,7 +418,7 @@ export function GuidedSetupPage() {
                         </span>
                         <small>{item.imageUrl === null ? 'Sem foto' : 'Foto adicionada'}</small>
                         <label className="guided-upload-label">
-                          {serviceImageMutation.isPending ? 'Enviando…' : 'Adicionar foto'}
+                          {serviceImageMutation.isPending ? 'Enviando…' : 'Adicionar imagem'}
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp"
@@ -578,28 +593,17 @@ export function GuidedSetupPage() {
                 </div>
               )}
               <div className="guided-setup-list">
-                {professionals.data?.items.map((item) => (
-                  <article key={item.publicId}>
-                    <strong>{item.publicName}</strong>
-                    <span>Perfil profissional preparado</span>
-                    <div className="guided-service-actions">
-                      <button
-                        className="text-button"
-                        onClick={() => void navigate(`/app/equipe/profissionais/${item.publicId}`)}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        className="text-button"
-                        onClick={() =>
-                          void navigate(`/app/equipe/profissionais/${item.publicId}?tab=services`)
-                        }
-                      >
-                        Definir serviços
-                      </button>
-                    </div>
-                  </article>
-                ))}
+                {professionals.data?.items.map((item) => {
+                  const draft = professionalDraft[item.publicId] ?? { name: item.name, publicName: item.publicName, bio: item.bio ?? '' };
+                  return <article key={item.publicId}>
+                    {editingProfessional === item.publicId ? <div className="guided-professional-editor">
+                      <label>Nome<input value={draft.name} onChange={(event) => setProfessionalDraft((value) => ({ ...value, [item.publicId]: { ...draft, name: event.target.value } }))} /></label>
+                      <label>Nome público<input value={draft.publicName} onChange={(event) => setProfessionalDraft((value) => ({ ...value, [item.publicId]: { ...draft, publicName: event.target.value } }))} /></label>
+                      <label>Bio<textarea value={draft.bio} onChange={(event) => setProfessionalDraft((value) => ({ ...value, [item.publicId]: { ...draft, bio: event.target.value } }))} /></label>
+                      <button className="primary-button" disabled={professionalMutation.isPending} onClick={() => void professionalMutation.mutateAsync({ id: item.publicId, body: { name: draft.name, publicName: draft.publicName, bio: draft.bio || null, phone: item.phone, email: item.email, professionalDocument: item.professionalDocument, specialties: item.specialties, calendarColor: item.calendarColor, sortOrder: item.sortOrder, primaryUnitPublicId: item.primaryUnitPublicId, userPublicId: item.userPublicId, commissionType: item.commissionType, commissionValue: item.commissionValue, customFields: {}, active: item.active } })}>{professionalMutation.isPending ? 'Salvando…' : 'Salvar profissional'}</button>
+                    </div> : <><strong>{item.publicName}</strong><span>Perfil profissional preparado</span><div className="guided-service-actions"><button className="text-button" onClick={() => { setEditingProfessional(item.publicId); setProfessionalDraft((value) => ({ ...value, [item.publicId]: draft })); }}>Editar no onboarding</button></div></>}
+                  </article>;
+                })}
               </div>
               <button
                 className="secondary-button"
@@ -750,21 +754,6 @@ export function GuidedSetupPage() {
                   >
                     Personalizar página
                   </button>
-                  <button
-                    className="secondary-button guided-mobile-preview-toggle"
-                    onClick={() => setShowPreview((value) => !value)}
-                  >
-                    {showPreview ? 'Voltar à configuração' : 'Ver prévia'}
-                  </button>
-                </div>
-                <div className={`guided-preview-frame${showPreview ? ' is-mobile-visible' : ''}`}>
-                  <BrandPreview
-                    displayName={context.data?.tenant.displayName ?? 'Agendei'}
-                    theme={branding.data?.site?.theme ?? 'CLASSIC'}
-                    color={branding.data?.branding?.primaryColor ?? '#C79A5B'}
-                    mode="mobile"
-                    tenantSlug={branding.data?.slug}
-                  />
                 </div>
               </div>
             </>
@@ -808,7 +797,7 @@ export function GuidedSetupPage() {
           </div>
           <aside className="guided-live-preview">
             <div className="guided-preview-heading"><div><span className="eyebrow">Prévia ao vivo</span><h2>Assim seus clientes verão</h2></div><span className="guided-live-dot">● Ao vivo</span></div>
-            <div className="guided-phone-wrap"><BrandPreview displayName={currentDisplayName} theme={branding.data?.site?.theme ?? 'CLASSIC'} color={branding.data?.branding?.primaryColor ?? '#2563eb'} logoUrl={branding.data?.assets.find((asset) => asset.kind === 'LOGO')?.url ? `${environment.apiUrl}${branding.data.assets.find((asset) => asset.kind === 'LOGO')?.url}` : undefined} mode="mobile" services={services.data?.items.map((item) => ({ name: item.name, durationMinutes: item.durationMinutes }))} /></div>
+            <div className="guided-phone-wrap"><BrandPreview displayName={currentDisplayName} theme={branding.data?.site?.theme ?? 'CLASSIC'} color={branding.data?.branding?.primaryColor ?? '#2563eb'} mode="mobile" tenantSlug={branding.data?.slug} /></div>
             <p className="guided-preview-url">agendei.site/<strong>{branding.data?.slug ?? 'seu-negocio'}</strong></p>
             <small className="guided-preview-hint">As alterações aparecem aqui instantaneamente.</small>
           </aside>

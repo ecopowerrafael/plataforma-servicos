@@ -13,13 +13,13 @@ export function normalizeOperatingModel(value: unknown): OperatingModel {
 }
 
 export const OperatingModelLabels: Record<OperatingModel, string> = Object.freeze({
-  SERVICE_PRICING: 'Cobrança por serviço',
-  MEMBERSHIP: 'Mensalidade (assinatura do cliente)',
+  SERVICE_PRICING: 'Serviços por atendimento',
+  MEMBERSHIP: 'Mensalidade / plano',
 });
 
 export const OperatingModelDescriptions: Record<OperatingModel, string> = Object.freeze({
-  SERVICE_PRICING: 'O cliente paga cada atendimento pelo preço do serviço.',
-  MEMBERSHIP: 'O cliente paga uma mensalidade e usa os benefícios do plano.',
+  SERVICE_PRICING: 'Cada serviço tem um valor próprio e o cliente paga pelos atendimentos realizados.',
+  MEMBERSHIP: 'Seus clientes pagam uma mensalidade ou plano recorrente.',
 });
 
 /**

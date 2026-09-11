@@ -19,6 +19,11 @@ import {
   TenantIdentityResponseSchema,
   ReplaceBusinessUnitOperatingHoursRequestSchema,
   TenantWhiteLabelResponseSchema,
+  BusinessProfileLabels,
+  OperatingModelLabels,
+  OperatingModelDescriptions,
+  BusinessProfileCodeSchema,
+  OperatingModelSchema,
   UpdateServiceRequestSchema,
   UpdateProfessionalRequestSchema,
 } from '@plataforma/shared';
@@ -44,7 +49,8 @@ import {
 const Onboarding = z.object({
   onboardingStep: z.string(),
   onboardingCompletedAt: z.string().nullable(),
-  operatingModel: z.string(),
+  operatingModel: OperatingModelSchema,
+  businessProfile: BusinessProfileCodeSchema,
 });
 const Checklist = z.object({
   items: z.array(z.object({ key: z.string(), complete: z.boolean() })),
@@ -68,6 +74,8 @@ export function GuidedSetupPage() {
   const [step, setStep] = useState<GuidedSetupStep | null>(null);
   const [slugDraft, setSlugDraft] = useState('');
   const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [profileDraft, setProfileDraft] = useState<z.infer<typeof BusinessProfileCodeSchema> | null>(null);
+  const [operatingModelDraft, setOperatingModelDraft] = useState<z.infer<typeof OperatingModelSchema> | null>(null);
   const [themeDraft, setThemeDraft] = useState<BrandThemeCode | null>(null);
   const [colorDraft, setColorDraft] = useState<string | null>(null);
   const [layoutDraft, setLayoutDraft] = useState<PublicLayoutCode | null>(null);
@@ -179,7 +187,7 @@ export function GuidedSetupPage() {
     enabled: headquarters?.publicId !== undefined,
   });
   const saveStep = useMutation({
-    mutationFn: (input: { step: string; completed?: boolean; slug?: string; displayName?: string }) =>
+    mutationFn: (input: { step: string; completed?: boolean; slug?: string; displayName?: string; businessProfile?: z.infer<typeof BusinessProfileCodeSchema>; operatingModel?: z.infer<typeof OperatingModelSchema> }) =>
       httpClient.request('/tenant/onboarding', {
         method: 'PATCH',
         body: input,
@@ -314,6 +322,10 @@ export function GuidedSetupPage() {
   const current = step ?? guidedStepForLegacy(onboarding.data?.onboardingStep ?? 'WELCOME');
   const currentSlug = slugDraft || identity.data?.identity.slug || branding.data?.slug || '';
   const currentDisplayName = displayNameDraft || context.data?.tenant.displayName || 'Seu negócio';
+  const currentProfile = profileDraft ?? (onboarding.data?.onboardingStep === 'WELCOME' ? '' : onboarding.data?.businessProfile ?? identity.data?.identity.businessProfile ?? 'GENERIC');
+  const currentOperatingModel = operatingModelDraft ?? onboarding.data?.operatingModel ?? 'SERVICE_PRICING';
+  const profileConfirmed = profileDraft !== null || onboarding.data?.onboardingStep !== 'WELCOME';
+  const operatingModelConfirmed = operatingModelDraft !== null || onboarding.data?.onboardingStep !== 'WELCOME';
   const currentTheme: BrandThemeCode = themeDraft ?? branding.data?.site?.theme ?? 'CLASSIC';
   const currentColor = colorDraft ?? branding.data?.branding?.primaryColor ?? '#2563eb';
   const currentLayout: PublicLayoutCode = layoutDraft ?? branding.data?.site?.layout ?? 'CLASSIC';
@@ -364,7 +376,11 @@ export function GuidedSetupPage() {
   const serviceCount = services.data?.items.length ?? 0;
   const professionalCount = professionals.data?.items.length ?? 0;
   const scheduleComplete = (operatingHours.data?.items.length ?? 0) > 0;
-  const businessComplete = (context.data?.tenant.displayName.trim().length ?? 0) > 1;
+  const businessComplete =
+    (context.data?.tenant.displayName.trim().length ?? 0) > 1 &&
+    currentSlug.length >= 3 &&
+    profileConfirmed &&
+    operatingModelConfirmed;
   const ready = useMemo(
     () =>
       isGuidedSetupReady({
@@ -424,7 +440,8 @@ export function GuidedSetupPage() {
               </p>
               <div className="guided-setup-card">
                 <label className="guided-profile-field">Nome do negócio<input value={currentDisplayName} onChange={(event) => setDisplayNameDraft(event.target.value)} placeholder="Ex.: Studio Bella" /></label>
-                <span>Perfil: {identity.data?.identity.businessProfile ?? 'configurando'}</span>
+                <fieldset><legend>Qual é o seu tipo de negócio?</legend><p>Isso nos ajuda a preparar serviços e configurações iniciais para você.</p><select value={currentProfile} onChange={(event) => setProfileDraft(BusinessProfileCodeSchema.parse(event.target.value))}><option value="" disabled>Escolha o tipo de negócio</option>{Object.entries(BusinessProfileLabels).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></fieldset>
+                <fieldset><legend>Como você cobra seus clientes?</legend><div className="guided-choice-cards">{(['SERVICE_PRICING', 'MEMBERSHIP'] as const).map((model) => <button type="button" key={model} className={currentOperatingModel === model ? 'is-selected' : ''} onClick={() => setOperatingModelDraft(model)}><strong>{OperatingModelLabels[model]}</strong><span>{OperatingModelDescriptions[model]}</span></button>)}</div></fieldset>
                 <label className="guided-slug-field">
                   Endereço público
                   <span className="guided-slug-input"><span>agendei.site/</span><input value={currentSlug} onChange={(event) => setSlugDraft(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="seu-negocio" /></span>
@@ -432,7 +449,7 @@ export function GuidedSetupPage() {
                     {currentSlug.length < 3 ? 'Use pelo menos 3 caracteres.' : slugAvailability.isPending ? 'Verificando disponibilidade…' : slugAvailability.data?.available ? '✓ Este endereço está disponível.' : 'Este endereço já está em uso.'}
                   </small>
                 </label>
-                <button className="primary-button guided-save-slug" disabled={currentDisplayName.trim().length < 2 || currentSlug.length < 3 || slugAvailability.data?.available !== true || slugAvailability.isPending || saveStep.isPending} onClick={() => void saveStep.mutateAsync({ step: legacyStepForGuided(current), slug: slugDraft || undefined, displayName: displayNameDraft || undefined })}>
+                <button className="primary-button guided-save-slug" disabled={currentDisplayName.trim().length < 2 || currentSlug.length < 3 || slugAvailability.data?.available !== true || slugAvailability.isPending || saveStep.isPending || !profileConfirmed || !operatingModelConfirmed} onClick={() => void saveStep.mutateAsync({ step: 'BUSINESS_TYPE', slug: slugDraft || undefined, displayName: displayNameDraft || undefined, businessProfile: currentProfile, operatingModel: currentOperatingModel })}>
                   {saveStep.isPending ? 'Salvando…' : 'Salvar perfil'}
                 </button>
                 <button
@@ -837,6 +854,8 @@ export function GuidedSetupPage() {
                   {scheduleComplete ? '✓' : '○'} Horário configurado
                 </p>
                 <hr />
+                <p className="is-complete">Tipo de negócio: {currentProfile === '' ? 'Não definido' : BusinessProfileLabels[currentProfile]}</p>
+                <p className="is-complete">Modelo de cobrança: {OperatingModelLabels[currentOperatingModel]}</p>
                 <p>○ Logo, banner e página pública são recomendados</p>
                 <p>○ WhatsApp, pagamentos e domínio podem ficar para depois</p>
               </div>
@@ -849,7 +868,7 @@ export function GuidedSetupPage() {
           </button>
           <button
             className="primary-button"
-            disabled={current === 'review' && !ready}
+              disabled={(current === 'review' && !ready) || (current === 'business' && (!profileConfirmed || !operatingModelConfirmed || saveStep.isPending))}
             onClick={next}
           >
             {current === 'review' ? 'Começar a usar o Agendei' : 'Continuar'}

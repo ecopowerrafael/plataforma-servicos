@@ -47,6 +47,7 @@ export async function getTenantIdentity(client: PrismaClient, tenantId: bigint) 
       slug: true,
       slugChangedAt: true,
       businessProfile: true,
+      operatingModel: true,
       businessTypeCustom: true,
     },
   });
@@ -155,6 +156,7 @@ export async function updateTenantOnboarding(
           onboardingCompletedAt: true,
           onboardingChecklistHiddenAt: true,
           operatingModel: true,
+          businessProfile: true,
         },
       });
       if (input.displayName !== undefined) {
@@ -187,7 +189,9 @@ export async function updateTenantOnboarding(
     });
     // Conteúdo inicial só depois de conhecer o tipo de negócio; a própria função
     // é idempotente e não toca em tenants que já possuem catálogo.
-    if (input.businessProfile !== undefined)
+    // Defaults técnicos não confirmam o modelo: o conteúdo inicial só nasce
+    // quando as duas escolhas foram enviadas explicitamente no onboarding.
+    if (input.businessProfile !== undefined && input.operatingModel !== undefined)
       await seedStarterContent(
         client,
         tenantId,

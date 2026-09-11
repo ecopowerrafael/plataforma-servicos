@@ -81,6 +81,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
         onboardingCompletedAt: true,
         onboardingChecklistHiddenAt: true,
         operatingModel: true,
+        businessProfile: true,
       },
     });
     return { ...tenant, operatingModel: normalizeOperatingModel(tenant.operatingModel) };

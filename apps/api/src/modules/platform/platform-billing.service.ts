@@ -156,9 +156,13 @@ export class PlatformBillingService {
 
       if (charge.status === 'PAID') return;
 
-      const start = new Date(Math.max(Date.now(), charge.subscription.currentPeriodEndsAt.getTime()));
-      const end = new Date(start);
-      end.setUTCMonth(end.getUTCMonth() + (months[charge.subscription.billingCycle] ?? 1));
+      const now = new Date();
+      // A payment confirming an already active period must not advance it a
+      // second time. Renewal starts at the expired period end exactly once.
+      const shouldAdvance = charge.subscription.currentPeriodEndsAt <= now;
+      const start = shouldAdvance ? new Date(charge.subscription.currentPeriodEndsAt) : null;
+      const end = start === null ? null : new Date(start);
+      if (end !== null) end.setUTCMonth(end.getUTCMonth() + (months[charge.subscription.billingCycle] ?? 1));
 
       // Mark charge as paid
       await tx.platformSubscriptionCharge.update({
@@ -172,8 +176,7 @@ export class PlatformBillingService {
         data: {
           status: 'ACTIVE',
           effectiveKey: 'EFFECTIVE',
-          currentPeriodStartsAt: start,
-          currentPeriodEndsAt: end,
+          ...(start === null || end === null ? {} : { currentPeriodStartsAt: start, currentPeriodEndsAt: end }),
           suspendedAt: null,
         },
       });

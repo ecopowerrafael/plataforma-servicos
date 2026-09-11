@@ -4,7 +4,7 @@ export type PaidAmountConfidence = 'EXACT' | 'LEGACY_MATCHED' | 'AMBIGUOUS';
 
 type Candidate = { publicId: string; amountCents: bigint; paidAt: Date | null };
 
-export async function resolveCurrentCyclePaidAmount(client: PrismaClient, input: { subscriptionId: bigint; periodStartsAt: Date; periodEndsAt: Date; historicalPriceCents: bigint; explicitlyLinkedRecordIds?: string[] }) {
+export async function resolveCurrentCyclePaidAmount(client: PrismaClient, input: { subscriptionId: bigint; periodStartsAt: Date; periodEndsAt: Date; historicalPriceCents: bigint; historicalPeriodStartsAt?: Date; explicitlyLinkedRecordIds?: string[] }) {
   const [gateway, commercial] = await Promise.all([
     client.platformSubscriptionCharge.findMany({
       where: { subscriptionId: input.subscriptionId, status: 'PAID' },
@@ -21,7 +21,12 @@ export async function resolveCurrentCyclePaidAmount(client: PrismaClient, input:
     ...gateway.map((item) => ({ publicId: `gateway:${item.publicId}`, amountCents: item.amountCents, paidAt: item.paidAt })),
     ...commercial.map((item) => ({ publicId: `commercial:${item.publicId}`, amountCents: item.amountCents, paidAt: item.processedAt })),
   ];
-  const candidates = allCandidates.filter((item) => item.amountCents > 0n && item.paidAt !== null);
+  const historicalStart = input.historicalPeriodStartsAt ?? input.periodStartsAt;
+  const candidates = allCandidates.filter((item) => {
+    if (item.amountCents <= 0n || item.paidAt === null) return false;
+    return (item.paidAt >= input.periodStartsAt && item.paidAt <= input.periodEndsAt) ||
+      (item.paidAt >= historicalStart && item.paidAt < input.periodStartsAt);
+  });
   if (candidates.length === 0) return { amountCents: 0n, confidence: 'AMBIGUOUS' as const, records: [] as string[] };
   if (candidates.length > 1) return { amountCents: 0n, confidence: 'AMBIGUOUS' as const, records: candidates.map((item) => item.publicId) };
   const candidate = candidates[0]!;

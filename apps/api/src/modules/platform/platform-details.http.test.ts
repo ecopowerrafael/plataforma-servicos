@@ -154,4 +154,31 @@ describe('platform detail endpoints', () => {
       expect.objectContaining({ skip: 0, take: 100, orderBy: { createdAt: 'desc' } }),
     );
   });
+
+  it.each(['TRIAL_EXPIRED_PAST_DUE', 'GRACE_EXPIRED_SUSPENDED', 'PAYMENT_CONFIRMED'])(
+    'accepts legacy history action %s in subscription detail',
+    async (action) => {
+      const { app, client } = await fixture();
+      client.subscriptionHistory.findMany.mockResolvedValue([
+        {
+          publicId: '44444444-4444-4444-8444-444444444444',
+          action,
+          previousStatus: 'ACTIVE',
+          newStatus: 'ACTIVE',
+          reason: null,
+          performedByUser: null,
+          createdAt,
+        },
+      ]);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/platform/subscriptions/${subscriptionPublicId}?page=1&limit=100`,
+        headers: { cookie: 'ps_session=test' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().history[0].action).toBe(action);
+    },
+  );
 });

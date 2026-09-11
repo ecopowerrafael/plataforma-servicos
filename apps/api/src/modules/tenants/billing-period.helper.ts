@@ -42,3 +42,15 @@ export function calculateRenewalPeriod(
 
   return { periodStartsAt, periodEndsAt };
 }
+
+export function isBillingPeriodCompatible(
+  periodStartsAt: Date,
+  periodEndsAt: Date,
+  billingCycle: string,
+  now = new Date(),
+): boolean {
+  if (periodEndsAt.getTime() <= periodStartsAt.getTime()) return false;
+  if (periodStartsAt.getTime() > now.getTime()) return false;
+  if (billingCycle === 'CUSTOM') return true;
+  return calculateNextPeriodEnd(periodStartsAt, billingCycle).getTime() === periodEndsAt.getTime();
+}

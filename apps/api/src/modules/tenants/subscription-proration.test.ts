@@ -26,4 +26,16 @@ describe('subscription proration', () => {
     expect(calculateUnusedCreditCents({ paidAmountCents: 10000n, currentPeriodStartsAt: start, currentPeriodEndsAt: end, now: new Date('2026-10-02T00:00:00.000Z') })).toBe(0n);
     expect(calculateAmountDueCents(100n, 200n)).toBe(0n);
   });
+
+  it('clamps a timestamp before the period to the full payment', () => {
+    expect(calculateUnusedCreditCents({ paidAmountCents: 99000n, currentPeriodStartsAt: new Date('2026-09-01T00:00:00Z'), currentPeriodEndsAt: new Date('2026-10-01T00:00:00Z'), now: new Date('2026-08-01T00:00:00Z') })).toBe(99000n);
+  });
+
+  it('rejects an invalid period instead of calculating unsafe credit', () => {
+    expect(() => calculateUnusedCreditCents({ paidAmountCents: 99000n, currentPeriodStartsAt: new Date('2026-10-01T00:00:00Z'), currentPeriodEndsAt: new Date('2026-09-01T00:00:00Z'), now: new Date('2026-09-15T00:00:00Z') })).toThrow('CURRENT_SUBSCRIPTION_PERIOD_INVALID');
+  });
+
+  it('never returns more credit than was paid', () => {
+    expect(calculateUnusedCreditCents({ paidAmountCents: 99000n, currentPeriodStartsAt: new Date('2027-09-10T00:00:00Z'), currentPeriodEndsAt: new Date('2028-09-10T00:00:00Z'), now: new Date('2026-09-10T00:00:00Z') })).toBe(99000n);
+  });
 });

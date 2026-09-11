@@ -43,7 +43,7 @@ describe('current cycle paid amount resolver', () => {
   it('matches a legacy payment even when the period start was recreated later', async () => {
     const result = await resolveCurrentCyclePaidAmount(clientWith([
       { publicId: 'legacy-charge', amountCents: 99000n, paidAt: new Date('2026-08-18T12:00:00.000Z') },
-    ]), { subscriptionId: 10n, periodStartsAt, periodEndsAt, historicalPriceCents: 99000n });
+    ]), { subscriptionId: 10n, periodStartsAt, periodEndsAt, historicalPeriodStartsAt: new Date('2026-08-10T00:00:00.000Z'), historicalPriceCents: 99000n });
 
     expect(result.confidence).toBe('LEGACY_MATCHED');
     expect(result.amountCents).toBe(99000n);

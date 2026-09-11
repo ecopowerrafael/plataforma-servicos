@@ -12,6 +12,7 @@ import { classifySubscriptionChange } from './subscription-change.classifier.js'
 import { resolveCurrentCyclePaidAmount } from './subscription-payment-resolver.js';
 import { SubscriptionPlanChangeService } from './subscription-plan-change.service.js';
 import { calculateAmountDueCents, calculateUnusedCreditCents } from './subscription-proration.js';
+import { isBillingPeriodCompatible } from './billing-period.helper.js';
 
 export class TenantSubscriptionService {
   private readonly labels: Record<string,string> = { 'whatsapp.enabled':'WhatsApp','commissions.enabled':'Gestão de comissões','automations.enabled':'Automações','loyalty.enabled':'Fidelidade','products.enabled':'Produtos','stock.enabled':'Estoque','custom_domain.enabled':'Domínio próprio','branding.customization.enabled':'Personalização da marca','professionals.max':'Profissionais','units.max':'Unidades','members.max':'Membros da equipe','services.max':'Serviços','monthly_appointments.max':'Agendamentos por mês' };
@@ -106,6 +107,7 @@ export class TenantSubscriptionService {
   public async previewChange(tenantId: bigint, planPublicId: string, billingCycle?: 'MONTHLY'|'QUARTERLY'|'SEMIANNUAL'|'ANNUAL') {
     const current = await this.client.tenantSubscription.findFirst({ where: { tenantId, effectiveKey: 'EFFECTIVE' }, include: { plan: { include: { limits: true } } } });
     if (!current) throw new AppError({ code:'TENANT_SUBSCRIPTION_NOT_FOUND',message:'Nenhuma assinatura foi encontrada para este estabelecimento.',statusCode:404 });
+    if (!isBillingPeriodCompatible(current.currentPeriodStartsAt, current.currentPeriodEndsAt, current.billingCycle)) throw new AppError({ code: 'CURRENT_SUBSCRIPTION_PERIOD_INVALID', message: 'O período atual da assinatura é incompatível com sua periodicidade.', statusCode: 409 });
     const target = await this.client.commercialPlan.findUnique({ where:{publicId:planPublicId}, include:{limits:true,billingOptions:true} });
     if (!target?.isPublic || target.status !== 'ACTIVE') throw new AppError({code:'PLAN_UNAVAILABLE',message:'O plano escolhido não está disponível.',statusCode:409});
     const cycle = billingCycle ?? current.billingCycle; const option=target.billingOptions.find(x=>x.active&&x.billingCycle===cycle); if(!option) throw new AppError({code:'BILLING_OPTION_UNAVAILABLE',message:'A periodicidade escolhida não está disponível.',statusCode:409});
@@ -131,7 +133,7 @@ export class TenantSubscriptionService {
       throw new AppError({ code: 'SUBSCRIPTION_CHANGE_ALREADY_PENDING', message: 'Já existe uma alteração de assinatura pendente.', statusCode: 409 });
     }
     const now = new Date();
-    const paid = await resolveCurrentCyclePaidAmount(this.client, { subscriptionId: current.id, periodStartsAt: current.currentPeriodStartsAt, periodEndsAt: current.currentPeriodEndsAt, historicalPriceCents: current.priceCents });
+    const paid = await resolveCurrentCyclePaidAmount(this.client, { subscriptionId: current.id, periodStartsAt: current.currentPeriodStartsAt, periodEndsAt: current.currentPeriodEndsAt, historicalPeriodStartsAt: current.startsAt, historicalPriceCents: current.priceCents });
     const sourcePaid = paid.amountCents;
     const credit = calculateUnusedCreditCents({ paidAmountCents: sourcePaid, currentPeriodStartsAt: current.currentPeriodStartsAt, currentPeriodEndsAt: current.currentPeriodEndsAt, now });
     const amountDue = calculateAmountDueCents(option.priceCents, credit);

@@ -146,7 +146,7 @@ export function ComboForm({
   return (
     <form
       id="combo-edit-form"
-      className="platform-form combo-form combo-editor-layout"
+      className="w-full min-h-screen bg-slate-50/50 pb-28 pt-4"
       onSubmit={(event) => {
         event.preventDefault();
         void handleSubmit(async (value) => {
@@ -157,8 +157,11 @@ export function ComboForm({
         })();
       }}
     >
-      <div className="combo-editor-main">
-      <fieldset className="combo-form-section combo-card">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="mb-6 pb-4 border-b border-slate-200"><nav className="text-xs font-medium text-slate-500 mb-1">Catálogo &gt; Combos &gt; <span className="text-slate-900 font-semibold">Editar</span></nav><h1 className="text-2xl font-bold text-slate-900 tracking-tight">{form.watch('name') || 'Editar Combo'}</h1></div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="lg:col-span-7 space-y-6">
+      <fieldset className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
         <legend><IconTag aria-hidden="true" size={18} /> Informações gerais do combo</legend>
         <div className="combo-form-grid">
           <label className="combo-field--wide">
@@ -211,7 +214,7 @@ export function ComboForm({
         </div>
         {imageSection}
       </fieldset>
-      <fieldset className="combo-form-section combo-card">
+      <fieldset className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
         <legend><IconStack2 aria-hidden="true" size={18} /> {'Serviços do combo & economia'}</legend>
         <div className="combo-picker-toolbar">
           <label>
@@ -294,7 +297,7 @@ export function ComboForm({
           </dl>
         ) : null}
       </fieldset>
-      <fieldset className="combo-form-section combo-card">
+      <fieldset className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
         <legend><IconUsers aria-hidden="true" size={18} /> Profissionais aptos</legend>
         <label className="combo-toggle"><input type="checkbox" checked={editorState.autoAssignByServices} onChange={(event) => setAutoAssign(event.target.checked)} /> <span>Vincular automaticamente profissionais capacitados para todos os serviços do combo.</span></label>
         {professionals && professionals.length > 0 ? <div className="professional-list">
@@ -305,8 +308,9 @@ export function ComboForm({
         </div> : <p className="muted">Os profissionais aptos são carregados ao editar um combo salvo.</p>}
       </fieldset>
       </div>
-      <aside className="combo-editor-sidebar" aria-label="Resumo do combo">
-        <section className="combo-summary-card">
+      </div>
+      <aside className="lg:col-span-5 space-y-6 lg:sticky lg:top-6" aria-label="Resumo do combo">
+        <section className="bg-slate-900 text-white rounded-xl p-6 shadow-lg border border-slate-800 space-y-5">
           <p className="combo-summary-eyebrow">Resumo financeiro</p>
           <div className="combo-summary-price">{money(String(comboPrice))}</div>
           <div className="combo-summary-metrics">
@@ -317,7 +321,7 @@ export function ComboForm({
             Economia de {money(String(savings))} · {savingsPercentage.toFixed(1)}% OFF
           </div>
         </section>
-        <section className="combo-preview-card">
+        <section className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
           <p className="combo-preview-title">Visualização do Cliente <span><i aria-hidden="true" /> Live Preview</span></p>
           <div className="combo-preview-image" aria-hidden="true">
             {previewImage ?? <span>Imagem do combo</span>}
@@ -329,7 +333,6 @@ export function ComboForm({
           </div>
           <strong>{money(String(comboPrice))}</strong>
         </section>
-      </aside>
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">
           Revise os campos informados.
@@ -340,6 +343,9 @@ export function ComboForm({
           {error}
         </p>
       )}
+      </aside>
+      </div></div>
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-slate-200 py-3.5 px-6 shadow-2xl"><div className="max-w-7xl mx-auto flex justify-end"><button type="submit" disabled={busy} className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg shadow-sm">{busy ? 'Salvando…' : 'Salvar Alterações'}</button></div></div>
     </form>
   );
 }

@@ -226,6 +226,19 @@ describe('WApiProspectingMessageSender', () => {
       expect(result.provider).toBe('WAPI');
       expect(result.externalMessageId).toBe('ext-msg-123');
     });
+
+    it('não considera HTTP 2xx sem messageId como envio aceito', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(JSON.stringify({ message: 'accepted' }), { status: 200 }),
+      );
+
+      const result = await sender.sendText({ phone: '5511999999999', body: 'Teste' });
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('DELIVERY_UNCERTAIN');
+      expect(result.externalMessageId).toBeNull();
+      expect(result.retryable).toBe(false);
+    });
   });
 
   describe('Classificação de Erros', () => {

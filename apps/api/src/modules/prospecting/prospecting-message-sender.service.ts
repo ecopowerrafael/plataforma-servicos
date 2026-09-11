@@ -10,6 +10,39 @@ function isRetryable(statusCode: number | null): boolean {
   return statusCode === 429 || (statusCode >= 500 && statusCode <= 599);
 }
 
+function requireProviderAcceptance(result: {
+  ok: boolean;
+  externalMessageId: string | null;
+  httpStatus: number | null;
+  externalCode: string | null;
+  message: string;
+}): ProspectingMessageSendResult {
+  if (!result.ok) {
+    return {
+      success: false,
+      provider: 'WAPI',
+      externalMessageId: null,
+      errorCode: result.externalCode ?? String(result.httpStatus ?? 'NETWORK'),
+      errorMessage: result.message,
+      retryable: isRetryable(result.httpStatus),
+    };
+  }
+
+  // W-API can answer 2xx without proving that it accepted the message.
+  if (!result.externalMessageId) {
+    return {
+      success: false,
+      provider: 'WAPI',
+      externalMessageId: null,
+      errorCode: 'DELIVERY_UNCERTAIN',
+      errorMessage: 'O provedor respondeu sem identificador da mensagem.',
+      retryable: false,
+    };
+  }
+
+  return { success: true, provider: 'WAPI', externalMessageId: result.externalMessageId };
+}
+
 export class WApiProspectingMessageSender implements ProspectingMessageSender {
   private readonly wapiClient: WapiSendTextClient;
   private readonly wapiButtonsClient: WapiSendButtonsClient;
@@ -181,18 +214,7 @@ export class WApiProspectingMessageSender implements ProspectingMessageSender {
       buttons: input.buttons,
     } as any);
 
-    return {
-      success: result.ok,
-      provider: 'WAPI',
-      externalMessageId: result.ok ? result.externalMessageId : null,
-      ...(result.ok
-        ? {}
-        : {
-            errorCode: result.externalCode ?? String(result.httpStatus ?? 'NETWORK'),
-            errorMessage: result.message,
-            retryable: isRetryable(result.httpStatus),
-          }),
-    };
+    return requireProviderAcceptance(result);
   }
 
   private async sendViaWApi(
@@ -208,17 +230,6 @@ export class WApiProspectingMessageSender implements ProspectingMessageSender {
       message,
     });
 
-    return {
-      success: result.ok,
-      provider: 'WAPI',
-      externalMessageId: result.ok ? result.externalMessageId : null,
-      ...(result.ok
-        ? {}
-        : {
-            errorCode: result.externalCode ?? String(result.httpStatus ?? 'NETWORK'),
-            errorMessage: result.message,
-            retryable: isRetryable(result.httpStatus),
-          }),
-    };
+    return requireProviderAcceptance(result);
   }
 }

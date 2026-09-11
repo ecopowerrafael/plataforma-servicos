@@ -398,6 +398,12 @@ export class IntegrationService {
 
     if (received.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
 
+    // Connectivity callbacks are not message events and must never enter
+    // prospecting/tenant message processing or mutate message status.
+    if (received.providerEvent === 'webhookConnected') {
+      return { accepted: true, connectionEvent: true } as const;
+    }
+
     // ROTEAMENTO PROSPECTING: checar instância de Prospecting PRIMEIRO
     if (this.prospectingInbound) {
       // Verificar se instância pertence à Prospecção
@@ -405,7 +411,7 @@ export class IntegrationService {
       const isProspectingInstance = prosConfig && prosConfig.instanceId === received.instanceId;
 
       console.log('[WebhookRoute]', {
-        toProspecting: true,
+        toProspecting: Boolean(isProspectingInstance),
         normalizedEventType: received.eventType,
         instanceId: received.instanceId,
         isProspectingInstance,

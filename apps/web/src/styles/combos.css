@@ -270,3 +270,16 @@
     padding: 16px;
   }
 }
+
+/* Final page-level overrides: keep the editor as a page flow, not a nested card. */
+.combo-page-container { width: 100%; max-width: none; margin: 0; }
+.combo-page-container .combo-editor-panel { width: 100%; max-width: none; margin: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.combo-page-container .combo-editor-panel > .combo-form { width: 100%; max-width: none; margin: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.combo-page-container .combo-service-card { background: #fff; color: #0f172a; border: 1px solid #e2e8f0; }
+.combo-page-container .combo-service-card:hover { background: #f8fafc; color: #0f172a; border-color: #cbd5e1; }
+.combo-page-container .combo-service-card.is-selected { background: #eff6ff; color: #0f172a; border-color: #2563eb; }
+.combo-page-container .combo-price-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: 768px) {
+  .combo-page-container .combo-price-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

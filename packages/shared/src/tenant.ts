@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { BusinessProfileCodeSchema } from './business-profile.js';
-import { normalizeOperatingModel, OperatingModelSchema } from './operating-model.js';
+import { OperatingModelSchema } from './operating-model.js';
 import { GoogleMapsUrlSchema, LatitudeSchema, LongitudeSchema } from './location.js';
 
 export const RESERVED_TENANT_SLUGS = [
@@ -193,7 +193,7 @@ export const TenantPublicSchema = z.object({
   currency: SupportedCurrencySchema,
   businessProfile: BusinessProfileCodeSchema.optional(),
   /* Modelo operacional; ausente em respostas antigas ainda em cache. */
-  operatingModel: z.preprocess((value) => normalizeOperatingModel(value), OperatingModelSchema).optional(),
+  operatingModel: OperatingModelSchema.optional(),
 });
 
 export const BusinessUnitSchema = z.object({

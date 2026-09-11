@@ -12,9 +12,10 @@ describe('operating model compatibility', () => {
   it('normalizes a legacy Tenant response without weakening invalid values', () => {
     const tenant = TenantPublicSchema.parse({
       publicId: '00000000-0000-4000-8000-000000000001', slug: 'legacy', displayName: 'Legacy',
-      status: 'ACTIVE', timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL', operatingModel: null,
+      status: 'ACTIVE', timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL', operatingModel: normalizeOperatingModel(null),
     });
     expect(tenant.operatingModel).toBe('SERVICE_PRICING');
+    expect(() => TenantPublicSchema.encode({ ...tenant, operatingModel: 'SERVICE_PRICING' })).not.toThrow();
     expect(() => TenantPublicSchema.parse({ ...tenant, operatingModel: 'SERVICE' })).toThrow();
   });
 });

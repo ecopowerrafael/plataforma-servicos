@@ -7,6 +7,7 @@ import {
   TenantPublicSchema,
   TenantSettingsSchema,
   UserPublicSchema,
+  normalizeOperatingModel,
   type AvailableTenant,
   type CreateTenantWithOwnerResponse,
   type InvitationPublic,
@@ -209,7 +210,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
           });
 
           return CreateTenantWithOwnerResponseSchema.parse({
-            tenant: TenantPublicSchema.parse(tenant),
+            tenant: TenantPublicSchema.parse({ ...tenant, operatingModel: normalizeOperatingModel(tenant.operatingModel) }),
             settings: TenantSettingsSchema.parse({
               ...settings,
               timeFormat: timeFormat(settings.timeFormat),
@@ -389,7 +390,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
       include: { tenant: true, role: { select: { code: true } } },
     });
     return memberships.map((membership) => ({
-      tenant: TenantPublicSchema.parse(membership.tenant),
+      tenant: TenantPublicSchema.parse({ ...membership.tenant, operatingModel: normalizeOperatingModel(membership.tenant.operatingModel) }),
       membership: { publicId: membership.publicId, roleCode: membership.role.code },
     }));
   }
@@ -409,7 +410,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     if (membership === null) return null;
     return {
       id: membership.tenant.id,
-      ...TenantPublicSchema.parse(membership.tenant),
+      ...TenantPublicSchema.parse({ ...membership.tenant, operatingModel: normalizeOperatingModel(membership.tenant.operatingModel) }),
       membership: {
         id: membership.id,
         publicId: membership.publicId,

@@ -919,7 +919,17 @@ export function HomePage() {
         <p>Carregando sessão…</p>
       </main>
     );
-  if (me.data === undefined) return null;
+  if (me.data === undefined)
+    return (
+      <main className="app-shell">
+        <section className="app-empty-state" role="alert">
+          <h1>Não foi possível carregar sua conta.</h1>
+          <button className="primary-button" type="button" onClick={() => void me.refetch()}>
+            Tentar novamente
+          </button>
+        </section>
+      </main>
+    );
   const isRoute = (...paths: string[]) => paths.includes(location.pathname);
   const previousStep =
     onboarding.data === undefined ? null : previousOnboardingStep(onboarding.data.onboardingStep);

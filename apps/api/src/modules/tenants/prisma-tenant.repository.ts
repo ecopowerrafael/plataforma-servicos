@@ -8,6 +8,7 @@ import {
   type BusinessUnitInput,
   type TenantSettings,
   type TimeFormat,
+  normalizeOperatingModel,
 } from '@plataforma/shared';
 
 import { PlanEntitlementService } from './plan-entitlement.service.js';
@@ -169,6 +170,7 @@ export class PrismaTenantRepository implements TenantRepository {
             timezone: tenant.timezone,
             locale: tenant.locale,
             currency: tenant.currency,
+            operatingModel: normalizeOperatingModel((tenant as { operatingModel?: unknown }).operatingModel),
           });
           const settings = TenantSettingsSchema.parse({
             ...settingsRecord,
@@ -212,7 +214,7 @@ export class PrismaTenantRepository implements TenantRepository {
     }
 
     const { id, ...publicTenant } = tenant;
-    return { id, ...TenantPublicSchema.parse(publicTenant) };
+    return { id, ...TenantPublicSchema.parse({ ...publicTenant, operatingModel: normalizeOperatingModel((publicTenant as { operatingModel?: unknown }).operatingModel) }) };
   }
 
   public async listBusinessUnits(tenantId: bigint): Promise<BusinessUnit[]> {

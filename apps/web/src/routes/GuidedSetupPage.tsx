@@ -20,6 +20,10 @@ import {
   UpdateProfessionalRequestSchema,
 } from '@plataforma/shared';
 import { BrandPreview } from '../components/branding/BrandPreview.js';
+import { BrandAssetDropzone } from '../components/branding/BrandAssetDropzone.js';
+import { BrandColorPicker } from '../components/branding/BrandColorPicker.js';
+import { BrandThemePicker } from '../components/branding/BrandThemePicker.js';
+import { deriveBrandPalette, themeDefaultPalette, type BrandThemeCode } from '../components/branding/brand-studio.js';
 import { httpClient } from '../lib/http.js';
 import { environment } from '../config/environment.js';
 import { readSelectedTenant } from '../lib/tenant-selection.js';
@@ -58,6 +62,8 @@ export function GuidedSetupPage() {
   const [step, setStep] = useState<GuidedSetupStep | null>(null);
   const [slugDraft, setSlugDraft] = useState('');
   const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [themeDraft, setThemeDraft] = useState<BrandThemeCode | null>(null);
+  const [colorDraft, setColorDraft] = useState<string | null>(null);
   const [editingProfessional, setEditingProfessional] = useState<string | null>(null);
   const [professionalDraft, setProfessionalDraft] = useState<Record<string, { name: string; publicName: string; bio: string }>>({});
   const [professionalPhotoPreview, setProfessionalPhotoPreview] = useState<Record<string, string>>({});
@@ -252,6 +258,14 @@ export function GuidedSetupPage() {
       await branding.refetch();
     },
   });
+  const savePublicTheme = useMutation({
+    mutationFn: (theme: string) => httpClient.request('/tenant/public-site', { method: 'PATCH', body: { theme }, schema: z.unknown(), tenantPublicId }),
+    onSuccess: async () => { await branding.refetch(); },
+  });
+  const saveBranding = useMutation({
+    mutationFn: (body: Record<string, string>) => httpClient.request('/tenant/branding', { method: 'PATCH', body, schema: z.unknown(), tenantPublicId }),
+    onSuccess: async () => { await branding.refetch(); },
+  });
   const scheduleMutation = useMutation({
     mutationFn: (
       periods: Array<{ weekday: number; startsAt: string; endsAt: string; active: boolean }>,
@@ -269,6 +283,8 @@ export function GuidedSetupPage() {
   const current = step ?? guidedStepForLegacy(onboarding.data?.onboardingStep ?? 'WELCOME');
   const currentSlug = slugDraft || identity.data?.identity.slug || branding.data?.slug || '';
   const currentDisplayName = displayNameDraft || context.data?.tenant.displayName || 'Seu negócio';
+  const currentTheme: BrandThemeCode = themeDraft ?? branding.data?.site?.theme ?? 'CLASSIC';
+  const currentColor = colorDraft ?? branding.data?.branding?.primaryColor ?? '#2563eb';
   const index = GUIDED_SETUP_STEPS.indexOf(current);
   const progress = checklist.data?.items.filter((item) => item.complete).length ?? 0;
   const labels: Record<GuidedSetupStep, string> = {
@@ -759,42 +775,19 @@ export function GuidedSetupPage() {
           )}
           {current === 'page' && (
             <>
-              <h2>Veja como sua página já está ficando.</h2>
-              <p>Identidade, tema e mídia podem ser refinados agora ou depois.</p>
-              <div className="guided-page-grid">
-                <div>
-                  <div className="guided-setup-card">
-                    <strong>{branding.data?.site?.theme ?? 'Tema padrão'}</strong>
-                    <span>{branding.data?.assets?.length ?? 0} mídia(s) configurada(s)</span>
-                  </div>
-                  <div className="guided-setup-card guided-media-actions">
-                    <strong>Adicione um destaque à sua página</strong>
-                    <span>Você pode usar uma imagem existente ou fazer isso depois.</span>
-                    <label className="guided-upload-label">
-                      {mediaMutation.isPending ? 'Enviando…' : 'Enviar logo ou banner'}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif"
-                        hidden
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file)
-                            void mediaMutation.mutateAsync({ kind: 'BANNER_DESKTOP', file });
-                          event.currentTarget.value = '';
-                        }}
-                      />
-                    </label>
-                    {mediaMutation.error !== null && (
-                      <small className="form-error">Não foi possível enviar esta imagem.</small>
-                    )}
-                  </div>
-                  <button
-                    className="secondary-button"
-                    onClick={() => void navigate('/app/empresa/pagina-publica')}
-                  >
-                    Personalizar página
-                  </button>
-                </div>
+              <h2>Personalize sua página pública</h2>
+              <p>Configure a identidade visual completa do seu negócio sem sair do início guiado.</p>
+              <div className="guided-branding-grid">
+                <BrandAssetDropzone title="Logo" description="Aparece no cabeçalho da sua página." previewUrl={branding.data?.assets.find((asset) => asset.kind === 'LOGO')?.url ? `${environment.apiUrl}${branding.data.assets.find((asset) => asset.kind === 'LOGO')?.url}` : undefined} busy={mediaMutation.isPending} onUpload={(file) => void mediaMutation.mutateAsync({ kind: 'LOGO', file })} />
+                <BrandAssetDropzone title="Banner" description="Imagem de destaque da página." previewUrl={branding.data?.assets.find((asset) => asset.kind === 'BANNER_DESKTOP')?.url ? `${environment.apiUrl}${branding.data.assets.find((asset) => asset.kind === 'BANNER_DESKTOP')?.url}` : undefined} busy={mediaMutation.isPending} onUpload={(file) => void mediaMutation.mutateAsync({ kind: 'BANNER_DESKTOP', file })} />
+                <BrandAssetDropzone title="Splash" description="Tela de abertura do aplicativo." previewUrl={branding.data?.assets.find((asset) => asset.kind === 'SPLASH')?.url ? `${environment.apiUrl}${branding.data.assets.find((asset) => asset.kind === 'SPLASH')?.url}` : undefined} busy={mediaMutation.isPending} onUpload={(file) => void mediaMutation.mutateAsync({ kind: 'SPLASH', file })} />
+                <BrandAssetDropzone title="Ícone do aplicativo" description="Imagem quadrada para o app." square previewUrl={branding.data?.assets.find((asset) => asset.kind === 'APP_ICON')?.url ? `${environment.apiUrl}${branding.data.assets.find((asset) => asset.kind === 'APP_ICON')?.url}` : undefined} busy={mediaMutation.isPending} onUpload={(file) => void mediaMutation.mutateAsync({ kind: 'APP_ICON', file })} />
+              </div>
+              <div className="guided-setup-card guided-brand-controls">
+                <strong>Tema e cores</strong>
+                <BrandThemePicker value={currentTheme} onChange={(value) => { setThemeDraft(value); setColorDraft(themeDefaultPalette(value, currentColor).primaryColor); }} />
+                <BrandColorPicker value={currentColor} onChange={setColorDraft} />
+                <button className="primary-button" disabled={savePublicTheme.isPending || saveBranding.isPending} onClick={() => { void savePublicTheme.mutateAsync(currentTheme).then(() => saveBranding.mutate(deriveBrandPalette(currentColor, currentTheme))); }}>{savePublicTheme.isPending || saveBranding.isPending ? 'Salvando…' : 'Salvar identidade visual'}</button>
               </div>
             </>
           )}

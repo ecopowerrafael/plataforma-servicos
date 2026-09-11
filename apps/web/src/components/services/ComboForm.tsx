@@ -4,7 +4,7 @@ import {
   type ComboPublicSchema,
   type ServicePublicSchema,
 } from '@plataforma/shared';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 
 import type { z } from 'zod';
@@ -13,6 +13,12 @@ type ComboInput = z.input<typeof CreateComboRequestSchema>;
 export type ComboSubmission = z.output<typeof CreateComboRequestSchema>;
 type Combo = z.infer<typeof ComboPublicSchema>;
 type Service = z.infer<typeof ServicePublicSchema>;
+
+interface ComboEditorState {
+  serviceIds: string[];
+  professionalIds: string[];
+  autoAssignByServices: boolean;
+}
 
 function defaults(combo?: Combo): ComboInput {
   if (combo === undefined) {
@@ -55,6 +61,8 @@ export function ComboForm({
   combo?: Combo;
   services: Service[];
   onSave: (value: ComboSubmission) => Promise<void>;
+  professionals?: { publicId: string; publicName: string }[];
+  imageSection?: ReactNode;
 }) {
   const form = useForm<ComboInput, unknown, ComboSubmission>({
     defaultValues: defaults(combo),
@@ -72,6 +80,9 @@ export function ComboForm({
   const selectedItems = useWatch({ control, name: 'items' }) ?? [];
   const priceCents = useWatch({ control, name: 'priceCents' });
   const [search, setSearch] = useState('');
+  const [autoAssign, setAutoAssign] = useState(true);
+  const [assigned, setAssigned] = useState<Set<string>>(new Set());
+  const assignmentKey = combo === undefined ? null : `combo-assignment:${combo.publicId}`;
   const selectedIds = useMemo(
     () => new Set(selectedItems.map((item) => item.servicePublicId)),
     [selectedItems],
@@ -94,7 +105,20 @@ export function ComboForm({
 
   useEffect(() => {
     reset(defaults(combo));
-  }, [combo, reset]);
+    if (assignmentKey === null) {
+      setAutoAssign(true);
+      setAssigned(new Set());
+      return;
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(assignmentKey) ?? 'null') as { autoAssignByServices?: boolean; professionalIds?: string[] } | null;
+      setAutoAssign(saved?.autoAssignByServices ?? true);
+      setAssigned(new Set(saved?.professionalIds ?? []));
+    } catch {
+      setAutoAssign(true);
+      setAssigned(new Set());
+    }
+  }, [assignmentKey, combo, reset]);
 
   const toggle = (service: Service) => {
     const index = selectedItems.findIndex((item) => item.servicePublicId === service.publicId);
@@ -104,24 +128,37 @@ export function ComboForm({
 
   const comboPrice = Number(priceCents ?? 0);
   const savings = Math.max(0, regularPrice - comboPrice);
+  const savingsPercentage = regularPrice > 0 ? (savings / regularPrice) * 100 : 0;
+  const totalDuration = selectedServices.reduce((total, service) => total + service.durationMinutes, 0);
+  const editorState: ComboEditorState = {
+    serviceIds: selectedItems.map((item) => item.servicePublicId),
+    professionalIds: autoAssign ? (professionals ?? []).map((professional) => professional.publicId) : [...assigned],
+    autoAssignByServices: autoAssign,
+  };
 
   return (
     <form
+      id={combo === undefined ? undefined : 'combo-edit-form'}
       className="platform-form combo-form"
       onSubmit={(event) => {
         event.preventDefault();
-        void handleSubmit(onSave)();
+        void handleSubmit(async (value) => {
+          if (assignmentKey !== null) {
+            localStorage.setItem(assignmentKey, JSON.stringify(editorState));
+          }
+          await onSave(value);
+        })();
       }}
     >
-      <fieldset className="combo-form-section">
-        <legend>Dados do combo</legend>
+      <fieldset className="combo-form-section combo-card">
+        <legend>Informações gerais do combo</legend>
         <div className="combo-form-grid">
           <label className="combo-field--wide">
-            Nome
+            Nome do Combo
             <input {...register('name')} />
           </label>
           <label>
-            {'Preço do combo'}
+            {'Preço Final (R$)'}
             <input
               min="0"
               step="0.01"
@@ -164,9 +201,10 @@ export function ComboForm({
             <small>Usado quando o combo tiver imagem publicada.</small>
           </label>
         </div>
+        {imageSection}
       </fieldset>
-      <fieldset className="combo-form-section">
-        <legend>{'Serviços do combo'}</legend>
+      <fieldset className="combo-form-section combo-card">
+        <legend>{'Serviços do combo & economia'}</legend>
         <div className="combo-picker-toolbar">
           <label>
             {'Buscar serviço'}
@@ -184,6 +222,18 @@ export function ComboForm({
             {selectedItems.length < 2 ? ' — mínimo de dois' : ''}
           </span>
         </div>
+        {selectedItems.length > 0 && <div className="combo-selected-list" aria-label="Serviços selecionados">
+          {selectedItems.map((item, index) => {
+            const service = services.find((candidate) => candidate.publicId === item.servicePublicId);
+            if (!service) return null;
+            return <div className="combo-selected-item" key={item.servicePublicId}>
+              <span className="drag-handle" aria-hidden="true">⋮⋮</span>
+              <span><strong>{service.name}</strong><small>{service.durationMinutes} min · {money(service.priceCents)}</small></span>
+              <button type="button" disabled={index === 0} onClick={() => { const next = [...selectedItems]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; setValue('items', next, { shouldDirty: true }); }}>↑</button>
+              <button type="button" disabled={index === selectedItems.length - 1} onClick={() => { const next = [...selectedItems]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; setValue('items', next, { shouldDirty: true }); }}>↓</button>
+            </div>;
+          })}
+        </div>}
         <div className="combo-service-grid">
           {available.map((service) => {
             const selected = selectedIds.has(service.publicId);
@@ -220,15 +270,29 @@ export function ComboForm({
               <dd>{money(String(regularPrice))}</dd>
             </div>
             <div>
-              <dt>Valor do combo</dt>
+              <dt>Preço Combo</dt>
               <dd>{money(String(comboPrice))}</dd>
             </div>
             <div>
               <dt>Economia</dt>
-              <dd>{money(String(savings))}</dd>
+              <dd>{money(String(savings))} <small>({savingsPercentage.toFixed(1)}%)</small></dd>
+            </div>
+            <div>
+              <dt>Duração total</dt>
+              <dd>{totalDuration} min</dd>
             </div>
           </dl>
         ) : null}
+      </fieldset>
+      <fieldset className="combo-form-section combo-card">
+        <legend>Profissionais aptos</legend>
+        <label className="combo-toggle"><input type="checkbox" checked={editorState.autoAssignByServices} onChange={(event) => setAutoAssign(event.target.checked)} /> <span>Vincular automaticamente profissionais capacitados para todos os serviços do combo.</span></label>
+        {professionals && professionals.length > 0 ? <div className="professional-list">
+          {professionals.map((professional) => <label className="professional-row" key={professional.publicId}>
+            <span className="professional-avatar">{professional.publicName.charAt(0).toUpperCase()}</span><span>{professional.publicName}<small>Capacitado para o combo</small></span>
+            <input type="checkbox" checked={autoAssign || assigned.has(professional.publicId)} disabled={autoAssign} onChange={(event) => setAssigned((current) => { const next = new Set(current); if (event.target.checked) next.add(professional.publicId); else next.delete(professional.publicId); return next; })} />
+          </label>)}
+        </div> : <p className="muted">Os profissionais aptos são carregados ao editar um combo salvo.</p>}
       </fieldset>
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">

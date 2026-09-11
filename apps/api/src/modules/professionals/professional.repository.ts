@@ -38,6 +38,7 @@ export interface ProfessionalRepository {
   updateUserPassword(userPublicId: string, passwordHash: string): Promise<{ id: bigint }>;
   findUserIdByPublicId(userPublicId: string): Promise<{ id: bigint } | null>;
   updateUserEmail(userPublicId: string, email: string): Promise<{ id: bigint }>;
+  createAccess(tenantId: bigint, professionalPublicId: string, email: string, passwordHash: string, roleId: bigint): Promise<ProfessionalRecord>;
   autoLinkUserByEmail(tenantId: bigint, email: string): Promise<bigint | null>;
   audit(data: Prisma.AuditLogUncheckedCreateInput): Promise<void>;
 }
@@ -129,6 +130,19 @@ export class PrismaProfessionalRepository implements ProfessionalRepository {
       where: { publicId: userPublicId },
       data: { email, normalizedEmail },
       select: { id: true },
+    });
+  }
+  public async createAccess(tenantId: bigint, professionalPublicId: string, email: string, passwordHash: string, roleId: bigint) {
+    return this.client.$transaction(async (tx) => {
+      const professional = await tx.professional.findFirst({ where: { tenantId, publicId: professionalPublicId }, include });
+      if (!professional) throw new Error('PROFESSIONAL_NOT_FOUND');
+      if (professional.userId !== null) throw new Error('PROFESSIONAL_USER_ALREADY_LINKED');
+      const normalizedEmail = email.toLowerCase().trim();
+      const existing = await tx.user.findUnique({ where: { normalizedEmail }, select: { id: true } });
+      const userId = existing?.id ?? (await tx.user.create({ data: { publicId: randomUUID(), email: email.trim(), normalizedEmail, passwordHash, status: 'ACTIVE' }, select: { id: true } })).id;
+      const membership = await tx.tenantMembership.findFirst({ where: { tenantId, userId }, select: { id: true } });
+      if (!membership) await tx.tenantMembership.create({ data: { publicId: randomUUID(), tenantId, userId, roleId, status: 'ACTIVE' } });
+      return tx.professional.update({ where: { id: professional.id }, data: { userId }, include });
     });
   }
   public async autoLinkUserByEmail(tenantId: bigint, email: string): Promise<bigint | null> {

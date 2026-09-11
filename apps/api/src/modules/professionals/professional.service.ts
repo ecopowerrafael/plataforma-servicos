@@ -112,6 +112,25 @@ export class ProfessionalService {
     await this.repository.updateUserPassword(professional.user.publicId, passwordHash);
     await this.log(tenantId, professional.publicId, 'professional.password_changed', actor);
   }
+  public async createAccess(tenantId: bigint, professionalPublicId: string, email: string, password: string, passwordService: any, actor: Actor) {
+    const professional = await this.repository.find(tenantId, professionalPublicId);
+    if (!professional) throw this.notFound();
+    if (professional.user) throw new AppError({ code: 'PROFESSIONAL_USER_ALREADY_LINKED', message: 'Este profissional já possui uma conta vinculada.', statusCode: 409 });
+    const role = await this.repository.findRoleByCode(tenantId, 'PROFESSIONAL');
+    if (!role) throw new AppError({ code: 'PROFESSIONAL_ROLE_NOT_FOUND', message: 'Permissão de profissional não configurada.', statusCode: 500 });
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) throw new AppError({ code: 'INVALID_EMAIL', message: 'Informe um e-mail válido.', statusCode: 400 });
+    if (password.length < 8) throw new AppError({ code: 'PASSWORD_TOO_SHORT', message: 'A senha deve ter pelo menos 8 caracteres.', statusCode: 400 });
+    try {
+      const item = await this.repository.createAccess(tenantId, professionalPublicId, email, await passwordService.hash(password), role.id);
+      await this.log(tenantId, professionalPublicId, 'professional.access_created', actor);
+      return publicValue(item);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new AppError({ code: 'PROFESSIONAL_ACCESS_CONFLICT', message: 'O acesso já foi criado ou o e-mail já está em uso.', statusCode: 409 });
+      if (error instanceof Error && error.message === 'PROFESSIONAL_USER_ALREADY_LINKED') throw new AppError({ code: 'PROFESSIONAL_USER_ALREADY_LINKED', message: 'Este profissional já possui uma conta vinculada.', statusCode: 409 });
+      throw error;
+    }
+  }
   public async myId(tenantId: bigint, userId: bigint) {
     return (await this.myRecord(tenantId, userId)).id;
   }

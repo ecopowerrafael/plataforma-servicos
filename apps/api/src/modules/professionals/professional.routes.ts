@@ -127,6 +127,10 @@ export const professionalRoutes: FastifyPluginAsyncZod<Options> = async (app, op
       return { success: true };
     },
   );
+  app.post('/tenant/professionals/:publicId/access', { schema: { params, body: z.object({ email: z.string().trim().email(), password: z.string().min(8), passwordConfirmation: z.string().min(8) }).refine((d) => d.password === d.passwordConfirmation, { path: ['passwordConfirmation'], message: 'Senhas não conferem.' }).strict(), response: { 200: ProfessionalPublicSchema } } }, async (r) => {
+    options.authService.requirePermission(r.tenant, 'professional.update');
+    return options.service.createAccess(r.tenant.id, r.params.publicId, r.body.email, r.body.password, options.passwords, actor(r));
+  });
   for (const [path, active] of [
     ['activate', true],
     ['deactivate', false],

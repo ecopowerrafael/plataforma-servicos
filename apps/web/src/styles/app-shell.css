@@ -606,6 +606,23 @@
 .guided-slug-field { display: grid; gap: 6px; margin-top: 8px; color: #475569; font-size: .8rem; }
 .guided-profile-field { display: grid; gap: 6px; color: #475569; font-size: .8rem; }
 .guided-profile-field input { width: 100%; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px; color: #0f172a; background: #f8fafc; }
+.guided-operating-model-fieldset { display: grid; gap: 8px; margin: 8px 0; border: 0; padding: 0; }
+.guided-operating-model-fieldset legend { color: #0f172a; font-size: .95rem; font-weight: 700; }
+.guided-operating-model-fieldset > p { margin: 0; color: #64748b; font-size: .82rem; }
+.guided-choice-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.guided-choice-card { position: relative; display: flex; align-items: flex-start; gap: 12px; min-height: 132px; padding: 16px; border: 1px solid #cbd5e1; border-radius: 13px; background: #fff; cursor: pointer; transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }
+.guided-choice-card:hover { border-color: #93c5fd; background: #f8fbff; }
+.guided-choice-card:focus-within { outline: 3px solid rgba(37, 99, 235, .22); outline-offset: 2px; }
+.guided-choice-card.is-selected { border: 2px solid #2563eb; padding: 15px; background: #eff6ff; box-shadow: 0 4px 12px rgba(37, 99, 235, .1); }
+.guided-choice-card input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.guided-choice-card-radio { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px; border: 2px solid #94a3b8; border-radius: 50%; }
+.guided-choice-card.is-selected .guided-choice-card-radio { border: 5px solid #2563eb; }
+.guided-choice-card-content { display: grid; gap: 7px; }
+.guided-choice-card-content strong { color: #0f172a; font-size: .95rem; }
+.guided-choice-card-content span { color: #475569; font-size: .82rem; line-height: 1.45; }
+.guided-choice-card-content small { color: #64748b; font-size: .76rem; }
+.guided-choice-error { color: #b91c1c; font-size: .8rem; }
+@media (max-width: 640px) { .guided-choice-cards { grid-template-columns: 1fr; } .guided-choice-card { min-height: 0; } }
 .guided-slug-input { display: flex; align-items: center; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 9px; background: #f8fafc; color: #64748b; }
 .guided-slug-input span { padding-left: 10px; white-space: nowrap; font-size: .78rem; }
 .guided-slug-input input { min-width: 0; flex: 1; border: 0; background: transparent; padding: 10px 8px; color: #0f172a; outline: none; }

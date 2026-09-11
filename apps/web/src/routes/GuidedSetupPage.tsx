@@ -323,7 +323,7 @@ export function GuidedSetupPage() {
   const currentSlug = slugDraft || identity.data?.identity.slug || branding.data?.slug || '';
   const currentDisplayName = displayNameDraft || context.data?.tenant.displayName || 'Seu negócio';
   const currentProfile = profileDraft ?? (onboarding.data?.onboardingStep === 'WELCOME' ? '' : onboarding.data?.businessProfile ?? identity.data?.identity.businessProfile ?? 'GENERIC');
-  const currentOperatingModel = operatingModelDraft ?? onboarding.data?.operatingModel ?? 'SERVICE_PRICING';
+  const currentOperatingModel = operatingModelDraft ?? (onboarding.data?.onboardingStep === 'WELCOME' ? '' : onboarding.data?.operatingModel ?? 'SERVICE_PRICING');
   const profileConfirmed = profileDraft !== null || onboarding.data?.onboardingStep !== 'WELCOME';
   const operatingModelConfirmed = operatingModelDraft !== null || onboarding.data?.onboardingStep !== 'WELCOME';
   const currentTheme: BrandThemeCode = themeDraft ?? branding.data?.site?.theme ?? 'CLASSIC';
@@ -441,7 +441,7 @@ export function GuidedSetupPage() {
               <div className="guided-setup-card">
                 <label className="guided-profile-field">Nome do negócio<input value={currentDisplayName} onChange={(event) => setDisplayNameDraft(event.target.value)} placeholder="Ex.: Studio Bella" /></label>
                 <fieldset><legend>Qual é o seu tipo de negócio?</legend><p>Isso nos ajuda a preparar serviços e configurações iniciais para você.</p><select value={currentProfile} onChange={(event) => setProfileDraft(BusinessProfileCodeSchema.parse(event.target.value))}><option value="" disabled>Escolha o tipo de negócio</option>{Object.entries(BusinessProfileLabels).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></fieldset>
-                <fieldset><legend>Como você cobra seus clientes?</legend><div className="guided-choice-cards">{(['SERVICE_PRICING', 'MEMBERSHIP'] as const).map((model) => <button type="button" key={model} className={currentOperatingModel === model ? 'is-selected' : ''} onClick={() => setOperatingModelDraft(model)}><strong>{OperatingModelLabels[model]}</strong><span>{OperatingModelDescriptions[model]}</span></button>)}</div></fieldset>
+                <fieldset className="guided-operating-model-fieldset"><legend>Como você cobra seus clientes?</legend><p>Escolha uma opção para continuar.</p><div className="guided-choice-cards" role="radiogroup" aria-label="Modelo de cobrança">{(['SERVICE_PRICING', 'MEMBERSHIP'] as const).map((model) => <label key={model} className={`guided-choice-card${currentOperatingModel === model ? ' is-selected' : ''}`}><input type="radio" name="operatingModel" value={model} checked={currentOperatingModel === model} onChange={() => setOperatingModelDraft(model)} /><span className="guided-choice-card-radio" aria-hidden="true" /><span className="guided-choice-card-content"><strong>{OperatingModelLabels[model]}</strong><span>{OperatingModelDescriptions[model]}</span><small>{model === 'SERVICE_PRICING' ? 'Ex.: Corte R$ 35 · Barba R$ 25' : 'Ex.: Plano mensal com serviços incluídos'}</small></span></label>)}</div>{!operatingModelConfirmed && <small className="guided-choice-error">Escolha como você cobra seus clientes.</small>}</fieldset>
                 <label className="guided-slug-field">
                   Endereço público
                   <span className="guided-slug-input"><span>agendei.site/</span><input value={currentSlug} onChange={(event) => setSlugDraft(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="seu-negocio" /></span>
@@ -855,7 +855,7 @@ export function GuidedSetupPage() {
                 </p>
                 <hr />
                 <p className="is-complete">Tipo de negócio: {currentProfile === '' ? 'Não definido' : BusinessProfileLabels[currentProfile]}</p>
-                <p className="is-complete">Modelo de cobrança: {OperatingModelLabels[currentOperatingModel]}</p>
+                <p className="is-complete">Modelo de cobrança: {currentOperatingModel === '' ? 'Não definido' : OperatingModelLabels[currentOperatingModel]}</p>
                 <p>○ Logo, banner e página pública são recomendados</p>
                 <p>○ WhatsApp, pagamentos e domínio podem ficar para depois</p>
               </div>

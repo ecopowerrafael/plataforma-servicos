@@ -279,7 +279,7 @@ export function SubscriptionModule({
       aria-labelledby="subscription-title"
       className={subscriptionPublicId ? 'platform-detail-route' : undefined}
     >
-      <PageHeader
+      {subscriptionPublicId === undefined && <PageHeader
         title="Assinaturas"
         description="Gerencie planos, periodos, trials e situacao comercial dos estabelecimentos."
         action={
@@ -292,7 +292,7 @@ export function SubscriptionModule({
             + Criar assinatura
           </button>
         }
-      />
+      />}
       {notice !== null && <p className="success-message">{notice}</p>}
       {mutation.error instanceof Error ? (
         <p className="form-error">{mutation.error.message}</p>
@@ -445,6 +445,7 @@ export function SubscriptionModule({
           </form>
         </>
       )}
+      {subscriptionPublicId === undefined && <>
       <SubscriptionKpiCards subscriptions={subscriptions.data?.items ?? []} />
       <SubscriptionFilters
         search={search}
@@ -574,6 +575,7 @@ export function SubscriptionModule({
           />
         </>
       )}
+      </>}
       {detail.data !== undefined && (
         <>
           {subscriptionPublicId === undefined ? (
@@ -595,7 +597,7 @@ export function SubscriptionModule({
           >
             {subscriptionPublicId ? (
               <Link className="platform-back-link" to="/platform/subscriptions">
-                ← Assinaturas
+                ← Voltar para a lista de assinaturas
               </Link>
             ) : (
               <button

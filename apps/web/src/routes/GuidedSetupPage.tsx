@@ -10,6 +10,7 @@ import {
   ServiceListResponseSchema,
   ServicePublicSchema,
   ProfessionalListResponseSchema,
+  ProfessionalPublicSchema,
   TenantUnitsResponseSchema,
   TenantMediaAssetSchema,
   TenantIdentityResponseSchema,
@@ -59,6 +60,7 @@ export function GuidedSetupPage() {
   const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [editingProfessional, setEditingProfessional] = useState<string | null>(null);
   const [professionalDraft, setProfessionalDraft] = useState<Record<string, { name: string; publicName: string; bio: string }>>({});
+  const [professionalPhotoPreview, setProfessionalPhotoPreview] = useState<Record<string, string>>({});
   const [editingService, setEditingService] = useState<string | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState<
     Record<number, { active: boolean; startsAt: string; endsAt: string }>
@@ -209,6 +211,16 @@ export function GuidedSetupPage() {
       setEditingProfessional(null);
       await professionals.refetch();
     },
+  });
+  const professionalPhotoMutation = useMutation({
+    mutationFn: (input: { id: string; file: File }) => {
+      const body = new FormData();
+      body.set('file', input.file, input.file.name);
+      return httpClient.request(`/tenant/professionals/${input.id}/photo`, {
+        method: 'PUT', body, schema: ProfessionalPublicSchema, tenantPublicId,
+      });
+    },
+    onSuccess: async () => { await professionals.refetch(); },
   });
   const serviceImageMutation = useMutation({
     mutationFn: (input: { id: string; file: File }) => {
@@ -620,6 +632,10 @@ export function GuidedSetupPage() {
                 {professionals.data?.items.map((item) => {
                   const draft = professionalDraft[item.publicId] ?? { name: item.name, publicName: item.publicName, bio: item.bio ?? '' };
                   return <article key={item.publicId}>
+                    <div className="guided-professional-photo-row">
+                      {professionalPhotoPreview[item.publicId] !== undefined || item.photoUrl !== null ? <img className="guided-professional-photo" src={professionalPhotoPreview[item.publicId] ?? `${environment.apiUrl}${item.photoUrl}`} alt="" /> : <span className="guided-professional-initials">{item.publicName.slice(0, 1).toUpperCase()}</span>}
+                      <label className="guided-upload-button">{professionalPhotoMutation.isPending ? 'Enviando…' : 'Adicionar foto'}<input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) { setProfessionalPhotoPreview((value) => ({ ...value, [item.publicId]: URL.createObjectURL(file) })); void professionalPhotoMutation.mutateAsync({ id: item.publicId, file }); } event.currentTarget.value = ''; }} /></label>
+                    </div>
                     {editingProfessional === item.publicId ? <div className="guided-professional-editor">
                       <label>Nome<input value={draft.name} onChange={(event) => setProfessionalDraft((value) => ({ ...value, [item.publicId]: { ...draft, name: event.target.value } }))} /></label>
                       <label>Nome público<input value={draft.publicName} onChange={(event) => setProfessionalDraft((value) => ({ ...value, [item.publicId]: { ...draft, publicName: event.target.value } }))} /></label>

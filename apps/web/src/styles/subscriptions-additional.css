@@ -6,6 +6,21 @@
    SUBSCRIBERS MODULE (REDESIGNED)
    ============================================ */
 
+.platform-subscription-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:18px 0; }
+.platform-subscription-filters { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:12px; margin:0 0 16px; padding:14px; border:1px solid var(--color-border-default); border-radius:14px; background:var(--color-bg-primary); }
+.platform-subscription-filters label { display:grid; gap:6px; color:var(--color-text-secondary); font-size:12px; font-weight:600; }
+.platform-subscription-filters__search { grid-column:span 2; }
+.platform-subscription-filters select { min-width:0; }
+.platform-kpi-card { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; align-items:center; padding:16px; border:1px solid var(--color-border-default); border-radius:14px; background:var(--color-bg-primary); }
+.platform-kpi-card svg { grid-row:span 2; color:var(--color-accent-primary); }
+.platform-kpi-card span { color:var(--color-text-secondary); font-size:12px; }
+.platform-kpi-card strong { font-size:22px; }
+.platform-kpi-card--emerald svg { color:#288363; }.platform-kpi-card--amber svg { color:#b2781f; }.platform-kpi-card--rose svg { color:#b14e5d; }
+.platform-subscription-header__actions { display:flex; align-items:center; gap:12px; }.platform-subscription-header__actions a { display:inline-flex; align-items:center; gap:5px; color:var(--color-accent-primary); font-size:12px; font-weight:700; text-decoration:none; }
+.platform-timeline-icon { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; margin-right:10px; border-radius:50%; color:#288363; background:rgba(40,131,99,.12); vertical-align:middle; }
+.platform-commercial-timeline li { position:relative; }
+@media (max-width: 760px) { .platform-subscription-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }.platform-subscription-filters { grid-template-columns:1fr 1fr; } }
+
 .subscribers-module--redesigned {
   display: flex;
   flex-direction: column;

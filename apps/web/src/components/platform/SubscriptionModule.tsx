@@ -27,19 +27,18 @@ import {
   StatusBadge,
 } from './PlatformUi.js';
 import { SubscriptionBillingPanel } from './SubscriptionBillingPanel.js';
+import { SubscriptionKpiCards } from './SubscriptionKpiCards.js';
+import { SubscriptionFilters } from './SubscriptionFilters.js';
+import { CommercialAuditTimeline } from './CommercialAuditTimeline.js';
+import { SubscriptionHeader } from './SubscriptionHeader.js';
+import { SubscriptionsTable } from './SubscriptionsTable.js';
+import { AdminActionPlanChanger } from './AdminActionPlanChanger.js';
+import { AdminActionTrialExtender } from './AdminActionTrialExtender.js';
+import { AdminActionPeriodEditor } from './AdminActionPeriodEditor.js';
+import { SubscriptionOverviewCard } from './SubscriptionOverviewCard.js';
 
 const SubscriptionResponseSchema = z.object({ subscription: SubscriptionPublicSchema });
 const CreateFormSchema = CreateSubscriptionRequestSchema.extend({ tenantPublicId: z.uuid() });
-const historyLabels: Record<string, string> = {
-  PLAN_CHANGED: 'Plano alterado',
-  ACTIVATED: 'Assinatura ativada',
-  TRIAL_STARTED: 'Trial iniciado',
-  TRIAL_EXTENDED: 'Trial estendido',
-  SUSPENDED: 'Assinatura suspensa',
-  REACTIVATED: 'Assinatura reativada',
-  CANCELED: 'Assinatura cancelada',
-  PERIOD_UPDATED: 'Período atualizado',
-};
 
 export function SubscriptionModule({
   subscriptionPublicId,
@@ -52,6 +51,7 @@ export function SubscriptionModule({
   const [status, setStatus] = useState('');
   const [planPublicId, setPlanPublicId] = useState('');
   const [tenantPublicId, setTenantPublicId] = useState('');
+  const [search, setSearch] = useState('');
   const [orderBy, setOrderBy] = useState('createdAt');
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
   const [selected, setSelected] = useState<string | null>(null);
@@ -443,6 +443,26 @@ export function SubscriptionModule({
           </form>
         </>
       )}
+      <SubscriptionKpiCards subscriptions={subscriptions.data?.items ?? []} />
+      <SubscriptionFilters
+        search={search}
+        status={status}
+        planPublicId={planPublicId}
+        tenantPublicId={tenantPublicId}
+        orderBy={orderBy}
+        direction={direction}
+        plans={plans.data?.items ?? []}
+        tenants={tenants.data?.items ?? []}
+        onChange={(key, value) => {
+          setPage(1);
+          if (key === 'status') setStatus(value);
+          if (key === 'planPublicId') setPlanPublicId(value);
+          if (key === 'tenantPublicId') setTenantPublicId(value);
+          if (key === 'search') setSearch(value);
+          if (key === 'orderBy') setOrderBy(value);
+          if (key === 'direction') setDirection(value as 'asc' | 'desc');
+        }}
+      />
       <div className="platform-filter-bar">
         <label>
           Status
@@ -542,60 +562,7 @@ export function SubscriptionModule({
         </div>
       ) : (
         <>
-          <div className="platform-table-wrap">
-            <table className="platform-table platform-subscription-table">
-              <thead>
-                <tr>
-                  <th>Estabelecimento</th>
-                  <th>Plano</th>
-                  <th>Ciclo</th>
-                  <th>Status</th>
-                  <th>Periodo</th>
-                  <th>Valor</th>
-                  <th>Acoes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.data.items.map((subscription) => (
-                  <tr
-                    key={subscription.publicId}
-                    onClick={() => {
-                      onOpen(subscription.publicId);
-                    }}
-                  >
-                    <td>
-                      <strong>
-                        {tenantNames.get(subscription.tenantPublicId) ??
-                          'Estabelecimento indisponivel'}
-                      </strong>
-                    </td>
-                    <td>{subscription.plan.name}</td>
-                    <td>{formatCycle(subscription.billingCycle)}</td>
-                    <td>
-                      <StatusBadge value={subscription.status} />
-                    </td>
-                    <td>
-                      <span>{formatDate(subscription.currentPeriodStartsAt)}</span>
-                      <span> → {formatDate(subscription.currentPeriodEndsAt)}</span>
-                    </td>
-                    <td>{formatMoney(subscription.priceCents, subscription.currency)}</td>
-                    <td>
-                      <button
-                        aria-label="Ver detalhes"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onOpen(subscription.publicId);
-                        }}
-                        type="button"
-                      >
-                        Ver
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SubscriptionsTable items={subscriptions.data.items.filter((item) => (tenantNames.get(item.tenantPublicId) ?? '').toLocaleLowerCase().includes(search.toLocaleLowerCase()))} tenantNames={tenantNames} onOpen={onOpen} />
           <Pagination
             page={page}
             totalPages={subscriptions.data.page.totalPages}
@@ -640,13 +607,13 @@ export function SubscriptionModule({
                 ×
               </button>
             )}
-            <header className="platform-detail-heading">
-              <div>
-                <h3>{tenantNames.get(detail.data.subscription.tenantPublicId) ?? 'Assinatura'}</h3>
-                <span>{detail.data.subscription.plan.name}</span>
-              </div>
-              <StatusBadge value={detail.data.subscription.status} />
-            </header>
+            <SubscriptionHeader
+              tenantName={tenantNames.get(detail.data.subscription.tenantPublicId) ?? 'Assinatura'}
+              tenantPublicId={detail.data.subscription.tenantPublicId}
+              planName={detail.data.subscription.plan.name}
+              status={detail.data.subscription.status}
+            />
+            <SubscriptionOverviewCard>
             <div className="platform-subscription-summary">
               <article>
                 <span>Plano</span>
@@ -677,6 +644,7 @@ export function SubscriptionModule({
                 </strong>
               </article>
             </div>
+            </SubscriptionOverviewCard>
             <dl className="platform-details">
               <div>
                 <dt>Estabelecimento</dt>
@@ -733,7 +701,9 @@ export function SubscriptionModule({
             {detail.data.history.length === 0 ? (
               <p>Nenhum evento dispon\u00edvel.</p>
             ) : (
-              <ol className="platform-commercial-timeline">
+              <>
+                <CommercialAuditTimeline events={detail.data.history} />
+              {/*
                 {detail.data.history.map((event) => (
                   <li key={event.publicId}>
                     <time>{formatDate(event.createdAt, true)}</time>
@@ -747,10 +717,11 @@ export function SubscriptionModule({
                     {event.reason ? <small>Motivo: {event.reason}</small> : null}
                   </li>
                 ))}
-              </ol>
+              */}
+              </>
             )}
             <SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId} />
-            <h4>Alterar plano</h4>
+            <AdminActionPlanChanger>
             <div className="platform-form">
               <label>
                 Novo plano
@@ -814,7 +785,8 @@ export function SubscriptionModule({
                 Alterar plano
               </button>
             </div>
-            <h4>Estender trial</h4>
+            </AdminActionPlanChanger>
+            <AdminActionTrialExtender>
             <div className="platform-form">
               <div className="form-actions">
                 <button
@@ -855,12 +827,12 @@ export function SubscriptionModule({
                 </button>
               </div>
               <label>
-                Nova data de trial (ISO)
+                Nova data de trial
                 <input
-                  placeholder="2026-09-04T12:00:00.000Z"
-                  value={trialValues.trialEndsAt}
+                  type="date"
+                  value={trialValues.trialEndsAt ? trialValues.trialEndsAt.slice(0, 10) : ''}
                   onChange={(event) => {
-                    setTrialValues({ ...trialValues, trialEndsAt: event.target.value });
+                    setTrialValues({ ...trialValues, trialEndsAt: event.target.value ? `${event.target.value}T23:59:59.000Z` : '' });
                   }}
                 />
               </label>
@@ -878,15 +850,17 @@ export function SubscriptionModule({
                 onClick={confirmTrialExtension}
                 type="button"
               >
-                Estender trial
+                Salvar Extensão
               </button>
             </div>
-            <h4>Editar periodo</h4>
+            </AdminActionTrialExtender>
+            <AdminActionPeriodEditor>
             <div className="platform-form">
               <label>
                 Inicio do periodo
                 <input
-                  value={periodValues.currentPeriodStartsAt}
+                  type="date"
+                  value={periodValues.currentPeriodStartsAt.slice(0, 10)}
                   placeholder={detail.data.subscription.currentPeriodStartsAt}
                   onChange={(event) => {
                     setPeriodValues({ ...periodValues, currentPeriodStartsAt: event.target.value });
@@ -896,7 +870,8 @@ export function SubscriptionModule({
               <label>
                 Fim do periodo
                 <input
-                  value={periodValues.currentPeriodEndsAt}
+                  type="date"
+                  value={periodValues.currentPeriodEndsAt.slice(0, 10)}
                   placeholder={detail.data.subscription.currentPeriodEndsAt}
                   onChange={(event) => {
                     setPeriodValues({ ...periodValues, currentPeriodEndsAt: event.target.value });
@@ -916,6 +891,7 @@ export function SubscriptionModule({
                 Salvar periodo
               </button>
             </div>
+            </AdminActionPeriodEditor>
             {formError !== null && (
               <p className="form-error" role="alert">
                 {formError}

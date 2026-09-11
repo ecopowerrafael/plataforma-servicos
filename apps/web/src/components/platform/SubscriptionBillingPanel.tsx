@@ -22,7 +22,7 @@ export function SubscriptionBillingPanel({
     retry: false,
   });
   const create = useMutation({
-    mutationFn: (provider: 'pix-local' | 'mercadopago') =>
+    mutationFn: (provider: 'pix-local' | 'mercadopago' | 'stripe') =>
       httpClient.request(`/platform/subscriptions/${subscriptionPublicId}/charges`, {
         method: 'POST',
         body: { provider },
@@ -82,7 +82,20 @@ export function SubscriptionBillingPanel({
               </div>
               <div>
                 <dt>Referência</dt>
-                <dd>{charge.externalId ?? '—'}</dd>
+                <dd className="platform-billing-reference">
+                  <span>{charge.externalId ?? '—'}</span>
+                  {charge.externalId ? (
+                    <button
+                      type="button"
+                      aria-label="Copiar referência do gateway"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(charge.externalId ?? '');
+                      }}
+                    >
+                      Copiar
+                    </button>
+                  ) : null}
+                </dd>
               </div>
             </dl>
           ) : (
@@ -98,7 +111,7 @@ export function SubscriptionBillingPanel({
                 }}
                 type="button"
               >
-                Gerar {method === 'pix-local' ? 'PIX' : 'Mercado Pago'}
+                Gerar {method === 'pix-local' ? 'PIX' : method === 'stripe' ? 'Cartão' : 'Mercado Pago'}
               </button>
             ))}
             {charge?.provider === 'pix-local' && charge.status === 'PENDING' ? (

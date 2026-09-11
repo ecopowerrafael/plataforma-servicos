@@ -150,7 +150,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
     });
   };
   return (
-    <section aria-labelledby="combo-title" className="combo-module--redesigned combo-page-container">
+    <section aria-labelledby="combo-title" className="combo-module--redesigned combo-page-container grid grid-cols-12 gap-6">
       <PageHeader
         eyebrow="Catálogo"
         title="Combos"

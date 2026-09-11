@@ -10,17 +10,19 @@
 
 /* Desktop editing workspace: catalog on the left, editor on the right. */
 @media (min-width: 960px) {
-  .combo-page-container { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 24px; align-items: start; }
+  .combo-page-container { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; align-items: start; }
   .combo-module--redesigned > .combo-header,
   .combo-module--redesigned > .success-message,
   .combo-module--redesigned > .primary-button,
   .combo-module--redesigned > .form-error { grid-column: 1 / -1; }
   .combo-page-container > .combo-catalog-toolbar,
   .combo-page-container > .combo-catalog-list,
-  .combo-page-container > .form-actions { grid-column: 1; }
+  .combo-page-container > .form-actions { grid-column: span 4; }
   .combo-page-container > .combo-editor-panel,
-  .combo-page-container > .combo-form { grid-column: 2; margin: 0; min-width: 0; }
-  .combo-page-container > .combo-editor-panel { grid-row: 3 / span 8; }
+  .combo-page-container > .combo-form { grid-column: span 8; margin: 0; min-width: 0; }
+  .combo-page-container > .combo-catalog-toolbar,
+  .combo-page-container > .combo-catalog-list { grid-column: span 4; }
+  .combo-page-container > .combo-editor-panel { grid-column: span 8; }
 }
 
 .combo-card { background: #fff; border: 1px solid var(--color-border-default); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(15,23,42,.04); }

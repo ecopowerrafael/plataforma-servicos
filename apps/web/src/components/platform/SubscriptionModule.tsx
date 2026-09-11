@@ -639,7 +639,7 @@ export function SubscriptionModule({
               </section>
             ) : null}
             {detailTab === 'billing' ? <SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId} /> : null}
-            {detailTab === 'overview' ? (
+            {detailTab === 'overview' && (
               <div className="subscription-manage-grid">
               <div className="subscription-manage-column subscription-manage-column--left">
             <SubscriptionOverviewCard>
@@ -726,31 +726,6 @@ export function SubscriptionModule({
                 <dd>{detail.data.subscription.endsAt ?? 'Sem t\u00e9rmino definido'}</dd>
               </div>
             </dl>
-            {false && <>
-            <h4>{'Hist\u00f3rico comercial'}</h4>
-            {(detail.data?.history ?? []).length === 0 ? (
-              <p>Nenhum evento dispon\u00edvel.</p>
-            ) : (
-              <>
-                <CommercialAuditTimeline events={detail.data?.history ?? []} />
-              {/*
-                {detail.data.history.map((event) => (
-                  <li key={event.publicId}>
-                    <time>{formatDate(event.createdAt, true)}</time>
-                    <strong>
-                      {historyLabels[event.action] ?? event.action.replaceAll('_', ' ')}
-                    </strong>
-                    {event.previousStatus || event.newStatus ? (
-                      <span>{`${event.previousStatus ? formatStatus(event.previousStatus) : '—'} → ${event.newStatus ? formatStatus(event.newStatus) : '—'}`}</span>
-                    ) : null}
-                    <small>Responsável: {event.performedBy?.email ?? 'Sistema'}</small>
-                    {event.reason ? <small>Motivo: {event.reason}</small> : null}
-                  </li>
-                ))}
-              */}
-              </>
-            )}
-            </>}
             <div className="subscription-manage-main"><SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId} /></div>
             </div>
             <div className="subscription-manage-column subscription-manage-column--right">
@@ -986,7 +961,8 @@ export function SubscriptionModule({
               </button>
             </div>
             </div>
-            ) : null}
+            </div>
+            )}
           </article>
         </>
       )}

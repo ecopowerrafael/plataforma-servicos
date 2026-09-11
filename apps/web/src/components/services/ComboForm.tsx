@@ -6,7 +6,7 @@ import {
 } from '@plataforma/shared';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
-import { IconClock, IconGripVertical, IconLayers, IconTag, IconUsers } from '@tabler/icons-react';
+import { IconClock, IconGripVertical, IconStack2, IconTag, IconUsers } from '@tabler/icons-react';
 
 import type { z } from 'zod';
 
@@ -212,7 +212,7 @@ export function ComboForm({
         {imageSection}
       </fieldset>
       <fieldset className="combo-form-section combo-card">
-        <legend><IconLayers aria-hidden="true" size={18} /> {'Serviços do combo & economia'}</legend>
+        <legend><IconStack2 aria-hidden="true" size={18} /> {'Serviços do combo & economia'}</legend>
         <div className="combo-picker-toolbar">
           <label>
             {'Buscar serviço'}

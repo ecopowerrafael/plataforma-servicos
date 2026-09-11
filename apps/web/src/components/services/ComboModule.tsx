@@ -179,6 +179,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
           </div>
         </>
       )}
+      <div className="combo-catalog-panel">
       <div className="platform-form combo-catalog-toolbar">
         <label>
           Busca
@@ -277,6 +278,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
           </div>
         </>
       )}
+      </div>
       {detail.data !== undefined && (
         <article className="sessions-panel combo-editor-panel">
           <h3>{detail.data.name}</h3>

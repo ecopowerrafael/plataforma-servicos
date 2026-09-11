@@ -15,6 +15,7 @@ export function BrandPreview({
   logoUrl,
   mode,
   tenantSlug,
+  services,
 }: {
   displayName: string;
   theme: BrandThemeCode;
@@ -22,6 +23,7 @@ export function BrandPreview({
   logoUrl?: string | undefined;
   mode: 'mobile' | 'desktop';
   tenantSlug?: string | undefined;
+  services?: Array<{ name: string; durationMinutes: number }> | undefined;
 }) {
   useAllThemeFonts();
   const palette = /^#[0-9A-Fa-f]{6}$/u.test(color)
@@ -76,22 +78,17 @@ export function BrandPreview({
           <p>Experiências pensadas para você.</p>
           <button type="button">Agendar horário</button>
         </section>
-        <section className="brand-preview-services">
-          <h3>Serviços</h3>
-          <article>
-            <i />
-            <div>
-              <strong>Serviço em destaque</strong>
-              <span>45 min</span>
-            </div>
-          </article>
-          <article>
-            <i />
-            <div>
-              <strong>Atendimento personalizado</strong>
-              <span>60 min</span>
-            </div>
-          </article>
+          <section className="brand-preview-services">
+            <h3>Serviços</h3>
+          {(services?.length ? services.slice(0, 3) : [{ name: 'Serviço em destaque', durationMinutes: 45 }, { name: 'Atendimento personalizado', durationMinutes: 60 }]).map((service) => (
+            <article key={service.name}>
+              <i />
+              <div>
+                <strong>{service.name}</strong>
+                <span>{service.durationMinutes} min</span>
+              </div>
+            </article>
+          ))}
         </section>
       </div>
     </div>

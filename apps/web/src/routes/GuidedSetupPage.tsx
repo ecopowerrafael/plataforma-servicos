@@ -17,7 +17,6 @@ import {
   TenantWhiteLabelResponseSchema,
   UpdateServiceRequestSchema,
 } from '@plataforma/shared';
-import { AppHeader } from '../components/app/AppHeader.js';
 import { BrandPreview } from '../components/branding/BrandPreview.js';
 import { httpClient } from '../lib/http.js';
 import { environment } from '../config/environment.js';
@@ -44,6 +43,8 @@ export function GuidedSetupPage() {
   const tenantPublicId = readSelectedTenant() ?? '';
   const navigate = useNavigate();
   const [step, setStep] = useState<GuidedSetupStep | null>(null);
+  const [slugDraft, setSlugDraft] = useState('');
+  const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [editingService, setEditingService] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState<
@@ -79,6 +80,15 @@ export function GuidedSetupPage() {
         tenantPublicId,
       }),
     enabled: tenantPublicId !== '',
+  });
+  const slugAvailability = useQuery({
+    queryKey: ['guided-slug-availability', tenantPublicId, slugDraft || identity.data?.identity.slug || ''],
+    queryFn: () =>
+      httpClient.request(`/tenant/onboarding/slug-availability?slug=${encodeURIComponent(slugDraft || identity.data?.identity.slug || '')}`, {
+        schema: z.object({ available: z.boolean() }),
+        tenantPublicId,
+      }),
+    enabled: tenantPublicId !== '' && (slugDraft || identity.data?.identity.slug || '').length >= 3,
   });
   const services = useQuery({
     queryKey: ['guided-services', tenantPublicId],
@@ -134,7 +144,7 @@ export function GuidedSetupPage() {
     enabled: headquarters?.publicId !== undefined,
   });
   const saveStep = useMutation({
-    mutationFn: (input: { step: string; completed?: boolean }) =>
+    mutationFn: (input: { step: string; completed?: boolean; slug?: string; displayName?: string }) =>
       httpClient.request('/tenant/onboarding', {
         method: 'PATCH',
         body: input,
@@ -218,6 +228,8 @@ export function GuidedSetupPage() {
     },
   });
   const current = step ?? guidedStepForLegacy(onboarding.data?.onboardingStep ?? 'WELCOME');
+  const currentSlug = slugDraft || identity.data?.identity.slug || branding.data?.slug || '';
+  const currentDisplayName = displayNameDraft || context.data?.tenant.displayName || 'Seu negócio';
   const index = GUIDED_SETUP_STEPS.indexOf(current);
   const progress = checklist.data?.items.filter((item) => item.complete).length ?? 0;
   const labels: Record<GuidedSetupStep, string> = {
@@ -227,6 +239,14 @@ export function GuidedSetupPage() {
     schedule: 'Horários',
     page: 'Sua página',
     review: 'Revisão',
+  };
+  const stepDescriptions: Record<GuidedSetupStep, string> = {
+    business: 'Perfil e endereço público',
+    services: 'O que você oferece',
+    team: 'Quem atende',
+    schedule: 'Quando você atende',
+    page: 'Identidade da sua página',
+    review: 'Tudo pronto para começar',
   };
   const next = () => {
     if (index < GUIDED_SETUP_STEPS.length - 1) {
@@ -275,32 +295,38 @@ export function GuidedSetupPage() {
   };
   return (
     <main className="guided-setup-page">
-      <AppHeader
-        title="Configuração inicial"
-        subtitle="Agendei"
-        tenantName={context.data?.tenant.displayName ?? 'Agendei'}
-        showMobileMenu={false}
-        onMenuClick={() => undefined}
-        onLogout={() => undefined}
-        onTenantSelect={() => undefined}
-      />
       <section className="guided-setup-shell" aria-label="Configuração inicial">
         <header className="guided-setup-header">
-          <div>
-            <span className="eyebrow">Agendei</span>
-            <h1>Configuração inicial</h1>
+          <div className="guided-brand-lockup">
+            <img className="guided-brand-logo" src="/brand/logo-agendei.png" alt="Agendei" />
+            <div><span className="eyebrow">Agendei</span><h1>Configuração Inicial</h1></div>
           </div>
           <div className="guided-setup-meta">
-            Passo {index + 1} de 6
+            <span>Passo {index + 1} de 6</span><b>{Math.round(((index + 1) / 6) * 100)}%</b>
             <span className="guided-setup-progress">
               <i style={{ width: `${((index + 1) / 6) * 100}%` }} />
             </span>
           </div>
-          <button className="text-button" onClick={leave}>
-            Sair e continuar depois
+          <button className="guided-exit-link" onClick={leave}>
+            Continuar no Painel Principal <span>↗</span>
           </button>
         </header>
-        <div className="guided-setup-content">
+        <div className="guided-setup-layout">
+          <div className="guided-setup-left-column">
+            <div className="guided-setup-card guided-steps-card">
+              <p className="guided-steps-heading">Seu progresso</p>
+              <nav className="guided-step-list" aria-label="Etapas da configuração">
+                {GUIDED_SETUP_STEPS.map((item, itemIndex) => (
+                  <button key={item} className={`guided-step-item${item === current ? ' is-active' : ''}`} onClick={() => setStep(item)}>
+                    <span className="guided-step-icon">{itemIndex < index ? '✓' : itemIndex === index ? String(itemIndex + 1).padStart(2, '0') : '○'}</span>
+                    <span><strong>{labels[item]}</strong><small>{stepDescriptions[item]}</small></span>
+                    {item === current && <span className="guided-step-current">Atual</span>}
+                  </button>
+                ))}
+              </nav>
+            </div>
+            <div className="guided-setup-workspace">
+            <div className="guided-setup-content">
           <p className="guided-setup-kicker">{labels[current]}</p>
           {current === 'business' && (
             <>
@@ -310,11 +336,18 @@ export function GuidedSetupPage() {
                 depois.
               </p>
               <div className="guided-setup-card">
-                <strong>{context.data?.tenant.displayName ?? 'Seu negócio'}</strong>
+                <label className="guided-profile-field">Nome do negócio<input value={currentDisplayName} onChange={(event) => setDisplayNameDraft(event.target.value)} placeholder="Ex.: Studio Bella" /></label>
                 <span>Perfil: {identity.data?.identity.businessProfile ?? 'configurando'}</span>
-                <small>
-                  Endereço público: {identity.data?.identity.slug ?? 'será definido a seguir'}
-                </small>
+                <label className="guided-slug-field">
+                  Endereço público
+                  <span className="guided-slug-input"><span>agendei.site/</span><input value={currentSlug} onChange={(event) => setSlugDraft(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="seu-negocio" /></span>
+                  <small className={slugAvailability.data?.available ? 'is-available' : ''}>
+                    {currentSlug.length < 3 ? 'Use pelo menos 3 caracteres.' : slugAvailability.isPending ? 'Verificando disponibilidade…' : slugAvailability.data?.available ? '✓ Este endereço está disponível.' : 'Este endereço já está em uso.'}
+                  </small>
+                </label>
+                <button className="primary-button guided-save-slug" disabled={currentDisplayName.trim().length < 2 || currentSlug.length < 3 || slugAvailability.data?.available !== true || slugAvailability.isPending || saveStep.isPending} onClick={() => void saveStep.mutateAsync({ step: legacyStepForGuided(current), slug: slugDraft || undefined, displayName: displayNameDraft || undefined })}>
+                  {saveStep.isPending ? 'Salvando…' : 'Salvar perfil'}
+                </button>
                 <button
                   className="secondary-button"
                   onClick={() => void navigate('/app/empresa/dados')}
@@ -332,6 +365,12 @@ export function GuidedSetupPage() {
               </p>
               <div className="guided-setup-summary">
                 {serviceCount} serviço(s) ativo(s) encontrado(s)
+              </div>
+              <div className="guided-template-chips" aria-label="Sugestões rápidas de serviços">
+                <span>Adicionar rápido:</span>
+                {['Corte', 'Barba', 'Sobrancelha'].map((template) => (
+                  <button key={template} type="button" onClick={() => void serviceMutation.mutateAsync({ body: { name: template, durationMinutes: 30, priceCents: 0, description: null, iconKey: 'sparkles', color: '#2563eb', active: true, sortOrder: serviceCount } })}>{template} +</button>
+                ))}
               </div>
               {(serviceMutation.error !== null || serviceImageMutation.error !== null) && (
                 <p className="form-error">Não foi possível salvar este serviço. Tente novamente.</p>
@@ -752,8 +791,8 @@ export function GuidedSetupPage() {
               </div>
             </>
           )}
-        </div>
-        <footer className="guided-setup-footer">
+            </div>
+            <footer className="guided-setup-footer">
           <button className="secondary-button" onClick={previous}>
             Voltar
           </button>
@@ -764,7 +803,16 @@ export function GuidedSetupPage() {
           >
             {current === 'review' ? 'Começar a usar o Agendei' : 'Continuar'}
           </button>
-        </footer>
+            </footer>
+            </div>
+          </div>
+          <aside className="guided-live-preview">
+            <div className="guided-preview-heading"><div><span className="eyebrow">Prévia ao vivo</span><h2>Assim seus clientes verão</h2></div><span className="guided-live-dot">● Ao vivo</span></div>
+            <div className="guided-phone-wrap"><BrandPreview displayName={currentDisplayName} theme={branding.data?.site?.theme ?? 'CLASSIC'} color={branding.data?.branding?.primaryColor ?? '#2563eb'} logoUrl={branding.data?.assets.find((asset) => asset.kind === 'LOGO')?.url ? `${environment.apiUrl}${branding.data.assets.find((asset) => asset.kind === 'LOGO')?.url}` : undefined} mode="mobile" services={services.data?.items.map((item) => ({ name: item.name, durationMinutes: item.durationMinutes }))} /></div>
+            <p className="guided-preview-url">agendei.site/<strong>{branding.data?.slug ?? 'seu-negocio'}</strong></p>
+            <small className="guided-preview-hint">As alterações aparecem aqui instantaneamente.</small>
+          </aside>
+        </div>
         <div className="guided-setup-status" aria-live="polite">
           {saveStep.isPending ||
           serviceMutation.isPending ||

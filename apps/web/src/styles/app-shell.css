@@ -494,22 +494,22 @@
 
 .guided-setup-page {
   min-height: 100dvh;
-  background: var(--surface, #f7f4ee);
+  background: #f8fafc;
 }
 .guided-setup-shell {
-  width: min(1200px, calc(100% - 32px));
+  width: min(1320px, calc(100% - 48px));
   min-height: calc(100dvh - 76px);
   margin: 0 auto;
   display: grid;
   grid-template-rows: auto 1fr auto auto;
-  gap: 16px;
-  padding: 24px 0 20px;
+  gap: 24px;
+  padding: 26px 0 20px;
 }
 .guided-setup-header {
   display: flex;
   align-items: end;
   gap: 24px;
-  border-bottom: 1px solid rgba(45, 43, 38, 0.14);
+  border-bottom: 1px solid #e2e8f0;
   padding-bottom: 18px;
 }
 .guided-setup-header h1 {
@@ -522,6 +522,40 @@
   gap: 8px;
   font-size: 0.9rem;
 }
+.guided-brand-lockup { display: flex; align-items: center; gap: 10px; }
+.guided-brand-lockup h1 { font-size: 1.1rem; color: #0f172a; }
+.guided-brand-logo { display: block; width: 42px; height: 42px; object-fit: contain; border-radius: 10px; }
+.guided-setup-meta { grid-template-columns: 1fr auto; align-items: center; color: #475569; }
+.guided-setup-meta b { color: #2563eb; background: #dbeafe; border-radius: 999px; padding: 3px 8px; font-size: .75rem; }
+.guided-setup-meta .guided-setup-progress { grid-column: 1 / -1; background: #e2e8f0; }
+.guided-setup-progress i { background: #2563eb; transition: width .35s ease; }
+.guided-exit-link { border: 0; background: transparent; color: #475569; cursor: pointer; font-size: .85rem; }
+.guided-exit-link:hover { color: #2563eb; }
+.guided-setup-layout { display: grid; grid-template-columns: minmax(0, 7fr) minmax(280px, 5fr); gap: 32px; align-items: start; min-height: 0; }
+.guided-setup-left-column { display: grid; grid-template-columns: minmax(170px, 2.6fr) minmax(0, 7fr); gap: 20px; min-width: 0; }
+.guided-steps-card { position: sticky; top: 20px; padding: 12px; max-width: none; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+.guided-steps-heading { margin: 4px 8px 10px; color: #64748b; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.guided-step-list { display: grid; gap: 4px; }
+.guided-step-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 8px; border: 0; border-radius: 10px; background: transparent; color: #475569; text-align: left; cursor: pointer; }
+.guided-step-item:hover, .guided-step-item.is-active { background: #eff6ff; color: #1d4ed8; }
+.guided-step-icon { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border: 1px solid #cbd5e1; border-radius: 50%; font-size: .75rem; font-weight: 700; }
+.guided-step-item.is-active .guided-step-icon { border-color: #2563eb; background: #2563eb; color: white; }
+.guided-step-item > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.guided-step-item strong { font-size: .82rem; }
+.guided-step-item small { color: #94a3b8; font-size: .7rem; white-space: nowrap; }
+.guided-step-current { margin-left: auto; color: #2563eb; font-size: .65rem; font-weight: 700; }
+.guided-setup-workspace { min-width: 0; background: white; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+.guided-setup-workspace .guided-setup-content { padding: 28px 32px; transition: opacity .2s ease, transform .2s ease; }
+.guided-setup-workspace .guided-setup-card { box-shadow: none; border-color: #e2e8f0; }
+.guided-live-preview { position: sticky; top: 20px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 14px; background: white; box-shadow: 0 1px 3px rgba(15,23,42,.05); text-align: center; }
+.guided-preview-heading { display: flex; justify-content: space-between; align-items: start; gap: 8px; text-align: left; }
+.guided-preview-heading h2 { margin: 4px 0 0; color: #0f172a; font-size: 1rem; }
+.guided-live-dot { color: #15803d; font-size: .72rem; white-space: nowrap; }
+.guided-phone-wrap { max-height: 550px; margin: 18px auto 10px; overflow: hidden; border: 8px solid #0f172a; border-radius: 26px; background: #0f172a; }
+.guided-preview-url { color: #64748b; font-size: .8rem; }
+.guided-preview-url strong { color: #2563eb; }
+.guided-preview-hint { color: #94a3b8; }
+.guided-setup-workspace .guided-setup-footer { padding: 16px 32px; background: white; border-color: #e2e8f0; }
 .guided-setup-progress {
   height: 6px;
   border-radius: 99px;
@@ -563,6 +597,18 @@
   padding: 16px;
   max-width: 720px;
 }
+.guided-template-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 14px 0; color: #64748b; font-size: .8rem; }
+.guided-template-chips button { border: 1px solid #bfdbfe; border-radius: 999px; padding: 7px 11px; color: #2563eb; background: #eff6ff; cursor: pointer; }
+.guided-template-chips button:hover { background: #dbeafe; }
+.guided-slug-field { display: grid; gap: 6px; margin-top: 8px; color: #475569; font-size: .8rem; }
+.guided-profile-field { display: grid; gap: 6px; color: #475569; font-size: .8rem; }
+.guided-profile-field input { width: 100%; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px; color: #0f172a; background: #f8fafc; }
+.guided-slug-input { display: flex; align-items: center; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 9px; background: #f8fafc; color: #64748b; }
+.guided-slug-input span { padding-left: 10px; white-space: nowrap; font-size: .78rem; }
+.guided-slug-input input { min-width: 0; flex: 1; border: 0; background: transparent; padding: 10px 8px; color: #0f172a; outline: none; }
+.guided-slug-field small { color: #b45309; }
+.guided-slug-field small.is-available { color: #15803d; }
+.guided-save-slug { justify-self: start; margin-top: 4px; }
 .guided-setup-card,
 .guided-week,
 .guided-setup-list article {
@@ -708,6 +754,13 @@
   }
 }
 @media (max-width: 760px) {
+  .guided-setup-layout { grid-template-columns: 1fr; }
+  .guided-setup-left-column { grid-template-columns: 1fr; }
+  .guided-steps-card, .guided-live-preview { position: static; }
+  .guided-step-list { grid-template-columns: repeat(3, 1fr); }
+  .guided-step-item { flex-direction: column; text-align: center; padding: 8px 2px; }
+  .guided-step-item small, .guided-step-current { display: none; }
+  .guided-live-preview { order: -1; }
   .guided-page-grid {
     grid-template-columns: 1fr;
   }

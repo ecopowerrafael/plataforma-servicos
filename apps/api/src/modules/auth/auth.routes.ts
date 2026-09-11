@@ -128,19 +128,26 @@ export const publicAuthRoutes: FastifyPluginCallbackZod<AuthRoutesOptions> = (
     },
     async (request, reply) => {
       const body = request.body as { credential: string };
-      const payload = options.googleAuth.validateIdToken(body.credential);
-      const result = await options.service.loginWithGoogle(
-        payload.sub,
-        payload.email,
-        payload.name,
-        requestMetadata(request),
-      );
-      reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
-      return {
-        user: result.user,
-        tenants: result.tenants,
-        requiresTenantSelection: result.requiresTenantSelection,
-      };
+      try {
+        const payload = options.googleAuth.validateIdToken(body.credential);
+        request.log.debug({ stage: 'validate_token' }, 'Google authentication token validated');
+        const result = await options.service.loginWithGoogle(
+          payload.sub,
+          payload.email,
+          payload.name,
+          requestMetadata(request),
+        );
+        request.log.debug({ stage: 'login_with_google', tenantCount: result.tenants.length }, 'Google authentication identity resolved');
+        reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
+        return {
+          user: result.user,
+          tenants: result.tenants,
+          requiresTenantSelection: result.requiresTenantSelection,
+        };
+      } catch (error) {
+        request.log.error({ stage: 'auth_google', error }, 'Google authentication failed');
+        throw error;
+      }
     },
   );
 

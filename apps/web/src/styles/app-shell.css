@@ -636,11 +636,16 @@
   border-radius: 10px;
   grid-row: span 2;
 }
+.guided-service-card > div:not(.guided-service-actions):not(.guided-service-editor) { display: grid; gap: 4px; align-content: center; }
+.guided-service-meta { display: block; color: #475569; white-space: nowrap; }
+.guided-service-card > div:not(.guided-service-actions):not(.guided-service-editor) > small { display: block; margin-top: 3px; color: #94a3b8; }
 .guided-upload-label {
   color: #9a6f39;
   cursor: pointer;
   font-size: 0.82rem;
 }
+.guided-upload-button { display: inline-flex; align-items: center; justify-content: center; width: fit-content; margin-top: 5px; padding: 7px 11px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #1d4ed8; cursor: pointer; font-size: .78rem; font-weight: 600; transition: background .2s ease, border-color .2s ease; }
+.guided-upload-button:hover { background: #dbeafe; border-color: #93c5fd; }
 .guided-service-editor {
   grid-column: 1 / -1;
   display: grid;

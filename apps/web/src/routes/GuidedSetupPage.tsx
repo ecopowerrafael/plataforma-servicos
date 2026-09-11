@@ -40,6 +40,17 @@ const Checklist = z.object({
 });
 const Context = z.object({ tenant: z.object({ displayName: z.string(), publicId: z.string() }) });
 
+function formatPriceInReais(priceCents: string): string {
+  const cents = Number(priceCents);
+  if (!Number.isFinite(cents)) return '0,00';
+  return (cents / 100).toFixed(2).replace('.', ',');
+}
+
+function priceInputToCents(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  return digits === '' ? '0' : String(Number(digits));
+}
+
 export function GuidedSetupPage() {
   const tenantPublicId = readSelectedTenant() ?? '';
   const navigate = useNavigate();
@@ -58,6 +69,7 @@ export function GuidedSetupPage() {
       { name: string; durationMinutes: string; priceCents: string; description: string }
     >
   >({});
+  const [serviceImagePreview, setServiceImagePreview] = useState<Record<string, string>>({});
   const onboarding = useQuery({
     queryKey: ['guided-setup', tenantPublicId],
     queryFn: () => httpClient.request('/tenant/onboarding', { schema: Onboarding, tenantPublicId }),
@@ -400,24 +412,24 @@ export function GuidedSetupPage() {
                   };
                   return (
                     <article key={item.publicId} className="guided-service-card">
-                      {item.imageUrl !== null && (
+                      {(serviceImagePreview[item.publicId] !== undefined || item.imageUrl !== null) && (
                         <img
                           className="guided-service-image"
-                          src={`${environment.apiUrl}${item.imageUrl}`}
+                          src={serviceImagePreview[item.publicId] ?? `${environment.apiUrl}${item.imageUrl}`}
                           alt=""
                         />
                       )}
                       <div>
                         <strong>{item.name}</strong>
-                        <span>
+                        <span className="guided-service-meta">
                           {item.durationMinutes} min ·{' '}
                           {(Number(item.priceCents) / 100).toLocaleString('pt-BR', {
                             style: 'currency',
                             currency: 'BRL',
                           })}
                         </span>
-                        <small>{item.imageUrl === null ? 'Sem foto' : 'Foto adicionada'}</small>
-                        <label className="guided-upload-label">
+                        {item.imageUrl === null && <small>Sem imagem</small>}
+                        <label className="guided-upload-button">
                           {serviceImageMutation.isPending ? 'Enviando…' : 'Adicionar imagem'}
                           <input
                             type="file"
@@ -425,8 +437,10 @@ export function GuidedSetupPage() {
                             hidden
                             onChange={(event) => {
                               const file = event.target.files?.[0];
-                              if (file)
+                              if (file) {
+                                setServiceImagePreview((value) => ({ ...value, [item.publicId]: URL.createObjectURL(file) }));
                                 void serviceImageMutation.mutateAsync({ id: item.publicId, file });
+                              }
                               event.currentTarget.value = '';
                             }}
                           />
@@ -487,15 +501,16 @@ export function GuidedSetupPage() {
                             />
                           </label>
                           <label>
-                            Preço em centavos
+                            Preço (R$)
                             <input
-                              type="number"
-                              min="0"
-                              value={draft.priceCents}
+                              type="text"
+                              inputMode="decimal"
+                              aria-label="Preço em reais"
+                              value={formatPriceInReais(draft.priceCents)}
                               onChange={(event) =>
                                 setServiceDraft((value) => ({
                                   ...value,
-                                  [item.publicId]: { ...draft, priceCents: event.target.value },
+                                  [item.publicId]: { ...draft, priceCents: priceInputToCents(event.target.value) },
                                 }))
                               }
                             />
@@ -518,11 +533,20 @@ export function GuidedSetupPage() {
                             onClick={() =>
                               void serviceMutation.mutateAsync({
                                 id: item.publicId,
-                                body: {
+                                  body: {
                                   name: draft.name,
                                   durationMinutes: Number(draft.durationMinutes),
                                   priceCents: Number(draft.priceCents),
                                   description: draft.description || null,
+                                  imageAlt: item.imageAlt,
+                                  iconKey: item.iconKey,
+                                  categoryPublicId: item.categoryPublicId,
+                                  hasPostServiceBreak: item.hasPostServiceBreak,
+                                  postServiceBreakMinutes: item.postServiceBreakMinutes,
+                                  pricingMode: item.pricingMode,
+                                  quoteNotice: item.quoteNotice,
+                                  color: item.color,
+                                  sortOrder: item.sortOrder,
                                   active: true,
                                 },
                               })

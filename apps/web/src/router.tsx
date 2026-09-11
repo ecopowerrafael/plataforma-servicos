@@ -16,6 +16,9 @@ const ForgotPasswordPage = lazy(async () => ({
   default: (await import('./routes/ForgotPasswordPage.js')).ForgotPasswordPage,
 }));
 const HomePage = lazy(async () => ({ default: (await import('./routes/HomePage.js')).HomePage }));
+const GuidedSetupPage = lazy(async () => ({
+  default: (await import('./routes/GuidedSetupPage.js')).GuidedSetupPage,
+}));
 const LoginPage = lazy(async () => ({
   default: (await import('./routes/LoginPage.js')).LoginPage,
 }));
@@ -29,7 +32,8 @@ const PlatformPageRebuild = lazy(async () => ({
   default: (await import('./routes/PlatformPageRebuild.js')).PlatformPageRebuild,
 }));
 const PlatformProfessionalDetailPage = lazy(async () => ({
-  default: (await import('./routes/PlatformProfessionalDetailPage.js')).PlatformProfessionalDetailPage,
+  default: (await import('./routes/PlatformProfessionalDetailPage.js'))
+    .PlatformProfessionalDetailPage,
 }));
 const PlatformServiceDetailPage = lazy(async () => ({
   default: (await import('./routes/PlatformServiceDetailPage.js')).PlatformServiceDetailPage,
@@ -49,7 +53,9 @@ const ProfessionalTenantLoginPage = lazy(async () => ({
 const RegisterPage = lazy(async () => ({
   default: (await import('./routes/RegisterPage.js')).RegisterPage,
 }));
-const EstablishmentOnboardingPage = lazy(async () => ({ default: (await import('./routes/EstablishmentOnboardingPage.js')).EstablishmentOnboardingPage }));
+const EstablishmentOnboardingPage = lazy(async () => ({
+  default: (await import('./routes/EstablishmentOnboardingPage.js')).EstablishmentOnboardingPage,
+}));
 const ResetPasswordPage = lazy(async () => ({
   default: (await import('./routes/ResetPasswordPage.js')).ResetPasswordPage,
 }));
@@ -312,6 +318,7 @@ export const router = createBrowserRouter([
   { path: '/cadastro', element: lazyPage(RegisterPage) },
   { path: '/cadastro/estabelecimento', element: lazyPage(EstablishmentOnboardingPage) },
   { path: '/app', element: lazyPage(HomePage) },
+  { path: '/app/inicio-guiado', element: lazyPage(GuidedSetupPage) },
   { path: '/comercial', element: lazyPage(CommercialPage) },
   { path: '/comercial/dashboard', element: lazyPage(CommercialPage) },
   { path: '/comercial/carteira', element: lazyPage(CommercialPage) },

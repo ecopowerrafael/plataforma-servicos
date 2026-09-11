@@ -995,6 +995,18 @@ export function HomePage() {
         </button>
       )}
       {guidedActive && !guidedPaused && (
+        <section className="onboarding-checklist" aria-label="Continue configurando sua conta">
+          <div>
+            <span className="eyebrow">Configuração inicial</span>
+            <h2>Continue configurando sua conta</h2>
+            <p>Você pode concluir o essencial em poucos minutos.</p>
+            <button className="primary-button" type="button" onClick={() => void navigate('/app/inicio-guiado')}>
+              Continuar configuração
+            </button>
+          </div>
+        </section>
+      )}
+      {false && guidedActive && !guidedPaused && (
         <div
           className="onboarding-overlay"
           role="dialog"

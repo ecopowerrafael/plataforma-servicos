@@ -159,9 +159,9 @@ export function ComboForm({
             Nome do Combo
             <input {...register('name')} />
           </label>
-          <label>
-            {'Preço Final (R$)'}
-            <input
+          <label className="combo-price-field">
+            <span>Preço Final (R$)</span>
+            <span className="combo-currency-input"><span aria-hidden="true">R$</span><input
               min="0"
               step="0.01"
               inputMode="decimal"
@@ -174,7 +174,7 @@ export function ComboForm({
                   { shouldDirty: true },
                 );
               }}
-            />
+            /></span>
             <small>{money(String(comboPrice))}</small>
           </label>
           <label>

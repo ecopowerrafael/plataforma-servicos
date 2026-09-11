@@ -279,6 +279,15 @@
 .combo-page-container .combo-service-card:hover { background: #f8fafc; color: #0f172a; border-color: #cbd5e1; }
 .combo-page-container .combo-service-card.is-selected { background: #eff6ff; color: #0f172a; border-color: #2563eb; }
 .combo-page-container .combo-price-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.combo-price-field > span:first-child { display: block; }
+.combo-currency-input { display: flex; align-items: center; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
+.combo-currency-input > span { padding-left: 12px; color: #64748b; font-weight: 700; }
+.combo-currency-input input { min-width: 0; flex: 1; border: 0 !important; box-shadow: none !important; }
+.combo-form .service-image-upload { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+.combo-form .service-image-upload .ds-eyebrow { margin: 0; min-width: 110px; }
+.combo-form .service-image-frame { width: 80px; min-width: 80px; height: 80px; min-height: 80px; padding: 0; border-radius: 9px; }
+.combo-form .service-image-frame img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+.combo-form .service-image-actions { align-items: center; }
 
 @media (max-width: 768px) {
   .combo-page-container .combo-price-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }

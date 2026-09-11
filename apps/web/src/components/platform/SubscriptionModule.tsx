@@ -641,6 +641,7 @@ export function SubscriptionModule({
             {detailTab === 'billing' ? <SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId} /> : null}
             {detailTab === 'overview' ? (
               <div className="subscription-manage-grid">
+              <div className="subscription-manage-column subscription-manage-column--left">
             <SubscriptionOverviewCard>
             <div className="platform-subscription-summary">
               <article>
@@ -751,6 +752,8 @@ export function SubscriptionModule({
             )}
             </>}
             <div className="subscription-manage-main"><SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId} /></div>
+            </div>
+            <div className="subscription-manage-column subscription-manage-column--right">
             <AdminActionPlanChanger>
             <div className="platform-form">
               <label>

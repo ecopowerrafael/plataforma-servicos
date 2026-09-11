@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
 
-const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const days = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const workdays = [1, 2, 3, 4, 5];
 interface Pause { startsAt: string; endsAt: string }
 interface Day { active: boolean; startsAt: string; endsAt: string; pauses: Pause[] }
@@ -67,8 +67,6 @@ export function ProfessionalSchedule({ tenantPublicId, professionalPublicId }: {
   const client = useQueryClient();
   const [week, setWeek] = useState<Week>(defaultWeek);
   const [saved, setSaved] = useState<Week>(defaultWeek);
-  const [copyFrom, setCopyFrom] = useState<number | null>(null);
-  const [copyDays, setCopyDays] = useState<number[]>([]);
   const key = ['professional-schedule', professionalPublicId];
   const schedule = useQuery({ queryKey: key, queryFn: () => httpClient.request(`/tenant/professionals/${professionalPublicId}/schedule`, { schema: ProfessionalScheduleResponseSchema, tenantPublicId }), retry: false });
   // The query result is the persistent source of truth; hydrate the editable draft when it arrives.
@@ -81,7 +79,12 @@ export function ProfessionalSchedule({ tenantPublicId, professionalPublicId }: {
     onSuccess: async (data) => { const value = toWeek(data.items); setWeek(value); setSaved(value); await client.invalidateQueries({ queryKey: key }); },
   });
   const updateDay = (weekday: number, change: Partial<Day>) => { setWeek((current) => ({ ...current, [weekday]: { ...(current[weekday] ?? defaultDay()), ...change } })); };
-  const copy = () => { if (copyFrom === null) return; setWeek((current) => { const next = { ...current }; const source = current[copyFrom] ?? defaultDay(); for (const day of copyDays) next[day] = cloneDay(source); return next; }); setCopyFrom(null); setCopyDays([]); };
+  const handleApplyMondayToWeekdays = () => {
+    setWeek((current) => {
+      const monday = current[1] ?? defaultDay();
+      return { ...current, ...Object.fromEntries(workdays.filter((day) => day !== 1).map((day) => [day, cloneDay(monday)])) };
+    });
+  };
   const summary = useMemo(() => {
     const weekdaysSame = workdays.every((day) => JSON.stringify(week[day]) === JSON.stringify(week[1]));
     const monday = week[1] ?? defaultDay(); const saturday = week[6] ?? defaultDay(); const sunday = week[0] ?? defaultDay();
@@ -89,19 +92,16 @@ export function ProfessionalSchedule({ tenantPublicId, professionalPublicId }: {
   }, [week]);
   if (schedule.isPending) return <section className="professional-settings-card"><p>Carregando agenda…</p></section>;
   return <section className="professional-settings-card weekly-schedule" aria-label="Agenda semanal">
-    <header className="settings-card-header"><div><span className="settings-card-icon" aria-hidden="true">◷</span><div><h4>Agenda semanal</h4><p>{summary}</p></div></div><button className="secondary-button" type="button" onClick={() => { const value = defaultWeek(); setWeek(value); }}>Usar agenda padrão</button></header>
+    <header className="settings-card-header schedule-modern-header"><div><span className="settings-card-icon" aria-hidden="true">⏰</span><div><h4>Jornada de Trabalho Semanal</h4><p>Defina os horários de atendimento recorrentes do profissional.</p><small>{summary}</small></div></div><div className="schedule-header-actions"><button className="secondary-button" type="button" onClick={handleApplyMondayToWeekdays}>⚡ Replicar Segunda p/ Seg-Sex</button><button className="text-button" type="button" onClick={() => { const value = defaultWeek(); setWeek(value); }}>Usar agenda padrão</button></div></header>
     {schedule.data?.items.length === 0 ? <div className="schedule-empty"><strong>Este profissional ainda não tem agenda.</strong><span>Use a agenda padrão como ponto de partida e ajuste quando quiser.</span></div> : null}
-    <div className="week-grid">
-      {days.map((name, weekday) => { const day = week[weekday] ?? defaultDay(); return <article className={`week-day${day.active ? '' : ' closed'}`} key={name}>
-        <div className="week-day-heading"><strong>{name}</strong><label className="toggle"><input checked={day.active} type="checkbox" onChange={(event) => { updateDay(weekday, { active: event.target.checked, pauses: event.target.checked ? day.pauses : [] }); }} /><span />Atende neste dia</label></div>
-        {!day.active ? <p>Fechado</p> : <><div className="time-row"><input aria-label={`Início ${name}`} type="time" value={day.startsAt} onChange={(event) => { updateDay(weekday, { startsAt: event.target.value }); }} /><span>—</span><input aria-label={`Fim ${name}`} type="time" value={day.endsAt} onChange={(event) => { updateDay(weekday, { endsAt: event.target.value }); }} /></div>
-          {day.pauses.map((pause, index) => <div className="pause-row" key={`${String(weekday)}-${String(index)}`}><small>Pausa</small><input type="time" value={pause.startsAt} onChange={(event) => { updateDay(weekday, { pauses: day.pauses.map((item, itemIndex) => itemIndex === index ? { ...item, startsAt: event.target.value } : item) }); }} /><span>—</span><input type="time" value={pause.endsAt} onChange={(event) => { updateDay(weekday, { pauses: day.pauses.map((item, itemIndex) => itemIndex === index ? { ...item, endsAt: event.target.value } : item) }); }} /><button className="text-button" type="button" onClick={() => { updateDay(weekday, { pauses: day.pauses.filter((_, itemIndex) => itemIndex !== index) }); }}>Remover</button></div>)}
-           <div className="day-actions"><button className="text-button" type="button" onClick={() => { updateDay(weekday, { pauses: [...day.pauses, { startsAt: '12:00', endsAt: '13:00' }] }); }}>+ Adicionar pausa</button><button className="text-button" type="button" onClick={() => { setCopyFrom(weekday); setCopyDays([]); }}>Copiar horário</button>{workdays.includes(weekday) ? <button className="text-button" type="button" onClick={() => { setWeek((current) => ({ ...current, ...Object.fromEntries(workdays.filter((item) => item !== weekday).map((item) => [item, cloneDay(current[weekday] ?? defaultDay())])) })); }}>Aplicar aos dias úteis</button> : null}</div></>}
-      </article>; })}
+    <div className="week-list">
+      {days.map((name, weekday) => { const day = week[weekday] ?? defaultDay(); const pause = day.pauses[0]; return <div className={`week-list-row${day.active ? '' : ' closed'}`} key={name}>
+        <div className="week-day-heading"><label className="toggle"><input aria-label={`${name} ativo`} checked={day.active} type="checkbox" onChange={(event) => { updateDay(weekday, { active: event.target.checked, pauses: event.target.checked ? day.pauses : [] }); }} /><span /></label><strong>{name}</strong></div>
+        {day.active ? <><div className="time-row"><input aria-label={`Início ${name}`} type="time" value={day.startsAt} onChange={(event) => { updateDay(weekday, { startsAt: event.target.value }); }} /><span>às</span><input aria-label={`Fim ${name}`} type="time" value={day.endsAt} onChange={(event) => { updateDay(weekday, { endsAt: event.target.value }); }} /></div><div className="pause-cell">{pause ? <div className="pause-badge">Pausa: {pause.startsAt} às {pause.endsAt}<button type="button" aria-label={`Remover pausa de ${name}`} onClick={() => { updateDay(weekday, { pauses: day.pauses.slice(1) }); }}>×</button></div> : <span className="muted-pill">Sem pausa</span>}</div><button className="text-button" type="button" onClick={() => { updateDay(weekday, { pauses: [...day.pauses, { startsAt: '12:00', endsAt: '13:00' }] }); }}>+ Adicionar pausa</button></> : <><div className="closed-pill">Não atende (Folga fixa)</div><div /><span /> </>}
+      </div>; })}
     </div>
     {error !== null ? <p className="form-error" role="alert">{error}</p> : null}
     {save.error instanceof Error ? <p className="form-error" role="alert">{save.error.message}</p> : null}
     {dirty ? <div className="schedule-save-bar"><span>Alterações não salvas</span><div><button className="secondary-button" type="button" onClick={() => { setWeek(saved); }}>Descartar</button><button className="primary-button" disabled={error !== null || save.isPending} type="button" onClick={() => { save.mutate(); }}>{save.isPending ? 'Salvando…' : 'Salvar agenda'}</button></div></div> : null}
-    {copyFrom !== null ? <div className="schedule-copy-modal" role="dialog" aria-modal="true" aria-label="Copiar horário"><div><h4>Copiar configuração de {days[copyFrom]}</h4><p>Copie atendimento e pausas. Exceções por data não são alteradas.</p><div className="copy-options">{days.map((name, day) => day === copyFrom ? null : <label key={name}><input checked={copyDays.includes(day)} type="checkbox" onChange={() => { setCopyDays((current) => current.includes(day) ? current.filter((item) => item !== day) : [...current, day]); }} />{name}</label>)}</div><div className="form-actions"><button className="secondary-button" type="button" onClick={() => { setCopyDays(workdays.filter((day) => day !== copyFrom)); }}>Selecionar dias úteis</button><button className="secondary-button" type="button" onClick={() => { setCopyDays(days.map((_, day) => day).filter((day) => day !== copyFrom)); }}>Selecionar todos</button><button className="primary-button" disabled={copyDays.length === 0} type="button" onClick={copy}>Aplicar</button><button className="text-button" type="button" onClick={() => { setCopyFrom(null); }}>Cancelar</button></div></div></div> : null}
   </section>;
 }

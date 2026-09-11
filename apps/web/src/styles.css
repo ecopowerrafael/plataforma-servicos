@@ -9575,6 +9575,59 @@ h1 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.8rem;
 }
+.schedule-modern-header {
+  align-items: flex-start;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.schedule-modern-header small {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--panel-muted);
+  font-size: 0.75rem;
+}
+.schedule-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.week-list {
+  display: grid;
+  gap: 0;
+}
+.week-list-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.1fr) minmax(14rem, 1.2fr) minmax(13rem, 1.4fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: 4.25rem;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  border-radius: 0.6rem;
+}
+.week-list-row:hover { background: #f8fafc; }
+.week-list-row.closed { color: var(--panel-muted); }
+.week-list-row .week-day-heading { justify-content: flex-start; gap: 0.7rem; }
+.week-list-row .week-day-heading strong { font-size: 0.9rem; }
+.week-list-row .time-row { width: max-content; padding: 0.35rem 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.55rem; background: #f8fafc; }
+.week-list-row .time-row input { width: 5.6rem; min-height: 1.9rem; border: 0; background: transparent; }
+.pause-cell { min-width: 0; }
+.pause-badge, .muted-pill, .closed-pill { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.65rem; border-radius: 0.55rem; font-size: 0.75rem; }
+.pause-badge { color: #92400e; background: #fffbeb; border: 1px solid #fde68a; }
+.pause-badge button { border: 0; color: #b45309; background: transparent; cursor: pointer; font-size: 1rem; line-height: 1; }
+.muted-pill, .closed-pill { color: var(--panel-muted); background: #f1f5f9; }
+@media (max-width: 900px) {
+  .week-list-row { grid-template-columns: 1fr 1fr; }
+  .week-list-row > :nth-child(3) { grid-column: 1; }
+  .week-list-row > :nth-child(4) { grid-column: 2; grid-row: 2; justify-self: end; }
+}
+@media (max-width: 620px) {
+  .schedule-modern-header, .schedule-header-actions { align-items: stretch; }
+  .schedule-header-actions { flex-direction: column; }
+  .week-list-row { grid-template-columns: 1fr; gap: 0.7rem; }
+  .week-list-row > :nth-child(3), .week-list-row > :nth-child(4) { grid-column: auto; grid-row: auto; justify-self: start; }
+}
 .week-day {
   padding: 1rem;
   border: 1px solid var(--panel-line);

@@ -7,6 +7,11 @@ import { z } from 'zod';
 export const OperatingModelSchema = z.enum(['SERVICE_PRICING', 'MEMBERSHIP']);
 export type OperatingModel = z.infer<typeof OperatingModelSchema>;
 
+/** Normaliza somente a ausência legada; valores desconhecidos continuam inválidos. */
+export function normalizeOperatingModel(value: unknown): OperatingModel {
+  return OperatingModelSchema.parse(value == null ? 'SERVICE_PRICING' : value);
+}
+
 export const OperatingModelLabels: Record<OperatingModel, string> = Object.freeze({
   SERVICE_PRICING: 'Cobrança por serviço',
   MEMBERSHIP: 'Mensalidade (assinatura do cliente)',

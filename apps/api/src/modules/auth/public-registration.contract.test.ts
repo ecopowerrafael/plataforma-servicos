@@ -2,7 +2,6 @@ import { PublicRegistrationRequestSchema } from '@plataforma/shared';
 import { describe, expect, it } from 'vitest';
 
 const request = {
-  name: 'Studio Agendei',
   email: 'owner@example.com',
   password: 'SenhaSegura123!',
   planPublicId: '00000000-0000-4000-8000-000000000001',

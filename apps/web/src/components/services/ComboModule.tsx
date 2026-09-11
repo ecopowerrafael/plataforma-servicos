@@ -179,7 +179,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
           </div>
         </>
       )}
-      <div className="combo-catalog-panel">
+      <div className="combo-catalog-panel col-span-12 lg:col-span-4">
       <div className="platform-form combo-catalog-toolbar">
         <label>
           Busca
@@ -280,7 +280,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
       )}
       </div>
       {detail.data !== undefined && (
-        <article className="sessions-panel combo-editor-panel">
+        <article className="sessions-panel combo-editor-panel col-span-12 lg:col-span-8">
           <h3>{detail.data.name}</h3>
           {detail.data.imageUrl !== null && (
             <TenantServiceImage

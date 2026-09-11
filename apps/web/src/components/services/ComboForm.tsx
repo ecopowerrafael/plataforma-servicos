@@ -6,6 +6,7 @@ import {
 } from '@plataforma/shared';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { IconClock, IconGripVertical, IconLayers, IconTag, IconUsers } from '@tabler/icons-react';
 
 import type { z } from 'zod';
 
@@ -158,7 +159,7 @@ export function ComboForm({
     >
       <div className="combo-editor-main">
       <fieldset className="combo-form-section combo-card">
-        <legend>Informações gerais do combo</legend>
+        <legend><IconTag aria-hidden="true" size={18} /> Informações gerais do combo</legend>
         <div className="combo-form-grid">
           <label className="combo-field--wide">
             Nome do Combo
@@ -211,7 +212,7 @@ export function ComboForm({
         {imageSection}
       </fieldset>
       <fieldset className="combo-form-section combo-card">
-        <legend>{'Serviços do combo & economia'}</legend>
+        <legend><IconLayers aria-hidden="true" size={18} /> {'Serviços do combo & economia'}</legend>
         <div className="combo-picker-toolbar">
           <label>
             {'Buscar serviço'}
@@ -234,8 +235,8 @@ export function ComboForm({
             const service = services.find((candidate) => candidate.publicId === item.servicePublicId);
             if (!service) return null;
             return <div className="combo-selected-item" key={item.servicePublicId}>
-              <span className="drag-handle" aria-hidden="true">⋮⋮</span>
-              <span><strong>{service.name}</strong><small>{service.durationMinutes} min · {money(service.priceCents)}</small></span>
+              <IconGripVertical className="drag-handle" aria-hidden="true" size={18} />
+              <span><strong>{service.name}</strong><small><span className="combo-duration-pill"><IconClock aria-hidden="true" size={12} /> {service.durationMinutes} min</span> · {money(service.priceCents)}</small></span>
               <button type="button" disabled={index === 0} onClick={() => { const next = [...selectedItems]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; setValue('items', next, { shouldDirty: true }); }}>↑</button>
               <button type="button" disabled={index === selectedItems.length - 1} onClick={() => { const next = [...selectedItems]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; setValue('items', next, { shouldDirty: true }); }}>↓</button>
             </div>;
@@ -294,7 +295,7 @@ export function ComboForm({
         ) : null}
       </fieldset>
       <fieldset className="combo-form-section combo-card">
-        <legend>Profissionais aptos</legend>
+        <legend><IconUsers aria-hidden="true" size={18} /> Profissionais aptos</legend>
         <label className="combo-toggle"><input type="checkbox" checked={editorState.autoAssignByServices} onChange={(event) => setAutoAssign(event.target.checked)} /> <span>Vincular automaticamente profissionais capacitados para todos os serviços do combo.</span></label>
         {professionals && professionals.length > 0 ? <div className="professional-list">
           {professionals.map((professional) => <label className="professional-row" key={professional.publicId}>
@@ -317,7 +318,7 @@ export function ComboForm({
           </div>
         </section>
         <section className="combo-preview-card">
-          <p className="combo-summary-eyebrow">Como o cliente verá</p>
+          <p className="combo-preview-title">Visualização do Cliente <span><i aria-hidden="true" /> Live Preview</span></p>
           <div className="combo-preview-image" aria-hidden="true">
             {previewImage ?? <span>Imagem do combo</span>}
           </div>

@@ -98,32 +98,9 @@ export const publicAuthRoutes: FastifyPluginCallbackZod<AuthRoutesOptions> = (
     '/auth/register',
     { config: rateLimitConfig(options), schema: { body: PublicRegistrationRequestSchema, response: { 201: PublicRegistrationResponseSchema } } },
     async (request, reply) => {
-      const plan = await options.client.commercialPlan.findUnique({ where: { publicId: request.body.planPublicId }, include: { billingOptions: true } });
-      if (plan?.status !== 'ACTIVE' || !plan.isPublic)
-        throw new AppError({ code: 'PLAN_UNAVAILABLE', message: 'O plano escolhido não está disponível.', statusCode: 409 });
-      const option = plan.billingOptions.find((item) => item.billingCycle === request.body.billingCycle && item.active);
-      if (option === undefined)
-        throw new AppError({ code: 'BILLING_OPTION_UNAVAILABLE', message: 'A periodicidade escolhida não está disponível para este plano.', statusCode: 409 });
-      const baseSlug = request.body.name.normalize('NFD').replace(/[^\w\s-]/gu, '').trim().replace(/\s+/gu, '-').toLowerCase().slice(0, 48) || 'estabelecimento';
-      const created = await options.service.createTenantWithOwner({
-        legalName: request.body.name,
-        displayName: request.body.name,
-        slug: `${baseSlug}-${randomUUID().slice(0, 8)}`,
-        timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL',
-        settings: { allowMultipleUnits: false, defaultAppointmentIntervalMinutes: 15, minimumAdvanceMinutes: 0, maximumAdvanceDays: 180, weekStartsOn: 'MONDAY', dateFormat: 'DD/MM/YYYY', timeFormat: '24H' },
-        initialUnit: { name: 'Unidade principal', slug: 'principal' },
-        owner: { email: request.body.email, password: request.body.password },
-      });
-      const now = new Date();
-      const policy = await options.client.tenantCommercialPolicy.findFirst();
-      const trialDays = plan.trialDays ?? policy?.defaultTrialDays ?? 0;
-      const trialEndsAt = trialDays > 0 ? new Date(now.getTime() + trialDays * 86_400_000) : null;
-      const tenant = await options.client.tenant.findUniqueOrThrow({ where: { publicId: created.tenant.publicId }, select: { id: true } });
-      const subscription = await options.client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId: tenant.id, planId: plan.id, status: trialEndsAt === null ? 'ACTIVE' : 'TRIALING', startsAt: now, trialStartedAt: trialEndsAt === null ? null : now, trialEndsAt, currentPeriodStartsAt: now, currentPeriodEndsAt: periodEnd(now, request.body.billingCycle), priceCents: option.priceCents, currency: plan.currency, billingCycle: request.body.billingCycle, effectiveKey: 'EFFECTIVE' } });
-      await options.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId: tenant.id, action: trialEndsAt === null ? 'CREATED' : 'TRIAL_STARTED', newStatus: subscription.status, newPlanId: plan.id, reason: 'Cadastro público com plano selecionado.' } });
-      const result = await options.service.login({ email: request.body.email, password: request.body.password }, requestMetadata(request));
+      const result = await options.service.registerIdentity({ email: request.body.email, password: request.body.password }, requestMetadata(request));
       reply.setCookie(options.cookieName, result.rawSessionToken, cookieOptions(options));
-      return reply.status(201).send({ user: result.user, tenants: result.tenants, requiresTenantSelection: result.requiresTenantSelection, tenantPublicId: created.tenant.publicId });
+      return reply.status(201).send({ user: result.user, tenants: result.tenants, requiresTenantSelection: result.requiresTenantSelection });
     },
   );
   app.post(
@@ -243,13 +220,17 @@ export const protectedAuthRoutes: FastifyPluginAsyncZod<AuthRoutesOptions> = asy
     const now = new Date();
     const trialDays = plan.trialDays ?? (await options.client.tenantCommercialPolicy.findFirst())?.defaultTrialDays ?? 0;
     return options.client.$transaction(async (tx) => {
+      const existing = await tx.tenantMembership.findFirst({ where: { userId: request.auth.user.id, isOwner: true, status: 'ACTIVE' }, include: { tenant: { select: { publicId: true } } } });
+      if (existing !== null) return { tenantPublicId: existing.tenant.publicId };
       const ownerRole = await tx.role.findFirstOrThrow({ where: { code: 'OWNER', isSystem: true, tenantId: null }, select: { id: true } });
       const tenant = await tx.tenant.create({ data: { publicId: randomUUID(), slug, legalName: request.body.name, displayName: request.body.name, status: 'ACTIVE', timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL' } });
       await tx.tenantSettings.create({ data: { tenantId: tenant.id, allowMultipleUnits: false, defaultAppointmentIntervalMinutes: 15, minimumAdvanceMinutes: 0, maximumAdvanceDays: 180, weekStartsOn: 'MONDAY', dateFormat: 'DD/MM/YYYY', timeFormat: 'H24' } });
       await tx.businessUnit.create({ data: { publicId: randomUUID(), tenantId: tenant.id, name: 'Unidade principal', slug: 'principal', status: 'ACTIVE', isHeadquarters: true, timezone: 'America/Sao_Paulo' } });
       await tx.tenantMembership.create({ data: { publicId: randomUUID(), tenantId: tenant.id, userId: request.auth.user.id, roleId: ownerRole.id, status: 'ACTIVE', isOwner: true, joinedAt: now } });
       const trialEndsAt = trialDays > 0 ? new Date(now.getTime() + trialDays * 86_400_000) : null;
-      await tx.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId: tenant.id, planId: plan.id, status: trialEndsAt === null ? 'ACTIVE' : 'TRIALING', startsAt: now, trialStartedAt: trialEndsAt === null ? null : now, trialEndsAt, currentPeriodStartsAt: now, currentPeriodEndsAt: periodEnd(now, request.body.billingCycle), priceCents: option.priceCents, currency: plan.currency, billingCycle: request.body.billingCycle, effectiveKey: 'EFFECTIVE' } });
+      if (trialEndsAt !== null) {
+        await tx.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId: tenant.id, planId: plan.id, status: 'TRIALING', startsAt: now, trialStartedAt: now, trialEndsAt, currentPeriodStartsAt: now, currentPeriodEndsAt: periodEnd(now, request.body.billingCycle), priceCents: option.priceCents, currency: plan.currency, billingCycle: request.body.billingCycle, effectiveKey: 'EFFECTIVE' } });
+      }
       return { tenantPublicId: tenant.publicId };
     });
   });

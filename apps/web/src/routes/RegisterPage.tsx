@@ -1,50 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { PasswordSchema, passwordRequirementStatus, PublicRegistrationResponseSchema } from '@plataforma/shared';
+import { GoogleAuthRequestSchema, GoogleAuthResponseSchema, PasswordSchema, PublicRegistrationResponseSchema, passwordRequirementStatus } from '@plataforma/shared';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
-
 import { AuthLayout } from '../components/AuthLayout.js';
-import { httpClient } from '../lib/http.js';
-import { selectTenant } from '../lib/tenant-selection.js';
-
-const Schema = z.object({ name: z.string().trim().min(2, 'Informe o nome do estabelecimento.'), email: z.email('Informe um e-mail válido.'), password: PasswordSchema, confirmation: z.string() }).refine((value) => value.password === value.confirmation, { path: ['confirmation'], message: 'As senhas não coincidem.' });
-type Values = z.infer<typeof Schema>;
-
-export function RegisterPage() {
-  const [params] = useSearchParams();
-  const navigate = useNavigate();
-  const plan = params.get('plan');
-  const billing = params.get('billing');
-  const form = useForm<Values>({ resolver: zodResolver(Schema) });
-  const password = form.watch('password', '');
-  const passwordStatus = passwordRequirementStatus(password);
-  const destination = `/login${plan === null || billing === null ? '' : `?plan=${encodeURIComponent(plan)}&billing=${encodeURIComponent(billing)}`}`;
-  const submit = form.handleSubmit(async (value) => {
-    if (plan === null || billing === null) { form.setError('root', { message: 'Escolha um plano antes de criar a conta.' }); return; }
-    try {
-      const result = await httpClient.request('/auth/register', { method: 'POST', body: { name: value.name, email: value.email, password: value.password, planPublicId: plan, billingCycle: billing }, schema: PublicRegistrationResponseSchema });
-      selectTenant(result.tenantPublicId);
-      await navigate('/app');
-    } catch (error) { form.setError('root', { message: error instanceof Error ? error.message : 'Não foi possível criar sua conta.' }); }
-  });
-  return <AuthLayout title="Crie sua conta" description={plan === null ? 'Comece a organizar seu estabelecimento.' : `Você escolheu um plano — ${billing ?? ''}`} footer={<Link to={destination}>Já tem uma conta? Entrar</Link>}>
-    <form className="auth-form" onSubmit={(event) => void submit(event)} noValidate>
-      <label>Nome do estabelecimento<input autoComplete="organization" {...form.register('name')} /><span className="field-error">{form.formState.errors.name?.message}</span></label>
-      <label>E-mail<input type="email" autoComplete="email" {...form.register('email')} /><span className="field-error">{form.formState.errors.email?.message}</span></label>
-      <label>Senha<input type="password" autoComplete="new-password" {...form.register('password')} /><span className="field-error">{form.formState.errors.password?.message}</span></label>
-      <ul className="password-requirements" aria-label="Requisitos da senha">
-        <li className={passwordStatus.minLength ? 'met' : undefined}>Pelo menos 10 caracteres</li>
-        <li className={passwordStatus.maxLength ? 'met' : undefined}>No máximo 128 caracteres</li>
-        <li className={passwordStatus.letter ? 'met' : undefined}>Ao menos uma letra</li>
-        <li className={passwordStatus.number ? 'met' : undefined}>Ao menos um número</li>
-        <li className={passwordStatus.notOnlyWhitespace ? 'met' : undefined}>Não pode conter somente espaços</li>
-        <li className={passwordStatus.notCommon ? 'met' : undefined}>Não use uma senha comum</li>
-      </ul>
-      <label>Confirmar senha<input type="password" autoComplete="new-password" {...form.register('confirmation')} /><span className="field-error">{form.formState.errors.confirmation?.message}</span></label>
-      {form.formState.errors.root?.message !== undefined && <p className="form-error">{form.formState.errors.root.message}</p>}
-      <button className="primary-button" type="submit">Criar conta e continuar</button>
-      <Link to="/planos">Alterar plano</Link>
-    </form>
-  </AuthLayout>;
-}
+import { loadGoogleIdentityServices } from '../lib/google-identity.js';
+import { HttpError, httpClient } from '../lib/http.js';
+declare global { interface Window { google?: { accounts: { id: { initialize(config: { client_id: string; callback: (response: unknown) => void }): void; renderButton(element: HTMLElement | null, options: Record<string, unknown>): void } } } } }
+const Schema = z.object({ email: z.email('Informe um e-mail válido.'), password: PasswordSchema, confirmation: z.string() }).refine(v => v.password === v.confirmation, { path: ['confirmation'], message: 'As senhas não coincidem.' });
+type Values = z.infer<typeof Schema>; const intentKey = 'agendei.signupIntent.v1'; const labels: Record<string, string> = { MONTHLY: 'Mensal', QUARTERLY: 'Trimestral', SEMIANNUAL: 'Semestral', ANNUAL: 'Anual' };
+export function RegisterPage() { const [params] = useSearchParams(); const navigate = useNavigate(); const form = useForm<Values>({ resolver: zodResolver(Schema) }); const [plan, setPlan] = useState<{name:string;priceCents:number;currency:string}|null>(null); const [invalid, setInvalid] = useState(false); const googleRef = useRef<HTMLDivElement>(null); const googleReady = useRef(false); const planId=params.get('plan'); const billing=params.get('billing'); const password=form.watch('password',''); const status=passwordRequirementStatus(password);
+ useEffect(()=>{ if(!planId||!billing)return; sessionStorage.setItem(intentKey,JSON.stringify({planPublicId:planId,billingCycle:billing,createdAt:Date.now()})); void httpClient.request('/public/commercial-plans',{schema:z.object({plans:z.array(z.any())})}).then((d:any)=>{const p=d.plans.find((x:any)=>x.publicId===planId);const o=p?.billingOptions.find((x:any)=>x.billingCycle===billing&&x.active);if(!p||!o)setInvalid(true);else setPlan({name:p.name,priceCents:o.priceCents,currency:p.currency});}).catch(()=>setInvalid(true));},[planId,billing]);
+ const next=async()=>{await navigate('/cadastro/estabelecimento');};
+ useEffect(()=>{if(googleReady.current)return;const id=import.meta.env.VITE_GOOGLE_CLIENT_ID??'';if(!id)return;googleReady.current=true;void loadGoogleIdentityServices().then(()=>{if(!window.google?.accounts?.id||!googleRef.current)return;window.google.accounts.id.initialize({client_id:id,callback:async(r:{credential?:string})=>{try{const result=await httpClient.request('/auth/google',{method:'POST',body:GoogleAuthRequestSchema.parse({credential:r.credential}),schema:GoogleAuthResponseSchema});if(result.tenants.length)await navigate('/app');else await next();}catch(e){form.setError('root',{message:e instanceof HttpError?e.message:'Não foi possível entrar com o Google.'});}}});window.google.accounts.id.renderButton(googleRef.current,{theme:'outline',size:'large',width:'100%',text:'continue_with'});}).catch(()=>undefined);},[form,navigate]);
+ const submit=form.handleSubmit(async(v)=>{try{await httpClient.request('/auth/register',{method:'POST',body:{email:v.email,password:v.password,planPublicId:planId,billingCycle:billing},schema:PublicRegistrationResponseSchema});await next();}catch(e){form.setError('root',{message:e instanceof HttpError?e.message:'Não foi possível criar sua conta.'});}}); const money=plan?(plan.priceCents/100).toLocaleString('pt-BR',{style:'currency',currency:plan.currency||'BRL'}):'';
+ return <AuthLayout title="Crie sua conta" description="Comece pela sua identidade. Depois vamos configurar seu negócio." footer={<Link to={`/login${params.toString()?`?${params.toString()}`:''}`}>Já tem uma conta? Entrar</Link>}><div className="auth-plan-summary">{plan?<><strong>{plan.name}</strong><span>{labels[billing??'']??'Periodicidade'} · {money}</span></>:invalid?<><strong>Este plano não está disponível.</strong><Link to="/planos">Escolher outro plano</Link></>:<span>Carregando plano…</span>}</div>{!invalid&&<form className="auth-form" onSubmit={e=>void submit(e)} noValidate><div ref={googleRef}/><div className="auth-divider">ou continue com e-mail</div><label>E-mail<input type="email" autoComplete="email" {...form.register('email')}/><span className="field-error">{form.formState.errors.email?.message}</span></label><label>Senha<input type="password" autoComplete="new-password" {...form.register('password')}/><span className="field-error">{form.formState.errors.password?.message}</span></label><ul className="password-requirements"><li className={status.minLength?'met':undefined}>Pelo menos 10 caracteres</li><li className={status.letter?'met':undefined}>Ao menos uma letra</li><li className={status.number?'met':undefined}>Ao menos um número</li></ul><label>Confirmar senha<input type="password" autoComplete="new-password" {...form.register('confirmation')}/><span className="field-error">{form.formState.errors.confirmation?.message}</span></label>{form.formState.errors.root?.message&&<p className="form-error">{form.formState.errors.root.message}</p>}<button className="primary-button" type="submit">Criar conta e continuar</button><Link to="/planos">Alterar plano</Link></form>}</AuthLayout>; }

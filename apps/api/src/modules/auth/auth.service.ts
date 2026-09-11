@@ -188,6 +188,15 @@ export class AuthService {
     };
   }
 
+  public async registerIdentity(request: { email: string; password: string }, metadata: RequestMetadata): Promise<LoginResult> {
+    const normalizedEmail = normalizeEmail(request.email);
+    if (await this.repository.findUserByNormalizedEmail(normalizedEmail)) {
+      throw new AppError({ code: 'MEMBERSHIP_CONFLICT', message: 'O e-mail informado já está cadastrado.', statusCode: 409 });
+    }
+    await this.repository.createPasswordUser({ publicId: generatePublicId(), email: request.email, normalizedEmail, passwordHash: await this.passwords.hash(request.password) });
+    return this.login(request, metadata);
+  }
+
   public async loginWithGoogle(
     googleSub: string,
     email: string,

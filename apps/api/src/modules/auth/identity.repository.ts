@@ -150,6 +150,12 @@ export interface GoogleUserInput {
   googleSub: string;
   name: string;
 }
+export interface PasswordUserInput {
+  publicId: string;
+  email: string;
+  normalizedEmail: string;
+  passwordHash: string;
+}
 
 export interface IdentityRepository {
   createTenantWithOwner(input: CreateTenantOwnerInput): Promise<CreateTenantWithOwnerResponse>;
@@ -157,6 +163,7 @@ export interface IdentityRepository {
   findUserByGoogleSub(googleSub: string): Promise<AuthUserRecord | null>;
   linkGoogleSub(userId: bigint, googleSub: string): Promise<void>;
   createGoogleUser(input: GoogleUserInput): Promise<AuthUserRecord>;
+  createPasswordUser(input: PasswordUserInput): Promise<AuthUserRecord>;
   createLoginSession(input: CreateLoginSessionInput): Promise<AuthSessionRecord>;
   updatePasswordHash(userId: bigint, passwordHash: string): Promise<void>;
   findSessionByTokenHash(tokenHash: string): Promise<AuthSessionRecord | null>;

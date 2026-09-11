@@ -30,6 +30,7 @@ import {
   type InvitationRecord,
   type MembershipListInput,
   type MembershipListResult,
+  type PasswordUserInput,
   type PasswordResetInput,
   type RequestMetadata,
 } from './identity.repository.js';
@@ -267,6 +268,25 @@ export class PrismaIdentityRepository implements IdentityRepository {
           normalizedEmail: input.normalizedEmail,
           googleSub: input.googleSub,
           status: 'ACTIVE',
+        },
+        select: userSelect,
+      });
+      return mapUser(user);
+    } catch (error) {
+      return conflict(error);
+    }
+  }
+
+  public async createPasswordUser(input: PasswordUserInput): Promise<AuthUserRecord> {
+    try {
+      const user = await this.client.user.create({
+        data: {
+          publicId: input.publicId,
+          email: input.email,
+          normalizedEmail: input.normalizedEmail,
+          passwordHash: input.passwordHash,
+          status: 'ACTIVE',
+          passwordChangedAt: new Date(),
         },
         select: userSelect,
       });

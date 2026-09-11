@@ -49,6 +49,7 @@ const ProfessionalTenantLoginPage = lazy(async () => ({
 const RegisterPage = lazy(async () => ({
   default: (await import('./routes/RegisterPage.js')).RegisterPage,
 }));
+const EstablishmentOnboardingPage = lazy(async () => ({ default: (await import('./routes/EstablishmentOnboardingPage.js')).EstablishmentOnboardingPage }));
 const ResetPasswordPage = lazy(async () => ({
   default: (await import('./routes/ResetPasswordPage.js')).ResetPasswordPage,
 }));
@@ -309,6 +310,7 @@ export const router = createBrowserRouter([
   { path: '/controle-de-retorno-de-clientes', element: lazyPage(AestheticReturnPage) },
   { path: '/login', element: lazyPage(LoginPage) },
   { path: '/cadastro', element: lazyPage(RegisterPage) },
+  { path: '/cadastro/estabelecimento', element: lazyPage(EstablishmentOnboardingPage) },
   { path: '/app', element: lazyPage(HomePage) },
   { path: '/comercial', element: lazyPage(CommercialPage) },
   { path: '/comercial/dashboard', element: lazyPage(CommercialPage) },

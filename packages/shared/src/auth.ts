@@ -307,14 +307,12 @@ export const CreateTenantWithOwnerResponseSchema = CreateTenantResponseSchema.ex
 });
 
 export const PublicRegistrationRequestSchema = z.object({
-  name: z.string().trim().min(2).max(120),
   email: EmailSchema,
   password: PasswordSchema,
   planPublicId: z.uuid(),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL', 'CUSTOM']),
 }).strict();
 export const PublicRegistrationResponseSchema = LoginResponseSchema.extend({
-  tenantPublicId: z.uuid(),
 });
 
 export const AuthErrorCodeSchema = z.enum([

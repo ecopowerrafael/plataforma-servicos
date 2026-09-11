@@ -54,6 +54,8 @@ export function ComboForm({
   error,
   combo,
   services,
+  professionals,
+  imageSection,
   onSave,
 }: {
   busy: boolean;

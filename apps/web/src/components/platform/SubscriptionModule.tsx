@@ -36,6 +36,7 @@ import { AdminActionPlanChanger } from './AdminActionPlanChanger.js';
 import { AdminActionTrialExtender } from './AdminActionTrialExtender.js';
 import { AdminActionPeriodEditor } from './AdminActionPeriodEditor.js';
 import { SubscriptionOverviewCard } from './SubscriptionOverviewCard.js';
+import { SubscriptionTabsNav, type SubscriptionDetailTab } from './SubscriptionTabsNav.js';
 
 const SubscriptionResponseSchema = z.object({ subscription: SubscriptionPublicSchema });
 const CreateFormSchema = CreateSubscriptionRequestSchema.extend({ tenantPublicId: z.uuid() });
@@ -80,6 +81,7 @@ export function SubscriptionModule({
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<SubscriptionDetailTab>('overview');
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const client = useQueryClient();
   const plans = useQuery({
@@ -612,7 +614,31 @@ export function SubscriptionModule({
               tenantPublicId={detail.data.subscription.tenantPublicId}
               planName={detail.data.subscription.plan.name}
               status={detail.data.subscription.status}
+              actions={
+                <div className="platform-subscription-header__danger-actions">
+                  <button
+                    disabled={mutation.isPending || !['ACTIVE', 'TRIALING', 'PAST_DUE'].includes(detail.data.subscription.status)}
+                    onClick={() => requestStatus('Suspender', 'suspend', 'A assinatura ficará suspensa até ser reativada.')}
+                    type="button"
+                  >Suspender</button>
+                  <button
+                    disabled={mutation.isPending || ['CANCELED', 'EXPIRED'].includes(detail.data.subscription.status)}
+                    onClick={() => requestStatus('Cancelar', 'cancel', 'A assinatura será cancelada imediatamente.')}
+                    type="button"
+                  >Cancelar assinatura</button>
+                </div>
+              }
             />
+            <SubscriptionTabsNav active={detailTab} onChange={setDetailTab} />
+            {detailTab === 'history' ? (
+              <section className="subscription-tab-panel">
+                <h4>Histórico comercial</h4>
+                {detail.data.history.length === 0 ? <p>Nenhum evento disponível.</p> : <CommercialAuditTimeline events={detail.data.history} />}
+              </section>
+            ) : null}
+            {detailTab === 'billing' ? <SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId} /> : null}
+            {detailTab === 'overview' ? (
+              <div className="subscription-manage-grid">
             <SubscriptionOverviewCard>
             <div className="platform-subscription-summary">
               <article>
@@ -697,12 +723,13 @@ export function SubscriptionModule({
                 <dd>{detail.data.subscription.endsAt ?? 'Sem t\u00e9rmino definido'}</dd>
               </div>
             </dl>
+            {false && <>
             <h4>{'Hist\u00f3rico comercial'}</h4>
-            {detail.data.history.length === 0 ? (
+            {(detail.data?.history ?? []).length === 0 ? (
               <p>Nenhum evento dispon\u00edvel.</p>
             ) : (
               <>
-                <CommercialAuditTimeline events={detail.data.history} />
+                <CommercialAuditTimeline events={detail.data?.history ?? []} />
               {/*
                 {detail.data.history.map((event) => (
                   <li key={event.publicId}>
@@ -720,7 +747,8 @@ export function SubscriptionModule({
               */}
               </>
             )}
-            <SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId} />
+            </>}
+            <div className="subscription-manage-main"><SubscriptionBillingPanel subscriptionPublicId={detail.data.subscription.publicId} /></div>
             <AdminActionPlanChanger>
             <div className="platform-form">
               <label>
@@ -952,10 +980,12 @@ export function SubscriptionModule({
                 Cancelar
               </button>
             </div>
+            </div>
+            ) : null}
           </article>
         </>
       )}
-      {confirmation !== null && (
+            {confirmation !== null && (
         <ConfirmationDialog
           request={confirmation}
           onClose={() => {

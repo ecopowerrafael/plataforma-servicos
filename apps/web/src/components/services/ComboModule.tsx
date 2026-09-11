@@ -163,7 +163,13 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
       />
       {notice !== null && <p className="success-message">{notice}</p>}
       {creating && (
-        <>
+        <div className="combo-edit-shell mb-20 col-span-12">
+          <header className="combo-page-header">
+            <div>
+              <span>Catálogo / Combos / Novo</span>
+              <h1>Novo Combo</h1>
+            </div>
+          </header>
           <ComboForm
             busy={mutation.isPending}
             error={mutation.error instanceof Error ? mutation.error.message : null}
@@ -178,7 +184,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             <button type="button" onClick={() => setCreating(false)}>Cancelar</button>
             <button className="primary-button" type="submit" form="combo-edit-form" disabled={mutation.isPending}>Salvar Alterações</button>
           </div>
-        </>
+        </div>
       )}
       <div className="combo-catalog-panel col-span-12 lg:col-span-4">
       <div className="platform-form combo-catalog-toolbar">
@@ -286,40 +292,13 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
         </article>
       )}
       {detail.data !== undefined && (
-        <article className="sessions-panel combo-editor-panel col-span-12 lg:col-span-8">
-          <h3>{detail.data.name}</h3>
-          {detail.data.imageUrl !== null && (
-            <TenantServiceImage
-              alt={detail.data.imageAlt ?? detail.data.name}
-              kind="combos"
-              servicePublicId={detail.data.publicId}
-              tenantPublicId={tenantPublicId}
-            />
-          )}
-          <dl className="platform-details">
+        <div className="combo-edit-shell mb-20 col-span-12">
+          <header className="combo-page-header">
             <div>
-              <dt>{'Duração calculada'}</dt>
-              <dd>{`${String(detail.data.durationMinutes)} minutos`}</dd>
+              <span>Catálogo / Combos / Editar</span>
+              <h1>{detail.data.name || 'Editar Combo'}</h1>
             </div>
-            <div>
-              <dt>{'Preço'}</dt>
-              <dd>{detail.data.priceCents}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{detail.data.active ? 'Ativo' : 'Inativo'}</dd>
-            </div>
-            <div>
-              <dt>{'Serviços (na ordem)'}</dt>
-              <dd>
-                {detail.data.items
-                  .slice()
-                  .sort((left, right) => left.sortOrder - right.sortOrder)
-                  .map((item) => item.name)
-                  .join(' → ')}
-              </dd>
-            </div>
-          </dl>
+          </header>
           <ComboForm
             busy={mutation.isPending}
             combo={detail.data}
@@ -336,7 +315,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             <button type="button" onClick={() => setSelected(null)}>Cancelar</button>
             <button className="primary-button" type="submit" form="combo-edit-form" disabled={mutation.isPending}>Salvar Alterações</button>
           </div>
-        </article>
+        </div>
       )}
       {confirmation !== null && (
         <ConfirmationDialog

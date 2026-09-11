@@ -259,6 +259,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     normalizedEmail: string;
     googleSub: string;
     name: string;
+    passwordHash: string;
   }): Promise<AuthUserRecord> {
     try {
       const user = await this.client.user.create({
@@ -267,6 +268,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
           email: input.email,
           normalizedEmail: input.normalizedEmail,
           googleSub: input.googleSub,
+          passwordHash: input.passwordHash,
           status: 'ACTIVE',
         },
         select: userSelect,

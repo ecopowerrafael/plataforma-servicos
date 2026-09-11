@@ -149,6 +149,7 @@ export interface GoogleUserInput {
   normalizedEmail: string;
   googleSub: string;
   name: string;
+  passwordHash: string;
 }
 export interface PasswordUserInput {
   publicId: string;

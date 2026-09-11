@@ -221,6 +221,7 @@ export class AuthService {
           normalizedEmail: normalizeEmail(email),
           googleSub,
           name: name ?? email.split('@')[0] ?? 'User',
+          passwordHash: await this.dummyHash(),
         });
       }
     }

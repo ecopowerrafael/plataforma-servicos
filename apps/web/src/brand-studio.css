@@ -359,28 +359,37 @@
   background: #fff;
   border: 8px solid #0f172a;
   border-radius: 1.75rem;
-  max-width: 100%;
   overflow: hidden;
   position: relative;
+}
+.brand-preview-shell {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  height: min(76vh, 844px);
+  max-width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+.brand-preview-viewport {
+  flex: none;
+  transform-origin: top center;
 }
 .brand-preview-device iframe {
   border: 0;
   display: block;
-  height: 720px;
-  width: 390px;
+  height: 100%;
+  width: 100%;
 }
 .brand-preview-device--desktop {
   border-radius: 0.75rem;
   border-width: 6px;
-  height: 220px;
-  width: 100%;
 }
-.brand-preview-device--desktop iframe {
-  height: 660px;
-  /* Renderiza em largura de desktop e reduz para caber no painel lateral. */
-  transform: scale(0.33);
-  transform-origin: top left;
-  width: 1280px;
+.brand-preview-viewport-label {
+  color: var(--app-muted);
+  font-size: 0.7rem;
+  margin-bottom: 0.25rem;
 }
 .brand-preview-loading {
   color: var(--app-muted);

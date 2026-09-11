@@ -27,6 +27,14 @@ export function BrandLivePreview({
   override?: PreviewOverride;
 }) {
   const frame = useRef<HTMLIFrameElement | null>(null);
+  const shell = useRef<HTMLDivElement | null>(null);
+  const [available, setAvailable] = useState({ width: 0, height: 0 });
+  const viewport = mode === 'mobile' ? { width: 390, height: 844 } : { width: 1440, height: 900 };
+  const scale = available.width > 0 && available.height > 0
+    ? Math.min(available.width / viewport.width, available.height / viewport.height, 1)
+    : 1;
+  const visualWidth = viewport.width * scale;
+  const visualHeight = viewport.height * scale;
   // O estado de carregamento é derivado da fonte atual: trocar versão ou
   // formato remonta o iframe e o `onLoad` marca como pronto.
   const [loaded, setLoaded] = useState<string | null>(null);
@@ -44,6 +52,16 @@ export function BrandLivePreview({
       window.location.origin,
     );
   }, [loading, override]);
+
+  useEffect(() => {
+    const element = shell.current;
+    if (element === null) return;
+    const update = () => setAvailable({ width: element.clientWidth, height: element.clientHeight });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="brand-preview">
@@ -83,17 +101,25 @@ export function BrandLivePreview({
           Atualizar
         </button>
       </div>
-      <div className={`brand-preview-device brand-preview-device--${mode}`}>
+      <div ref={shell} className={`brand-preview-shell brand-preview-shell--${mode}`}>
+        <span className="brand-preview-viewport-label">{viewport.width} × {viewport.height}</span>
+        <div
+          className={`brand-preview-device brand-preview-device--${mode}`}
+          style={{ width: visualWidth, height: visualHeight }}
+        >
         {loading ? <span className="brand-preview-loading">Carregando página pública…</span> : null}
-        <iframe
-          ref={frame}
-          title="Prévia da página pública"
-          src={source}
-          loading="lazy"
-          onLoad={() => {
-            setLoaded(`${source}|${mode}`);
-          }}
-        />
+          <div className="brand-preview-viewport" style={{ width: viewport.width, height: viewport.height, transform: `scale(${scale})` }}>
+            <iframe
+              ref={frame}
+              title="Prévia da página pública"
+              src={source}
+              loading="lazy"
+              onLoad={() => {
+                setLoaded(`${source}|${mode}`);
+              }}
+            />
+          </div>
+        </div>
       </div>
       <a
         className="secondary-button button--sm"

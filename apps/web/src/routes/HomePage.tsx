@@ -390,7 +390,7 @@ export function HomePage() {
         schema: OnboardingChecklistSchema,
         ...(selectedTenant === undefined ? {} : { tenantPublicId: selectedTenant }),
       }),
-    enabled: selectedTenant !== undefined && onboarding.data?.onboardingCompletedAt !== null,
+    enabled: selectedTenant !== undefined && onboarding.data?.onboardingCompletedAt === null,
     retry: false,
   });
   useEffect(() => {
@@ -412,7 +412,7 @@ export function HomePage() {
         })
         .then((result) => {
           selectTenant(result.tenantPublicId);
-          return navigate('/app', { replace: true });
+          return navigate('/app/inicio-guiado', { replace: true });
         })
         .catch(() => undefined);
       return;
@@ -982,30 +982,6 @@ export function HomePage() {
         }}
         onTenantSelect={() => void navigate('/select-tenant')}
       />
-      {guidedActive && guidedPaused && (
-        <button
-          className="onboarding-resume"
-          type="button"
-          onClick={() => {
-            pauseGuided(false);
-          }}
-        >
-          <span>Continuar configuração</span>
-          <small>{`Etapa ${String(guidedStepIndex + 1)} de ${String(GUIDED_STEPS.length)}`}</small>
-        </button>
-      )}
-      {guidedActive && !guidedPaused && (
-        <section className="onboarding-checklist" aria-label="Continue configurando sua conta">
-          <div>
-            <span className="eyebrow">Configuração inicial</span>
-            <h2>Continue configurando sua conta</h2>
-            <p>Você pode concluir o essencial em poucos minutos.</p>
-            <button className="primary-button" type="button" onClick={() => void navigate('/app/inicio-guiado')}>
-              Continuar configuração
-            </button>
-          </div>
-        </section>
-      )}
       {false && guidedActive && !guidedPaused && (
         <div
           className="onboarding-overlay"
@@ -1600,47 +1576,18 @@ export function HomePage() {
         </div>
       )}
       {isRoute('/app') &&
+        onboarding.data?.onboardingCompletedAt === null &&
         onboardingChecklist.data !== undefined &&
         !onboardingChecklist.data.hidden && (
           <section className="onboarding-checklist" aria-labelledby="onboarding-checklist-title">
-            <div>
-              <p className="eyebrow">Primeiros passos</p>
-              <h2 id="onboarding-checklist-title">
-                {onboardingChecklist.data.items.filter((item) => item.complete).length} de{' '}
-                {onboardingChecklist.data.items.length} concluídos
-              </h2>
-            </div>
-            <button
-              className="btn btn-ghost"
-              onClick={() => {
-                updateOnboarding.mutate({
-                  step: onboarding.data?.onboardingStep ?? 'COMPLETE',
-                  hideChecklist: true,
-                });
-              }}
-            >
-              Ocultar
+            <p className="eyebrow">Configuração inicial</p>
+            <h2 id="onboarding-checklist-title">Complete a configuração do seu Agendei</h2>
+            <p>
+              {onboardingChecklist.data.items.filter((item) => item.complete).length} de 6 etapas concluídas
+            </p>
+            <button className="primary-button" type="button" onClick={() => void navigate('/app/inicio-guiado')}>
+              Continuar configuração
             </button>
-            <ul>
-              {onboardingChecklist.data.items.map((item) => (
-                <li key={item.key} className={item.complete ? 'complete' : undefined}>
-                  {item.complete ? '✓' : '○'}{' '}
-                  {
-                    (
-                      {
-                        company: 'Criar sua empresa',
-                        branding: 'Personalizar sua marca',
-                        service: 'Criar primeiro serviço',
-                        professional: 'Adicionar profissional',
-                        schedule: 'Definir horários',
-                        appointment: 'Testar primeiro agendamento',
-                        share: 'Compartilhar sua página',
-                      } as Record<string, string>
-                    )[item.key]
-                  }
-                </li>
-              ))}
-            </ul>
           </section>
         )}
       {me.data.tenants.length > 1 || me.data.currentTenant === null ? (

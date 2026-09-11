@@ -942,6 +942,24 @@ export function HomePage() {
   const guidedStep = guidedData?.onboardingStep ?? 'WELCOME';
   const guidedStepIndex = Math.max(0, GUIDED_STEPS.indexOf(guidedStep));
 
+  if (selectedTenant !== undefined && onboarding.isError && !guidedPaused)
+    return (
+      <main className="app-shell">
+        <section className="app-empty-state" role="alert">
+          <h1>Não foi possível carregar o início guiado.</h1>
+          <p>Verifique sua conexão e tente novamente.</p>
+          <div className="button-row">
+            <button className="primary-button" type="button" onClick={() => void onboarding.refetch()}>
+              Tentar novamente
+            </button>
+            <button className="secondary-button" type="button" onClick={() => pauseGuided(true)}>
+              Sair do início guiado
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+
   return (
     <main className={`app-shell${guidedActive && !guidedPaused ? ' is-onboarding' : ''}`}>
       {sidebarOpen && (

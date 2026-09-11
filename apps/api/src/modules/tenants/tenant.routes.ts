@@ -12,6 +12,7 @@ import {
   TenantExperienceResponseSchema,
   UpdateTenantIdentityRequestSchema,
   UpdateBusinessUnitRequestSchema,
+  normalizeOperatingModel,
   type TenantContextResponse,
   type TenantSettingsResponse,
   type TenantUnitResponse,
@@ -82,7 +83,7 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
         operatingModel: true,
       },
     });
-    return tenant;
+    return { ...tenant, operatingModel: normalizeOperatingModel(tenant.operatingModel) };
   });
   app.patch('/tenant/onboarding', { schema: { body: OnboardingRequestSchema } }, async (request) => {
     options.authService.requirePermission(request.tenant, 'tenant.update');

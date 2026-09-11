@@ -6,6 +6,8 @@ import { z } from 'zod';
 import {
   BusinessUnitOperatingHoursResponseSchema,
   ComboListResponseSchema,
+  ComboPublicSchema,
+  UpdateComboRequestSchema,
   CreateServiceRequestSchema,
   ServiceListResponseSchema,
   ServicePublicSchema,
@@ -19,11 +21,14 @@ import {
   UpdateServiceRequestSchema,
   UpdateProfessionalRequestSchema,
 } from '@plataforma/shared';
-import { BrandPreview } from '../components/branding/BrandPreview.js';
+import { BrandLivePreview } from '../components/branding/BrandLivePreview.js';
+import { PublicLayoutPicker } from '../components/branding/PublicLayoutPicker.js';
 import { BrandAssetDropzone } from '../components/branding/BrandAssetDropzone.js';
 import { BrandColorPicker } from '../components/branding/BrandColorPicker.js';
 import { BrandThemePicker } from '../components/branding/BrandThemePicker.js';
-import { deriveBrandPalette, themeDefaultPalette, type BrandThemeCode } from '../components/branding/brand-studio.js';
+import { deriveBrandPalette, themeDefaultPalette, type PublicLayoutCode, type BrandThemeCode } from '../components/branding/brand-studio.js';
+import { TenantServiceImage } from '../components/services/TenantServiceImage.js';
+import { TenantProfessionalPhoto } from '../components/professionals/TenantProfessionalPhoto.js';
 import { httpClient } from '../lib/http.js';
 import { environment } from '../config/environment.js';
 import { readSelectedTenant } from '../lib/tenant-selection.js';
@@ -64,9 +69,14 @@ export function GuidedSetupPage() {
   const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [themeDraft, setThemeDraft] = useState<BrandThemeCode | null>(null);
   const [colorDraft, setColorDraft] = useState<string | null>(null);
+  const [layoutDraft, setLayoutDraft] = useState<PublicLayoutCode | null>(null);
+  const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
+  const [previewVersion, setPreviewVersion] = useState(0);
   const [editingProfessional, setEditingProfessional] = useState<string | null>(null);
   const [professionalDraft, setProfessionalDraft] = useState<Record<string, { name: string; publicName: string; bio: string }>>({});
   const [professionalPhotoPreview, setProfessionalPhotoPreview] = useState<Record<string, string>>({});
+  const [editingCombo, setEditingCombo] = useState<string | null>(null);
+  const [comboDraft, setComboDraft] = useState<Record<string, { name: string; priceCents: string }>>({});
   const [editingService, setEditingService] = useState<string | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState<
     Record<number, { active: boolean; startsAt: string; endsAt: string }>
@@ -228,6 +238,10 @@ export function GuidedSetupPage() {
     },
     onSuccess: async () => { await professionals.refetch(); },
   });
+  const comboMutation = useMutation({
+    mutationFn: (input: { id: string; body: unknown }) => httpClient.request(`/tenant/combos/${input.id}`, { method: 'PATCH', body: UpdateComboRequestSchema.parse(input.body), schema: ComboPublicSchema, tenantPublicId }),
+    onSuccess: async () => { setEditingCombo(null); await combos.refetch(); },
+  });
   const serviceImageMutation = useMutation({
     mutationFn: (input: { id: string; file: File }) => {
       const body = new FormData();
@@ -244,7 +258,7 @@ export function GuidedSetupPage() {
     },
   });
   const mediaMutation = useMutation({
-    mutationFn: (input: { kind: 'LOGO' | 'BANNER_DESKTOP'; file: File }) => {
+    mutationFn: (input: { kind: 'LOGO' | 'BANNER_DESKTOP' | 'SPLASH' | 'APP_ICON'; file: File }) => {
       const body = new FormData();
       body.set('file', input.file, input.file.name);
       return httpClient.request(`/tenant/media/${input.kind}`, {
@@ -256,15 +270,16 @@ export function GuidedSetupPage() {
     },
     onSuccess: async () => {
       await branding.refetch();
+      setPreviewVersion((value) => value + 1);
     },
   });
   const savePublicTheme = useMutation({
-    mutationFn: (theme: string) => httpClient.request('/tenant/public-site', { method: 'PATCH', body: { theme }, schema: z.unknown(), tenantPublicId }),
-    onSuccess: async () => { await branding.refetch(); },
+    mutationFn: (body: { theme: BrandThemeCode; layout: PublicLayoutCode }) => httpClient.request('/tenant/public-site', { method: 'PATCH', body, schema: z.unknown(), tenantPublicId }),
+    onSuccess: async () => { await branding.refetch(); setPreviewVersion((value) => value + 1); },
   });
   const saveBranding = useMutation({
     mutationFn: (body: Record<string, string>) => httpClient.request('/tenant/branding', { method: 'PATCH', body, schema: z.unknown(), tenantPublicId }),
-    onSuccess: async () => { await branding.refetch(); },
+    onSuccess: async () => { await branding.refetch(); setPreviewVersion((value) => value + 1); },
   });
   const scheduleMutation = useMutation({
     mutationFn: (
@@ -285,6 +300,7 @@ export function GuidedSetupPage() {
   const currentDisplayName = displayNameDraft || context.data?.tenant.displayName || 'Seu negócio';
   const currentTheme: BrandThemeCode = themeDraft ?? branding.data?.site?.theme ?? 'CLASSIC';
   const currentColor = colorDraft ?? branding.data?.branding?.primaryColor ?? '#2563eb';
+  const currentLayout: PublicLayoutCode = layoutDraft ?? branding.data?.site?.layout ?? 'CLASSIC';
   const index = GUIDED_SETUP_STEPS.indexOf(current);
   const progress = checklist.data?.items.filter((item) => item.complete).length ?? 0;
   const labels: Record<GuidedSetupStep, string> = {
@@ -440,13 +456,7 @@ export function GuidedSetupPage() {
                   };
                   return (
                     <article key={item.publicId} className="guided-service-card">
-                      {(serviceImagePreview[item.publicId] !== undefined || item.imageUrl !== null) && (
-                        <img
-                          className="guided-service-image"
-                          src={serviceImagePreview[item.publicId] ?? `${environment.apiUrl}${item.imageUrl}`}
-                          alt=""
-                        />
-                      )}
+                      {serviceImagePreview[item.publicId] !== undefined ? <img className="guided-service-image" src={serviceImagePreview[item.publicId]} alt="" /> : item.imageUrl !== null ? <TenantServiceImage alt="" servicePublicId={item.publicId} tenantPublicId={tenantPublicId} version={item.updatedAt} /> : null}
                       <div>
                         <strong>{item.name}</strong>
                         <span className="guided-service-meta">
@@ -595,12 +605,12 @@ export function GuidedSetupPage() {
                     ? `${combos.data.items.length} combo(s) já configurado(s).`
                     : 'Se vende dois ou mais serviços em conjunto, você pode criar um combo.'}
                 </span>
-                <button
-                  className="secondary-button"
-                  onClick={() => void navigate('/app/servicos/combos')}
-                >
-                  {combos.data?.items.length ? 'Editar combos' : 'Criar um combo'}
-                </button>
+                {combos.data?.items.length ? combos.data.items.map((combo) => {
+                  const draft = comboDraft[combo.publicId] ?? { name: combo.name, priceCents: String(Number(combo.priceCents)) };
+                  return <div key={combo.publicId} className="guided-combo-inline">
+                    {editingCombo === combo.publicId ? <><input value={draft.name} onChange={(event) => setComboDraft((value) => ({ ...value, [combo.publicId]: { ...draft, name: event.target.value } }))} /><input inputMode="numeric" value={formatPriceInReais(draft.priceCents)} onChange={(event) => setComboDraft((value) => ({ ...value, [combo.publicId]: { ...draft, priceCents: priceInputToCents(event.target.value) } }))} /><button className="primary-button" disabled={comboMutation.isPending} onClick={() => void comboMutation.mutateAsync({ id: combo.publicId, body: { name: draft.name, description: combo.description, imageAlt: combo.imageAlt, priceCents: Number(draft.priceCents), sortOrder: combo.sortOrder, active: combo.active, items: combo.items.map((item) => ({ servicePublicId: item.servicePublicId, sortOrder: item.sortOrder })) } })}>{comboMutation.isPending ? 'Salvando…' : 'Salvar combo'}</button></> : <><span><strong>{combo.name}</strong> · {formatPriceInReais(String(Number(combo.priceCents)))} · {combo.items.length} serviços</span><button className="secondary-button" onClick={() => { setEditingCombo(combo.publicId); setComboDraft((value) => ({ ...value, [combo.publicId]: draft })); }}>Editar combo</button></>}
+                  </div>;
+                }) : <button className="secondary-button" onClick={() => void navigate('/app/servicos/combos')}>Criar um combo</button>}
               </div>
               <button
                 className="secondary-button"
@@ -649,7 +659,7 @@ export function GuidedSetupPage() {
                   const draft = professionalDraft[item.publicId] ?? { name: item.name, publicName: item.publicName, bio: item.bio ?? '' };
                   return <article key={item.publicId}>
                     <div className="guided-professional-photo-row">
-                      {professionalPhotoPreview[item.publicId] !== undefined || item.photoUrl !== null ? <img className="guided-professional-photo" src={professionalPhotoPreview[item.publicId] ?? `${environment.apiUrl}${item.photoUrl}`} alt="" /> : <span className="guided-professional-initials">{item.publicName.slice(0, 1).toUpperCase()}</span>}
+                      {professionalPhotoPreview[item.publicId] !== undefined ? <img className="guided-professional-photo" src={professionalPhotoPreview[item.publicId]} alt="" /> : item.photoUrl !== null ? <TenantProfessionalPhoto name={item.publicName} professionalPublicId={item.publicId} tenantPublicId={tenantPublicId} version={item.updatedAt} /> : <span className="guided-professional-initials">{item.publicName.slice(0, 1).toUpperCase()}</span>}
                       <label className="guided-upload-button">{professionalPhotoMutation.isPending ? 'Enviando…' : 'Adicionar foto'}<input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) { setProfessionalPhotoPreview((value) => ({ ...value, [item.publicId]: URL.createObjectURL(file) })); void professionalPhotoMutation.mutateAsync({ id: item.publicId, file }); } event.currentTarget.value = ''; }} /></label>
                     </div>
                     {editingProfessional === item.publicId ? <div className="guided-professional-editor">
@@ -785,9 +795,11 @@ export function GuidedSetupPage() {
               </div>
               <div className="guided-setup-card guided-brand-controls">
                 <strong>Tema e cores</strong>
+                <p className="guided-branding-label">Modelo de layout</p>
+                <PublicLayoutPicker value={currentLayout} onChange={setLayoutDraft} />
                 <BrandThemePicker value={currentTheme} onChange={(value) => { setThemeDraft(value); setColorDraft(themeDefaultPalette(value, currentColor).primaryColor); }} />
                 <BrandColorPicker value={currentColor} onChange={setColorDraft} />
-                <button className="primary-button" disabled={savePublicTheme.isPending || saveBranding.isPending} onClick={() => { void savePublicTheme.mutateAsync(currentTheme).then(() => saveBranding.mutate(deriveBrandPalette(currentColor, currentTheme))); }}>{savePublicTheme.isPending || saveBranding.isPending ? 'Salvando…' : 'Salvar identidade visual'}</button>
+                <button className="primary-button" disabled={savePublicTheme.isPending || saveBranding.isPending} onClick={() => { void savePublicTheme.mutateAsync({ theme: currentTheme, layout: currentLayout }).then(() => saveBranding.mutate(deriveBrandPalette(currentColor, currentTheme))); }}>{savePublicTheme.isPending || saveBranding.isPending ? 'Salvando…' : 'Salvar identidade visual'}</button>
               </div>
             </>
           )}
@@ -830,7 +842,7 @@ export function GuidedSetupPage() {
           </div>
           <aside className="guided-live-preview">
             <div className="guided-preview-heading"><div><span className="eyebrow">Prévia ao vivo</span><h2>Assim seus clientes verão</h2></div><span className="guided-live-dot">● Ao vivo</span></div>
-            <div className="guided-phone-wrap"><BrandPreview displayName={currentDisplayName} theme={branding.data?.site?.theme ?? 'CLASSIC'} color={branding.data?.branding?.primaryColor ?? '#2563eb'} mode="mobile" tenantSlug={branding.data?.slug} /></div>
+            <div className="guided-phone-wrap"><BrandLivePreview slug={branding.data?.slug ?? ''} version={previewVersion} mode={previewMode} onModeChange={setPreviewMode} override={{ theme: currentTheme, layout: currentLayout, branding: deriveBrandPalette(currentColor, currentTheme) }} /></div>
             <p className="guided-preview-url">agendei.site/<strong>{branding.data?.slug ?? 'seu-negocio'}</strong></p>
             <small className="guided-preview-hint">As alterações aparecem aqui instantaneamente.</small>
           </aside>

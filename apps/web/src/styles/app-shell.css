@@ -714,7 +714,11 @@
 .guided-branding-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 720px; }
 .guided-branding-grid .brand-upload-card { margin: 0; }
 .guided-brand-controls { max-width: 720px; margin-top: 14px; }
+.guided-branding-label { margin: 16px 0 8px; color: #475569; font-size: .82rem; font-weight: 700; }
 .guided-brand-controls .brand-theme-picker, .guided-brand-controls .brand-color-picker { margin-top: 12px; }
+.guided-combo-inline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.guided-combo-inline > span { flex: 1; color: #475569; font-size: .85rem; }
+.guided-combo-inline input { min-width: 0; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; }
 .guided-week-editor {
   display: grid;
   gap: 8px;

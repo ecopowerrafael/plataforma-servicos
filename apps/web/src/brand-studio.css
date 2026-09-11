@@ -366,21 +366,23 @@
   align-items: center;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   height: min(76vh, 844px);
   max-width: 100%;
   min-height: 0;
   overflow: hidden;
   position: relative;
+  width: 100%;
 }
 .brand-preview-viewport {
   flex: none;
-  transform-origin: top center;
+  transform-origin: top left;
 }
 .brand-preview-device iframe {
   border: 0;
   display: block;
-  height: 100%;
-  width: 100%;
+  margin: 0;
+  max-width: none;
 }
 .brand-preview-device--desktop {
   border-radius: 0.75rem;

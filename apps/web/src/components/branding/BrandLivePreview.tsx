@@ -108,12 +108,21 @@ export function BrandLivePreview({
           style={{ width: visualWidth, height: visualHeight }}
         >
         {loading ? <span className="brand-preview-loading">Carregando página pública…</span> : null}
-          <div className="brand-preview-viewport" style={{ width: viewport.width, height: viewport.height, transform: `scale(${scale})` }}>
+          <div
+            className="brand-preview-viewport"
+            style={{
+              width: viewport.width,
+              height: viewport.height,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+          >
             <iframe
               ref={frame}
               title="Prévia da página pública"
               src={source}
               loading="lazy"
+              style={{ width: viewport.width, height: viewport.height, margin: 0, maxWidth: 'none' }}
               onLoad={() => {
                 setLoaded(`${source}|${mode}`);
               }}

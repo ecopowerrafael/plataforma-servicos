@@ -274,6 +274,18 @@ export function SubscriptionModule({
       },
     });
   };
+  const periodProgress = detail.data
+    ? Math.min(
+        100,
+        Math.max(
+          0,
+          ((Date.now() - new Date(detail.data.subscription.currentPeriodStartsAt).getTime()) /
+            (new Date(detail.data.subscription.currentPeriodEndsAt).getTime() -
+              new Date(detail.data.subscription.currentPeriodStartsAt).getTime())) *
+            100,
+        ),
+      )
+    : 0;
   return (
     <section
       aria-labelledby="subscription-title"
@@ -672,6 +684,10 @@ export function SubscriptionModule({
                     : 'Encerrado'}
                 </strong>
               </article>
+            </div>
+            <div className="subscription-period-progress" aria-label={`Progresso do período atual: ${Math.round(periodProgress)}%`}>
+              <div className="subscription-period-progress__meta"><span>Progresso do período atual</span><strong>{Math.round(periodProgress)}%</strong></div>
+              <div className="subscription-period-progress__track"><span style={{ width: `${periodProgress}%` }} /></div>
             </div>
             </SubscriptionOverviewCard>
             <dl className="platform-details">

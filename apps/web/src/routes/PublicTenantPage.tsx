@@ -1,6 +1,17 @@
-import { CustomerAuthResponseSchema, PublicTenantSiteResponseSchema, servicePriceLabel } from '@plataforma/shared';
+import {
+  CustomerAuthResponseSchema,
+  PublicTenantSiteResponseSchema,
+  servicePriceLabel,
+} from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
-import { type CSSProperties, useEffect, useState } from 'react';
+import {
+  Component,
+  type CSSProperties,
+  type ErrorInfo,
+  type ReactNode,
+  useEffect,
+  useState,
+} from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { contrastTextColor, type BrandThemeCode } from '../components/branding/brand-studio.js';
@@ -24,6 +35,36 @@ const initials = (name: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toLocaleUpperCase('pt-BR') ?? '')
     .join('');
+
+class PublicTenantErrorBoundary extends Component<
+  { children: ReactNode; embeddedPreview: boolean },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(_error: Error, _info: ErrorInfo): void {
+    // Keep technical details out of the Brand Studio preview.
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <main className="app-shell" role="alert">
+        <h1>Não foi possível carregar a prévia.</h1>
+        <button className="primary-button" onClick={() => window.location.reload()}>
+          Tentar novamente
+        </button>
+        {!this.props.embeddedPreview ? (
+          <p>Não foi possível carregar este estabelecimento agora.</p>
+        ) : null}
+      </main>
+    );
+  }
+}
 
 export function PublicTenantPage() {
   const { slug = '' } = useParams();
@@ -95,7 +136,8 @@ export function PublicTenantPage() {
       favicon.rel = 'icon';
       document.head.append(favicon);
     }
-    favicon.href = faviconAsset === undefined ? '/agendei-favicon.jpeg' : mediaUrl(faviconAsset.url);
+    favicon.href =
+      faviconAsset === undefined ? '/agendei-favicon.jpeg' : mediaUrl(faviconAsset.url);
     const embedded = new URLSearchParams(window.location.search).get('preview') === '1';
     if (!embedded && window.matchMedia('(display-mode: standalone)').matches) {
       const timer = window.setTimeout(() => {
@@ -111,7 +153,10 @@ export function PublicTenantPage() {
   }, [site.data]);
   // Calculado antes dos retornos antecipados: a fonte do tema é um hook.
   const activeTheme =
-    previewOverride?.theme ?? searchParams.get('previewTheme') ?? site.data?.site.theme ?? 'CLASSIC';
+    previewOverride?.theme ??
+    searchParams.get('previewTheme') ??
+    site.data?.site.theme ??
+    'CLASSIC';
   useThemeFont(activeTheme as BrandThemeCode);
   if (site.isPending)
     return (
@@ -158,206 +203,216 @@ export function PublicTenantPage() {
   const banner = asset('BANNER_DESKTOP');
   const mobileBanner = asset('BANNER_MOBILE');
   const splash = asset('SPLASH') ?? logo;
+  const embeddedPreview = new URLSearchParams(window.location.search).get('preview') === '1';
   return (
-    <Theme>
-      <div
-        style={
-          {
-            '--tenant-primary': branding.primaryColor,
-            // Tokens semânticos: o valor salvo vence; `null` mantém o derivado.
-            '--tenant-on-primary':
-              branding.onPrimaryColor ?? contrastTextColor(branding.primaryColor),
-            '--tenant-header': branding.headerColor ?? branding.backgroundColor,
-            '--tenant-header-text': branding.headerTextColor ?? branding.textColor,
-            '--tenant-navigation': branding.navigationColor ?? branding.surfaceColor,
-            '--tenant-active': branding.activeColor ?? branding.primaryColor,
-            '--tenant-secondary': branding.secondaryColor,
-            '--tenant-accent': branding.accentColor,
-            '--tenant-background': branding.backgroundColor,
-            '--tenant-surface': branding.surfaceColor,
-            '--tenant-text': branding.textColor,
-            '--tenant-muted': branding.mutedTextColor,
-            '--tenant-border': branding.borderColor,
-            '--tenant-radius': branding.borderRadius,
-            '--tenant-font': branding.fontFamily,
-            '--tenant-banner-desktop':
-              banner === undefined ? 'none' : `url(${mediaUrl(banner.url)})`,
-            '--tenant-banner-mobile':
-              mobileBanner === undefined
-                ? banner === undefined
-                  ? 'none'
-                  : `url(${mediaUrl(banner.url)})`
-                : `url(${mediaUrl(mobileBanner.url)})`,
-          } as CSSProperties
-        }
-      >
-        {showSplash ? (
-          <div className="public-splash" aria-label="Abrindo aplicativo">
-            {splash === undefined ? (
-              <strong>{site.data.displayName}</strong>
-            ) : (
-              <img src={mediaUrl(splash.url)} alt={site.data.displayName} />
-            )}
-          </div>
-        ) : null}
-        {/* O App Premium tem o próprio convite de instalação no rodapé, com modal. */}
-        {layout === 'PREMIUM_APP' ? null : (
-          <PwaInstall
-            published={site.data.pwaPublished}
-            appName={site.data.site.pwaName ?? site.data.displayName}
-          />
-        )}
-        {layout === 'PREMIUM_APP' ? (
-          <PremiumApp
-            slug={slug}
-            site={site.data}
-            logoUrl={logo?.url ?? null}
-            customerName={customer.data?.customer.name ?? null}
-            customerPhotoVersion={
-              customer.data?.customer.photoUrl === null
-                ? null
-                : (customer.data?.customer.photoUpdatedAt ?? null)
-            }
-            onOpenAccount={() => {
-              void navigate(`/public/${slug}/conta`);
-            }}
-            onOpenAppointments={() => {
-              void navigate(`/public/${slug}/conta/agendamentos`);
-            }}
-          />
-        ) : (
-          <>
-            <PublicHeader
-              displayName={site.data.displayName}
+    <PublicTenantErrorBoundary embeddedPreview={embeddedPreview}>
+      <Theme>
+        <div
+          style={
+            {
+              '--tenant-primary': branding.primaryColor,
+              // Tokens semânticos: o valor salvo vence; `null` mantém o derivado.
+              '--tenant-on-primary':
+                branding.onPrimaryColor ?? contrastTextColor(branding.primaryColor),
+              '--tenant-header': branding.headerColor ?? branding.backgroundColor,
+              '--tenant-header-text': branding.headerTextColor ?? branding.textColor,
+              '--tenant-navigation': branding.navigationColor ?? branding.surfaceColor,
+              '--tenant-active': branding.activeColor ?? branding.primaryColor,
+              '--tenant-secondary': branding.secondaryColor,
+              '--tenant-accent': branding.accentColor,
+              '--tenant-background': branding.backgroundColor,
+              '--tenant-surface': branding.surfaceColor,
+              '--tenant-text': branding.textColor,
+              '--tenant-muted': branding.mutedTextColor,
+              '--tenant-border': branding.borderColor,
+              '--tenant-radius': branding.borderRadius,
+              '--tenant-font': branding.fontFamily,
+              '--tenant-banner-desktop':
+                banner === undefined ? 'none' : `url(${mediaUrl(banner.url)})`,
+              '--tenant-banner-mobile':
+                mobileBanner === undefined
+                  ? banner === undefined
+                    ? 'none'
+                    : `url(${mediaUrl(banner.url)})`
+                  : `url(${mediaUrl(mobileBanner.url)})`,
+            } as CSSProperties
+          }
+        >
+          {showSplash ? (
+            <div className="public-splash" aria-label="Abrindo aplicativo">
+              {splash === undefined ? (
+                <strong>{site.data.displayName}</strong>
+              ) : (
+                <img src={mediaUrl(splash.url)} alt={site.data.displayName} />
+              )}
+            </div>
+          ) : null}
+          {/* O App Premium tem o próprio convite de instalação no rodapé, com modal. */}
+          {layout === 'PREMIUM_APP' ? null : (
+            <PwaInstall
+              published={site.data.pwaPublished}
+              appName={site.data.site.pwaName ?? site.data.displayName}
+            />
+          )}
+          {layout === 'PREMIUM_APP' ? (
+            <PremiumApp
+              slug={slug}
+              site={site.data}
               logoUrl={logo?.url ?? null}
-              logoAlt={logo?.altText ?? null}
               customerName={customer.data?.customer.name ?? null}
+              customerPhotoVersion={
+                customer.data?.customer.photoUrl === null
+                  ? null
+                  : (customer.data?.customer.photoUpdatedAt ?? null)
+              }
               onOpenAccount={() => {
                 void navigate(`/public/${slug}/conta`);
               }}
+              onOpenAppointments={() => {
+                void navigate(`/public/${slug}/conta/agendamentos`);
+              }}
             />
-            <section className="public-hero">
-              <h1>{site.data.site.heroTitle ?? site.data.displayName}</h1>
-              <p>
-                {site.data.site.heroSubtitle ?? 'Conhe\u00e7a nossos servi\u00e7os e nossa equipe.'}
-              </p>
-              {site.data.site.primaryCallToAction === null ? null : (
-                <a className="public-cta" href="#agendar">
-                  {site.data.site.primaryCallToAction}
-                </a>
+          ) : (
+            <>
+              <PublicHeader
+                displayName={site.data.displayName}
+                logoUrl={logo?.url ?? null}
+                logoAlt={logo?.altText ?? null}
+                customerName={customer.data?.customer.name ?? null}
+                onOpenAccount={() => {
+                  void navigate(`/public/${slug}/conta`);
+                }}
+              />
+              <section className="public-hero">
+                <h1>{site.data.site.heroTitle ?? site.data.displayName}</h1>
+                <p>
+                  {site.data.site.heroSubtitle ??
+                    'Conhe\u00e7a nossos servi\u00e7os e nossa equipe.'}
+                </p>
+                {site.data.site.primaryCallToAction === null ? null : (
+                  <a className="public-cta" href="#agendar">
+                    {site.data.site.primaryCallToAction}
+                  </a>
+                )}
+              </section>
+              {site.data.combos.length === 0 ? null : (
+                <section className="public-section">
+                  <h2>Combos</h2>
+                  <div className="public-service-grid">
+                    {site.data.combos.map((combo) => (
+                      <article key={combo.publicId} className="public-service-card">
+                        <div className="public-service-media">
+                          {combo.imageUrl === null ? (
+                            <span aria-hidden="true">{combo.name.slice(0, 1)}</span>
+                          ) : (
+                            <img
+                              src={mediaUrl(combo.imageUrl)}
+                              alt={combo.imageAlt ?? combo.name}
+                            />
+                          )}
+                        </div>
+                        <div className="public-service-body">
+                          <h3>{combo.name}</h3>
+                          {combo.description === null ? null : <p>{combo.description}</p>}
+                          {combo.items.length > 0 ? (
+                            <p style={{ fontSize: '0.875rem', color: 'var(--tenant-muted)' }}>
+                              {combo.items.map((item) => item.name).join(' • ')}
+                            </p>
+                          ) : null}
+                          <div className="public-service-meta">
+                            <strong>{servicePriceLabel('FIXED', combo.priceCents, null)}</strong>
+                            <span>{`${String(combo.durationMinutes)} min`}</span>
+                          </div>
+                          <a
+                            className="public-service-cta"
+                            href={`?combo=${combo.publicId}#agendar`}
+                          >
+                            Agendar horário
+                          </a>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
               )}
-            </section>
-            {site.data.combos.length === 0 ? null : (
-              <section className="public-section">
-                <h2>Combos</h2>
-                <div className="public-service-grid">
-                  {site.data.combos.map((combo) => (
-                    <article key={combo.publicId} className="public-service-card">
-                      <div className="public-service-media">
-                        {combo.imageUrl === null ? (
-                          <span aria-hidden="true">{combo.name.slice(0, 1)}</span>
-                        ) : (
-                          <img src={mediaUrl(combo.imageUrl)} alt={combo.imageAlt ?? combo.name} />
-                        )}
-                      </div>
-                      <div className="public-service-body">
-                        <h3>{combo.name}</h3>
-                        {combo.description === null ? null : <p>{combo.description}</p>}
-                        {combo.items.length > 0 ? (
-                          <p style={{ fontSize: '0.875rem', color: 'var(--tenant-muted)' }}>
-                            {combo.items.map((item) => item.name).join(' • ')}
-                          </p>
-                        ) : null}
-                        <div className="public-service-meta">
-                          <strong>{servicePriceLabel('FIXED', combo.priceCents, null)}</strong>
-                          <span>{`${String(combo.durationMinutes)} min`}</span>
+              {site.data.services.length === 0 ? null : (
+                <section className="public-section">
+                  <h2>{site.data.terminology.service.plural}</h2>
+                  <div className="public-service-grid">
+                    {site.data.services.map((service) => (
+                      <article key={service.publicId} className="public-service-card">
+                        <div className="public-service-media">
+                          {service.imageUrl === null ? (
+                            <span aria-hidden="true">{service.name.slice(0, 1)}</span>
+                          ) : (
+                            <img src={mediaUrl(service.imageUrl)} alt={service.name} />
+                          )}
                         </div>
-                        <a
-                          className="public-service-cta"
-                          href={`?combo=${combo.publicId}#agendar`}
-                        >
-                          Agendar horário
-                        </a>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
-            {site.data.services.length === 0 ? null : (
-              <section className="public-section">
-                <h2>{site.data.terminology.service.plural}</h2>
-                <div className="public-service-grid">
-                  {site.data.services.map((service) => (
-                    <article key={service.publicId} className="public-service-card">
-                      <div className="public-service-media">
-                        {service.imageUrl === null ? (
-                          <span aria-hidden="true">{service.name.slice(0, 1)}</span>
-                        ) : (
-                          <img src={mediaUrl(service.imageUrl)} alt={service.name} />
-                        )}
-                      </div>
-                      <div className="public-service-body">
-                        <h3>{service.name}</h3>
-                        {service.description === null ? null : <p>{service.description}</p>}
-                        <div className="public-service-meta">
-                          <strong>
-                            {servicePriceLabel(
-                              service.pricingMode,
-                              service.priceCents,
-                              service.quoteNotice,
-                            )}
-                          </strong>
-                          <span>{`${String(service.durationMinutes)} min`}</span>
+                        <div className="public-service-body">
+                          <h3>{service.name}</h3>
+                          {service.description === null ? null : <p>{service.description}</p>}
+                          <div className="public-service-meta">
+                            <strong>
+                              {servicePriceLabel(
+                                service.pricingMode,
+                                service.priceCents,
+                                service.quoteNotice,
+                              )}
+                            </strong>
+                            <span>{`${String(service.durationMinutes)} min`}</span>
+                          </div>
+                          <a
+                            className="public-service-cta"
+                            href={`?service=${service.publicId}#agendar`}
+                          >
+                            Agendar horário
+                          </a>
                         </div>
-                        <a
-                          className="public-service-cta"
-                          href={`?service=${service.publicId}#agendar`}
-                        >
-                          Agendar horário
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+              {site.data.professionals.length === 0 ? null : (
+                <section className="public-section">
+                  <h2>{site.data.terminology.professional.plural}</h2>
+                  <div className="public-professional-grid">
+                    {site.data.professionals.map((professional) => (
+                      <article key={professional.publicId} className="public-professional-card">
+                        <div className="public-professional-avatar">
+                          {professional.photoUrl === null ? (
+                            <span aria-hidden="true">{initials(professional.name)}</span>
+                          ) : (
+                            <img src={mediaUrl(professional.photoUrl)} alt={professional.name} />
+                          )}
+                        </div>
+                        <h3>{professional.name}</h3>
+                        {professional.bio === null ? null : <p>{professional.bio}</p>}
+                        <a className="public-professional-cta" href="#agendar">
+                          Agendar
                         </a>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+              <section id="agendar">
+                <h2>{site.data.terminology.appointment.singular}</h2>
+                <PublicBookingFlow slug={slug} site={site.data} />
               </section>
-            )}
-            {site.data.professionals.length === 0 ? null : (
-              <section className="public-section">
-                <h2>{site.data.terminology.professional.plural}</h2>
-                <div className="public-professional-grid">
-                  {site.data.professionals.map((professional) => (
-                    <article key={professional.publicId} className="public-professional-card">
-                      <div className="public-professional-avatar">
-                        {professional.photoUrl === null ? (
-                          <span aria-hidden="true">{initials(professional.name)}</span>
-                        ) : (
-                          <img src={mediaUrl(professional.photoUrl)} alt={professional.name} />
-                        )}
-                      </div>
-                      <h3>{professional.name}</h3>
-                      {professional.bio === null ? null : <p>{professional.bio}</p>}
-                      <a className="public-professional-cta" href="#agendar">
-                        Agendar
-                      </a>
-                    </article>
-                  ))}
-                </div>
+              <section>
+                <h2>Sobre</h2>
+                <p>{site.data.site.aboutText ?? site.data.displayName}</p>
               </section>
-            )}
-            <section id="agendar">
-              <h2>{site.data.terminology.appointment.singular}</h2>
-              <PublicBookingFlow slug={slug} site={site.data} />
-            </section>
-            <section>
-              <h2>Sobre</h2>
-              <p>{site.data.site.aboutText ?? site.data.displayName}</p>
-            </section>
-            <PublicLocationSection unit={site.data.unit} displayName={site.data.displayName} />
-            <footer>{site.data.site.footerText ?? site.data.displayName}<a href={`/public/${site.data.slug}/profissional`}>Acesso do profissional</a></footer>
-          </>
-        )}
-      </div>
-    </Theme>
+              <PublicLocationSection unit={site.data.unit} displayName={site.data.displayName} />
+              <footer>
+                {site.data.site.footerText ?? site.data.displayName}
+                <a href={`/public/${site.data.slug}/profissional`}>Acesso do profissional</a>
+              </footer>
+            </>
+          )}
+        </div>
+      </Theme>
+    </PublicTenantErrorBoundary>
   );
 }

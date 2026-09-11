@@ -27,11 +27,6 @@ import {
 import { environment } from '../config/environment.js';
 import { httpClient, HttpError } from '../lib/http.js';
 
-
-
-
-
-
 function BookingProgress({ step, flow }: { step: Step; flow: Step[] }) {
   const activeIndex = flow.indexOf(step);
   const label = steps.find((item) => item.id === step)?.label;
@@ -107,7 +102,9 @@ function ServiceStep({
               <strong>{service.name}</strong>
               {service.description === null ? null : <small>{service.description}</small>}
               <span className="booking-choice-meta">
-                <b>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</b>
+                <b>
+                  {servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}
+                </b>
                 <span>{`${String(service.durationMinutes)} min`}</span>
               </span>
             </span>
@@ -248,9 +245,13 @@ function DateStep({
                   onSelect(value);
                 }}
               >
-                <span>{item.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+                <span>
+                  {item.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+                </span>
                 <strong>{item.getDate()}</strong>
-                <small>{item.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</small>
+                <small>
+                  {item.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}
+                </small>
               </button>
             );
           })
@@ -563,7 +564,9 @@ function BookingSummary({
             </div>
             <div>
               <dt>Valor</dt>
-              <dd>{servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}</dd>
+              <dd>
+                {servicePriceLabel(service.pricingMode, service.priceCents, service.quoteNotice)}
+              </dd>
             </div>
           </>
         )}
@@ -757,7 +760,11 @@ export function AppointmentPaymentPanel({
             onClick={method.run}
           >
             <span className="payment-cta-icon" aria-hidden="true">
-              {method.id === 'pix' ? <IconQrcode size={22} stroke={1.8} /> : <IconCreditCard size={22} stroke={1.8} />}
+              {method.id === 'pix' ? (
+                <IconQrcode size={22} stroke={1.8} />
+              ) : (
+                <IconCreditCard size={22} stroke={1.8} />
+              )}
             </span>
             <span className="payment-cta-body">
               <strong>
@@ -800,6 +807,7 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
     professionalPublicId,
     selectProfessional,
     professionals,
+    professionalServices,
     selectedProfessional,
     date,
     selectDate,
@@ -941,9 +949,7 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
                             className="booking-service-card booking-combo-info"
                           >
                             <strong>{combo.name}</strong>
-                            <small>
-                              {combo.items.map((item) => item.name).join(' + ')}
-                            </small>
+                            <small>{combo.items.map((item) => item.name).join(' + ')}</small>
                             <small>
                               R$ {(Number(combo.priceCents) / 100).toLocaleString('pt-BR')}
                               {` · ${combo.durationMinutes} min`}
@@ -954,7 +960,8 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
                       </div>
                     </>
                   ) : null}
-                  {professionalServices.data.services.length === 0 && professionalServices.data.combos.length === 0 ? (
+                  {professionalServices.data.services.length === 0 &&
+                  professionalServices.data.combos.length === 0 ? (
                     <div className="booking-empty">
                       <p>Nenhum atendimento disponível para este profissional.</p>
                     </div>
@@ -969,11 +976,7 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
                   <p>Não foi possível carregar os atendimentos deste profissional.</p>
                 </div>
               ) : (
-                <ServiceStep
-                  site={site}
-                  selected={servicePublicId}
-                  onSelect={selectService}
-                />
+                <ServiceStep site={site} selected={servicePublicId} onSelect={selectService} />
               )}
               {site.units.length > 1 ? (
                 <fieldset className="booking-unit-picker">
@@ -1008,11 +1011,7 @@ export function PublicBookingFlow({ slug, site }: { slug: string; site: Site }) 
             />
           ) : null}
           {step === 'date' ? (
-            <DateStep
-              date={date}
-              onSelect={selectDate}
-              availableDates={availableDates}
-            />
+            <DateStep date={date} onSelect={selectDate} availableDates={availableDates} />
           ) : null}
           {step === 'time' ? (
             <TimeStep

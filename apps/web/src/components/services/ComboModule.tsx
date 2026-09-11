@@ -150,7 +150,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
     });
   };
   return (
-    <section aria-labelledby="combo-title" className="combo-module--redesigned">
+    <section aria-labelledby="combo-title" className="combo-module--redesigned combo-page-container">
       <PageHeader
         eyebrow="Catálogo"
         title="Combos"
@@ -162,15 +162,6 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
         }
       />
       {notice !== null && <p className="success-message">{notice}</p>}
-      <button
-        className="secondary-button combo-create-toggle"
-        onClick={() => {
-          setCreating((value) => !value);
-        }}
-        type="button"
-      >
-        {creating ? 'Fechar criação' : 'Criar combo'}
-      </button>
       {creating && (
         <ComboForm
           busy={mutation.isPending}
@@ -180,7 +171,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
           onSave={save}
         />
       )}
-      <div className="platform-form">
+      <div className="platform-form combo-catalog-toolbar">
         <label>
           Busca
           <input
@@ -219,7 +210,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
         />
       ) : (
         <>
-      <div className="service-catalog-list">
+      <div className="service-catalog-list combo-catalog-list">
             {combos.data.items.map((combo) => (
               <button
                 className={`service-catalog-row${selected === combo.publicId ? ' is-selected' : ''}`}
@@ -279,7 +270,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
         </>
       )}
       {detail.data !== undefined && (
-        <article className="sessions-panel">
+        <article className="sessions-panel combo-editor-panel">
           <h3>{detail.data.name}</h3>
           {detail.data.imageUrl !== null && (
             <TenantServiceImage

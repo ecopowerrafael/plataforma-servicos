@@ -140,7 +140,7 @@ export function ComboForm({
 
   return (
     <form
-      id={combo === undefined ? undefined : 'combo-edit-form'}
+      id="combo-edit-form"
       className="platform-form combo-form"
       onSubmit={(event) => {
         event.preventDefault();
@@ -306,11 +306,11 @@ export function ComboForm({
           {error}
         </p>
       )}
-      <div className="combo-form-actions">
+      {combo === undefined && <div className="combo-form-actions">
         <button className="primary-button" disabled={busy} type="submit">
           {busy ? 'Salvando…' : 'Salvar combo'}
         </button>
-      </div>
+      </div>}
     </form>
   );
 }

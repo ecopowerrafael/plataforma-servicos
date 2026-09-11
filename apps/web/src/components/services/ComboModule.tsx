@@ -168,6 +168,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             busy={mutation.isPending}
             error={mutation.error instanceof Error ? mutation.error.message : null}
             services={services.data?.items ?? []}
+            servicesLoading={services.isPending}
             professionals={undefined}
             onSave={save}
           />
@@ -279,6 +280,11 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
         </>
       )}
       </div>
+      {selected !== null && detail.isPending && (
+        <article className="sessions-panel combo-editor-panel col-span-12 lg:col-span-8" aria-label="Carregando combo">
+          <div className="combo-loading-skeleton" />
+        </article>
+      )}
       {detail.data !== undefined && (
         <article className="sessions-panel combo-editor-panel col-span-12 lg:col-span-8">
           <h3>{detail.data.name}</h3>
@@ -319,7 +325,9 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             combo={detail.data}
             error={mutation.error instanceof Error ? mutation.error.message : null}
             services={services.data?.items ?? []}
+            servicesLoading={services.isPending}
             professionals={eligibleProfessionals.data?.items ?? []}
+            previewImage={detail.data.imageUrl !== null ? <TenantServiceImage alt={detail.data.imageAlt ?? detail.data.name} kind="combos" servicePublicId={detail.data.publicId} tenantPublicId={tenantPublicId} /> : undefined}
             imageSection={<ServiceImageUpload busy={mutation.isPending} hasImage={detail.data.imageUrl !== null} onRemove={requestRemoveImage} onUpload={updateImage} preview={<TenantServiceImage alt={detail.data.imageAlt ?? detail.data.name} kind="combos" servicePublicId={detail.data.publicId} tenantPublicId={tenantPublicId} />} />}
             onSave={save}
           />

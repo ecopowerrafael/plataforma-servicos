@@ -54,17 +54,21 @@ export function ComboForm({
   error,
   combo,
   services,
+  servicesLoading,
   professionals,
   imageSection,
+  previewImage,
   onSave,
 }: {
   busy: boolean;
   error: string | null;
   combo?: Combo;
   services: Service[];
+  servicesLoading?: boolean;
   onSave: (value: ComboSubmission) => Promise<void>;
   professionals?: { publicId: string; publicName: string }[];
   imageSection?: ReactNode;
+  previewImage?: ReactNode;
 }) {
   const form = useForm<ComboInput, unknown, ComboSubmission>({
     defaultValues: defaults(combo),
@@ -141,7 +145,7 @@ export function ComboForm({
   return (
     <form
       id="combo-edit-form"
-      className="platform-form combo-form"
+      className="platform-form combo-form combo-editor-layout"
       onSubmit={(event) => {
         event.preventDefault();
         void handleSubmit(async (value) => {
@@ -152,6 +156,7 @@ export function ComboForm({
         })();
       }}
     >
+      <div className="combo-editor-main">
       <fieldset className="combo-form-section combo-card">
         <legend>Informações gerais do combo</legend>
         <div className="combo-form-grid">
@@ -236,7 +241,9 @@ export function ComboForm({
             </div>;
           })}
         </div>}
-        <div className="combo-service-grid">
+        {servicesLoading ? <div className="combo-service-grid" aria-label="Carregando serviços">
+          {[1, 2, 3, 4].map((item) => <div className="combo-service-card combo-service-card--skeleton" key={item} />)}
+        </div> : <div className="combo-service-grid">
           {available.map((service) => {
             const selected = selectedIds.has(service.publicId);
             return (
@@ -261,8 +268,8 @@ export function ComboForm({
               </button>
             );
           })}
-        </div>
-        {available.length === 0 ? (
+        </div>}
+        {!servicesLoading && available.length === 0 ? (
           <p className="muted">{'Nenhum serviço encontrado para esta busca.'}</p>
         ) : null}
         {selectedServices.length > 0 ? (
@@ -296,6 +303,32 @@ export function ComboForm({
           </label>)}
         </div> : <p className="muted">Os profissionais aptos são carregados ao editar um combo salvo.</p>}
       </fieldset>
+      </div>
+      <aside className="combo-editor-sidebar" aria-label="Resumo do combo">
+        <section className="combo-summary-card">
+          <p className="combo-summary-eyebrow">Resumo financeiro</p>
+          <div className="combo-summary-price">{money(String(comboPrice))}</div>
+          <div className="combo-summary-metrics">
+            <div><span>Duração total</span><strong>{totalDuration} min</strong></div>
+            <div><span>Valor avulso</span><strong>{money(String(regularPrice))}</strong></div>
+          </div>
+          <div className="combo-savings-badge">
+            Economia de {money(String(savings))} · {savingsPercentage.toFixed(1)}% OFF
+          </div>
+        </section>
+        <section className="combo-preview-card">
+          <p className="combo-summary-eyebrow">Como o cliente verá</p>
+          <div className="combo-preview-image" aria-hidden="true">
+            {previewImage ?? <span>Imagem do combo</span>}
+          </div>
+          <h3>{form.watch('name') || 'Nome do combo'}</h3>
+          <p>{totalDuration} min · {selectedItems.length} serviços inclusos</p>
+          <div className="combo-preview-services">
+            {selectedServices.slice(0, 3).map((service) => <span key={service.publicId}>{service.name}</span>)}
+          </div>
+          <strong>{money(String(comboPrice))}</strong>
+        </section>
+      </aside>
       {Object.keys(errors).length > 0 && (
         <p className="form-error" role="alert">
           Revise os campos informados.

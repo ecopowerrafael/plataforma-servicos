@@ -306,11 +306,6 @@ export function ComboForm({
           {error}
         </p>
       )}
-      {combo === undefined && <div className="combo-form-actions">
-        <button className="primary-button" disabled={busy} type="submit">
-          {busy ? 'Salvando…' : 'Salvar combo'}
-        </button>
-      </div>}
     </form>
   );
 }

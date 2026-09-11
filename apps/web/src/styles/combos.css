@@ -41,6 +41,7 @@
 .service-catalog-row.is-selected { border-color: var(--color-accent-light); box-shadow: 0 0 0 2px rgba(197,160,89,.18); background: #fffbf4; }
 .combo-sticky-actions { position: sticky; bottom: 12px; z-index: 3; background: #fff; border: 1px solid var(--color-border-default); border-radius: 10px; padding: 12px; box-shadow: 0 8px 24px rgba(15,23,42,.12); display: flex; gap: 8px; flex-wrap: wrap; }
 .combo-sticky-actions .primary-button { margin-left: auto; }
+.combo-create-footer { grid-column: span 8; }
 .danger-button { color: #b91c1c; border-color: #fecaca; background: #fff; }
 .combo-catalog-toolbar, .combo-catalog-list { background: #fff; border: 1px solid var(--color-border-default); border-radius: 12px; padding: 16px; }
 .combo-catalog-list { padding: 8px; }

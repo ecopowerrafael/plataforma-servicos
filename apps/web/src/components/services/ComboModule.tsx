@@ -163,13 +163,21 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
       />
       {notice !== null && <p className="success-message">{notice}</p>}
       {creating && (
-        <ComboForm
-          busy={mutation.isPending}
-          error={mutation.error instanceof Error ? mutation.error.message : null}
-          services={services.data?.items ?? []}
-          professionals={undefined}
-          onSave={save}
-        />
+        <>
+          <ComboForm
+            busy={mutation.isPending}
+            error={mutation.error instanceof Error ? mutation.error.message : null}
+            services={services.data?.items ?? []}
+            professionals={undefined}
+            onSave={save}
+          />
+          <div className="form-actions combo-sticky-actions combo-create-footer">
+            <button className="danger-button" type="button" disabled>Desativar / Excluir</button>
+            <span />
+            <button type="button" onClick={() => setCreating(false)}>Cancelar</button>
+            <button className="primary-button" type="submit" form="combo-edit-form" disabled={mutation.isPending}>Salvar Alterações</button>
+          </div>
+        </>
       )}
       <div className="platform-form combo-catalog-toolbar">
         <label>

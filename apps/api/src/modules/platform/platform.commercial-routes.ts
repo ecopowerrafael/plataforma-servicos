@@ -110,12 +110,12 @@ const UpdateRegionRequestSchema = z.object({
 
 const CommercialAccountResponseSchema = z.object({
   publicId: z.string(),
-  userId: z.bigint(),
+  userId: z.string(),
   role: z.string(),
   active: z.boolean(),
   defaultCommissionBps: z.number(),
-  parentId: z.bigint().nullable(),
-  createdAt: z.date(),
+  parentId: z.string().nullable(),
+  createdAt: z.string().datetime(),
 });
 
 const CommercialAccountListItemSchema = z.object({
@@ -442,12 +442,12 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
 
       return reply.status(201).send({
         publicId: account.publicId,
-        userId: account.userId,
+        userId: account.userId.toString(),
         role: account.role,
         active: account.active,
         defaultCommissionBps: account.defaultCommissionBps,
-        parentId: account.parentId,
-        createdAt: account.createdAt,
+        parentId: account.parentId?.toString() ?? null,
+        createdAt: account.createdAt.toISOString(),
       });
     },
   );

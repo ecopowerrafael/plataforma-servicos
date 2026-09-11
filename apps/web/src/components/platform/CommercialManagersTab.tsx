@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { httpClient } from '../../lib/http.js';
+import { httpClient, HttpError } from '../../lib/http.js';
 import { ErrorState } from './PlatformUi.js';
 import { z } from 'zod';
 
@@ -56,6 +56,7 @@ export function CommercialManagersTab() {
   const [citySearch, setCitySearch] = useState('');
   const [selectedManager, setSelectedManager] = useState<string | null>(null);
   const [editingManager, setEditingManager] = useState<any | null>(null);
+  const [createFeedback, setCreateFeedback] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     email: '',
@@ -131,8 +132,11 @@ export function CommercialManagersTab() {
         }),
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['platform', 'commercial', 'accounts'] });
+      setCreateFeedback('Gerente criado com sucesso.');
       resetForm();
+      void queryClient.invalidateQueries({ queryKey: ['platform', 'commercial', 'accounts'] }).catch(() => {
+        setCreateFeedback('Gerente criado com sucesso, mas não foi possível atualizar a lista.');
+      });
     },
   });
 
@@ -214,6 +218,7 @@ export function CommercialManagersTab() {
 
   const handleConfirmSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (createManager.isPending) return;
 
     const payload: any = {
       email: formData.email,
@@ -254,6 +259,12 @@ export function CommercialManagersTab() {
     });
   };
 
+  const createErrorMessage = createManager.error instanceof HttpError
+    ? createManager.error.code === 'USER_ALREADY_COMMERCIAL'
+      ? 'Este usuário já é gerente comercial.'
+      : createManager.error.message
+    : createManager.error instanceof Error ? createManager.error.message : null;
+
   if (managers.isLoading) {
     return (
       <div className="loading">
@@ -275,6 +286,8 @@ export function CommercialManagersTab() {
           {showForm ? 'Cancelar' : '+ Novo Gerente'}
         </button>
       </div>
+
+      {createFeedback && <div className="success-message">{createFeedback}</div>}
 
       {showForm && (
         <div className="form-card">
@@ -347,7 +360,7 @@ export function CommercialManagersTab() {
                 />
               </div>
               {lookupError && <div className="error-message">{lookupError}</div>}
-              {createManager.error && <div className="error-message">{String(createManager.error)}</div>}
+              {createErrorMessage && <div className="error-message">{createErrorMessage}</div>}
               <div className="form-actions">
                 <button type="button" className="secondary-button" onClick={() => setStep('email')}>
                   Voltar
@@ -384,7 +397,7 @@ export function CommercialManagersTab() {
                 />
                 <small>Percentual de comissão do gerente.</small>
               </div>
-              {createManager.error && <div className="error-message">{String(createManager.error)}</div>}
+              {createErrorMessage && <div className="error-message">{createErrorMessage}</div>}
               <div className="form-actions">
                 <button type="button" className="secondary-button" onClick={() => setStep(userLookup?.exists ? 'email' : 'user-info')}>
                   Voltar
@@ -541,7 +554,7 @@ export function CommercialManagersTab() {
                   </>
                 )}
               </div>
-              {createManager.error && <div className="error-message">{String(createManager.error)}</div>}
+              {createErrorMessage && <div className="error-message">{createErrorMessage}</div>}
               <div className="form-actions">
                 <button type="button" className="secondary-button" onClick={() => setStep('commission')}>
                   Voltar

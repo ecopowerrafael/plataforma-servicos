@@ -308,7 +308,6 @@ export function ComboForm({
         </div> : <p className="muted">Os profissionais aptos são carregados ao editar um combo salvo.</p>}
       </fieldset>
       </div>
-      </div>
       <aside className="lg:col-span-5 space-y-6 lg:sticky lg:top-6" aria-label="Resumo do combo">
         <section className="bg-slate-900 text-white rounded-xl p-6 shadow-lg border border-slate-800 space-y-5">
           <p className="combo-summary-eyebrow">Resumo financeiro</p>

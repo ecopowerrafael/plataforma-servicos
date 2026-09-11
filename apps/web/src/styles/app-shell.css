@@ -533,9 +533,9 @@
 .guided-setup-progress i { background: #2563eb; transition: width .35s ease; }
 .guided-exit-link { border: 0; background: transparent; color: #475569; cursor: pointer; font-size: .85rem; }
 .guided-exit-link:hover { color: #2563eb; }
-.guided-setup-layout { display: grid; grid-template-columns: minmax(0, 7.6fr) minmax(280px, 4.4fr); gap: 24px; align-items: stretch; min-height: 0; }
-.guided-setup-left-column { display: grid; grid-template-columns: minmax(150px, 2.1fr) minmax(0, 7.9fr); gap: 16px; min-width: 0; min-height: 0; }
-.guided-steps-card { position: sticky; top: 20px; padding: 12px; max-width: none; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+.guided-setup-layout { display: grid; grid-template-columns: minmax(0, 7.6fr) minmax(280px, 4.4fr); gap: 24px; align-items: start; min-height: 0; }
+.guided-setup-left-column { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; align-self: start; min-width: 0; min-height: 0; height: fit-content; }
+.guided-steps-card { position: sticky; top: 20px; align-self: start; height: fit-content; padding: 12px; max-width: none; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
 .guided-steps-heading { margin: 4px 8px 10px; color: #64748b; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
 .guided-step-list { display: grid; gap: 4px; }
 .guided-step-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 8px; border: 0; border-radius: 10px; background: transparent; color: #475569; text-align: left; cursor: pointer; }

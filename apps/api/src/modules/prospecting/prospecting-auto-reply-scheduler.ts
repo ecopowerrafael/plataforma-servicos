@@ -41,10 +41,15 @@ export class ProspectingAutoReplyScheduler {
       return { scheduled: false, reason: 'SERVICE_NOT_CONFIGURED' };
     }
 
-    if (this.environment?.PROSPECTING_DRY_RUN === true) {
+    const dryRun = this.environment?.PROSPECTING_DRY_RUN ?? process.env.PROSPECTING_DRY_RUN === 'true';
+    const workerDisabled = this.environment
+      ? this.environment.PROSPECTING_WORKER_ENABLED !== true
+      : process.env.PROSPECTING_WORKER_ENABLED === 'false';
+
+    if (dryRun) {
       return { scheduled: false, reason: 'DRY_RUN' };
     }
-    if (this.environment && this.environment.PROSPECTING_WORKER_ENABLED !== true) {
+    if (workerDisabled) {
       return { scheduled: false, reason: 'WORKER_DISABLED' };
     }
 

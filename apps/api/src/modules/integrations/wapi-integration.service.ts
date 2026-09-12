@@ -119,7 +119,11 @@ export class WApiIntegrationService {
       const response = await this.fetcher(url, { ...init, signal: AbortSignal.timeout(20_000) });
       return await this.parse(response, operation);
     } catch (error) {
-      if (error instanceof WApiProviderError) throw error;
+      if (error instanceof WApiProviderError) {
+        console.warn({ operation, httpStatus: error.httpStatus, providerCode: error.providerCode }, 'Falha sanitizada na W-API');
+        throw error;
+      }
+      console.warn({ operation, httpStatus: null, providerCode: null }, 'Falha sanitizada na W-API');
       throw new WApiProviderError(`Não foi possível falar com o provedor (${operation}).`, null, null);
     }
   }

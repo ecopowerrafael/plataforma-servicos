@@ -60,6 +60,18 @@ describe('whatsappWebhookRoutes', () => {
     await app.close();
   });
 
+  it('accepts the configured secret in the URL used by W-API', async () => {
+    const { app, service } = await build();
+    const response = await app.inject({
+      method: 'POST',
+      url: `${canonicalWapiWhatsAppWebhookPath}?webhookSecret=test-wapi-webhook-secret-32-characters`,
+      payload: { event: 'webhookReceived' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(service.ingestWhatsappInbound).toHaveBeenCalledOnce();
+    await app.close();
+  });
+
   it('passes Meta verification to the tenant-scoped webhook public id', async () => {
     const { app, service } = await build();
 

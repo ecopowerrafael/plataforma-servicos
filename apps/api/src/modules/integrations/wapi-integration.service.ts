@@ -166,6 +166,26 @@ export class WApiIntegrationService {
     };
   }
 
+  /** Atualiza os callbacks da instância já criada. A W-API não configura
+   * headers arbitrários; a autenticação da plataforma vai na URL HTTPS. */
+  public async configureWebhooks(instanceId: string, token: string, webhookUrl: string): Promise<void> {
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    const callbacks = [
+      'received',
+      'delivery',
+      'connected',
+      'disconnected',
+      'status',
+    ] as const;
+    for (const callback of callbacks) {
+      await this.call(
+        this.url(`/v1/webhook/update-webhook-${callback}`, { instanceId }),
+        { method: 'PUT', headers, body: JSON.stringify({ value: webhookUrl }) },
+        `update-webhook-${callback}`,
+      );
+    }
+  }
+
   /** QR em base64 (`image=disable`). É dado temporário: nunca persistido. */
   public async getQrCode(instanceId: string, token: string): Promise<string> {
     const body = await this.call(

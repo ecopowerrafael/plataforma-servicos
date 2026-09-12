@@ -158,7 +158,11 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
   public async connect(tenantId: bigint): Promise<WhatsAppConnectionView> {
     await this.assertFeature(tenantId);
     const existing = await this.config(tenantId);
-    if (existing !== null) return this.view(existing, true);
+    if (existing !== null) {
+      const { instanceId, token } = this.credentials(existing);
+      await this.wapiProvider.configureWebhooks(instanceId, token, this.wapiWebhookUrl());
+      return this.view(existing, true);
+    }
     const created = await this.withTenantLock(tenantId, async () => {
       const concurrent = await this.config(tenantId);
       if (concurrent !== null) return concurrent;
@@ -174,7 +178,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
       });
       const instance = await this.wapiProvider.createInstance({
         instanceName: `agendei-${tenant?.slug ?? tenantId.toString()}`,
-        webhookUrl: `${this.appWebUrl.replace(/\/+$/u, '')}${canonicalWapiWhatsAppWebhookPath}`,
+        webhookUrl: this.wapiWebhookUrl(),
       });
       return this.client.tenantWhatsAppConfig.create({
         data: {
@@ -194,6 +198,14 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
       throw friendly(error);
     });
     return this.view(created, true);
+  }
+
+  private wapiWebhookUrl() {
+    const secret = process.env.WAPI_WEBHOOK_SECRET?.trim();
+    const base = `${this.appWebUrl.replace(/\/+$/u, '')}${canonicalWapiWhatsAppWebhookPath}`;
+    return secret === undefined || secret === ''
+      ? base
+      : `${base}?webhookSecret=${encodeURIComponent(secret)}`;
   }
 
   /**

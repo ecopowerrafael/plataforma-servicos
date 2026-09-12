@@ -190,8 +190,6 @@ export class WhatsAppConnectionService {
         connectionStatus: 'CREATED',
       },
     });
-    await this.setSelectedProvider(tenantId, 'META');
-
     return {
       provider: 'META',
       capabilities: this.resolver.capabilities('META'),

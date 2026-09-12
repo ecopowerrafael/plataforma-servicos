@@ -27,7 +27,9 @@ function validWapiSecret(request: FastifyRequest): boolean {
       ? header
       : authorization?.startsWith('Bearer ')
         ? authorization.slice('Bearer '.length)
-        : undefined;
+        : typeof (request.query as { webhookSecret?: unknown } | undefined)?.webhookSecret === 'string'
+          ? (request.query as { webhookSecret: string }).webhookSecret
+          : undefined;
   if (!supplied) return false;
   const actualBuffer = Buffer.from(supplied);
   const expectedBuffer = Buffer.from(expected);
@@ -62,11 +64,21 @@ export const whatsappWebhookRoutes: FastifyPluginAsyncZod<{ service: Integration
   });
 
   const ingestWapi = async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!validWapiSecret(request))
+    if (!validWapiSecret(request)) {
+      request.log.warn(
+        { operation: 'whatsapp_wapi_webhook_rejected', method: request.method, pathname: request.url.split('?')[0], code: 'WAPI_WEBHOOK_UNAUTHORIZED' },
+        'Webhook W-API rejeitado',
+      );
       return reply.status(401).send({ received: false, code: 'WAPI_WEBHOOK_UNAUTHORIZED' });
+    }
     const result = await options.service.ingestWhatsappInbound(request.body);
     request.log.info(
-      { operation: 'whatsapp_wapi_webhook_received', ...result },
+      {
+        operation: 'whatsapp_wapi_webhook_received',
+        method: request.method,
+        pathname: request.url.split('?')[0],
+        ...result,
+      },
       'Evento de WhatsApp W-API recebido',
     );
     return reply.status(200).send({ received: true, ...result });

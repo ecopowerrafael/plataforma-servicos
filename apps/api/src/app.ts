@@ -137,6 +137,8 @@ function loggerOptions(environment: Environment): NonNullable<FastifyServerOptio
       paths: [
         'req.headers.authorization',
         'req.headers.cookie',
+        // Webhook authentication may be carried in the URL; never emit raw URLs.
+        'req.url',
         'res.headers.set-cookie',
         '*.password',
         'req.body.password',

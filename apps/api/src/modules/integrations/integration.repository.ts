@@ -100,7 +100,10 @@ export class IntegrationRepository {
   }
   /** Resolve o tenant a partir do instanceId recebido no webhook. */
   public whatsappByInstanceId(instanceId: string) {
-    return this.client.tenantWhatsAppConfig.findFirst({ where: { phoneNumberId: instanceId } });
+    return this.client.tenantWhatsAppConfig.findFirst({
+      where: { phoneNumberId: instanceId, provider: 'WAPI' },
+      orderBy: { id: 'asc' },
+    });
   }
   public metaWhatsappByWebhookPublicId(webhookPublicId: string) {
     return this.client.tenantWhatsAppConfig.findFirst({

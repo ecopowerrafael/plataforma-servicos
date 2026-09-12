@@ -142,6 +142,15 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
     },
   );
   app.post(
+    '/tenant/integrations/whatsapp/webhooks/reconfigure',
+    { schema: { response: { 200: z.object({ success: z.literal(true) }) } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'integration.manage');
+      logged(request, 'whatsapp_webhooks_reconfigure');
+      return provisioning().reconfigureWebhooks(request.tenant.id);
+    },
+  );
+  app.post(
     '/tenant/integrations/whatsapp/qr',
     { schema: { response: { 200: WhatsAppQrCodeSchema } } },
     async (request) => {

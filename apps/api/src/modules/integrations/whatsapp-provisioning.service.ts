@@ -229,6 +229,14 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
     }
   }
 
+  public async reconfigureWebhooks(tenantId: bigint): Promise<{ success: true }> {
+    await this.assertFeature(tenantId);
+    const config = await this.requireConfig(tenantId);
+    const { instanceId, token } = this.credentials(config);
+    await this.wapiProvider.configureWebhooks(instanceId, token, this.wapiWebhookUrl());
+    return { success: true };
+  }
+
   /** Consulta o provedor e persiste o estado real da conexão. */
   public async refreshStatus(tenantId: bigint): Promise<WhatsAppConnectionView> {
     await this.assertFeature(tenantId);
@@ -236,6 +244,7 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
     const { instanceId, token } = this.credentials(config);
     const now = new Date();
     try {
+      await this.wapiProvider.configureWebhooks(instanceId, token, this.wapiWebhookUrl());
       const status = await this.wapiProvider.getInstanceStatus(instanceId, token);
       if (!status.connected) {
         const updated = await this.client.tenantWhatsAppConfig.update({
@@ -297,8 +306,12 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
     return this.view(updated, true);
   }
 
-  /** Reconecta reutilizando a mesma instância: só gera um novo QR. */
-  public reconnect(tenantId: bigint) {
+  /** Reconecta reutilizando a mesma instância: repara os webhooks antes do QR. */
+  public async reconnect(tenantId: bigint) {
+    await this.assertFeature(tenantId);
+    const config = await this.requireConfig(tenantId);
+    const { instanceId, token } = this.credentials(config);
+    await this.wapiProvider.configureWebhooks(instanceId, token, this.wapiWebhookUrl());
     return this.qrCode(tenantId);
   }
 

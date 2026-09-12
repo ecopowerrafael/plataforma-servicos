@@ -50,6 +50,7 @@ export interface WhatsAppProvisioningProvider extends WhatsAppProvider {
   connect(tenantId: bigint): Promise<WhatsAppConnectionView>;
   qrCode?(tenantId: bigint): Promise<{ qrCode: string; view: WhatsAppConnectionView }>;
   refreshStatus(tenantId: bigint): Promise<WhatsAppConnectionView>;
+  reconfigureWebhooks?(tenantId: bigint): Promise<{ success: true }>;
   disconnect(tenantId: bigint): Promise<WhatsAppConnectionView>;
   reconnect?(tenantId: bigint): Promise<{ qrCode: string; view: WhatsAppConnectionView }>;
 }

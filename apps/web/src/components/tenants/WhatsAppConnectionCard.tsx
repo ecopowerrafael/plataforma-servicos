@@ -18,6 +18,7 @@ import {
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
 import { ConnectionStatusBanner } from './ConnectionStatusBanner.js';
@@ -306,9 +307,13 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
       await refresh();
     },
   });
+  const reconfigureWebhooks = useMutation({
+    mutationFn: () => httpClient.request('/tenant/integrations/whatsapp/webhooks/reconfigure', { method: 'POST', body: {}, schema: z.object({ success: z.literal(true) }), tenantPublicId }),
+    onSuccess: () => setNotice('Webhooks W-API reconfigurados com sucesso.'),
+  });
 
-  const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
-  const accountError = [createInstance.error, requestQr.error, disconnect.error, updateProvider.error, connection.error, providers.error].find((item): item is Error => item instanceof Error);
+  const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || reconfigureWebhooks.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
+  const accountError = [createInstance.error, requestQr.error, disconnect.error, reconfigureWebhooks.error, updateProvider.error, connection.error, providers.error].find((item): item is Error => item instanceof Error);
   const templateError = [provisionTemplates.error, refreshTemplates.error, metaTemplates.error].find((item): item is Error => item instanceof Error);
 
   if (!available) {
@@ -494,6 +499,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                 {state === 'CONNECTED' ? (
                   <>
                     <button className="secondary-button" type="button" disabled={busy || connection.isFetching} onClick={() => void refresh()}><IconRefresh size={16} aria-hidden="true" />Atualizar status</button>
+                    {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks W-API sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
                     <button className="text-button" type="button" disabled={busy} onClick={() => disconnect.mutate()}>Desconectar</button>
                   </>
                 ) : (
@@ -507,6 +513,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                         {createInstance.isPending ? 'Preparando conexão…' : 'Configurar'}
                       </button>
                     )}
+                    {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks W-API sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
                     {shouldShowWapiActivation(managedProvider, activeProvider) ? (
                       <button className="secondary-button" type="button" disabled={busy} onClick={() => setConfirmSwitch('WAPI')}>Usar API não oficial</button>
                     ) : null}

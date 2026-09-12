@@ -251,6 +251,14 @@ export class WhatsAppConnectionService {
     return this.resolver.provisioningForTenant(tenantId).then((provider) => provider.refreshStatus(tenantId));
   }
 
+  public async reconfigureWebhooks(tenantId: bigint): Promise<{ success: true }> {
+    const provider = await this.resolver.provisioningForTenant(tenantId);
+    if (provider.provider !== 'WAPI' || provider.reconfigureWebhooks === undefined) {
+      throw new AppError({ code: 'WHATSAPP_PROVIDER_CAPABILITY_UNAVAILABLE', message: 'Reconfiguração de webhooks indisponível para este provedor.', statusCode: 400 });
+    }
+    return provider.reconfigureWebhooks(tenantId);
+  }
+
   public async disconnect(tenantId: bigint): Promise<WhatsAppConnectionView> {
     return this.resolver.provisioningForTenant(tenantId).then((provider) => provider.disconnect(tenantId));
   }

@@ -21,6 +21,7 @@ interface ProspectingInboundPayload {
 interface ProspectingInboundResult {
   handled: boolean;
   reason?: string;
+  router?: 'FLOW_BUTTON' | 'FLOW_TEXT' | 'OBJECTION' | 'UNMATCHED';
   leadPublicId?: string;
   campaignPublicId?: string;
 }
@@ -66,7 +67,9 @@ export class ProspectingInboundService {
     }
 
     // Aceitar MESSAGE_RECEIVED (texto normal) ou MESSAGE_ACTION (clique de botão)
-    if (payload.eventType !== 'MESSAGE_RECEIVED' && payload.eventType !== 'MESSAGE_ACTION') {
+    // 'message' é mantido como alias legado do webhook W-API.
+    const isReceivedMessage = payload.eventType === 'MESSAGE_RECEIVED' || payload.eventType === 'message';
+    if (!isReceivedMessage && payload.eventType !== 'MESSAGE_ACTION') {
       console.log('[ProspectingInboundTrace]', { ...trace, result: 'NOT_MESSAGE_EVENT' });
       return { handled: false, reason: 'NOT_MESSAGE_EVENT' };
     }
@@ -331,33 +334,18 @@ export class ProspectingInboundService {
       result: 'LEAD_FOUND_PROCEEDING'
     });
 
-    // ROTEAMENTO POR eventType (não por existência de flow)
+    // ROTEAMENTO: opt-out já foi tratado acima; fluxo aguardando tem precedência
     const flowEnabled = this.environment?.PROSPECTING_FLOW_ENABLED === true;
+    const execution = flowEnabled && campaign?.flowId
+      ? await this.client.prospectingFlowExecution.findUnique({
+          where: { campaignId_leadId_flowId: { campaignId: campaign.id, leadId: leadData.id, flowId: campaign.flowId } },
+          include: { currentStep: { include: { options: { include: { patterns: true } } } } },
+        })
+      : null;
 
     // A) MESSAGE_ACTION (BUTTON_REPLY) → FlowEngine
-    if (payload.eventType === 'MESSAGE_ACTION' && flowEnabled && campaign?.flowId) {
-      const execution = await this.client.prospectingFlowExecution.findUnique({
-        where: {
-          campaignId_leadId_flowId: {
-            campaignId: campaign.id,
-            leadId: leadData.id,
-            flowId: campaign.flowId,
-          },
-        },
-        include: {
-          currentStep: {
-            include: {
-              options: {
-                include: {
-                  patterns: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      if (execution && execution.status === 'WAITING') {
+    if (payload.eventType === 'MESSAGE_ACTION') {
+      if (execution?.status === 'WAITING') {
         const flowEngine = new ProspectingFlowEngine(this.client);
 
         // Resolver opção por index (OPÇÃO 2)
@@ -418,6 +406,7 @@ export class ProspectingInboundService {
 
         return {
           handled: true,
+          router: 'FLOW_BUTTON',
           leadPublicId: leadData.publicId,
           campaignPublicId: campaign?.publicId || '',
         };
@@ -425,23 +414,36 @@ export class ProspectingInboundService {
       // MESSAGE_ACTION sem execution WAITING não segue adiante (não cai em ObjectionEngine)
       return {
         handled: true,
+        router: 'FLOW_BUTTON',
         leadPublicId: leadData.publicId,
         campaignPublicId: campaign?.publicId || '',
       };
     }
 
-    // B) MESSAGE_RECEIVED (texto normal) → ObjectionEngine SEMPRE
-    // Nota: campanha com flow NÃO desativa ObjectionEngine
-    if (payload.eventType === 'MESSAGE_RECEIVED') {
+    // B) Texto: primeiro tenta a etapa atual do fluxo; só cai em objeção sem match.
+    if (isReceivedMessage) {
+      if (execution?.status === 'WAITING') {
+        const flowEngine = new ProspectingFlowEngine(this.client);
+        const flowResult = await flowEngine.processStepResponse({
+          execution,
+          step: execution.currentStep,
+          inboundMessage: message,
+        });
+        if (flowResult.executionAdvanced || flowResult.reason !== 'NO_OPTION_MATCH') {
+          console.log('[ProspectingInboundTrace]', { ...trace, router: 'FLOW_TEXT', result: flowResult.reason ?? 'FLOW_ADVANCED' });
+          return { handled: true, router: 'FLOW_TEXT', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
+        }
+      }
       try {
-        const engine = new ProspectingObjectionEngine(this.client);
-        await engine.classify({
+        const result = await new ProspectingObjectionEngine(this.client, this.environment).classify({
           campaignId: leadData.campaignId,
           leadId: leadData.id,
           messageId: message.id,
           inboundMessageId: message.id,
           text: payload.body as string,
         });
+        console.log('[ProspectingInboundTrace]', { ...trace, router: result.matched ? 'OBJECTION' : 'UNMATCHED', matched: result.matched, objectionCode: result.objectionCode, autoReplyScheduled: result.autoReplyScheduled, reason: result.autoReplyReason });
+        return { handled: true, router: result.matched ? 'OBJECTION' : 'UNMATCHED', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
       } catch (error) {
         // Log but don't fail webhook
         console.error('[ProspectingInbound] Classification error:', error);

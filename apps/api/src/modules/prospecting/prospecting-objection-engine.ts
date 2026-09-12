@@ -1,5 +1,6 @@
 import { type PrismaClient } from '../../database-client/client.js';
 import { ProspectingAutoReplyScheduler } from './prospecting-auto-reply-scheduler.js';
+import { type Environment } from '../../config/environment.js';
 
 interface ClassificationInput {
   campaignId: bigint;
@@ -16,6 +17,8 @@ interface ClassificationResult {
   objectionId?: bigint;
   confidence: 'EXACT' | 'RULE';
   suggestedResponse?: string | undefined;
+  autoReplyScheduled?: boolean;
+  autoReplyReason?: string;
 }
 
 interface PatternMatch {
@@ -49,6 +52,7 @@ export class ProspectingObjectionEngine {
 
   public constructor(
     private readonly client?: PrismaClient | null,
+    private readonly environment?: Environment | null,
   ) {}
 
   /**
@@ -145,16 +149,20 @@ export class ProspectingObjectionEngine {
     }
 
     // Tentar agendar auto-reply se resposta sugerida existe
-    if (bestMatch.suggestedResponse && input.inboundMessageId) {
+    let autoReplyScheduled = false;
+    let autoReplyReason: string | undefined = 'NO_RESPONSE_TEXT';
+    if (input.inboundMessageId) {
       try {
-        const scheduler = new ProspectingAutoReplyScheduler(this.client);
-        await scheduler.scheduleAutoReply({
+        const scheduler = new ProspectingAutoReplyScheduler(this.client, undefined, undefined, this.environment);
+        const scheduleResult = await scheduler.scheduleAutoReply({
           campaignId: input.campaignId,
           leadId: input.leadId,
           inboundMessageId: input.inboundMessageId,
           objectionId: bestMatch.objectionId,
-          suggestedResponse: bestMatch.suggestedResponse,
+          suggestedResponse: bestMatch.suggestedResponse || '',
         });
+        autoReplyScheduled = scheduleResult.scheduled;
+        autoReplyReason = scheduleResult.reason;
       } catch (error) {
         // Log but don't fail classification
         console.error('[ProspectingObjectionEngine] Auto-reply scheduling error:', error);
@@ -168,6 +176,8 @@ export class ProspectingObjectionEngine {
       objectionId: bestMatch.objectionId,
       confidence: bestMatch.confidence,
       suggestedResponse: bestMatch.suggestedResponse || undefined,
+      autoReplyScheduled,
+      autoReplyReason,
     };
   }
 
@@ -411,12 +421,8 @@ export class ProspectingObjectionEngine {
     return text
       .trim()
       .toLowerCase()
-      .replace(/[àáâãäå]/g, 'a')
-      .replace(/[èéêë]/g, 'e')
-      .replace(/[ìíîï]/g, 'i')
-      .replace(/[òóôõö]/g, 'o')
-      .replace(/[ùúûü]/g, 'u')
-      .replace(/[ç]/g, 'c')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ');
   }
 }

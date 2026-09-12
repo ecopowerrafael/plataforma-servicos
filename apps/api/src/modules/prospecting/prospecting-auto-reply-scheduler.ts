@@ -1,5 +1,6 @@
 import { type PrismaClient } from '../../database-client/client.js';
 import { randomUUID } from 'node:crypto';
+import { type Environment } from '../../config/environment.js';
 
 interface ScheduleAutoReplyInput {
   campaignId: bigint;
@@ -26,6 +27,7 @@ export class ProspectingAutoReplyScheduler {
     private readonly client?: PrismaClient | null,
     minDelay?: number,
     maxDelay?: number,
+    private readonly environment?: Environment | null,
   ) {
     this.minDelaySeconds = minDelay ?? 10;
     this.maxDelaySeconds = maxDelay ?? 30;
@@ -37,6 +39,13 @@ export class ProspectingAutoReplyScheduler {
   public async scheduleAutoReply(input: ScheduleAutoReplyInput): Promise<ScheduleAutoReplyResult> {
     if (!this.client) {
       return { scheduled: false, reason: 'SERVICE_NOT_CONFIGURED' };
+    }
+
+    if (this.environment?.PROSPECTING_DRY_RUN === true) {
+      return { scheduled: false, reason: 'DRY_RUN' };
+    }
+    if (this.environment && this.environment.PROSPECTING_WORKER_ENABLED !== true) {
+      return { scheduled: false, reason: 'WORKER_DISABLED' };
     }
 
     // Validar campaign.autoReplyEnabled

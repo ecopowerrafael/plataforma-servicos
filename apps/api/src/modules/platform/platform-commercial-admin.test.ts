@@ -94,21 +94,13 @@ describe('platform commercial administration', () => {
     expect(client).not.toHaveProperty('payment');
   });
 
-  it('activates an allowed trial and records history and audit without payment', async () => {
-    const updated = { ...subscription, status: 'ACTIVE', trialEndsAt: now };
-    const tx = {
-      tenantSubscription: { update: vi.fn().mockResolvedValue(updated) },
-      subscriptionHistory: { create: vi.fn() }, auditLog: { create: vi.fn() },
-    };
+  it('rejects manual activation without a provider payment', async () => {
     const client = {
       tenantSubscription: { findUnique: vi.fn().mockResolvedValue(subscription) },
-      $transaction: vi.fn(async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx)),
+      $transaction: vi.fn(),
     };
-    await new PlatformService(client as never).transitionSubscription(subscription.publicId, 'ACTIVATED', 'aprovacao manual', actor, request);
-    expect(tx.tenantSubscription.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'ACTIVE' }) }));
-    expect(tx.subscriptionHistory.create).toHaveBeenCalledOnce();
-    expect(tx.auditLog.create).toHaveBeenCalledOnce();
-    expect(client).not.toHaveProperty('payment');
+    await expect(new PlatformService(client as never).transitionSubscription(subscription.publicId, 'ACTIVATED', 'aprovacao manual', actor, request)).rejects.toMatchObject({ code: 'PLATFORM_SUBSCRIPTION_PAYMENT_REQUIRED' });
+    expect(client.$transaction).not.toHaveBeenCalled();
   });
 
   it('updates a valid period while preserving commercial history', async () => {

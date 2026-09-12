@@ -159,8 +159,13 @@ export class PlatformBillingService {
       const now = new Date();
       // A payment confirming an already active period must not advance it a
       // second time. Renewal starts at the expired period end exactly once.
-      const shouldAdvance = charge.subscription.currentPeriodEndsAt <= now;
-      const start = shouldAdvance ? new Date(charge.subscription.currentPeriodEndsAt) : null;
+      const firstPaidPeriod = charge.subscription.status === 'TRIALING';
+      const shouldAdvance = firstPaidPeriod || charge.subscription.currentPeriodEndsAt <= now;
+      const start = firstPaidPeriod
+        ? now
+        : shouldAdvance
+          ? new Date(charge.subscription.currentPeriodEndsAt)
+          : null;
       const end = start === null ? null : new Date(start);
       if (end !== null) end.setUTCMonth(end.getUTCMonth() + (months[charge.subscription.billingCycle] ?? 1));
 
@@ -177,6 +182,7 @@ export class PlatformBillingService {
           status: 'ACTIVE',
           effectiveKey: 'EFFECTIVE',
           ...(start === null || end === null ? {} : { currentPeriodStartsAt: start, currentPeriodEndsAt: end }),
+          ...(firstPaidPeriod ? { trialEndsAt: now } : {}),
           suspendedAt: null,
         },
       });

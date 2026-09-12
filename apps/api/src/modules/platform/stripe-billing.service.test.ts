@@ -52,4 +52,29 @@ describe('StripeBillingService', () => {
     expect(client.tenantSubscription.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'ACTIVE', lastPaymentAt: expect.any(Date) }) }));
     expect(client.stripeWebhookEvent.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ processingStatus: 'PROCESSED' }) }));
   });
+
+  it('inicia um ciclo completo no primeiro pagamento depois do trial', async () => {
+    const client = {
+      stripeWebhookEvent: { create: vi.fn().mockResolvedValue({}), update: vi.fn() },
+      tenantSubscription: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 7n,
+          status: 'TRIALING',
+          billingCycle: 'QUARTERLY',
+          stripeCustomerId: 'cus_1',
+        }),
+        update: vi.fn(),
+      },
+    } as any;
+    const service = new StripeBillingService(client, 'sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'whsec_test', 'https://app.example');
+    vi.spyOn(service, 'constructEvent').mockReturnValue({ id: 'evt_trial_paid', type: 'invoice.paid', data: { object: { metadata: { tenantId: '1' }, customer: 'cus_1' } } } as any);
+
+    await service.handleWebhook('{}', 'signature');
+
+    const data = client.tenantSubscription.update.mock.calls[0][0].data;
+    expect(data.status).toBe('ACTIVE');
+    expect(data.currentPeriodStartsAt).toBeInstanceOf(Date);
+    expect(data.currentPeriodEndsAt.getUTCMonth()).toBe((data.currentPeriodStartsAt.getUTCMonth() + 3) % 12);
+    expect(data.trialEndsAt).toEqual(data.currentPeriodStartsAt);
+  });
 });

@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { timingSafeEqual } from 'node:crypto';
 
 import { type FastifyReply, type FastifyRequest } from 'fastify';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -14,6 +15,23 @@ export const metaWhatsAppWebhookPath = '/public/webhooks/whatsapp/meta/:webhookP
 
 interface RawBodyRequest {
   rawBody?: string;
+}
+
+function validWapiSecret(request: FastifyRequest): boolean {
+  const expected = process.env.WAPI_WEBHOOK_SECRET;
+  if (!expected) return process.env.NODE_ENV !== 'production';
+  const header = request.headers['x-webhook-secret'];
+  const authorization = request.headers.authorization;
+  const supplied =
+    typeof header === 'string'
+      ? header
+      : authorization?.startsWith('Bearer ')
+        ? authorization.slice('Bearer '.length)
+        : undefined;
+  if (!supplied) return false;
+  const actualBuffer = Buffer.from(supplied);
+  const expectedBuffer = Buffer.from(expected);
+  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
 }
 
 const isMetaWebhookPost = (method: string, url: string) =>
@@ -44,6 +62,8 @@ export const whatsappWebhookRoutes: FastifyPluginAsyncZod<{ service: Integration
   });
 
   const ingestWapi = async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!validWapiSecret(request))
+      return reply.status(401).send({ received: false, code: 'WAPI_WEBHOOK_UNAUTHORIZED' });
     const result = await options.service.ingestWhatsappInbound(request.body);
     request.log.info(
       { operation: 'whatsapp_wapi_webhook_received', ...result },

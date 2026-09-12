@@ -90,8 +90,8 @@ export class TenantSubscriptionService {
     // quote/payment flow. This also makes legacy downgrades visible to the
     // renewal sweep via SubscriptionPlanChange.
     if (active !== null) return this.requestChange(tenantId, planPublicId, billingCycle);
-    const subscription = await this.client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId, planId: plan.id, status: 'ACTIVE', startsAt: now, currentPeriodStartsAt: now, currentPeriodEndsAt: endsAt, priceCents: option.priceCents, currency: plan.currency, billingCycle, effectiveKey: 'EFFECTIVE' } });
-    await this.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId, action: 'CREATED', previousPlanId: null, newPlanId: plan.id, previousStatus: null, newStatus: subscription.status, reason: 'Plano selecionado pelo proprietário.' } });
+    const subscription = await this.client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId, planId: plan.id, status: 'PAST_DUE', startsAt: now, currentPeriodStartsAt: now, currentPeriodEndsAt: endsAt, priceCents: option.priceCents, currency: plan.currency, billingCycle, effectiveKey: 'EFFECTIVE' } });
+    await this.client.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId, action: 'CREATED', previousPlanId: null, newPlanId: plan.id, previousStatus: null, newStatus: subscription.status, reason: 'Plano selecionado; ativação pendente de pagamento confirmado.' } });
     return this.get(tenantId);
   }
 

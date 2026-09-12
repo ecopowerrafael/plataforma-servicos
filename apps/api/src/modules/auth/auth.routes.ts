@@ -228,9 +228,7 @@ export const protectedAuthRoutes: FastifyPluginAsyncZod<AuthRoutesOptions> = asy
       await tx.businessUnit.create({ data: { publicId: randomUUID(), tenantId: tenant.id, name: 'Unidade principal', slug: 'principal', status: 'ACTIVE', isHeadquarters: true, timezone: 'America/Sao_Paulo' } });
       await tx.tenantMembership.create({ data: { publicId: randomUUID(), tenantId: tenant.id, userId: request.auth.user.id, roleId: ownerRole.id, status: 'ACTIVE', isOwner: true, joinedAt: now } });
       const trialEndsAt = trialDays > 0 ? new Date(now.getTime() + trialDays * 86_400_000) : null;
-      if (trialEndsAt !== null) {
-        await tx.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId: tenant.id, planId: plan.id, status: 'TRIALING', startsAt: now, trialStartedAt: now, trialEndsAt, currentPeriodStartsAt: now, currentPeriodEndsAt: periodEnd(now, request.body.billingCycle), priceCents: option.priceCents, currency: plan.currency, billingCycle: request.body.billingCycle, effectiveKey: 'EFFECTIVE' } });
-      }
+      await tx.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId: tenant.id, planId: plan.id, status: trialEndsAt === null ? 'PAST_DUE' : 'TRIALING', startsAt: now, trialStartedAt: trialEndsAt === null ? null : now, trialEndsAt, currentPeriodStartsAt: now, currentPeriodEndsAt: periodEnd(now, request.body.billingCycle), priceCents: option.priceCents, currency: plan.currency, billingCycle: request.body.billingCycle, effectiveKey: 'EFFECTIVE' } });
       return { tenantPublicId: tenant.publicId };
     });
   });

@@ -49,6 +49,32 @@ void test('mensagem de texto vira MESSAGE_RECEIVED com o texto extraído', () =>
   expect(event.selectedIndex).toBeNull();
 });
 
+void test('extrai texto estendido e usa telefone real em vez do sender LID', () => {
+  const event = normalizeWApiWebhook({
+    event: 'webhookReceived',
+    instanceId: 'ABC',
+    messageId: 'M2',
+    sender: {
+      id: '258892474900582@lid',
+      senderLid: '258892474900582@lid',
+      phoneNumber: '5515997118125@s.whatsapp.net',
+    },
+    msgContent: { extendedTextMessage: { text: 'quero agendar' } },
+  });
+  expect(event.phone).toBe('5515997118125');
+  expect(event.text).toBe('quero agendar');
+});
+
+void test('não trata um LID sem telefone real como destinatário', () => {
+  const event = normalizeWApiWebhook({
+    event: 'webhookReceived',
+    instanceId: 'ABC',
+    sender: { id: '258892474900582@lid', senderLid: '258892474900582@lid' },
+    msgContent: { conversation: 'oi' },
+  });
+  expect(event.phone).toBeNull();
+});
+
 void test('entrega do provedor vira MESSAGE_SENT', () => {
   const event = normalizeWApiWebhook({
     event: 'webhookDelivery',

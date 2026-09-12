@@ -178,11 +178,32 @@ export class StripeBillingService {
       if (tenantId) {
         const subscription = await this.client.tenantSubscription.findFirst({ where: { tenantId: BigInt(tenantId), effectiveKey: 'EFFECTIVE' } });
         if (subscription) {
-          const status = event.type.includes('payment_failed') ? 'PAST_DUE' : event.type.includes('deleted') ? 'CANCELED' : event.type.includes('subscription') || event.type.includes('completed') || event.type.includes('paid') ? 'ACTIVE' : subscription.status;
+          const paymentConfirmed =
+            event.type === 'invoice.paid' ||
+            (event.type === 'checkout.session.completed' &&
+              'payment_status' in object &&
+              object.payment_status === 'paid');
+          const status = event.type.includes('payment_failed')
+            ? 'PAST_DUE'
+            : event.type.includes('deleted')
+              ? 'CANCELED'
+              : paymentConfirmed
+                ? 'ACTIVE'
+                : subscription.status;
           const data: any = { billingProvider: 'stripe', lastStripeEventAt: new Date(), status };
           if ('id' in object && event.type.includes('subscription')) data.stripeSubscriptionId = object.id;
           if (stripeSubscriptionId) data.stripeSubscriptionId = stripeSubscriptionId;
-          if (event.type === 'invoice.paid') data.lastPaymentAt = new Date();
+          if (paymentConfirmed) {
+            const paidAt = new Date();
+            data.lastPaymentAt = paidAt;
+            if (subscription.status === 'TRIALING') {
+              const end = new Date(paidAt);
+              end.setUTCMonth(end.getUTCMonth() + ({ MONTHLY: 1, QUARTERLY: 3, SEMIANNUAL: 6, ANNUAL: 12, CUSTOM: 1 }[subscription.billingCycle] ?? 1));
+              data.currentPeriodStartsAt = paidAt;
+              data.currentPeriodEndsAt = end;
+              data.trialEndsAt = paidAt;
+            }
+          }
           await this.client.tenantSubscription.update({ where: { id: subscription.id }, data });
         }
       }

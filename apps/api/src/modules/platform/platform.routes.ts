@@ -1597,15 +1597,6 @@ export const platformRoutes: FastifyPluginAsyncZod<PlatformRoutesOptions> = asyn
         return billing.createCharge(request.params.publicId, request.body.provider);
       },
     );
-    app.post(
-      '/platform/charges/:publicId/confirm',
-      { schema: { params: PublicIdParamsSchema, response: { 200: PlatformChargeResponseSchema } } },
-      (request) => {
-        allow(request, 'platform.subscription.status.manage');
-        return billing.confirm(request.params.publicId, actor(request));
-      },
-    );
-
     // Financeiro — analytics read-only (Fase 1). No "response" schema on
     // these four: format=csv returns a text/csv string, which a Zod
     // object response schema can't validate. The JSON shape is instead

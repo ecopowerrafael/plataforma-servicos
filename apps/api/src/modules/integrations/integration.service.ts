@@ -384,18 +384,6 @@ export class IntegrationService {
   public async ingestWhatsappInbound(raw: unknown) {
     const received = normalizeWApiWebhook(raw);
 
-    // Log de diagnóstico do webhook recebido
-    console.log('[WebhookIngest]', {
-      eventType: received.eventType,
-      providerEvent: received.providerEvent,
-      messageType: received.messageType,
-      text: received.text ? received.text.slice(0, 50) : null,
-      phone: received.phone,
-      fromMe: received.fromMe,
-      selectedIndex: received.selectedIndex,
-      selectedDisplayText: received.selectedDisplayText,
-    });
-
     if (received.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
 
     // Connectivity callbacks are not message events and must never enter
@@ -416,7 +404,6 @@ export class IntegrationService {
         instanceId: received.instanceId,
         isProspectingInstance,
       });
-
       if (isProspectingInstance) {
         const prospectingResult = await this.prospectingInbound.processInbound({
           instanceId: received.instanceId || null,
@@ -437,12 +424,6 @@ export class IntegrationService {
 
         // ⚠️ É instância de Prospecting mas não foi processado (LEAD_NOT_FOUND, etc)
         // NÃO continua para tenant flow — pertence à Prospecção
-        console.log('[WebhookRoute]', {
-          prospectingInstance: true,
-          handled: false,
-          prospectingReason: prospectingResult.reason,
-        });
-
         return {
           accepted: true,
           prospectingHandled: false,

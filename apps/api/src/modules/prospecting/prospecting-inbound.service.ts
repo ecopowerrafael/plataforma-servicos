@@ -51,8 +51,6 @@ export class ProspectingInboundService {
       eventType: payload.eventType,
       fromMe: payload.fromMe,
       hasBody: !!payload.body,
-      body: typeof payload.body === 'string' ? payload.body.slice(0, 50) : payload.body,
-      fromPhone: payload.fromPhone,
       instanceIdProvided: !!payload.instanceId,
     };
 
@@ -91,7 +89,6 @@ export class ProspectingInboundService {
       console.log('[ProspectingInboundTrace]', {
         ...trace,
         configExists: !!config,
-        configInstanceId: config?.instanceId,
         result: 'INSTANCE_MISMATCH'
       });
       return { handled: false, reason: 'INSTANCE_MISMATCH' };
@@ -105,7 +102,7 @@ export class ProspectingInboundService {
 
     const normalizedPhone = normalizeWhatsAppPhone(payload.fromPhone);
     if (!normalizedPhone) {
-      console.log('[ProspectingInboundTrace]', { ...trace, normalizeAttempt: payload.fromPhone, result: 'INVALID_PHONE' });
+      console.log('[ProspectingInboundTrace]', { ...trace, result: 'INVALID_PHONE' });
       return { handled: false, reason: 'INVALID_PHONE' };
     }
 
@@ -150,7 +147,6 @@ export class ProspectingInboundService {
     if (!leadData) {
       console.log('[ProspectingInboundTrace]', {
         ...trace,
-        normalizedPhone,
         referencedMessageId: payload.referencedMessageId,
         desambiguationMethod,
         result: 'LEAD_NOT_FOUND'
@@ -161,7 +157,6 @@ export class ProspectingInboundService {
     // Log desambiguação
     console.log('[ProspectingInboundTrace]', {
       ...trace,
-      normalizedPhone,
       referencedMessageId: payload.referencedMessageId,
       desambiguationMethod,
       leadPublicId: leadData.publicId,
@@ -304,8 +299,6 @@ export class ProspectingInboundService {
     let isOptOut = false;
     try {
       console.log('[STAGE] OPT_OUT_CHECK_START');
-      console.log('[STAGE_DATA]', { body: (payload.body as string).slice(0, 50) });
-
       isOptOut = this.detectOptOut(payload.body as string);
 
       console.log('[STAGE] OPT_OUT_CHECK_OK', { isOptOut });
@@ -331,7 +324,6 @@ export class ProspectingInboundService {
     console.log('[ProspectingInboundTrace]', {
       eventType: payload.eventType,
       fromMe: payload.fromMe,
-      normalizedPhone,
       leadPublicId: leadData.publicId,
       campaignPublicId: campaign?.publicId,
       flowId: campaign?.flowId != null ? String(campaign.flowId) : null,
@@ -753,7 +745,7 @@ export class ProspectingInboundService {
     }
 
     if (waitingReply.length > 1) {
-      console.warn(`[ProspectingInbound] Ambiguous WAITING_REPLY leads for phone ${normalizedPhone}`);
+      console.warn('[ProspectingInbound] Ambiguous WAITING_REPLY leads');
       return null;
     }
 
@@ -768,7 +760,7 @@ export class ProspectingInboundService {
       };
     }
 
-    console.warn(`[ProspectingInbound] Ambiguous leads for phone ${normalizedPhone}`);
+    console.warn('[ProspectingInbound] Ambiguous leads');
     return null;
   }
 

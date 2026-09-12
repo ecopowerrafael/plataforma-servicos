@@ -14,6 +14,7 @@ const canonicalMeta = (id: string) => canonicalMetaWhatsAppWebhookPath.replace('
 const legacyMeta = (id: string) => metaWhatsAppWebhookPath.replace(':webhookPublicId', id);
 
 const build = async () => {
+  process.env.WAPI_WEBHOOK_SECRET = 'test-wapi-webhook-secret-32-characters';
   const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
   const service = {
     ingestWhatsappInbound: vi.fn().mockResolvedValue({ accepted: true, provider: 'WAPI' }),
@@ -32,16 +33,30 @@ describe('whatsappWebhookRoutes', () => {
       method: 'POST',
       url: whatsappWebhookPath,
       payload: { event: 'webhookReceived' },
+      headers: { 'x-webhook-secret': 'test-wapi-webhook-secret-32-characters' },
     });
     const canonical = await app.inject({
       method: 'POST',
       url: canonicalWapiWhatsAppWebhookPath,
       payload: { event: 'webhookReceived' },
+      headers: { authorization: 'Bearer test-wapi-webhook-secret-32-characters' },
     });
 
     expect(legacy.statusCode).toBe(200);
     expect(canonical.statusCode).toBe(200);
     expect(service.ingestWhatsappInbound).toHaveBeenCalledTimes(2);
+    await app.close();
+  });
+
+  it('rejects a WAPI webhook without the configured secret', async () => {
+    const { app, service } = await build();
+    const response = await app.inject({
+      method: 'POST',
+      url: canonicalWapiWhatsAppWebhookPath,
+      payload: { event: 'webhookReceived', phone: '5511999999999' },
+    });
+    expect(response.statusCode).toBe(401);
+    expect(service.ingestWhatsappInbound).not.toHaveBeenCalled();
     await app.close();
   });
 

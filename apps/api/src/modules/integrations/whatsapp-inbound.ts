@@ -58,6 +58,26 @@ const record = (value: unknown): Record<string, unknown> =>
 const text = (value: unknown, max: number) =>
   typeof value === 'string' && value.trim() !== '' ? value.trim().slice(0, max) : null;
 
+function whatsappPhone(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.endsWith('@lid')) return null;
+  const withoutJid = trimmed.replace(/@(s\.whatsapp\.net|c\.us)$/u, '');
+  const digits = withoutJid.replace(/\D/gu, '');
+  return digits.length >= 10 && digits.length <= 15 ? digits : null;
+}
+
+function senderPhone(root: Record<string, unknown>, sender: Record<string, unknown>): string | null {
+  const senderLid =
+    typeof sender.senderLid === 'string' ? sender.senderLid.replace(/\D/gu, '') : null;
+  const candidates = [sender.phoneNumber, sender.phone, sender.number, root.phone, sender.id];
+  for (const candidate of candidates) {
+    const phone = whatsappPhone(candidate);
+    if (phone !== null && phone !== senderLid) return phone;
+  }
+  return null;
+}
+
 /** Vocabulário interno de eventos. Os nomes do provedor não passam daqui. */
 export type WhatsAppEventType =
   | 'MESSAGE_RECEIVED'
@@ -132,6 +152,9 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
   const payload = boundedPayload(sanitizePayload(raw));
   const root = record(payload);
   const content = record(root.msgContent);
+  const extendedText = record(content.extendedTextMessage);
+  const imageMessage = record(content.imageMessage);
+  const videoMessage = record(content.videoMessage);
   const sender = record(root.sender);
   const reply = record(content.templateButtonReplyMessage);
   const replyContext = record(reply.contextInfo);
@@ -159,9 +182,12 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
     providerEvent,
     instanceId: text(root.instanceId, 80),
     externalMessageId,
-    phone: text(sender.id ?? root.phone, 32),
+    phone: senderPhone(root, sender),
     messageType: isAction ? 'BUTTON_REPLY' : text(root.type, 80),
-    text: text(content.conversation, 2_000),
+    text: text(
+      content.conversation ?? extendedText.text ?? imageMessage.caption ?? videoMessage.caption,
+      2_000,
+    ),
     actionId: null,
     referencedMessageId: text(replyContext.stanzaID ?? replyContext.stanzaId, 191),
     selectedIndex: typeof index === 'number' && Number.isInteger(index) ? index : null,

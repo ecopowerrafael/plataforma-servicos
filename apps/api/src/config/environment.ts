@@ -111,6 +111,7 @@ const environmentSchema = z
     // ambiente após o primeiro acesso.
     PLATFORM_ADMIN_EMAIL: z.email().trim().optional(),
     PLATFORM_ADMIN_PASSWORD: z.string().min(12).max(200).optional(),
+    WAPI_WEBHOOK_SECRET: z.string().trim().min(32).max(512).optional(),
     PROSPECTING_DRY_RUN: z
       .enum(['true', 'false'])
       .default('true')
@@ -152,6 +153,14 @@ const environmentSchema = z
         code: 'custom',
         path: ['APP_WEB_URL'],
         message: 'A URL web de produção deve utilizar HTTPS.',
+      });
+    }
+
+    if (value.NODE_ENV === 'production' && value.WAPI_WEBHOOK_SECRET === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['WAPI_WEBHOOK_SECRET'],
+        message: 'O webhook W-API de produção exige um segredo com pelo menos 32 caracteres.',
       });
     }
   });

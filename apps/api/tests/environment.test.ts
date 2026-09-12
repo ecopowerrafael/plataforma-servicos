@@ -66,8 +66,21 @@ describe('validação do ambiente', () => {
         CORS_ORIGINS: 'https://app.empresa.test',
         APP_WEB_URL: 'https://app.empresa.test',
         AUTH_COOKIE_SECURE: 'true',
+        WAPI_WEBHOOK_SECRET: 'production-wapi-webhook-secret-32-characters',
       }).AUTH_COOKIE_SECURE,
     ).toBe(true);
+  });
+
+  it('exige segredo do webhook W-API em produção', () => {
+    expect(() =>
+      loadEnvironment({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        CORS_ORIGINS: 'https://app.empresa.test',
+        APP_WEB_URL: 'https://app.empresa.test',
+        AUTH_COOKIE_SECURE: 'true',
+      }),
+    ).toThrow(EnvironmentValidationError);
   });
 
   it('monta DATABASE_URL a partir das variáveis DB_* quando ausente', () => {

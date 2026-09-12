@@ -91,6 +91,15 @@ function appError(code: string, message: string, statusCode: number): AppError {
   return new AppError({ code, message, statusCode });
 }
 
+function assertPaymentDrivenActivation(action: 'ACTIVATED' | 'SUSPENDED' | 'REACTIVATED' | 'CANCELED') {
+  if (action === 'ACTIVATED' || action === 'REACTIVATED')
+    throw appError(
+      'PLATFORM_SUBSCRIPTION_PAYMENT_REQUIRED',
+      'A assinatura só pode ser ativada por uma confirmação de pagamento do provedor.',
+      409,
+    );
+}
+
 function subscriptionEffectiveKey(status: string): string | null {
   return effectiveStatuses.has(status) ? 'EFFECTIVE' : null;
 }
@@ -1052,7 +1061,7 @@ export class PlatformService {
           input.trial && effectiveTrialDays > 0
             ? new Date(now.getTime() + effectiveTrialDays * 86_400_000)
             : null;
-        const status = trialEndsAt === null ? 'ACTIVE' : 'TRIALING';
+        const status = trialEndsAt === null ? 'PAST_DUE' : 'TRIALING';
         const currentPeriodEndsAt =
           input.currentPeriodEndsAt === undefined
             ? periodEnd(now, billingCycle)
@@ -1189,6 +1198,7 @@ export class PlatformService {
     actor: PlatformAuthContext,
     metadata: RequestMetadata,
   ) {
+    assertPaymentDrivenActivation(action);
     const nextStatus =
       action === 'ACTIVATED' || action === 'REACTIVATED'
         ? 'ACTIVE'
@@ -2367,7 +2377,7 @@ export class PlatformService {
             input.trial && effectiveTrialDays > 0
               ? new Date(startsAt.getTime() + effectiveTrialDays * 86_400_000)
               : null;
-          const status = trialEndsAt === null ? 'ACTIVE' : 'TRIALING';
+          const status = trialEndsAt === null ? 'PAST_DUE' : 'TRIALING';
           const subscription = await transaction.tenantSubscription.create({
             data: {
               publicId: randomUUID(),

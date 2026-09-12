@@ -190,6 +190,11 @@ Mínimo obrigatório:
 | `AUTH_COOKIE_SECURE` | `true` | obrigatório em produção. |
 | `LOG_LEVEL` | `info` | |
 | `OBSERVABILITY_SLOW_REQUEST_MS` | `1000` | Registra alerta estruturado para respostas lentas (em milissegundos). |
+| `WAPI_WEBHOOK_SECRET` | *(segredo aleatório de 32+ caracteres)* | **Obrigatório em produção**; configure o mesmo valor no header `X-Webhook-Secret` da W-API. |
+
+O webhook W-API rejeita chamadas sem esse segredo com HTTP `401`. Não coloque o
+segredo na URL. Os logs do webhook registram somente estado operacional; texto,
+telefone e identificadores completos da instância não são registrados.
 
 **Banco: NÃO é necessário configurar `DATABASE_URL`.** A aplicação e a CLI do
 Prisma (via `prisma.config.ts`) montam a connection string internamente a partir

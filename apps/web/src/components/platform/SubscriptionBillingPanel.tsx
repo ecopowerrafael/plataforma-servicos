@@ -34,18 +34,6 @@ export function SubscriptionBillingPanel({
       });
     },
   });
-  const confirm = useMutation({
-    mutationFn: (id: string) =>
-      httpClient.request(`/platform/charges/${id}/confirm`, {
-        method: 'POST',
-        schema: PlatformChargeResponseSchema,
-      }),
-    onSuccess: async () => {
-      await client.invalidateQueries({
-        queryKey: ['platform', 'subscription', subscriptionPublicId, 'billing'],
-      });
-    },
-  });
   const charge = create.data?.charge ?? query.data?.latestCharge;
   return (
     <section className="platform-panel">
@@ -114,17 +102,6 @@ export function SubscriptionBillingPanel({
                 Gerar {method === 'pix-local' ? 'PIX' : method === 'stripe' ? 'Cartão' : 'Mercado Pago'}
               </button>
             ))}
-            {charge?.provider === 'pix-local' && charge.status === 'PENDING' ? (
-              <button
-                disabled={confirm.isPending}
-                onClick={() => {
-                  void confirm.mutateAsync(charge.publicId);
-                }}
-                type="button"
-              >
-                Confirmar pagamento
-              </button>
-            ) : null}
           </div>
         </>
       )}

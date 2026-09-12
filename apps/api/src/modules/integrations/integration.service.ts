@@ -399,12 +399,12 @@ export class IntegrationService {
       const isProspectingInstance = prosConfig && prosConfig.instanceId === received.instanceId;
 
       console.log('[WebhookRoute]', {
-        toProspecting: Boolean(isProspectingInstance),
+        routerCandidate: isProspectingInstance ? 'PROSPECTING' : 'TENANT',
         normalizedEventType: received.eventType,
-        instanceId: received.instanceId,
-        isProspectingInstance,
+        hasReferencedMessageId: received.referencedMessageId !== null,
+        hasValidPhone: received.phone !== null,
       });
-      if (isProspectingInstance) {
+      if (isProspectingInstance && (received.phone !== null || received.referencedMessageId !== null)) {
         const prospectingResult = await this.prospectingInbound.processInbound({
           instanceId: received.instanceId || null,
           externalMessageId: received.externalMessageId || null,
@@ -419,33 +419,37 @@ export class IntegrationService {
 
         // Se foi processado por Prospecting, retornar resultado
         if (prospectingResult.handled) {
-          return { accepted: true, prospectingHandled: true, ...prospectingResult } as const;
+          return { accepted: true, prospectingHandled: true, router: 'PROSPECTING', ...prospectingResult } as const;
         }
 
-        // ⚠️ É instância de Prospecting mas não foi processado (LEAD_NOT_FOUND, etc)
-        // NÃO continua para tenant flow — pertence à Prospecção
-        return {
-          accepted: true,
-          prospectingHandled: false,
-          prospectingReason: prospectingResult.reason,
-        } as const;
+        // A instância pode ser compartilhada com um tenant. Falhas de correlação
+        // na prospecção devem permitir o fallback determinístico para o tenant.
+        if (!['LEAD_NOT_FOUND', 'CONVERSATION_NOT_FOUND', 'NO_MATCH'].includes(prospectingResult.reason ?? '')) {
+          return {
+            accepted: true,
+            prospectingHandled: false,
+            prospectingReason: prospectingResult.reason,
+            router: 'PROSPECTING',
+          } as const;
+        }
       }
     }
 
     // FLUXO TENANT: continuar com comportamento anterior
     const config = await this.repository.whatsappByInstanceId(received.instanceId);
-    if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN' } as const;
+    if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN', router: 'TENANT' } as const;
     const provider = typeof config.provider === 'string' ? config.provider : 'WAPI';
     const selectedProvider = this.repository.selectedWhatsappProvider === undefined
       ? provider
       : await this.repository.selectedWhatsappProvider(config.tenantId);
-    if (provider !== selectedProvider) return { accepted: false, reason: 'PROVIDER_MISMATCH' } as const;
-    const event =
-      this.providerResolver === undefined
-        ? received
-        : this.providerResolver.inbound(provider).normalize(raw);
-    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
-    return this.processTenantWhatsappInbound(config, event);
+    if (provider !== selectedProvider) return { accepted: false, reason: 'PROVIDER_MISMATCH', router: 'TENANT' } as const;
+    // Valida o provider configurado sem normalizar o payload novamente.
+    this.providerResolver?.inbound(provider);
+    // O evento WAPI já foi normalizado no início deste método.
+    const event = received;
+    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING', router: 'TENANT' } as const;
+    const result = await this.processTenantWhatsappInbound(config, event);
+    return { ...result, router: 'TENANT' } as const;
   }
 
   public async ingestWhatsappInboundForProvider(provider: WhatsAppProviderId, raw: unknown) {

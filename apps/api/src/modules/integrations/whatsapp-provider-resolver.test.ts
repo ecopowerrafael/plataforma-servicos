@@ -162,9 +162,9 @@ describe('WhatsAppProviderResolver', () => {
       msgContent: { conversation: 'oi' },
     });
 
-    expect(result).toEqual({ accepted: true, duplicated: true });
+    expect(result).toEqual({ accepted: true, duplicated: true, router: 'TENANT' });
     expect(providerResolver.inbound).toHaveBeenCalledWith('WAPI');
-    expect(normalize).toHaveBeenCalledOnce();
+    expect(normalize).not.toHaveBeenCalled();
   });
 
   it('does not fallback to WAPI when a tenant config points to an unsupported provider', async () => {

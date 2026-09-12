@@ -44,6 +44,16 @@ export class ProspectingInboundService {
     return this.configService?.getConfig?.();
   }
 
+  private isLeadConversationallyEligible(
+    status: string,
+    executions: Array<{ status: string; campaignId?: bigint }> = [],
+  ): boolean {
+    if (['SUPPRESSED', 'LOST', 'WON', 'NEEDS_REVIEW', 'MANUAL'].includes(status)) return false;
+    if (['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'].includes(status)) return true;
+    return ['RESPONDED', 'QUALIFYING', 'INTERESTED'].includes(status)
+      && executions.some((execution) => ['WAITING', 'ACTIVE'].includes(execution.status));
+  }
+
   /**
    * Processa inbound recebido do webhook global.
    */
@@ -214,8 +224,6 @@ export class ProspectingInboundService {
         where: { id: leadData.id },
         data: {
           lastInboundAt: now,
-          respondedAt: leadData.respondedAt || now,
-          status: 'RESPONDED',
         },
       });
 
@@ -654,6 +662,10 @@ export class ProspectingInboundService {
             status: true,
           },
         },
+        flowExecutions: {
+          where: { status: { in: ['WAITING', 'ACTIVE'] } },
+          select: { id: true, campaignId: true, status: true },
+        },
       },
     });
 
@@ -661,7 +673,7 @@ export class ProspectingInboundService {
     const isEligible =
       lead &&
       lead.normalizedPhone === normalizedPhone &&
-      ['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'].includes(lead.status) &&
+      this.isLeadConversationallyEligible(lead.status, lead.flowExecutions) &&
       lead.lastOutboundAt &&
       lead.lastOutboundAt >= minLastOutboundAt &&
       ['RUNNING', 'PAUSED'].includes(lead.campaign?.status || '');
@@ -671,7 +683,7 @@ export class ProspectingInboundService {
         referencedMessageId,
         leadFound: !!lead,
         phoneMismatch: lead && lead.normalizedPhone !== normalizedPhone,
-        statusInvalid: lead && !['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'].includes(lead.status),
+        statusInvalid: lead && !this.isLeadConversationallyEligible(lead.status, lead.flowExecutions),
         stale: lead && lead.lastOutboundAt && lead.lastOutboundAt < minLastOutboundAt,
         campaignInvalid: lead && !['RUNNING', 'PAUSED'].includes(lead.campaign?.status || ''),
         result: 'REFERENCED_LEAD_NOT_ELIGIBLE',
@@ -709,9 +721,10 @@ export class ProspectingInboundService {
     const leads = await this.client.prospectingLead.findMany({
       where: {
         normalizedPhone,
-        status: {
-          in: ['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'],
-        },
+        OR: [
+          { status: { in: ['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'] } },
+          { status: { in: ['RESPONDED', 'QUALIFYING', 'INTERESTED'] }, flowExecutions: { some: { status: { in: ['WAITING', 'ACTIVE'] } } } },
+        ],
         lastOutboundAt: {
           gte: minLastOutboundAt,
         },
@@ -727,6 +740,10 @@ export class ProspectingInboundService {
         respondedAt: true,
         publicId: true,
         status: true,
+        flowExecutions: {
+          where: { status: { in: ['WAITING', 'ACTIVE'] } },
+          select: { id: true, campaignId: true, status: true },
+        },
       },
     });
 
@@ -735,7 +752,8 @@ export class ProspectingInboundService {
     }
 
     // Priorizar WAITING_REPLY
-    const waitingReply = leads.filter((l) => l.status === 'WAITING_REPLY');
+    const eligibleLeads = leads.filter((l) => this.isLeadConversationallyEligible(l.status, l.flowExecutions));
+    const waitingReply = eligibleLeads.filter((l) => l.status === 'WAITING_REPLY');
     if (waitingReply.length === 1) {
       const lead = waitingReply[0]!;
       return {
@@ -752,8 +770,8 @@ export class ProspectingInboundService {
     }
 
     // Se apenas 1 lead, usar
-    if (leads.length === 1) {
-      const lead = leads[0]!;
+    if (eligibleLeads.length === 1) {
+      const lead = eligibleLeads[0]!;
       return {
         id: lead.id,
         campaignId: lead.campaignId,

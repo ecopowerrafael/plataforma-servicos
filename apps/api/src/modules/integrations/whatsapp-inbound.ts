@@ -55,6 +55,22 @@ const record = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
+function structuralKeys(value: unknown): Record<string, unknown> {
+  const root = record(value);
+  const content = record(root.msgContent);
+  return {
+    rootKeys: Object.keys(root).sort(),
+    msgContentKeys: Object.keys(content).sort(),
+    nestedObjectKeys: Object.fromEntries(
+      Object.entries(content)
+        .filter(([, item]) => item !== null && typeof item === 'object' && !Array.isArray(item))
+        .map(([key, item]) => [key, Object.keys(record(item)).sort()]),
+    ),
+    messageType: text(root.type, 80),
+    providerEvent: text(root.event, 80),
+  };
+}
+
 const text = (value: unknown, max: number) =>
   typeof value === 'string' && value.trim() !== '' ? value.trim().slice(0, max) : null;
 
@@ -162,6 +178,10 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
   const statusValue = text(root.status, 40);
   const isAction = Object.keys(reply).length > 0;
 
+  if (providerEvent === 'webhookReceived') {
+    console.log('[WApiWebhookStructure]', structuralKeys(payload));
+  }
+
   const eventType: WhatsAppEventType | null =
     mapStatusValue(statusValue) ??
     (providerEvent === 'webhookReceived'
@@ -185,7 +205,9 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
     phone: senderPhone(root, sender),
     messageType: isAction ? 'BUTTON_REPLY' : text(root.type, 80),
     text: text(
-      content.conversation ?? extendedText.text ?? imageMessage.caption ?? videoMessage.caption,
+      content.conversation ?? extendedText.text ?? imageMessage.caption ?? videoMessage.caption
+        ?? text(content.text, 2_000) ?? text(content.message, 2_000)
+        ?? text(root.text, 2_000) ?? text(root.message, 2_000),
       2_000,
     ),
     actionId: null,

@@ -49,6 +49,11 @@ void test('mensagem de texto vira MESSAGE_RECEIVED com o texto extraído', () =>
   expect(event.selectedIndex).toBeNull();
 });
 
+void test('aceita caminhos textuais alternativos do envelope W-API', () => {
+  expect(normalizeWApiWebhook({ event: 'webhookReceived', instanceId: 'I', sender: { phone: '5511999999999' }, msgContent: { text: 'texto alternativo' } }).text).toBe('texto alternativo');
+  expect(normalizeWApiWebhook({ event: 'webhookReceived', instanceId: 'I', sender: { phone: '5511999999999' }, text: 'texto no root' }).text).toBe('texto no root');
+});
+
 void test('extrai texto estendido e usa telefone real em vez do sender LID', () => {
   const event = normalizeWApiWebhook({
     event: 'webhookReceived',

@@ -57,8 +57,11 @@ export class WapiSendButtonsClient {
       const externalCode = this.sanitizeExternalText(
         payload.code ?? payload.errorCode ?? payload.error,
       );
+      const nested = payload.data !== null && typeof payload.data === 'object' && !Array.isArray(payload.data)
+        ? payload.data as Record<string, unknown>
+        : {};
       const externalMessageId = this.sanitizeExternalText(
-        payload.messageId ?? payload.id,
+        payload.messageId ?? payload.id ?? nested.messageId ?? nested.id,
       );
 
       if (!response.ok || payload.error === true) {

@@ -264,7 +264,7 @@ describe('ProspectingInboundService', () => {
   });
 
   describe('Lead Status Updates', () => {
-    it('10. RESPONDED atualizado', async () => {
+    it('10. não força RESPONDED antes do roteador', async () => {
       mockConfigService.getConfig.mockResolvedValue({
         instanceId: 'instance-123',
         isActive: true,
@@ -293,16 +293,10 @@ describe('ProspectingInboundService', () => {
         eventType: 'message',
       });
 
-      expect(mockClient.prospectingLead.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            status: 'RESPONDED',
-          }),
-        }),
-      );
+      expect(mockClient.prospectingLead.update.mock.calls[0]?.[0].data).not.toHaveProperty('status');
     });
 
-    it('11. respondedAt preenchido', async () => {
+    it('11. não força respondedAt antes do roteador', async () => {
       mockConfigService.getConfig.mockResolvedValue({
         instanceId: 'instance-123',
         isActive: true,
@@ -331,13 +325,7 @@ describe('ProspectingInboundService', () => {
         eventType: 'message',
       });
 
-      expect(mockClient.prospectingLead.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            respondedAt: expect.any(Date),
-          }),
-        }),
-      );
+      expect(mockClient.prospectingLead.update.mock.calls[0]?.[0].data).not.toHaveProperty('respondedAt');
     });
 
     it('12. lastInboundAt atualizado', async () => {

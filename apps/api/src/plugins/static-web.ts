@@ -105,14 +105,15 @@ export async function registerStaticWeb(
     // Assets versionados pelo Vite (hash no nome) podem ter cache longo; o
     // index.html precisa revalidar para que novos deploys sejam vistos.
     setHeaders(reply, path) {
+      const response = reply as unknown as FastifyReply;
       if (path.endsWith('index.html')) {
-        reply.header('cache-control', 'no-store, max-age=0, must-revalidate');
+        response.header('cache-control', 'no-store, max-age=0, must-revalidate');
       } else if (
         /[/\\]assets[/\\].+[-.][a-zA-Z0-9_-]{8,}\.(?:js|css|svg|png|webp|woff2?)$/u.test(path)
       ) {
-        reply.header('cache-control', 'public, max-age=31536000, immutable');
+        response.header('cache-control', 'public, max-age=31536000, immutable');
       } else {
-        reply.header('cache-control', 'public, max-age=300');
+        response.header('cache-control', 'public, max-age=300');
       }
     },
   });

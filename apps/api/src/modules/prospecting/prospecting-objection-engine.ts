@@ -18,7 +18,7 @@ interface ClassificationResult {
   confidence: 'EXACT' | 'RULE';
   suggestedResponse?: string | undefined;
   autoReplyScheduled?: boolean;
-  autoReplyReason?: string;
+  autoReplyReason?: string | undefined;
 }
 
 interface PatternMatch {

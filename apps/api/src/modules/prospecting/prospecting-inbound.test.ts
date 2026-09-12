@@ -12,7 +12,7 @@ describe('ProspectingInboundService', () => {
     mockClient = {
       prospectingMessage: {
         findFirst: vi.fn(),
-        create: vi.fn(),
+        create: vi.fn().mockResolvedValue({ id: 99n, publicId: 'inbound-99', body: 'texto' }),
         update: vi.fn(),
       },
       prospectingLead: {

@@ -7,6 +7,7 @@ import {
 
 import { type PrismaProfessionalUnitRepository } from './professional-unit.repository.js';
 import { AppError } from '../../errors/AppError.js';
+
 interface LinkRecord {
   publicId: string;
   professional: { publicId: string };
@@ -15,6 +16,12 @@ interface LinkRecord {
   createdAt: Date;
   updatedAt: Date;
 }
+
+interface Actor {
+  userId: bigint;
+  sessionId: bigint | null;
+}
+
 const pub = (x: LinkRecord) => ({
   publicId: x.publicId,
   professionalPublicId: x.professional.publicId,
@@ -23,23 +30,27 @@ const pub = (x: LinkRecord) => ({
   createdAt: x.createdAt.toISOString(),
   updatedAt: x.updatedAt.toISOString(),
 });
+
 export class ProfessionalUnitLinkService {
   public constructor(private readonly repo: PrismaProfessionalUnitRepository) {}
+
   async listProfessional(t: bigint, p: string) {
     return ProfessionalUnitsResponseSchema.parse({
       items: (await this.repo.listByProfessional(t, p)).map(pub),
     });
   }
+
   async listUnit(t: bigint, u: string) {
     return ProfessionalUnitsResponseSchema.parse({
       items: (await this.repo.listByUnit(t, u)).map(pub),
     });
   }
+
   async upsert(
     t: bigint,
     p: string,
     input: UpsertProfessionalUnitRequest,
-    a: { userId: bigint; sessionId: bigint },
+    a: Actor,
   ) {
     const [pro, unit] = await Promise.all([
       this.repo.findProfessional(t, p),
@@ -76,13 +87,7 @@ export class ProfessionalUnitLinkService {
     });
     return pub(item);
   }
-  async status(
-    t: bigint,
-    p: string,
-    u: string,
-    active: boolean,
-    a: { userId: bigint; sessionId: bigint },
-  ) {
+  async status(t: bigint, p: string, u: string, active: boolean, a: Actor) {
     const pro = await this.repo.findProfessional(t, p);
     const unit = await this.repo.findUnit(t, u);
     if (!pro || !unit)

@@ -34,6 +34,11 @@ const tenantContext: FastifyPluginAsync<TenantContextPluginOptions> = async (app
     options.client === undefined ? undefined : new TenantCommercialPolicyService(options.client);
   const statusResolver = new TenantCommercialStatusResolver();
   app.addHook('preHandler', async (request) => {
+    const routeUrl = request.routeOptions.url;
+    const isSubscriptionRecoveryRequest =
+      routeUrl === '/tenant/subscription/select-plan' ||
+      routeUrl === '/tenant/subscription/charges' ||
+      routeUrl === '/tenant/subscription/changes/:publicId/charges';
     const tenantHeader = request.headers['x-tenant-id'];
     if (tenantHeader === undefined) {
       throw new AppError({
@@ -65,7 +70,15 @@ const tenantContext: FastifyPluginAsync<TenantContextPluginOptions> = async (app
       const subscription = await options.client.tenantSubscription.findFirst({
         where: { tenantId: request.tenant.id, effectiveKey: 'EFFECTIVE' },
       });
-      if (subscription !== null) {
+      if (subscription === null) {
+        if (routeUrl === '/tenant/subscription/select-plan') return;
+        throw new AppError({
+          code: 'TENANT_SUBSCRIPTION_REQUIRED',
+          message: 'Este estabelecimento não possui uma assinatura vinculada.',
+          statusCode: 403,
+        });
+      }
+      {
         const policy = await policyService.getOrCreateRaw();
         const commercialStatus = statusResolver.resolve(subscription, policy);
         request.commercialStatus = Object.freeze(commercialStatus);
@@ -77,7 +90,11 @@ const tenantContext: FastifyPluginAsync<TenantContextPluginOptions> = async (app
             statusCode: 403,
           });
         }
-        if (request.method !== 'GET' && !commercialStatus.capabilities.canManageData) {
+        if (
+          request.method !== 'GET' &&
+          !commercialStatus.capabilities.canManageData &&
+          !isSubscriptionRecoveryRequest
+        ) {
           throw new AppError({
             code: 'TENANT_COMMERCIAL_READ_ONLY',
             message:

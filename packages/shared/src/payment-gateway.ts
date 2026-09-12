@@ -59,7 +59,8 @@ export const CancelGatewayChargeRequestSchema = z
 
 export const PaymentGatewayChargePublicSchema = z.object({
   publicId: z.uuid(),
-  appointmentPublicId: z.uuid(),
+  appointmentPublicId: z.uuid().nullable(),
+  debtPublicId: z.uuid().nullable(),
   paymentPublicId: z.uuid().nullable(),
   provider: z.string(),
   environment: PaymentGatewayEnvironmentSchema,

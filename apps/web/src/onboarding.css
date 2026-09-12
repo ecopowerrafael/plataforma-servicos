@@ -1,0 +1,169 @@
+/* Início guiado como experiência própria: ocupa a tela e esconde a navegação
+   administrativa enquanto estiver aberto. */
+.app-shell.is-onboarding > .app-navigation,
+.app-shell.is-onboarding > .app-mobile-nav,
+.app-shell.is-onboarding > .app-header,
+.app-shell.is-onboarding > .mobile-sheet {
+  display: none !important;
+}
+.app-shell.is-onboarding {
+  overflow: hidden;
+  padding: 0 !important;
+}
+.onboarding-overlay {
+  background: var(--app-surface, #fff);
+  display: grid;
+  inset: 0;
+  overflow: auto;
+  place-items: center;
+  position: fixed;
+  z-index: 70;
+}
+.app-shell .onboarding-overlay .onboarding-welcome {
+  border: 0;
+  box-shadow: none;
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  max-width: 44rem;
+  min-height: 100dvh;
+  padding: max(1rem, env(safe-area-inset-top)) 1.15rem
+    calc(1.5rem + env(safe-area-inset-bottom));
+  width: 100%;
+}
+.onboarding-topbar {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+}
+.onboarding-back {
+  align-items: center;
+  background: var(--app-surface-subtle, #f1f5f9);
+  border: 1px solid var(--app-border, #e2e8f0);
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 1.1rem;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+.onboarding-progress {
+  display: flex;
+  gap: 0.25rem;
+}
+.onboarding-progress i {
+  background: color-mix(in srgb, var(--app-accent, #2563eb) 18%, transparent);
+  border-radius: 99px;
+  flex: 1;
+  height: 3px;
+}
+.onboarding-progress i.is-done {
+  background: var(--app-accent, #2563eb);
+}
+.onboarding-exit {
+  background: none;
+  border: 0;
+  color: var(--app-muted, #64748b);
+  cursor: pointer;
+  font-size: 0.78rem;
+  min-height: 40px;
+  padding: 0;
+  text-decoration: underline;
+}
+.onboarding-body {
+  align-content: start;
+  display: grid;
+  gap: 1rem;
+  padding-top: 0.5rem;
+}
+.onboarding-body h2 {
+  font-size: clamp(1.5rem, 6vw, 2.1rem);
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  margin: 0;
+}
+.onboarding-body > p {
+  color: var(--app-muted, #64748b);
+  line-height: 1.5;
+  margin: 0;
+}
+.onboarding-body :where(.primary-button, .secondary-button) {
+  min-height: 52px;
+  width: 100%;
+}
+.onboarding-body label {
+  display: grid;
+  gap: 0.35rem;
+}
+.onboarding-body :where(input, select, textarea) {
+  min-height: 48px;
+  width: 100%;
+}
+.onboarding-checklist-preview {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.onboarding-checklist-preview li {
+  align-items: center;
+  color: var(--app-text, #0f172a);
+  display: flex;
+  font-size: 0.9rem;
+  gap: 0.5rem;
+}
+.onboarding-checklist-preview li::before {
+  color: var(--app-success, #15803d);
+  content: '✓';
+  font-weight: 800;
+}
+.onboarding-final-actions {
+  display: grid;
+  gap: 0.6rem;
+}
+.onboarding-resume {
+  align-items: center;
+  background: var(--app-accent, #2563eb);
+  border: 0;
+  border-radius: var(--app-radius-md, 0.75rem);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  min-height: 56px;
+  padding: 0.75rem 1rem;
+  width: 100%;
+}
+.onboarding-resume span {
+  font-weight: 800;
+}
+.onboarding-resume small {
+  opacity: 0.85;
+}
+@media (min-width: 900px) {
+  .onboarding-overlay {
+    background: color-mix(in srgb, var(--app-text, #0f172a) 45%, transparent);
+    padding: 2rem;
+  }
+  .app-shell .onboarding-overlay .onboarding-welcome {
+    background: var(--app-surface, #fff);
+    border-radius: 1.25rem;
+    box-shadow: 0 30px 80px rgb(15 23 42 / 25%);
+    min-height: auto;
+    padding: 2rem;
+  }
+  .onboarding-body :where(.primary-button, .secondary-button) {
+    justify-self: start;
+    min-width: 14rem;
+    width: auto;
+  }
+  .onboarding-final-actions {
+    grid-auto-flow: column;
+    justify-content: start;
+  }
+}

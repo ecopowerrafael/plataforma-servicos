@@ -1,0 +1,453 @@
+/* /app/financeiro — dashboard executivo. */
+.finance-page {
+  min-width: 0;
+}
+.finance-filters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.app-shell .finance-unit select {
+  width: 11rem;
+}
+.finance-subfilters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.app-shell .finance-chip {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  min-height: 2rem;
+  padding: 0.25rem 0.8rem;
+}
+.app-shell .finance-chip.is-active {
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface));
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+}
+.finance-period-label {
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.finance-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+.app-shell .finance-shortcuts button {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+/* KPIs */
+.finance-kpis {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+}
+.finance-kpi {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 0.3rem;
+  padding: 1rem 1.1rem;
+  position: relative;
+}
+.finance-kpi::before {
+  background: var(--app-border-strong);
+  border-radius: var(--app-radius-lg) 0 0 var(--app-radius-lg);
+  content: '';
+  inset: 0 auto 0 0;
+  position: absolute;
+  width: 3px;
+}
+.finance-kpi--success::before {
+  background: var(--app-success);
+}
+.finance-kpi--warning::before {
+  background: var(--app-warning);
+}
+.finance-kpi--danger::before {
+  background: var(--app-danger);
+}
+.finance-kpi > small {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.finance-kpi > strong {
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.finance-kpi-foot {
+  display: grid;
+  gap: 0.1rem;
+}
+.finance-kpi-foot small {
+  color: var(--app-muted);
+  font-size: 0.74rem;
+}
+.finance-delta {
+  align-items: baseline;
+  display: flex;
+  font-size: 0.8rem;
+  font-weight: 800;
+  gap: 0.35rem;
+}
+.finance-delta--up {
+  color: var(--app-success);
+}
+.finance-delta--down {
+  color: var(--app-danger);
+}
+.finance-delta--neutral {
+  color: var(--app-muted);
+}
+.finance-delta small {
+  font-weight: 500;
+}
+
+/* Layout dos blocos */
+.finance-grid {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.app-shell .finance-chart-card,
+.app-shell .finance-activity-card,
+.app-shell .finance-professionals-card {
+  grid-column: 1 / -1;
+}
+
+/* Gráfico */
+.finance-chart {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-areas:
+    'scale plot'
+    '. legend';
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+}
+.finance-chart-scale {
+  color: var(--app-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.68rem;
+  grid-area: scale;
+  height: 13rem;
+  justify-content: space-between;
+  text-align: right;
+}
+.finance-chart-plot {
+  align-items: end;
+  background:
+    linear-gradient(var(--app-border) 1px, transparent 1px) 0 0 / 100% 50%,
+    linear-gradient(var(--app-border) 1px, transparent 1px) 0 100% / 100% 1px;
+  display: flex;
+  gap: 0.35rem;
+  grid-area: plot;
+  height: 13rem;
+  list-style: none;
+  margin: 0;
+  overflow-x: auto;
+  padding: 0;
+}
+.finance-chart-plot li {
+  display: grid;
+  flex: 1 0 1.75rem;
+  gap: 0.25rem;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100%;
+  justify-items: center;
+}
+.finance-chart-bars {
+  align-items: end;
+  display: flex;
+  gap: 2px;
+  height: 100%;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+.finance-bar {
+  border-radius: 0.25rem 0.25rem 0 0;
+  min-height: 2px;
+  width: 45%;
+}
+.finance-bar--billed {
+  background: color-mix(in srgb, var(--app-accent) 35%, #fff);
+}
+.finance-bar--received {
+  background: var(--app-accent);
+}
+.finance-chart-plot small {
+  color: var(--app-muted);
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+.finance-chart-tooltip {
+  background: #0f172a;
+  border-radius: var(--app-radius-sm);
+  bottom: calc(100% + 0.35rem);
+  color: #fff;
+  display: none;
+  font-size: 0.72rem;
+  gap: 0.1rem;
+  left: 50%;
+  padding: 0.45rem 0.6rem;
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 5;
+}
+.finance-chart-bars:hover .finance-chart-tooltip,
+.finance-chart-bars:focus-within .finance-chart-tooltip {
+  display: grid;
+}
+.finance-chart-legend {
+  color: var(--app-muted);
+  display: flex;
+  font-size: 0.76rem;
+  gap: 1rem;
+  grid-area: legend;
+}
+.finance-chart-legend span {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+}
+.finance-swatch {
+  border-radius: 0.2rem;
+  height: 0.7rem;
+  width: 0.7rem;
+}
+.finance-swatch--billed {
+  background: color-mix(in srgb, var(--app-accent) 35%, #fff);
+}
+.finance-swatch--received {
+  background: var(--app-accent);
+}
+
+/* Formas de pagamento */
+.finance-methods,
+.finance-professionals,
+.finance-activity,
+.finance-receivable-list {
+  display: grid;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.finance-methods li {
+  align-items: center;
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: minmax(6rem, 9rem) minmax(3rem, 1fr) auto;
+}
+.finance-methods small,
+.finance-professionals small,
+.finance-activity small {
+  color: var(--app-muted);
+  font-size: 0.74rem;
+}
+.finance-methods > li > div {
+  display: grid;
+  min-width: 0;
+}
+.finance-method-value {
+  display: grid;
+  font-weight: 800;
+  justify-items: end;
+  text-align: right;
+}
+.finance-method-value small {
+  font-weight: 500;
+}
+
+/* A receber */
+.finance-receivables {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+}
+.finance-receivables > div {
+  background: var(--app-surface-subtle);
+  border-radius: var(--app-radius-sm);
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.6rem 0.7rem;
+}
+.finance-receivables small {
+  color: var(--app-muted);
+  font-size: 0.72rem;
+}
+.finance-receivables strong {
+  font-size: 1.05rem;
+}
+.finance-receivable-list li {
+  align-items: center;
+  border-bottom: 1px solid #edf1f5;
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding-bottom: 0.5rem;
+}
+.finance-receivable-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.finance-receivable-list > li > div {
+  display: grid;
+  min-width: 0;
+}
+.finance-receivable-list small {
+  color: var(--app-muted);
+  font-size: 0.72rem;
+}
+.app-shell .finance-receivable-list .text-button {
+  font-size: 0.86rem;
+  font-weight: 750;
+  padding: 0;
+  text-align: left;
+}
+
+/* Profissionais */
+.finance-professionals li {
+  align-items: center;
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+}
+.finance-professionals > li > div:first-of-type {
+  display: grid;
+  min-width: 0;
+}
+.finance-professional-values {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+.finance-professional-values strong {
+  font-size: 0.95rem;
+}
+.finance-professional-values small {
+  color: var(--app-muted);
+  font-size: 0.72rem;
+}
+.finance-avatar {
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 50%;
+  color: var(--app-accent);
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  height: 2.2rem;
+  justify-content: center;
+  width: 2.2rem;
+}
+
+/* Caixa e comissões */
+.finance-facts {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  margin: 0;
+}
+.finance-facts dt {
+  color: var(--app-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.finance-facts dd {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.15rem 0 0;
+}
+
+/* Atividade */
+.finance-activity li {
+  align-items: center;
+  border-bottom: 1px solid #edf1f5;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+}
+.finance-activity li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.finance-activity > li > div {
+  display: grid;
+  min-width: 0;
+}
+.finance-activity-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.finance-activity-value--in {
+  color: var(--app-success);
+}
+.finance-activity-value--out {
+  color: var(--app-danger);
+}
+
+@media (max-width: 1099px) {
+  .finance-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 699px) {
+  .finance-filters,
+  .finance-subfilters {
+    width: 100%;
+  }
+  .finance-shortcuts {
+    margin-left: 0;
+    width: 100%;
+  }
+  .app-shell .finance-shortcuts button {
+    flex: 1 1 8rem;
+    justify-content: center;
+    min-height: 2.6rem;
+  }
+  .app-shell .finance-unit select {
+    width: 100%;
+  }
+  .finance-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .finance-methods li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .finance-methods .ds-usage {
+    display: none;
+  }
+  .finance-receivable-list li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .finance-page {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}

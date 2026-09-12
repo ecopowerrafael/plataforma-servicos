@@ -2,11 +2,11 @@ import {
   CreateStockMovementRequestSchema,
   StockMovementListResponseSchema,
   StockMovementPublicSchema,
+  StockMovementQuerySchema,
   TransferStockRequestSchema,
   TransferStockResponseSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
 
 import { type StockMovementService } from './stock-movement.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
@@ -19,9 +19,6 @@ interface Options {
   cookieName: string;
   client?: PrismaClient;
 }
-const Query = z
-  .object({ productPublicId: z.uuid().optional(), unitPublicId: z.uuid().optional() })
-  .strict();
 const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
   userId: request.auth.user.id,
   sessionId: request.auth.session.id,
@@ -34,14 +31,15 @@ export const stockMovementRoutes: FastifyPluginAsyncZod<Options> = async (app, o
   });
   app.get(
     '/tenant/stock-movements',
-    { schema: { querystring: Query, response: { 200: StockMovementListResponseSchema } } },
+    {
+      schema: {
+        querystring: StockMovementQuerySchema,
+        response: { 200: StockMovementListResponseSchema },
+      },
+    },
     (request) => {
       options.authService.requirePermission(request.tenant, 'stock.read');
-      return options.service.list(
-        request.tenant.id,
-        request.query.productPublicId,
-        request.query.unitPublicId,
-      );
+      return options.service.list(request.tenant.id, request.query);
     },
   );
   app.post(

@@ -1,16 +1,19 @@
-import { TenantSubscriptionResponseSchema } from '@plataforma/shared';
+import { CreatePlatformChargeSchema, PlatformChargeResponseSchema, PlatformSubscriptionBillingSchema, SubscriptionChangePreviewSchema, TenantSubscriptionResponseSchema } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 
 import { tenantContextPlugin } from './tenant-context.plugin.js';
 import { type TenantSubscriptionService } from './tenant-subscription.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { type PlatformBillingService } from '../platform/platform-billing.service.js';
 
 interface Options {
   service: TenantSubscriptionService;
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
+  billingService?: PlatformBillingService;
 }
 
 export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (app, options) => {
@@ -28,4 +31,53 @@ export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (a
       return options.service.get(r.tenant.id);
     },
   );
+  app.post(
+    '/tenant/subscription/select-plan',
+    { schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']) }).strict(), response: { 200: z.union([TenantSubscriptionResponseSchema, SubscriptionChangePreviewSchema]) } } },
+    (r) => {
+      options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+      if (!r.tenant.membership.isOwner)
+        throw new Error('Apenas o proprietário pode alterar o plano.');
+      return options.service.selectPlan(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
+    },
+  );
+  app.post('/tenant/subscription/change-preview', {
+    schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']).optional() }).strict(), response: { 200: SubscriptionChangePreviewSchema } },
+  }, (r) => {
+    options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+    if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode alterar o plano.');
+    return options.service.previewChange(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
+  });
+  app.post('/tenant/subscription/change-request', {
+    schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']).optional() }).strict(), response: { 200: SubscriptionChangePreviewSchema } },
+  }, (r) => {
+    options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+    if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode alterar o plano.');
+    return options.service.requestChange(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
+  });
+  app.get('/tenant/subscription/changes/current', { schema: { response: { 200: SubscriptionChangePreviewSchema.nullable() } } }, (r) => {
+    options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+    return options.service.getActiveChange(r.tenant.id);
+  });
+  app.post('/tenant/subscription/changes/:publicId/cancel', { schema: { params: z.object({ publicId: z.uuid() }), response: { 200: z.object({ status: z.literal('CANCELED'), publicId: z.uuid() }) } } }, (r) => {
+    options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+    if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode cancelar a alteração.');
+    return options.service.cancelChange(r.tenant.id, r.params.publicId);
+  });
+  app.post('/tenant/subscription/cancel-scheduled-change', { schema: { response: { 200: TenantSubscriptionResponseSchema } } }, (r) => {
+    options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+    if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode alterar o plano.');
+    return options.service.cancelScheduledChange(r.tenant.id);
+  });
+  if(options.billingService){const billing=options.billingService;
+    app.get('/tenant/subscription/billing',{schema:{response:{200:PlatformSubscriptionBillingSchema}}},r=>{options.authService.requirePermission(r.tenant,'tenant.subscription.read');return billing.tenantOverview(r.tenant.id);});
+    app.post('/tenant/subscription/charges',{schema:{body:CreatePlatformChargeSchema,response:{200:PlatformChargeResponseSchema}}},r=>{options.authService.requirePermission(r.tenant,'tenant.subscription.read');if(!r.tenant.membership.isOwner)throw new Error('Apenas o proprietário pode pagar a assinatura.');return billing.createTenantCharge(r.tenant.id,r.body.provider);});
+     app.post('/tenant/subscription/changes/:publicId/charges', {
+       schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ provider: z.string().min(2).max(64) }).strict(), response: { 200: z.object({ changePublicId: z.uuid(), provider: z.string(), externalId: z.string(), status: z.string(), amountCents: z.string(), currency: z.string(), pixCopyPaste: z.string().nullable() }) } },
+     }, (r) => {
+       options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
+       if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode pagar a assinatura.');
+       return billing.createChangeCharge(r.tenant.id, r.params.publicId, r.body.provider);
+     });
+  }
 };

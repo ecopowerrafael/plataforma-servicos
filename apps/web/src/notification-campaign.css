@@ -1,0 +1,159 @@
+.notification-campaign {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.notification-campaign-grid {
+  align-items: start;
+  display: grid;
+  gap: 0.85rem 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.notification-campaign-grid label {
+  min-width: 0;
+}
+
+.notification-campaign-grid :where(input, select, textarea) {
+  max-width: none;
+  width: 100%;
+}
+
+.notification-campaign-field-wide {
+  grid-column: 1 / -1;
+}
+
+.campaign-people {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: grid;
+  gap: 0;
+  max-height: 23rem;
+  overflow: auto;
+}
+
+.campaign-search {
+  max-width: 28rem;
+}
+
+.campaign-search input {
+  max-width: none;
+  width: 100%;
+}
+
+.campaign-people > label {
+  align-items: center;
+  border-bottom: 1px solid var(--app-border);
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: auto minmax(9rem, 1fr) minmax(10rem, 1fr);
+  padding: 0.7rem 0.8rem;
+}
+
+.campaign-people > label:last-of-type {
+  border-bottom: 0;
+}
+
+.campaign-people > small {
+  background: var(--app-surface);
+  border-top: 1px solid var(--app-border);
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.6rem 0.8rem;
+}
+
+.campaign-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.campaign-list article {
+  align-items: center;
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.75rem 0.85rem;
+}
+
+.campaign-list article > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.campaign-list p,
+.campaign-list small {
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.campaign-list article > div:last-child {
+  justify-items: end;
+  text-align: right;
+}
+
+.notification-template-header h2,
+.notification-template-header p {
+  margin: 0;
+}
+
+.notification-template-header p {
+  color: var(--app-muted);
+  margin-top: 0.35rem;
+}
+
+.notification-template-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 1rem;
+}
+
+.notification-template-card > legend {
+  color: var(--app-text);
+  font-size: 0.96rem;
+  font-weight: 800;
+  padding: 0 0.25rem;
+}
+
+.notification-template-card > :where(label, textarea, input) {
+  max-width: 46rem;
+}
+
+@media (max-width: 899px) {
+  .notification-campaign-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-campaign-field-wide {
+    grid-column: auto;
+  }
+
+  .campaign-people > label {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .campaign-people > label > strong + * {
+    grid-column: 2;
+  }
+
+  .campaign-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-list article > div:last-child {
+    justify-items: start;
+    text-align: left;
+  }
+}

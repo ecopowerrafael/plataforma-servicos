@@ -4,6 +4,7 @@ import {
   PaymentGatewayChargePublicSchema,
   PixChargeResponseSchema,
   PublicBookingSlugParamsSchema,
+  PublicPaymentOptionsResponseSchema,
   QrCodeResponseSchema,
   TenantPaymentOptionsOverviewSchema,
   UpsertMercadoPagoConfigRequestSchema,
@@ -114,6 +115,18 @@ export const tenantPaymentOptionsRoutes: FastifyPluginAsyncZod<{
 export const publicTenantPaymentOptionsRoutes: FastifyPluginAsyncZod<{
   service: TenantPaymentOptionsService;
 }> = (app, o) => {
+  app.get(
+    '/public/sites/:slug/payment-options',
+    {
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: PublicBookingSlugParamsSchema,
+        response: { 200: PublicPaymentOptionsResponseSchema },
+      },
+    },
+    (r) => o.service.getPublicSiteOptions(r.params.slug),
+  );
+
   app.get(
     '/public/sites/:slug/appointments/:appointmentPublicId/payment-options',
     {

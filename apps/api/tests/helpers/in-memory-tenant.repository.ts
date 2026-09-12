@@ -139,6 +139,9 @@ export class InMemoryTenantRepository implements TenantRepository {
       city: input.city ?? null,
       state: input.state ?? null,
       countryCode: input.countryCode ?? null,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      googleMapsUrl: input.googleMapsUrl ?? null,
     };
     stored.units.push(unit);
     return Promise.resolve(structuredClone(unit));
@@ -168,6 +171,9 @@ export class InMemoryTenantRepository implements TenantRepository {
     unit.city = input.city ?? null;
     unit.state = input.state ?? null;
     unit.countryCode = input.countryCode ?? null;
+    unit.latitude = input.latitude ?? null;
+    unit.longitude = input.longitude ?? null;
+    unit.googleMapsUrl = input.googleMapsUrl ?? null;
     return Promise.resolve(structuredClone(unit));
   }
 

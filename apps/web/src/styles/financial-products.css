@@ -1,0 +1,1537 @@
+/* ============================================
+   FINANCIAL & PRODUCTS MODULES
+   ============================================ */
+
+/* ============================================
+   FINANCIAL HEADER
+   ============================================ */
+
+.financial-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.financial-header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.financial-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 240px;
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.financial-search:focus-within {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+.financial-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.financial-header-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.financial-date-range {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ============================================
+   FINANCIAL SUMMARY CARDS
+   ============================================ */
+
+.financial-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.financial-summary-card:hover {
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.financial-summary-card .summary-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-accent-light) 0%, var(--color-accent-dark) 100%);
+  border-radius: 12px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.financial-summary-card .summary-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.summary-value {
+  margin: 4px 0 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.summary-period {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.financial-summary-card .summary-trend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--color-bg-muted);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.summary-trend.positive {
+  color: #16a34a;
+  background: rgba(74, 222, 128, 0.15);
+}
+
+.summary-trend.negative {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* ============================================
+   FINANCIAL TRANSACTIONS
+   ============================================ */
+
+.financial-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 140px 100px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.financial-row:hover {
+  border-color: var(--color-border-default);
+  background: var(--color-bg-muted);
+}
+
+.financial-row.financial-income {
+  border-left: 3px solid #16a34a;
+}
+
+.financial-row.financial-expense {
+  border-left: 3px solid #dc2626;
+}
+
+.fin-col {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.fin-description {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.fin-description strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.fin-category {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.fin-amount {
+  font-weight: 600;
+  justify-content: flex-end;
+}
+
+.amount {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.amount.income {
+  color: #16a34a;
+}
+
+.amount.expense {
+  color: #dc2626;
+}
+
+.fin-status {
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-paid {
+  background: rgba(74, 222, 128, 0.15);
+  color: #16a34a;
+}
+
+.status-pending {
+  background: rgba(249, 115, 22, 0.15);
+  color: #ea580c;
+}
+
+.status-cancelled {
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+}
+
+.financial-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.financial-card:active {
+  background: var(--color-bg-muted);
+}
+
+.financial-card.financial-income {
+  border-left: 4px solid #16a34a;
+}
+
+.financial-card.financial-expense {
+  border-left: 4px solid #dc2626;
+}
+
+.fin-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fin-card-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.fin-card-amount {
+  font-weight: 700;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.fin-card-amount.income {
+  color: #16a34a;
+}
+
+.fin-card-amount.expense {
+  color: #dc2626;
+}
+
+.fin-card-category {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.fin-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.fin-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.fin-card-row .label {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.fin-card-row .value {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+/* ============================================
+   FINANCIAL SUMMARY PANEL
+   ============================================ */
+
+.financial-summary-panel {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.summary-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.summary-panel-header h2 {
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.summary-panel-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.summary-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.summary-panel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary-panel-field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.summary-panel-field p {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.summary-income {
+  color: #16a34a !important;
+}
+
+.summary-expense {
+  color: #dc2626 !important;
+}
+
+.summary-net {
+  color: var(--color-accent-dark) !important;
+}
+
+.summary-panel-transactions {
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.summary-panel-transactions h4 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.transactions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.transaction-item {
+  padding: 12px;
+  background: var(--color-bg-muted);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tx-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.tx-count {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.tx-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+}
+
+/* ============================================
+   PRODUCTS
+   ============================================ */
+
+.product-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.product-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 240px;
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.product-search:focus-within {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+.product-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.product-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.product-card.is-inactive {
+  opacity: 0.7;
+}
+
+.product-image {
+  width: 100%;
+  height: 160px;
+  background: linear-gradient(135deg, var(--color-accent-light) 0%, var(--color-accent-dark) 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.product-image-placeholder {
+  width: 100%;
+  height: 160px;
+  background: linear-gradient(135deg, var(--color-accent-light) 0%, var(--color-accent-dark) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.product-content {
+  padding: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.product-header-info {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.product-card h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.product-code {
+  font-size: 10px;
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-family: monospace;
+}
+
+.product-category {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--color-accent-dark);
+  font-weight: 600;
+}
+
+.product-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.product-stats .stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.stat .price {
+  font-weight: 700;
+  color: var(--color-accent-dark);
+}
+
+.stat .stock {
+  font-weight: 500;
+}
+
+.stock.available {
+  color: #16a34a;
+}
+
+.stock.unavailable {
+  color: #dc2626;
+}
+
+.product-status {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border-radius: 3px;
+  width: fit-content;
+}
+
+.product-status.active {
+  background: rgba(74, 222, 128, 0.15);
+  color: #16a34a;
+}
+
+.product-status.inactive {
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+}
+
+.product-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 92px 88px 80px auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 72px;
+  padding: 10px 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.product-row:hover {
+  border-color: var(--color-border-default);
+  background: var(--color-bg-muted);
+}
+
+.product-row.is-inactive {
+  opacity: 0.6;
+}
+
+.product-row-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.product-row-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(15, 23, 42, 0.05));
+  color: var(--color-accent-dark);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.product-row-thumb img,
+.product-row-thumb .service-thumbnail {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.product-row-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-row-code {
+  font-size: 10px;
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-family: monospace;
+}
+
+.product-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.product-row-category {
+  font-size: 11px;
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.product-row-price {
+  font-weight: 700;
+  color: var(--color-accent-dark);
+  text-align: right;
+}
+
+.product-row-stock {
+  font-weight: 600;
+  text-align: center;
+}
+
+.product-row-stock.available {
+  color: #16a34a;
+}
+
+.product-row-stock.unavailable {
+  color: #dc2626;
+}
+
+/* ============================================
+   PRODUCT DETAIL PANEL
+   ============================================ */
+
+.product-detail-panel {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.product-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.product-detail-header h2 {
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.product-detail-code {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: monospace;
+}
+
+.product-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.product-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.product-detail-field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.product-detail-field p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.product-detail-price {
+  font-size: 18px !important;
+  color: var(--color-accent-dark) !important;
+  font-weight: 700 !important;
+}
+
+.product-detail-cost {
+  color: #666 !important;
+  font-size: 14px !important;
+}
+
+.product-detail-stock {
+  font-weight: 700 !important;
+}
+
+.product-detail-stock.available {
+  color: #16a34a !important;
+}
+
+.product-detail-stock.unavailable {
+  color: #dc2626 !important;
+}
+
+.product-detail-description {
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.product-detail-description label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.product-detail-description p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+/* ============================================
+   FINANCE OVERVIEW REDESIGN
+   ============================================ */
+
+.finance-page--redesigned .finance-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.finance-page--redesigned .finance-kpi {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.finance-page--redesigned .finance-kpi small {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.finance-page--redesigned .finance-kpi strong {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.finance-page--redesigned .finance-kpi-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+}
+
+.finance-page--redesigned .finance-delta {
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.finance-page--redesigned .finance-delta--positive {
+  color: #16a34a;
+}
+
+.finance-page--redesigned .finance-delta--negative {
+  color: #dc2626;
+}
+
+.finance-page--redesigned .finance-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.finance-page--redesigned .app-card {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: 12px !important;
+}
+
+.finance-page--redesigned .finance-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.finance-page--redesigned .finance-methods li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.finance-page--redesigned .ds-usage {
+  flex: 1;
+  height: 6px;
+  background: var(--color-bg-muted);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.finance-page--redesigned .ds-usage span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent-dark);
+  border-radius: 3px;
+}
+
+.finance-page--redesigned .finance-subfilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 12px;
+  background: var(--color-bg-muted);
+  border-radius: 12px;
+}
+
+.finance-page--redesigned .finance-period-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  margin-left: auto;
+}
+
+/* ============================================
+   FINANCIAL CLOSING REDESIGN
+   ============================================ */
+
+.closings-page--redesigned .closings-note {
+  background: var(--color-bg-muted);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  border-left: 3px solid var(--color-accent-dark);
+  margin-bottom: 20px !important;
+}
+
+.closings-page--redesigned .ds-table-scroll {
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  overflow: hidden;
+}
+
+.closings-page--redesigned .platform-table {
+  background: var(--color-bg-secondary);
+}
+
+.closings-page--redesigned .platform-table thead {
+  background: var(--color-bg-muted);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.closings-page--redesigned .platform-table tbody tr {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.closings-page--redesigned .platform-table tbody tr:hover {
+  background: var(--color-bg-muted);
+}
+
+/* ============================================
+   FINANCIAL REPORT REDESIGN
+   ============================================ */
+
+.financial-report--redesigned .report-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.financial-report--redesigned .report-metric {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: 12px !important;
+  padding: 16px !important;
+}
+
+.financial-report--redesigned .app-card {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: 12px !important;
+}
+
+/* ============================================
+   DELINQUENCY REDESIGN
+   ============================================ */
+
+.receivables-page--redesigned .ds-table-scroll {
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  overflow: hidden;
+}
+
+.receivables-page--redesigned .platform-table {
+  background: var(--color-bg-secondary);
+}
+
+.receivables-page--redesigned .platform-table thead {
+  background: var(--color-bg-muted);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.receivables-page--redesigned .platform-table tbody tr {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.receivables-page--redesigned .platform-table tbody tr:hover {
+  background: var(--color-bg-muted);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .financial-row {
+    grid-template-columns: 1fr 100px 100px auto;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+
+  .product-row {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+  }
+
+  .summary-panel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .financial-row {
+    display: none;
+  }
+
+  .product-row {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .product-row-price,
+  .product-row-stock,
+  .product-row .product-status,
+  .product-row-actions {
+    grid-column: 2;
+    justify-self: start;
+    text-align: left;
+  }
+
+  .financial-header-top {
+    flex-direction: column;
+  }
+
+  .financial-header-actions {
+    width: 100%;
+  }
+
+  .financial-header-actions .btn {
+    flex: 1;
+  }
+
+  .product-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .transactions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.product-create-page {
+  max-width: 1080px;
+}
+
+.product-create-page-header {
+  display: grid;
+  gap: 4px;
+}
+
+.product-create-page-header h1,
+.product-create-page-header p,
+.product-create-page-header span {
+  margin: 0;
+}
+
+.product-create-page-header h1 {
+  color: var(--color-text-primary);
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  line-height: 1.05;
+}
+
+.product-create-page-header span {
+  color: var(--color-text-secondary);
+  font-size: 15px;
+}
+
+.product-form {
+  display: flex;
+  flex-direction: column;
+  align-content: start;
+  gap: 0;
+  width: 100%;
+  max-width: 1100px;
+  margin-left: 0;
+}
+
+.product-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.product-form :where(input, select, textarea) {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font: inherit;
+  padding: 0 12px;
+}
+
+.product-form textarea {
+  min-height: 104px;
+  padding-top: 12px;
+  resize: vertical;
+}
+
+.product-form :where(input, select, textarea):focus {
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+.product-form small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.product-form :where(button, .secondary-button) {
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 700;
+}
+
+.product-form-section {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 16px;
+  padding: 26px 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.product-form-section h3,
+.product-form-section p {
+  margin: 0;
+}
+
+.product-form-section h3 {
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.product-form-image-section {
+  align-items: start;
+}
+
+.product-info-fields {
+  grid-template-columns: minmax(400px, 2fr) minmax(260px, 1fr) !important;
+  gap: 20px;
+}
+
+.product-description-field {
+  grid-column: 1 / -1;
+}
+
+.product-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.product-form .product-form-grid select {
+  max-width: none;
+}
+
+.product-image-picker {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.product-image-picker-preview {
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 20px;
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.product-image-picker-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-image-picker-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.product-image-picker-actions small {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.product-category-select-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.product-category-select-row button,
+.product-form-footer button {
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.product-inline-category {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 14px;
+  background: var(--color-bg-muted);
+}
+
+.product-inline-category > span {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.product-image-picker-actions input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.product-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.product-form-price-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 720px) {
+  .product-form-image-section,
+  .product-form-grid,
+  .product-form-price-grid,
+  .product-info-fields,
+  .product-category-select-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .product-description-field {
+    grid-column: auto;
+  }
+
+  .product-image-picker {
+    align-items: flex-start;
+  }
+
+  .product-form-footer {
+    flex-direction: column-reverse;
+  }
+
+  .product-form-footer button {
+    width: 100%;
+  }
+}
+
+/* ============================================
+   PAYMENT METHODS MODULE (REDESIGNED)
+   ============================================ */
+
+.payments-page--redesigned .payment-method-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.payments-page--redesigned .payment-method-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.payments-page--redesigned .payment-method-row:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.payments-page--redesigned .payment-method-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  color: var(--color-accent-primary);
+}
+
+.payments-page--redesigned .payment-method-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.payments-page--redesigned .payment-method-info strong {
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.payments-page--redesigned .payment-method-info small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.payments-page--redesigned .payment-method-form {
+  padding: 20px;
+  margin-top: 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+}
+
+/* ============================================
+   PAYMENT OPTIONS MODULE (REDESIGNED)
+   ============================================ */
+
+.payment-options--redesigned .payment-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.payment-options--redesigned .payment-option-card {
+  padding: 20px;
+  background: var(--color-bg-primary);
+  border: 2px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.payment-options--redesigned .payment-option-card:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.08);
+}
+
+.payment-options--redesigned .payment-option-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.payment-options--redesigned .payment-option-card header strong {
+  color: var(--color-text-primary);
+  font-size: 15px;
+}
+
+.payment-options--redesigned .payment-option-card > p {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.payment-options--redesigned .payment-option-card .platform-details {
+  margin-bottom: 16px;
+}
+
+.payment-options--redesigned .payment-option-card button {
+  width: 100%;
+}
+
+/* ============================================
+   COMMISSIONS MODULE (REDESIGNED)
+   ============================================ */
+
+.commissions-page--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.commissions-page--redesigned .ds-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.commissions-page--redesigned .app-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.commissions-page--redesigned .platform-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.commissions-page--redesigned .platform-table thead {
+  border-bottom: 2px solid var(--color-border-default);
+}
+
+.commissions-page--redesigned .platform-table th {
+  padding: 12px;
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.commissions-page--redesigned .platform-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+}
+
+.commissions-page--redesigned .platform-table tbody tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+@media (max-width: 768px) {
+  .payment-options--redesigned .payment-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .commissions-page--redesigned .ds-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .payments-page--redesigned .payment-method-row {
+    grid-template-columns: 40px 1fr;
+    gap: 12px;
+  }
+
+  .payments-page--redesigned .payment-method-row .ds-badge,
+  .payments-page--redesigned .payment-method-row .ds-row-actions {
+    grid-column: 2;
+    display: flex;
+    gap: 8px;
+  }
+}

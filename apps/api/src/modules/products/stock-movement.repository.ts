@@ -19,25 +19,63 @@ interface MovementInput {
 }
 
 const movementInclude = {
-  product: true,
-  businessUnit: true,
-  relatedBusinessUnit: true,
-  performedByUser: true,
+  product: { select: { publicId: true, name: true } },
+  businessUnit: { select: { publicId: true, name: true } },
+  relatedBusinessUnit: { select: { publicId: true, name: true } },
+  performedByUser: { select: { publicId: true, name: true } },
+  saleItem: {
+    select: {
+      sale: { select: { publicId: true, customer: { select: { name: true } } } },
+    },
+  },
 } as const;
+
+export interface StockMovementFilter {
+  productId?: bigint | undefined;
+  unitId?: bigint | undefined;
+  type?: StockMovementType | undefined;
+  from?: Date | undefined;
+  to?: Date | undefined;
+}
 
 export class StockMovementRepository {
   public constructor(private readonly client: PrismaClient) {}
 
-  public list(tenantId: bigint, productId?: bigint, unitId?: bigint) {
-    return this.client.stockMovement.findMany({
-      where: {
-        tenantId,
-        ...(productId === undefined ? {} : { productId }),
-        ...(unitId === undefined ? {} : { businessUnitId: unitId }),
-      },
-      include: movementInclude,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    });
+  private where(tenantId: bigint, filter: StockMovementFilter): Prisma.StockMovementWhereInput {
+    return {
+      tenantId,
+      ...(filter.productId === undefined ? {} : { productId: filter.productId }),
+      ...(filter.unitId === undefined ? {} : { businessUnitId: filter.unitId }),
+      ...(filter.type === undefined ? {} : { type: filter.type }),
+      ...(filter.from === undefined && filter.to === undefined
+        ? {}
+        : {
+            createdAt: {
+              ...(filter.from === undefined ? {} : { gte: filter.from }),
+              ...(filter.to === undefined ? {} : { lte: filter.to }),
+            },
+          }),
+    };
+  }
+
+  public async list(
+    tenantId: bigint,
+    filter: StockMovementFilter,
+    page: number,
+    limit: number,
+  ) {
+    const where = this.where(tenantId, filter);
+    const [total, items] = await Promise.all([
+      this.client.stockMovement.count({ where }),
+      this.client.stockMovement.findMany({
+        where,
+        include: movementInclude,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    return { total, items };
   }
 
   public move(input: MovementInput) {

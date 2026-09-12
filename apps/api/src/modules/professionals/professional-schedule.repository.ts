@@ -42,6 +42,13 @@ export class PrismaProfessionalScheduleRepository {
     return this.client.professionalWorkSchedule.delete({ where: { publicId } });
   }
 
+  public async replace(tenantId: bigint, professionalId: bigint, data: Prisma.ProfessionalWorkScheduleUncheckedCreateInput[]) {
+    await this.client.$transaction([
+      this.client.professionalWorkSchedule.deleteMany({ where: { tenantId, professionalId } }),
+      this.client.professionalWorkSchedule.createMany({ data }),
+    ]);
+  }
+
   public audit(data: Prisma.AuditLogUncheckedCreateInput) {
     return this.client.auditLog.create({ data });
   }

@@ -2,6 +2,7 @@ import {
   ProfessionalUnitPublicSchema,
   ProfessionalUnitsResponseSchema,
   ProfessionalUnitStatusResponseSchema,
+  TenantUnitsResponseSchema,
   UpsertProfessionalUnitRequestSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,6 +25,11 @@ export function ProfessionalUnitLinks({
     queryFn: () =>
       httpClient.request(url, { schema: ProfessionalUnitsResponseSchema, tenantPublicId }),
   });
+  const units = useQuery({
+    queryKey: ['tenant', tenantPublicId, 'units'],
+    queryFn: () =>
+      httpClient.request('/tenant/units', { schema: TenantUnitsResponseSchema, tenantPublicId }),
+  });
   const refresh = () => client.invalidateQueries({ queryKey: ['professional-units', url] });
   const save = useMutation({
     mutationFn: () =>
@@ -45,8 +51,10 @@ export function ProfessionalUnitLinks({
     onSuccess: refresh,
   });
   return (
-    <section className="platform-form">
-      <h4>Unidades</h4>
+    <section className="platform-form professional-settings-card">
+      <header className="settings-card-header">
+        <div><span className="settings-card-icon" aria-hidden="true">⌂</span><div><h4>Unidades de atendimento</h4><p>Escolha onde este profissional atende.</p></div></div>
+      </header>
       <UnitSelect
         emptyLabel="Selecionar unidade"
         onlyActive
@@ -63,7 +71,7 @@ export function ProfessionalUnitLinks({
       </button>
       {links.data?.items.map((x) => (
         <div key={x.publicId}>
-          <span>{x.unitPublicId}</span>
+          <span>{units.data?.units.find((unit) => unit.publicId === x.unitPublicId)?.name ?? 'Unidade'}</span>
           <span>{x.active ? ' Ativo' : ' Inativo'}</span>
           <button
             type="button"

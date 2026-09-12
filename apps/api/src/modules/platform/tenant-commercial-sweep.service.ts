@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
 
 import type { PrismaClient } from '../../database-client/client.js';
+import type { PlatformBillingService } from './platform-billing.service.js';
 
 const EFFECTIVE_KEY = 'EFFECTIVE';
 
@@ -15,7 +16,7 @@ const EFFECTIVE_KEY = 'EFFECTIVE';
 export class TenantCommercialSweepService {
   private readonly policyService: TenantCommercialPolicyService;
 
-  public constructor(private readonly client: PrismaClient) {
+  public constructor(private readonly client: PrismaClient, private readonly billing?: PlatformBillingService) {
     this.policyService = new TenantCommercialPolicyService(client);
   }
 
@@ -44,6 +45,9 @@ export class TenantCommercialSweepService {
       where: { status: 'ACTIVE', currentPeriodEndsAt: { lte: now }, effectiveKey: EFFECTIVE_KEY },
     });
     for (const subscription of expiredPeriods) {
+      // A scheduled downgrade is only an intent for the next paid renewal.
+      // Never apply it here: this sweep has no payment confirmation and must
+      // not grant a new period or change entitlements before money is settled.
       await this.transition(
         subscription,
         'PAST_DUE',
@@ -51,6 +55,16 @@ export class TenantCommercialSweepService {
         'PERIOD_EXPIRED_PAST_DUE',
         'platform.subscription.period_expired',
       );
+      const scheduled = await this.client.subscriptionPlanChange.findFirst({ where: { subscriptionId: subscription.id, status: 'SCHEDULED' }, orderBy: { createdAt: 'desc' } });
+      if (scheduled && this.billing) {
+        const config = await this.client.platformPaymentConfig.findFirst({ where: { provider: { in: ['stripe', 'pix-local', 'mercadopago'] }, active: true, credentialsCiphertext: { not: null } }, orderBy: { provider: 'asc' } });
+        if (config) {
+          const claimed = await this.client.subscriptionPlanChange.updateMany({ where: { id: scheduled.id, status: 'SCHEDULED' }, data: { status: 'PENDING_PAYMENT', expiresAt: new Date(now.getTime() + 60 * 60 * 1000) } });
+          if (claimed.count === 1) {
+            try { await this.billing.createChangeCharge(subscription.tenantId, scheduled.publicId, config.provider); } catch { /* retain PAST_DUE; retry requires explicit recovery of PENDING_PAYMENT */ }
+          }
+        }
+      }
       pastDued += 1;
     }
 

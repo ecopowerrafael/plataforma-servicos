@@ -26,6 +26,7 @@ export const ServiceCategoryPublicSchema = z
     description: z.string().nullable(),
     color: CategoryColorSchema,
     icon: z.string().nullable(),
+    serviceCount: z.number().int().nonnegative().optional(),
     sortOrder: z.number().int(),
     active: z.boolean(),
     createdAt: z.iso.datetime({ offset: true }),

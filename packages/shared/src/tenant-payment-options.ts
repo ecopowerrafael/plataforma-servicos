@@ -65,6 +65,18 @@ export const AppointmentPaymentOptionsResponseSchema = z.object({
   balanceCents: MoneyPublicSchema,
 });
 
+/**
+ * Opções do estabelecimento resolvidas antes de existir agendamento, para o site
+ * público decidir se precisa perguntar a forma de pagamento.
+ */
+export const PublicPaymentOptionsResponseSchema = z
+  .object({
+    payLocalAvailable: z.boolean(),
+    pixLocalAvailable: z.boolean(),
+    mercadoPagoAvailable: z.boolean(),
+  })
+  .strict();
+
 export const CreateOnlineChargeRequestSchema = z
   .object({ kind: PaymentKindSchema.default('PAYMENT') })
   .strict();

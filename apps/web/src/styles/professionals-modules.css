@@ -1,0 +1,252 @@
+/* ============================================
+   PROFESSIONALS MODULES (REDESIGNED)
+   ============================================ */
+
+/* ============================================
+   MY AVAILABILITY MODULE (REDESIGNED)
+   ============================================ */
+
+.my-availability--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.my-availability--redesigned .ds-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.my-availability--redesigned .availability-section {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.my-availability--redesigned .availability-section h3 {
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.my-availability--redesigned .availability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.my-availability--redesigned .availability-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+}
+
+.my-availability--redesigned .availability-slot label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.my-availability--redesigned .availability-slot input,
+.my-availability--redesigned .availability-slot select {
+  padding: 10px 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.my-availability--redesigned .availability-slot input:focus,
+.my-availability--redesigned .availability-slot select:focus {
+  outline: none;
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+.my-availability--redesigned .availability-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.my-availability--redesigned .availability-actions button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.my-availability--redesigned .primary-button {
+  background: var(--color-accent-primary);
+  color: white;
+}
+
+.my-availability--redesigned .primary-button:hover {
+  background: var(--color-accent-dark);
+}
+
+.my-availability--redesigned .secondary-button {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-default);
+}
+
+.my-availability--redesigned .secondary-button:hover {
+  background: var(--color-border-default);
+}
+
+@media (max-width: 430px) {
+  .my-availability--redesigned .availability-section {
+    padding: 12px;
+  }
+
+  .my-availability--redesigned .availability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-availability--redesigned .availability-slot {
+    padding: 10px;
+  }
+
+  .my-availability--redesigned .availability-actions {
+    flex-direction: column;
+  }
+
+  .my-availability--redesigned .availability-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .my-availability--redesigned .availability-section {
+    padding: 16px;
+  }
+
+  .my-availability--redesigned .availability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-availability--redesigned .availability-slot {
+    padding: 12px;
+  }
+}
+
+/* ============================================
+   APPOINTMENT WAITLIST MODULE (REDESIGNED)
+   ============================================ */
+
+.appointment-waitlist--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.appointment-waitlist--redesigned .waitlist-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.appointment-waitlist--redesigned .waitlist-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.appointment-waitlist--redesigned .waitlist-card h3 {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.appointment-waitlist--redesigned .waitlist-info {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-default);
+}
+
+.appointment-waitlist--redesigned .waitlist-info dt {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.appointment-waitlist--redesigned .waitlist-info dd {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.appointment-waitlist--redesigned .waitlist-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.appointment-waitlist--redesigned .waitlist-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.appointment-waitlist--redesigned .waitlist-table th {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.appointment-waitlist--redesigned .waitlist-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.appointment-waitlist--redesigned .waitlist-table tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+@media (max-width: 768px) {
+  .appointment-waitlist--redesigned .waitlist-card {
+    padding: 16px;
+  }
+
+  .appointment-waitlist--redesigned .waitlist-card-header {
+    flex-direction: column;
+  }
+
+  .appointment-waitlist--redesigned .waitlist-table {
+    font-size: 12px;
+  }
+
+  .appointment-waitlist--redesigned .waitlist-table th,
+  .appointment-waitlist--redesigned .waitlist-table td {
+    padding: 8px 12px;
+  }
+}

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { BusinessProfileCodeSchema } from './business-profile.js';
+import { OperatingModelSchema } from './operating-model.js';
+import { GoogleMapsUrlSchema, LatitudeSchema, LongitudeSchema } from './location.js';
 
 export const RESERVED_TENANT_SLUGS = [
   'admin',
@@ -77,16 +79,16 @@ export const TenantSlugSchema = NormalizedSlugSchema.refine(
   'O slug informado é reservado.',
 );
 
+export const TenantSlugOutputSchema = z
+  .string()
+  .min(2)
+  .max(63)
+  .regex(slugPattern)
+  .refine((slug) => !reservedTenantSlugs.has(slug));
+
 export const BusinessUnitSlugSchema = NormalizedSlugSchema;
 
-export const AppointmentIntervalSchema = z.union([
-  z.literal(5),
-  z.literal(10),
-  z.literal(15),
-  z.literal(20),
-  z.literal(30),
-  z.literal(60),
-]);
+export const AppointmentIntervalSchema = z.number().int().min(5).max(120);
 
 export const TenantSettingsInputSchema = z
   .object({
@@ -111,6 +113,9 @@ export const InitialBusinessUnitInputSchema = z
     district: OptionalAddressFieldSchema(80),
     city: OptionalAddressFieldSchema(100),
     state: OptionalAddressFieldSchema(64),
+    latitude: LatitudeSchema.optional(),
+    longitude: LongitudeSchema.optional(),
+    googleMapsUrl: GoogleMapsUrlSchema.optional(),
     countryCode: z
       .string()
       .trim()
@@ -119,7 +124,11 @@ export const InitialBusinessUnitInputSchema = z
       .pipe(z.string().regex(/^[A-Z]{2}$/u))
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => (value.latitude === undefined) === (value.longitude === undefined), {
+    message: 'Informe latitude e longitude juntas.',
+    path: ['latitude'],
+  });
 
 export const BusinessUnitInputSchema = z
   .object({
@@ -133,6 +142,9 @@ export const BusinessUnitInputSchema = z
     district: OptionalAddressFieldSchema(80),
     city: OptionalAddressFieldSchema(100),
     state: OptionalAddressFieldSchema(64),
+    latitude: LatitudeSchema.optional(),
+    longitude: LongitudeSchema.optional(),
+    googleMapsUrl: GoogleMapsUrlSchema.optional(),
     countryCode: z
       .string()
       .trim()
@@ -141,7 +153,11 @@ export const BusinessUnitInputSchema = z
       .pipe(z.string().regex(/^[A-Z]{2}$/u))
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => (value.latitude === undefined) === (value.longitude === undefined), {
+    message: 'Informe latitude e longitude juntas.',
+    path: ['latitude'],
+  });
 
 export const CreateBusinessUnitRequestSchema = BusinessUnitInputSchema;
 export const UpdateBusinessUnitRequestSchema = BusinessUnitInputSchema;
@@ -176,6 +192,8 @@ export const TenantPublicSchema = z.object({
   locale: LocaleSchema,
   currency: SupportedCurrencySchema,
   businessProfile: BusinessProfileCodeSchema.optional(),
+  /* Modelo operacional; ausente em respostas antigas ainda em cache. */
+  operatingModel: OperatingModelSchema.optional(),
 });
 
 export const BusinessUnitSchema = z.object({
@@ -193,6 +211,9 @@ export const BusinessUnitSchema = z.object({
   city: z.string().nullable(),
   state: z.string().nullable(),
   countryCode: z.string().nullable(),
+  latitude: LatitudeSchema.nullable(),
+  longitude: LongitudeSchema.nullable(),
+  googleMapsUrl: z.string().nullable(),
 });
 
 export const TenantSettingsSchema = z.object({
@@ -212,6 +233,26 @@ export const CreateTenantResponseSchema = z.object({
 });
 
 export const TenantContextResponseSchema = z.object({ tenant: TenantPublicSchema });
+export const TenantIdentitySchema = z.object({
+  legalName: z.string().min(2).max(160),
+  displayName: z.string().min(2).max(120),
+  slug: TenantSlugOutputSchema,
+  slugChangeAvailable: z.boolean(),
+  businessProfile: BusinessProfileCodeSchema,
+  businessTypeCustom: z.string().nullable(),
+});
+export const UpdateTenantIdentityRequestSchema = z
+  .object({
+    legalName: RequiredNameSchema(160).optional(),
+    displayName: RequiredNameSchema(120).optional(),
+    slug: TenantSlugSchema.optional(),
+    businessProfile: BusinessProfileCodeSchema.optional(),
+    businessTypeCustom: z.string().trim().min(2).max(120).nullable().optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, 'Informe ao menos uma alteração.');
+export type UpdateTenantIdentityRequest = z.infer<typeof UpdateTenantIdentityRequestSchema>;
+export const TenantIdentityResponseSchema = z.object({ identity: TenantIdentitySchema });
 export const TenantUnitsResponseSchema = z.object({ units: z.array(BusinessUnitSchema) });
 export const TenantUnitResponseSchema = z.object({ unit: BusinessUnitSchema });
 export const TenantSettingsResponseSchema = z.object({ settings: TenantSettingsSchema });
@@ -227,6 +268,7 @@ export const TenantErrorCodeSchema = z.enum([
   'BUSINESS_UNIT_SLUG_CONFLICT',
   'TENANT_HEADQUARTERS_CONFLICT',
   'TENANT_STRUCTURE_CONFLICT',
+  'TENANT_MULTIPLE_UNITS_ACTIVE',
   'BUSINESS_UNIT_NOT_FOUND',
   'BUSINESS_UNIT_LAST_ACTIVE',
   'BUSINESS_UNIT_HEADQUARTERS_INACTIVE',
@@ -247,6 +289,7 @@ export type UpdateBusinessUnitRequest = z.infer<typeof UpdateBusinessUnitRequest
 export type TenantSettings = z.infer<typeof TenantSettingsSchema>;
 export type CreateTenantResponse = z.infer<typeof CreateTenantResponseSchema>;
 export type TenantContextResponse = z.infer<typeof TenantContextResponseSchema>;
+export type TenantIdentity = z.infer<typeof TenantIdentitySchema>;
 export type TenantUnitsResponse = z.infer<typeof TenantUnitsResponseSchema>;
 export type TenantUnitResponse = z.infer<typeof TenantUnitResponseSchema>;
 export type TenantSettingsResponse = z.infer<typeof TenantSettingsResponseSchema>;

@@ -10,6 +10,14 @@ import {
 } from '../src/modules/products/stock-movement.repository.js';
 import { StockMovementService } from '../src/modules/products/stock-movement.service.js';
 
+vi.mock('../src/modules/tenants/plan-entitlement.service.js', () => ({
+  PlanEntitlementService: class {
+    public assertFeatureEnabledForTenant() {
+      return Promise.resolve();
+    }
+  },
+}));
+
 const tenantId = 1n;
 const productPublicId = '11111111-1111-4111-8111-111111111111';
 const sourceUnitPublicId = '22222222-2222-4222-8222-222222222222';
@@ -19,7 +27,7 @@ const actor = { userId: 9n, sessionId: 10n };
 
 function fixture() {
   const products = {
-    product: vi.fn().mockResolvedValue({ id: 2n, publicId: productPublicId }),
+    product: vi.fn().mockResolvedValue({ id: 2n, publicId: productPublicId, name: 'Pomada' }),
     unit: vi
       .fn()
       .mockImplementation((_tenantId: bigint, publicId: string) =>
@@ -35,13 +43,14 @@ function fixture() {
     resultingQuantity: 7,
     reason: null,
     createdAt: new Date(),
-    product: { publicId: productPublicId },
-    businessUnit: { publicId: sourceUnitPublicId },
+    product: { publicId: productPublicId, name: 'Pomada' },
+    businessUnit: { publicId: sourceUnitPublicId, name: 'Centro' },
     relatedBusinessUnit: null,
-    performedByUser: { publicId: userPublicId },
+    performedByUser: { publicId: userPublicId, name: 'Rafael' },
+    saleItem: null,
   };
   const movements = {
-    list: vi.fn().mockResolvedValue([row]),
+    list: vi.fn().mockResolvedValue({ total: 1, items: [row] }),
     move: vi.fn().mockResolvedValue(row),
     transfer: vi.fn(),
   };
@@ -75,12 +84,20 @@ describe('movimentações de estoque', () => {
 
   it('mantém saldo anterior/posterior, responsável e data no histórico', async () => {
     const { service } = fixture();
-    const result = await service.list(tenantId, productPublicId, sourceUnitPublicId);
+    const result = await service.list(tenantId, {
+      page: 1,
+      limit: 20,
+      productPublicId,
+      unitPublicId: sourceUnitPublicId,
+    });
     expect(result.items[0]).toMatchObject({
       previousQuantity: 2,
       resultingQuantity: 7,
       responsibleUserPublicId: userPublicId,
+      responsibleName: 'Rafael',
+      unitName: 'Centro',
     });
+    expect(result.page).toMatchObject({ total: 1, totalPages: 1 });
   });
 
   it('converte tentativa de saldo negativo em conflito operacional', async () => {
@@ -112,7 +129,7 @@ describe('movimentações de estoque', () => {
           transferPublicId,
           type: 'TRANSFER_OUT',
           resultingQuantity: 1,
-          relatedBusinessUnit: { publicId: destinationUnitPublicId },
+          relatedBusinessUnit: { publicId: destinationUnitPublicId, name: 'Zona Sul' },
         },
         {
           ...row,
@@ -121,8 +138,8 @@ describe('movimentações de estoque', () => {
           type: 'TRANSFER_IN',
           previousQuantity: 0,
           resultingQuantity: 1,
-          businessUnit: { publicId: destinationUnitPublicId },
-          relatedBusinessUnit: { publicId: sourceUnitPublicId },
+          businessUnit: { publicId: destinationUnitPublicId, name: 'Zona Sul' },
+          relatedBusinessUnit: { publicId: sourceUnitPublicId, name: 'Centro' },
         },
       ],
     });

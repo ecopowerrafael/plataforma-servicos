@@ -1,0 +1,838 @@
+/* ============================================
+   MARKETING MODULES
+   ============================================ */
+
+/* ============================================
+   CUSTOMER RECOVERY MODULE (REDESIGNED)
+   ============================================ */
+
+.recovery-page--redesigned .ds-stat-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recovery-page--redesigned .ds-stat-card small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.recovery-page--redesigned .ds-stat-card strong {
+  color: var(--color-text-primary);
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.recovery-page--redesigned .ds-stat-card--warning {
+  border-color: var(--color-accent-light);
+  background: rgba(197, 160, 89, 0.05);
+}
+
+.recovery-page--redesigned .data-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.recovery-page--redesigned .data-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.recovery-page--redesigned .data-row:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.recovery-page--redesigned .recovery-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  color: var(--color-accent-primary);
+}
+
+.recovery-page--redesigned .data-row strong {
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.recovery-page--redesigned .data-row small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.recovery-page--redesigned .recovery-menu {
+  position: relative;
+}
+
+.recovery-page--redesigned .recovery-menu-list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.recovery-page--redesigned .recovery-menu-list li {
+  display: flex;
+}
+
+.recovery-page--redesigned .recovery-menu-list button {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.recovery-page--redesigned .recovery-menu-list button:hover {
+  background-color: var(--color-bg-secondary);
+}
+
+/* ============================================
+   NOTIFICATION CAMPAIGN MODULE (REDESIGNED)
+   ============================================ */
+
+.notification-campaign--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.notification-campaign--redesigned .ds-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.notification-campaign--redesigned .ds-stat-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notification-campaign--redesigned .notification-campaign-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.notification-campaign--redesigned .notification-campaign-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notification-campaign--redesigned .notification-campaign-grid label > strong {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notification-campaign--redesigned .notification-campaign-grid input,
+.notification-campaign--redesigned .notification-campaign-grid select,
+.notification-campaign--redesigned .notification-campaign-grid textarea {
+  padding: 10px 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  transition: all 0.2s ease-in-out;
+}
+
+.notification-campaign--redesigned .notification-campaign-grid input:focus,
+.notification-campaign--redesigned .notification-campaign-grid select:focus,
+.notification-campaign--redesigned .notification-campaign-grid textarea:focus {
+  border-color: var(--color-accent-light);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+.notification-campaign--redesigned .notification-campaign-field-wide {
+  grid-column: 1 / -1;
+}
+
+.notification-campaign--redesigned .campaign-people {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 12px;
+}
+
+.notification-campaign--redesigned .campaign-people > label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-default);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.notification-campaign--redesigned .campaign-people > label:hover {
+  background-color: var(--color-bg-primary);
+}
+
+.notification-campaign--redesigned .campaign-people > label:last-of-type {
+  border-bottom: none;
+}
+
+.notification-campaign--redesigned .campaign-people > small {
+  display: block;
+  padding: 8px 16px;
+  background: var(--color-bg-primary);
+  border-top: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.notification-campaign--redesigned .campaign-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.notification-campaign--redesigned .campaign-list article {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+  padding: 16px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.notification-campaign--redesigned .campaign-list article:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.notification-campaign--redesigned .campaign-list article > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notification-campaign--redesigned .campaign-list article strong {
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.notification-campaign--redesigned .campaign-list article p,
+.notification-campaign--redesigned .campaign-list article small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  margin: 0;
+}
+
+.notification-campaign--redesigned .campaign-list article > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.notification-campaign--redesigned .ds-inline-alert {
+  padding: 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-warning);
+  border-radius: 12px;
+  margin: 16px 0;
+}
+
+/* ============================================
+   NOTIFICATION TEMPLATES MODULE (REDESIGNED)
+   ============================================ */
+
+.notification-templates--redesigned .notification-template-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--color-border-default);
+  margin-bottom: 20px;
+}
+
+.notification-templates--redesigned .notification-template-header h2 {
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.notification-templates--redesigned .notification-template-header p {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.notification-templates--redesigned .notification-template-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notification-templates--redesigned .notification-template-card legend {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  padding: 0;
+}
+
+.notification-templates--redesigned .notification-template-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notification-templates--redesigned .notification-template-card input,
+.notification-templates--redesigned .notification-template-card textarea {
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+}
+
+.notification-templates--redesigned .notification-template-card small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.notification-templates--redesigned .form-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.notification-templates--redesigned .form-row button {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.notification-templates--redesigned .form-row button:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-accent-light);
+}
+
+/* ============================================
+   EMAIL TEMPLATES MODULE (REDESIGNED)
+   ============================================ */
+
+.email-templates--redesigned .notification-template-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--color-border-default);
+  margin-bottom: 20px;
+}
+
+.email-templates--redesigned .notification-template-header h2 {
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.email-templates--redesigned .notification-template-header p {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.email-templates--redesigned .notification-template-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ============================================
+   LOYALTY MODULE (REDESIGNED)
+   ============================================ */
+
+.loyalty-module--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.loyalty-module--redesigned .loyalty-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.loyalty-module--redesigned .loyalty-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.2s ease-in-out;
+}
+
+.loyalty-module--redesigned .loyalty-card:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.08);
+}
+
+.loyalty-module--redesigned .loyalty-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.loyalty-module--redesigned .loyalty-card-header strong {
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.loyalty-module--redesigned .loyalty-card-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.loyalty-module--redesigned .loyalty-card-summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.loyalty-module--redesigned .loyalty-card-summary-item:last-child {
+  border-bottom: none;
+}
+
+.loyalty-module--redesigned .loyalty-card-summary-item label {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.loyalty-module--redesigned .loyalty-card-summary-item value {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.loyalty-module--redesigned .loyalty-form {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loyalty-module--redesigned .loyalty-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.loyalty-module--redesigned .loyalty-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.loyalty-module--redesigned .loyalty-form input,
+.loyalty-module--redesigned .loyalty-form select {
+  padding: 10px 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.loyalty-module--redesigned .ds-switch-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+/* ============================================
+   MY COMMISSIONS MODULE (REDESIGNED)
+   ============================================ */
+
+.my-commissions--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.my-commissions--redesigned .ds-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.my-commissions--redesigned .ds-stat-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-commissions--redesigned .app-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.my-commissions--redesigned .platform-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.my-commissions--redesigned .platform-table thead {
+  border-bottom: 2px solid var(--color-border-default);
+}
+
+.my-commissions--redesigned .platform-table th {
+  padding: 12px;
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.my-commissions--redesigned .platform-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+}
+
+.my-commissions--redesigned .platform-table tbody tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+/* ============================================
+   COUPONS MODULE (REDESIGNED)
+   ============================================ */
+
+.coupon-module--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.coupon-module--redesigned .module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.coupon-module--redesigned .module-header > div:first-child {
+  flex: 1;
+}
+
+.coupon-module--redesigned .module-header .eyebrow {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+}
+
+.coupon-module--redesigned .module-header h3 {
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.coupon-module--redesigned .module-header > div:first-child > p {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.coupon-module--redesigned .coupon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.coupon-module--redesigned .coupon-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+.coupon-module--redesigned .coupon-item:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.coupon-module--redesigned .coupon-item > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.coupon-module--redesigned .coupon-item strong {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.coupon-module--redesigned .coupon-item > div > span:first-of-type {
+  color: var(--color-accent-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.coupon-module--redesigned .coupon-item small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.coupon-module--redesigned .status-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.coupon-module--redesigned .status-active {
+  background: rgba(76, 175, 80, 0.1);
+  color: var(--color-success);
+}
+
+.coupon-module--redesigned .status-muted {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+.coupon-module--redesigned .empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  background: var(--color-bg-secondary);
+  border-radius: 12px;
+  border: 2px dashed var(--color-border-default);
+}
+
+.coupon-module--redesigned .empty-state strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.coupon-module--redesigned .empty-state span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.coupon-module--redesigned .app-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 100%;
+  max-width: 500px;
+  height: 100vh;
+  background: var(--color-bg-primary);
+  border-left: 1px solid var(--color-border-default);
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.coupon-module--redesigned .drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.coupon-module--redesigned .drawer-header > div {
+  flex: 1;
+}
+
+.coupon-module--redesigned .drawer-header .eyebrow {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+}
+
+.coupon-module--redesigned .drawer-header h4 {
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.coupon-module--redesigned .app-drawer > label {
+  padding: 0 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coupon-module--redesigned .app-drawer input,
+.coupon-module--redesigned .app-drawer select {
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 768px) {
+  .recovery-page--redesigned .data-row {
+    grid-template-columns: 40px 1fr;
+    gap: 12px;
+  }
+
+  .recovery-page--redesigned .data-row > :nth-child(3),
+  .recovery-page--redesigned .data-row > :nth-child(4),
+  .recovery-page--redesigned .data-row > :nth-child(5) {
+    grid-column: 1 / -1;
+  }
+
+  .notification-campaign--redesigned .notification-campaign-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-campaign--redesigned .notification-campaign-field-wide {
+    grid-column: auto;
+  }
+
+  .notification-campaign--redesigned .campaign-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-campaign--redesigned .campaign-list article > div:last-child {
+    align-items: flex-start;
+  }
+
+  .notification-campaign--redesigned .ds-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coupon-module--redesigned .coupon-item {
+    grid-template-columns: 1fr;
+  }
+
+  .coupon-module--redesigned .module-header {
+    flex-direction: column;
+  }
+
+  .coupon-module--redesigned .app-drawer {
+    max-width: 100%;
+  }
+
+  .notification-templates--redesigned .notification-template-card,
+  .email-templates--redesigned .notification-template-card {
+    padding: 16px;
+  }
+
+  .loyalty-module--redesigned .loyalty-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .loyalty-module--redesigned .loyalty-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .my-commissions--redesigned .ds-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}

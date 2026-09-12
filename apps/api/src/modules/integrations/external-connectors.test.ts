@@ -31,10 +31,8 @@ describe('external integration security', () => {
     expect(
       UpsertWhatsAppConfigSchema.safeParse({
         active: true,
-        phoneNumberId: '1',
-        businessAccountId: '2',
-        accessToken: 'short',
-        apiVersion: 'v23.0',
+        instanceId: 'instance-1',
+        token: 'short',
       }).success,
     ).toBe(false);
   });

@@ -13,13 +13,39 @@ export const NotificationKinds = [
   'appointment.booking_confirmed',
   'appointment.booking_canceled',
   'appointment.reminder',
+  'appointment.day_before_reminder',
+  'appointment.upcoming_reminder',
   'customer.recovery.inactive',
   'customer.recovery.canceled',
   'customer.recovery.no_show',
   'customer.recovery.post_service',
   'customer.recovery.birthday',
+  'treatment_plan.quote_ready',
+  'treatment_plan.approved',
 ] as const;
 export const NotificationKindSchema = z.enum(NotificationKinds);
+
+/**
+ * Notificações transacionais: fazem parte do próprio serviço contratado
+ * (o agendamento) e por isso não dependem de opt-in de comunicação. Toda a
+ * classificação vive aqui — nenhum canal decide isso por conta própria.
+ * O que não estiver nesta lista é marketing/automação e continua exigindo
+ * `acceptsCommunications`.
+ */
+export const TransactionalNotificationKinds = [
+  'appointment.booking_confirmed',
+  'appointment.booking_canceled',
+  'appointment.reminder',
+  'appointment.day_before_reminder',
+  'appointment.upcoming_reminder',
+  // Orçamento e aprovação fazem parte do atendimento contratado.
+  'treatment_plan.quote_ready',
+  'treatment_plan.approved',
+] as const satisfies readonly (typeof NotificationKinds)[number][];
+
+export function isTransactionalNotification(kind: string): boolean {
+  return (TransactionalNotificationKinds as readonly string[]).includes(kind);
+}
 
 export const NotificationLogPublicSchema = z.object({
   publicId: z.uuid(),
@@ -57,3 +83,54 @@ export const NotificationListResponseSchema = z.object({
 
 export type NotificationLogPublic = z.infer<typeof NotificationLogPublicSchema>;
 export type NotificationListQuery = z.infer<typeof NotificationListQuerySchema>;
+
+export const CampaignAudienceSchema = z.enum(['CUSTOMERS', 'PROFESSIONALS']);
+export const CampaignRecipientModeSchema = z.enum(['ALL', 'SELECTED']);
+export const CreateNotificationCampaignRequestSchema = z
+  .object({
+    audience: CampaignAudienceSchema,
+    recipientMode: CampaignRecipientModeSchema,
+    recipientPublicIds: z.array(z.uuid()).max(500).default([]),
+    idempotencyKey: z.uuid(),
+    channel: z.enum(['PUSH', 'WHATSAPP']),
+    title: z.string().trim().min(1).max(160).optional(),
+    message: z.string().trim().min(1).max(4000),
+    whatsappRiskAcknowledged: z.boolean().default(false),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.recipientMode === 'SELECTED' && value.recipientPublicIds.length === 0)
+      context.addIssue({
+        code: 'custom',
+        path: ['recipientPublicIds'],
+        message: 'Selecione ao menos uma pessoa.',
+      });
+    if (value.channel === 'PUSH' && (value.title?.trim() ?? '') === '')
+      context.addIssue({
+        code: 'custom',
+        path: ['title'],
+        message: 'Informe um título para a notificação push.',
+      });
+  });
+
+export const NotificationCampaignSummarySchema = z.object({
+  publicId: z.uuid(),
+  audience: CampaignAudienceSchema,
+  channel: z.enum(['PUSH', 'WHATSAPP']),
+  title: z.string(),
+  message: z.string(),
+  status: z.enum(['QUEUED', 'PROCESSING', 'COMPLETED', 'FAILED']),
+  recipientCount: z.number().int().nonnegative(),
+  eligibleCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+  deliveryCount: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  sent: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+export const NotificationCampaignListResponseSchema = z.object({
+  items: z.array(NotificationCampaignSummarySchema),
+});
+export type NotificationCampaignSummary = z.infer<typeof NotificationCampaignSummarySchema>;

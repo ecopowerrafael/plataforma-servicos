@@ -47,6 +47,7 @@ describe.skipIf(url === undefined)(
       DATABASE_URL: dbUrl,
       CORS_ORIGINS: ['http://127.0.0.1:5174'],
       LOG_LEVEL: 'silent',
+      OBSERVABILITY_SLOW_REQUEST_MS: 1_000,
       APP_WEB_URL: 'http://127.0.0.1:5174',
       AUTH_COOKIE_NAME: 'ps_session',
       AUTH_SESSION_TTL_HOURS: 24,

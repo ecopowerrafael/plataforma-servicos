@@ -1,147 +1,30 @@
-import { TenantSubscriptionResponseSchema } from '@plataforma/shared';
-import { useQuery } from '@tanstack/react-query';
-
+import { PlatformPaymentProviderSchema, PlatformSubscriptionBillingSchema, SubscriptionChangePreviewSchema, TenantSubscriptionResponseSchema, type PlatformPaymentProvider } from '@plataforma/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { z } from 'zod';
+import { HttpError } from '../../lib/http.js';
 import { httpClient } from '../../lib/http.js';
-
-const statusLabels: Record<string, string> = {
-  TRIALING: 'Em teste',
-  ACTIVE: 'Ativa',
-  PAST_DUE: 'Pagamento pendente',
-  SUSPENDED: 'Suspensa',
-  CANCELED: 'Cancelada',
-  EXPIRED: 'Expirada',
-};
-
-const cycleLabels: Record<string, string> = {
-  MONTHLY: 'Mensal',
-  YEARLY: 'Anual',
-};
-
-const commercialStateLabels: Record<string, string> = {
-  TRIALING: 'Período de teste',
-  ACTIVE: 'Ativa',
-  PAST_DUE: 'Vencida',
-  GRACE: 'Em carência',
-  SUSPENDED: 'Suspensa',
-  CANCELED: 'Cancelada',
-  EXPIRED: 'Expirada',
-};
-
-const formatMoney = (cents: string, currency: string) =>
-  `${currency} ${(Number(cents) / 100).toFixed(2)}`;
-
-const formatDate = (value: string) => new Date(value).toLocaleDateString('pt-BR');
-
-const limitLabels: Record<string, string> = {
-  'units.max': 'Unidades',
-  'members.max': 'Membros',
-  'professionals.max': 'Profissionais',
-  'monthly_appointments.max': 'Agendamentos por mês',
-  'storage.megabytes': 'Armazenamento (MB)',
-  'branding.customization.enabled': 'Personalização de marca',
-  'custom_domain.enabled': 'Domínio próprio',
-  'advanced_reports.enabled': 'Relatórios avançados',
-  'priority_support.enabled': 'Suporte prioritário',
-};
-
-const formatLimitValue = (limit: {
-  valueType: 'INTEGER' | 'BOOLEAN' | 'STRING';
-  integerValue: string | null;
-  booleanValue: boolean | null;
-  stringValue: string | null;
-}) => {
-  if (limit.valueType === 'INTEGER') return limit.integerValue ?? 'Ilimitado';
-  if (limit.valueType === 'BOOLEAN') return limit.booleanValue === true ? 'Sim' : 'Não';
-  return limit.stringValue ?? '—';
-};
-
+import { usePublicPlans } from '../../marketing/use-public-plans.js';
+import { InlineAlert, ListSkeleton, PageHeader } from '../ui/AppUi.js';
+import { GatewayPaymentSelector } from './components/GatewayPaymentSelector.js';
+import { IncludedFeaturesList } from './components/IncludedFeaturesList.js';
+import { InvoicesHistoryTable } from './components/InvoicesHistoryTable.js';
+import { PlanUpgradeCards } from './components/PlanUpgradeCards.js';
+import { PlanUsageTracker } from './components/PlanUsageTracker.js';
+import { SubscriptionStatusHero } from './components/SubscriptionStatusHero.js';
+import '../../styles/settings.css'; import '../../styles/subscriptions-additional.css';
+const date = (v: string | null) => v ? new Date(v).toLocaleDateString('pt-BR') : '—';
+const normalizeBillingProvider = (provider: string): PlatformPaymentProvider | null => PlatformPaymentProviderSchema.safeParse(provider).success ? provider as PlatformPaymentProvider : null;
 export function TenantSubscriptionModule({ tenantPublicId }: { tenantPublicId: string }) {
-  const query = useQuery({
-    queryKey: ['tenant', tenantPublicId, 'subscription'],
-    queryFn: () =>
-      httpClient.request('/tenant/subscription', {
-        schema: TenantSubscriptionResponseSchema,
-        tenantPublicId,
-      }),
-    retry: false,
-  });
-
-  return (
-    <section className="platform-form" aria-label="Plano e assinatura">
-      <h3>Plano e assinatura</h3>
-      {query.isPending ? <p>Carregando…</p> : null}
-      {query.error instanceof Error ? (
-        <p className="form-error">Não foi possível carregar o plano e a assinatura.</p>
-      ) : null}
-      {query.data !== undefined && (
-        <>
-          <p>
-            <strong>Plano:</strong> {query.data.plan.name}
-          </p>
-          <p>
-            <strong>Status:</strong>{' '}
-            {statusLabels[query.data.subscription.status] ?? query.data.subscription.status}
-          </p>
-          <p>
-            <strong>Ciclo:</strong>{' '}
-            {cycleLabels[query.data.subscription.billingCycle] ??
-              query.data.subscription.billingCycle}
-          </p>
-          <p>
-            <strong>Preço:</strong>{' '}
-            {formatMoney(query.data.subscription.priceCents, query.data.subscription.currency)}
-          </p>
-          <p>
-            <strong>Início:</strong> {formatDate(query.data.subscription.startsAt)}
-          </p>
-          {query.data.subscription.trialEndsAt !== null && (
-            <p>
-              <strong>Teste até:</strong> {formatDate(query.data.subscription.trialEndsAt)}
-            </p>
-          )}
-          <p>
-            <strong>Próximo período até:</strong>{' '}
-            {formatDate(query.data.subscription.currentPeriodEndsAt)}
-          </p>
-
-          {query.data.commercial.state !== 'TRIALING' && query.data.commercial.state !== 'ACTIVE' && (
-            <p className="form-error" role="alert">
-              {query.data.commercial.adminMessage ??
-                'Sua assinatura precisa de atenção. Entre em contato com o suporte.'}
-            </p>
-          )}
-          <p>
-            <strong>Situação comercial:</strong>{' '}
-            {commercialStateLabels[query.data.commercial.state] ?? query.data.commercial.state}
-          </p>
-          {query.data.commercial.state === 'TRIALING' &&
-            query.data.commercial.trialDaysRemaining !== null && (
-              <p>
-                <strong>Teste:</strong> {`Faltam ${String(query.data.commercial.trialDaysRemaining)} dias de teste`}
-              </p>
-            )}
-          {query.data.commercial.currentPeriodEndsAt !== null && (
-            <p>
-              <strong>Vencimento:</strong> {formatDate(query.data.commercial.currentPeriodEndsAt)}
-            </p>
-          )}
-          {query.data.commercial.graceEndsAt !== null && (
-            <p>
-              <strong>Carência até:</strong> {formatDate(query.data.commercial.graceEndsAt)}
-            </p>
-          )}
-
-          <h4>Limites do plano</h4>
-          <ul>
-            {query.data.limits.map((limit) => (
-              <li key={limit.key}>
-                <strong>{limitLabels[limit.key] ?? limit.key}:</strong> {formatLimitValue(limit)}
-                {limit.usage !== null && ` — consumo atual: ${String(limit.usage)}`}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </section>
-  );
+  const client = useQueryClient(); const [selectedGateway, setSelectedGateway] = useState<string | null>(null); const [paymentOpen, setPaymentOpen] = useState(false); const [preview, setPreview] = useState<any>(null); const [feedback, setFeedback] = useState<string | null>(null);
+  const query = useQuery({ queryKey: ['tenant', tenantPublicId, 'subscription'], queryFn: () => httpClient.request('/tenant/subscription', { schema: TenantSubscriptionResponseSchema, tenantPublicId }), retry: false });
+  const billing = useQuery({ queryKey: ['tenant', tenantPublicId, 'subscription', 'billing'], queryFn: () => httpClient.request('/tenant/subscription/billing', { schema: PlatformSubscriptionBillingSchema, tenantPublicId }), retry: false }); const pendingChange = useQuery({ queryKey: ['tenant', tenantPublicId, 'subscription', 'change'], queryFn: () => httpClient.request('/tenant/subscription/changes/current', { schema: SubscriptionChangePreviewSchema.nullable(), tenantPublicId }), retry: false }); const plans = usePublicPlans();
+  const charge = useMutation({ mutationFn: async (rawProvider: string) => { const change = preview ?? pendingChange.data; if (!change?.changePublicId) throw new Error('Selecione uma alteração de plano pendente antes de gerar a cobrança.'); const provider = normalizeBillingProvider(rawProvider); if (!provider) throw new Error('Método de pagamento não suportado.'); if (provider === 'stripe') { const result = await httpClient.request('/tenant/billing/stripe/checkout', { method: 'POST', body: { changePublicId: change.changePublicId }, schema: z.object({ url: z.string().url().nullable() }), tenantPublicId }); if (!result.url) throw new Error('Não foi possível iniciar o checkout do Stripe.'); window.location.assign(result.url); return { kind: 'stripe' as const }; } const result = await httpClient.request(`/tenant/subscription/changes/${change.changePublicId}/charges`, { method: 'POST', body: { provider }, schema: z.object({ changePublicId: z.uuid(), provider: z.string(), externalId: z.string(), status: z.string(), amountCents: z.string(), currency: z.string(), pixCopyPaste: z.string().nullable() }), tenantPublicId }); return { kind: 'gateway' as const, result }; }, onSuccess: async (result) => { if (!result || result.kind === 'stripe') return; setFeedback('Pagamento iniciado. O novo plano será ativado após a confirmação.'); await client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'subscription', 'billing'] }); setPaymentOpen(false); } });
+  const previewChange = useMutation({ mutationFn: ({ planPublicId, billingCycle }: { planPublicId: string; billingCycle: string }) => httpClient.request('/tenant/subscription/change-request', { method: 'POST', body: { planPublicId, billingCycle }, schema: SubscriptionChangePreviewSchema, tenantPublicId }), onSuccess: result => { setPreview(result); void pendingChange.refetch(); if (result.status === 'APPLIED') void client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'subscription'] }); } });
+  const cancelChange = useMutation({ mutationFn: (changePublicId: string) => httpClient.request(`/tenant/subscription/changes/${changePublicId}/cancel`, { method: 'POST', schema: z.object({ status: z.literal('CANCELED'), publicId: z.uuid() }), tenantPublicId }), onSuccess: async () => { await pendingChange.refetch(); setFeedback('Alteração cancelada.'); } });
+  const changeError = previewChange.error instanceof HttpError && previewChange.error.code === 'SUBSCRIPTION_CHANGE_ALREADY_PENDING' ? 'Já existe uma alteração de plano aguardando conclusão.' : previewChange.error instanceof HttpError ? previewChange.error.message : previewChange.error instanceof Error ? previewChange.error.message : null;
+  if (query.isPending) return <div className="ds-stack"><PageHeader eyebrow="Assinatura" title="Minha assinatura" description="Gerencie seu plano, pagamentos e consumo." /><ListSkeleton rows={4} /></div>;
+  const data = query.data; if (!data) return <div className="ds-stack"><InlineAlert tone="danger" title="Não foi possível carregar sua assinatura" action={<button type="button" onClick={() => void query.refetch()}>Tentar novamente</button>}>Verifique sua conexão e tente novamente.</InlineAlert></div>;
+  const latestCharge = billing.data?.latestCharge;
+  return <div className="ds-stack tenant-subscription--redesigned"><PageHeader eyebrow="Assinatura" title="Gestão de billing" description="Tudo o que você precisa para acompanhar seu plano e manter sua operação ativa." /><SubscriptionStatusHero plan={data.plan} subscription={data.subscription} commercial={data.commercial} onPay={() => { setPaymentOpen(true); setSelectedGateway(billing.data?.methods[0] ?? null); }} />{changeError && <InlineAlert tone="danger" title={changeError} />}{pendingChange.data && <section className="app-card"><h3>{pendingChange.data.status === 'SCHEDULED' ? 'Alteração agendada' : 'Você possui uma alteração de plano aguardando pagamento.'}</h3><p>{pendingChange.data.currentPlan.name} → {pendingChange.data.targetPlan.name}</p><p>Preço do novo período: {(Number(pendingChange.data.targetPlan.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: pendingChange.data.targetPlan.currency })}</p><p>Crédito disponível: {(Number(pendingChange.data.unusedCreditCents ?? '0') / 100).toLocaleString('pt-BR', { style: 'currency', currency: pendingChange.data.targetPlan.currency })}</p><p>Total a pagar: {(Number(pendingChange.data.amountDueCents ?? '0') / 100).toLocaleString('pt-BR', { style: 'currency', currency: pendingChange.data.targetPlan.currency })}</p>{pendingChange.data.status === 'SCHEDULED' && <p>Seu plano atual continua ativo até {date(pendingChange.data.effectiveAt)}.</p>}{pendingChange.data.status === 'PENDING_PAYMENT' && <button type="button" onClick={() => { setPreview(pendingChange.data); setPaymentOpen(true); setSelectedGateway(billing.data?.methods[0] ?? null); }}>Continuar pagamento</button>}<button type="button" onClick={() => void cancelChange.mutate(pendingChange.data!.changePublicId!)} disabled={cancelChange.isPending}>{cancelChange.isPending ? 'Cancelando…' : pendingChange.data.status === 'SCHEDULED' ? 'Cancelar alteração agendada' : 'Cancelar alteração'}</button></section>}{charge.error instanceof Error && <InlineAlert tone="danger" title={charge.error.message} />}{paymentOpen && <GatewayPaymentSelector methods={billing.data?.methods ?? []} selected={selectedGateway} onSelect={setSelectedGateway} onPay={() => selectedGateway && void charge.mutate(selectedGateway)} busy={charge.isPending} />}{feedback && <InlineAlert tone="info" title={feedback} />}<PlanUsageTracker limits={data.limits} onUpgrade={() => document.querySelector('.plans-grid')?.scrollIntoView({ behavior: 'smooth' })} /><IncludedFeaturesList limits={data.limits} /><PlanUpgradeCards plans={plans.data?.plans ?? []} currentId={data.plan.publicId} currentBillingCycle={data.subscription.billingCycle as 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL'} onSelect={(id, billingCycle) => { if (pendingChange.data) { setFeedback('Cancele a alteração pendente antes de escolher outro plano.'); return; } void previewChange.mutate({ planPublicId: id, billingCycle }); }} /><InvoicesHistoryTable charge={latestCharge} onPay={() => setPaymentOpen(true)} />{preview && <div className="app-modal-backdrop" role="presentation"><section className="app-modal" role="dialog" aria-modal="true"><h2>{preview.changeType === 'UPGRADE' ? `Alterar para ${preview.targetPlan.name}?` : `Alteração agendada para ${preview.targetPlan.name}`}</h2><p>Preço do novo período: {(Number(preview.targetPlan.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: preview.targetPlan.currency || 'BRL' })}</p><p>Crédito não utilizado: {preview.unusedCreditCents ? `-${(Number(preview.unusedCreditCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: preview.targetPlan.currency || 'BRL' })}` : 'não disponível'}</p><p>Total a pagar agora: {preview.amountDueCents ? (Number(preview.amountDueCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: preview.targetPlan.currency || 'BRL' }) : 'sem cobrança'}</p><p>{preview.changeType === 'UPGRADE' ? 'Seu novo plano será ativado após a confirmação do pagamento.' : `Seu plano atual continuará ativo até ${date(preview.effectiveAt)}.`}</p>{preview.amountDueCents !== '0' && preview.status !== 'APPLIED' && <button type="button" onClick={() => { setPaymentOpen(true); setSelectedGateway(billing.data?.methods[0] ?? null); }}>Continuar para pagamento</button>}<button type="button" onClick={() => setPreview(null)}>Fechar</button></section></div>}</div>;
 }

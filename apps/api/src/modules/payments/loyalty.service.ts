@@ -12,6 +12,7 @@ import {
 import { type CouponService } from './coupon.service.js';
 import { Prisma, type LoyaltyRule, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
   userId: bigint | null;
@@ -71,6 +72,7 @@ export class LoyaltyService {
     private readonly client: PrismaClient,
     private readonly coupons?: CouponService,
   ) {}
+  private assertEnabled(tenantId: bigint) { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'loyalty.enabled'); }
 
   /**
    * Lista as regras de fidelidade do tenant (pontos e cashback), provisionando as duas na
@@ -78,6 +80,7 @@ export class LoyaltyService {
    * usado em PaymentMethodService.list()/CustomerRecoveryRepository.ensureRules().
    */
   public async listRules(tenantId: bigint) {
+    await this.assertEnabled(tenantId);
     await this.client.loyaltyRule
       .createMany({
         data: LOYALTY_TYPES.map((type) => ({
@@ -106,6 +109,7 @@ export class LoyaltyService {
     input: UpsertLoyaltyRuleRequest,
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId);
     const rule = await this.client.loyaltyRule.upsert({
       where: { tenantId_type: { tenantId, type } },
       create: {
@@ -282,6 +286,7 @@ export class LoyaltyService {
   }
 
   public async accountSummary(tenantId: bigint, customerId: bigint) {
+    await this.assertEnabled(tenantId);
     const [pointsBalance, cashbackBalance, recentEntries] = await Promise.all([
       this.balance(tenantId, customerId, 'POINTS'),
       this.balance(tenantId, customerId, 'CASHBACK'),
@@ -316,6 +321,7 @@ export class LoyaltyService {
   }
 
   public async listForAppointment(tenantId: bigint, appointmentPublicId: string) {
+    await this.assertEnabled(tenantId);
     const items = await this.client.loyaltyLedgerEntry.findMany({
       where: { tenantId, sourceAppointment: { publicId: appointmentPublicId } },
       orderBy: { createdAt: 'desc' },
@@ -336,6 +342,7 @@ export class LoyaltyService {
     amount: bigint,
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId);
     const appointment = await this.client.appointment.findFirst({
       where: { tenantId, publicId: appointmentPublicId },
       select: { id: true, customerId: true, priceCents: true, status: true },

@@ -1,17 +1,21 @@
 import {
   type AvailabilityQuery,
+  type AvailableDatesQuery,
   type CreatePublicBookingRequest,
   PublicBookingConfirmationSchema,
   PublicServiceProfessionalsResponseSchema,
+  PublicProfessionalServicesResponseSchema,
 } from '@plataforma/shared';
 
+import { AppError } from '../../errors/AppError.js';
+import { isProfessionalEligibleForCombo } from '../combos/combo-eligibility.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type CustomerService } from '../customers/customer.service.js';
+import { type AppointmentNotificationService } from '../notifications/appointment-notification.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { type TenantWhiteLabelRepository } from '../tenants/tenant-white-label.repository.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
-import { AppError } from '../../errors/AppError.js';
 
 function tenantNotFound(): AppError {
   return new AppError({
@@ -29,6 +33,7 @@ export class PublicBookingService {
     private readonly customers: CustomerService,
     private readonly appointments: AppointmentService,
     private readonly slots: AvailabilityService,
+    private readonly notifications?: AppointmentNotificationService,
   ) {}
 
   private async resolveTenant(slug: string) {
@@ -58,9 +63,142 @@ export class PublicBookingService {
     });
   }
 
+  public async professionalsForCombo(slug: string, comboPublicId: string) {
+    const tenant = await this.resolveTenant(slug);
+    const site = await this.whiteLabel.publicSite(slug);
+    const combo = site.combos.find((item) => item.publicId === comboPublicId);
+    if (combo === undefined) {
+      throw new AppError({
+        code: 'COMBO_NOT_FOUND',
+        message: 'Combo não encontrado.',
+        statusCode: 404,
+      });
+    }
+
+    // Get service IDs from combo items
+    const servicePublicIds = combo.items.map((item) => item.servicePublicId);
+
+    // Get links for all services in the combo
+    const allLinks = await Promise.all(
+      servicePublicIds.map((serviceId) =>
+        this.professionalServices.listService(tenant.id, serviceId),
+      ),
+    );
+
+    // Professional is eligible only if they have active links to ALL services
+    const linksByService = new Map(
+      servicePublicIds.map((serviceId, index) => [
+        serviceId,
+        new Set(
+          (allLinks[index]?.items ?? [])
+            .filter((link) => link.active)
+            .map((link) => link.professionalPublicId),
+        ),
+      ]),
+    );
+
+    const eligibleProfessionals = site.professionals.filter((professional) =>
+      servicePublicIds.every((serviceId) =>
+        linksByService.get(serviceId)?.has(professional.publicId),
+      ),
+    );
+
+    return PublicServiceProfessionalsResponseSchema.parse({
+      professionals: eligibleProfessionals.map((professional) => ({
+        publicId: professional.publicId,
+        name: professional.name,
+        bio: professional.bio,
+        photoUrl: professional.photoUrl,
+      })),
+    });
+  }
+
+  public async servicesForProfessional(slug: string, professionalPublicId: string) {
+    const tenant = await this.resolveTenant(slug);
+    const [links, site] = await Promise.all([
+      this.professionalServices.listProfessional(tenant.id, professionalPublicId),
+      this.whiteLabel.publicSite(slug),
+    ]);
+    const eligible = new Set(
+      links.items.filter((link) => link.active).map((link) => link.servicePublicId),
+    );
+
+    // Get services for professional
+    const services = site.services
+      .filter((service) => eligible.has(service.publicId))
+      .map((service) => ({
+        publicId: service.publicId,
+        name: service.name,
+        description: service.description,
+        imageUrl: service.imageUrl,
+        iconKey: service.iconKey,
+        priceCents: service.priceCents,
+        pricingMode: service.pricingMode,
+        quoteNotice: service.quoteNotice,
+        durationMinutes: service.durationMinutes,
+      }));
+
+    // Get eligible combos: professional must have ALL services in combo
+    // (site.combos already filtered to active only by whiteLabel.publicSite)
+    const combos = site.combos.filter((combo) =>
+      isProfessionalEligibleForCombo(
+        eligible,
+        combo.items.map((item) => item.servicePublicId),
+      ),
+    )
+      .map((combo) => ({
+        publicId: combo.publicId,
+        name: combo.name,
+        description: combo.description,
+        imageAlt: combo.imageAlt,
+        imageUrl: combo.imageUrl,
+        priceCents: combo.priceCents,
+        sortOrder: combo.sortOrder,
+        items: combo.items,
+        durationMinutes: combo.durationMinutes,
+      }));
+
+    return PublicProfessionalServicesResponseSchema.parse({
+      services,
+      combos,
+    });
+  }
+
   public async availability(slug: string, query: AvailabilityQuery) {
     const tenant = await this.resolveTenant(slug);
     return this.slots.available(tenant.id, query);
+  }
+
+  public async availableDates(slug: string, query: AvailableDatesQuery) {
+    const tenant = await this.resolveTenant(slug);
+    const fromDate = new Date(`${query.from}T00:00:00.000Z`);
+    const toDate = new Date(`${query.to}T00:00:00.000Z`);
+    const dates: string[] = [];
+    const currentDate = new Date(fromDate);
+
+    while (currentDate <= toDate) {
+      const isoDate = currentDate.toISOString().split('T')[0];
+      if (isoDate === undefined) break;
+      try {
+        const result = await this.slots.available(tenant.id, {
+          servicePublicId: query.servicePublicId,
+          comboPublicId: query.comboPublicId,
+          professionalPublicId: query.professionalPublicId,
+          unitPublicId: query.unitPublicId,
+          date: isoDate,
+        });
+        const hasAvailable = result.slots.some((slot) => slot.state === 'AVAILABLE');
+        if (hasAvailable) {
+          dates.push(isoDate);
+        }
+      } catch {
+        // Date not available due to error (e.g., professional inactive, combo invalid)
+        // Skip this date
+      }
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    }
+
+    return { dates };
   }
 
   public async createBooking(slug: string, input: CreatePublicBookingRequest) {
@@ -70,12 +208,15 @@ export class PublicBookingService {
       phone: input.customer.phone ?? null,
       email: input.customer.email ?? null,
     });
+
+    // Pass through discriminated input (service or combo, never both)
     const appointment = await this.appointments.create(
       tenant.id,
       {
         customerPublicId: customer.publicId,
         professionalPublicId: input.professionalPublicId,
         servicePublicId: input.servicePublicId,
+        comboPublicId: input.comboPublicId,
         unitPublicId: input.unitPublicId ?? undefined,
         startsAt: input.startsAt,
         notes: input.notes ?? undefined,
@@ -83,6 +224,14 @@ export class PublicBookingService {
       },
       { userId: null, sessionId: null },
     );
+    // O agendamento pelo site público notifica o cliente pelo mesmo caminho da
+    // criação interna; falhar aqui não pode desfazer um agendamento já criado.
+    try {
+      await this.notifications?.notifyBookingConfirmed(tenant.id, appointment);
+    } catch {
+      /* a fila de notificações registra o próprio erro */
+    }
+
     return PublicBookingConfirmationSchema.parse({
       protocol: appointment.protocol,
       appointmentPublicId: appointment.publicId,
@@ -90,6 +239,7 @@ export class PublicBookingService {
       startsAt: appointment.startsAt,
       endsAt: appointment.endsAt,
       serviceName: appointment.serviceName,
+      comboName: appointment.comboName,
       professionalName: appointment.professionalName,
       unitName: appointment.unitName,
       customerName: appointment.customerName,

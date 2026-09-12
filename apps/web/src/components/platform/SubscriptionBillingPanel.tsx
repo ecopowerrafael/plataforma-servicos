@@ -1,0 +1,110 @@
+import {
+  PlatformChargeResponseSchema,
+  PlatformSubscriptionBillingSchema,
+} from '@plataforma/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { formatDate, formatMoney, StatusBadge } from './PlatformUi.js';
+import { httpClient } from '../../lib/http.js';
+
+export function SubscriptionBillingPanel({
+  subscriptionPublicId,
+}: {
+  subscriptionPublicId: string;
+}) {
+  const client = useQueryClient();
+  const query = useQuery({
+    queryKey: ['platform', 'subscription', subscriptionPublicId, 'billing'],
+    queryFn: () =>
+      httpClient.request(`/platform/subscriptions/${subscriptionPublicId}/billing`, {
+        schema: PlatformSubscriptionBillingSchema,
+      }),
+    retry: false,
+  });
+  const create = useMutation({
+    mutationFn: (provider: 'pix-local' | 'mercadopago' | 'stripe') =>
+      httpClient.request(`/platform/subscriptions/${subscriptionPublicId}/charges`, {
+        method: 'POST',
+        body: { provider },
+        schema: PlatformChargeResponseSchema,
+      }),
+    onSuccess: async () => {
+      await client.invalidateQueries({
+        queryKey: ['platform', 'subscription', subscriptionPublicId, 'billing'],
+      });
+    },
+  });
+  const charge = create.data?.charge ?? query.data?.latestCharge;
+  return (
+    <section className="platform-panel">
+      <h4>COBRANÇA</h4>
+      {query.isPending ? (
+        <i className="platform-skeleton" />
+      ) : query.error instanceof Error ? (
+        <p className="form-error">{query.error.message}</p>
+      ) : (
+        <>
+          {charge ? (
+            <dl className="platform-details">
+              <div>
+                <dt>Método</dt>
+                <dd>{charge.provider === 'pix-local' ? 'PIX' : 'Mercado Pago'}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  <StatusBadge value={charge.status} />
+                </dd>
+              </div>
+              <div>
+                <dt>Valor</dt>
+                <dd>{formatMoney(charge.amountCents, charge.currency)}</dd>
+              </div>
+              <div>
+                <dt>Criada em</dt>
+                <dd>{formatDate(charge.createdAt, true)}</dd>
+              </div>
+              <div>
+                <dt>Paga em</dt>
+                <dd>{charge.paidAt ? formatDate(charge.paidAt, true) : '—'}</dd>
+              </div>
+              <div>
+                <dt>Referência</dt>
+                <dd className="platform-billing-reference">
+                  <span>{charge.externalId ?? '—'}</span>
+                  {charge.externalId ? (
+                    <button
+                      type="button"
+                      aria-label="Copiar referência do gateway"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(charge.externalId ?? '');
+                      }}
+                    >
+                      Copiar
+                    </button>
+                  ) : null}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p>Nenhuma cobrança gerada.</p>
+          )}
+          <div className="form-actions">
+            {query.data?.methods.map((method) => (
+              <button
+                disabled={create.isPending}
+                key={method}
+                onClick={() => {
+                  void create.mutateAsync(method);
+                }}
+                type="button"
+              >
+                Gerar {method === 'pix-local' ? 'PIX' : method === 'stripe' ? 'Cartão' : 'Mercado Pago'}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}

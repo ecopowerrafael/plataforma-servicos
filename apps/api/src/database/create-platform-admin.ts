@@ -12,7 +12,7 @@ function readEmail(argumentsList: string[]): string {
 
 const environment = loadEnvironment();
 const email = readEmail(process.argv.slice(2));
-const database = createDatabaseConnection(environment.DATABASE_URL);
+const database = createDatabaseConnection(environment.DATABASE_URL, undefined, environment);
 
 try {
   if (database.platform === undefined)

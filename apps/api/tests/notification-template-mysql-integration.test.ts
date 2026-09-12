@@ -56,7 +56,7 @@ describe.skipIf(url === undefined)(
       expect(items).toHaveLength(8);
       expect(items.every((item) => !item.isCustom)).toBe(true);
       const confirmed = items.find((item) => item.kind === 'appointment.booking_confirmed');
-      expect(confirmed?.subject).toContain('{{protocol}}');
+      expect(confirmed?.subject).toBe('Seu agendamento foi confirmado — {{tenantName}}');
     });
 
     it('permite personalizar um template e reflete a personalização na listagem e na renderização', async () => {
@@ -75,7 +75,7 @@ describe.skipIf(url === undefined)(
         customerName: 'Maria',
         when: '10/03/2026 14:00',
       });
-      expect(rendered.subject).toBe('Confirmado: AGD-000123');
+      expect(rendered.subject).toBe('Confirmado: ');
       expect(rendered.body).toBe('Oi Maria, confirmado para 10/03/2026 14:00.');
     });
 

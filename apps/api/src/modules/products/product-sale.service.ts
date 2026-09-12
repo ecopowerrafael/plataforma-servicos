@@ -8,6 +8,7 @@ import { type ProductSaleRepository } from './product-sale.repository.js';
 import { type ProductRepository } from './product.repository.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 interface Actor {
   userId: bigint;
   sessionId: bigint;
@@ -18,6 +19,7 @@ export class ProductSaleService {
     private readonly repo: ProductSaleRepository,
     private readonly products: ProductRepository,
   ) {}
+  private async assertProducts(tenantId: bigint) { await new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'products.enabled'); }
   private pub(row: Awaited<ReturnType<ProductSaleRepository['list']>>[number]) {
     return ProductSalePublicSchema.parse({
       publicId: row.publicId,
@@ -44,16 +46,21 @@ export class ProductSaleService {
     t: bigint,
     q: {
       unitPublicId?: string | undefined;
+      productPublicId?: string | undefined;
       customerPublicId?: string | undefined;
       professionalPublicId?: string | undefined;
       from?: string | undefined;
       to?: string | undefined;
     },
   ) {
+    await this.assertProducts(t);
     return ProductSaleListResponseSchema.parse({
       items: (
         await this.repo.list(t, {
           ...(q.unitPublicId === undefined ? {} : { unit: { publicId: q.unitPublicId } }),
+          ...(q.productPublicId === undefined
+            ? {}
+            : { items: { some: { product: { publicId: q.productPublicId } } } }),
           ...(q.customerPublicId === undefined
             ? {}
             : { customer: { publicId: q.customerPublicId } }),
@@ -73,6 +80,7 @@ export class ProductSaleService {
     });
   }
   public async create(t: bigint, input: CreateProductSaleRequest, actor: Actor) {
+    await this.assertProducts(t);
     const [unit, customer, professional, paymentMethod] = await Promise.all([
       this.products.unit(t, input.unitPublicId),
       input.customerPublicId == null

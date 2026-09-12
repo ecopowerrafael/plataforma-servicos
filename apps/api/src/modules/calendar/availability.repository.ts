@@ -32,6 +32,35 @@ export class AvailabilityRepository {
       },
     });
   }
+  public tenant(tenantId: bigint, professionalPublicId: string) {
+    return this.client.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        timezone: true,
+        settings: {
+          select: {
+            defaultAppointmentIntervalMinutes: true,
+            minimumAdvanceMinutes: true,
+            maximumAdvanceDays: true,
+          },
+        },
+        professionals: {
+          where: { publicId: professionalPublicId },
+          select: { id: true, publicId: true, active: true },
+        },
+      },
+    });
+  }
+  public combo(tenantId: bigint, comboPublicId: string) {
+    return this.client.combo.findFirst({
+      where: { tenantId, publicId: comboPublicId },
+      include: {
+        items: {
+          include: { service: true },
+        },
+      },
+    });
+  }
   public link(tenantId: bigint, professionalId: bigint, serviceId: bigint) {
     return this.client.professionalService.findFirst({
       where: { tenantId, professionalId, serviceId },

@@ -13,6 +13,7 @@ interface Conversation {
   humanLockType?: string;
   lastInboundAt?: string;
   updatedAt: string;
+  contactPublicId?: string | null;
 }
 
 interface Message {
@@ -67,6 +68,7 @@ const conversationsResponseSchema = z.object({
     humanLockType: z.string().optional(),
     lastInboundAt: z.string().optional(),
     updatedAt: z.string(),
+    contactPublicId: z.string().nullable().optional(),
   })),
   pagination: z.object({
     page: z.number(),
@@ -119,6 +121,7 @@ export function ProspectingConversationsView() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [messageText, setMessageText] = useState('');
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   const conversations = useQuery({
     queryKey: ['prospecting', 'conversations', page, search],
@@ -183,6 +186,11 @@ export function ProspectingConversationsView() {
         queryKey: ['prospecting', 'messages', selectedLead?.publicId],
       });
     },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: () => httpClient.request('/platform/prospecting/test-tools/reset', { method: 'POST', body: { contactPublicId: selectedLead?.contactPublicId, scope: 'CONVERSATION', confirmation: 'REINICIAR' } }),
+    onSuccess: () => { setResetConfirm(false); void queryClient.invalidateQueries({ queryKey: ['prospecting'] }); setSelectedLead(null); },
   });
 
   const handleSendMessage = () => {
@@ -338,6 +346,7 @@ export function ProspectingConversationsView() {
 
               <section className="info-section">
                 <h4>Automação</h4>
+                {detail.data && selectedLead.contactPublicId && (resetConfirm ? <div><p>Encerrar a conversa atual e preservar todo o histórico?</p><button className="primary-button" onClick={() => void resetMutation.mutateAsync()} disabled={resetMutation.isPending}>{resetMutation.isPending ? 'Reiniciando...' : 'Confirmar reinício'}</button><button className="secondary-button" onClick={() => setResetConfirm(false)}>Cancelar</button></div> : <button className="secondary-button" onClick={() => setResetConfirm(true)}>Reiniciar atendimento</button>)}
                 {detail.data.humanLockType === 'MANUAL' ? (
                   <>
                     <p className="status-badge badge-manual">Atendimento manual</p>

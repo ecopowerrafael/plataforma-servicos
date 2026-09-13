@@ -235,7 +235,9 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     const body = request.body as { contactPublicId?: string; scope?: 'CONVERSATION' | 'CONVERSATION_AND_FLOW' | 'ALL_TEST_DATA'; confirmation?: string };
     if (!body.contactPublicId || !body.scope) throw new Error('contactPublicId e scope são obrigatórios');
     if (body.scope === 'ALL_TEST_DATA' && body.confirmation !== 'LIMPAR TESTES') throw new Error('Confirmação inválida');
-    const contact = await options.client.prospectingContact.findUnique({ where: { publicId: body.contactPublicId }, select: { id: true } });
+    const scope = body.scope;
+    const contactPublicId = body.contactPublicId;
+    const contact = await options.client.prospectingContact.findUnique({ where: { publicId: contactPublicId }, select: { id: true } });
     if (!contact) throw new Error('Contato não encontrado');
     return options.client.$transaction(async (tx) => {
       const conversations = await tx.prospectingConversation.findMany({ where: { contactId: contact.id, status: 'ACTIVE' }, select: { id: true, leadId: true } });
@@ -243,9 +245,9 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       const leadIds = conversations.flatMap((item) => item.leadId ? [item.leadId] : []);
       if (leadIds.length) {
         await tx.prospectingLead.updateMany({ where: { id: { in: leadIds }, humanLockType: 'INBOUND_REPLY' }, data: { humanLockType: null, humanLockUntil: null } });
-        if (body.scope !== 'CONVERSATION') await tx.prospectingFlowExecution.updateMany({ where: { leadId: { in: leadIds }, status: { in: ['WAITING', 'ACTIVE', 'MANUAL'] } }, data: { status: 'CANCELED' } });
+        if (scope !== 'CONVERSATION') await tx.prospectingFlowExecution.updateMany({ where: { leadId: { in: leadIds }, status: { in: ['WAITING', 'ACTIVE', 'MANUAL'] } }, data: { status: 'CANCELED' } });
       }
-      await tx.auditLog.create({ data: { publicId: randomUUID(), userId: request.platformAuth.user.id, sessionId: request.platformAuth.sessionId, action: 'prospecting.test_conversation_reset', targetType: 'prospecting_contact', targetPublicId: body.contactPublicId, metadata: { scope: body.scope, conversationsClosed: conversations.length, historyPreserved: true } } });
+      await tx.auditLog.create({ data: { publicId: randomUUID(), userId: request.platformAuth.user.id, sessionId: null, action: 'prospecting.test_conversation_reset', targetType: 'prospecting_contact', targetPublicId: contactPublicId, metadata: { scope, conversationsClosed: conversations.length, historyPreserved: true } } });
       return { success: true, conversationsClosed: conversations.length, historyPreserved: true };
     });
   });
@@ -633,6 +635,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
             publicId: true,
             nameSnapshot: true,
             phoneSnapshot: true,
+            normalizedPhone: true,
             status: true,
             campaign: { select: { publicId: true, name: true } },
             humanLockType: true,
@@ -644,8 +647,10 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         options.client.prospectingLead.count({ where }),
       ]);
 
+      const contactIds = await options.client.prospectingContact.findMany({ where: { normalizedPhone: { in: leads.map((lead) => lead.normalizedPhone) } }, select: { publicId: true, normalizedPhone: true } });
+      const contactByPhone = new Map(contactIds.map((contact) => [contact.normalizedPhone, contact.publicId]));
       return {
-        items: leads,
+        items: leads.map(({ normalizedPhone, ...lead }) => ({ ...lead, contactPublicId: contactByPhone.get(normalizedPhone) ?? null })),
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       };
     },

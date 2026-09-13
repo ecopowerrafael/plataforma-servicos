@@ -137,11 +137,11 @@ export class ProspectingWhatsAppConfigService {
       isActive: config.isActive,
       tokenMasked: this.maskToken(config.tokenCiphertext),
       configured: true,
-      attendantEnabled: config.attendantEnabled,
-      realtimeRepliesEnabled: config.realtimeRepliesEnabled,
+      attendantEnabled: config.attendantEnabled ?? true,
+      realtimeRepliesEnabled: config.realtimeRepliesEnabled ?? true,
     };
 
-    if (config.attendantFlowId !== null) result.attendantFlowId = String(config.attendantFlowId);
+    if (config.attendantFlowId != null) result.attendantFlowId = String(config.attendantFlowId);
     if (config.greetingMessage) result.greetingMessage = config.greetingMessage;
     if (config.fallbackMessage) result.fallbackMessage = config.fallbackMessage;
     if (config.mediaFallbackMessage) result.mediaFallbackMessage = config.mediaFallbackMessage;

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProspectingWhatsAppConfigService } from './prospecting-whatsapp-config.service.js';
-import { CredentialsCipher } from '../auth/credentials-cipher.js';
+import { CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 
 // Mock Prisma Client
 const mockClient = {

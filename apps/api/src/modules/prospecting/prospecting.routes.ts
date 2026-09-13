@@ -1357,6 +1357,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         isActive: flow.isActive,
         steps: flow.steps.map(s => ({
           publicId: s.publicId,
+          code: s.code,
           name: s.name,
           message: s.message,
           stepType: s.stepType,
@@ -1428,15 +1429,16 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   // Steps: CRUD
   app.post(
     '/platform/prospecting/flows/:flowPublicId/steps',
-    { schema: { params: z.object({ flowPublicId: z.uuid() }), body: z.object({ name: z.string().min(1), message: z.string().min(1), stepType: z.enum(['MESSAGE_OPTIONS', 'WAIT_TEXT', 'WAIT_LINK', 'MESSAGE_ONLY', 'MANUAL', 'END']), position: z.number().int(), isStart: z.boolean().optional() }) } },
+    { schema: { params: z.object({ flowPublicId: z.uuid() }), body: z.object({ name: z.string().min(1), code: z.string().regex(/^[A-Z0-9_]+$/u).optional(), message: z.string().min(1), stepType: z.enum(['MESSAGE_OPTIONS', 'WAIT_TEXT', 'WAIT_LINK', 'MESSAGE_ONLY', 'MANUAL', 'END']), position: z.number().int(), isStart: z.boolean().optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
       const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
       if (!flow) throw new Error('Flow not found');
       if (request.body.isStart) await options.client.prospectingFlowStep.updateMany({ where: { flowId: flow.id }, data: { isStart: false } });
-      const step = await options.client.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: request.body.name, message: request.body.message, stepType: request.body.stepType, position: request.body.position, isStart: request.body.isStart ?? false }, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } });
+      const step = await options.client.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code: request.body.code, name: request.body.name, message: request.body.message, stepType: request.body.stepType, position: request.body.position, isStart: request.body.isStart ?? false }, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } });
       return {
         publicId: step.publicId,
+        code: step.code,
         name: step.name,
         message: step.message,
         stepType: step.stepType,
@@ -1451,7 +1453,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
 
   app.put(
     '/platform/prospecting/flows/:flowPublicId/steps/:stepPublicId',
-    { schema: { params: z.object({ flowPublicId: z.uuid(), stepPublicId: z.uuid() }), body: z.object({ name: z.string().optional(), message: z.string().optional(), stepType: z.enum(['MESSAGE_OPTIONS', 'WAIT_TEXT', 'WAIT_LINK', 'MESSAGE_ONLY', 'MANUAL', 'END']).optional(), position: z.number().int().optional(), nextStepPublicId: z.uuid().optional(), isStart: z.boolean().optional() }) } },
+    { schema: { params: z.object({ flowPublicId: z.uuid(), stepPublicId: z.uuid() }), body: z.object({ name: z.string().optional(), code: z.string().regex(/^[A-Z0-9_]+$/u).nullable().optional(), message: z.string().optional(), stepType: z.enum(['MESSAGE_OPTIONS', 'WAIT_TEXT', 'WAIT_LINK', 'MESSAGE_ONLY', 'MANUAL', 'END']).optional(), position: z.number().int().optional(), nextStepPublicId: z.uuid().optional(), isStart: z.boolean().optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
       const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
@@ -1465,6 +1467,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       if (request.body.isStart) await options.client.prospectingFlowStep.updateMany({ where: { flowId: flow.id, id: { not: step.id } }, data: { isStart: false } });
       const data: any = {};
       if (request.body.name) data.name = request.body.name;
+      if (request.body.code !== undefined) data.code = request.body.code;
       if (request.body.message) data.message = request.body.message;
       if (request.body.stepType) data.stepType = request.body.stepType;
       if (request.body.position !== undefined) data.position = request.body.position;
@@ -1479,6 +1482,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       }
       return {
         publicId: updated.publicId,
+        code: updated.code,
         name: updated.name,
         message: updated.message,
         stepType: updated.stepType,

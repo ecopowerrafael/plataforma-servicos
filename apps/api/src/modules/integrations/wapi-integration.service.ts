@@ -179,7 +179,6 @@ export class WApiIntegrationService {
       'delivery',
       'connected',
       'disconnected',
-      'status',
     ] as const;
     for (const callback of callbacks) {
       await this.call(

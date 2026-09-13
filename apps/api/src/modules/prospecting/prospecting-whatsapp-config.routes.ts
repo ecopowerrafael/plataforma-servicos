@@ -15,6 +15,7 @@ const UpdateConfigSchema = z.object({
   fallbackMessage: z.string().nullable().optional(),
   mediaFallbackMessage: z.string().nullable().optional(),
   realtimeRepliesEnabled: z.boolean().optional(),
+  webhookUrl: z.string().url().optional(),
 }).strict();
 
 const ConfigResponseSchema = z.object({

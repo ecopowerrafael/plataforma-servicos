@@ -34,6 +34,7 @@ export interface ProspectingWhatsAppConfigResponse {
   fallbackMessage?: string;
   mediaFallbackMessage?: string;
   realtimeRepliesEnabled: boolean;
+  webhookUrl: string;
 }
 
 export class ProspectingWhatsAppConfigService {
@@ -109,6 +110,10 @@ export class ProspectingWhatsAppConfigService {
     return this.toResponse(updated);
   }
 
+  getWebhookUrl(): string {
+    return `${this.appWebUrl.replace(/\/+$/u, '')}${canonicalWapiWhatsAppWebhookPath}`;
+  }
+
   async getDecryptedToken(): Promise<string | null> {
     const config = await this.client.prospectingWhatsAppConfig.findFirst({
       where: { isActive: true },
@@ -155,6 +160,7 @@ export class ProspectingWhatsAppConfigService {
       isActive: config.isActive,
       tokenMasked: this.maskToken(config.tokenCiphertext ?? ''),
       configured: true,
+      webhookUrl: this.getWebhookUrl(),
       attendantEnabled: config.attendantEnabled ?? true,
       realtimeRepliesEnabled: config.realtimeRepliesEnabled ?? true,
     };

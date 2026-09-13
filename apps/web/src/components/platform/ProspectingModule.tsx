@@ -111,6 +111,7 @@ const prospectingConfigSchema = z.object({
   lastConnectionStatus: z.string().optional(),
   lastCheckedAt: z.string().optional(),
   tokenMasked: z.string().optional(),
+  webhookUrl: z.string().url().optional(),
 });
 
 const testConnectionSchema = z.object({
@@ -1387,6 +1388,24 @@ function SettingsView({
             </form>
           )}
         </section>
+
+        {config?.webhookUrl && (
+          <section className="config-section" style={{ marginTop: '1.5rem' }}>
+            <label>
+              <strong>URL do webhook de recebimento</strong>
+              <input
+                type="text"
+                value={config.webhookUrl}
+                readOnly
+                aria-label="URL do webhook de recebimento"
+                style={{ marginTop: '0.5rem', display: 'block', width: '100%', padding: '0.75rem', border: '1px solid var(--ds-border-neutral)', borderRadius: '4px', fontFamily: 'monospace' }}
+              />
+            </label>
+            <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--ds-text-secondary)' }}>
+              O segredo é aplicado automaticamente pelo servidor e não é exibido.
+            </small>
+          </section>
+        )}
 
         {/* Status Section */}
         <section

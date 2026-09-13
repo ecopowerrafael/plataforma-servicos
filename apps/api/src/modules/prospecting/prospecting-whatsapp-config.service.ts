@@ -96,8 +96,8 @@ export class ProspectingWhatsAppConfigService {
       where: { isActive: true },
     });
     if (!config) return null;
-    const decrypted = this.cipher.decrypt(config.tokenCiphertext) as { token: string };
-    return decrypted.token;
+    const decrypted = this.cipher.decrypt(config.tokenCiphertext) as { token?: string } | string;
+    return typeof decrypted === 'string' ? decrypted : (decrypted.token ?? null);
   }
 
   async updateConnectionStatus(status: string, phoneNumber?: string, instanceName?: string): Promise<void> {
@@ -135,7 +135,7 @@ export class ProspectingWhatsAppConfigService {
       publicId: config.publicId,
       instanceId: config.instanceId,
       isActive: config.isActive,
-      tokenMasked: this.maskToken(config.tokenCiphertext),
+      tokenMasked: this.maskToken(config.tokenCiphertext ?? ''),
       configured: true,
       attendantEnabled: config.attendantEnabled ?? true,
       realtimeRepliesEnabled: config.realtimeRepliesEnabled ?? true,
@@ -149,7 +149,7 @@ export class ProspectingWhatsAppConfigService {
     if (config.phoneNumber) result.phoneNumber = config.phoneNumber;
     if (config.instanceName) result.instanceName = config.instanceName;
     if (config.lastConnectionStatus) result.lastConnectionStatus = config.lastConnectionStatus;
-    if (config.lastCheckedAt) result.lastCheckedAt = config.lastCheckedAt.toISOString();
+    if (config.lastCheckedAt instanceof Date) result.lastCheckedAt = config.lastCheckedAt.toISOString();
 
     return result;
   }

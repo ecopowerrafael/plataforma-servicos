@@ -529,7 +529,7 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
     const parentOption = await transaction.prospectingFlowOption.findFirst({ where: { stepId: start?.id, label: parentLabel } });
     if (!parentOption) return;
     const code = stepName === 'Menu de suporte' ? 'ATTENDANT_CLIENT_MORE' : 'ATTENDANT_PROSPECT_MORE';
-    const step = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code }, { name: stepName }] }, include: { options: true } }) ?? await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code, name: stepName, message, stepType: 'MESSAGE_OPTIONS', position: 10 + Number(parentOption.position) } });
+    const step = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code }, { name: stepName }] }, include: { options: true } }) ?? await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code, name: stepName, message, stepType: 'MESSAGE_OPTIONS', position: 10 + Number(parentOption.position) }, include: { options: true } });
     if (parentOption.nextStepId !== step.id || parentOption.actionType !== 'NEXT_STEP') await transaction.prospectingFlowOption.update({ where: { id: parentOption.id }, data: { nextStepId: step.id, actionType: 'NEXT_STEP' } });
     const existingLabels = new Set(step.options.map((item: any) => item.label));
     for (const [label, aliases] of options) {

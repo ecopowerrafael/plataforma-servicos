@@ -1,5 +1,6 @@
 import { ProspectingRepository } from './prospecting.repository.js';
 import { type PrismaClient } from '../../database-client/client.js';
+import { whatsappButtonCapacity } from '../integrations/whatsapp-provider.js';
 
 export class ProspectingService {
   private repository: ProspectingRepository;
@@ -81,7 +82,7 @@ export class ProspectingService {
       where: { flowId: flow.id, stepType: 'MESSAGE_OPTIONS' },
       select: { id: true, _count: { select: { options: true } } },
     });
-    if (oversizedSteps.some((step) => step._count.options > 10)) throw new Error('FLOW_INVALID_BUTTON_LIMIT');
+    if (oversizedSteps.some((step) => step._count.options > whatsappButtonCapacity('WAPI'))) throw new Error('FLOW_INVALID_BUTTON_LIMIT');
 
     // Validar destinos pertencem ao mesmo flow
     const externalDestinations = await this.client.prospectingFlowOption.findMany({

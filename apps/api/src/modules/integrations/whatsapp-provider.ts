@@ -69,3 +69,16 @@ export const WAPI_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
   templates: false,
   official: false,
 };
+
+export const META_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
+  maxInteractiveButtons: 3,
+  qrCode: false,
+  autoProvision: false,
+  interactiveMessages: true,
+  templates: false,
+  official: true,
+};
+
+export function whatsappButtonCapacity(provider: WhatsAppProviderId = 'WAPI'): number {
+  return provider === 'META' ? META_WHATSAPP_CAPABILITIES.maxInteractiveButtons : WAPI_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
+}

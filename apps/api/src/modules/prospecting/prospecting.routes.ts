@@ -12,6 +12,7 @@ import { ProspectingAudienceService } from './prospecting-audience.service.js';
 import { ProspectingRepository } from './prospecting.repository.js';
 import { ProspectingClock } from './prospecting-time.js';
 import { validateFlowGraph, validateFlowStepOptions } from './prospecting-flow-engine.service.js';
+import { whatsappButtonCapacity } from '../integrations/whatsapp-provider.js';
 
 const CreateCampaignSchema = z.object({
   name: z.string().min(1).max(180),
@@ -1546,7 +1547,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       const step = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.params.stepPublicId }, select: { id: true, flowId: true, isStart: true } });
       if (!step || step.flowId !== flow.id) throw new Error('Step not in this flow');
       const optionCount = await options.client.prospectingFlowOption.count({ where: { stepId: step.id } });
-      if (optionCount >= 10) throw new Error('MESSAGE_OPTIONS suporta no máximo dez botões para WAPI');
+      if (optionCount >= whatsappButtonCapacity('WAPI')) throw new Error('MESSAGE_OPTIONS excede a capacidade de botões do provedor');
       if (step.isStart) throw new Error('Cannot delete start step');
       const usedAsNext = await options.client.prospectingFlowStep.count({ where: { nextStepId: step.id } });
       if (usedAsNext > 0) throw new Error('Step is used as next step');

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type ProspectingMessageSender } from './prospecting-message-sender.js';
+import { whatsappButtonCapacity } from '../integrations/whatsapp-provider.js';
 
 export interface RealtimeReplyInput {
   campaignId?: bigint | null;
@@ -35,7 +36,7 @@ export class ProspectingRealtimeReplyService {
     if (!input.body.trim()) {
       return { queued: false, sent: false, retryScheduled: false, reason: 'EMPTY_REPLY_BODY' };
     }
-    const maxButtons = input.provider === 'META' ? 3 : 10;
+    const maxButtons = whatsappButtonCapacity(input.provider ?? 'WAPI');
     if ((input.buttons?.length ?? 0) > maxButtons) {
       return { queued: false, sent: false, retryScheduled: false, reason: 'BUTTON_LIMIT_EXCEEDED' };
     }

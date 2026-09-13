@@ -2,17 +2,10 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { MetaWhatsAppClient } from './meta-whatsapp-client.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
-import { type WhatsAppProvisioningProvider } from './whatsapp-provider.js';
+import { META_WHATSAPP_CAPABILITIES, type WhatsAppProvisioningProvider } from './whatsapp-provider.js';
 import { type WhatsAppConnectionView } from './whatsapp-provisioning.service.js';
 
-export const META_WHATSAPP_CAPABILITIES = {
-  maxInteractiveButtons: 3,
-  qrCode: false,
-  autoProvision: false,
-  interactiveMessages: true,
-  templates: false,
-  official: true,
-} as const;
+export { META_WHATSAPP_CAPABILITIES } from './whatsapp-provider.js';
 
 type MetaConfig = NonNullable<Awaited<ReturnType<PrismaClient['tenantWhatsAppConfig']['findUnique']>>>;
 

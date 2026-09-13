@@ -20,6 +20,7 @@ const UpdateConfigSchema = z.object({
 
 const ConfigResponseSchema = z.object({
   configured: z.boolean(),
+  webhookUrl: z.string().url().optional(),
   publicId: z.string().optional(),
   instanceId: z.string().optional(),
   phoneNumber: z.string().optional(),

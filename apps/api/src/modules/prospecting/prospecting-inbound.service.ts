@@ -190,7 +190,7 @@ export class ProspectingInboundService {
           ? await this.client.prospectingFlowStep.findFirst({ where: { flowId: BigInt(config.attendantFlowId), isStart: true }, orderBy: { position: 'asc' }, select: { id: true, message: true, options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } })
           : null;
         const conversation = await this.client.prospectingConversation.findFirst({
-          where: { contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE' },
+          where: { contactId: contact.id, instanceId: payload.instanceId!, status: { in: ['ACTIVE', 'MANUAL'] } },
           orderBy: { updatedAt: 'desc' },
         }) ?? await this.client.prospectingConversation.create({
           data: { publicId: randomUUID(), contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE', flowId: startStep ? BigInt(config.attendantFlowId!) : null, currentStepId: startStep?.id ?? null, context: { owner: 'PROSPECTING_ATTENDANT' } },
@@ -198,6 +198,12 @@ export class ProspectingInboundService {
         const inbound = await this.client.prospectingMessage.create({
           data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null },
         });
+        // Takeover manual é uma barreira explícita: registrar a mensagem para
+        // a equipe, mas nunca criar outra conversa nem responder pelo bot.
+        if (conversation.status === 'MANUAL') {
+          await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { lastInboundAt: now } });
+          return { handled: true, reason: 'MANUAL_CONVERSATION' };
+        }
         const conversationContext = (conversation.context ?? {}) as Record<string, unknown>;
         if (!this.isWithinAttendantHours(config.businessHoursStart, config.businessHoursEnd)) {
           const outsideMessage = config.outsideHoursMessage;

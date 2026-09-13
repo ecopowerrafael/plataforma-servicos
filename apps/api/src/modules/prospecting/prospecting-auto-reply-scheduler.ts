@@ -99,8 +99,8 @@ export class ProspectingAutoReplyScheduler {
       return { scheduled: false, reason: 'LEAD_NOT_FOUND' };
     }
 
-    // Não responder a status finais
-    const blockingStatuses = ['SUPPRESSED', 'NEEDS_REVIEW', 'WON', 'LOST'];
+    // O status comercial não bloqueia o atendente permanente.
+    const blockingStatuses = ['SUPPRESSED', 'MANUAL'];
     if (blockingStatuses.includes(lead.status)) {
       return { scheduled: false, reason: 'LEAD_BLOCKED' };
     }

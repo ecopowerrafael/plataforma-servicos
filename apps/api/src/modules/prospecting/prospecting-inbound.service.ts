@@ -48,10 +48,9 @@ export class ProspectingInboundService {
     status: string,
     executions: Array<{ status: string; campaignId?: bigint }> = [],
   ): boolean {
-    if (['SUPPRESSED', 'LOST', 'WON', 'NEEDS_REVIEW', 'MANUAL'].includes(status)) return false;
-    if (['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'].includes(status)) return true;
-    return ['RESPONDED', 'QUALIFYING', 'INTERESTED'].includes(status)
-      && executions.some((execution) => ['WAITING', 'ACTIVE'].includes(execution.status));
+    // O status comercial não controla a conversa. Somente supressão/takeover
+    // explícitos impedem o atendente permanente.
+    return !['SUPPRESSED', 'MANUAL'].includes(status);
   }
 
   /**
@@ -134,7 +133,7 @@ export class ProspectingInboundService {
       }
     }
 
-    // Encontrar Lead elegível
+    // Encontrar o contexto da conversa. O status comercial não é um filtro.
     // PRIORIDADE 1: referencedMessageId → outbound message → lead exato
     let leadData = null;
     let desambiguationMethod = 'none';
@@ -153,7 +152,7 @@ export class ProspectingInboundService {
     if (!leadData) {
       leadData = await this.findEligibleLead(normalizedPhone);
       if (leadData) {
-        desambiguationMethod = 'phone';
+        desambiguationMethod = 'conversation_context';
       }
     }
 
@@ -644,9 +643,6 @@ export class ProspectingInboundService {
     }
 
     // Validar que o lead é elegível
-    const maxDays = 30;
-    const minLastOutboundAt = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
-
     const lead = await this.client.prospectingLead.findUnique({
       where: { id: outboundMessage.leadId },
       select: {
@@ -674,9 +670,7 @@ export class ProspectingInboundService {
       lead &&
       lead.normalizedPhone === normalizedPhone &&
       this.isLeadConversationallyEligible(lead.status, lead.flowExecutions) &&
-      lead.lastOutboundAt &&
-      lead.lastOutboundAt >= minLastOutboundAt &&
-      ['RUNNING', 'PAUSED'].includes(lead.campaign?.status || '');
+      true;
 
     if (!isEligible) {
       console.log('[ProspectingInboundTrace]', {
@@ -684,8 +678,6 @@ export class ProspectingInboundService {
         leadFound: !!lead,
         phoneMismatch: lead && lead.normalizedPhone !== normalizedPhone,
         statusInvalid: lead && !this.isLeadConversationallyEligible(lead.status, lead.flowExecutions),
-        stale: lead && lead.lastOutboundAt && lead.lastOutboundAt < minLastOutboundAt,
-        campaignInvalid: lead && !['RUNNING', 'PAUSED'].includes(lead.campaign?.status || ''),
         result: 'REFERENCED_LEAD_NOT_ELIGIBLE',
       });
       return null;
@@ -721,19 +713,9 @@ export class ProspectingInboundService {
     const leads = await this.client.prospectingLead.findMany({
       where: {
         normalizedPhone,
-        OR: [
-          { status: { in: ['WAITING_REPLY', 'FOLLOW_UP', 'CONTACTED', 'SCHEDULED', 'PENDING'] } },
-          { status: { in: ['RESPONDED', 'QUALIFYING', 'INTERESTED'] }, flowExecutions: { some: { status: { in: ['WAITING', 'ACTIVE'] } } } },
-        ],
-        lastOutboundAt: {
-          gte: minLastOutboundAt,
-        },
-        campaign: {
-          status: {
-            in: ['RUNNING', 'PAUSED'],
-          },
-        },
+        status: { notIn: ['SUPPRESSED', 'MANUAL'] },
       },
+      orderBy: [{ lastInboundAt: 'desc' }, { lastOutboundAt: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
       select: {
         id: true,
         campaignId: true,
@@ -751,37 +733,20 @@ export class ProspectingInboundService {
       return null;
     }
 
-    // Priorizar WAITING_REPLY
+    // Escolha determinística: contexto mais recente, sem “Ambiguous leads”.
     const eligibleLeads = leads.filter((l) => this.isLeadConversationallyEligible(l.status, l.flowExecutions));
-    const waitingReply = eligibleLeads.filter((l) => l.status === 'WAITING_REPLY');
-    if (waitingReply.length === 1) {
-      const lead = waitingReply[0]!;
-      return {
-        id: lead.id,
-        campaignId: lead.campaignId,
-        respondedAt: lead.respondedAt,
-        publicId: lead.publicId,
-      };
-    }
-
-    if (waitingReply.length > 1) {
-      console.warn('[ProspectingInbound] Ambiguous WAITING_REPLY leads');
-      return null;
-    }
-
-    // Se apenas 1 lead, usar
-    if (eligibleLeads.length === 1) {
-      const lead = eligibleLeads[0]!;
-      return {
-        id: lead.id,
-        campaignId: lead.campaignId,
-        respondedAt: lead.respondedAt,
-        publicId: lead.publicId,
-      };
-    }
-
-    console.warn('[ProspectingInbound] Ambiguous leads');
-    return null;
+    eligibleLeads.sort((a, b) => {
+      const aWaiting = a.status === 'WAITING_REPLY' ? 1 : 0;
+      const bWaiting = b.status === 'WAITING_REPLY' ? 1 : 0;
+      return bWaiting - aWaiting || Number(b.id - a.id);
+    });
+    const lead = eligibleLeads[0];
+    if (!lead) return null;
+    console.log('[ProspectingInboundResolution]', {
+      resolutionMethod: (lead.flowExecutions ?? []).some((e) => e.status === 'WAITING') ? 'waiting_execution' : 'latest_context',
+      candidateCount: eligibleLeads.length,
+    });
+    return { id: lead.id, campaignId: lead.campaignId, respondedAt: lead.respondedAt, publicId: lead.publicId };
   }
 
   /**

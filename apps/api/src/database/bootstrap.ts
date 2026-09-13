@@ -513,6 +513,12 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
       await transaction.prospectingFlowOptionPattern.createMany({ data: aliases.map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: aliases.length - index })) });
     }
   }
+  const start = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, isStart: true }, include: { options: true } });
+  if (start && !start.options.some((option: any) => option.label === 'Divulgação gratuita')) {
+    const disclosure = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Divulgação gratuita', message: 'Nós encontramos seu estabelecimento durante o trabalho de divulgação de negócios locais. Podemos incluir sua empresa gratuitamente em nosso site para ajudar novos clientes a encontrá-la. Você gostaria de saber como funciona?', stepType: 'MESSAGE_OPTIONS', position: 3 } });
+    const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: start.id, label: 'Divulgação gratuita', nextStepId: disclosure.id, actionType: 'NEXT_STEP', position: start.options.length } });
+    await transaction.prospectingFlowOptionPattern.createMany({ data: ['3', 'divulgacao', 'cadastro gratuito', 'divulgar empresa', 'prospeccao', 'voces me chamaram'].map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: 10 - index })) });
+  }
   await transaction.prospectingWhatsAppConfig.updateMany({ where: { attendantFlowId: null }, data: { attendantFlowId: flow.id } });
 }
 

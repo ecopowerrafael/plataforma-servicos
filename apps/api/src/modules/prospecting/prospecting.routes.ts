@@ -1546,8 +1546,6 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       if (!flow) throw new Error('Flow not found');
       const step = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.params.stepPublicId }, select: { id: true, flowId: true, isStart: true } });
       if (!step || step.flowId !== flow.id) throw new Error('Step not in this flow');
-      const optionCount = await options.client.prospectingFlowOption.count({ where: { stepId: step.id } });
-      if (optionCount >= whatsappButtonCapacity('WAPI')) throw new Error('MESSAGE_OPTIONS excede a capacidade de botões do provedor');
       if (step.isStart) throw new Error('Cannot delete start step');
       const usedAsNext = await options.client.prospectingFlowStep.count({ where: { nextStepId: step.id } });
       if (usedAsNext > 0) throw new Error('Step is used as next step');
@@ -1568,6 +1566,10 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       if (!flow) throw new Error('Flow not found');
       const step = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.params.stepPublicId }, select: { id: true, flowId: true } });
       if (!step || step.flowId !== flow.id) throw new Error('Step not in this flow');
+      const providerConfig = await options.client.prospectingWhatsAppConfig.findFirst({ where: { isActive: true }, select: { instanceId: true } });
+      const provider = providerConfig ? 'WAPI' : 'WAPI';
+      const optionCount = await options.client.prospectingFlowOption.count({ where: { stepId: step.id } });
+      if (optionCount >= whatsappButtonCapacity(provider)) throw new Error('MESSAGE_OPTIONS excede a capacidade de botões do provedor');
       let nextStepId: bigint | null = null;
       if (request.body.nextStepPublicId) {
         const nextStep = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.body.nextStepPublicId }, select: { id: true, flowId: true } });
@@ -1588,6 +1590,10 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       if (!flow) throw new Error('Flow not found');
       const option = await options.client.prospectingFlowOption.findUnique({ where: { publicId: request.params.optionPublicId }, include: { step: true } });
       if (!option || option.step.flowId !== flow.id) throw new Error('Option not in this flow');
+      const providerConfig = await options.client.prospectingWhatsAppConfig.findFirst({ where: { isActive: true }, select: { instanceId: true } });
+      const provider = providerConfig ? 'WAPI' : 'WAPI';
+      const optionCount = await options.client.prospectingFlowOption.count({ where: { stepId: option.stepId } });
+      if (optionCount > whatsappButtonCapacity(provider)) throw new Error('MESSAGE_OPTIONS excede a capacidade de botões do provedor');
       let nextStepId: bigint | null | undefined = undefined;
       if (request.body.nextStepPublicId) {
         const nextStep = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.body.nextStepPublicId }, select: { id: true, flowId: true } });

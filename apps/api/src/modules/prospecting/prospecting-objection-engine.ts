@@ -8,6 +8,8 @@ interface ClassificationInput {
   messageId: bigint;
   inboundMessageId?: bigint;
   text: string;
+  autoReplyPurpose?: 'AUTO_REPLY' | 'REALTIME_REPLY';
+  autoReplyAction?: string;
 }
 
 interface ClassificationResult {
@@ -160,6 +162,8 @@ export class ProspectingObjectionEngine {
           inboundMessageId: input.inboundMessageId,
           objectionId: bestMatch.objectionId,
           suggestedResponse: bestMatch.suggestedResponse || '',
+          purpose: input.autoReplyPurpose,
+          action: input.autoReplyAction,
         });
         autoReplyScheduled = scheduleResult.scheduled;
         autoReplyReason = scheduleResult.reason;

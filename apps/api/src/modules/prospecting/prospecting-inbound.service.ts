@@ -525,8 +525,25 @@ export class ProspectingInboundService {
           messageId: message.id,
           inboundMessageId: message.id,
           text: payload.body as string,
+          autoReplyPurpose: 'REALTIME_REPLY',
+          autoReplyAction: 'OBJECTION',
         });
-        console.log('[ProspectingInboundTrace]', { ...trace, router: result.matched ? 'OBJECTION' : 'UNMATCHED', matched: result.matched, objectionCode: result.objectionCode, autoReplyScheduled: result.autoReplyScheduled, reason: result.autoReplyReason });
+        let replySent = false;
+        let replyReason: string | undefined;
+        if (result.matched && result.suggestedResponse && this.realtimeReply) {
+          const reply = await this.realtimeReply.send({
+            campaignId: leadData.campaignId,
+            leadId: leadData.id,
+            inboundMessageId: message.id,
+            phone: normalizedPhone,
+            body: result.suggestedResponse,
+            action: 'OBJECTION',
+          });
+          replySent = reply.sent;
+          replyReason = reply.reason;
+          console.log('[ProspectingRealtime]', { router: 'OBJECTION', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled, reason: reply.reason });
+        }
+        console.log('[ProspectingInboundTrace]', { ...trace, router: result.matched ? 'OBJECTION' : 'UNMATCHED', matched: result.matched, objectionCode: result.objectionCode, autoReplyScheduled: result.autoReplyScheduled, replySent, reason: replyReason ?? result.autoReplyReason });
         if (!result.matched && config.fallbackMessage && this.realtimeReply) {
           const reply = await this.realtimeReply.send({
             campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id,

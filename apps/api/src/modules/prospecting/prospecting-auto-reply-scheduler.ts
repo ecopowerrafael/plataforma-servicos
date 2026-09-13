@@ -8,6 +8,8 @@ interface ScheduleAutoReplyInput {
   inboundMessageId: bigint;
   objectionId: bigint;
   suggestedResponse: string;
+  purpose?: 'AUTO_REPLY' | 'REALTIME_REPLY';
+  action?: string;
 }
 
 interface ScheduleAutoReplyResult {
@@ -106,11 +108,15 @@ export class ProspectingAutoReplyScheduler {
     }
 
     // Verificar se já existe auto-reply para este inbound
+    const purpose = input.purpose ?? 'AUTO_REPLY';
+    const idempotencyKey = purpose === 'REALTIME_REPLY'
+      ? `realtime:${input.inboundMessageId.toString()}:${input.action ?? 'OBJECTION'}`
+      : undefined;
     const existingAutoReply = await this.client.prospectingMessage.findFirst({
       where: {
         leadId: input.leadId,
         objectionId: input.objectionId,
-        purpose: 'AUTO_REPLY',
+        purpose,
         replyToMessageId: input.inboundMessageId,
       },
     });
@@ -125,20 +131,21 @@ export class ProspectingAutoReplyScheduler {
     );
     const scheduledAt = new Date(Date.now() + delaySeconds * 1000);
 
-    // Criar mensagem AUTO_REPLY PENDING
+    // Criar mensagem pendente; respostas de objeção podem ser entregues em realtime.
     const message = await this.client.prospectingMessage.create({
       data: {
         publicId: randomUUID(),
         campaignId: input.campaignId,
         leadId: input.leadId,
         direction: 'OUTBOUND',
-        purpose: 'AUTO_REPLY',
+        purpose,
         status: 'PENDING',
         body: input.suggestedResponse,
         objectionId: input.objectionId,
         scheduledAt,
         nextAttemptAt: scheduledAt,
         replyToMessageId: input.inboundMessageId,
+        idempotencyKey,
       },
     });
 

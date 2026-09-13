@@ -60,6 +60,7 @@ const platformPermissions = [
   'platform.commercial.manage',
   'platform.prospecting.read',
   'platform.prospecting.update',
+  'platform.prospecting.manage',
   'platform.worker.execute',
 ] as const satisfies readonly PlatformPermissionCode[];
 

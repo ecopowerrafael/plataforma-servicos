@@ -274,6 +274,7 @@ const platformPermissions = [
   ['platform.commercial_policy.manage', 'Gerenciar a política comercial global.'],
   ['platform.prospecting.read', 'Consultar configuração de prospecção.'],
   ['platform.prospecting.update', 'Gerenciar templates, objections e padrões de prospecção.'],
+  ['platform.prospecting.manage', 'Gerenciar conversas e ferramentas de teste da prospecção.'],
   ['platform.worker.execute', 'Executar workers manualmente.'],
 ] as const;
 

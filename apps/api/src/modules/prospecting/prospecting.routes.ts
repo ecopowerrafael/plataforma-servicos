@@ -216,6 +216,40 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     return { items: campaigns };
   });
 
+  app.get('/platform/prospecting/test-tools/reset-preview', async (request) => {
+    allow(request, 'platform.prospecting.manage');
+    const contactPublicId = String((request.query as any).contactPublicId ?? '');
+    if (!contactPublicId) throw new Error('contactPublicId obrigatório');
+    const contact = await options.client.prospectingContact.findUnique({ where: { publicId: contactPublicId }, select: { id: true, normalizedPhone: true } });
+    if (!contact) throw new Error('Contato não encontrado');
+    const [activeConversations, messages, leads] = await Promise.all([
+      options.client.prospectingConversation.count({ where: { contactId: contact.id, status: 'ACTIVE' } }),
+      options.client.prospectingMessage.count({ where: { conversation: { contactId: contact.id } } }),
+      options.client.prospectingLead.count({ where: { normalizedPhone: contact.normalizedPhone } }),
+    ]);
+    return { contactPublicId, activeConversations, messages, leads, scopes: ['CONVERSATION', 'CONVERSATION_AND_FLOW', 'ALL_TEST_DATA'] };
+  });
+
+  app.post('/platform/prospecting/test-tools/reset', async (request) => {
+    allow(request, 'platform.prospecting.manage');
+    const body = request.body as { contactPublicId?: string; scope?: 'CONVERSATION' | 'CONVERSATION_AND_FLOW' | 'ALL_TEST_DATA'; confirmation?: string };
+    if (!body.contactPublicId || !body.scope) throw new Error('contactPublicId e scope são obrigatórios');
+    if (body.scope === 'ALL_TEST_DATA' && body.confirmation !== 'LIMPAR TESTES') throw new Error('Confirmação inválida');
+    const contact = await options.client.prospectingContact.findUnique({ where: { publicId: body.contactPublicId }, select: { id: true } });
+    if (!contact) throw new Error('Contato não encontrado');
+    return options.client.$transaction(async (tx) => {
+      const conversations = await tx.prospectingConversation.findMany({ where: { contactId: contact.id, status: 'ACTIVE' }, select: { id: true, leadId: true } });
+      await tx.prospectingConversation.updateMany({ where: { id: { in: conversations.map((item) => item.id) } }, data: { status: 'CLOSED', currentStepId: null, flowId: null, context: {} } });
+      const leadIds = conversations.flatMap((item) => item.leadId ? [item.leadId] : []);
+      if (leadIds.length) {
+        await tx.prospectingLead.updateMany({ where: { id: { in: leadIds }, humanLockType: 'INBOUND_REPLY' }, data: { humanLockType: null, humanLockUntil: null } });
+        if (body.scope !== 'CONVERSATION') await tx.prospectingFlowExecution.updateMany({ where: { leadId: { in: leadIds }, status: { in: ['WAITING', 'ACTIVE', 'MANUAL'] } }, data: { status: 'CANCELED' } });
+      }
+      await tx.auditLog.create({ data: { publicId: randomUUID(), userId: request.platformAuth.user.id, sessionId: request.platformAuth.sessionId, action: 'prospecting.test_conversation_reset', targetType: 'prospecting_contact', targetPublicId: body.contactPublicId, metadata: { scope: body.scope, conversationsClosed: conversations.length, historyPreserved: true } } });
+      return { success: true, conversationsClosed: conversations.length, historyPreserved: true };
+    });
+  });
+
   app.post(
     '/platform/prospecting/campaigns',
     { schema: { body: CreateCampaignSchema } },
@@ -1742,4 +1776,3 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     },
   );
 };
-

@@ -137,6 +137,11 @@ export class ProspectingInboundService {
       }
     }
 
+    // Opt-out é a precedência máxima: não criar conversa nem encaminhar a
+    // mensagem para FlowEngine, ObjectionEngine ou atendente automático.
+    const inboundIsOptOut = !isMediaWithoutCaption && this.detectOptOut(payload.body as string);
+
+
     // Encontrar o contexto da conversa. O status comercial não é um filtro.
     // PRIORIDADE 1: referencedMessageId → outbound message → lead exato
     let leadData = null;
@@ -161,6 +166,10 @@ export class ProspectingInboundService {
     }
 
     if (!leadData) {
+      if (inboundIsOptOut) {
+        console.log('[ProspectingInboundTrace]', { ...trace, router: 'OPT_OUT', result: 'OPT_OUT_PRECEDENCE' });
+        return { handled: true, reason: 'OPT_OUT' };
+      }
       if (config.attendantEnabled) {
         const now = new Date();
         const contact = await this.client.prospectingContact.upsert({
@@ -361,7 +370,7 @@ export class ProspectingInboundService {
     let isOptOut = false;
     try {
       console.log('[STAGE] OPT_OUT_CHECK_START');
-      isOptOut = this.detectOptOut(payload.body as string);
+      isOptOut = inboundIsOptOut;
 
       console.log('[STAGE] OPT_OUT_CHECK_OK', { isOptOut });
     } catch (error: any) {

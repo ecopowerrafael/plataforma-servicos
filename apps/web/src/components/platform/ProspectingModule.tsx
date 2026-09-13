@@ -118,6 +118,7 @@ const prospectingConfigSchema = z.object({
   fallbackMessage: z.string().optional(),
   mediaFallbackMessage: z.string().optional(),
   realtimeRepliesEnabled: z.boolean().optional(),
+  useContactName: z.boolean().optional(), invalidMessage: z.string().optional(), humanTransferMessage: z.string().optional(), businessHoursStart: z.number().optional(), businessHoursEnd: z.number().optional(), outsideHoursMessage: z.string().optional(), replyDelaySeconds: z.number().optional(),
 });
 
 const testConnectionSchema = z.object({
@@ -358,7 +359,7 @@ export function ProspectingModule({
   });
 
   const updateConfigMutation = useMutation({
-    mutationFn: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean; attendantEnabled?: boolean; attendantFlowId?: string | null; greetingMessage?: string | null; fallbackMessage?: string | null; mediaFallbackMessage?: string | null; realtimeRepliesEnabled?: boolean }) =>
+    mutationFn: (data: Record<string, unknown>) =>
       httpClient.request('/platform/prospecting/whatsapp', {
         method: 'PUT',
         schema: prospectingConfigSchema,
@@ -1161,7 +1162,7 @@ function SettingsView({
   isUpdatingConfig: boolean;
   isTestingConnection: boolean;
   isRefreshingWebhooks: boolean;
-  onUpdateConfig: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean; attendantEnabled?: boolean; attendantFlowId?: string | null; greetingMessage?: string | null; fallbackMessage?: string | null; mediaFallbackMessage?: string | null; realtimeRepliesEnabled?: boolean }) => Promise<unknown>;
+  onUpdateConfig: (data: Record<string, unknown>) => Promise<unknown>;
   onTestConnection: () => Promise<unknown>;
   onRefreshWebhooks: () => Promise<unknown>;
   onNavigate: (view: string) => void;
@@ -1177,6 +1178,13 @@ function SettingsView({
     fallbackMessage: config?.fallbackMessage ?? '',
     mediaFallbackMessage: config?.mediaFallbackMessage ?? '',
     realtimeRepliesEnabled: config?.realtimeRepliesEnabled ?? true,
+    useContactName: config?.useContactName ?? true,
+    invalidMessage: config?.invalidMessage ?? '',
+    humanTransferMessage: config?.humanTransferMessage ?? '',
+    businessHoursStart: config?.businessHoursStart ?? '',
+    businessHoursEnd: config?.businessHoursEnd ?? '',
+    outsideHoursMessage: config?.outsideHoursMessage ?? '',
+    replyDelaySeconds: config?.replyDelaySeconds ?? 0,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -1207,6 +1215,8 @@ function SettingsView({
         fallbackMessage: formData.fallbackMessage || null,
         mediaFallbackMessage: formData.mediaFallbackMessage || null,
         realtimeRepliesEnabled: formData.realtimeRepliesEnabled,
+        useContactName: formData.useContactName, invalidMessage: formData.invalidMessage || null, humanTransferMessage: formData.humanTransferMessage || null,
+        businessHoursStart: formData.businessHoursStart === '' ? null : Number(formData.businessHoursStart), businessHoursEnd: formData.businessHoursEnd === '' ? null : Number(formData.businessHoursEnd), outsideHoursMessage: formData.outsideHoursMessage || null, replyDelaySeconds: Number(formData.replyDelaySeconds) || 0,
       });
       if (formData.token) {
         payload.token = formData.token;
@@ -1299,9 +1309,14 @@ function SettingsView({
               <div className="config-section" style={{ marginBottom: '1.5rem' }}>
                 <h3>Atendente Agendei</h3>
                 <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><input type="checkbox" checked={formData.attendantEnabled} onChange={(e) => setFormData({ ...formData, attendantEnabled: e.target.checked })} /> Ativar atendente oficial</label>
+                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' }}><input type="checkbox" checked={formData.useContactName} onChange={(e) => setFormData({ ...formData, useContactName: e.target.checked })} /> Usar nome do contato</label>
                 <label style={{ display: 'block', marginTop: '1rem' }}><strong>Saudação inicial</strong><textarea value={formData.greetingMessage} onChange={(e) => setFormData({ ...formData, greetingMessage: e.target.value })} placeholder="Deixe vazio para usar a saudação padrão" rows={3} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
                 <label style={{ display: 'block', marginTop: '1rem' }}><strong>Fallback</strong><textarea value={formData.fallbackMessage} onChange={(e) => setFormData({ ...formData, fallbackMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
                 <label style={{ display: 'block', marginTop: '1rem' }}><strong>Mídia não suportada</strong><textarea value={formData.mediaFallbackMessage} onChange={(e) => setFormData({ ...formData, mediaFallbackMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
+                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Mensagem de opção inválida</strong><textarea value={formData.invalidMessage} onChange={(e) => setFormData({ ...formData, invalidMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
+                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Transferência para humano</strong><textarea value={formData.humanTransferMessage} onChange={(e) => setFormData({ ...formData, humanTransferMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
+                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Fora do horário</strong><textarea value={formData.outsideHoursMessage} onChange={(e) => setFormData({ ...formData, outsideHoursMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}><label><strong>Início (minutos)</strong><input type="number" min="0" max="1440" value={formData.businessHoursStart} onChange={(e) => setFormData({ ...formData, businessHoursStart: e.target.value })} /></label><label><strong>Fim (minutos)</strong><input type="number" min="0" max="1440" value={formData.businessHoursEnd} onChange={(e) => setFormData({ ...formData, businessHoursEnd: e.target.value })} /></label><label><strong>Delay (s)</strong><input type="number" min="0" max="3600" value={formData.replyDelaySeconds} onChange={(e) => setFormData({ ...formData, replyDelaySeconds: e.target.value })} /></label></div>
                 <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '1rem' }}><input type="checkbox" checked={formData.realtimeRepliesEnabled} onChange={(e) => setFormData({ ...formData, realtimeRepliesEnabled: e.target.checked })} /> Respostas imediatas realtime</label>
                 <button type="button" className="secondary-button" style={{ marginTop: '1rem' }} onClick={() => onNavigate('flows')}>Editar menus e opções do atendente</button>
               </div>

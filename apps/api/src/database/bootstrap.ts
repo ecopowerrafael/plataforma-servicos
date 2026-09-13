@@ -531,6 +531,27 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
   };
   await ensureMenu('Já sou cliente', 'Menu de suporte', 'Certo, {{nome}}. Qual assunto você precisa resolver?', [['WhatsApp', ['whatsapp']], ['Agenda', ['agenda']], ['Pagamentos', ['pagamentos', 'financeiro']], ['Conta e configurações', ['conta', 'configuracoes']], ['Falar com suporte', ['suporte tecnico', 'falar com suporte']]]);
   await ensureMenu('Quero conhecer', 'Menu comercial', 'O Agendei ajuda negócios de serviços a atender pelo WhatsApp, organizar horários, confirmar agendamentos e reduzir tarefas manuais. O que você gostaria de conhecer?', [['Como funciona', ['como funciona']], ['Recursos', ['recursos']], ['Teste grátis', ['teste gratis', 'teste']], ['Valores', ['valores', 'preco']], ['Falar com consultor', ['falar com consultor', 'consultor']], ['Voltar', ['voltar', 'menu']]]);
+  const ensureSubmenus = async (stepName: string, entries: Array<[string, string, string[]]>) => {
+    const step = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, name: stepName }, include: { options: true } });
+    if (!step) return;
+    for (const [label, message, aliases] of entries) {
+      const parent = step.options.find((item: any) => item.label === label);
+      if (!parent || parent.nextStepId) continue;
+      const child = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: `${stepName} - ${label}`, message, stepType: 'MESSAGE_OPTIONS', position: 30 + parent.position } });
+      await transaction.prospectingFlowOption.update({ where: { id: parent.id }, data: { nextStepId: child.id, actionType: 'NEXT_STEP' } });
+      for (const [index, childLabel] of ['Sim, resolveu', 'Ainda preciso de ajuda', 'Menu'].entries()) {
+        const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: child.id, label: childLabel, actionType: childLabel === 'Ainda preciso de ajuda' ? 'MANUAL' : 'END', position: index } });
+        await transaction.prospectingFlowOptionPattern.createMany({ data: [childLabel, ...(childLabel === 'Sim, resolveu' ? ['sim', 'resolvido'] : childLabel === 'Ainda preciso de ajuda' ? ['ajuda', 'nao resolveu'] : ['voltar', 'menu'])].map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: 10 - index })) });
+      }
+      await transaction.prospectingFlowOptionPattern.createMany({ data: aliases.map((pattern, index) => ({ optionId: parent.id, pattern, patternType: 'EXACT', priority: 10 - index })) });
+    }
+  };
+  await ensureSubmenus('Menu de suporte', [
+    ['WhatsApp', 'Entendi. Vamos verificar a integração do WhatsApp. Isso resolveu?', ['whatsapp']],
+    ['Agenda', 'Entendi. Vamos verificar os horários e agendamentos. Isso resolveu?', ['agenda']],
+    ['Pagamentos', 'Para sua segurança, não exibimos dados financeiros sem validar o vínculo. Podemos orientar a equipe. Isso resolveu?', ['pagamentos', 'financeiro']],
+    ['Conta e configurações', 'Vamos conferir o acesso e os dados do estabelecimento. Isso resolveu?', ['conta', 'configuracoes']],
+  ]);
   await transaction.prospectingWhatsAppConfig.updateMany({ where: { attendantFlowId: null }, data: { attendantFlowId: flow.id } });
 }
 

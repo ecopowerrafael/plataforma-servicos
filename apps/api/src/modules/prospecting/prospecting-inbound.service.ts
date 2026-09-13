@@ -479,6 +479,27 @@ export class ProspectingInboundService {
       }
     }
 
+    // Cliques do Atendente usam o snapshot de optionIds da mensagem original,
+    // mesmo quando o contato também pertence a uma campanha.
+    if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex != null && config.attendantFlowId && this.realtimeReply) {
+      const outbound = await this.client.prospectingMessage.findFirst({ where: { externalMessageId: payload.referencedMessageId, direction: 'OUTBOUND', leadId: leadData.id }, select: { optionIds: true } });
+      const ids = Array.isArray(outbound?.optionIds) ? outbound.optionIds : [];
+      const selectedId = ids[payload.selectedIndex];
+      const option = typeof selectedId === 'string' ? await this.client.prospectingFlowOption.findUnique({ where: { publicId: selectedId }, include: { step: true } }) : null;
+      if (option && option.step.flowId === BigInt(config.attendantFlowId)) {
+        const next = option.nextStepId ? await this.client.prospectingFlowStep.findUnique({ where: { id: option.nextStepId }, include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } }) : null;
+        const contact = await this.client.prospectingContact.findUnique({ where: { normalizedPhone } });
+        const conversation = contact ? await this.client.prospectingConversation.findFirst({ where: { contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE' }, orderBy: { updatedAt: 'desc' } }) : null;
+        if (conversation) await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: next?.id ?? null, flowId: BigInt(config.attendantFlowId) } });
+        const body = option.actionType === 'MANUAL' ? (config.humanTransferMessage ?? next?.message ?? '') : (next?.message ?? '');
+        if (body) {
+          const reply = await this.realtimeReply.send({ campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id, phone: normalizedPhone, body: this.interpolateAttendantMessage(body, this.sanitizeSenderName(payload.senderName)), action: 'FLOW_BUTTON', buttons: next?.options.map((item) => ({ label: item.label })) ?? [], optionIds: next?.options.map((item) => item.publicId) ?? [] });
+          console.log('[ProspectingRealtime]', { router: 'FLOW_BUTTON', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+        }
+        return { handled: true, router: 'FLOW_BUTTON', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
+      }
+    }
+
     // ROTEAMENTO: opt-out já foi tratado acima; fluxo aguardando tem precedência
     const flowEnabled = this.environment?.PROSPECTING_FLOW_ENABLED === true;
     const execution = flowEnabled && campaign?.flowId

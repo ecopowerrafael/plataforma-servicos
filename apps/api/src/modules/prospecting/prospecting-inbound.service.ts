@@ -464,9 +464,13 @@ export class ProspectingInboundService {
     const activeConversation = contact
       ? await this.client.prospectingConversation.findFirst({ where: { contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE' }, orderBy: { updatedAt: 'desc' } })
       : null;
-    const lastInteraction = activeConversation
-      ? [activeConversation.lastInboundAt, activeConversation.lastOutboundAt, activeConversation.updatedAt].filter((value): value is Date => value instanceof Date).sort((a, b) => b.getTime() - a.getTime())[0]
-      : null;
+    const lastInteraction = [
+      activeConversation?.lastInboundAt,
+      activeConversation?.lastOutboundAt,
+      activeConversation?.updatedAt,
+      leadData.lastInboundAt,
+      leadData.lastOutboundAt,
+    ].filter((value): value is Date => value instanceof Date).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
     if (isReceivedMessage && config.attendantEnabled && config.attendantFlowId && (!lastInteraction || lastInteraction < oneHourAgo) && this.realtimeReply) {
       const attendantStart = await this.client.prospectingFlowStep.findFirst({
         where: { flowId: BigInt(config.attendantFlowId), isStart: true }, orderBy: { position: 'asc' },
@@ -665,10 +669,11 @@ export class ProspectingInboundService {
           console.log('[ProspectingRealtime]', { router: 'OBJECTION', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled, reason: reply.reason });
         }
         console.log('[ProspectingInboundTrace]', { ...trace, router: result.matched ? 'OBJECTION' : 'UNMATCHED', matched: result.matched, objectionCode: result.objectionCode, autoReplyScheduled: result.autoReplyScheduled, replySent, reason: replyReason ?? result.autoReplyReason });
-        if (!result.matched && config.fallbackMessage && this.realtimeReply) {
+        if (!result.matched && this.realtimeReply) {
+          const fallbackMessage = config.fallbackMessage ?? 'Um momento que um atendente irá verificar sua solicitação.';
           const reply = await this.realtimeReply.send({
             campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id,
-            phone: normalizedPhone, body: config.fallbackMessage, action: 'ATTENDANT_FALLBACK',
+            phone: normalizedPhone, body: fallbackMessage, action: 'ATTENDANT_FALLBACK',
           });
           console.log('[ProspectingRealtime]', { router: 'ATTENDANT_FALLBACK', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
           return { handled: true, router: 'ATTENDANT_FALLBACK', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
@@ -861,7 +866,7 @@ export class ProspectingInboundService {
   private async findEligibleLeadByReferencedMessage(
     referencedMessageId: string,
     normalizedPhone: string,
-  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string } | null> {
+  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string; lastInboundAt: Date; lastOutboundAt: Date | null } | null> {
     if (!this.client) {
       return null;
     }
@@ -899,6 +904,7 @@ export class ProspectingInboundService {
         normalizedPhone: true,
         status: true,
         lastOutboundAt: true,
+        lastInboundAt: true,
         campaign: {
           select: {
             status: true,
@@ -936,6 +942,8 @@ export class ProspectingInboundService {
       campaignId: lead.campaignId,
       respondedAt: lead.respondedAt,
       publicId: lead.publicId,
+      lastInboundAt: lead.lastInboundAt,
+      lastOutboundAt: lead.lastOutboundAt,
     };
   }
 
@@ -944,7 +952,7 @@ export class ProspectingInboundService {
    */
   private async findEligibleLead(
     normalizedPhone: string,
-  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string } | null> {
+  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string; lastInboundAt: Date; lastOutboundAt: Date | null } | null> {
     if (!this.client) {
       return null;
     }
@@ -960,6 +968,8 @@ export class ProspectingInboundService {
         campaignId: true,
         respondedAt: true,
         publicId: true,
+        lastInboundAt: true,
+        lastOutboundAt: true,
         status: true,
         flowExecutions: {
           where: { status: { in: ['WAITING', 'ACTIVE'] } },
@@ -985,7 +995,7 @@ export class ProspectingInboundService {
       resolutionMethod: 'latest_context',
       candidateCount: eligibleLeads.length,
     });
-    return { id: lead.id, campaignId: lead.campaignId, respondedAt: lead.respondedAt, publicId: lead.publicId };
+    return { id: lead.id, campaignId: lead.campaignId, respondedAt: lead.respondedAt, publicId: lead.publicId, lastInboundAt: lead.lastInboundAt, lastOutboundAt: lead.lastOutboundAt };
   }
 
   /**

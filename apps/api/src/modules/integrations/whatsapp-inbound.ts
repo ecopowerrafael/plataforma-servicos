@@ -60,6 +60,8 @@ function structuralKeys(value: unknown): Record<string, unknown> {
   const content = record(root.msgContent);
   return {
     rootKeys: Object.keys(root).sort(),
+    chatKeys: Object.keys(record(root.chat)).sort(),
+    senderKeys: Object.keys(record(root.sender)).sort(),
     msgContentKeys: Object.keys(content).sort(),
     nestedObjectKeys: Object.fromEntries(
       Object.entries(content)

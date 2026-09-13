@@ -439,6 +439,30 @@ export class ProspectingInboundService {
       result: 'LEAD_FOUND_PROCEEDING'
     });
 
+    // Após uma hora sem interação, a próxima mensagem inicia uma nova sessão
+    // do Atendente Agendei. A regra só vale para conversas ativas e nunca
+    // ultrapassa opt-out, SUPPRESSED ou takeover MANUAL já tratados acima.
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const contact = await this.client.prospectingContact.findUnique({ where: { normalizedPhone } });
+    const activeConversation = contact
+      ? await this.client.prospectingConversation.findFirst({ where: { contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE' }, orderBy: { updatedAt: 'desc' } })
+      : null;
+    const lastInteraction = activeConversation
+      ? [activeConversation.lastInboundAt, activeConversation.lastOutboundAt, activeConversation.updatedAt].filter((value): value is Date => value instanceof Date).sort((a, b) => b.getTime() - a.getTime())[0]
+      : null;
+    if (config.attendantEnabled && config.attendantFlowId && (!lastInteraction || lastInteraction < oneHourAgo) && this.realtimeReply) {
+      const attendantStart = await this.client.prospectingFlowStep.findFirst({
+        where: { flowId: BigInt(config.attendantFlowId), isStart: true }, orderBy: { position: 'asc' },
+        include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } },
+      });
+      if (attendantStart) {
+        if (activeConversation) await this.client.prospectingConversation.update({ where: { id: activeConversation.id }, data: { flowId: attendantStart.flowId, currentStepId: attendantStart.id, context: { owner: 'PROSPECTING_ATTENDANT', resetReason: 'INACTIVE_OVER_ONE_HOUR' } } });
+        const reply = await this.realtimeReply.send({ campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id, phone: normalizedPhone, body: attendantStart.message, action: 'ATTENDANT_GREETING', buttons: attendantStart.options.map((option) => ({ label: option.label })), optionIds: attendantStart.options.map((option) => option.publicId) });
+        console.log('[ProspectingRealtime]', { router: 'ATTENDANT_GREETING', reason: 'INACTIVE_OVER_ONE_HOUR', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+        return { handled: true, router: 'ATTENDANT_FALLBACK', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
+      }
+    }
+
     // ROTEAMENTO: opt-out já foi tratado acima; fluxo aguardando tem precedência
     const flowEnabled = this.environment?.PROSPECTING_FLOW_ENABLED === true;
     const execution = flowEnabled && campaign?.flowId

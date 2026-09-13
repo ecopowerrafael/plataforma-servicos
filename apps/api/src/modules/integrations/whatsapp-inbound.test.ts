@@ -49,6 +49,19 @@ void test('mensagem de texto vira MESSAGE_RECEIVED com o texto extraído', () =>
   expect(event.selectedIndex).toBeNull();
 });
 
+test.each([
+  { name: 'booleano', isGroup: true },
+  { name: 'string', isGroup: 'true' },
+  { name: 'numero', isGroup: 1 },
+  { name: 'chat jid', chat: { id: '12345@g.us' } },
+  { name: 'remote jid', remoteJid: '12345@g.us' },
+  { name: 'key remote jid', key: { remoteJid: '12345@g.us' } },
+])('reconhece grupo por $name e não usa o participante como telefone', ({ isGroup, chat, remoteJid, key }) => {
+  const event = normalizeWApiWebhook({ event: 'webhookReceived', instanceId: 'I', sender: { id: '5511999999999' }, isGroup, chat, remoteJid, key, msgContent: { conversation: 'oi' } });
+  expect(event.isGroup).toBe(true);
+  expect(event.phone).toBeNull();
+});
+
 void test('aceita caminhos textuais alternativos do envelope W-API', () => {
   expect(normalizeWApiWebhook({ event: 'webhookReceived', instanceId: 'I', sender: { phone: '5511999999999' }, msgContent: { text: 'texto alternativo' } }).text).toBe('texto alternativo');
   expect(normalizeWApiWebhook({ event: 'webhookReceived', instanceId: 'I', sender: { phone: '5511999999999' }, text: 'texto no root' }).text).toBe('texto no root');

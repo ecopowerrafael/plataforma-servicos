@@ -19,6 +19,7 @@ interface ProspectingInboundPayload {
   referencedMessageId?: string | null;
   selectedIndex?: number | null;
   senderName?: string | null;
+  isGroup?: boolean;
 }
 
 interface ProspectingInboundResult {
@@ -67,6 +68,8 @@ export class ProspectingInboundService {
       hasBody: !!payload.body,
       instanceIdProvided: !!payload.instanceId,
     };
+
+    if (payload.isGroup) return { handled: true, reason: 'GROUP_MESSAGE' };
 
     if (!this.client || !this.configService) {
       console.log('[ProspectingInboundTrace]', { ...trace, result: 'SERVICE_NOT_CONFIGURED' });

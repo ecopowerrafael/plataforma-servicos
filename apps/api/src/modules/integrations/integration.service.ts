@@ -389,6 +389,16 @@ export class IntegrationService {
 
     if (received.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
 
+    if (received.isGroup) {
+      console.log('[WebhookRoute]', {
+        routerCandidate: 'IGNORED',
+        normalizedEventType: received.eventType,
+        isGroup: true,
+        result: 'GROUP_MESSAGE',
+      });
+      return { accepted: true, ignored: true, reason: 'GROUP_MESSAGE' } as const;
+    }
+
     // Connectivity callbacks are not message events and must never enter
     // prospecting/tenant message processing or mutate message status.
     if (received.providerEvent === 'webhookConnected') {
@@ -420,6 +430,7 @@ export class IntegrationService {
           eventType: received.eventType || null,
           referencedMessageId: received.referencedMessageId ?? null,
           selectedIndex: received.selectedIndex ?? null,
+          isGroup: received.isGroup,
         });
 
         // Se foi processado por Prospecting, retornar resultado

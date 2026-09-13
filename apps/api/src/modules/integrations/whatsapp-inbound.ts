@@ -96,6 +96,15 @@ function senderPhone(root: Record<string, unknown>, sender: Record<string, unkno
   return null;
 }
 
+function isGroupConversation(root: Record<string, unknown>): boolean {
+  const chat = record(root.chat);
+  const key = record(root.key);
+  const explicit = [root.isGroup, chat.isGroup];
+  if (explicit.some((value) => value === true || value === 1 || value === 'true')) return true;
+  const jids = [chat.id, root.remoteJid, key.remoteJid, root.chatId, root.from];
+  return jids.some((value) => typeof value === 'string' && value.trim().toLowerCase().endsWith('@g.us'));
+}
+
 /** Vocabulário interno de eventos. Os nomes do provedor não passam daqui. */
 export type WhatsAppEventType =
   | 'MESSAGE_RECEIVED'
@@ -180,6 +189,7 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
   const providerEvent = text(root.event, 80);
   const statusValue = text(root.status, 40);
   const isAction = Object.keys(reply).length > 0;
+  const isGroup = isGroupConversation(root);
 
   if (providerEvent === 'webhookReceived') {
     console.log('[WApiWebhookStructure]', structuralKeys(payload));
@@ -205,7 +215,7 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
     providerEvent,
     instanceId: text(root.instanceId, 80),
     externalMessageId,
-    phone: senderPhone(root, sender),
+    phone: isGroup ? null : senderPhone(root, sender),
     senderName: text(sender.pushName, 180),
     messageType: isAction ? 'BUTTON_REPLY' : text(root.type, 80),
     text: text(
@@ -220,7 +230,7 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
     selectedDisplayText: text(reply.selectedDisplayText, 191),
     timestamp: typeof moment === 'number' && moment > 0 ? new Date(moment * 1_000) : null,
     fromMe: root.fromMe === true,
-    isGroup: root.isGroup === true,
+    isGroup,
     fingerprint: eventFingerprint({
       eventType,
       externalMessageId,

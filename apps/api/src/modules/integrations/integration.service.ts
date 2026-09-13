@@ -34,6 +34,8 @@ import { ProspectingInboundService } from '../prospecting/prospecting-inbound.se
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
+import { type ProspectingMessageSender } from '../prospecting/prospecting-message-sender.js';
+import { ProspectingRealtimeReplyService } from '../prospecting/prospecting-realtime-reply.service.js';
 
 interface Actor {
   userId: bigint;
@@ -111,6 +113,7 @@ export class IntegrationService {
     prospectingConfigService?: ProspectingWhatsAppConfigService,
     private readonly environment?: Environment | null,
     private readonly providerResolver?: WhatsAppProviderResolver,
+    prospectingMessageSender?: ProspectingMessageSender,
   ) {
     this.assistant = new WhatsAppAssistantService(
       repository,
@@ -126,7 +129,7 @@ export class IntegrationService {
     );
 
     this.prospectingInbound = client && prospectingConfigService
-      ? new ProspectingInboundService(client, prospectingConfigService, this.environment)
+      ? new ProspectingInboundService(client, prospectingConfigService, this.environment, prospectingMessageSender ? new ProspectingRealtimeReplyService(client, prospectingMessageSender) : null)
       : new ProspectingInboundService();
   }
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {

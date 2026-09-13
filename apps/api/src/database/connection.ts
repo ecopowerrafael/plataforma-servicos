@@ -120,6 +120,7 @@ import { ProspectingService } from '../modules/prospecting/prospecting.service.j
 import { ProspectingWhatsAppConfigService } from '../modules/prospecting/prospecting-whatsapp-config.service.js';
 import { ProspectingAudienceService } from '../modules/prospecting/prospecting-audience.service.js';
 import { ProspectingRepository } from '../modules/prospecting/prospecting.repository.js';
+import { WApiProspectingMessageSender } from '../modules/prospecting/prospecting-message-sender.service.js';
 import { PrismaComboRepository } from '../modules/services/combo.repository.js';
 import { ComboService } from '../modules/services/combo.service.js';
 import { PrismaServiceCategoryRepository } from '../modules/services/service-category.repository.js';
@@ -653,6 +654,7 @@ export function createDatabaseConnection(
       credentialsCipher ? new ProspectingWhatsAppConfigService(client, credentialsCipher) : undefined,
       environment,
       whatsappProviderResolver,
+      credentialsCipher ? new WApiProspectingMessageSender(new ProspectingWhatsAppConfigService(client, credentialsCipher), environment!) : undefined,
     ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,

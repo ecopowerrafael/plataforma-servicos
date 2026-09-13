@@ -5,6 +5,7 @@ import { type ProspectingWhatsAppConfigService } from './prospecting-whatsapp-co
 import { normalizeWhatsAppPhone } from '../integrations/whatsapp-phone.js';
 import { ProspectingObjectionEngine } from './prospecting-objection-engine.js';
 import { ProspectingFlowEngine } from './prospecting-flow-engine.service.js';
+import { type ProspectingRealtimeReplyService } from './prospecting-realtime-reply.service.js';
 
 interface ProspectingInboundPayload {
   instanceId: string | null;
@@ -35,6 +36,7 @@ export class ProspectingInboundService {
     private readonly client?: PrismaClient | null,
     private readonly configService?: ProspectingWhatsAppConfigService | null,
     private readonly environment?: Environment | null,
+    private readonly realtimeReply?: ProspectingRealtimeReplyService | null,
   ) {}
 
   /**
@@ -382,7 +384,16 @@ export class ProspectingInboundService {
         // Recarregar execution para obter status final
         const updatedExecution = await this.client.prospectingFlowExecution.findUnique({
           where: { id: execution.id },
+          include: { currentStep: { select: { message: true } } },
         });
+
+        if (flowResult.executionAdvanced && updatedExecution?.currentStep?.message && this.realtimeReply) {
+          const reply = await this.realtimeReply.send({
+            campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id,
+            phone: normalizedPhone, body: updatedExecution.currentStep.message, action: 'FLOW_BUTTON',
+          });
+          console.log('[ProspectingRealtime]', { router: 'FLOW_BUTTON', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+        }
 
         // Gerenciar humanLock baseado em status final
         if (flowResult.executionAdvanced && updatedExecution) {
@@ -436,6 +447,13 @@ export class ProspectingInboundService {
           step: execution.currentStep,
           inboundMessage: message,
         });
+        if (flowResult.executionAdvanced && flowResult.newStepId && this.realtimeReply) {
+          const nextStep = await this.client.prospectingFlowStep.findUnique({ where: { id: flowResult.newStepId }, select: { message: true } });
+          if (nextStep?.message) {
+            const reply = await this.realtimeReply.send({ campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id, phone: normalizedPhone, body: nextStep.message, action: 'FLOW_TEXT' });
+            console.log('[ProspectingRealtime]', { router: 'FLOW_TEXT', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+          }
+        }
         if (flowResult.executionAdvanced || flowResult.reason !== 'NO_OPTION_MATCH') {
           console.log('[ProspectingInboundTrace]', { ...trace, router: 'FLOW_TEXT', result: flowResult.reason ?? 'FLOW_ADVANCED' });
           return { handled: true, router: 'FLOW_TEXT', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };

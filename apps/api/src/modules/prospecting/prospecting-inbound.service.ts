@@ -22,7 +22,7 @@ interface ProspectingInboundPayload {
 interface ProspectingInboundResult {
   handled: boolean;
   reason?: string;
-  router?: 'FLOW_BUTTON' | 'FLOW_TEXT' | 'OBJECTION' | 'UNMATCHED';
+  router?: 'FLOW_BUTTON' | 'FLOW_TEXT' | 'OBJECTION' | 'UNMATCHED' | 'ATTENDANT_FALLBACK';
   leadPublicId?: string;
   campaignPublicId?: string;
 }
@@ -468,6 +468,14 @@ export class ProspectingInboundService {
           text: payload.body as string,
         });
         console.log('[ProspectingInboundTrace]', { ...trace, router: result.matched ? 'OBJECTION' : 'UNMATCHED', matched: result.matched, objectionCode: result.objectionCode, autoReplyScheduled: result.autoReplyScheduled, reason: result.autoReplyReason });
+        if (!result.matched && config.fallbackMessage && this.realtimeReply) {
+          const reply = await this.realtimeReply.send({
+            campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id,
+            phone: normalizedPhone, body: config.fallbackMessage, action: 'ATTENDANT_FALLBACK',
+          });
+          console.log('[ProspectingRealtime]', { router: 'ATTENDANT_FALLBACK', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+          return { handled: true, router: 'ATTENDANT_FALLBACK', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
+        }
         return { handled: true, router: result.matched ? 'OBJECTION' : 'UNMATCHED', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
       } catch (error) {
         // Log but don't fail webhook

@@ -473,7 +473,7 @@ export class ProspectingInboundService {
       });
       if (attendantStart) {
         if (activeConversation) await this.client.prospectingConversation.update({ where: { id: activeConversation.id }, data: { flowId: attendantStart.flowId, currentStepId: attendantStart.id, context: { owner: 'PROSPECTING_ATTENDANT', resetReason: 'INACTIVE_OVER_ONE_HOUR' } } });
-        const reply = await this.realtimeReply.send({ campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id, phone: normalizedPhone, body: attendantStart.message, action: 'ATTENDANT_GREETING', buttons: attendantStart.options.map((option) => ({ label: option.label })), optionIds: attendantStart.options.map((option) => option.publicId) });
+        const reply = await this.realtimeReply.send({ campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id, phone: normalizedPhone, body: this.interpolateAttendantMessage(attendantStart.message, this.sanitizeSenderName(payload.senderName)), action: 'ATTENDANT_GREETING', buttons: attendantStart.options.map((option) => ({ label: option.label })), optionIds: attendantStart.options.map((option) => option.publicId) });
         console.log('[ProspectingRealtime]', { router: 'ATTENDANT_GREETING', reason: 'INACTIVE_OVER_ONE_HOUR', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
         return { handled: true, router: 'ATTENDANT_FALLBACK', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
       }

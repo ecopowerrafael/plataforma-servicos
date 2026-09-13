@@ -985,7 +985,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
   // Objections: CRUD
   app.get(
     '/platform/prospecting/objections',
-    { schema: { querystring: z.object({ isActive: z.enum(['true', 'false']).optional() }) } },
+    { schema: { querystring: z.object({ isActive: z.enum(['true', 'false']).optional(), purpose: z.enum(['CAMPAIGN', 'ATTENDANT']).optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.read');
       const where = request.query.isActive !== undefined ? { isActive: request.query.isActive === 'true' } : {};
@@ -1310,13 +1310,14 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     async (request) => {
       allow(request, 'platform.prospecting.read');
       const isActive = request.query.isActive === 'true' ? true : request.query.isActive === 'false' ? false : undefined;
+      const purpose = (request.query as { purpose?: 'CAMPAIGN' | 'ATTENDANT' }).purpose;
       const flows = await options.client.prospectingFlow.findMany({
-        where: isActive !== undefined ? { isActive } : {},
+        where: { ...(isActive !== undefined ? { isActive } : {}), ...(purpose ? { purpose } : {}) },
         orderBy: { createdAt: 'desc' },
       });
       const withCounts = await Promise.all(flows.map(async f => {
         const stepsCount = await options.client.prospectingFlowStep.count({ where: { flowId: f.id } });
-        return { publicId: f.publicId, code: f.code, name: f.name, description: f.description, isActive: f.isActive, stepsCount, createdAt: f.createdAt.toISOString(), updatedAt: f.updatedAt.toISOString() };
+        return { publicId: f.publicId, code: f.code, name: f.name, description: f.description, purpose: f.purpose, isActive: f.isActive, stepsCount, createdAt: f.createdAt.toISOString(), updatedAt: f.updatedAt.toISOString() };
       }));
       return { items: withCounts };
     },
@@ -1324,11 +1325,11 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
 
   app.post(
     '/platform/prospecting/flows',
-    { schema: { body: z.object({ name: z.string().min(1), description: z.string().optional(), isActive: z.boolean().optional() }) } },
+    { schema: { body: z.object({ name: z.string().min(1), description: z.string().optional(), isActive: z.boolean().optional(), purpose: z.enum(['CAMPAIGN', 'ATTENDANT']).optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
       const flow = await options.client.prospectingFlow.create({
-        data: { publicId: randomUUID(), name: request.body.name, description: request.body.description ?? null, isActive: request.body.isActive ?? true },
+        data: { publicId: randomUUID(), name: request.body.name, description: request.body.description ?? null, purpose: request.body.purpose ?? 'CAMPAIGN', isActive: request.body.isActive ?? true },
       });
       return { publicId: flow.publicId, code: flow.code, name: flow.name, description: flow.description, isActive: flow.isActive, createdAt: flow.createdAt.toISOString(), updatedAt: flow.updatedAt.toISOString() };
     },

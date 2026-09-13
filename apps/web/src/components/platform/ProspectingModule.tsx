@@ -18,6 +18,7 @@ import { ProspectingConversationsView } from './ProspectingConversationsView.js'
 import { ProspectingTemplatesView } from './ProspectingTemplatesView.js';
 import { ProspectingObjectionsView } from './ProspectingObjectionsView.js';
 import { ProspectingFlowsView } from './ProspectingFlowsView.js';
+import { ProspectingAttendantView } from './ProspectingAttendantView.js';
 
 interface ProspectingStats {
   leads: number;
@@ -229,7 +230,7 @@ export function ProspectingModule({
 }: {
   campaignPublicId?: string;
 }) {
-  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'flows' | 'templates' | 'objections' | 'settings' | 'create'>(
+  const [view, setView] = useState<'dashboard' | 'campaigns' | 'detail' | 'leads' | 'conversations' | 'flows' | 'attendant' | 'templates' | 'objections' | 'settings' | 'create'>(
     campaignPublicId ? 'detail' : 'campaigns'
   );
   const [page, setPage] = useState(1);
@@ -420,6 +421,7 @@ export function ProspectingModule({
     { id: 'conversations', label: 'Conversas' },
     { id: 'templates', label: 'Templates' },
     { id: 'objections', label: 'Respostas e Objeções' },
+    { id: 'attendant', label: 'Atendente Agendei' },
     { id: 'settings', label: 'Configurações' },
   ];
 
@@ -461,6 +463,8 @@ export function ProspectingModule({
         />
       ) : view === 'flows' ? (
         <ProspectingFlowsView />
+      ) : view === 'attendant' ? (
+        <ProspectingAttendantView />
       ) : view === 'leads' ? (
         <ProspectingLeadsView
           campaigns={campaigns.data?.items ?? []}
@@ -1318,7 +1322,7 @@ function SettingsView({
                 <label style={{ display: 'block', marginTop: '1rem' }}><strong>Fora do horário</strong><textarea value={formData.outsideHoursMessage} onChange={(e) => setFormData({ ...formData, outsideHoursMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}><label><strong>Início (minutos)</strong><input type="number" min="0" max="1440" value={formData.businessHoursStart} onChange={(e) => setFormData({ ...formData, businessHoursStart: e.target.value })} /></label><label><strong>Fim (minutos)</strong><input type="number" min="0" max="1440" value={formData.businessHoursEnd} onChange={(e) => setFormData({ ...formData, businessHoursEnd: e.target.value })} /></label><label><strong>Delay (s)</strong><input type="number" min="0" max="3600" value={formData.replyDelaySeconds} onChange={(e) => setFormData({ ...formData, replyDelaySeconds: e.target.value })} /></label></div>
                 <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '1rem' }}><input type="checkbox" checked={formData.realtimeRepliesEnabled} onChange={(e) => setFormData({ ...formData, realtimeRepliesEnabled: e.target.checked })} /> Respostas imediatas realtime</label>
-                <button type="button" className="secondary-button" style={{ marginTop: '1rem' }} onClick={() => onNavigate('flows')}>Editar menus e opções do atendente</button>
+                <button type="button" className="secondary-button" style={{ marginTop: '1rem' }} onClick={() => onNavigate('attendant')}>Editar menus e opções do atendente</button>
               </div>
 
               <div className="config-section" style={{ marginBottom: '1.5rem' }}>

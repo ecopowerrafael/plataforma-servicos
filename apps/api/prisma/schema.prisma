@@ -4210,6 +4210,7 @@ model ProspectingFlow {
   name                String    @map("name") @db.VarChar(180)
   description         String?   @map("description") @db.Text
   isActive            Boolean   @default(true) @map("is_active")
+  purpose             String    @default("CAMPAIGN") @map("purpose") @db.VarChar(20)
   createdAt           DateTime  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
 

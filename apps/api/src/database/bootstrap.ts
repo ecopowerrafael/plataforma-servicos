@@ -495,6 +495,27 @@ async function seedProspectingTemplates(
   }
 }
 
+async function seedProspectingAttendant(transaction: any): Promise<void> {
+  let flow = await transaction.prospectingFlow.findUnique({ where: { code: 'AGENDEI_ATTENDANT_DEFAULT' }, include: { steps: true } });
+  if (!flow) {
+    flow = await transaction.prospectingFlow.create({ data: { publicId: randomUUID(), code: 'AGENDEI_ATTENDANT_DEFAULT', name: 'Atendente Agendei', description: 'Fluxo editável do Atendente Agendei', purpose: 'ATTENDANT', isActive: true } });
+    const main = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Menu inicial', message: 'Olá, {{nome}}! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?', stepType: 'MESSAGE_OPTIONS', position: 0, isStart: true } });
+    const client = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Já sou cliente', message: 'Certo! Sobre o que você precisa de ajuda?', stepType: 'MESSAGE_OPTIONS', position: 1 } });
+    const prospect = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Quero conhecer', message: 'O que você gostaria de saber?', stepType: 'MESSAGE_OPTIONS', position: 2 } });
+    const options = [
+      [main, 'Já sou cliente', client, ['1', 'cliente', 'já sou cliente']],
+      [main, 'Quero conhecer', prospect, ['2', 'quero conhecer']],
+      [client, 'Financeiro', null, ['financeiro']], [client, 'Suporte técnico', null, ['suporte tecnico', 'suporte']], [client, 'Configurações', null, ['configuracoes', 'configuração']],
+      [prospect, 'Conhecer o Agendei', null, ['conhecer o agendei']], [prospect, 'Divulgação e parceria', null, ['divulgacao e parceria', 'parceria']], [prospect, 'Falar com consultor', null, ['falar com consultor', 'consultor']],
+    ] as const;
+    for (const [step, label, next, aliases] of options) {
+      const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: step.id, label, nextStepId: next?.id ?? null, actionType: label === 'Falar com consultor' ? 'MANUAL' : next ? 'NEXT_STEP' : 'END', position: step.id === main.id ? (label.startsWith('Já') ? 0 : 1) : 0 } });
+      await transaction.prospectingFlowOptionPattern.createMany({ data: aliases.map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: aliases.length - index })) });
+    }
+  }
+  await transaction.prospectingWhatsAppConfig.updateMany({ where: { attendantFlowId: null }, data: { attendantFlowId: flow.id } });
+}
+
 async function seedProspectingFlows(
   transaction: any,
 ): Promise<void> {
@@ -1235,6 +1256,7 @@ async function bootstrap(): Promise<void> {
       await seedProspectingObjections(transaction);
       await seedProspectingTemplates(transaction);
       await seedProspectingFlows(transaction);
+      await seedProspectingAttendant(transaction);
     });
 
     // Provisionamento idempotente do primeiro Super Admin durante o deploy,

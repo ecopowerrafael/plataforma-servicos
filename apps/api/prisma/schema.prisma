@@ -4117,6 +4117,13 @@ model ProspectingWhatsAppConfig {
   fallbackMessage         String?      @map("fallback_message") @db.Text
   mediaFallbackMessage    String?      @map("media_fallback_message") @db.Text
   realtimeRepliesEnabled  Boolean      @default(true) @map("realtime_replies_enabled")
+  useContactName          Boolean      @default(true) @map("use_contact_name")
+  invalidMessage          String?      @map("invalid_message") @db.Text
+  humanTransferMessage    String?      @map("human_transfer_message") @db.Text
+  businessHoursStart     Int?         @map("business_hours_start") @db.UnsignedSmallInt
+  businessHoursEnd       Int?         @map("business_hours_end") @db.UnsignedSmallInt
+  outsideHoursMessage    String?      @map("outside_hours_message") @db.Text
+  replyDelaySeconds      Int          @default(0) @map("reply_delay_seconds") @db.UnsignedInt
 
   @@unique([instanceId])
   @@map("prospecting_whatsapp_configs")

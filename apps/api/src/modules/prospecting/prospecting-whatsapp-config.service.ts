@@ -16,6 +16,13 @@ export interface ProspectingWhatsAppConfigData {
   fallbackMessage?: string | null | undefined;
   mediaFallbackMessage?: string | null | undefined;
   realtimeRepliesEnabled?: boolean | undefined;
+  useContactName?: boolean | undefined;
+  invalidMessage?: string | null | undefined;
+  humanTransferMessage?: string | null | undefined;
+  businessHoursStart?: number | null | undefined;
+  businessHoursEnd?: number | null | undefined;
+  outsideHoursMessage?: string | null | undefined;
+  replyDelaySeconds?: number | undefined;
 }
 
 export interface ProspectingWhatsAppConfigResponse {
@@ -34,6 +41,13 @@ export interface ProspectingWhatsAppConfigResponse {
   fallbackMessage?: string;
   mediaFallbackMessage?: string;
   realtimeRepliesEnabled: boolean;
+  useContactName: boolean;
+  invalidMessage?: string;
+  humanTransferMessage?: string;
+  businessHoursStart?: number;
+  businessHoursEnd?: number;
+  outsideHoursMessage?: string;
+  replyDelaySeconds: number;
   webhookUrl: string;
 }
 
@@ -85,6 +99,8 @@ export class ProspectingWhatsAppConfigService {
           fallbackMessage: data.fallbackMessage ?? null,
           mediaFallbackMessage: data.mediaFallbackMessage ?? null,
           realtimeRepliesEnabled: data.realtimeRepliesEnabled ?? true,
+          useContactName: data.useContactName ?? true, invalidMessage: data.invalidMessage ?? null, humanTransferMessage: data.humanTransferMessage ?? null,
+          businessHoursStart: data.businessHoursStart ?? null, businessHoursEnd: data.businessHoursEnd ?? null, outsideHoursMessage: data.outsideHoursMessage ?? null, replyDelaySeconds: data.replyDelaySeconds ?? 0,
         },
       });
       return this.toResponse(newConfig);
@@ -104,6 +120,8 @@ export class ProspectingWhatsAppConfigService {
         fallbackMessage: data.fallbackMessage ?? config.fallbackMessage,
         mediaFallbackMessage: data.mediaFallbackMessage ?? config.mediaFallbackMessage,
         realtimeRepliesEnabled: data.realtimeRepliesEnabled ?? config.realtimeRepliesEnabled,
+        useContactName: data.useContactName ?? config.useContactName, invalidMessage: data.invalidMessage ?? config.invalidMessage, humanTransferMessage: data.humanTransferMessage ?? config.humanTransferMessage,
+        businessHoursStart: data.businessHoursStart ?? config.businessHoursStart, businessHoursEnd: data.businessHoursEnd ?? config.businessHoursEnd, outsideHoursMessage: data.outsideHoursMessage ?? config.outsideHoursMessage, replyDelaySeconds: data.replyDelaySeconds ?? config.replyDelaySeconds,
       },
     });
 
@@ -153,6 +171,7 @@ export class ProspectingWhatsAppConfigService {
     fallbackMessage: string | null;
     mediaFallbackMessage: string | null;
     realtimeRepliesEnabled: boolean;
+    useContactName: boolean; invalidMessage: string | null; humanTransferMessage: string | null; businessHoursStart: number | null; businessHoursEnd: number | null; outsideHoursMessage: string | null; replyDelaySeconds: number;
   }): ProspectingWhatsAppConfigResponse {
     const result: ProspectingWhatsAppConfigResponse = {
       publicId: config.publicId,
@@ -163,12 +182,18 @@ export class ProspectingWhatsAppConfigService {
       webhookUrl: this.getWebhookUrl(),
       attendantEnabled: config.attendantEnabled ?? true,
       realtimeRepliesEnabled: config.realtimeRepliesEnabled ?? true,
+      useContactName: config.useContactName ?? true, replyDelaySeconds: config.replyDelaySeconds ?? 0,
     };
 
     if (config.attendantFlowId != null) result.attendantFlowId = String(config.attendantFlowId);
     if (config.greetingMessage) result.greetingMessage = config.greetingMessage;
     if (config.fallbackMessage) result.fallbackMessage = config.fallbackMessage;
     if (config.mediaFallbackMessage) result.mediaFallbackMessage = config.mediaFallbackMessage;
+    if (config.invalidMessage) result.invalidMessage = config.invalidMessage;
+    if (config.humanTransferMessage) result.humanTransferMessage = config.humanTransferMessage;
+    if (config.businessHoursStart != null) result.businessHoursStart = config.businessHoursStart;
+    if (config.businessHoursEnd != null) result.businessHoursEnd = config.businessHoursEnd;
+    if (config.outsideHoursMessage) result.outsideHoursMessage = config.outsideHoursMessage;
 
     if (config.phoneNumber) result.phoneNumber = config.phoneNumber;
     if (config.instanceName) result.instanceName = config.instanceName;

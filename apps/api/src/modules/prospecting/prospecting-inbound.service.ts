@@ -213,7 +213,8 @@ export class ProspectingInboundService {
         if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex != null) {
           const previous = await this.client.prospectingMessage.findFirst({ where: { externalMessageId: payload.referencedMessageId, direction: 'OUTBOUND', conversationId: conversation.id }, select: { optionIds: true } });
           const ids = Array.isArray(previous?.optionIds) ? previous.optionIds : [];
-          const selectedId = ids[payload.selectedIndex];
+          const selected = ids[payload.selectedIndex];
+          const selectedId = typeof selected === 'string' ? selected : selected && typeof selected === 'object' && 'id' in selected && typeof selected.id === 'string' ? selected.id : null;
           const selectedOption = typeof selectedId === 'string' ? await this.client.prospectingFlowOption.findUnique({ where: { publicId: selectedId }, include: { patterns: true } }) : null;
           if (selectedOption && selectedOption.stepId === conversation.currentStepId) {
             const next = selectedOption.nextStepId ? await this.client.prospectingFlowStep.findUnique({ where: { id: selectedOption.nextStepId }, include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } }) : null;
@@ -484,7 +485,8 @@ export class ProspectingInboundService {
     if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex != null && config.attendantFlowId && this.realtimeReply) {
       const outbound = await this.client.prospectingMessage.findFirst({ where: { externalMessageId: payload.referencedMessageId, direction: 'OUTBOUND', leadId: leadData.id }, select: { optionIds: true } });
       const ids = Array.isArray(outbound?.optionIds) ? outbound.optionIds : [];
-      const selectedId = ids[payload.selectedIndex];
+      const selected = ids[payload.selectedIndex];
+      const selectedId = typeof selected === 'string' ? selected : selected && typeof selected === 'object' && 'id' in selected && typeof selected.id === 'string' ? selected.id : null;
       const option = typeof selectedId === 'string' ? await this.client.prospectingFlowOption.findUnique({ where: { publicId: selectedId }, include: { step: true } }) : null;
       if (option && option.step.flowId === BigInt(config.attendantFlowId)) {
         const next = option.nextStepId ? await this.client.prospectingFlowStep.findUnique({ where: { id: option.nextStepId }, include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } }) : null;
@@ -758,7 +760,8 @@ export class ProspectingInboundService {
       return { optionPublicId: null, reason: 'SELECTED_INDEX_OUT_OF_BOUNDS' };
     }
 
-    const optionPublicId = outbound.optionIds[selectedIndex];
+    const selected = outbound.optionIds[selectedIndex];
+    const optionPublicId = typeof selected === 'string' ? selected : selected && typeof selected === 'object' && 'id' in selected && typeof selected.id === 'string' ? selected.id : null;
     if (typeof optionPublicId !== 'string') {
       return { optionPublicId: null, reason: 'OPTION_ID_INVALID_TYPE' };
     }

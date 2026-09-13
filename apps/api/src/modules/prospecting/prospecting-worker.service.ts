@@ -102,6 +102,7 @@ export class ProspectingWorkerService implements ProspectingWorker {
       });
 
       // Lead fica bloqueado para este step até intervenção manual
+      if (msg.leadId === null) continue;
       await this.client.prospectingLead.update({
         where: { id: msg.leadId },
         data: {
@@ -207,6 +208,7 @@ export class ProspectingWorkerService implements ProspectingWorker {
     const repo = new ProspectingAutoReplyRepository(this.client);
     const messages = await repo.findPendingRealtimeReplies(this.environment.PROSPECTING_WORKER_BATCH_SIZE);
     for (const message of messages) {
+      if (!message.lead || message.campaignId === null || message.leadId === null) continue;
       if (message.lead.humanLockType === 'MANUAL' || message.lead.status === 'SUPPRESSED') continue;
       const claim = await this.client.prospectingMessage.updateMany({ where: { id: message.id, status: 'PENDING' }, data: { status: 'SENDING', sendingStartedAt: new Date() } });
       if (claim.count !== 1) continue;
@@ -913,6 +915,7 @@ export class ProspectingWorkerService implements ProspectingWorker {
     const pendingAutoReplies = await repo.findPendingAutoReplies(this.environment.PROSPECTING_WORKER_BATCH_SIZE);
 
     for (const message of pendingAutoReplies) {
+      if (message.campaignId === null || message.leadId === null) continue;
       // Validar se ainda pode enviar
       if (!message.objectionId) {
         // Sem objection definida, cancelar

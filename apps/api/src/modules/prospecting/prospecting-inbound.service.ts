@@ -667,6 +667,7 @@ export class ProspectingInboundService {
       });
       return null;
     }
+    if (outboundMessage.leadId === null) return null;
 
     // Validar que o lead é elegível
     const lead = await this.client.prospectingLead.findUnique({
@@ -684,10 +685,6 @@ export class ProspectingInboundService {
             status: true,
           },
         },
-        flowExecutions: {
-          where: { status: { in: ['WAITING', 'ACTIVE'] } },
-          select: { id: true, campaignId: true, status: true },
-        },
       },
     });
 
@@ -695,7 +692,7 @@ export class ProspectingInboundService {
     const isEligible =
       lead &&
       lead.normalizedPhone === normalizedPhone &&
-      this.isLeadConversationallyEligible(lead.status, lead.flowExecutions) &&
+      this.isLeadConversationallyEligible(lead.status) &&
       true;
 
     if (!isEligible) {
@@ -703,7 +700,7 @@ export class ProspectingInboundService {
         referencedMessageId,
         leadFound: !!lead,
         phoneMismatch: lead && lead.normalizedPhone !== normalizedPhone,
-        statusInvalid: lead && !this.isLeadConversationallyEligible(lead.status, lead.flowExecutions),
+        statusInvalid: lead && !this.isLeadConversationallyEligible(lead.status),
         result: 'REFERENCED_LEAD_NOT_ELIGIBLE',
       });
       return null;

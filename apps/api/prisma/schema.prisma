@@ -3940,8 +3940,8 @@ model ProspectingLead {
 model ProspectingMessage {
   id                BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
   publicId          String                      @unique @map("public_id") @db.Char(36)
-  campaignId        BigInt                      @map("campaign_id") @db.UnsignedBigInt
-  leadId            BigInt                      @map("lead_id") @db.UnsignedBigInt
+  campaignId        BigInt?                     @map("campaign_id") @db.UnsignedBigInt
+  leadId            BigInt?                     @map("lead_id") @db.UnsignedBigInt
   conversationId    BigInt?                     @map("conversation_id") @db.UnsignedBigInt
   direction         String                      @db.VarChar(20)
   stepNumber        Int?                        @map("step_number") @db.UnsignedSmallInt
@@ -3968,8 +3968,8 @@ model ProspectingMessage {
   cancelReason      String?                     @map("cancel_reason") @db.VarChar(500)
   createdAt         DateTime                    @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt         DateTime                    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
-  campaign          ProspectingCampaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  lead              ProspectingLead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign          ProspectingCampaign?        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead              ProspectingLead?            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   template          ProspectingTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
   objection         ProspectingObjection?       @relation(fields: [objectionId], references: [id], onDelete: SetNull)
   replyToMessage    ProspectingMessage?         @relation("repliesTo", fields: [replyToMessageId], references: [id], onDelete: SetNull)

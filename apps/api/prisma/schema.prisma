@@ -4108,9 +4108,58 @@ model ProspectingWhatsAppConfig {
   nextSendAt              DateTime?    @map("next_send_at") @db.DateTime(3)
   createdAt               DateTime     @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt               DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  attendantEnabled        Boolean      @default(true) @map("attendant_enabled")
+  attendantFlowId         BigInt?      @map("attendant_flow_id") @db.UnsignedBigInt
+  greetingMessage         String?      @map("greeting_message") @db.Text
+  fallbackMessage         String?      @map("fallback_message") @db.Text
+  mediaFallbackMessage    String?      @map("media_fallback_message") @db.Text
+  realtimeRepliesEnabled  Boolean      @default(true) @map("realtime_replies_enabled")
 
   @@unique([instanceId])
   @@map("prospecting_whatsapp_configs")
+}
+
+enum ProspectingConversationStatus {
+  ACTIVE
+  MANUAL
+  CLOSED
+  SUPPRESSED
+}
+
+model ProspectingContact {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId        String    @unique @map("public_id") @db.Char(36)
+  normalizedPhone String    @unique @map("normalized_phone") @db.VarChar(20)
+  displayName     String?   @map("display_name") @db.VarChar(180)
+  firstInboundAt  DateTime? @map("first_inbound_at") @db.DateTime(3)
+  lastInboundAt   DateTime? @map("last_inbound_at") @db.DateTime(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  conversations   ProspectingConversation[]
+
+  @@map("prospecting_contacts")
+}
+
+model ProspectingConversation {
+  id             BigInt                        @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId       String                        @unique @map("public_id") @db.Char(36)
+  contactId      BigInt                        @map("contact_id") @db.UnsignedBigInt
+  instanceId     String                        @map("instance_id") @db.VarChar(100)
+  status         ProspectingConversationStatus @default(ACTIVE)
+  flowId         BigInt?                       @map("flow_id") @db.UnsignedBigInt
+  currentStepId  BigInt?                       @map("current_step_id") @db.UnsignedBigInt
+  leadId         BigInt?                       @map("lead_id") @db.UnsignedBigInt
+  campaignId     BigInt?                       @map("campaign_id") @db.UnsignedBigInt
+  lastInboundAt  DateTime?                     @map("last_inbound_at") @db.DateTime(3)
+  lastOutboundAt DateTime?                     @map("last_outbound_at") @db.DateTime(3)
+  context        Json                          @default("{}")
+  createdAt      DateTime                      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime                      @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  contact        ProspectingContact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId, status])
+  @@index([contactId, status])
+  @@map("prospecting_conversations")
 }
 
 enum ProspectingFlowStepType {

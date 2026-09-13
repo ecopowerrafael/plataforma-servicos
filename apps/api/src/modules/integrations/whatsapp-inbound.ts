@@ -135,6 +135,7 @@ export interface NormalizedWhatsAppEvent {
   instanceId: string | null;
   externalMessageId: string | null;
   phone: string | null;
+  senderName: string | null;
   messageType: string | null;
   /** Texto da mensagem, quando é uma mensagem de texto. */
   text: string | null;
@@ -205,6 +206,7 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
     instanceId: text(root.instanceId, 80),
     externalMessageId,
     phone: senderPhone(root, sender),
+    senderName: text(sender.pushName, 180),
     messageType: isAction ? 'BUTTON_REPLY' : text(root.type, 80),
     text: text(
       content.conversation ?? extendedText.text ?? imageMessage.caption ?? videoMessage.caption

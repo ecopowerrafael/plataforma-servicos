@@ -412,6 +412,7 @@ export class IntegrationService {
           instanceId: received.instanceId || null,
           externalMessageId: received.externalMessageId || null,
           fromPhone: received.phone || null,
+          senderName: received.senderName,
           body: received.text ?? received.selectedDisplayText ?? undefined,
           messageType: received.messageType,
           fromMe: received.fromMe,

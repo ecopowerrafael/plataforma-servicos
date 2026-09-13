@@ -9,6 +9,8 @@ export interface RealtimeReplyInput {
   phone: string;
   body: string;
   action: string;
+  buttons?: Array<{ label: string }>;
+  optionIds?: string[];
 }
 
 export interface RealtimeReplyResult {
@@ -43,6 +45,7 @@ export class ProspectingRealtimeReplyService {
         direction: 'OUTBOUND', purpose: 'REALTIME_REPLY', status: 'PENDING',
         body: input.body, idempotencyKey, scheduledAt: new Date(), nextAttemptAt: new Date(),
         replyToMessageId: input.inboundMessageId,
+        ...(input.optionIds ? { optionIds: input.optionIds } : {}),
       },
       select: { id: true, status: true, externalMessageId: true },
     });
@@ -53,7 +56,9 @@ export class ProspectingRealtimeReplyService {
     });
     if (claim.count !== 1) return { queued: true, sent: false, retryScheduled: true, messageId: message.id, reason: 'CLAIMED_BY_OTHER' };
 
-    const result = await this.sender.sendText({ phone: input.phone, body: input.body });
+    const result = input.buttons?.length
+      ? await this.sender.sendButtons({ phone: input.phone, body: input.body, buttons: input.buttons })
+      : await this.sender.sendText({ phone: input.phone, body: input.body });
     if (result.success) {
       await this.client.prospectingMessage.update({ where: { id: message.id }, data: { status: 'SENT', sentAt: new Date(), externalMessageId: result.externalMessageId } });
       return { queued: true, sent: true, retryScheduled: false, messageId: message.id, externalMessageId: result.externalMessageId };

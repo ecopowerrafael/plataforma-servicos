@@ -4163,6 +4163,7 @@ model ProspectingConversation {
 
   @@index([instanceId, status])
   @@index([contactId, status])
+  @@unique([contactId, instanceId, status], map: "uq_prospecting_conversation_contact_instance_status")
   @@map("prospecting_conversations")
 }
 

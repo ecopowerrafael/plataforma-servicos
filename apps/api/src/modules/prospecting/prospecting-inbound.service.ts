@@ -18,6 +18,7 @@ interface ProspectingInboundPayload {
   eventType: string | null;
   referencedMessageId?: string | null;
   selectedIndex?: number | null;
+  senderName?: string | null;
 }
 
 interface ProspectingInboundResult {
@@ -172,13 +173,14 @@ export class ProspectingInboundService {
       }
       if (config.attendantEnabled) {
         const now = new Date();
+        const senderName = this.sanitizeSenderName(payload.senderName);
         const contact = await this.client.prospectingContact.upsert({
           where: { normalizedPhone },
-          create: { publicId: randomUUID(), normalizedPhone, firstInboundAt: now, lastInboundAt: now },
-          update: { lastInboundAt: now },
+          create: { publicId: randomUUID(), normalizedPhone, displayName: senderName, firstInboundAt: now, lastInboundAt: now },
+          update: { lastInboundAt: now, ...(senderName ? { displayName: senderName } : {}) },
         });
         const startStep = config.attendantFlowId
-          ? await this.client.prospectingFlowStep.findFirst({ where: { flowId: BigInt(config.attendantFlowId), isStart: true }, orderBy: { position: 'asc' }, select: { id: true, message: true } })
+          ? await this.client.prospectingFlowStep.findFirst({ where: { flowId: BigInt(config.attendantFlowId), isStart: true }, orderBy: { position: 'asc' }, select: { id: true, message: true, options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } })
           : null;
         const conversation = await this.client.prospectingConversation.findFirst({
           where: { contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE' },
@@ -191,6 +193,35 @@ export class ProspectingInboundService {
         });
         const conversationContext = (conversation.context ?? {}) as Record<string, unknown>;
         let flowReply: string | null = null;
+        let attendantButtons: Array<{ publicId: string; label: string }> = [];
+        let attendantMenu: string | null = typeof conversationContext.menu === 'string' ? conversationContext.menu : null;
+        const normalizedAttendantText = !isMediaWithoutCaption ? this.normalizeInboundText(payload.body as string) : '';
+        if (!conversationContext.greetingSent && !startStep) {
+          attendantButtons = [{ publicId: 'ATTENDANT_CLIENT', label: 'Já sou cliente' }, { publicId: 'ATTENDANT_PROSPECT', label: 'Quero conhecer' }];
+          attendantMenu = 'MAIN';
+        } else if (attendantMenu === 'MAIN' && ['1', 'cliente', 'ja sou cliente'].includes(normalizedAttendantText)) {
+          flowReply = 'Certo! Sobre o que você precisa de ajuda?';
+          attendantButtons = [{ publicId: 'ATTENDANT_FINANCE', label: 'Financeiro' }, { publicId: 'ATTENDANT_SUPPORT', label: 'Suporte técnico' }, { publicId: 'ATTENDANT_SETTINGS', label: 'Configurações' }];
+          attendantMenu = 'CLIENT';
+        } else if (attendantMenu === 'MAIN' && ['2', 'nao sou cliente', 'quero conhecer'].includes(normalizedAttendantText)) {
+          flowReply = 'O que você gostaria de saber?';
+          attendantButtons = [{ publicId: 'ATTENDANT_KNOW', label: 'Conhecer o Agendei' }, { publicId: 'ATTENDANT_PARTNER', label: 'Divulgação e parceria' }, { publicId: 'ATTENDANT_CONSULT', label: 'Falar com consultor' }];
+          attendantMenu = 'PROSPECT';
+        } else if (attendantMenu === 'CLIENT' && ['financeiro', 'suporte tecnico', 'configuracoes'].includes(normalizedAttendantText)) {
+          flowReply = normalizedAttendantText === 'financeiro'
+            ? 'Vou verificar seu vínculo com o Agendei antes de exibir opções financeiras.'
+            : normalizedAttendantText === 'suporte tecnico'
+              ? 'Descreva resumidamente o problema para encaminharmos ao suporte.'
+              : 'Qual configuração você precisa consultar: WhatsApp, agenda, profissionais ou serviços?';
+          attendantMenu = normalizedAttendantText === 'financeiro' ? 'FINANCE' : normalizedAttendantText === 'suporte tecnico' ? 'SUPPORT' : 'SETTINGS';
+        } else if (attendantMenu === 'PROSPECT' && ['conhecer o agendei', 'divulgacao e parceria', 'falar com consultor'].includes(normalizedAttendantText)) {
+          flowReply = normalizedAttendantText === 'conhecer o agendei'
+            ? 'O Agendei reúne agenda, clientes, profissionais e serviços em um só lugar. Posso apresentar o teste grátis.'
+            : normalizedAttendantText === 'divulgacao e parceria'
+              ? 'Que tipo de divulgação ou parceria você tem em mente?'
+              : 'Para falar com um consultor, envie seu nome, negócio, cidade e melhor horário.';
+          attendantMenu = normalizedAttendantText === 'conhecer o agendei' ? 'KNOW' : normalizedAttendantText === 'divulgacao e parceria' ? 'PARTNER' : 'CONSULT';
+        }
         if (!isMediaWithoutCaption && conversation.currentStepId) {
           const step = await this.client.prospectingFlowStep.findUnique({ where: { id: conversation.currentStepId }, include: { options: { include: { patterns: true } } } });
           const text = this.normalizeInboundText(payload.body as string);
@@ -203,14 +234,21 @@ export class ProspectingInboundService {
             flowReply = next?.message ?? null;
           }
         }
+        const greeting = contact.displayName
+          ? `Olá, ${contact.displayName}! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?`
+          : 'Olá! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?';
         const replyBody = flowReply
           ?? (isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
-          : conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage ?? startStep?.message);
+          : conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage ?? startStep?.message ?? greeting);
         const replyAction = flowReply ? 'FLOW_TEXT' : conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
+        const menuOptions = !isMediaWithoutCaption && (attendantButtons.length > 0 || (!conversationContext.greetingSent && !flowReply))
+          ? ((attendantButtons.length ? attendantButtons : startStep?.options) ?? [])
+          : [];
+        const persistedContext = { ...conversationContext, greetingSent: true, ...(attendantMenu ? { menu: attendantMenu } : {}) };
         if (replyBody && this.realtimeReply) {
-          const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: replyBody, action: replyAction });
-          await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { lastInboundAt: now, context: { ...conversationContext, greetingSent: true } } });
+          const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: replyBody, action: replyAction, ...(menuOptions.length ? { buttons: menuOptions.map((option: any) => ({ label: option.label })), optionIds: menuOptions.map((option: any) => option.publicId) } : {}) });
+          await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { lastInboundAt: now, context: persistedContext } });
           console.log('[ProspectingRealtime]', { router: 'PROSPECTING_ATTENDANT', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
           return reply.sent
             ? { handled: true, router: 'ATTENDANT_FALLBACK' as const }
@@ -564,6 +602,12 @@ export class ProspectingInboundService {
       leadPublicId: leadData.publicId,
       campaignPublicId: campaign?.publicId || '',
     };
+  }
+
+  private sanitizeSenderName(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const sanitized = value.replace(/[\u0000-\u001F\u007F]/gu, '').replace(/\s+/gu, ' ').trim().slice(0, 180);
+    return sanitized || null;
   }
 
   /**

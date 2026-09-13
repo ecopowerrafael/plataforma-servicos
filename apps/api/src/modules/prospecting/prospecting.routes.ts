@@ -11,6 +11,7 @@ import { type ProspectingWorker } from './prospecting-worker.js';
 import { ProspectingAudienceService } from './prospecting-audience.service.js';
 import { ProspectingRepository } from './prospecting.repository.js';
 import { ProspectingClock } from './prospecting-time.js';
+import { validateFlowStepOptions } from './prospecting-flow-engine.service.js';
 
 const CreateCampaignSchema = z.object({
   name: z.string().min(1).max(180),
@@ -1387,6 +1388,16 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
     { schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ name: z.string().optional(), description: z.string().optional(), isActive: z.boolean().optional() }) } },
     async (request) => {
       allow(request, 'platform.prospecting.update');
+      if (request.body.isActive === true) {
+        const candidate = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.publicId }, include: { steps: { include: { options: true } } } });
+        if (!candidate) throw new Error('Flow not found');
+        const errors = candidate.steps.length === 0 ? ['O fluxo precisa de etapas.'] : [];
+        if (candidate.steps.filter((step) => step.isStart).length !== 1) errors.push('O fluxo precisa ter exatamente uma etapa inicial.');
+        const stepIds = new Set(candidate.steps.map((step) => step.id.toString()));
+        for (const step of candidate.steps) for (const option of step.options) if (option.nextStepId && !stepIds.has(option.nextStepId.toString())) errors.push('Há opção apontando para outra etapa/fluxo.');
+        for (const step of candidate.steps) errors.push(...validateFlowStepOptions(step));
+        if (errors.length) throw new Error(`FLOW_INVALID: ${[...new Set(errors)].join(' ')}`);
+      }
       const data: any = {};
       if (request.body.name) data.name = request.body.name;
       if (request.body.description !== undefined) data.description = request.body.description;
@@ -1407,6 +1418,22 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         createdAt: flow.createdAt.toISOString(),
         updatedAt: flow.updatedAt.toISOString()
       };
+    },
+  );
+
+  app.post(
+    '/platform/prospecting/flows/:publicId/validate',
+    { schema: { params: z.object({ publicId: z.uuid() }) } },
+    async (request) => {
+      allow(request, 'platform.prospecting.read');
+      const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.publicId }, include: { steps: { include: { options: true } } } });
+      if (!flow) throw new Error('Flow not found');
+      const errors = flow.steps.length === 0 ? ['O fluxo precisa de etapas.'] : [];
+      if (flow.steps.filter((step) => step.isStart).length !== 1) errors.push('O fluxo precisa ter exatamente uma etapa inicial.');
+      const stepIds = new Set(flow.steps.map((step) => step.id.toString()));
+      for (const step of flow.steps) for (const option of step.options) if (option.nextStepId && !stepIds.has(option.nextStepId.toString())) errors.push('Há opção apontando para outra etapa/fluxo.');
+      for (const step of flow.steps) errors.push(...validateFlowStepOptions(step));
+      return { valid: errors.length === 0, errors: [...new Set(errors)] };
     },
   );
 

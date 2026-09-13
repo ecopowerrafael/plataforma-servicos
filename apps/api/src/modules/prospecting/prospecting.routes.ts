@@ -1464,7 +1464,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       const flow = await options.client.prospectingFlow.findUnique({ where: { publicId: request.params.flowPublicId }, select: { id: true } });
       if (!flow) throw new Error('Flow not found');
       if (request.body.isStart) await options.client.prospectingFlowStep.updateMany({ where: { flowId: flow.id }, data: { isStart: false } });
-      const step = await options.client.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code: request.body.code, name: request.body.name, message: request.body.message, stepType: request.body.stepType, position: request.body.position, isStart: request.body.isStart ?? false }, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } });
+      const step = await options.client.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code: request.body.code ?? null, name: request.body.name, message: request.body.message, stepType: request.body.stepType, position: request.body.position, isStart: request.body.isStart ?? false }, include: { options: { orderBy: { position: 'asc' }, include: { patterns: true } } } });
       return {
         publicId: step.publicId,
         code: step.code,

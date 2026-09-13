@@ -14,6 +14,18 @@ interface MatchedOption {
   matchedVia: 'EXACT' | 'STARTS_WITH' | 'ENDS_WITH' | 'CONTAINS';
 }
 
+/** Regras mínimas compartilhadas pelo editor e pelo runtime. */
+export function validateFlowStepOptions(step: { stepType: string; message?: string | null; options?: Array<{ actionType: string; nextStepId?: bigint | null }> }): string[] {
+  const errors: string[] = [];
+  const options = step.options ?? [];
+  if (step.stepType === 'MESSAGE_OPTIONS' && options.length > 3) errors.push('MESSAGE_OPTIONS suporta no máximo três botões.');
+  for (const option of options) {
+    if (option.actionType === 'NEXT_STEP' && !option.nextStepId) errors.push('Toda opção NEXT_STEP precisa de um destino.');
+    if (option.actionType === 'END' && !step.message?.trim()) errors.push('Toda opção END precisa de uma mensagem final.');
+  }
+  return errors;
+}
+
 /**
  * Engine para processar respostas inbound dentro de FlowExecution.
  * Reutiliza padrões de normalização sem acoplar ao ObjectionEngine.

@@ -31,6 +31,9 @@ export class ProspectingRealtimeReplyService {
   ) {}
 
   public async send(input: RealtimeReplyInput): Promise<RealtimeReplyResult> {
+    if ((input.buttons?.length ?? 0) > 3) {
+      return { queued: false, sent: false, retryScheduled: false, reason: 'BUTTON_LIMIT_EXCEEDED' };
+    }
     const idempotencyKey = `realtime:${input.inboundMessageId.toString()}:${input.action}`;
     const existing = await this.client.prospectingMessage.findFirst({
       where: { idempotencyKey, purpose: 'REALTIME_REPLY' },

@@ -519,6 +519,18 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
     const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: start.id, label: 'Divulgação gratuita', nextStepId: disclosure.id, actionType: 'NEXT_STEP', position: start.options.length } });
     await transaction.prospectingFlowOptionPattern.createMany({ data: ['3', 'divulgacao', 'cadastro gratuito', 'divulgar empresa', 'prospeccao', 'voces me chamaram'].map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: 10 - index })) });
   }
+  const ensureMenu = async (parentLabel: string, stepName: string, message: string, options: Array<[string, string[]]>) => {
+    const parentOption = await transaction.prospectingFlowOption.findFirst({ where: { stepId: start?.id, label: parentLabel } });
+    if (!parentOption || parentOption.nextStepId) return;
+    const step = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: stepName, message, stepType: 'MESSAGE_OPTIONS', position: 10 + Number(parentOption.position) } });
+    await transaction.prospectingFlowOption.update({ where: { id: parentOption.id }, data: { nextStepId: step.id, actionType: 'NEXT_STEP' } });
+    for (const [label, aliases] of options) {
+      const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: step.id, label, actionType: 'END', position: options.findIndex(([item]) => item === label) } });
+      await transaction.prospectingFlowOptionPattern.createMany({ data: aliases.map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: aliases.length - index })) });
+    }
+  };
+  await ensureMenu('Já sou cliente', 'Menu de suporte', 'Certo, {{nome}}. Qual assunto você precisa resolver?', [['WhatsApp', ['whatsapp']], ['Agenda', ['agenda']], ['Pagamentos', ['pagamentos', 'financeiro']], ['Conta e configurações', ['conta', 'configuracoes']], ['Falar com suporte', ['suporte tecnico', 'falar com suporte']]]);
+  await ensureMenu('Quero conhecer', 'Menu comercial', 'O Agendei ajuda negócios de serviços a atender pelo WhatsApp, organizar horários, confirmar agendamentos e reduzir tarefas manuais. O que você gostaria de conhecer?', [['Como funciona', ['como funciona']], ['Recursos', ['recursos']], ['Teste grátis', ['teste gratis', 'teste']], ['Valores', ['valores', 'preco']], ['Falar com consultor', ['falar com consultor', 'consultor']], ['Voltar', ['voltar', 'menu']]]);
   await transaction.prospectingWhatsAppConfig.updateMany({ where: { attendantFlowId: null }, data: { attendantFlowId: flow.id } });
 }
 

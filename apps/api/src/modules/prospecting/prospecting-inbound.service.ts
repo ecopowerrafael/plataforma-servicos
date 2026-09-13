@@ -168,11 +168,14 @@ export class ProspectingInboundService {
           create: { publicId: randomUUID(), normalizedPhone, firstInboundAt: now, lastInboundAt: now },
           update: { lastInboundAt: now },
         });
+        const startStep = config.attendantFlowId
+          ? await this.client.prospectingFlowStep.findFirst({ where: { flowId: BigInt(config.attendantFlowId), isStart: true }, orderBy: { position: 'asc' }, select: { id: true, message: true } })
+          : null;
         const conversation = await this.client.prospectingConversation.findFirst({
           where: { contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE' },
           orderBy: { updatedAt: 'desc' },
         }) ?? await this.client.prospectingConversation.create({
-          data: { publicId: randomUUID(), contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE', context: { owner: 'PROSPECTING_ATTENDANT' } },
+          data: { publicId: randomUUID(), contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE', flowId: startStep ? BigInt(config.attendantFlowId!) : null, currentStepId: startStep?.id ?? null, context: { owner: 'PROSPECTING_ATTENDANT' } },
         });
         const inbound = await this.client.prospectingMessage.create({
           data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null },
@@ -180,7 +183,7 @@ export class ProspectingInboundService {
         const conversationContext = (conversation.context ?? {}) as Record<string, unknown>;
         const replyBody = isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
-          : conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage;
+          : conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage ?? startStep?.message;
         const replyAction = conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
         if (replyBody && this.realtimeReply) {
           const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: replyBody, action: replyAction });

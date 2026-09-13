@@ -112,6 +112,12 @@ const prospectingConfigSchema = z.object({
   lastCheckedAt: z.string().optional(),
   tokenMasked: z.string().optional(),
   webhookUrl: z.string().url().optional(),
+  attendantEnabled: z.boolean().optional(),
+  attendantFlowId: z.string().optional(),
+  greetingMessage: z.string().optional(),
+  fallbackMessage: z.string().optional(),
+  mediaFallbackMessage: z.string().optional(),
+  realtimeRepliesEnabled: z.boolean().optional(),
 });
 
 const testConnectionSchema = z.object({
@@ -352,7 +358,7 @@ export function ProspectingModule({
   });
 
   const updateConfigMutation = useMutation({
-    mutationFn: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean }) =>
+    mutationFn: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean; attendantEnabled?: boolean; attendantFlowId?: string | null; greetingMessage?: string | null; fallbackMessage?: string | null; mediaFallbackMessage?: string | null; realtimeRepliesEnabled?: boolean }) =>
       httpClient.request('/platform/prospecting/whatsapp', {
         method: 'PUT',
         schema: prospectingConfigSchema,
@@ -1155,7 +1161,7 @@ function SettingsView({
   isUpdatingConfig: boolean;
   isTestingConnection: boolean;
   isRefreshingWebhooks: boolean;
-  onUpdateConfig: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean }) => Promise<unknown>;
+  onUpdateConfig: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean; attendantEnabled?: boolean; attendantFlowId?: string | null; greetingMessage?: string | null; fallbackMessage?: string | null; mediaFallbackMessage?: string | null; realtimeRepliesEnabled?: boolean }) => Promise<unknown>;
   onTestConnection: () => Promise<unknown>;
   onRefreshWebhooks: () => Promise<unknown>;
   onNavigate: (view: string) => void;
@@ -1165,6 +1171,12 @@ function SettingsView({
     token: '',
     phoneNumber: config?.phoneNumber ?? '',
     instanceName: config?.instanceName ?? '',
+    attendantEnabled: config?.attendantEnabled ?? true,
+    attendantFlowId: config?.attendantFlowId ?? '',
+    greetingMessage: config?.greetingMessage ?? '',
+    fallbackMessage: config?.fallbackMessage ?? '',
+    mediaFallbackMessage: config?.mediaFallbackMessage ?? '',
+    realtimeRepliesEnabled: config?.realtimeRepliesEnabled ?? true,
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -1188,6 +1200,14 @@ function SettingsView({
         phoneNumber: formData.phoneNumber,
         instanceName: formData.instanceName,
       };
+      Object.assign(payload, {
+        attendantEnabled: formData.attendantEnabled,
+        attendantFlowId: formData.attendantFlowId || null,
+        greetingMessage: formData.greetingMessage || null,
+        fallbackMessage: formData.fallbackMessage || null,
+        mediaFallbackMessage: formData.mediaFallbackMessage || null,
+        realtimeRepliesEnabled: formData.realtimeRepliesEnabled,
+      });
       if (formData.token) {
         payload.token = formData.token;
       }
@@ -1274,6 +1294,16 @@ function SettingsView({
                     }}
                   />
                 </label>
+              </div>
+
+              <div className="config-section" style={{ marginBottom: '1.5rem' }}>
+                <h3>Atendente Agendei</h3>
+                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><input type="checkbox" checked={formData.attendantEnabled} onChange={(e) => setFormData({ ...formData, attendantEnabled: e.target.checked })} /> Ativar atendente oficial</label>
+                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Saudação inicial</strong><textarea value={formData.greetingMessage} onChange={(e) => setFormData({ ...formData, greetingMessage: e.target.value })} placeholder="Deixe vazio para usar a saudação padrão" rows={3} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
+                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Fallback</strong><textarea value={formData.fallbackMessage} onChange={(e) => setFormData({ ...formData, fallbackMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
+                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Mídia não suportada</strong><textarea value={formData.mediaFallbackMessage} onChange={(e) => setFormData({ ...formData, mediaFallbackMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
+                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '1rem' }}><input type="checkbox" checked={formData.realtimeRepliesEnabled} onChange={(e) => setFormData({ ...formData, realtimeRepliesEnabled: e.target.checked })} /> Respostas imediatas realtime</label>
+                <button type="button" className="secondary-button" style={{ marginTop: '1rem' }} onClick={() => onNavigate('flows')}>Editar menus e opções do atendente</button>
               </div>
 
               <div className="config-section" style={{ marginBottom: '1.5rem' }}>

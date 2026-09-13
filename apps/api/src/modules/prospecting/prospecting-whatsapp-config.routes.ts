@@ -17,7 +17,7 @@ const UpdateConfigSchema = z.object({
   realtimeRepliesEnabled: z.boolean().optional(),
   useContactName: z.boolean().optional(), invalidMessage: z.string().nullable().optional(), humanTransferMessage: z.string().nullable().optional(),
   businessHoursStart: z.number().int().min(0).max(1440).nullable().optional(), businessHoursEnd: z.number().int().min(0).max(1440).nullable().optional(), outsideHoursMessage: z.string().nullable().optional(), replyDelaySeconds: z.number().int().min(0).max(3600).optional(),
-  webhookUrl: z.string().url().optional(),
+  webhookUrl: z.string().url().optional(), attendantSessionTimeoutEnabled: z.boolean().optional(), attendantSessionTimeoutMinutes: z.number().int().min(1).max(10080).optional(),
 }).strict();
 
 const ConfigResponseSchema = z.object({
@@ -37,7 +37,7 @@ const ConfigResponseSchema = z.object({
   fallbackMessage: z.string().optional(),
   mediaFallbackMessage: z.string().optional(),
   realtimeRepliesEnabled: z.boolean().optional(),
-  useContactName: z.boolean().optional(), invalidMessage: z.string().optional(), humanTransferMessage: z.string().optional(), businessHoursStart: z.number().optional(), businessHoursEnd: z.number().optional(), outsideHoursMessage: z.string().optional(), replyDelaySeconds: z.number().optional(),
+  useContactName: z.boolean().optional(), invalidMessage: z.string().optional(), humanTransferMessage: z.string().optional(), businessHoursStart: z.number().optional(), businessHoursEnd: z.number().optional(), outsideHoursMessage: z.string().optional(), replyDelaySeconds: z.number().optional(), attendantSessionTimeoutEnabled: z.boolean().optional(), attendantSessionTimeoutMinutes: z.number().optional(),
 });
 
 const TestConnectionResponseSchema = z.object({
@@ -81,7 +81,7 @@ export const prospectingWhatsAppConfigRoutes: FastifyPluginAsyncZod<Options> = a
           fallbackMessage: request.body.fallbackMessage,
           mediaFallbackMessage: request.body.mediaFallbackMessage,
           realtimeRepliesEnabled: request.body.realtimeRepliesEnabled,
-          useContactName: request.body.useContactName, invalidMessage: request.body.invalidMessage, humanTransferMessage: request.body.humanTransferMessage, businessHoursStart: request.body.businessHoursStart, businessHoursEnd: request.body.businessHoursEnd, outsideHoursMessage: request.body.outsideHoursMessage, replyDelaySeconds: request.body.replyDelaySeconds,
+          useContactName: request.body.useContactName, invalidMessage: request.body.invalidMessage, humanTransferMessage: request.body.humanTransferMessage, businessHoursStart: request.body.businessHoursStart, businessHoursEnd: request.body.businessHoursEnd, outsideHoursMessage: request.body.outsideHoursMessage, replyDelaySeconds: request.body.replyDelaySeconds, attendantSessionTimeoutEnabled: request.body.attendantSessionTimeoutEnabled, attendantSessionTimeoutMinutes: request.body.attendantSessionTimeoutMinutes,
         });
         return reply.status(200).send(updated);
       } catch (error) {

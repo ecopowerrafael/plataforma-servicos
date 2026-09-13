@@ -4124,6 +4124,8 @@ model ProspectingWhatsAppConfig {
   businessHoursEnd       Int?         @map("business_hours_end") @db.UnsignedSmallInt
   outsideHoursMessage    String?      @map("outside_hours_message") @db.Text
   replyDelaySeconds      Int          @default(0) @map("reply_delay_seconds") @db.UnsignedInt
+  attendantSessionTimeoutEnabled Boolean @default(true) @map("attendant_session_timeout_enabled")
+  attendantSessionTimeoutMinutes Int   @default(60) @map("attendant_session_timeout_minutes") @db.UnsignedInt
 
   @@unique([instanceId])
   @@map("prospecting_whatsapp_configs")

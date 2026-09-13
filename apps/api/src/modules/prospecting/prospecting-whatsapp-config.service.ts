@@ -23,6 +23,8 @@ export interface ProspectingWhatsAppConfigData {
   businessHoursEnd?: number | null | undefined;
   outsideHoursMessage?: string | null | undefined;
   replyDelaySeconds?: number | undefined;
+  attendantSessionTimeoutEnabled?: boolean | undefined;
+  attendantSessionTimeoutMinutes?: number | undefined;
 }
 
 export interface ProspectingWhatsAppConfigResponse {
@@ -48,6 +50,8 @@ export interface ProspectingWhatsAppConfigResponse {
   businessHoursEnd?: number;
   outsideHoursMessage?: string;
   replyDelaySeconds: number;
+  attendantSessionTimeoutEnabled: boolean;
+  attendantSessionTimeoutMinutes: number;
   webhookUrl: string;
 }
 
@@ -100,7 +104,7 @@ export class ProspectingWhatsAppConfigService {
           mediaFallbackMessage: data.mediaFallbackMessage ?? null,
           realtimeRepliesEnabled: data.realtimeRepliesEnabled ?? true,
           useContactName: data.useContactName ?? true, invalidMessage: data.invalidMessage ?? null, humanTransferMessage: data.humanTransferMessage ?? null,
-          businessHoursStart: data.businessHoursStart ?? null, businessHoursEnd: data.businessHoursEnd ?? null, outsideHoursMessage: data.outsideHoursMessage ?? null, replyDelaySeconds: data.replyDelaySeconds ?? 0,
+          businessHoursStart: data.businessHoursStart ?? null, businessHoursEnd: data.businessHoursEnd ?? null, outsideHoursMessage: data.outsideHoursMessage ?? null, replyDelaySeconds: data.replyDelaySeconds ?? 0, attendantSessionTimeoutEnabled: data.attendantSessionTimeoutEnabled ?? true, attendantSessionTimeoutMinutes: data.attendantSessionTimeoutMinutes ?? 60,
         },
       });
       return this.toResponse(newConfig);
@@ -121,7 +125,7 @@ export class ProspectingWhatsAppConfigService {
         mediaFallbackMessage: data.mediaFallbackMessage ?? config.mediaFallbackMessage,
         realtimeRepliesEnabled: data.realtimeRepliesEnabled ?? config.realtimeRepliesEnabled,
         useContactName: data.useContactName ?? config.useContactName, invalidMessage: data.invalidMessage ?? config.invalidMessage, humanTransferMessage: data.humanTransferMessage ?? config.humanTransferMessage,
-        businessHoursStart: data.businessHoursStart ?? config.businessHoursStart, businessHoursEnd: data.businessHoursEnd ?? config.businessHoursEnd, outsideHoursMessage: data.outsideHoursMessage ?? config.outsideHoursMessage, replyDelaySeconds: data.replyDelaySeconds ?? config.replyDelaySeconds,
+        businessHoursStart: data.businessHoursStart ?? config.businessHoursStart, businessHoursEnd: data.businessHoursEnd ?? config.businessHoursEnd, outsideHoursMessage: data.outsideHoursMessage ?? config.outsideHoursMessage, replyDelaySeconds: data.replyDelaySeconds ?? config.replyDelaySeconds, attendantSessionTimeoutEnabled: data.attendantSessionTimeoutEnabled ?? config.attendantSessionTimeoutEnabled, attendantSessionTimeoutMinutes: data.attendantSessionTimeoutMinutes ?? config.attendantSessionTimeoutMinutes,
       },
     });
 
@@ -171,7 +175,7 @@ export class ProspectingWhatsAppConfigService {
     fallbackMessage: string | null;
     mediaFallbackMessage: string | null;
     realtimeRepliesEnabled: boolean;
-    useContactName: boolean; invalidMessage: string | null; humanTransferMessage: string | null; businessHoursStart: number | null; businessHoursEnd: number | null; outsideHoursMessage: string | null; replyDelaySeconds: number;
+    useContactName: boolean; invalidMessage: string | null; humanTransferMessage: string | null; businessHoursStart: number | null; businessHoursEnd: number | null; outsideHoursMessage: string | null; replyDelaySeconds: number; attendantSessionTimeoutEnabled: boolean; attendantSessionTimeoutMinutes: number;
   }): ProspectingWhatsAppConfigResponse {
     const result: ProspectingWhatsAppConfigResponse = {
       publicId: config.publicId,
@@ -182,7 +186,7 @@ export class ProspectingWhatsAppConfigService {
       webhookUrl: this.getWebhookUrl(),
       attendantEnabled: config.attendantEnabled ?? true,
       realtimeRepliesEnabled: config.realtimeRepliesEnabled ?? true,
-      useContactName: config.useContactName ?? true, replyDelaySeconds: config.replyDelaySeconds ?? 0,
+      useContactName: config.useContactName ?? true, replyDelaySeconds: config.replyDelaySeconds ?? 0, attendantSessionTimeoutEnabled: config.attendantSessionTimeoutEnabled ?? true, attendantSessionTimeoutMinutes: config.attendantSessionTimeoutMinutes ?? 60,
     };
 
     if (config.attendantFlowId != null) result.attendantFlowId = String(config.attendantFlowId);

@@ -406,11 +406,11 @@ export class ProspectingInboundService {
     try {
       console.log('[STAGE] HUMAN_LOCK_START');
 
-      const lockMinutes = 60;
+      const lockMinutes = config.attendantSessionTimeoutEnabled === false ? 0 : (config.attendantSessionTimeoutMinutes ?? 60);
       await this.client.prospectingLead.update({
         where: { id: leadData.id },
         data: {
-          humanLockUntil: new Date(now.getTime() + lockMinutes * 60_000),
+          humanLockUntil: lockMinutes > 0 ? new Date(now.getTime() + lockMinutes * 60_000) : null,
           humanLockReason: 'Resposta recebida do lead',
           humanLockType: 'INBOUND_REPLY',
         },

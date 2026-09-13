@@ -246,7 +246,9 @@ export class ProspectingInboundService {
             if (match.option.actionType === 'MANUAL') attendantMenu = 'MANUAL';
           }
         }
-        const greeting = config.useContactName && contact.displayName ? `${config.greetingMessage ?? 'Olá'} ${contact.displayName}!` : config.greetingMessage;
+        const greeting = config.useContactName && contact.displayName
+          ? this.interpolateAttendantMessage(`${config.greetingMessage ?? 'Olá'} ${contact.displayName}!`, contact.displayName)
+          : this.interpolateAttendantMessage(config.greetingMessage ?? '', contact.displayName);
         const replyBody = flowReply
           ?? (isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
@@ -464,7 +466,7 @@ export class ProspectingInboundService {
     const lastInteraction = activeConversation
       ? [activeConversation.lastInboundAt, activeConversation.lastOutboundAt, activeConversation.updatedAt].filter((value): value is Date => value instanceof Date).sort((a, b) => b.getTime() - a.getTime())[0]
       : null;
-    if (config.attendantEnabled && config.attendantFlowId && (!lastInteraction || lastInteraction < oneHourAgo) && this.realtimeReply) {
+    if (isReceivedMessage && config.attendantEnabled && config.attendantFlowId && (!lastInteraction || lastInteraction < oneHourAgo) && this.realtimeReply) {
       const attendantStart = await this.client.prospectingFlowStep.findFirst({
         where: { flowId: BigInt(config.attendantFlowId), isStart: true }, orderBy: { position: 'asc' },
         include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } },

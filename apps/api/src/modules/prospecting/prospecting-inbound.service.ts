@@ -555,6 +555,27 @@ export class ProspectingInboundService {
           return { handled: true, router: 'FLOW_TEXT', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
         }
       }
+      // Leads de campanhas também podem iniciar/reabrir o atendente. Só usamos
+      // esta entrada para mensagens explícitas de abertura; demais textos seguem
+      // normalmente para a classificação de objeções.
+      const normalizedOpening = this.normalizeInboundText(payload.body as string);
+      if (config.attendantEnabled && config.attendantFlowId && ['oi', 'ola', 'menu', 'ajuda', 'atendimento'].includes(normalizedOpening) && this.realtimeReply) {
+        const attendantStart = await this.client.prospectingFlowStep.findFirst({
+          where: { flowId: BigInt(config.attendantFlowId), isStart: true },
+          orderBy: { position: 'asc' },
+          include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } },
+        });
+        if (attendantStart) {
+          const reply = await this.realtimeReply.send({
+            campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id,
+            phone: normalizedPhone, body: attendantStart.message, action: 'ATTENDANT_GREETING',
+            buttons: attendantStart.options.map((option) => ({ label: option.label })),
+            optionIds: attendantStart.options.map((option) => option.publicId),
+          });
+          console.log('[ProspectingRealtime]', { router: 'ATTENDANT_GREETING', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+          return { handled: true, router: 'ATTENDANT_FALLBACK', leadPublicId: leadData.publicId, campaignPublicId: campaign?.publicId || '' };
+        }
+      }
       try {
         const result = await new ProspectingObjectionEngine(this.client, this.environment).classify({
           campaignId: leadData.campaignId,

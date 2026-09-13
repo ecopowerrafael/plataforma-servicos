@@ -250,7 +250,7 @@ export class ProspectingInboundService {
         const replyBody = flowReply
           ?? (isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
-          : conversationContext.greetingSent ? (config.fallbackMessage ?? config.invalidMessage) : this.interpolateAttendantMessage(startStep?.message ?? greeting, contact.displayName));
+          : conversationContext.greetingSent ? (config.fallbackMessage ?? config.invalidMessage) : this.interpolateAttendantMessage(startStep?.message ?? greeting ?? '', contact.displayName));
         const replyAction = flowReply ? 'FLOW_TEXT' : conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
         const menuOptions = !isMediaWithoutCaption && (attendantButtons.length > 0 || (!conversationContext.greetingSent && !flowReply))
           ? ((attendantButtons.length ? attendantButtons : startStep?.options) ?? [])

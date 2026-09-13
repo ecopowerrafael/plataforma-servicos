@@ -145,7 +145,7 @@ export class ProspectingAutoReplyScheduler {
         scheduledAt,
         nextAttemptAt: scheduledAt,
         replyToMessageId: input.inboundMessageId,
-        idempotencyKey,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
       },
     });
 

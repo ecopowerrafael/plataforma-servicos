@@ -162,8 +162,8 @@ export class ProspectingObjectionEngine {
           inboundMessageId: input.inboundMessageId,
           objectionId: bestMatch.objectionId,
           suggestedResponse: bestMatch.suggestedResponse || '',
-          purpose: input.autoReplyPurpose,
-          action: input.autoReplyAction,
+          ...(input.autoReplyPurpose ? { purpose: input.autoReplyPurpose } : {}),
+          ...(input.autoReplyAction ? { action: input.autoReplyAction } : {}),
         });
         autoReplyScheduled = scheduleResult.scheduled;
         autoReplyReason = scheduleResult.reason;

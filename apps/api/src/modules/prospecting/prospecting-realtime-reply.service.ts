@@ -31,6 +31,9 @@ export class ProspectingRealtimeReplyService {
   ) {}
 
   public async send(input: RealtimeReplyInput): Promise<RealtimeReplyResult> {
+    if (!input.body.trim()) {
+      return { queued: false, sent: false, retryScheduled: false, reason: 'EMPTY_REPLY_BODY' };
+    }
     if ((input.buttons?.length ?? 0) > 3) {
       return { queued: false, sent: false, retryScheduled: false, reason: 'BUTTON_LIMIT_EXCEEDED' };
     }

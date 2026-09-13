@@ -17,6 +17,12 @@ function subject(sendResult: any, existing: any = null) {
 const input = { campaignId: null, leadId: null, inboundMessageId: 4n, phone: '5511999999999', body: 'Oi', action: 'ATTENDANT_GREETING' };
 
 describe('ProspectingRealtimeReplyService', () => {
+  it('recusa resposta vazia antes de persistir ou enviar', async () => {
+    const { service, client } = subject({ success: true });
+    const result = await service.send({ inboundMessageId: 1n, phone: '5511999999999', body: ' ', action: 'FLOW_TEXT' });
+    expect(result.reason).toBe('EMPTY_REPLY_BODY');
+    expect(client.prospectingMessage.create).not.toHaveBeenCalled();
+  });
   it('persiste antes de enviar e marca SENT', async () => {
     const { service, client, sender } = subject({ success: true, externalMessageId: 'out-1' });
     const result = await service.send(input);

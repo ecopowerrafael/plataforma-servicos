@@ -208,11 +208,18 @@ export class ProspectingWorkerService implements ProspectingWorker {
     const repo = new ProspectingAutoReplyRepository(this.client);
     const messages = await repo.findPendingRealtimeReplies(this.environment.PROSPECTING_WORKER_BATCH_SIZE);
     for (const message of messages) {
-      if (!message.lead || message.campaignId === null || message.leadId === null) continue;
-      if (message.lead.humanLockType === 'MANUAL' || message.lead.status === 'SUPPRESSED') continue;
+      if (message.lead?.humanLockType === 'MANUAL' || message.lead?.status === 'SUPPRESSED') continue;
       const claim = await this.client.prospectingMessage.updateMany({ where: { id: message.id, status: 'PENDING' }, data: { status: 'SENDING', sendingStartedAt: new Date() } });
       if (claim.count !== 1) continue;
-      const sendResult = await this.messageSender.sendText({ phone: message.lead.phoneSnapshot || message.lead.normalizedPhone, body: message.body });
+      const phone = message.lead?.phoneSnapshot || message.lead?.normalizedPhone || message.conversation?.contact.normalizedPhone;
+      if (!phone) continue;
+      const storedOptions = Array.isArray(message.optionIds) ? message.optionIds : [];
+      const buttons = storedOptions.every((item: any) => item && typeof item === 'object' && typeof item.label === 'string')
+        ? storedOptions.map((item: any) => ({ label: item.label }))
+        : [];
+      const sendResult = buttons.length
+        ? await this.messageSender.sendButtons({ phone, body: message.body, buttons })
+        : await this.messageSender.sendText({ phone, body: message.body });
       if (sendResult.success) {
         await this.client.prospectingMessage.update({ where: { id: message.id }, data: { status: 'SENT', sentAt: new Date(), externalMessageId: sendResult.externalMessageId } });
         stats.sent++;

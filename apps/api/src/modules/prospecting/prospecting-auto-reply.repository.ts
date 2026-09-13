@@ -9,7 +9,10 @@ export class ProspectingAutoReplyRepository {
   public async findPendingRealtimeReplies(limit: number) {
     return this.client.prospectingMessage.findMany({
       where: { purpose: 'REALTIME_REPLY', status: 'PENDING', nextAttemptAt: { lte: new Date() } },
-      include: { lead: { select: { id: true, status: true, phoneSnapshot: true, normalizedPhone: true, humanLockType: true } } },
+      include: {
+        lead: { select: { id: true, status: true, phoneSnapshot: true, normalizedPhone: true, humanLockType: true } },
+        conversation: { select: { contact: { select: { normalizedPhone: true } } } },
+      },
       orderBy: { nextAttemptAt: 'asc' }, take: limit,
     });
   }

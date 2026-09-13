@@ -9,6 +9,7 @@ export interface RealtimeReplyInput {
   phone: string;
   body: string;
   action: string;
+  conversationId?: bigint | null;
   buttons?: Array<{ label: string }>;
   optionIds?: string[];
 }
@@ -45,7 +46,8 @@ export class ProspectingRealtimeReplyService {
         direction: 'OUTBOUND', purpose: 'REALTIME_REPLY', status: 'PENDING',
         body: input.body, idempotencyKey, scheduledAt: new Date(), nextAttemptAt: new Date(),
         replyToMessageId: input.inboundMessageId,
-        ...(input.optionIds ? { optionIds: input.optionIds } : {}),
+        ...(input.conversationId != null ? { conversationId: input.conversationId } : {}),
+        ...(input.buttons?.length ? { optionIds: input.buttons.map((button, index) => ({ id: input.optionIds?.[index] ?? null, label: button.label })) } : input.optionIds ? { optionIds: input.optionIds } : {}),
       },
       select: { id: true, status: true, externalMessageId: true },
     });

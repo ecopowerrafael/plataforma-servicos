@@ -247,7 +247,7 @@ export class ProspectingInboundService {
           : [];
         const persistedContext = { ...conversationContext, greetingSent: true, ...(attendantMenu ? { menu: attendantMenu } : {}) };
         if (replyBody && this.realtimeReply) {
-          const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: replyBody, action: replyAction, ...(menuOptions.length ? { buttons: menuOptions.map((option: any) => ({ label: option.label })), optionIds: menuOptions.map((option: any) => option.publicId) } : {}) });
+          const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, conversationId: conversation.id, phone: normalizedPhone, body: replyBody, action: replyAction, ...(menuOptions.length ? { buttons: menuOptions.map((option: any) => ({ label: option.label })), optionIds: menuOptions.map((option: any) => option.publicId) } : {}) });
           await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { lastInboundAt: now, context: persistedContext } });
           console.log('[ProspectingRealtime]', { router: 'PROSPECTING_ATTENDANT', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
           return reply.sent

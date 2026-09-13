@@ -6,6 +6,14 @@ import { type PrismaClient } from '../../database-client/client.js';
 export class ProspectingAutoReplyRepository {
   public constructor(private readonly client: PrismaClient) {}
 
+  public async findPendingRealtimeReplies(limit: number) {
+    return this.client.prospectingMessage.findMany({
+      where: { purpose: 'REALTIME_REPLY', status: 'PENDING', nextAttemptAt: { lte: new Date() } },
+      include: { lead: { select: { id: true, status: true, phoneSnapshot: true, normalizedPhone: true, humanLockType: true } } },
+      orderBy: { nextAttemptAt: 'asc' }, take: limit,
+    });
+  }
+
   /**
    * Buscar mensagens AUTO_REPLY pendentes.
    */

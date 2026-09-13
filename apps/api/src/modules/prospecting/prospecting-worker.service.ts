@@ -112,6 +112,10 @@ export class ProspectingWorkerService implements ProspectingWorker {
 
     // Processar AUTO_REPLY pendentes (prioridade 1)
     if (this.environment.PROSPECTING_WORKER_ENABLED) {
+      const realtimeStats = await this.processRealtimeReplies();
+      result.sent += realtimeStats.sent;
+      result.retried += realtimeStats.retried;
+      result.failed += realtimeStats.failed;
       const autoReplyStats = await this.processAutoReplies();
       result.sent += autoReplyStats.sent;
       result.dryRun += autoReplyStats.dryRun;
@@ -196,6 +200,29 @@ export class ProspectingWorkerService implements ProspectingWorker {
     }
 
     return result;
+  }
+
+  private async processRealtimeReplies(): Promise<{ sent: number; retried: number; failed: number }> {
+    const stats = { sent: 0, retried: 0, failed: 0 };
+    const repo = new ProspectingAutoReplyRepository(this.client);
+    const messages = await repo.findPendingRealtimeReplies(this.environment.PROSPECTING_WORKER_BATCH_SIZE);
+    for (const message of messages) {
+      if (message.lead.humanLockType === 'MANUAL' || message.lead.status === 'SUPPRESSED') continue;
+      const claim = await this.client.prospectingMessage.updateMany({ where: { id: message.id, status: 'PENDING' }, data: { status: 'SENDING', sendingStartedAt: new Date() } });
+      if (claim.count !== 1) continue;
+      const sendResult = await this.messageSender.sendText({ phone: message.lead.phoneSnapshot || message.lead.normalizedPhone, body: message.body });
+      if (sendResult.success) {
+        await this.client.prospectingMessage.update({ where: { id: message.id }, data: { status: 'SENT', sentAt: new Date(), externalMessageId: sendResult.externalMessageId } });
+        stats.sent++;
+      } else if (sendResult.retryable) {
+        await this.client.prospectingMessage.update({ where: { id: message.id }, data: { status: 'PENDING', nextAttemptAt: new Date(Date.now() + 60_000), errorCode: sendResult.errorCode ?? null, errorMessage: sendResult.errorMessage ?? null } });
+        stats.retried++;
+      } else {
+        await this.client.prospectingMessage.update({ where: { id: message.id }, data: { status: 'FAILED', failedAt: new Date(), errorCode: sendResult.errorCode ?? null, errorMessage: sendResult.errorMessage ?? null } });
+        stats.failed++;
+      }
+    }
+    return stats;
   }
 
   private async validateLeadEligibility(lead: any, campaign: any): Promise<boolean> {

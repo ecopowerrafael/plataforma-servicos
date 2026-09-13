@@ -499,9 +499,9 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
   let flow = await transaction.prospectingFlow.findUnique({ where: { code: 'AGENDEI_ATTENDANT_DEFAULT' }, include: { steps: true } });
   if (!flow) {
     flow = await transaction.prospectingFlow.create({ data: { publicId: randomUUID(), code: 'AGENDEI_ATTENDANT_DEFAULT', name: 'Atendente Agendei', description: 'Fluxo editável do Atendente Agendei', purpose: 'ATTENDANT', isActive: true } });
-    const main = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Menu inicial', message: 'Olá, {{nome}}! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?', stepType: 'MESSAGE_OPTIONS', position: 0, isStart: true } });
-    const client = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Já sou cliente', message: 'Certo! Sobre o que você precisa de ajuda?', stepType: 'MESSAGE_OPTIONS', position: 1 } });
-    const prospect = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Quero conhecer', message: 'O que você gostaria de saber?', stepType: 'MESSAGE_OPTIONS', position: 2 } });
+    const main = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code: 'ATTENDANT_START', name: 'Menu inicial', message: 'Olá, {{nome}}! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?', stepType: 'MESSAGE_OPTIONS', position: 0, isStart: true } });
+    const client = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code: 'ATTENDANT_CLIENT', name: 'Já sou cliente', message: 'Certo! Sobre o que você precisa de ajuda?', stepType: 'MESSAGE_OPTIONS', position: 1 } });
+    const prospect = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code: 'ATTENDANT_PROSPECT', name: 'Quero conhecer', message: 'O que você gostaria de saber?', stepType: 'MESSAGE_OPTIONS', position: 2 } });
     const options = [
       [main, 'Já sou cliente', client, ['1', 'cliente', 'já sou cliente']],
       [main, 'Quero conhecer', prospect, ['2', 'quero conhecer']],
@@ -513,6 +513,12 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
       await transaction.prospectingFlowOptionPattern.createMany({ data: aliases.map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: aliases.length - index })) });
     }
   }
+  await transaction.prospectingFlow.update({ where: { id: flow.id }, data: { purpose: 'ATTENDANT' } });
+  const stableNames: Array<[string, string]> = [['Menu inicial', 'ATTENDANT_START'], ['Já sou cliente', 'ATTENDANT_CLIENT'], ['Quero conhecer', 'ATTENDANT_PROSPECT'], ['Menu de suporte', 'ATTENDANT_CLIENT_MORE'], ['Menu comercial', 'ATTENDANT_PROSPECT_MORE']];
+  for (const [name, code] of stableNames) {
+    const step = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code }, { name }] }, select: { id: true, code: true } });
+    if (step && !step.code) await transaction.prospectingFlowStep.update({ where: { id: step.id }, data: { code } });
+  }
   const start = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, isStart: true }, include: { options: true } });
   if (start && !start.options.some((option: any) => option.label === 'Divulgação gratuita')) {
     const disclosure = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Divulgação gratuita', message: 'Nós encontramos seu estabelecimento durante o trabalho de divulgação de negócios locais. Podemos incluir sua empresa gratuitamente em nosso site para ajudar novos clientes a encontrá-la. Você gostaria de saber como funciona?', stepType: 'MESSAGE_OPTIONS', position: 3 } });
@@ -521,10 +527,13 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
   }
   const ensureMenu = async (parentLabel: string, stepName: string, message: string, options: Array<[string, string[]]>) => {
     const parentOption = await transaction.prospectingFlowOption.findFirst({ where: { stepId: start?.id, label: parentLabel } });
-    if (!parentOption || parentOption.nextStepId) return;
-    const step = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: stepName, message, stepType: 'MESSAGE_OPTIONS', position: 10 + Number(parentOption.position) } });
-    await transaction.prospectingFlowOption.update({ where: { id: parentOption.id }, data: { nextStepId: step.id, actionType: 'NEXT_STEP' } });
+    if (!parentOption) return;
+    const code = stepName === 'Menu de suporte' ? 'ATTENDANT_CLIENT_MORE' : 'ATTENDANT_PROSPECT_MORE';
+    const step = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code }, { name: stepName }] }, include: { options: true } }) ?? await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code, name: stepName, message, stepType: 'MESSAGE_OPTIONS', position: 10 + Number(parentOption.position) } });
+    if (parentOption.nextStepId !== step.id || parentOption.actionType !== 'NEXT_STEP') await transaction.prospectingFlowOption.update({ where: { id: parentOption.id }, data: { nextStepId: step.id, actionType: 'NEXT_STEP' } });
+    const existingLabels = new Set(step.options.map((item: any) => item.label));
     for (const [label, aliases] of options) {
+      if (existingLabels.has(label)) continue;
       const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: step.id, label, actionType: 'END', position: options.findIndex(([item]) => item === label) } });
       await transaction.prospectingFlowOptionPattern.createMany({ data: aliases.map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: aliases.length - index })) });
     }

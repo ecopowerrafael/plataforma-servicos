@@ -4226,6 +4226,7 @@ model ProspectingFlowStep {
   publicId            String    @unique @map("public_id") @db.Char(36)
   flowId              BigInt    @map("flow_id") @db.UnsignedBigInt
   name                String    @map("name") @db.VarChar(180)
+  code                String?   @map("code") @db.VarChar(100)
   message             String    @map("message") @db.Text
   stepType            ProspectingFlowStepType @map("step_type")
   position            Int       @map("position")
@@ -4245,6 +4246,7 @@ model ProspectingFlowStep {
   @@index([flowId])
   @@index([nextStepId])
   @@index([isStart])
+  @@unique([flowId, code])
   @@map("prospecting_flow_steps")
 }
 

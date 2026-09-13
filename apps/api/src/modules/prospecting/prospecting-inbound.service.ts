@@ -192,6 +192,14 @@ export class ProspectingInboundService {
           data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null },
         });
         const conversationContext = (conversation.context ?? {}) as Record<string, unknown>;
+        if (!this.isWithinAttendantHours(config.businessHoursStart, config.businessHoursEnd)) {
+          const outsideMessage = config.outsideHoursMessage;
+          if (outsideMessage && this.realtimeReply) {
+            const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, conversationId: conversation.id, phone: normalizedPhone, body: outsideMessage, action: 'OUTSIDE_HOURS' });
+            console.log('[ProspectingRealtime]', { router: 'OUTSIDE_HOURS', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+          }
+          return { handled: true, router: 'ATTENDANT_FALLBACK', reason: 'OUTSIDE_BUSINESS_HOURS' };
+        }
         let flowReply: string | null = null;
         let attendantButtons: Array<{ publicId: string; label: string }> = [];
         let attendantMenu: string | null = typeof conversationContext.menu === 'string' ? conversationContext.menu : null;
@@ -234,13 +242,13 @@ export class ProspectingInboundService {
             flowReply = next?.message ?? null;
           }
         }
-        const greeting = contact.displayName
+        const greeting = config.useContactName && contact.displayName
           ? `Olá, ${contact.displayName}! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?`
           : 'Olá! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?';
         const replyBody = flowReply
           ?? (isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
-          : conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage ?? startStep?.message ?? greeting);
+          : conversationContext.greetingSent ? (config.fallbackMessage ?? config.invalidMessage) : config.greetingMessage ?? startStep?.message ?? greeting);
         const replyAction = flowReply ? 'FLOW_TEXT' : conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
         const menuOptions = !isMediaWithoutCaption && (attendantButtons.length > 0 || (!conversationContext.greetingSent && !flowReply))
           ? ((attendantButtons.length ? attendantButtons : startStep?.options) ?? [])
@@ -608,6 +616,16 @@ export class ProspectingInboundService {
     if (!value) return null;
     const sanitized = value.replace(/[\u0000-\u001F\u007F]/gu, '').replace(/\s+/gu, ' ').trim().slice(0, 180);
     return sanitized || null;
+  }
+
+  private isWithinAttendantHours(start: number | undefined, end: number | undefined): boolean {
+    if (start == null || end == null) return true;
+    const timezone = this.environment?.PROSPECTING_TIMEZONE ?? 'America/Sao_Paulo';
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+    const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+    const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
+    const current = hour * 60 + minute;
+    return start <= end ? current >= start && current <= end : current >= start || current <= end;
   }
 
   /**

@@ -175,8 +175,12 @@ export class ProspectingInboundService {
         const inbound = await this.client.prospectingMessage.create({
           data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null },
         });
-        if (config.greetingMessage && this.realtimeReply) {
-          const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: config.greetingMessage, action: 'ATTENDANT_GREETING' });
+        const conversationContext = (conversation.context ?? {}) as Record<string, unknown>;
+        const replyBody = conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage;
+        const replyAction = conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
+        if (replyBody && this.realtimeReply) {
+          const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: replyBody, action: replyAction });
+          await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { lastInboundAt: now, context: { ...conversationContext, greetingSent: true } } });
           console.log('[ProspectingRealtime]', { router: 'PROSPECTING_ATTENDANT', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
           return reply.sent
             ? { handled: true, router: 'ATTENDANT_FALLBACK' as const }

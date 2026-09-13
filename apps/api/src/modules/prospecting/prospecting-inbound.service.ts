@@ -866,7 +866,7 @@ export class ProspectingInboundService {
   private async findEligibleLeadByReferencedMessage(
     referencedMessageId: string,
     normalizedPhone: string,
-  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string; lastInboundAt: Date; lastOutboundAt: Date | null } | null> {
+  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string; lastInboundAt: Date | null; lastOutboundAt: Date | null } | null> {
     if (!this.client) {
       return null;
     }
@@ -952,7 +952,7 @@ export class ProspectingInboundService {
    */
   private async findEligibleLead(
     normalizedPhone: string,
-  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string; lastInboundAt: Date; lastOutboundAt: Date | null } | null> {
+  ): Promise<{ id: bigint; campaignId: bigint; respondedAt: Date | null; publicId: string; lastInboundAt: Date | null; lastOutboundAt: Date | null } | null> {
     if (!this.client) {
       return null;
     }

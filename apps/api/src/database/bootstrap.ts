@@ -514,14 +514,14 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
     }
   }
   await transaction.prospectingFlow.update({ where: { id: flow.id }, data: { purpose: 'ATTENDANT' } });
-  const stableNames: Array<[string, string]> = [['Menu inicial', 'ATTENDANT_START'], ['Já sou cliente', 'ATTENDANT_CLIENT'], ['Quero conhecer', 'ATTENDANT_PROSPECT'], ['Menu de suporte', 'ATTENDANT_CLIENT_MORE'], ['Menu comercial', 'ATTENDANT_PROSPECT_MORE']];
+  const stableNames: Array<[string, string]> = [['Menu inicial', 'ATTENDANT_START'], ['Já sou cliente', 'ATTENDANT_CLIENT'], ['Quero conhecer', 'ATTENDANT_PROSPECT'], ['Menu de suporte', 'ATTENDANT_CLIENT_MORE'], ['Menu comercial', 'ATTENDANT_PROSPECT_MORE'], ['Divulgação gratuita', 'ATTENDANT_DISCLOSURE']];
   for (const [name, code] of stableNames) {
     const step = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code }, { name }] }, select: { id: true, code: true } });
     if (step && !step.code) await transaction.prospectingFlowStep.update({ where: { id: step.id }, data: { code } });
   }
   const start = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, isStart: true }, include: { options: true } });
   if (start && !start.options.some((option: any) => option.label === 'Divulgação gratuita')) {
-    const disclosure = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: 'Divulgação gratuita', message: 'Nós encontramos seu estabelecimento durante o trabalho de divulgação de negócios locais. Podemos incluir sua empresa gratuitamente em nosso site para ajudar novos clientes a encontrá-la. Você gostaria de saber como funciona?', stepType: 'MESSAGE_OPTIONS', position: 3 } });
+    const disclosure = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code: 'ATTENDANT_DISCLOSURE', name: 'Divulgação gratuita', message: 'Nós encontramos seu estabelecimento durante o trabalho de divulgação de negócios locais. Podemos incluir sua empresa gratuitamente em nosso site para ajudar novos clientes a encontrá-la. Você gostaria de saber como funciona?', stepType: 'MESSAGE_OPTIONS', position: 3 } });
     const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: start.id, label: 'Divulgação gratuita', nextStepId: disclosure.id, actionType: 'NEXT_STEP', position: start.options.length } });
     await transaction.prospectingFlowOptionPattern.createMany({ data: ['3', 'divulgacao', 'cadastro gratuito', 'divulgar empresa', 'prospeccao', 'voces me chamaram'].map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: 10 - index })) });
   }
@@ -546,9 +546,13 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
     for (const [label, message, aliases] of entries) {
       const parent = step.options.find((item: any) => item.label === label);
       if (!parent || parent.nextStepId) continue;
-      const child = await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, name: `${stepName} - ${label}`, message, stepType: 'MESSAGE_OPTIONS', position: 30 + parent.position } });
+      const childCode = stepName === 'Menu de suporte' ? ({ WhatsApp: 'ATTENDANT_WHATSAPP', Agenda: 'ATTENDANT_AGENDA', Pagamentos: 'ATTENDANT_BILLING', 'Conta e configurações': 'ATTENDANT_ACCOUNT' } as Record<string, string>)[label] : null;
+      const child = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code: childCode ?? '__none__' }, { name: `${stepName} - ${label}` }] }, include: { options: true } }) ?? await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, ...(childCode ? { code: childCode } : {}), name: `${stepName} - ${label}`, message, stepType: 'MESSAGE_OPTIONS', position: 30 + parent.position }, include: { options: true } });
+      if (childCode && !child.code) await transaction.prospectingFlowStep.update({ where: { id: child.id }, data: { code: childCode } });
       await transaction.prospectingFlowOption.update({ where: { id: parent.id }, data: { nextStepId: child.id, actionType: 'NEXT_STEP' } });
+      const existingChildLabels = new Set(child.options.map((item: any) => item.label));
       for (const [index, childLabel] of ['Sim, resolveu', 'Ainda preciso de ajuda', 'Menu'].entries()) {
+        if (existingChildLabels.has(childLabel)) continue;
         const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: child.id, label: childLabel, actionType: childLabel === 'Ainda preciso de ajuda' ? 'MANUAL' : 'END', position: index } });
         await transaction.prospectingFlowOptionPattern.createMany({ data: [childLabel, ...(childLabel === 'Sim, resolveu' ? ['sim', 'resolvido'] : childLabel === 'Ainda preciso de ajuda' ? ['ajuda', 'nao resolveu'] : ['voltar', 'menu'])].map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: 10 - index })) });
       }

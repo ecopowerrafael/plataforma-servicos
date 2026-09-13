@@ -210,13 +210,26 @@ export class ProspectingInboundService {
         let flowReply: string | null = null;
         let attendantButtons: Array<{ publicId: string; label: string }> = [];
         let attendantMenu: string | null = typeof conversationContext.menu === 'string' ? conversationContext.menu : null;
+        if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex != null) {
+          const previous = await this.client.prospectingMessage.findFirst({ where: { externalMessageId: payload.referencedMessageId, direction: 'OUTBOUND', conversationId: conversation.id }, select: { optionIds: true } });
+          const ids = Array.isArray(previous?.optionIds) ? previous.optionIds : [];
+          const selectedId = ids[payload.selectedIndex];
+          const selectedOption = typeof selectedId === 'string' ? await this.client.prospectingFlowOption.findUnique({ where: { publicId: selectedId }, include: { patterns: true } }) : null;
+          if (selectedOption && selectedOption.stepId === conversation.currentStepId) {
+            const next = selectedOption.nextStepId ? await this.client.prospectingFlowStep.findUnique({ where: { id: selectedOption.nextStepId }, include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } }) : null;
+            await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: next?.id ?? null, lastInboundAt: now } });
+            flowReply = selectedOption.actionType === 'MANUAL' ? (config.humanTransferMessage ?? next?.message ?? null) : next?.message ?? null;
+            attendantButtons = next?.options ?? [];
+            if (selectedOption.actionType === 'MANUAL') attendantMenu = 'MANUAL';
+          }
+        }
         if (opensAttendantMenu && startStep) {
           await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: startStep.id, flowId: BigInt(config.attendantFlowId!), lastInboundAt: now } });
           attendantMenu = null;
-          flowReply = startStep.message;
+          flowReply = this.interpolateAttendantMessage(startStep.message, contact.displayName);
           attendantButtons = startStep.options;
         }
-        if (!isMediaWithoutCaption && conversation.currentStepId && !opensAttendantMenu) {
+        if (!isMediaWithoutCaption && conversation.currentStepId && !opensAttendantMenu && !flowReply) {
           const step = await this.client.prospectingFlowStep.findUnique({ where: { id: conversation.currentStepId }, include: { options: { include: { patterns: true } } } });
           const text = this.normalizeInboundText(payload.body as string);
           const match = step?.options.flatMap((option: any) => option.patterns.map((pattern: any) => ({ option, pattern })))
@@ -228,6 +241,7 @@ export class ProspectingInboundService {
             flowReply = match.option.actionType === 'MANUAL'
               ? (config.humanTransferMessage ?? next?.message ?? null)
               : next?.message ?? null;
+            if (flowReply) flowReply = this.interpolateAttendantMessage(flowReply, contact.displayName);
             attendantButtons = next?.options ?? [];
             if (match.option.actionType === 'MANUAL') attendantMenu = 'MANUAL';
           }
@@ -236,7 +250,7 @@ export class ProspectingInboundService {
         const replyBody = flowReply
           ?? (isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
-          : conversationContext.greetingSent ? (config.fallbackMessage ?? config.invalidMessage) : startStep?.message ?? greeting);
+          : conversationContext.greetingSent ? (config.fallbackMessage ?? config.invalidMessage) : this.interpolateAttendantMessage(startStep?.message ?? greeting, contact.displayName));
         const replyAction = flowReply ? 'FLOW_TEXT' : conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
         const menuOptions = !isMediaWithoutCaption && (attendantButtons.length > 0 || (!conversationContext.greetingSent && !flowReply))
           ? ((attendantButtons.length ? attendantButtons : startStep?.options) ?? [])
@@ -592,7 +606,7 @@ export class ProspectingInboundService {
         if (attendantStart) {
           const reply = await this.realtimeReply.send({
             campaignId: leadData.campaignId, leadId: leadData.id, inboundMessageId: message.id,
-            phone: normalizedPhone, body: attendantStart.message, action: 'ATTENDANT_GREETING',
+            phone: normalizedPhone, body: this.interpolateAttendantMessage(attendantStart.message, this.sanitizeSenderName(payload.senderName)), action: 'ATTENDANT_GREETING',
             buttons: attendantStart.options.map((option) => ({ label: option.label })),
             optionIds: attendantStart.options.map((option) => option.publicId),
           });
@@ -652,6 +666,11 @@ export class ProspectingInboundService {
     if (!value) return null;
     const sanitized = value.replace(/[\u0000-\u001F\u007F]/gu, '').replace(/\s+/gu, ' ').trim().slice(0, 180);
     return sanitized || null;
+  }
+
+  private interpolateAttendantMessage(message: string, displayName: string | null): string {
+    const name = displayName?.trim() ?? '';
+    return message.replace(/\{\{\s*nome\s*\}\}/giu, name);
   }
 
   private isWithinAttendantHours(start: number | undefined, end: number | undefined): boolean {

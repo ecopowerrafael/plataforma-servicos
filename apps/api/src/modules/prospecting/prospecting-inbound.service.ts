@@ -141,6 +141,7 @@ export class ProspectingInboundService {
     // Opt-out é a precedência máxima: não criar conversa nem encaminhar a
     // mensagem para FlowEngine, ObjectionEngine ou atendente automático.
     const inboundIsOptOut = !isMediaWithoutCaption && this.detectOptOut(payload.body as string);
+    const opensAttendantMenu = !isMediaWithoutCaption && ['menu', 'ajuda', 'atendimento', 'comecar novamente'].includes(this.normalizeInboundText(payload.body as string));
 
 
     // Encontrar o contexto da conversa. O status comercial não é um filtro.
@@ -165,6 +166,9 @@ export class ProspectingInboundService {
         desambiguationMethod = 'conversation_context';
       }
     }
+    // O comando explícito reinicia a navegação do atendente, mas não ultrapassa
+    // a precedência de uma referência determinística de botão.
+    if (opensAttendantMenu && !payload.referencedMessageId) leadData = null;
 
     if (!leadData) {
       if (inboundIsOptOut) {
@@ -204,7 +208,8 @@ export class ProspectingInboundService {
         let attendantButtons: Array<{ publicId: string; label: string }> = [];
         let attendantMenu: string | null = typeof conversationContext.menu === 'string' ? conversationContext.menu : null;
         const normalizedAttendantText = !isMediaWithoutCaption ? this.normalizeInboundText(payload.body as string) : '';
-        if (!conversationContext.greetingSent && !startStep) {
+        const requestsHuman = ['suporte tecnico', 'falar com consultor', 'consultor', 'falar com atendimento'].includes(normalizedAttendantText);
+        if (opensAttendantMenu || (!conversationContext.greetingSent && !startStep)) {
           attendantButtons = [{ publicId: 'ATTENDANT_CLIENT', label: 'Já sou cliente' }, { publicId: 'ATTENDANT_PROSPECT', label: 'Quero conhecer' }];
           attendantMenu = 'MAIN';
         } else if (attendantMenu === 'MAIN' && ['1', 'cliente', 'ja sou cliente'].includes(normalizedAttendantText)) {
@@ -221,6 +226,7 @@ export class ProspectingInboundService {
             : normalizedAttendantText === 'suporte tecnico'
               ? 'Descreva resumidamente o problema para encaminharmos ao suporte.'
               : 'Qual configuração você precisa consultar: WhatsApp, agenda, profissionais ou serviços?';
+          if (normalizedAttendantText === 'suporte tecnico') flowReply = config.humanTransferMessage ?? flowReply;
           attendantMenu = normalizedAttendantText === 'financeiro' ? 'FINANCE' : normalizedAttendantText === 'suporte tecnico' ? 'SUPPORT' : 'SETTINGS';
         } else if (attendantMenu === 'PROSPECT' && ['conhecer o agendei', 'divulgacao e parceria', 'falar com consultor'].includes(normalizedAttendantText)) {
           flowReply = normalizedAttendantText === 'conhecer o agendei'
@@ -228,9 +234,10 @@ export class ProspectingInboundService {
             : normalizedAttendantText === 'divulgacao e parceria'
               ? 'Que tipo de divulgação ou parceria você tem em mente?'
               : 'Para falar com um consultor, envie seu nome, negócio, cidade e melhor horário.';
+          if (normalizedAttendantText === 'falar com consultor') flowReply = config.humanTransferMessage ?? flowReply;
           attendantMenu = normalizedAttendantText === 'conhecer o agendei' ? 'KNOW' : normalizedAttendantText === 'divulgacao e parceria' ? 'PARTNER' : 'CONSULT';
         }
-        if (!isMediaWithoutCaption && conversation.currentStepId) {
+        if (!opensAttendantMenu && !isMediaWithoutCaption && conversation.currentStepId) {
           const step = await this.client.prospectingFlowStep.findUnique({ where: { id: conversation.currentStepId }, include: { options: { include: { patterns: true } } } });
           const text = this.normalizeInboundText(payload.body as string);
           const match = step?.options.flatMap((option: any) => option.patterns.map((pattern: any) => ({ option, pattern })))
@@ -245,6 +252,7 @@ export class ProspectingInboundService {
         const greeting = config.useContactName && contact.displayName
           ? `Olá, ${contact.displayName}! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?`
           : 'Olá! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?';
+        if (requestsHuman && !flowReply) flowReply = config.humanTransferMessage ?? 'Seu atendimento será encaminhado para uma pessoa da equipe.';
         const replyBody = flowReply
           ?? (isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
@@ -254,6 +262,9 @@ export class ProspectingInboundService {
           ? ((attendantButtons.length ? attendantButtons : startStep?.options) ?? [])
           : [];
         const persistedContext = { ...conversationContext, greetingSent: true, ...(attendantMenu ? { menu: attendantMenu } : {}) };
+        if (requestsHuman) {
+          await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { status: 'MANUAL', context: { ...persistedContext, transferredToHuman: true } } });
+        }
         if (replyBody && this.realtimeReply) {
           const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, conversationId: conversation.id, phone: normalizedPhone, body: replyBody, action: replyAction, ...(menuOptions.length ? { buttons: menuOptions.map((option: any) => ({ label: option.label })), optionIds: menuOptions.map((option: any) => option.publicId) } : {}) });
           await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { lastInboundAt: now, context: persistedContext } });

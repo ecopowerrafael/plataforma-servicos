@@ -1311,21 +1311,6 @@ function SettingsView({
               </div>
 
               <div className="config-section" style={{ marginBottom: '1.5rem' }}>
-                <h3>Atendente Agendei</h3>
-                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><input type="checkbox" checked={formData.attendantEnabled} onChange={(e) => setFormData({ ...formData, attendantEnabled: e.target.checked })} /> Ativar atendente oficial</label>
-                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' }}><input type="checkbox" checked={formData.useContactName} onChange={(e) => setFormData({ ...formData, useContactName: e.target.checked })} /> Usar nome do contato</label>
-                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Saudação inicial</strong><textarea value={formData.greetingMessage} onChange={(e) => setFormData({ ...formData, greetingMessage: e.target.value })} placeholder="Deixe vazio para usar a saudação padrão" rows={3} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
-                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Fallback</strong><textarea value={formData.fallbackMessage} onChange={(e) => setFormData({ ...formData, fallbackMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
-                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Mídia não suportada</strong><textarea value={formData.mediaFallbackMessage} onChange={(e) => setFormData({ ...formData, mediaFallbackMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
-                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Mensagem de opção inválida</strong><textarea value={formData.invalidMessage} onChange={(e) => setFormData({ ...formData, invalidMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
-                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Transferência para humano</strong><textarea value={formData.humanTransferMessage} onChange={(e) => setFormData({ ...formData, humanTransferMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
-                <label style={{ display: 'block', marginTop: '1rem' }}><strong>Fora do horário</strong><textarea value={formData.outsideHoursMessage} onChange={(e) => setFormData({ ...formData, outsideHoursMessage: e.target.value })} rows={2} style={{ marginTop: '0.5rem', width: '100%', padding: '0.75rem' }} /></label>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}><label><strong>Início (minutos)</strong><input type="number" min="0" max="1440" value={formData.businessHoursStart} onChange={(e) => setFormData({ ...formData, businessHoursStart: e.target.value })} /></label><label><strong>Fim (minutos)</strong><input type="number" min="0" max="1440" value={formData.businessHoursEnd} onChange={(e) => setFormData({ ...formData, businessHoursEnd: e.target.value })} /></label><label><strong>Delay (s)</strong><input type="number" min="0" max="3600" value={formData.replyDelaySeconds} onChange={(e) => setFormData({ ...formData, replyDelaySeconds: e.target.value })} /></label></div>
-                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '1rem' }}><input type="checkbox" checked={formData.realtimeRepliesEnabled} onChange={(e) => setFormData({ ...formData, realtimeRepliesEnabled: e.target.checked })} /> Respostas imediatas realtime</label>
-                <button type="button" className="secondary-button" style={{ marginTop: '1rem' }} onClick={() => onNavigate('attendant')}>Editar menus e opções do atendente</button>
-              </div>
-
-              <div className="config-section" style={{ marginBottom: '1.5rem' }}>
                 <label>
                   <strong>Token da Instância</strong>
                   {config?.configured && !formData.token && (

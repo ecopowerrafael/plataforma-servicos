@@ -53,12 +53,14 @@ export class ProspectingService {
       where: { publicId: flowPublicId },
       select: {
         id: true,
+        purpose: true,
         isActive: true,
         steps: { where: { isStart: true }, select: { id: true } },
       },
     });
 
     if (!flow) throw new Error('FLOW_NOT_FOUND');
+    if (flow.purpose === 'ATTENDANT') throw new Error('ATTENDANT_FLOW_RESERVED');
     if (!flow.isActive) throw new Error('FLOW_NOT_ACTIVE');
     if (flow.steps.length !== 1) throw new Error('FLOW_INVALID_START_STEPS');
 

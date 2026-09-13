@@ -370,6 +370,14 @@ export function ProspectingModule({
       }),
   });
 
+  const refreshWebhooksMutation = useMutation({
+    mutationFn: () =>
+      httpClient.request('/platform/prospecting/whatsapp/webhooks/refresh', {
+        method: 'POST',
+        schema: z.object({ success: z.boolean(), message: z.string() }),
+      }),
+  });
+
   const handleCancel = (id: string) => {
     setConfirmation({
       title: 'Cancelar campanha?',
@@ -468,6 +476,8 @@ export function ProspectingModule({
           isTestingConnection={testConnectionMutation.isPending}
           onUpdateConfig={updateConfigMutation.mutateAsync}
           onTestConnection={() => testConnectionMutation.mutateAsync()}
+          isRefreshingWebhooks={refreshWebhooksMutation.isPending}
+          onRefreshWebhooks={() => refreshWebhooksMutation.mutateAsync()}
           onNavigate={setView}
         />
       ) : view === 'create' ? (
@@ -1132,8 +1142,10 @@ function SettingsView({
   isLoadingConfig,
   isUpdatingConfig,
   isTestingConnection,
+  isRefreshingWebhooks,
   onUpdateConfig,
   onTestConnection,
+  onRefreshWebhooks,
   onNavigate,
 }: {
   config?: z.infer<typeof prospectingConfigSchema>;
@@ -1141,8 +1153,10 @@ function SettingsView({
   isLoadingConfig: boolean;
   isUpdatingConfig: boolean;
   isTestingConnection: boolean;
+  isRefreshingWebhooks: boolean;
   onUpdateConfig: (data: { instanceId: string; token?: string; phoneNumber?: string; instanceName?: string; isActive?: boolean }) => Promise<unknown>;
   onTestConnection: () => Promise<unknown>;
+  onRefreshWebhooks: () => Promise<unknown>;
   onNavigate: (view: string) => void;
 }) {
   const [formData, setFormData] = useState({
@@ -1153,6 +1167,16 @@ function SettingsView({
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleRefreshWebhooks = async () => {
+    setTestResult(null);
+    try {
+      const result = await onRefreshWebhooks() as { message?: string };
+      setTestResult({ type: 'success', text: result.message ?? 'Webhooks atualizados com sucesso.' });
+    } catch (error) {
+      setTestResult({ type: 'error', text: error instanceof Error ? error.message : 'Erro ao atualizar os webhooks.' });
+    }
+  };
 
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1335,6 +1359,14 @@ function SettingsView({
                   disabled={isTestingConnection || !config?.configured}
                 >
                   {isTestingConnection ? 'Testando...' : 'Testar Conexão'}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleRefreshWebhooks}
+                  disabled={isRefreshingWebhooks || !config?.configured}
+                >
+                  {isRefreshingWebhooks ? 'Atualizando...' : 'Atualizar webhooks'}
                 </button>
               </div>
 

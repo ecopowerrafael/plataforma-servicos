@@ -137,4 +137,20 @@ export const prospectingWhatsAppConfigRoutes: FastifyPluginAsyncZod<Options> = a
       }
     },
   );
+
+  app.post(
+    '/platform/prospecting/whatsapp/webhooks/refresh',
+    { schema: { response: { 200: z.object({ success: z.boolean(), message: z.string() }) } } },
+    async (_request, reply) => {
+      try {
+        await options.service.reconfigureWebhooks();
+        return reply.send({ success: true, message: 'Webhooks atualizados com sucesso.' });
+      } catch (error) {
+        return reply.status(400).send({
+          success: false,
+          message: error instanceof Error ? error.message : 'Não foi possível atualizar os webhooks.',
+        });
+      }
+    },
+  );
 };

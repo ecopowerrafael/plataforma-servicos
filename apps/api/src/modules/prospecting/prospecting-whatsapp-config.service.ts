@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
+import { type WApiIntegrationService } from '../integrations/wapi-integration.service.js';
+import { canonicalWapiWhatsAppWebhookPath } from '../integrations/whatsapp-webhook.routes.js';
 
 export interface ProspectingWhatsAppConfigData {
   instanceId: string;
@@ -38,7 +40,23 @@ export class ProspectingWhatsAppConfigService {
   constructor(
     private readonly client: PrismaClient,
     private readonly cipher: CredentialsCipher,
+    private readonly wapi?: WApiIntegrationService,
+    private readonly appWebUrl = process.env.APP_WEB_URL?.trim() || 'https://agendei.site',
   ) {}
+
+  async reconfigureWebhooks(): Promise<void> {
+    if (!this.wapi) throw new Error('Cliente W-API não configurado.');
+    const config = await this.client.prospectingWhatsAppConfig.findFirst({ where: { isActive: true } });
+    if (!config) throw new Error('Nenhuma configuração ativa de WhatsApp da prospecção.');
+    const token = this.cipher.decrypt(config.tokenCiphertext) as { token?: string } | string;
+    const accessToken = typeof token === 'string' ? token : token.token;
+    if (!accessToken) throw new Error('Token da instância não pode ser descriptografado.');
+    const secret = process.env.WAPI_WEBHOOK_SECRET?.trim();
+    const base = `${this.appWebUrl.replace(/\/+$/u, '')}${canonicalWapiWhatsAppWebhookPath}`;
+    const webhookUrl = secret ? `${base}?webhookSecret=${encodeURIComponent(secret)}` : base;
+    await this.wapi.configureWebhooks(config.instanceId, accessToken, webhookUrl);
+    await this.updateConnectionStatus('CONNECTED');
+  }
 
   async getConfig(): Promise<ProspectingWhatsAppConfigResponse | null> {
     const config = await this.client.prospectingWhatsAppConfig.findFirst();

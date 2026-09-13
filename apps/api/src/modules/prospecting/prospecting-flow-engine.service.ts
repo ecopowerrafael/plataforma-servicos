@@ -1,4 +1,6 @@
 import { type PrismaClient } from '../../database-client/client.js';
+import { META_WHATSAPP_CAPABILITIES } from '../integrations/meta-whatsapp-connection.js';
+import { WAPI_WHATSAPP_CAPABILITIES, type WhatsAppProviderId } from '../integrations/whatsapp-provider.js';
 
 interface ProcessStepResponseInput {
   execution: any;
@@ -15,10 +17,11 @@ interface MatchedOption {
 }
 
 /** Regras mínimas compartilhadas pelo editor e pelo runtime. */
-export function validateFlowStepOptions(step: { stepType: string; message?: string | null; options?: Array<{ actionType: string; nextStepId?: bigint | null }> }): string[] {
+export function validateFlowStepOptions(step: { stepType: string; message?: string | null; options?: Array<{ actionType: string; nextStepId?: bigint | null }> }, provider: WhatsAppProviderId = 'WAPI'): string[] {
   const errors: string[] = [];
   const options = step.options ?? [];
-  if (step.stepType === 'MESSAGE_OPTIONS' && options.length > 3) errors.push('MESSAGE_OPTIONS suporta no máximo três botões.');
+  const capacity = provider === 'META' ? META_WHATSAPP_CAPABILITIES.maxInteractiveButtons : WAPI_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
+  if (step.stepType === 'MESSAGE_OPTIONS' && options.length > capacity) errors.push(`MESSAGE_OPTIONS suporta no máximo ${capacity} botões para ${provider}.`);
   for (const option of options) {
     if (option.actionType === 'NEXT_STEP' && !option.nextStepId) errors.push('Toda opção NEXT_STEP precisa de um destino.');
     if (option.actionType === 'END' && !step.message?.trim()) errors.push('Toda opção END precisa de uma mensagem final.');

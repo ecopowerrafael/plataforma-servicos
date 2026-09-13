@@ -6,6 +6,7 @@ import { type WhatsAppProvisioningProvider } from './whatsapp-provider.js';
 import { type WhatsAppConnectionView } from './whatsapp-provisioning.service.js';
 
 export const META_WHATSAPP_CAPABILITIES = {
+  maxInteractiveButtons: 3,
   qrCode: false,
   autoProvision: false,
   interactiveMessages: true,

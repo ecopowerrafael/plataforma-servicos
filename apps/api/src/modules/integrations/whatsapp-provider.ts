@@ -13,6 +13,7 @@ import { type WhatsAppConnectionView } from './whatsapp-provisioning.service.js'
 export type WhatsAppProviderId = 'WAPI' | 'META' | (string & {});
 
 export interface WhatsAppProviderCapabilities {
+  maxInteractiveButtons: number;
   qrCode: boolean;
   autoProvision: boolean;
   interactiveMessages: boolean;
@@ -61,6 +62,7 @@ export interface WhatsAppInboundNormalizer extends WhatsAppProvider {
 }
 
 export const WAPI_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
+  maxInteractiveButtons: 10,
   qrCode: true,
   autoProvision: true,
   interactiveMessages: true,

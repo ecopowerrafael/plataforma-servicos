@@ -7,8 +7,8 @@ describe('Prospecting flow validation', () => {
   });
 
   it('rejects more than three buttons', () => {
-    const options = Array.from({ length: 4 }, () => ({ actionType: 'END', nextStepId: null }));
-    expect(validateFlowStepOptions({ stepType: 'MESSAGE_OPTIONS', message: 'menu', options })).toContain('MESSAGE_OPTIONS suporta no máximo três botões.');
+    const options = Array.from({ length: 11 }, () => ({ actionType: 'END', nextStepId: null }));
+    expect(validateFlowStepOptions({ stepType: 'MESSAGE_OPTIONS', message: 'menu', options })).toContain('MESSAGE_OPTIONS suporta no máximo 10 botões para WAPI.');
   });
 
   it('requires a final message for END', () => {

@@ -1546,7 +1546,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       const step = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.params.stepPublicId }, select: { id: true, flowId: true, isStart: true } });
       if (!step || step.flowId !== flow.id) throw new Error('Step not in this flow');
       const optionCount = await options.client.prospectingFlowOption.count({ where: { stepId: step.id } });
-      if (optionCount >= 3) throw new Error('MESSAGE_OPTIONS suporta no máximo três botões');
+      if (optionCount >= 10) throw new Error('MESSAGE_OPTIONS suporta no máximo dez botões para WAPI');
       if (step.isStart) throw new Error('Cannot delete start step');
       const usedAsNext = await options.client.prospectingFlowStep.count({ where: { nextStepId: step.id } });
       if (usedAsNext > 0) throw new Error('Step is used as next step');

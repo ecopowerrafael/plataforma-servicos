@@ -12,6 +12,7 @@ export interface RealtimeReplyInput {
   conversationId?: bigint | null;
   buttons?: Array<{ label: string }>;
   optionIds?: string[];
+  provider?: 'WAPI' | 'META';
 }
 
 export interface RealtimeReplyResult {
@@ -34,7 +35,8 @@ export class ProspectingRealtimeReplyService {
     if (!input.body.trim()) {
       return { queued: false, sent: false, retryScheduled: false, reason: 'EMPTY_REPLY_BODY' };
     }
-    if ((input.buttons?.length ?? 0) > 3) {
+    const maxButtons = input.provider === 'META' ? 3 : 10;
+    if ((input.buttons?.length ?? 0) > maxButtons) {
       return { queued: false, sent: false, retryScheduled: false, reason: 'BUTTON_LIMIT_EXCEEDED' };
     }
     const idempotencyKey = `realtime:${input.inboundMessageId.toString()}:${input.action}`;

@@ -7,6 +7,7 @@ export interface ProspectingMessageSendButtonsInput {
   phone: string;
   body: string;
   buttons: Array<{ label: string }>;
+  optionIds?: string[];
 }
 
 export interface ProspectingMessageSendResult {

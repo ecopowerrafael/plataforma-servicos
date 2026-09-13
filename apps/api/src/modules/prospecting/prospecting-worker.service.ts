@@ -525,6 +525,7 @@ export class ProspectingWorkerService implements ProspectingWorker {
             phone: lead.normalizedPhone,
             body: message.body,
             buttons: orderedOptions.map((option: any) => ({ label: option.label })),
+            optionIds,
           });
         } else {
           sendResult = await this.messageSender.sendText({

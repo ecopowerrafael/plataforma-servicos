@@ -4,6 +4,7 @@ import { WapiSendTextClient } from '../integrations/wapi-send-text-client.js';
 import { WapiSendButtonsClient } from '../integrations/wapi-send-buttons-client.js';
 import { type ProspectingMessageSendInput, type ProspectingMessageSendButtonsInput, type ProspectingMessageSendResult, type ProspectingMessageSender } from './prospecting-message-sender.js';
 import { type Environment } from '../../config/environment.js';
+import { WAPI_WHATSAPP_CAPABILITIES } from '../integrations/whatsapp-provider.js';
 
 function isRetryable(statusCode: number | null): boolean {
   if (statusCode === null) return true;
@@ -185,6 +186,8 @@ export class WApiProspectingMessageSender implements ProspectingMessageSender {
         retryable: false,
       };
     }
+    if (input.buttons.length > WAPI_WHATSAPP_CAPABILITIES.maxInteractiveButtons) return { success: false, provider: 'WAPI', externalMessageId: null, errorCode: 'BUTTON_LIMIT_EXCEEDED', errorMessage: 'WAPI aceita no máximo 10 botões.', retryable: false };
+    if (input.optionIds && (input.optionIds.length !== input.buttons.length || input.optionIds.some((id) => !id))) return { success: false, provider: 'WAPI', externalMessageId: null, errorCode: 'BUTTON_OPTION_ID_MISMATCH', errorMessage: 'Cada botão precisa de um optionId correspondente.', retryable: false };
 
     const token = await this.configService.getDecryptedToken();
     if (!token) {

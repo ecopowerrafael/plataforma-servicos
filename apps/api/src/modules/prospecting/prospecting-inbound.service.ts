@@ -12,6 +12,7 @@ interface ProspectingInboundPayload {
   externalMessageId: string | null;
   fromPhone: string | null;
   body: string | null | undefined;
+  messageType?: string | null;
   fromMe?: boolean;
   timestamp: Date | null | undefined;
   eventType: string | null;
@@ -87,7 +88,8 @@ export class ProspectingInboundService {
 
     // Para MESSAGE_RECEIVED: obrigatório body
     // Para MESSAGE_ACTION: usa selectedDisplayText que já foi normalizado para body
-    if (!payload.body || (typeof payload.body === 'string' && payload.body.trim() === '')) {
+    const isMediaWithoutCaption = ['IMAGE', 'VIDEO', 'imageMessage', 'videoMessage'].includes(payload.messageType ?? '');
+    if ((!payload.body || (typeof payload.body === 'string' && payload.body.trim() === '')) && !isMediaWithoutCaption) {
       if (payload.eventType === 'MESSAGE_ACTION') {
         console.log('[ProspectingInboundTrace]', { ...trace, result: 'MESSAGE_ACTION_MISSING_BUTTON_TEXT' });
         return { handled: false, reason: 'MESSAGE_ACTION_MISSING_BUTTON_TEXT' };
@@ -176,7 +178,9 @@ export class ProspectingInboundService {
           data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null },
         });
         const conversationContext = (conversation.context ?? {}) as Record<string, unknown>;
-        const replyBody = conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage;
+        const replyBody = isMediaWithoutCaption && config.mediaFallbackMessage
+          ? config.mediaFallbackMessage
+          : conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage;
         const replyAction = conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
         if (replyBody && this.realtimeReply) {
           const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: replyBody, action: replyAction });

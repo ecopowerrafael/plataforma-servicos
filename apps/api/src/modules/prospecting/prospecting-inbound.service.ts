@@ -181,10 +181,24 @@ export class ProspectingInboundService {
           data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null },
         });
         const conversationContext = (conversation.context ?? {}) as Record<string, unknown>;
-        const replyBody = isMediaWithoutCaption && config.mediaFallbackMessage
+        let flowReply: string | null = null;
+        if (!isMediaWithoutCaption && conversation.currentStepId) {
+          const step = await this.client.prospectingFlowStep.findUnique({ where: { id: conversation.currentStepId }, include: { options: { include: { patterns: true } } } });
+          const text = this.normalizeInboundText(payload.body as string);
+          const match = step?.options.flatMap((option: any) => option.patterns.map((pattern: any) => ({ option, pattern })))
+            .sort((a: any, b: any) => (b.pattern.priority ?? 0) - (a.pattern.priority ?? 0))
+            .find(({ pattern }: any) => pattern.patternType === 'EXACT' ? text === this.normalizeInboundText(pattern.pattern) : pattern.patternType === 'STARTS_WITH' ? text.startsWith(this.normalizeInboundText(pattern.pattern)) : pattern.patternType === 'ENDS_WITH' ? text.endsWith(this.normalizeInboundText(pattern.pattern)) : text.includes(this.normalizeInboundText(pattern.pattern)));
+          if (match?.option?.nextStepId) {
+            const next = await this.client.prospectingFlowStep.findUnique({ where: { id: match.option.nextStepId }, select: { id: true, message: true } });
+            await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: next?.id ?? null, flowId: conversation.flowId, lastInboundAt: now } });
+            flowReply = next?.message ?? null;
+          }
+        }
+        const replyBody = flowReply
+          ?? (isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
-          : conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage ?? startStep?.message;
-        const replyAction = conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
+          : conversationContext.greetingSent ? config.fallbackMessage : config.greetingMessage ?? startStep?.message);
+        const replyAction = flowReply ? 'FLOW_TEXT' : conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
         if (replyBody && this.realtimeReply) {
           const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: replyBody, action: replyAction });
           await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { lastInboundAt: now, context: { ...conversationContext, greetingSent: true } } });

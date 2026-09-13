@@ -146,9 +146,11 @@ export const prospectingWhatsAppConfigRoutes: FastifyPluginAsyncZod<Options> = a
         await options.service.reconfigureWebhooks();
         return reply.send({ success: true, message: 'Webhooks atualizados com sucesso.' });
       } catch (error) {
-        return reply.status(400).send({
-          success: false,
+        throw new AppError({
+          code: 'WEBHOOK_REFRESH_FAILED',
           message: error instanceof Error ? error.message : 'Não foi possível atualizar os webhooks.',
+          statusCode: 400,
+          cause: error,
         });
       }
     },

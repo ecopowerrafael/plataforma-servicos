@@ -159,6 +159,31 @@ export class ProspectingInboundService {
     }
 
     if (!leadData) {
+      if (config.attendantEnabled) {
+        const now = new Date();
+        const contact = await this.client.prospectingContact.upsert({
+          where: { normalizedPhone },
+          create: { publicId: randomUUID(), normalizedPhone, firstInboundAt: now, lastInboundAt: now },
+          update: { lastInboundAt: now },
+        });
+        const conversation = await this.client.prospectingConversation.findFirst({
+          where: { contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE' },
+          orderBy: { updatedAt: 'desc' },
+        }) ?? await this.client.prospectingConversation.create({
+          data: { publicId: randomUUID(), contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE', context: { owner: 'PROSPECTING_ATTENDANT' } },
+        });
+        const inbound = await this.client.prospectingMessage.create({
+          data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null },
+        });
+        if (config.greetingMessage && this.realtimeReply) {
+          const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, phone: normalizedPhone, body: config.greetingMessage, action: 'ATTENDANT_GREETING' });
+          console.log('[ProspectingRealtime]', { router: 'PROSPECTING_ATTENDANT', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+          return reply.sent
+            ? { handled: true, router: 'ATTENDANT_FALLBACK' as const }
+            : { handled: true, router: 'ATTENDANT_FALLBACK' as const, reason: reply.reason ?? 'GREETING_SEND_FAILED' };
+        }
+        return { handled: true, router: 'ATTENDANT_FALLBACK', reason: 'GREETING_NOT_CONFIGURED' };
+      }
       console.log('[ProspectingInboundTrace]', {
         ...trace,
         referencedMessageId: payload.referencedMessageId,

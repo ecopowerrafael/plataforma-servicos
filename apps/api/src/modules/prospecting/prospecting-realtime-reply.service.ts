@@ -3,8 +3,8 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { type ProspectingMessageSender } from './prospecting-message-sender.js';
 
 export interface RealtimeReplyInput {
-  campaignId: bigint;
-  leadId: bigint;
+  campaignId?: bigint | null;
+  leadId?: bigint | null;
   inboundMessageId: bigint;
   phone: string;
   body: string;
@@ -39,7 +39,7 @@ export class ProspectingRealtimeReplyService {
 
     const message = existing ?? await this.client.prospectingMessage.create({
       data: {
-        publicId: randomUUID(), campaignId: input.campaignId, leadId: input.leadId,
+        publicId: randomUUID(), campaignId: input.campaignId ?? null, leadId: input.leadId ?? null,
         direction: 'OUTBOUND', purpose: 'REALTIME_REPLY', status: 'PENDING',
         body: input.body, idempotencyKey, scheduledAt: new Date(), nextAttemptAt: new Date(),
         replyToMessageId: input.inboundMessageId,

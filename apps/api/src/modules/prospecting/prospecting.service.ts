@@ -77,6 +77,12 @@ export class ProspectingService {
 
     if (invalidOptions.length > 0) throw new Error('FLOW_INVALID_NEXT_STEP');
 
+    const oversizedSteps = await this.client.prospectingFlowStep.findMany({
+      where: { flowId: flow.id, stepType: 'MESSAGE_OPTIONS' },
+      select: { id: true, _count: { select: { options: true } } },
+    });
+    if (oversizedSteps.some((step) => step._count.options > 3)) throw new Error('FLOW_INVALID_BUTTON_LIMIT');
+
     // Validar destinos pertencem ao mesmo flow
     const externalDestinations = await this.client.prospectingFlowOption.findMany({
       where: {

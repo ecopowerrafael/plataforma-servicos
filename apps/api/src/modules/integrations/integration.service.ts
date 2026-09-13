@@ -422,8 +422,21 @@ export class IntegrationService {
           return { accepted: true, prospectingHandled: true, router: 'PROSPECTING', ...prospectingResult } as const;
         }
 
-        // A instância pode ser compartilhada com um tenant. Falhas de correlação
-        // na prospecção devem permitir o fallback determinístico para o tenant.
+        // Um telefone recebido na instância da prospecção pertence ao atendente
+        // Agendei, mesmo quando ainda não há lead comercial correlacionado.
+        // O fallback para tenant só é permitido quando não há telefone do
+        // remetente (por exemplo, eventos de mídia sem identificação).
+        if (received.phone !== null) {
+          return {
+            accepted: true,
+            prospectingHandled: false,
+            prospectingReason: prospectingResult.reason,
+            router: 'PROSPECTING',
+          } as const;
+        }
+
+        // A instância pode ser compartilhada com um tenant para eventos sem
+        // identidade de remetente, preservando o roteamento legado.
         if (!['LEAD_NOT_FOUND', 'CONVERSATION_NOT_FOUND', 'NO_MATCH'].includes(prospectingResult.reason ?? '')) {
           return {
             accepted: true,

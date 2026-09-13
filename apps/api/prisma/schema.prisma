@@ -3942,6 +3942,7 @@ model ProspectingMessage {
   publicId          String                      @unique @map("public_id") @db.Char(36)
   campaignId        BigInt                      @map("campaign_id") @db.UnsignedBigInt
   leadId            BigInt                      @map("lead_id") @db.UnsignedBigInt
+  conversationId    BigInt?                     @map("conversation_id") @db.UnsignedBigInt
   direction         String                      @db.VarChar(20)
   stepNumber        Int?                        @map("step_number") @db.UnsignedSmallInt
   templateId        BigInt?                     @map("template_id") @db.UnsignedBigInt
@@ -3973,12 +3974,14 @@ model ProspectingMessage {
   objection         ProspectingObjection?       @relation(fields: [objectionId], references: [id], onDelete: SetNull)
   replyToMessage    ProspectingMessage?         @relation("repliesTo", fields: [replyToMessageId], references: [id], onDelete: SetNull)
   replies           ProspectingMessage[]        @relation("repliesTo")
+  conversation      ProspectingConversation?   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   optionIds         Json?                       @map("option_ids")
 
   @@index([campaignId, status])
   @@index([leadId, direction, createdAt])
   @@index([objectionId, classifiedAt])
   @@index([purpose, status, nextAttemptAt])
+  @@index([conversationId, createdAt])
   @@map("prospecting_messages")
 }
 
@@ -4156,6 +4159,7 @@ model ProspectingConversation {
   createdAt      DateTime                      @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt      DateTime                      @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   contact        ProspectingContact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages       ProspectingMessage[]
 
   @@index([instanceId, status])
   @@index([contactId, status])

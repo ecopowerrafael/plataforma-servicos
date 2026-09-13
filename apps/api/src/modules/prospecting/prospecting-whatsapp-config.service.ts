@@ -8,6 +8,12 @@ export interface ProspectingWhatsAppConfigData {
   phoneNumber?: string | null | undefined;
   instanceName?: string | null | undefined;
   isActive?: boolean | undefined;
+  attendantEnabled?: boolean | undefined;
+  attendantFlowId?: bigint | null | undefined;
+  greetingMessage?: string | null | undefined;
+  fallbackMessage?: string | null | undefined;
+  mediaFallbackMessage?: string | null | undefined;
+  realtimeRepliesEnabled?: boolean | undefined;
 }
 
 export interface ProspectingWhatsAppConfigResponse {
@@ -20,6 +26,12 @@ export interface ProspectingWhatsAppConfigResponse {
   lastCheckedAt?: string;
   tokenMasked: string;
   configured: boolean;
+  attendantEnabled: boolean;
+  attendantFlowId?: string;
+  greetingMessage?: string;
+  fallbackMessage?: string;
+  mediaFallbackMessage?: string;
+  realtimeRepliesEnabled: boolean;
 }
 
 export class ProspectingWhatsAppConfigService {
@@ -48,6 +60,12 @@ export class ProspectingWhatsAppConfigService {
           phoneNumber: data.phoneNumber ?? null,
           instanceName: data.instanceName ?? null,
           isActive: data.isActive ?? true,
+          attendantEnabled: data.attendantEnabled ?? true,
+          attendantFlowId: data.attendantFlowId ?? null,
+          greetingMessage: data.greetingMessage ?? null,
+          fallbackMessage: data.fallbackMessage ?? null,
+          mediaFallbackMessage: data.mediaFallbackMessage ?? null,
+          realtimeRepliesEnabled: data.realtimeRepliesEnabled ?? true,
         },
       });
       return this.toResponse(newConfig);
@@ -61,6 +79,12 @@ export class ProspectingWhatsAppConfigService {
         phoneNumber: data.phoneNumber ?? config.phoneNumber,
         instanceName: data.instanceName ?? config.instanceName,
         isActive: data.isActive ?? config.isActive,
+        attendantEnabled: data.attendantEnabled ?? config.attendantEnabled,
+        attendantFlowId: data.attendantFlowId ?? config.attendantFlowId,
+        greetingMessage: data.greetingMessage ?? config.greetingMessage,
+        fallbackMessage: data.fallbackMessage ?? config.fallbackMessage,
+        mediaFallbackMessage: data.mediaFallbackMessage ?? config.mediaFallbackMessage,
+        realtimeRepliesEnabled: data.realtimeRepliesEnabled ?? config.realtimeRepliesEnabled,
       },
     });
 
@@ -100,6 +124,12 @@ export class ProspectingWhatsAppConfigService {
     lastConnectionStatus: string | null;
     lastCheckedAt: Date | null;
     tokenCiphertext: string;
+    attendantEnabled: boolean;
+    attendantFlowId: bigint | null;
+    greetingMessage: string | null;
+    fallbackMessage: string | null;
+    mediaFallbackMessage: string | null;
+    realtimeRepliesEnabled: boolean;
   }): ProspectingWhatsAppConfigResponse {
     const result: ProspectingWhatsAppConfigResponse = {
       publicId: config.publicId,
@@ -107,7 +137,14 @@ export class ProspectingWhatsAppConfigService {
       isActive: config.isActive,
       tokenMasked: this.maskToken(config.tokenCiphertext),
       configured: true,
+      attendantEnabled: config.attendantEnabled,
+      realtimeRepliesEnabled: config.realtimeRepliesEnabled,
     };
+
+    if (config.attendantFlowId !== null) result.attendantFlowId = String(config.attendantFlowId);
+    if (config.greetingMessage) result.greetingMessage = config.greetingMessage;
+    if (config.fallbackMessage) result.fallbackMessage = config.fallbackMessage;
+    if (config.mediaFallbackMessage) result.mediaFallbackMessage = config.mediaFallbackMessage;
 
     if (config.phoneNumber) result.phoneNumber = config.phoneNumber;
     if (config.instanceName) result.instanceName = config.instanceName;

@@ -9,6 +9,12 @@ const UpdateConfigSchema = z.object({
   phoneNumber: z.string().optional(),
   instanceName: z.string().optional(),
   isActive: z.boolean().optional(),
+  attendantEnabled: z.boolean().optional(),
+  attendantFlowId: z.coerce.bigint().nullable().optional(),
+  greetingMessage: z.string().nullable().optional(),
+  fallbackMessage: z.string().nullable().optional(),
+  mediaFallbackMessage: z.string().nullable().optional(),
+  realtimeRepliesEnabled: z.boolean().optional(),
 }).strict();
 
 const ConfigResponseSchema = z.object({
@@ -21,6 +27,12 @@ const ConfigResponseSchema = z.object({
   lastConnectionStatus: z.string().optional(),
   lastCheckedAt: z.string().optional(),
   tokenMasked: z.string().optional(),
+  attendantEnabled: z.boolean().optional(),
+  attendantFlowId: z.string().optional(),
+  greetingMessage: z.string().optional(),
+  fallbackMessage: z.string().optional(),
+  mediaFallbackMessage: z.string().optional(),
+  realtimeRepliesEnabled: z.boolean().optional(),
 });
 
 const TestConnectionResponseSchema = z.object({
@@ -58,6 +70,12 @@ export const prospectingWhatsAppConfigRoutes: FastifyPluginAsyncZod<Options> = a
           phoneNumber: request.body.phoneNumber,
           instanceName: request.body.instanceName,
           isActive: request.body.isActive,
+          attendantEnabled: request.body.attendantEnabled,
+          attendantFlowId: request.body.attendantFlowId,
+          greetingMessage: request.body.greetingMessage,
+          fallbackMessage: request.body.fallbackMessage,
+          mediaFallbackMessage: request.body.mediaFallbackMessage,
+          realtimeRepliesEnabled: request.body.realtimeRepliesEnabled,
         });
         return reply.status(200).send(updated);
       } catch (error) {

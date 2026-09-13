@@ -207,68 +207,45 @@ export class ProspectingInboundService {
         let flowReply: string | null = null;
         let attendantButtons: Array<{ publicId: string; label: string }> = [];
         let attendantMenu: string | null = typeof conversationContext.menu === 'string' ? conversationContext.menu : null;
-        const normalizedAttendantText = !isMediaWithoutCaption ? this.normalizeInboundText(payload.body as string) : '';
-        const requestsHuman = ['suporte tecnico', 'falar com consultor', 'consultor', 'falar com atendimento'].includes(normalizedAttendantText);
-        if (opensAttendantMenu || (!conversationContext.greetingSent && !startStep)) {
-          attendantButtons = [{ publicId: 'ATTENDANT_CLIENT', label: 'Já sou cliente' }, { publicId: 'ATTENDANT_PROSPECT', label: 'Quero conhecer' }];
-          attendantMenu = 'MAIN';
-        } else if (attendantMenu === 'MAIN' && ['1', 'cliente', 'ja sou cliente'].includes(normalizedAttendantText)) {
-          flowReply = 'Certo! Sobre o que você precisa de ajuda?';
-          attendantButtons = [{ publicId: 'ATTENDANT_FINANCE', label: 'Financeiro' }, { publicId: 'ATTENDANT_SUPPORT', label: 'Suporte técnico' }, { publicId: 'ATTENDANT_SETTINGS', label: 'Configurações' }];
-          attendantMenu = 'CLIENT';
-        } else if (attendantMenu === 'MAIN' && ['2', 'nao sou cliente', 'quero conhecer'].includes(normalizedAttendantText)) {
-          flowReply = 'O que você gostaria de saber?';
-          attendantButtons = [{ publicId: 'ATTENDANT_KNOW', label: 'Conhecer o Agendei' }, { publicId: 'ATTENDANT_PARTNER', label: 'Divulgação e parceria' }, { publicId: 'ATTENDANT_CONSULT', label: 'Falar com consultor' }];
-          attendantMenu = 'PROSPECT';
-        } else if (attendantMenu === 'CLIENT' && ['financeiro', 'suporte tecnico', 'configuracoes'].includes(normalizedAttendantText)) {
-          flowReply = normalizedAttendantText === 'financeiro'
-            ? 'Vou verificar seu vínculo com o Agendei antes de exibir opções financeiras.'
-            : normalizedAttendantText === 'suporte tecnico'
-              ? 'Descreva resumidamente o problema para encaminharmos ao suporte.'
-              : 'Qual configuração você precisa consultar: WhatsApp, agenda, profissionais ou serviços?';
-          if (normalizedAttendantText === 'suporte tecnico') flowReply = config.humanTransferMessage ?? flowReply;
-          attendantMenu = normalizedAttendantText === 'financeiro' ? 'FINANCE' : normalizedAttendantText === 'suporte tecnico' ? 'SUPPORT' : 'SETTINGS';
-        } else if (attendantMenu === 'PROSPECT' && ['conhecer o agendei', 'divulgacao e parceria', 'falar com consultor'].includes(normalizedAttendantText)) {
-          flowReply = normalizedAttendantText === 'conhecer o agendei'
-            ? 'O Agendei reúne agenda, clientes, profissionais e serviços em um só lugar. Posso apresentar o teste grátis.'
-            : normalizedAttendantText === 'divulgacao e parceria'
-              ? 'Que tipo de divulgação ou parceria você tem em mente?'
-              : 'Para falar com um consultor, envie seu nome, negócio, cidade e melhor horário.';
-          if (normalizedAttendantText === 'falar com consultor') flowReply = config.humanTransferMessage ?? flowReply;
-          attendantMenu = normalizedAttendantText === 'conhecer o agendei' ? 'KNOW' : normalizedAttendantText === 'divulgacao e parceria' ? 'PARTNER' : 'CONSULT';
+        if (opensAttendantMenu && startStep) {
+          await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: startStep.id, flowId: BigInt(config.attendantFlowId!), lastInboundAt: now } });
+          attendantMenu = null;
+          flowReply = startStep.message;
+          attendantButtons = startStep.options;
         }
-        if (!opensAttendantMenu && !isMediaWithoutCaption && conversation.currentStepId) {
+        if (!isMediaWithoutCaption && conversation.currentStepId && !opensAttendantMenu) {
           const step = await this.client.prospectingFlowStep.findUnique({ where: { id: conversation.currentStepId }, include: { options: { include: { patterns: true } } } });
           const text = this.normalizeInboundText(payload.body as string);
           const match = step?.options.flatMap((option: any) => option.patterns.map((pattern: any) => ({ option, pattern })))
             .sort((a: any, b: any) => (b.pattern.priority ?? 0) - (a.pattern.priority ?? 0))
             .find(({ pattern }: any) => pattern.patternType === 'EXACT' ? text === this.normalizeInboundText(pattern.pattern) : pattern.patternType === 'STARTS_WITH' ? text.startsWith(this.normalizeInboundText(pattern.pattern)) : pattern.patternType === 'ENDS_WITH' ? text.endsWith(this.normalizeInboundText(pattern.pattern)) : text.includes(this.normalizeInboundText(pattern.pattern)));
-          if (match?.option?.nextStepId) {
-            const next = await this.client.prospectingFlowStep.findUnique({ where: { id: match.option.nextStepId }, select: { id: true, message: true } });
+          if (match?.option) {
+            const next = match.option.nextStepId ? await this.client.prospectingFlowStep.findUnique({ where: { id: match.option.nextStepId }, include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } }) : null;
             await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: next?.id ?? null, flowId: conversation.flowId, lastInboundAt: now } });
-            flowReply = next?.message ?? null;
+            flowReply = match.option.actionType === 'MANUAL'
+              ? (config.humanTransferMessage ?? next?.message ?? null)
+              : next?.message ?? null;
+            attendantButtons = next?.options ?? [];
+            if (match.option.actionType === 'MANUAL') attendantMenu = 'MANUAL';
           }
         }
-        const greeting = config.useContactName && contact.displayName
-          ? `Olá, ${contact.displayName}! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?`
-          : 'Olá! Bem-vindo ao Agendei 👋\n\nComo podemos ajudar?';
-        if (requestsHuman && !flowReply) flowReply = config.humanTransferMessage ?? 'Seu atendimento será encaminhado para uma pessoa da equipe.';
+        const greeting = config.useContactName && contact.displayName ? `${config.greetingMessage ?? 'Olá'} ${contact.displayName}!` : config.greetingMessage;
         const replyBody = flowReply
           ?? (isMediaWithoutCaption && config.mediaFallbackMessage
           ? config.mediaFallbackMessage
-          : conversationContext.greetingSent ? (config.fallbackMessage ?? config.invalidMessage) : config.greetingMessage ?? startStep?.message ?? greeting);
+          : conversationContext.greetingSent ? (config.fallbackMessage ?? config.invalidMessage) : startStep?.message ?? greeting);
         const replyAction = flowReply ? 'FLOW_TEXT' : conversationContext.greetingSent ? 'ATTENDANT_FALLBACK' : 'ATTENDANT_GREETING';
         const menuOptions = !isMediaWithoutCaption && (attendantButtons.length > 0 || (!conversationContext.greetingSent && !flowReply))
           ? ((attendantButtons.length ? attendantButtons : startStep?.options) ?? [])
           : [];
         const persistedContext = { ...conversationContext, greetingSent: true, ...(attendantMenu ? { menu: attendantMenu } : {}) };
-        if (requestsHuman) {
+        if (attendantMenu === 'MANUAL') {
           await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { status: 'MANUAL', context: { ...persistedContext, transferredToHuman: true } } });
         }
         if (replyBody && this.realtimeReply) {
           const reply = await this.realtimeReply.send({ inboundMessageId: inbound.id, conversationId: conversation.id, phone: normalizedPhone, body: replyBody, action: replyAction, ...(menuOptions.length ? { buttons: menuOptions.map((option: any) => ({ label: option.label })), optionIds: menuOptions.map((option: any) => option.publicId) } : {}) });
           await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { lastInboundAt: now, context: persistedContext } });
-          console.log('[ProspectingRealtime]', { router: 'PROSPECTING_ATTENDANT', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
+          console.log('[ProspectingRealtime]', { router: flowReply ? 'FLOW_TEXT' : 'PROSPECTING_ATTENDANT', replyQueued: reply.queued, replySent: reply.sent, retryScheduled: reply.retryScheduled });
           return reply.sent
             ? { handled: true, router: 'ATTENDANT_FALLBACK' as const }
             : { handled: true, router: 'ATTENDANT_FALLBACK' as const, reason: reply.reason ?? 'GREETING_SEND_FAILED' };

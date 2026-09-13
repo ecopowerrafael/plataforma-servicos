@@ -46,7 +46,7 @@ export class ProspectingInboundService {
 
   private isLeadConversationallyEligible(
     status: string,
-    executions: Array<{ status: string; campaignId?: bigint }> = [],
+    _executions: Array<{ status: string; campaignId?: bigint }> = [],
   ): boolean {
     // O status comercial não controla a conversa. Somente supressão/takeover
     // explícitos impedem o atendente permanente.
@@ -707,13 +707,10 @@ export class ProspectingInboundService {
       return null;
     }
 
-    const maxDays = 30;
-    const minLastOutboundAt = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
-
     const leads = await this.client.prospectingLead.findMany({
       where: {
         normalizedPhone,
-        status: { notIn: ['SUPPRESSED', 'MANUAL'] },
+        status: { not: 'SUPPRESSED' },
       },
       orderBy: [{ lastInboundAt: 'desc' }, { lastOutboundAt: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
       select: {
@@ -743,7 +740,7 @@ export class ProspectingInboundService {
     const lead = eligibleLeads[0];
     if (!lead) return null;
     console.log('[ProspectingInboundResolution]', {
-      resolutionMethod: (lead.flowExecutions ?? []).some((e) => e.status === 'WAITING') ? 'waiting_execution' : 'latest_context',
+      resolutionMethod: 'latest_context',
       candidateCount: eligibleLeads.length,
     });
     return { id: lead.id, campaignId: lead.campaignId, respondedAt: lead.respondedAt, publicId: lead.publicId };

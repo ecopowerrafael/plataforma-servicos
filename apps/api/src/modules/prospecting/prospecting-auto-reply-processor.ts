@@ -64,7 +64,7 @@ export class ProspectingAutoReplyProcessor {
       return { valid: false, cancelReason: 'AUTO_REPLY_DISABLED' };
     }
 
-    // Lead não deve estar em status final
+    // O status comercial não impede o atendimento permanente.
     const lead = await this.client.prospectingLead.findUnique({
       where: { id: input.leadId },
       select: {
@@ -77,7 +77,7 @@ export class ProspectingAutoReplyProcessor {
       return { valid: false, cancelReason: 'LEAD_NOT_FOUND' };
     }
 
-    const blockingLeadStatuses = ['SUPPRESSED', 'NEEDS_REVIEW', 'LOST', 'WON'];
+    const blockingLeadStatuses = ['SUPPRESSED', 'MANUAL'];
     if (blockingLeadStatuses.includes(lead.status)) {
       return { valid: false, cancelReason: lead.status };
     }

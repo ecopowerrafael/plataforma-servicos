@@ -26,6 +26,39 @@ export function validateFlowStepOptions(step: { stepType: string; message?: stri
   return errors;
 }
 
+export function validateFlowGraph(steps: Array<{ id: bigint; isStart: boolean; stepType: string; nextStepId?: bigint | null; options?: Array<{ actionType: string; nextStepId?: bigint | null }> }>): string[] {
+  const errors: string[] = [];
+  const byId = new Map(steps.map((step) => [step.id.toString(), step]));
+  const start = steps.find((step) => step.isStart);
+  const reachable = new Set<string>();
+  const visit = (id: string) => {
+    if (reachable.has(id)) return;
+    const step = byId.get(id);
+    if (!step) return;
+    reachable.add(id);
+    if (step.nextStepId) visit(step.nextStepId.toString());
+    for (const option of step.options ?? []) if (option.nextStepId) visit(option.nextStepId.toString());
+  };
+  if (start) visit(start.id.toString());
+  if (reachable.size !== steps.length) errors.push('Há etapas inacessíveis a partir da etapa inicial.');
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const detectCycle = (id: string): boolean => {
+    if (visiting.has(id)) return true;
+    if (visited.has(id)) return false;
+    visiting.add(id);
+    const step = byId.get(id);
+    const destinations = [step?.nextStepId, ...(step?.options ?? []).map((option) => option.nextStepId)].filter((value): value is bigint => value != null);
+    const cycle = destinations.some((destination) => detectCycle(destination.toString()));
+    visiting.delete(id);
+    visited.add(id);
+    return cycle;
+  };
+  if (start && detectCycle(start.id.toString())) errors.push('Há ciclo no fluxo sem saída detectável.');
+  return errors;
+}
+
 /**
  * Engine para processar respostas inbound dentro de FlowExecution.
  * Reutiliza padrões de normalização sem acoplar ao ObjectionEngine.

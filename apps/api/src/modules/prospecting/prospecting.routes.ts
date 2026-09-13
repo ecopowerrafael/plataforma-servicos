@@ -11,7 +11,7 @@ import { type ProspectingWorker } from './prospecting-worker.js';
 import { ProspectingAudienceService } from './prospecting-audience.service.js';
 import { ProspectingRepository } from './prospecting.repository.js';
 import { ProspectingClock } from './prospecting-time.js';
-import { validateFlowStepOptions } from './prospecting-flow-engine.service.js';
+import { validateFlowGraph, validateFlowStepOptions } from './prospecting-flow-engine.service.js';
 
 const CreateCampaignSchema = z.object({
   name: z.string().min(1).max(180),
@@ -1395,6 +1395,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
         if (candidate.steps.filter((step) => step.isStart).length !== 1) errors.push('O fluxo precisa ter exatamente uma etapa inicial.');
         const stepIds = new Set(candidate.steps.map((step) => step.id.toString()));
         for (const step of candidate.steps) for (const option of step.options) if (option.nextStepId && !stepIds.has(option.nextStepId.toString())) errors.push('Há opção apontando para outra etapa/fluxo.');
+        errors.push(...validateFlowGraph(candidate.steps));
         for (const step of candidate.steps) errors.push(...validateFlowStepOptions(step));
         if (errors.length) throw new Error(`FLOW_INVALID: ${[...new Set(errors)].join(' ')}`);
       }
@@ -1432,6 +1433,7 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       if (flow.steps.filter((step) => step.isStart).length !== 1) errors.push('O fluxo precisa ter exatamente uma etapa inicial.');
       const stepIds = new Set(flow.steps.map((step) => step.id.toString()));
       for (const step of flow.steps) for (const option of step.options) if (option.nextStepId && !stepIds.has(option.nextStepId.toString())) errors.push('Há opção apontando para outra etapa/fluxo.');
+      errors.push(...validateFlowGraph(flow.steps));
       for (const step of flow.steps) errors.push(...validateFlowStepOptions(step));
       return { valid: errors.length === 0, errors: [...new Set(errors)] };
     },

@@ -550,10 +550,14 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
       const child = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code: childCode ?? '__none__' }, { name: `${stepName} - ${label}` }] }, include: { options: true } }) ?? await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, ...(childCode ? { code: childCode } : {}), name: `${stepName} - ${label}`, message, stepType: 'MESSAGE_OPTIONS', position: 30 + parent.position }, include: { options: true } });
       if (childCode && !child.code) await transaction.prospectingFlowStep.update({ where: { id: child.id }, data: { code: childCode } });
       await transaction.prospectingFlowOption.update({ where: { id: parent.id }, data: { nextStepId: child.id, actionType: 'NEXT_STEP' } });
-      const existingChildLabels = new Set(child.options.map((item: any) => item.label));
       for (const [index, childLabel] of ['Sim, resolveu', 'Ainda preciso de ajuda', 'Menu'].entries()) {
-        if (existingChildLabels.has(childLabel)) continue;
-        const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: child.id, label: childLabel, actionType: childLabel === 'Ainda preciso de ajuda' ? 'MANUAL' : 'END', position: index } });
+        const isMenu = childLabel === 'Menu';
+        const existingOption = child.options.find((item: any) => item.label === childLabel);
+        if (existingOption) {
+          if (isMenu && start && (existingOption.actionType !== 'NEXT_STEP' || existingOption.nextStepId !== start.id)) await transaction.prospectingFlowOption.update({ where: { id: existingOption.id }, data: { actionType: 'NEXT_STEP', nextStepId: start.id } });
+          continue;
+        }
+        const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: child.id, label: childLabel, actionType: isMenu ? 'NEXT_STEP' : childLabel === 'Ainda preciso de ajuda' ? 'MANUAL' : 'END', nextStepId: isMenu ? start?.id ?? null : null, position: index } });
         await transaction.prospectingFlowOptionPattern.createMany({ data: [childLabel, ...(childLabel === 'Sim, resolveu' ? ['sim', 'resolvido'] : childLabel === 'Ainda preciso de ajuda' ? ['ajuda', 'nao resolveu'] : ['voltar', 'menu'])].map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: 10 - index })) });
       }
       await transaction.prospectingFlowOptionPattern.createMany({ data: aliases.map((pattern, index) => ({ optionId: parent.id, pattern, patternType: 'EXACT', priority: 10 - index })) });

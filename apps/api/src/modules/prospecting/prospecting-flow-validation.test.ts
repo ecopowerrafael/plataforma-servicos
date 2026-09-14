@@ -6,9 +6,16 @@ describe('Prospecting flow validation', () => {
     expect(validateFlowStepOptions({ stepType: 'MESSAGE_OPTIONS', message: 'menu', options: [{ actionType: 'NEXT_STEP', nextStepId: null }] })).toContain('Toda opção NEXT_STEP precisa de um destino.');
   });
 
-  it('rejects more than three buttons', () => {
+  it('accepts six and ten WAPI buttons, but rejects the eleventh', () => {
+    expect(validateFlowStepOptions({ stepType: 'MESSAGE_OPTIONS', message: 'menu', options: Array.from({ length: 6 }, () => ({ actionType: 'END' })) })).toEqual([]);
+    expect(validateFlowStepOptions({ stepType: 'MESSAGE_OPTIONS', message: 'menu', options: Array.from({ length: 10 }, () => ({ actionType: 'END' })) })).toEqual([]);
     const options = Array.from({ length: 11 }, () => ({ actionType: 'END', nextStepId: null }));
     expect(validateFlowStepOptions({ stepType: 'MESSAGE_OPTIONS', message: 'menu', options })).toContain('MESSAGE_OPTIONS suporta no máximo 10 botões para WAPI.');
+  });
+
+  it('uses the Meta capability independently', () => {
+    const options = Array.from({ length: 4 }, () => ({ actionType: 'END' }));
+    expect(validateFlowStepOptions({ stepType: 'MESSAGE_OPTIONS', message: 'menu', options }, 'META')).toContain('MESSAGE_OPTIONS suporta no máximo 3 botões para META.');
   });
 
   it('requires a final message for END', () => {
@@ -23,5 +30,16 @@ describe('Prospecting flow validation', () => {
     ]);
     expect(errors).toContain('Há etapas inacessíveis a partir da etapa inicial.');
     expect(errors).toContain('Há ciclo no fluxo sem saída detectável.');
+  });
+
+  it('allows returning to the initial menu and cycles with END or MANUAL exits', () => {
+    expect(validateFlowGraph([
+      { id: 1n, isStart: true, stepType: 'MESSAGE_OPTIONS', options: [{ actionType: 'NEXT_STEP', nextStepId: 2n }] },
+      { id: 2n, isStart: false, stepType: 'MESSAGE_OPTIONS', options: [{ actionType: 'NEXT_STEP', nextStepId: 1n }] },
+    ])).not.toContain('Há ciclo no fluxo sem saída detectável.');
+    expect(validateFlowGraph([
+      { id: 1n, isStart: true, stepType: 'MESSAGE_OPTIONS', options: [{ actionType: 'NEXT_STEP', nextStepId: 2n }] },
+      { id: 2n, isStart: false, stepType: 'MESSAGE_OPTIONS', options: [{ actionType: 'NEXT_STEP', nextStepId: 2n }, { actionType: 'END', nextStepId: null }] },
+    ])).not.toContain('Há ciclo no fluxo sem saída detectável.');
   });
 });

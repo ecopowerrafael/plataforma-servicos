@@ -15,6 +15,7 @@ export class ProviderResolvedWhatsAppDelivery implements WhatsAppDelivery {
   /** Facade dinâmica: o provider real é resolvido por tenant a cada chamada. */
   public readonly provider = 'DYNAMIC' as const;
   public readonly capabilities: WhatsAppProviderCapabilities = {
+    maxInteractiveButtons: 10,
     qrCode: false,
     autoProvision: false,
     interactiveMessages: true,

@@ -187,7 +187,7 @@ export class WApiProspectingMessageSender implements ProspectingMessageSender {
       };
     }
     if (input.buttons.length > whatsappButtonCapacity('WAPI')) return { success: false, provider: 'WAPI', externalMessageId: null, errorCode: 'BUTTON_LIMIT_EXCEEDED', errorMessage: 'WAPI aceita no máximo 10 botões.', retryable: false };
-    if (input.optionIds && (input.optionIds.length !== input.buttons.length || input.optionIds.some((id) => !id))) return { success: false, provider: 'WAPI', externalMessageId: null, errorCode: 'BUTTON_OPTION_ID_MISMATCH', errorMessage: 'Cada botão precisa de um optionId correspondente.', retryable: false };
+    if (!input.optionIds || input.optionIds.length !== input.buttons.length || input.optionIds.some((id) => !id)) return { success: false, provider: 'WAPI', externalMessageId: null, errorCode: 'BUTTON_OPTION_ID_MISMATCH', errorMessage: 'Cada botão precisa de um optionId correspondente.', retryable: false };
 
     const token = await this.configService.getDecryptedToken();
     if (!token) {

@@ -44,20 +44,31 @@ export function validateFlowGraph(steps: Array<{ id: bigint; isStart: boolean; s
   if (start) visit(start.id.toString());
   if (reachable.size !== steps.length) errors.push('Há etapas inacessíveis a partir da etapa inicial.');
 
-  const visiting = new Set<string>();
+  const visiting = new Map<string, number>();
   const visited = new Set<string>();
-  const detectCycle = (id: string): boolean => {
-    if (visiting.has(id)) return true;
-    if (visited.has(id)) return false;
-    visiting.add(id);
+  let invalidCycle = false;
+  const detectCycle = (id: string, path: string[]): void => {
+    if (invalidCycle || visited.has(id)) return;
+    const cycleStart = visiting.get(id);
+    if (cycleStart !== undefined) {
+      const cycleIds = path.slice(cycleStart);
+      const hasTerminalExit = cycleIds.some((cycleId) => {
+        const cycleStep = byId.get(cycleId);
+        return cycleStep?.stepType === 'END' || cycleStep?.stepType === 'MANUAL' || cycleStep?.options?.some((option) => option.actionType === 'END' || option.actionType === 'MANUAL');
+      });
+      const returnsToMenu = start ? cycleIds.includes(start.id.toString()) : false;
+      if (!hasTerminalExit && !returnsToMenu) invalidCycle = true;
+      return;
+    }
+    visiting.set(id, path.length);
     const step = byId.get(id);
     const destinations = [step?.nextStepId, ...(step?.options ?? []).map((option) => option.nextStepId)].filter((value): value is bigint => value != null);
-    const cycle = destinations.some((destination) => detectCycle(destination.toString()));
+    for (const destination of destinations) detectCycle(destination.toString(), [...path, id]);
     visiting.delete(id);
     visited.add(id);
-    return cycle;
   };
-  if (start && detectCycle(start.id.toString())) errors.push('Há ciclo no fluxo sem saída detectável.');
+  if (start) detectCycle(start.id.toString(), []);
+  if (invalidCycle) errors.push('Há ciclo no fluxo sem saída detectável.');
   return errors;
 }
 

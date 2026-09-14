@@ -68,7 +68,7 @@ export class ProspectingRealtimeReplyService {
     if (claim.count !== 1) return { queued: true, sent: false, retryScheduled: true, messageId: message.id, reason: 'CLAIMED_BY_OTHER' };
 
     const result = input.buttons?.length
-      ? await this.sender.sendButtons({ phone: input.phone, body: input.body, buttons: input.buttons, optionIds: input.optionIds })
+      ? await this.sender.sendButtons({ phone: input.phone, body: input.body, buttons: input.buttons, ...(input.optionIds ? { optionIds: input.optionIds } : {}) })
       : await this.sender.sendText({ phone: input.phone, body: input.body });
     if (result.success) {
       await this.client.prospectingMessage.update({ where: { id: message.id }, data: { status: 'SENT', sentAt: new Date(), externalMessageId: result.externalMessageId } });

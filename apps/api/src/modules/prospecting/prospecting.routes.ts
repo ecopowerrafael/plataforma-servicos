@@ -13,6 +13,7 @@ import { ProspectingRepository } from './prospecting.repository.js';
 import { ProspectingClock } from './prospecting-time.js';
 import { validateFlowGraph, validateFlowStepOptions } from './prospecting-flow-engine.service.js';
 import { whatsappButtonCapacity } from '../integrations/whatsapp-provider.js';
+import { AppError } from '../../errors/AppError.js';
 
 const CreateCampaignSchema = z.object({
   name: z.string().min(1).max(180),
@@ -1549,6 +1550,8 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       if (step.isStart) throw new Error('Cannot delete start step');
       const usedAsNext = await options.client.prospectingFlowStep.count({ where: { nextStepId: step.id } });
       if (usedAsNext > 0) throw new Error('Step is used as next step');
+      const usedByOption = await options.client.prospectingFlowOption.count({ where: { nextStepId: step.id } });
+      if (usedByOption > 0) throw new Error('Step is used by an option');
       const executions = await options.client.prospectingFlowExecution.count({ where: { currentStepId: step.id } });
       if (executions > 0) throw new Error('Step has executions');
       await options.client.prospectingFlowStep.delete({ where: { publicId: request.params.stepPublicId } });
@@ -1569,7 +1572,8 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       const providerConfig = await options.client.prospectingWhatsAppConfig.findFirst({ where: { isActive: true }, select: { instanceId: true } });
       const provider = providerConfig ? 'WAPI' : 'WAPI';
       const optionCount = await options.client.prospectingFlowOption.count({ where: { stepId: step.id } });
-      if (optionCount >= whatsappButtonCapacity(provider)) throw new Error('MESSAGE_OPTIONS excede a capacidade de botões do provedor');
+      const capacity = whatsappButtonCapacity(provider);
+      if (optionCount >= capacity) throw new AppError({ code: 'FLOW_BUTTON_LIMIT_EXCEEDED', message: `A etapa já possui ${capacity} botões, limite do provedor ${provider}.`, statusCode: 400 });
       let nextStepId: bigint | null = null;
       if (request.body.nextStepPublicId) {
         const nextStep = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.body.nextStepPublicId }, select: { id: true, flowId: true } });
@@ -1593,7 +1597,8 @@ export const registerProspectingRoutes: FastifyPluginAsyncZod<ProspectingRoutesO
       const providerConfig = await options.client.prospectingWhatsAppConfig.findFirst({ where: { isActive: true }, select: { instanceId: true } });
       const provider = providerConfig ? 'WAPI' : 'WAPI';
       const optionCount = await options.client.prospectingFlowOption.count({ where: { stepId: option.stepId } });
-      if (optionCount > whatsappButtonCapacity(provider)) throw new Error('MESSAGE_OPTIONS excede a capacidade de botões do provedor');
+      const capacity = whatsappButtonCapacity(provider);
+      if (optionCount > capacity) throw new AppError({ code: 'FLOW_BUTTON_LIMIT_EXCEEDED', message: `A etapa excede o limite de ${capacity} botões do provedor ${provider}.`, statusCode: 400 });
       let nextStepId: bigint | null | undefined = undefined;
       if (request.body.nextStepPublicId) {
         const nextStep = await options.client.prospectingFlowStep.findUnique({ where: { publicId: request.body.nextStepPublicId }, select: { id: true, flowId: true } });

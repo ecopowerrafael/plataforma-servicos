@@ -7,6 +7,7 @@ import { type TenantSubscriptionService } from './tenant-subscription.service.js
 import { type PrismaClient } from '../../database-client/client.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { type PlatformBillingService } from '../platform/platform-billing.service.js';
+import { type StripeBillingService } from '../platform/stripe-billing.service.js';
 
 interface Options {
   service: TenantSubscriptionService;
@@ -14,6 +15,7 @@ interface Options {
   cookieName: string;
   client?: PrismaClient;
   billingService?: PlatformBillingService;
+  stripeBilling?: StripeBillingService;
 }
 
 export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (app, options) => {
@@ -43,17 +45,19 @@ export const tenantSubscriptionRoutes: FastifyPluginAsyncZod<Options> = async (a
   );
   app.post('/tenant/subscription/change-preview', {
     schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']).optional() }).strict(), response: { 200: SubscriptionChangePreviewSchema } },
-  }, (r) => {
+  }, async (r) => {
     options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
     if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode alterar o plano.');
     return options.service.previewChange(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
   });
   app.post('/tenant/subscription/change-request', {
     schema: { body: z.object({ planPublicId: z.uuid(), billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']).optional() }).strict(), response: { 200: SubscriptionChangePreviewSchema } },
-  }, (r) => {
+  }, async (r) => {
     options.authService.requirePermission(r.tenant, 'tenant.subscription.read');
     if (!r.tenant.membership.isOwner) throw new Error('Apenas o proprietário pode alterar o plano.');
-    return options.service.requestChange(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
+    const result = await options.service.requestChange(r.tenant.id, r.body.planPublicId, r.body.billingCycle);
+    if (result.status === 'SCHEDULED' && result.changePublicId && options.stripeBilling) await options.stripeBilling.scheduleStripePlanChange(r.tenant.id, result.changePublicId);
+    return result;
   });
   app.get('/tenant/subscription/changes/current', { schema: { response: { 200: SubscriptionChangePreviewSchema.nullable() } } }, (r) => {
     options.authService.requirePermission(r.tenant, 'tenant.subscription.read');

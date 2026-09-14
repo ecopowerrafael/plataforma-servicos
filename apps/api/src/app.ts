@@ -482,6 +482,9 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.platformBilling
         ? { billingService: options.database.platformBilling }
         : {}),
+      ...(options.database.stripeBilling
+        ? { stripeBilling: options.database.stripeBilling }
+        : {}),
     });
   }
   if (options.database.publicBooking !== undefined) {

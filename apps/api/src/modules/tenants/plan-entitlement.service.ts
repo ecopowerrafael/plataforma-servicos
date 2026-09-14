@@ -2,6 +2,8 @@ import { type PlanLimitKey } from '@plataforma/shared';
 
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
+import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
+import { TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
 
 type Transaction = Prisma.TransactionClient;
 export type PlanFeatureKey = Extract<PlanLimitKey, `${string}.enabled`>;
@@ -13,6 +15,7 @@ type LimitKey =
   | 'monthly_appointments.max';
 
 export class PlanEntitlementService {
+  private readonly commercialResolver = new TenantCommercialStatusResolver();
   public async assertCanCreateUnit(transaction: Transaction, tenantId: bigint): Promise<void> {
     await this.assertLimit(transaction, tenantId, 'units.max', 'businessUnit');
   }
@@ -43,6 +46,7 @@ export class PlanEntitlementService {
       where: { tenantId, effectiveKey: 'EFFECTIVE' },
       include: { plan: { include: { limits: { where: { key } } } } },
     });
+    await this.assertCommercialAccess(transaction, subscription);
     if (subscription?.plan.limits[0]?.booleanValue === true) return;
     throw new AppError({
       code: 'PLAN_FEATURE_UNAVAILABLE',
@@ -60,6 +64,7 @@ export class PlanEntitlementService {
       where: { tenantId, effectiveKey: 'EFFECTIVE' },
       include: { plan: { include: { limits: { where: { key } } } } },
     });
+    await this.assertCommercialAccess(client, subscription);
     if (subscription?.plan.limits[0]?.booleanValue === true) return;
     throw new AppError({ code: 'PLAN_FEATURE_UNAVAILABLE', message: 'Este recurso não está disponível no seu plano.', statusCode: 403 });
   }
@@ -73,7 +78,9 @@ export class PlanEntitlementService {
       where: { tenantId, effectiveKey: 'EFFECTIVE' },
       include: { plan: { include: { limits: { where: { key } } } } },
     });
-    return subscription?.plan.limits[0]?.booleanValue === true;
+    if (subscription === null) return false;
+    try { await this.assertCommercialAccess(client, subscription); } catch { return false; }
+    return subscription.plan.limits[0]?.booleanValue === true;
   }
 
   private async assertLimit(
@@ -87,9 +94,15 @@ export class PlanEntitlementService {
       where: { tenantId, effectiveKey: 'EFFECTIVE' },
       include: { plan: { include: { limits: { where: { key } } } } },
     });
-    const limit = subscription?.plan.limits[0]?.integerValue;
-    if (limit === undefined || limit === null) return;
-    if (subscription === null) return;
+    const limitRecord = subscription?.plan.limits[0];
+    const limit = limitRecord?.integerValue;
+    if (subscription === null) throw new AppError({ code: 'TENANT_SUBSCRIPTION_REQUIRED', message: 'Este estabelecimento não possui uma assinatura vigente.', statusCode: 403 });
+    await this.assertCommercialAccess(transaction, subscription);
+    // INTEGER null is the existing, explicit representation of unlimited for
+    // keys allowed by PlanLimitInputSchema. An absent row is not an implicit
+    // unlimited entitlement and fails closed.
+    if (limitRecord === undefined || limit === undefined) throw new AppError({ code: 'PLAN_LIMIT_UNAVAILABLE', message: 'O limite deste recurso não está configurado no plano.', statusCode: 403 });
+    if (limit === null) return;
     const usage =
       model === 'businessUnit'
         ? await transaction.businessUnit.count({ where: { tenantId, status: 'ACTIVE' } })
@@ -117,6 +130,13 @@ export class PlanEntitlementService {
       'monthly_appointments.max': 'O limite mensal de agendamentos do seu plano foi atingido.',
     }[key];
     throw new AppError({ code: 'PLAN_LIMIT_REACHED', message, statusCode: 409 });
+  }
+
+  private async assertCommercialAccess(client: PrismaClient | Transaction, subscription: any): Promise<void> {
+    if (subscription === null) throw new AppError({ code: 'TENANT_SUBSCRIPTION_REQUIRED', message: 'Este estabelecimento não possui uma assinatura vigente.', statusCode: 403 });
+    const policy = await new TenantCommercialPolicyService(client as PrismaClient).getOrCreateRaw();
+    const status = this.commercialResolver.resolve(subscription, policy);
+    if (!status.capabilities.canManageData) throw new AppError({ code: 'TENANT_COMMERCIAL_BLOCKED', message: status.adminMessage ?? 'A assinatura não permite este recurso no momento.', statusCode: 403 });
   }
 
   private async lockTenant(transaction: Transaction, tenantId: bigint): Promise<void> {

@@ -107,7 +107,9 @@ export class AppointmentService {
   }
 
   private async assertCommercialCapability(t: bigint, source: string): Promise<void> {
-    if (this.commercialPolicyService === undefined || this.commercialClient === undefined) return;
+    if (this.commercialPolicyService === undefined || this.commercialClient === undefined) {
+      throw new AppError({ code: 'TENANT_SUBSCRIPTION_REQUIRED', message: 'Não foi possível validar a assinatura do estabelecimento.', statusCode: 403 });
+    }
     const subscription =
       (await this.commercialClient.tenantSubscription.findFirst({
         where: { tenantId: t, effectiveKey: 'EFFECTIVE' },
@@ -116,10 +118,12 @@ export class AppointmentService {
         where: { tenantId: t },
         orderBy: { createdAt: 'desc' },
       }));
-    if (subscription === null) return;
+    if (subscription === null) throw new AppError({ code: 'TENANT_SUBSCRIPTION_REQUIRED', message: 'Este estabelecimento não possui uma assinatura vigente.', statusCode: 403 });
     const policy = await this.commercialPolicyService.getOrCreateRaw();
     const status = this.commercialStatusResolver.resolve(subscription, policy);
-    const isPublic = source === 'PUBLIC_BOOKING';
+    // WhatsApp booking is customer-initiated and follows the public-booking
+    // policy, even though it is created by a worker/service without HTTP.
+    const isPublic = source === 'PUBLIC_BOOKING' || source === 'WHATSAPP_ASSISTANT';
     if (isPublic) {
       if (!status.capabilities.canAcceptPublicBooking)
         throw new AppError({

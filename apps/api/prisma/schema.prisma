@@ -582,6 +582,8 @@ model Tenant {
   walletEntries                CommercialWalletEntry[]
   commissions                  CommercialCommission[]
   manualPayments               CommercialManualPayment[]
+  platformLedgerEntries        PlatformLedgerEntry[]
+  remittances                   CommercialRemittance[]
 
   @@index([status])
   @@map("tenants")
@@ -1239,6 +1241,7 @@ model User {
   commercialAccountsCreated     CommercialAccount[]           @relation("CommercialAccountCreator")
   commercialAssignmentsCreated  TenantCommercialAssignment[]
   walletEntriesCreated          CommercialWalletEntry[]       @relation("WalletEntryCreator")
+  remittancesConfirmed           CommercialRemittance[]
 
   @@index([status])
   @@map("users")
@@ -3219,6 +3222,7 @@ model TenantSubscription {
   walletEntries         CommercialWalletEntry[]
   commissions           CommercialCommission[]
   manualPayments        CommercialManualPayment[]
+  platformLedgerEntries PlatformLedgerEntry[]
   planChanges           SubscriptionPlanChange[]
 
   @@unique([tenantId, effectiveKey])
@@ -3316,6 +3320,7 @@ model PlatformSubscriptionCharge {
   createdAt      DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt      DateTime                   @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   subscription   TenantSubscription         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  platformLedgerEntries PlatformLedgerEntry[]
 
   @@unique([provider, externalId])
   @@index([subscriptionId, createdAt])
@@ -4377,6 +4382,7 @@ model CommercialAccount {
   commissions             CommercialCommission[]
   commissionRules         CommercialCommissionRule[]
   manualPayments          CommercialManualPayment[]
+  remittances              CommercialRemittance[]
 
   @@index([userId])
   @@index([parentId])
@@ -4467,6 +4473,7 @@ model CommercialWalletEntry {
   tenantId              BigInt?                         @map("tenant_id") @db.UnsignedBigInt
   subscriptionId        BigInt?                         @map("subscription_id") @db.UnsignedBigInt
   commissionId          BigInt?                         @map("commission_id") @db.UnsignedBigInt
+  remittanceId          BigInt?                         @map("remittance_id") @db.UnsignedBigInt
   description           String                          @db.VarChar(255)
   metadata              Json?
   createdByUserId       BigInt?                         @map("created_by_user_id") @db.UnsignedBigInt
@@ -4476,6 +4483,7 @@ model CommercialWalletEntry {
   tenant                Tenant?                         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   subscription          TenantSubscription?             @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   commission            CommercialCommission?           @relation(fields: [commissionId], references: [id], onDelete: SetNull)
+  remittance            CommercialRemittance?            @relation(fields: [remittanceId], references: [id], onDelete: SetNull)
   createdByUser         User?                           @relation("WalletEntryCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([commercialAccountId, createdAt])
@@ -4483,6 +4491,7 @@ model CommercialWalletEntry {
   @@index([tenantId])
   @@index([subscriptionId])
   @@index([commissionId])
+  @@index([remittanceId])
   @@map("commercial_wallet_entries")
 }
 
@@ -4544,7 +4553,12 @@ model CommercialManualPayment {
   subscriptionId        BigInt                          @map("subscription_id") @db.UnsignedBigInt
   managerAccountId      BigInt                          @map("manager_account_id") @db.UnsignedBigInt
   amountCents           BigInt                          @map("amount_cents") @db.UnsignedBigInt
-  idempotencyKey        String                          @map("idempotency_key") @db.Char(36)
+  currency              String                          @default("BRL") @db.Char(3)
+  paymentMethod         String                          @default("CASH") @map("payment_method") @db.VarChar(32)
+  receiverType          CommercialPaymentReceiver       @default(REPRESENTATIVE) @map("receiver_type")
+  receivedAt            DateTime                        @default(now()) @map("received_at") @db.DateTime(3)
+  reversalOfId          BigInt?                         @map("reversal_of_id") @db.UnsignedBigInt
+  idempotencyKey        String                          @map("idempotency_key") @db.VarChar(191)
   status                String                          @default("PROCESSED") @db.Char(20)
   createdAt             DateTime                        @default(now()) @map("created_at") @db.DateTime(3)
   processedAt           DateTime?                       @map("processed_at") @db.DateTime(3)
@@ -4552,6 +4566,10 @@ model CommercialManualPayment {
   tenant                Tenant                          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   subscription          TenantSubscription              @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   managerAccount        CommercialAccount               @relation(fields: [managerAccountId], references: [id], onDelete: Cascade)
+  reversalOf            CommercialManualPayment?       @relation("ManualPaymentReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversals             CommercialManualPayment[]      @relation("ManualPaymentReversal")
+  platformLedgerEntries PlatformLedgerEntry[]
+  remittanceAllocations CommercialRemittanceAllocation[]
 
   @@unique([idempotencyKey], map: "ucmp_idempotency_key")
   @@index([tenantId])
@@ -4559,5 +4577,75 @@ model CommercialManualPayment {
   @@index([managerAccountId])
   @@index([createdAt])
   @@map("commercial_manual_payments")
+}
+
+enum CommercialPaymentReceiver {
+  REPRESENTATIVE
+  ADMINISTRATOR
+}
+
+model PlatformLedgerEntry {
+  id                  BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String   @unique @map("public_id") @db.Char(36)
+  tenantId            BigInt?  @map("tenant_id") @db.UnsignedBigInt
+  subscriptionId      BigInt?  @map("subscription_id") @db.UnsignedBigInt
+  manualPaymentId     BigInt?  @map("manual_payment_id") @db.UnsignedBigInt
+  platformChargeId    BigInt?  @map("platform_charge_id") @db.UnsignedBigInt
+  amountCents         BigInt   @map("amount_cents")
+  currency            String   @db.Char(3)
+  type                String   @db.VarChar(32)
+  description         String   @db.VarChar(255)
+  createdAt           DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  tenant              Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  subscription        TenantSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  manualPayment       CommercialManualPayment? @relation(fields: [manualPaymentId], references: [id], onDelete: SetNull)
+  platformCharge      PlatformSubscriptionCharge? @relation(fields: [platformChargeId], references: [id], onDelete: SetNull)
+  @@index([tenantId, createdAt])
+  @@index([subscriptionId, createdAt])
+  @@index([manualPaymentId])
+  @@index([platformChargeId, type])
+  @@map("platform_ledger_entries")
+}
+
+enum CommercialRemittanceStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+}
+
+model CommercialRemittance {
+  id                  BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId            String                     @unique @map("public_id") @db.Char(36)
+  commercialAccountId BigInt                     @map("commercial_account_id") @db.UnsignedBigInt
+  tenantId            BigInt                     @map("tenant_id") @db.UnsignedBigInt
+  amountCents         BigInt                     @map("amount_cents") @db.UnsignedBigInt
+  currency            String                     @default("BRL") @db.Char(3)
+  paymentMethod       String                     @map("payment_method") @db.VarChar(32)
+  proofReference      String?                    @map("proof_reference") @db.VarChar(255)
+  status              CommercialRemittanceStatus @default(PENDING)
+  confirmedByUserId   BigInt?                    @map("confirmed_by_user_id") @db.UnsignedBigInt
+  confirmedAt         DateTime?                  @map("confirmed_at") @db.DateTime(3)
+  createdAt           DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
+  commercialAccount   CommercialAccount          @relation(fields: [commercialAccountId], references: [id], onDelete: Restrict)
+  tenant              Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  confirmedByUser     User?                      @relation(fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  allocations         CommercialRemittanceAllocation[]
+  walletEntries       CommercialWalletEntry[]
+  @@index([commercialAccountId, status, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@map("commercial_remittances")
+}
+
+model CommercialRemittanceAllocation {
+  id              BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  remittanceId    BigInt                  @map("remittance_id") @db.UnsignedBigInt
+  manualPaymentId BigInt                  @map("manual_payment_id") @db.UnsignedBigInt
+  amountCents     BigInt                  @map("amount_cents") @db.UnsignedBigInt
+  createdAt       DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  remittance      CommercialRemittance   @relation(fields: [remittanceId], references: [id], onDelete: Restrict)
+  manualPayment   CommercialManualPayment @relation(fields: [manualPaymentId], references: [id], onDelete: Restrict)
+  @@unique([remittanceId, manualPaymentId])
+  @@index([manualPaymentId])
+  @@map("commercial_remittance_allocations")
 }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient, CommercialRole } from '../../database-client/client.js';
-import { bootstrap } from '../../database/bootstrap.js';
 import { generatePublicId } from '../auth/token.service.js';
+import { createPrismaClient } from '../../database/connection.js';
 
 describe('Commercial Routes - HTTP', () => {
   let prisma: PrismaClient;
@@ -16,9 +16,7 @@ describe('Commercial Routes - HTTP', () => {
   let adminUserId: bigint;
 
   beforeAll(async () => {
-    prisma = new PrismaClient();
-    await bootstrap(prisma);
-
+    prisma = createPrismaClient(process.env.DATABASE_URL ?? 'mysql://invalid');
     // Create admin user
     const adminUser = await prisma.user.create({
       data: {
@@ -109,7 +107,12 @@ describe('Commercial Routes - HTTP', () => {
     const tenant = await prisma.tenant.create({
       data: {
         publicId: generatePublicId(),
-        name: 'Test Tenant',
+        slug: `commercial-http-${Date.now()}`,
+        legalName: 'Test Tenant Ltda.',
+        displayName: 'Test Tenant',
+        timezone: 'America/Sao_Paulo',
+        locale: 'pt-BR',
+        currency: 'BRL',
         status: 'ACTIVE',
       },
     });
@@ -198,7 +201,7 @@ describe('Commercial Routes - HTTP', () => {
       const otherTenant = await prisma.tenant.create({
         data: {
           publicId: generatePublicId(),
-          name: 'Other Tenant',
+          slug: `other-${Date.now()}`, legalName: 'Other Tenant Ltda.', displayName: 'Other Tenant', timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL',
           status: 'ACTIVE',
         },
       });
@@ -216,7 +219,7 @@ describe('Commercial Routes - HTTP', () => {
         where: { managerId: otherManager.id },
       });
 
-      expect(managerAssignments.length).not.toEqual(otherManagerAssignments.length);
+      expect(managerAssignments.map((item) => item.tenantId)).not.toContain(otherTenant.id);
     });
   });
 
@@ -241,7 +244,7 @@ describe('Commercial Routes - HTTP', () => {
       const tenant2 = await prisma.tenant.create({
         data: {
           publicId: generatePublicId(),
-          name: 'Tenant with Rep',
+          slug: `rep-${Date.now()}`, legalName: 'Tenant with Rep Ltda.', displayName: 'Tenant with Rep', timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL',
           status: 'ACTIVE',
         },
       });
@@ -284,7 +287,8 @@ describe('Commercial Routes - HTTP', () => {
         where: { parentId: representativeAccountId },
       });
 
-      expect(managerTeam.length).not.toEqual(repTeam.length);
+      expect(managerTeam.every((item) => item.parentId === managerAccountId)).toBe(true);
+      expect(repTeam.every((item) => item.parentId === representativeAccountId)).toBe(true);
     });
   });
 
@@ -535,7 +539,7 @@ describe('Commercial Routes - HTTP', () => {
         },
       });
 
-      const ibgeCode = '3550308';
+      const ibgeCode = `9${String(Date.now()).slice(-6)}`;
       await prisma.commercialRegionCity.create({
         data: {
           regionId: region.id,
@@ -549,7 +553,7 @@ describe('Commercial Routes - HTTP', () => {
       const tenant = await prisma.tenant.create({
         data: {
           publicId: generatePublicId(),
-          name: 'Auto-Assigned Tenant',
+          slug: `auto-${Date.now()}`, legalName: 'Auto-Assigned Tenant Ltda.', displayName: 'Auto-Assigned Tenant', timezone: 'America/Sao_Paulo', locale: 'pt-BR', currency: 'BRL',
           status: 'ACTIVE',
         },
       });

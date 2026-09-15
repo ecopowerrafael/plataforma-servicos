@@ -13,6 +13,7 @@ import {
   CommercialCommissionRuleService,
   CommercialManualPaymentService,
   CommercialWalletService,
+  CommercialRemittanceService,
   getCommercialScopeForUser,
   buildCommercialTenantWhere,
 } from './index.js';
@@ -37,6 +38,17 @@ const CreateSellerRequestSchema = z.object({
   email: z.string().email().optional(),
   representativePublicId: z.string().uuid().optional(),
   defaultCommissionBps: z.number().int().min(0).max(10000).optional(),
+});
+
+const SettleSubscriptionRequestSchema = z.object({
+  amountCents: z.coerce.bigint().positive().optional(),
+  currency: z.string().length(3).default('BRL'),
+  paymentMethod: z.string().min(1).max(32).default('CASH'),
+  receivedAt: z.coerce.date().optional(),
+  idempotencyKey: z.string().min(8).max(191),
+});
+const CreateRemittanceRequestSchema = z.object({
+  tenantPublicId: z.string().uuid(), amountCents: z.coerce.bigint().positive(), paymentMethod: z.string().min(1).max(32), proofReference: z.string().max(255).optional(), paymentPublicIds: z.array(z.string().uuid()).min(1),
 });
 
 const UpdateCommissionRequestSchema = z.object({
@@ -697,6 +709,7 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     {
       schema: {
         params: TenantParamsSchema,
+        body: SettleSubscriptionRequestSchema,
       },
     },
     async (request) => {
@@ -720,21 +733,8 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
         });
       }
 
-      // Only MANAGER can mark paid
-      if (scope.type !== 'MANAGER') {
-        throw new AppError({
-          code: 'COMMERCIAL_INSUFFICIENT_ROLE',
-          message: 'Apenas gerentes podem marcar como pago',
-          statusCode: 403,
-        });
-      }
-
       const paymentService = new CommercialManualPaymentService(options.prisma);
-
-      return paymentService.markSubscriptionPaid(
-        scope.accountId,
-        request.params.tenantPublicId,
-      );
+      return paymentService.settleSubscription({ commercialAccountId: scope.accountId, tenantPublicId: request.params.tenantPublicId, ...request.body, receiverType: 'REPRESENTATIVE' });
     },
     );
 
@@ -749,6 +749,16 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
       return new CommercialManualPaymentService(options.prisma).paySubscriptionChangeWithWallet(scope.accountId, request.params.changePublicId);
     },
   );
+
+  app.post('/commercial/remittances', { schema: { body: CreateRemittanceRequestSchema } }, async (request) => {
+    const auth = request.auth as AuthRequestContext;
+    if (!auth?.user?.id) throw new AppError({ code: 'AUTH_REQUIRED', message: 'Autenticação obrigatória', statusCode: 401 });
+    const scope = await getCommercialScopeForUser(auth.user.id, options.prisma);
+    if (!scope || scope.type === 'GLOBAL') throw new AppError({ code: 'COMMERCIAL_ACCOUNT_NOT_FOUND', message: 'Conta comercial não encontrada', statusCode: 403 });
+    const tenant = await options.prisma.tenant.findUnique({ where: { publicId: request.body.tenantPublicId } });
+    if (!tenant) throw new AppError({ code: 'COMMERCIAL_TENANT_NOT_FOUND', message: 'Tenant não encontrado', statusCode: 404 });
+    return new CommercialRemittanceService(options.prisma).create({ ...request.body, commercialAccountId: scope.accountId, tenantId: tenant.id });
+  });
 
   // FASE 5: Team Management
   app.get(

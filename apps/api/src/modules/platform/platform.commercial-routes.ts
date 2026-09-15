@@ -11,6 +11,7 @@ import {
   CommercialCommissionService,
   CommercialCommissionRuleService,
   CommercialManualPaymentService,
+  CommercialRemittanceService,
 } from '../commercial/index.js';
 import { AppError } from '../../errors/AppError.js';
 import { type PrismaClient } from '../../database-client/client.js';
@@ -23,6 +24,14 @@ interface PlatformCommercialRoutesOptions {
 
 const PublicIdParamsSchema = z.object({ publicId: z.uuid() });
 const RegionPublicIdParamsSchema = z.object({ regionPublicId: z.uuid() });
+const AdminSubscriptionSettlementSchema = z.object({
+  tenantPublicId: z.uuid(),
+  amountCents: z.coerce.bigint().positive().optional(),
+  currency: z.string().length(3).default('BRL'),
+  paymentMethod: z.string().min(1).max(32).default('CASH'),
+  receivedAt: z.coerce.date().optional(),
+  idempotencyKey: z.string().min(8).max(191),
+});
 
 const UserLookupResponseSchema = z.object({
   exists: z.boolean(),
@@ -190,6 +199,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
   const commissionService = new CommercialCommissionService(options.prisma);
   const ruleService = new CommercialCommissionRuleService(options.prisma);
   const manualPaymentService = new CommercialManualPaymentService(options.prisma);
+  const remittanceService = new CommercialRemittanceService(options.prisma);
 
   const allow = (request: { platformAuth: PlatformAuthContext }, permission: string) => {
     options.service.requirePermission(request.platformAuth, permission as any);
@@ -1087,6 +1097,20 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
       };
     },
   );
+
+  app.post(
+    '/platform/commercial/manual-payments/settle',
+    { schema: { body: AdminSubscriptionSettlementSchema } },
+    async (request) => {
+      allow(request, 'platform.commercial.manage');
+      return manualPaymentService.settleAdministratorSubscription(request.body);
+    },
+  );
+
+  app.post('/platform/commercial/remittances/:publicId/confirm', { schema: { params: PublicIdParamsSchema } }, async (request) => {
+    allow(request, 'platform.commercial.manage');
+    return remittanceService.confirm(request.params.publicId, request.platformAuth.user.id);
+  });
 
   app.get(
     '/platform/commercial/accounts/:publicId/wallet',

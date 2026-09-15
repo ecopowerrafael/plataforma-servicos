@@ -175,6 +175,27 @@ export class PlatformBillingService {
         data: { status: 'PAID', paidAt: new Date() },
       });
 
+      // Platform subscription charges are administrator receipts, distinct
+      // from representative-collected manual payments. Keep the cash event
+      // in the platform ledger and make the link idempotent.
+      const existingLedgerEntry = await tx.platformLedgerEntry.findFirst({
+        where: { platformChargeId: charge.id, type: 'SUBSCRIPTION_PAYMENT' },
+      });
+      if (!existingLedgerEntry) {
+        await tx.platformLedgerEntry.create({
+          data: {
+            publicId: randomUUID(),
+            tenantId: charge.subscription.tenantId,
+            subscriptionId: charge.subscriptionId,
+            platformChargeId: charge.id,
+            amountCents: charge.amountCents,
+            currency: charge.currency,
+            type: 'SUBSCRIPTION_PAYMENT',
+            description: `Recebimento de assinatura ${charge.publicId}`,
+          },
+        });
+      }
+
       // Update subscription to next period
       await tx.tenantSubscription.update({
         where: { id: charge.subscriptionId },
@@ -298,15 +319,34 @@ export class PlatformBillingService {
   }
 
   private async handleRefund(chargeId: bigint, refundStatus: string) {
-    const charge = await this.client.platformSubscriptionCharge.findUniqueOrThrow({
-      where: { id: chargeId },
-      include: { subscription: true },
-    });
-
-    // Update charge status (cast to enum)
-    await this.client.platformSubscriptionCharge.update({
-      where: { id: chargeId },
-      data: { status: refundStatus as any },
+    const charge = await this.client.$transaction(async (tx) => {
+      const current = await tx.platformSubscriptionCharge.findUniqueOrThrow({
+        where: { id: chargeId },
+        include: { subscription: true },
+      });
+      if (current.status === refundStatus) return current;
+      await tx.platformSubscriptionCharge.update({
+        where: { id: chargeId },
+        data: { status: refundStatus as any },
+      });
+      const reversal = await tx.platformLedgerEntry.findFirst({
+        where: { platformChargeId: chargeId, type: 'SUBSCRIPTION_REFUND' },
+      });
+      if (!reversal) {
+        await tx.platformLedgerEntry.create({
+          data: {
+            publicId: randomUUID(),
+            tenantId: current.subscription.tenantId,
+            subscriptionId: current.subscriptionId,
+            platformChargeId: chargeId,
+            amountCents: -current.amountCents,
+            currency: current.currency,
+            type: 'SUBSCRIPTION_REFUND',
+            description: `Estorno de assinatura ${current.publicId}`,
+          },
+        });
+      }
+      return current;
     });
 
     // Reverse commissions

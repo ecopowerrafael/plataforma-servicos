@@ -6,6 +6,15 @@ import { CommercialCommissionService } from './commercial-commission.service.js'
 import { calculateRenewalPeriod } from '../tenants/billing-period.helper.js';
 import { SubscriptionPlanChangeService } from '../tenants/subscription-plan-change.service.js';
 
+export function calculateSettlement(amountCents: bigint, commissionBps: number) {
+  const commissionAmountCents = (amountCents * BigInt(commissionBps)) / 10000n;
+  return {
+    collectedCents: -amountCents,
+    commissionCents: commissionAmountCents,
+    netWalletCents: commissionAmountCents - amountCents,
+  };
+}
+
 export class CommercialManualPaymentService {
   private walletService: CommercialWalletService;
   private commissionService: CommercialCommissionService;
@@ -13,6 +22,71 @@ export class CommercialManualPaymentService {
   constructor(private readonly prisma: PrismaClient) {
     this.walletService = new CommercialWalletService(prisma);
     this.commissionService = new CommercialCommissionService(prisma);
+  }
+
+  /** Canonical settlement for money physically received by a commercial account. */
+  async settleSubscription(input: {
+    commercialAccountId: bigint;
+    tenantPublicId: string;
+    amountCents?: bigint;
+    paymentMethod: string;
+    currency?: string;
+    receivedAt?: Date;
+    idempotencyKey: string;
+    receiverType?: 'REPRESENTATIVE' | 'ADMINISTRATOR';
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM commercial_accounts WHERE id = ${input.commercialAccountId} FOR UPDATE`;
+      const tenant = await tx.tenant.findUnique({ where: { publicId: input.tenantPublicId } });
+      if (!tenant) throw new AppError({ code: 'COMMERCIAL_TENANT_NOT_FOUND', message: 'Tenant não encontrado', statusCode: 404 });
+      const assignment = await tx.tenantCommercialAssignment.findUnique({ where: { tenantId: tenant.id } });
+      if (!assignment || ![assignment.managerId, assignment.representativeId, assignment.sellerId].includes(input.commercialAccountId)) {
+        throw new AppError({ code: 'COMMERCIAL_TENANT_ACCESS_DENIED', message: 'A conta não pode registrar pagamentos deste tenant', statusCode: 403 });
+      }
+      const subscription = await tx.tenantSubscription.findFirst({
+        where: { tenantId: tenant.id, effectiveKey: 'EFFECTIVE' },
+        include: { plan: true }, orderBy: { createdAt: 'desc' },
+      }) ?? await tx.tenantSubscription.findFirst({ where: { tenantId: tenant.id }, include: { plan: true }, orderBy: { createdAt: 'desc' } });
+      if (!subscription?.plan) throw new AppError({ code: 'COMMERCIAL_SUBSCRIPTION_NOT_FOUND', message: 'Assinatura não encontrada', statusCode: 404 });
+      const amountCents = input.amountCents ?? subscription.priceCents;
+      const currency = input.currency ?? 'BRL';
+      if (amountCents !== subscription.priceCents || currency !== subscription.currency) throw new AppError({ code: 'COMMERCIAL_PAYMENT_VALUE_INVALID', message: 'Valor ou moeda divergente do ciclo', statusCode: 400 });
+      const existing = await tx.commercialManualPayment.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      if (existing) return this.buildPaymentResponse(existing);
+      const paid = await tx.commercialManualPayment.findFirst({ where: { subscriptionId: subscription.id, status: 'PROCESSED' } });
+      if (paid) throw new AppError({ code: 'COMMERCIAL_SUBSCRIPTION_ALREADY_PAID', message: 'O ciclo já foi pago', statusCode: 409 });
+      const now = input.receivedAt ?? new Date();
+      const receiverType = input.receiverType ?? 'REPRESENTATIVE';
+      const payment = await tx.commercialManualPayment.create({ data: {
+        publicId: randomUUID(), tenantId: tenant.id, subscriptionId: subscription.id,
+        managerAccountId: input.commercialAccountId, amountCents, currency,
+        paymentMethod: input.paymentMethod, receiverType, receivedAt: now,
+        idempotencyKey: input.idempotencyKey, status: 'PROCESSED', processedAt: now,
+      }});
+      if (receiverType === 'REPRESENTATIVE') {
+        await tx.commercialWalletEntry.create({ data: { publicId: randomUUID(), commercialAccountId: input.commercialAccountId, type: 'PLAN_PAYMENT_DEBIT', amountCents: -amountCents, tenantId: tenant.id, subscriptionId: subscription.id, description: `TENANT_PAYMENT_COLLECTED:${payment.publicId}` } });
+      } else {
+        await tx.platformLedgerEntry.create({ data: { publicId: randomUUID(), tenantId: tenant.id, subscriptionId: subscription.id, manualPaymentId: payment.id, amountCents, currency: subscription.currency, type: 'SUBSCRIPTION_PAYMENT', description: `Pagamento manual da plataforma:${payment.publicId}` } });
+      }
+      const account = await tx.commercialAccount.findUniqueOrThrow({ where: { id: input.commercialAccountId } });
+      const commissionAmountCents = calculateSettlement(amountCents, account.defaultCommissionBps).commissionCents;
+      if (commissionAmountCents > 0n) {
+        const commission = await tx.commercialCommission.create({ data: { publicId: randomUUID(), commercialAccountId: input.commercialAccountId, tenantId: tenant.id, subscriptionId: subscription.id, baseAmountCents: amountCents, percentageBpsSnapshot: account.defaultCommissionBps, commissionAmountCents, roleSnapshot: 'RECEIVER', status: 'AVAILABLE', paymentId: payment.publicId, paymentSource: receiverType === 'ADMINISTRATOR' ? 'MANUAL_ADMIN' : 'MANUAL' } });
+        await tx.commercialWalletEntry.create({ data: { publicId: randomUUID(), commercialAccountId: input.commercialAccountId, type: 'COMMISSION_CREDIT', amountCents: commissionAmountCents, tenantId: tenant.id, subscriptionId: subscription.id, commissionId: commission.id, description: `COMMISSION_EARNED:${payment.publicId}` } });
+      }
+      await tx.tenantSubscription.update({ where: { id: subscription.id }, data: { status: 'ACTIVE', effectiveKey: 'EFFECTIVE', lastPaymentAt: now, currentPeriodStartsAt: subscription.currentPeriodEndsAt, currentPeriodEndsAt: calculateRenewalPeriod(subscription.currentPeriodEndsAt, subscription.billingCycle).periodEndsAt } });
+      await tx.subscriptionHistory.create({ data: { publicId: randomUUID(), subscriptionId: subscription.id, tenantId: tenant.id, action: 'PAYMENT_CONFIRMED', previousStatus: subscription.status, newStatus: 'ACTIVE', previousPlanId: subscription.planId, newPlanId: subscription.planId, reason: `Manual subscription settlement (${receiverType})`, createdAt: now } });
+      await tx.auditLog.create({ data: { publicId: randomUUID(), tenantId: tenant.id, action: 'commercial.subscription.payment_settled', targetType: 'commercial_manual_payment', targetPublicId: payment.publicId, metadata: { receiverType, amountCents: amountCents.toString(), paymentMethod: input.paymentMethod, idempotencyKey: input.idempotencyKey } } });
+      return this.buildPaymentResponse(payment);
+    });
+  }
+
+  async settleAdministratorSubscription(input: Omit<Parameters<CommercialManualPaymentService['settleSubscription']>[0], 'commercialAccountId' | 'receiverType'>) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { publicId: input.tenantPublicId } });
+    if (!tenant) throw new AppError({ code: 'COMMERCIAL_TENANT_NOT_FOUND', message: 'Tenant não encontrado', statusCode: 404 });
+    const assignment = await this.prisma.tenantCommercialAssignment.findUnique({ where: { tenantId: tenant.id } });
+    if (!assignment?.managerId) throw new AppError({ code: 'COMMERCIAL_TENANT_ACCESS_DENIED', message: 'Tenant sem conta comercial responsável', statusCode: 409 });
+    return this.settleSubscription({ ...input, commercialAccountId: assignment.managerId, receiverType: 'ADMINISTRATOR' });
   }
 
   /** Debits exactly one pending subscription change from the commercial wallet. */
@@ -347,25 +421,21 @@ export class CommercialManualPaymentService {
         });
       }
 
-      // 1. Create reversal wallet entry (credit back)
-      await tx.commercialWalletEntry.create({
-        data: {
-          publicId: randomUUID(),
-          commercialAccountId: payment.managerAccountId,
-          type: 'REVERSAL',
-          amountCents: payment.amountCents, // Positive to reverse debit
-          tenantId: payment.tenantId,
-          subscriptionId: payment.subscriptionId,
-          description: `Reversão de pagamento manual: ${reason}`,
-        },
-      });
+      if (payment.status === 'REVERSED') return { paymentPublicId: payment.publicId, status: payment.status, reversedAt: payment.processedAt };
+
+      // Reverse the original financial direction, retaining an immutable trail.
+      if (payment.receiverType === 'REPRESENTATIVE') {
+        await tx.commercialWalletEntry.create({ data: { publicId: randomUUID(), commercialAccountId: payment.managerAccountId, type: 'REVERSAL', amountCents: payment.amountCents, tenantId: payment.tenantId, subscriptionId: payment.subscriptionId, description: `Reversão TENANT_PAYMENT_COLLECTED:${payment.publicId}: ${reason}` } });
+      } else {
+        await tx.platformLedgerEntry.create({ data: { publicId: randomUUID(), tenantId: payment.tenantId, subscriptionId: payment.subscriptionId, manualPaymentId: payment.id, amountCents: -payment.amountCents, currency: payment.currency, type: 'SUBSCRIPTION_PAYMENT_REVERSAL', description: `Reversão do pagamento da plataforma:${payment.publicId}: ${reason}` } });
+      }
 
       // 2. Revert subscription status
       await tx.tenantSubscription.update({
         where: { id: payment.subscriptionId },
         data: {
-          status: 'ACTIVE', // Back to unpaid state
-          paidAt: null,
+          status: 'PAST_DUE',
+          lastPaymentAt: null,
         },
       });
 
@@ -373,6 +443,7 @@ export class CommercialManualPaymentService {
       const commissions = await tx.commercialCommission.findMany({
         where: {
           subscriptionId: payment.subscriptionId,
+          paymentId: payment.publicId,
           status: 'AVAILABLE',
         },
       });
@@ -385,6 +456,8 @@ export class CommercialManualPaymentService {
             commercialAccountId: commission.commercialAccountId,
             type: 'REVERSAL',
             amountCents: -BigInt(commission.commissionAmountCents),
+            tenantId: commission.tenantId,
+            subscriptionId: commission.subscriptionId,
             commissionId: commission.id,
             description: `Reversão de comissão: ${reason}`,
           },

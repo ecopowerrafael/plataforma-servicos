@@ -22,7 +22,7 @@ export class CommercialRemittanceService {
       for (const commission of commissions) if (commission.paymentId) commissionByPayment.set(commission.paymentId, (commissionByPayment.get(commission.paymentId) ?? 0n) + commission.commissionAmountCents);
       const paymentTotal = payments.reduce((sum, p) => sum + p.amountCents - (commissionByPayment.get(p.publicId) ?? 0n), 0n);
       if (already + input.amountCents > paymentTotal) throw new AppError({ code: 'COMMERCIAL_REMITTANCE_EXCEEDS_PAYMENTS', message: 'O repasse excede os pagamentos recebidos ainda não repassados.', statusCode: 409 });
-      const remittance = await tx.commercialRemittance.create({ data: { publicId: randomUUID(), commercialAccountId: input.commercialAccountId, tenantId: input.tenantId, amountCents: input.amountCents, paymentMethod: input.paymentMethod, proofReference: input.proofReference } });
+      const remittance = await tx.commercialRemittance.create({ data: { publicId: randomUUID(), commercialAccountId: input.commercialAccountId, tenantId: input.tenantId, amountCents: input.amountCents, paymentMethod: input.paymentMethod, ...(input.proofReference === undefined ? {} : { proofReference: input.proofReference }) } });
       const allocations = [];
       let remaining = input.amountCents;
       for (const payment of payments) {

@@ -1103,7 +1103,7 @@ export const platformCommercialRoutes: FastifyPluginAsyncZod<PlatformCommercialR
     { schema: { body: AdminSubscriptionSettlementSchema } },
     async (request) => {
       allow(request, 'platform.commercial.manage');
-      return manualPaymentService.settleAdministratorSubscription(request.body);
+      return manualPaymentService.settleAdministratorSubscription({ tenantPublicId: request.body.tenantPublicId, currency: request.body.currency, paymentMethod: request.body.paymentMethod, idempotencyKey: request.body.idempotencyKey, ...(request.body.amountCents === undefined ? {} : { amountCents: request.body.amountCents }), ...(request.body.receivedAt === undefined ? {} : { receivedAt: request.body.receivedAt }) });
     },
   );
 

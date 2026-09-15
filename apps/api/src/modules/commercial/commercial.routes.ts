@@ -734,7 +734,7 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
       }
 
       const paymentService = new CommercialManualPaymentService(options.prisma);
-      return paymentService.settleSubscription({ commercialAccountId: scope.accountId, tenantPublicId: request.params.tenantPublicId, ...request.body, receiverType: 'REPRESENTATIVE' });
+      return paymentService.settleSubscription({ commercialAccountId: scope.accountId, tenantPublicId: request.params.tenantPublicId, currency: request.body.currency, paymentMethod: request.body.paymentMethod, idempotencyKey: request.body.idempotencyKey, receiverType: 'REPRESENTATIVE', ...(request.body.amountCents === undefined ? {} : { amountCents: request.body.amountCents }), ...(request.body.receivedAt === undefined ? {} : { receivedAt: request.body.receivedAt }) });
     },
     );
 
@@ -757,7 +757,7 @@ export const commercialRoutes: FastifyPluginAsyncZod<CommercialRoutesOptions> = 
     if (!scope || scope.type === 'GLOBAL') throw new AppError({ code: 'COMMERCIAL_ACCOUNT_NOT_FOUND', message: 'Conta comercial não encontrada', statusCode: 403 });
     const tenant = await options.prisma.tenant.findUnique({ where: { publicId: request.body.tenantPublicId } });
     if (!tenant) throw new AppError({ code: 'COMMERCIAL_TENANT_NOT_FOUND', message: 'Tenant não encontrado', statusCode: 404 });
-    return new CommercialRemittanceService(options.prisma).create({ ...request.body, commercialAccountId: scope.accountId, tenantId: tenant.id });
+    return new CommercialRemittanceService(options.prisma).create({ commercialAccountId: scope.accountId, tenantId: tenant.id, amountCents: request.body.amountCents, paymentMethod: request.body.paymentMethod, paymentPublicIds: request.body.paymentPublicIds, ...(request.body.proofReference === undefined ? {} : { proofReference: request.body.proofReference }) });
   });
 
   // FASE 5: Team Management

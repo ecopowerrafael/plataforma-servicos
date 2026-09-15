@@ -22,6 +22,13 @@ describe('ProspectingInboundService', () => {
       prospectingCampaign: {
         findUnique: vi.fn(),
       },
+      prospectingContact: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      prospectingConversation: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        update: vi.fn(),
+      },
       prospectingSuppression: {
         create: vi.fn(),
       },

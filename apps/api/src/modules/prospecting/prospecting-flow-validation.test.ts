@@ -42,4 +42,14 @@ describe('Prospecting flow validation', () => {
       { id: 2n, isStart: false, stepType: 'MESSAGE_OPTIONS', options: [{ actionType: 'NEXT_STEP', nextStepId: 2n }, { actionType: 'END', nextStepId: null }] },
     ])).not.toContain('Há ciclo no fluxo sem saída detectável.');
   });
+
+  it('rejects an options step without options and cross-flow destinations', () => {
+    const errors = validateFlowGraph([
+      { id: 1n, flowId: 10n, isStart: true, stepType: 'MESSAGE_OPTIONS', options: [{ actionType: 'NEXT_STEP', nextStepId: 2n }] },
+      { id: 2n, flowId: 11n, isStart: false, stepType: 'MESSAGE_ONLY', options: [] },
+      { id: 3n, flowId: 10n, isStart: false, stepType: 'MESSAGE_OPTIONS', options: [] },
+    ]);
+    expect(errors).toContain('A etapa 1 aponta para uma etapa inexistente ou de outro fluxo.');
+    expect(errors).toContain('A etapa 3 MESSAGE_OPTIONS não possui opções.');
+  });
 });

@@ -88,6 +88,27 @@ describe('MetaInboundNormalizer', () => {
     });
   });
 
+  it('normalizes a Meta list reply from a paginated submenu', () => {
+    const event = normalizer.normalize(metaPayload({
+      messages: [{
+        from: '5511999999999',
+        id: 'wamid.list',
+        timestamp: '1788800000',
+        type: 'interactive',
+        context: { id: 'wamid.menu' },
+        interactive: { type: 'list_reply', list_reply: { id: 'ATTENDANT_PRICING', title: 'Valores' } },
+      }],
+    }));
+
+    expect(event).toMatchObject({
+      eventType: 'MESSAGE_ACTION',
+      messageType: 'BUTTON_REPLY',
+      actionId: 'ATTENDANT_PRICING',
+      referencedMessageId: 'wamid.menu',
+      selectedDisplayText: 'Valores',
+    });
+  });
+
   it('normalizes Meta message status events to the shared lifecycle names', () => {
     const delivered = normalizer.normalize(
       metaPayload({

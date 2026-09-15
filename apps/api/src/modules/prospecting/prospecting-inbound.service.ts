@@ -216,6 +216,7 @@ export class ProspectingInboundService {
         let flowReply: string | null = null;
         let attendantButtons: Array<{ publicId: string; label: string }> = [];
         let attendantMenu: string | null = typeof conversationContext.menu === 'string' ? conversationContext.menu : null;
+        let attendantContextPatch: Record<string, any> = {};
         if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex != null) {
           const previous = await this.client.prospectingMessage.findFirst({ where: { externalMessageId: payload.referencedMessageId, direction: 'OUTBOUND', conversationId: conversation.id }, select: { optionIds: true } });
           const ids = Array.isArray(previous?.optionIds) ? previous.optionIds : [];
@@ -224,10 +225,26 @@ export class ProspectingInboundService {
           const selectedOption = typeof selectedId === 'string' ? await this.client.prospectingFlowOption.findUnique({ where: { publicId: selectedId }, include: { patterns: true } }) : null;
           if (selectedOption && selectedOption.stepId === conversation.currentStepId) {
             const next = selectedOption.nextStepId ? await this.client.prospectingFlowStep.findUnique({ where: { id: selectedOption.nextStepId }, include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } }) : null;
-            await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: next?.id ?? null, lastInboundAt: now } });
-            flowReply = selectedOption.actionType === 'MANUAL' ? (config.humanTransferMessage ?? next?.message ?? null) : next?.message ?? null;
+            const entersConsultant = next?.code === 'ATTENDANT_CONSULTANT';
+            const entersTrial = next?.code === 'ATTENDANT_FREE_TRIAL';
+            const entersPricing = next?.code === 'ATTENDANT_PRICING';
+            attendantContextPatch = {
+              ...(entersConsultant ? { transferredToHuman: true, commercialIntent: 'CONSULTANT' } : {}),
+              ...(entersTrial ? { commercialIntent: 'FREE_TRIAL' } : {}),
+              ...(entersPricing ? { commercialIntent: 'PRICING' } : {}),
+            };
+            await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: next?.id ?? null, lastInboundAt: now, context: { ...conversationContext, ...attendantContextPatch } } });
+            const stepMessage = next?.message ? await this.renderAttendantStepMessage(next, next.message) : null;
+            flowReply = entersConsultant
+              ? (stepMessage ?? config.humanTransferMessage ?? null)
+              : selectedOption.actionType === 'MANUAL'
+                ? (config.humanTransferMessage ?? stepMessage)
+                : stepMessage;
             attendantButtons = next?.options ?? [];
-            if (selectedOption.actionType === 'MANUAL') attendantMenu = 'MANUAL';
+            if (entersConsultant || selectedOption.actionType === 'MANUAL') {
+              attendantMenu = 'MANUAL';
+              if (entersConsultant) attendantButtons = [];
+            }
           }
         }
         if (opensAttendantMenu && startStep) {
@@ -244,13 +261,35 @@ export class ProspectingInboundService {
             .find(({ pattern }: any) => pattern.patternType === 'EXACT' ? text === this.normalizeInboundText(pattern.pattern) : pattern.patternType === 'STARTS_WITH' ? text.startsWith(this.normalizeInboundText(pattern.pattern)) : pattern.patternType === 'ENDS_WITH' ? text.endsWith(this.normalizeInboundText(pattern.pattern)) : text.includes(this.normalizeInboundText(pattern.pattern)));
           if (match?.option) {
             const next = match.option.nextStepId ? await this.client.prospectingFlowStep.findUnique({ where: { id: match.option.nextStepId }, include: { options: { orderBy: { position: 'asc' }, select: { publicId: true, label: true } } } }) : null;
-            await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: next?.id ?? null, flowId: conversation.flowId, lastInboundAt: now } });
-            flowReply = match.option.actionType === 'MANUAL'
-              ? (config.humanTransferMessage ?? next?.message ?? null)
-              : next?.message ?? null;
+            const entersConsultant = next?.code === 'ATTENDANT_CONSULTANT';
+            const entersTrial = next?.code === 'ATTENDANT_FREE_TRIAL';
+            const entersPricing = next?.code === 'ATTENDANT_PRICING';
+            const nextContext: Record<string, any> = {
+              ...conversationContext,
+              ...(entersConsultant ? { transferredToHuman: true, commercialIntent: 'CONSULTANT' } : {}),
+              ...(entersTrial ? { commercialIntent: 'FREE_TRIAL' } : {}),
+              ...(entersPricing ? { commercialIntent: 'PRICING' } : {}),
+            };
+            attendantContextPatch = {
+              ...(entersConsultant ? { transferredToHuman: true, commercialIntent: 'CONSULTANT' } : {}),
+              ...(entersTrial ? { commercialIntent: 'FREE_TRIAL' } : {}),
+              ...(entersPricing ? { commercialIntent: 'PRICING' } : {}),
+            };
+            await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { currentStepId: next?.id ?? null, flowId: conversation.flowId, lastInboundAt: now, context: nextContext } });
+            const stepMessage = next?.message
+              ? await this.renderAttendantStepMessage(next, next.message)
+              : null;
+            flowReply = entersConsultant
+              ? (stepMessage ?? config.humanTransferMessage ?? null)
+              : match.option.actionType === 'MANUAL'
+                ? (config.humanTransferMessage ?? stepMessage)
+              : stepMessage;
             if (flowReply) flowReply = this.interpolateAttendantMessage(flowReply, contact.displayName);
             attendantButtons = next?.options ?? [];
-            if (match.option.actionType === 'MANUAL') attendantMenu = 'MANUAL';
+            if (entersConsultant || match.option.actionType === 'MANUAL') {
+              attendantMenu = 'MANUAL';
+              if (entersConsultant) attendantButtons = [];
+            }
           }
         }
         const greeting = config.useContactName && contact.displayName
@@ -264,7 +303,7 @@ export class ProspectingInboundService {
         const menuOptions = !isMediaWithoutCaption && (attendantButtons.length > 0 || (!conversationContext.greetingSent && !flowReply))
           ? ((attendantButtons.length ? attendantButtons : startStep?.options) ?? [])
           : [];
-        const persistedContext = { ...conversationContext, greetingSent: true, ...(attendantMenu ? { menu: attendantMenu } : {}) };
+        const persistedContext = { ...conversationContext, ...attendantContextPatch, greetingSent: true, ...(attendantMenu ? { menu: attendantMenu } : {}) };
         if (attendantMenu === 'MANUAL') {
           await this.client.prospectingConversation.update({ where: { id: conversation.id }, data: { status: 'MANUAL', context: { ...persistedContext, transferredToHuman: true } } });
         }
@@ -696,6 +735,28 @@ export class ProspectingInboundService {
       leadPublicId: leadData.publicId,
       campaignPublicId: campaign?.publicId || '',
     };
+  }
+
+  private async renderAttendantStepMessage(step: { code?: string | null }, fallback: string): Promise<string> {
+    if (step.code === 'ATTENDANT_FREE_TRIAL') {
+      const baseUrl = this.environment?.APP_WEB_URL?.replace(/\/+$/u, '') ?? '';
+      return `${fallback}\n\nComece aqui: ${baseUrl}/cadastro`;
+    }
+    if (step.code !== 'ATTENDANT_PRICING') return fallback;
+    const plans = await this.client!.commercialPlan.findMany({
+      where: { status: 'ACTIVE', isPublic: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: { benefits: { where: { enabled: true }, orderBy: { sortOrder: 'asc' } }, billingOptions: { where: { active: true }, orderBy: { sortOrder: 'asc' } } },
+    });
+    const cycleLabels: Record<string, string> = { MONTHLY: 'mensal', QUARTERLY: 'trimestral', SEMIANNUAL: 'semestral', ANNUAL: 'anual' };
+    const formatMoney = (cents: bigint, currency: string) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(Number(cents) / 100);
+    const lines = plans.flatMap((plan: any) => {
+      const options = plan.billingOptions.filter((option: any) => cycleLabels[option.billingCycle]);
+      const benefits = (plan.benefits ?? []).slice(0, 3).map((benefit: any) => `• ${benefit.text}`);
+      return [`\n${plan.name}${plan.shortDescription ? ` — ${plan.shortDescription}` : ''}`, ...benefits, ...options.map((option: any) => `• ${cycleLabels[option.billingCycle]}: ${formatMoney(option.priceCents, plan.currency)}`)];
+    });
+    const policy = await (this.client as any).tenantCommercialPolicy?.findUnique?.({ where: { singleton: true }, select: { defaultTrialDays: true } });
+    return `${fallback}${lines.length ? `\n${lines.join('\n')}` : '\nNo momento não há planos públicos disponíveis.'}\n\nTeste grátis por ${policy?.defaultTrialDays ?? 7} dias. Se quiser, comece pelo cadastro.`;
   }
 
   private sanitizeSenderName(value: string | null | undefined): string | null {

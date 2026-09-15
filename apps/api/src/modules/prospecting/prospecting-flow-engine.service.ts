@@ -28,9 +28,23 @@ export function validateFlowStepOptions(step: { stepType: string; message?: stri
   return errors;
 }
 
-export function validateFlowGraph(steps: Array<{ id: bigint; isStart: boolean; stepType: string; nextStepId?: bigint | null; options?: Array<{ actionType: string; nextStepId?: bigint | null }> }>): string[] {
+export function validateFlowGraph(steps: Array<{ id: bigint; flowId?: bigint; isStart: boolean; stepType: string; nextStepId?: bigint | null; options?: Array<{ actionType: string; nextStepId?: bigint | null }> }>): string[] {
   const errors: string[] = [];
   const byId = new Map(steps.map((step) => [step.id.toString(), step]));
+  for (const step of steps) {
+    if (step.stepType === 'MESSAGE_OPTIONS' && (step.options ?? []).length === 0) errors.push(`A etapa ${step.id.toString()} MESSAGE_OPTIONS não possui opções.`);
+    for (const option of step.options ?? []) {
+      if (option.actionType === 'NEXT_STEP' && !option.nextStepId) errors.push(`A etapa ${step.id.toString()} possui NEXT_STEP sem destino.`);
+      if (option.nextStepId) {
+        const target = byId.get(option.nextStepId.toString());
+        if (!target || (step.flowId !== undefined && target.flowId !== undefined && step.flowId !== target.flowId)) errors.push(`A etapa ${step.id.toString()} aponta para uma etapa inexistente ou de outro fluxo.`);
+      }
+    }
+    if (step.nextStepId) {
+      const target = byId.get(step.nextStepId.toString());
+      if (!target || (step.flowId !== undefined && target.flowId !== undefined && step.flowId !== target.flowId)) errors.push(`A etapa ${step.id.toString()} aponta para uma etapa inexistente ou de outro fluxo.`);
+    }
+  }
   const start = steps.find((step) => step.isStart);
   const reachable = new Set<string>();
   const visit = (id: string) => {

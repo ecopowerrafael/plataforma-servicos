@@ -52,7 +52,7 @@ describe('MetaWhatsAppDelivery', () => {
     });
   });
 
-  it('translates shared interactive buttons to Meta interactive.button payloads', async () => {
+  it('uses a Meta list submenu instead of discarding actions beyond three buttons', async () => {
     const { delivery, sendMessage } = subject();
 
     await delivery.sendInteractiveButtons(7n, '5511999999999', 'Escolha', [
@@ -66,17 +66,20 @@ describe('MetaWhatsAppDelivery', () => {
       to: '5511999999999',
       type: 'interactive',
       interactive: {
-        type: 'button',
+        type: 'list',
         body: { text: 'Escolha' },
         action: {
-          buttons: [
-            { type: 'reply', reply: { id: 'A', title: 'Primeira opção grand' } },
-            { type: 'reply', reply: { id: 'B', title: 'Segunda' } },
-            { type: 'reply', reply: { id: 'C', title: 'Terceira' } },
-          ],
+          button: 'Ver opções',
+          sections: [{ title: 'Opções', rows: [
+            { id: 'A', title: 'Primeira opção grande' },
+            { id: 'B', title: 'Segunda' },
+            { id: 'C', title: 'Terceira' },
+            { id: 'D', title: 'Quarta ignorada' },
+          ] }],
         },
       },
     });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
   });
 
   it('returns a normalized failed outcome when Meta refuses the message', async () => {

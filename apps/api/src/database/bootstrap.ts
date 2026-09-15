@@ -531,15 +531,64 @@ async function seedProspectingAttendant(transaction: any): Promise<void> {
     const code = stepName === 'Menu de suporte' ? 'ATTENDANT_CLIENT_MORE' : 'ATTENDANT_PROSPECT_MORE';
     const step = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code }, { name: stepName }] }, include: { options: true } }) ?? await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code, name: stepName, message, stepType: 'MESSAGE_OPTIONS', position: 10 + Number(parentOption.position) }, include: { options: true } });
     if (parentOption.nextStepId !== step.id || parentOption.actionType !== 'NEXT_STEP') await transaction.prospectingFlowOption.update({ where: { id: parentOption.id }, data: { nextStepId: step.id, actionType: 'NEXT_STEP' } });
-    const existingLabels = new Set(step.options.map((item: any) => item.label));
+    const normalize = (value: string) => value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+    const existingLabels = new Map(step.options.map((item: any) => [normalize(item.label), item]));
     for (const [label, aliases] of options) {
-      if (existingLabels.has(label)) continue;
-      const option = await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: step.id, label, actionType: 'END', position: options.findIndex(([item]) => item === label) } });
-      await transaction.prospectingFlowOptionPattern.createMany({ data: aliases.map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: aliases.length - index })) });
+      const option = existingLabels.get(normalize(label)) ?? await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: step.id, label, actionType: 'END', position: options.findIndex(([item]) => item === label) } });
+      if (!existingLabels.has(normalize(label))) existingLabels.set(normalize(label), option);
+      const patterns = await transaction.prospectingFlowOptionPattern.findMany({ where: { optionId: option.id }, select: { pattern: true } });
+      const knownPatterns = new Set(patterns.map((item: any) => normalize(item.pattern)));
+      const missingPatterns = aliases.filter((pattern) => !knownPatterns.has(normalize(pattern)));
+      if (missingPatterns.length > 0) await transaction.prospectingFlowOptionPattern.createMany({ data: missingPatterns.map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: aliases.length - index })) });
     }
   };
   await ensureMenu('Já sou cliente', 'Menu de suporte', 'Certo, {{nome}}. Qual assunto você precisa resolver?', [['WhatsApp', ['whatsapp']], ['Agenda', ['agenda']], ['Pagamentos', ['pagamentos', 'financeiro']], ['Conta e configurações', ['conta', 'configuracoes']], ['Falar com suporte', ['suporte tecnico', 'falar com suporte']]]);
-  await ensureMenu('Quero conhecer', 'Menu comercial', 'O Agendei ajuda negócios de serviços a atender pelo WhatsApp, organizar horários, confirmar agendamentos e reduzir tarefas manuais. O que você gostaria de conhecer?', [['Como funciona', ['como funciona']], ['Recursos', ['recursos']], ['Teste grátis', ['teste gratis', 'teste']], ['Valores', ['valores', 'preco']], ['Falar com consultor', ['falar com consultor', 'consultor']], ['Voltar', ['voltar', 'menu']]]);
+  await ensureMenu('Quero conhecer', 'Menu comercial', 'O Agendei ajuda negócios de serviços a atender pelo WhatsApp, organizar horários, confirmar agendamentos e reduzir tarefas manuais. O que você gostaria de conhecer?', [['Como funciona', ['como funciona']], ['Recursos', ['recursos', 'funcionalidades']], ['Teste grátis', ['teste gratis', 'teste', 'quero testar']], ['Valores', ['valores', 'preco', 'quanto custa', 'qual o valor']], ['Falar com consultor', ['falar com consultor', 'falar com alguem', 'atendente', 'consultor']], ['Voltar', ['voltar', 'menu']]]);
+  const commercialSteps: Array<{ code: string; name: string; message: string; options: Array<[string, string, string[], string]> }> = [
+    { code: 'ATTENDANT_HOW_IT_WORKS', name: 'Como funciona', message: 'O Agendei funciona como um funcionário virtual conectado ao seu negócio.\n\nSeus clientes podem chamar pelo WhatsApp para consultar serviços, profissionais e horários. O assistente pode realizar o agendamento, cancelar, reagendar e confirmar automaticamente.\n\nAo mesmo tempo, o estabelecimento acompanha tudo pela agenda e pelo painel de gestão.', options: [['Ver recursos', 'ATTENDANT_FEATURES', ['ver recursos', 'recursos', 'funcionalidades'], 'NEXT_STEP'], ['Teste grátis', 'ATTENDANT_FREE_TRIAL', ['teste gratis', 'quero testar'], 'NEXT_STEP'], ['Ver valores', 'ATTENDANT_PRICING', ['ver valores', 'preco', 'quanto custa'], 'NEXT_STEP'], ['Falar com consultor', 'ATTENDANT_CONSULTANT', ['falar com consultor', 'consultor', 'atendente'], 'NEXT_STEP'], ['Voltar', 'ATTENDANT_PROSPECT_MORE', ['voltar', 'menu'], 'NEXT_STEP']] },
+    { code: 'ATTENDANT_FEATURES', name: 'Recursos', message: 'Veja o que o Agendei pode fazer pelo seu negócio:\n\n🤖 Atender clientes pelo WhatsApp\n📅 Agendar, cancelar e reagendar\n✅ Confirmar horários automaticamente\n🔔 Enviar lembretes\n🔄 Recuperar clientes que pararam de voltar\n🚨 Divulgar horários cancelados\n💳 Ajudar na cobrança de pagamentos\n👥 Organizar profissionais e unidades\n📊 Controlar agenda, clientes e financeiro\n📱 Oferecer uma experiência personalizada ao estabelecimento', options: [['Como funciona', 'ATTENDANT_HOW_IT_WORKS', ['como funciona'], 'NEXT_STEP'], ['Teste grátis', 'ATTENDANT_FREE_TRIAL', ['teste gratis', 'quero testar'], 'NEXT_STEP'], ['Ver valores', 'ATTENDANT_PRICING', ['ver valores', 'preco', 'quanto custa'], 'NEXT_STEP'], ['Falar com consultor', 'ATTENDANT_CONSULTANT', ['falar com consultor', 'consultor', 'atendente'], 'NEXT_STEP'], ['Voltar', 'ATTENDANT_PROSPECT_MORE', ['voltar', 'menu'], 'NEXT_STEP']] },
+    { code: 'ATTENDANT_FREE_TRIAL', name: 'Teste grátis', message: 'Você pode testar o Agendei gratuitamente por 7 dias.\n\nDurante o teste, você poderá configurar seu estabelecimento, cadastrar serviços e profissionais, conhecer a agenda e experimentar os recursos disponíveis no seu plano.\n\nVocê só escolhe continuar depois de conhecer o sistema.', options: [['Começar teste grátis', 'ATTENDANT_FREE_TRIAL', ['comecar teste gratis', 'começar teste grátis'], 'NEXT_STEP'], ['Ver valores', 'ATTENDANT_PRICING', ['ver valores', 'preco'], 'NEXT_STEP'], ['Como funciona', 'ATTENDANT_HOW_IT_WORKS', ['como funciona'], 'NEXT_STEP'], ['Falar com consultor', 'ATTENDANT_CONSULTANT', ['falar com consultor', 'consultor'], 'NEXT_STEP'], ['Voltar', 'ATTENDANT_PROSPECT_MORE', ['voltar', 'menu'], 'NEXT_STEP']] },
+    { code: 'ATTENDANT_PRICING', name: 'Valores', message: 'Confira os planos públicos ativos do Agendei e escolha a periodicidade que fizer mais sentido para o seu negócio. O teste grátis está disponível conforme a configuração comercial vigente.', options: [['Começar teste grátis', 'ATTENDANT_FREE_TRIAL', ['comecar teste gratis', 'quero testar'], 'NEXT_STEP'], ['Comparar recursos', 'ATTENDANT_FEATURES', ['comparar recursos', 'recursos'], 'NEXT_STEP'], ['Falar com consultor', 'ATTENDANT_CONSULTANT', ['falar com consultor', 'consultor'], 'NEXT_STEP'], ['Voltar', 'ATTENDANT_PROSPECT_MORE', ['voltar', 'menu'], 'NEXT_STEP']] },
+    { code: 'ATTENDANT_CONSULTANT', name: 'Falar com consultor', message: 'Perfeito! Vou encaminhar sua conversa para nossa equipe.\n\nSe quiser adiantar, envie o nome do estabelecimento e a principal dúvida. Assim conseguimos continuar o atendimento com mais contexto.', options: [['Voltar', 'ATTENDANT_PROSPECT_MORE', ['voltar', 'menu'], 'NEXT_STEP']] },
+  ];
+  const commercialMenu = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, code: 'ATTENDANT_PROSPECT_MORE' }, include: { options: true } });
+  if (commercialMenu) {
+    const normalize = (value: string) => value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+    const stepByCode = new Map<string, any>();
+    for (const definition of commercialSteps) {
+      const existing = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, OR: [{ code: definition.code }, { name: definition.name }] }, include: { options: true } });
+      const step = existing ?? await transaction.prospectingFlowStep.create({ data: { publicId: randomUUID(), flowId: flow.id, code: definition.code, name: definition.name, message: definition.message, stepType: 'MESSAGE_OPTIONS', position: 50 + commercialSteps.indexOf(definition) }, include: { options: true } });
+      if (!existing?.code) await transaction.prospectingFlowStep.update({ where: { id: step.id }, data: { code: definition.code } });
+      stepByCode.set(definition.code, step);
+      for (const [label, targetCode, aliases, actionType] of definition.options) {
+        const option = step.options.find((item: any) => normalize(item.label) === normalize(label)) ?? await transaction.prospectingFlowOption.create({ data: { publicId: randomUUID(), stepId: step.id, label, actionType, nextStepId: null, position: definition.options.findIndex(([item]) => item === label) } });
+        const target = stepByCode.get(targetCode) ?? await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, code: targetCode }, select: { id: true } });
+        const desiredNext = actionType === 'NEXT_STEP' ? target?.id ?? null : null;
+        if (option.actionType !== actionType || option.nextStepId !== desiredNext) await transaction.prospectingFlowOption.update({ where: { id: option.id }, data: { actionType, nextStepId: desiredNext } });
+        const patterns = await transaction.prospectingFlowOptionPattern.findMany({ where: { optionId: option.id }, select: { pattern: true } });
+        const known = new Set(patterns.map((item: any) => normalize(item.pattern)));
+        const missing = aliases.filter((alias) => !known.has(normalize(alias)));
+        if (missing.length) await transaction.prospectingFlowOptionPattern.createMany({ data: missing.map((pattern, index) => ({ optionId: option.id, pattern, patternType: 'EXACT', priority: aliases.length - index })) });
+      }
+    }
+    // Resolver novamente depois de materializar todas as etapas: a primeira
+    // etapa pode apontar para uma etapa comercial criada mais adiante.
+    for (const definition of commercialSteps) {
+      const step = stepByCode.get(definition.code);
+      if (!step) continue;
+      for (const [label, targetCode, _aliases, actionType] of definition.options) {
+        const option = await transaction.prospectingFlowOption.findFirst({ where: { stepId: step.id, label } });
+        const target = stepByCode.get(targetCode);
+        const desiredNext = actionType === 'NEXT_STEP' ? target?.id ?? null : null;
+        if (option && (option.actionType !== actionType || option.nextStepId !== desiredNext)) await transaction.prospectingFlowOption.update({ where: { id: option.id }, data: { actionType, nextStepId: desiredNext } });
+      }
+    }
+    for (const [label, targetCode] of [['Como funciona', 'ATTENDANT_HOW_IT_WORKS'], ['Recursos', 'ATTENDANT_FEATURES'], ['Teste grátis', 'ATTENDANT_FREE_TRIAL'], ['Valores', 'ATTENDANT_PRICING'], ['Falar com consultor', 'ATTENDANT_CONSULTANT'], ['Voltar', 'ATTENDANT_START']] as const) {
+      const option = commercialMenu.options.find((item: any) => normalize(item.label) === normalize(label));
+      const target = stepByCode.get(targetCode) ?? await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, code: targetCode }, select: { id: true } });
+      if (option && target) await transaction.prospectingFlowOption.update({ where: { id: option.id }, data: { actionType: 'NEXT_STEP', nextStepId: target.id } });
+    }
+  }
   const ensureSubmenus = async (stepName: string, entries: Array<[string, string, string[]]>) => {
     const step = await transaction.prospectingFlowStep.findFirst({ where: { flowId: flow.id, name: stepName }, include: { options: true } });
     if (!step) return;

@@ -44,7 +44,7 @@ export class MetaInboundNormalizer implements WhatsAppInboundNormalizer {
     message: Record<string, unknown>,
   ): NormalizedWhatsAppEvent {
     const interactive = record(message.interactive);
-    const button = record(interactive.button_reply ?? interactive.button);
+    const button = record(interactive.button_reply ?? interactive.list_reply ?? interactive.button);
     const context = record(message.context);
     const textMessage = record(message.text);
     const selectedId = text(button.id);

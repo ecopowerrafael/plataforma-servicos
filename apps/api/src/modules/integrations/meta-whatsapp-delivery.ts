@@ -93,20 +93,37 @@ export class MetaWhatsAppDelivery implements WhatsAppDelivery {
     buttons: WhatsAppInteractiveButton[],
     _replyType?: WhatsAppReplyButtonType,
   ): Promise<WhatsAppSendOutcome> {
-    return this.sendPayload(tenantId, {
+    const pages: WhatsAppInteractiveButton[][] = [];
+    for (let index = 0; index < buttons.length; index += 3) pages.push(buttons.slice(index, index + 3));
+    if (pages.length <= 1) return this.sendPayload(tenantId, this.interactivePayload(to, message, pages[0] ?? []));
+    return this.sendPayload(tenantId, this.interactiveListPayload(to, message, buttons));
+  }
+
+  private interactivePayload(to: string, message: string, buttons: WhatsAppInteractiveButton[]): Record<string, unknown> {
+    return {
       to,
       type: 'interactive',
       interactive: {
         type: 'button',
         body: { text: message },
+        action: { buttons: buttons.map((button) => ({ type: 'reply', reply: { id: button.buttonId, title: button.label.slice(0, 20) } })) },
+      },
+    };
+  }
+
+  private interactiveListPayload(to: string, message: string, buttons: WhatsAppInteractiveButton[]): Record<string, unknown> {
+    return {
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        body: { text: message },
         action: {
-          buttons: buttons.slice(0, 3).map((button) => ({
-            type: 'reply',
-            reply: { id: button.buttonId, title: button.label.slice(0, 20) },
-          })),
+          button: 'Ver opções',
+          sections: [{ title: 'Opções', rows: buttons.slice(0, 10).map((item) => ({ id: item.buttonId, title: item.label.slice(0, 24) })) }],
         },
       },
-    });
+    };
   }
 
   public async testConnection(tenantId: bigint): Promise<WhatsAppConnectionResult> {

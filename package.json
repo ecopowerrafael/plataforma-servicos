@@ -34,6 +34,13 @@
     "db:reset-initial": "npm run db:reset-initial --workspace=@plataforma/api",
     "db:bootstrap": "npm run db:bootstrap --workspace=@plataforma/api",
     "db:migrate:recover": "npm run db:migrate:recover --workspace=@plataforma/api"
+    ,"db:test:guard": "node scripts/test-db/guard-test-database.mjs"
+    ,"db:test:prepare": "node scripts/test-db/prepare-integration-database.mjs"
+    ,"db:test:migrate": "node scripts/test-db/migrate-integration.mjs"
+    ,"db:test:baseline": "node scripts/test-db/baseline-legacy-migrations.mjs"
+    ,"db:test:sanitize-snapshot": "node scripts/test-db/sanitize-production-snapshot.mjs"
+    ,"db:test:verify": "node scripts/test-db/verify-financial-integrity.mjs"
+    ,"test:integration:financial": "npm run db:test:guard && npm run test --workspace=@plataforma/api -- --run tests/commercial-subscription-settlement-mysql-integration.test.ts"
   },
   "dependencies": {
     "typescript": "^6.0.3"

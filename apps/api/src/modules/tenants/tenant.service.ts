@@ -51,7 +51,7 @@ function conflictError(error: TenantRepositoryConflictError): AppError {
 
 interface Actor {
   userId: bigint;
-  sessionId: bigint;
+  sessionId: bigint | null;
 }
 
 export class TenantService {
@@ -84,6 +84,9 @@ export class TenantService {
       city: input.initialUnit.city ?? null,
       state: input.initialUnit.state ?? null,
       countryCode: input.initialUnit.countryCode ?? null,
+      latitude: input.initialUnit.latitude ?? null,
+      longitude: input.initialUnit.longitude ?? null,
+      googleMapsUrl: input.initialUnit.googleMapsUrl ?? null,
     };
 
     try {
@@ -244,6 +247,22 @@ export class TenantService {
   }
 
   public async updateSettings(tenantId: bigint, settings: TenantSettings): Promise<TenantSettings> {
+    const current = await this.repository.findSettings(tenantId);
+    if (current === null) {
+      throw new Error('As configurações estruturais do tenant não foram encontradas.');
+    }
+
+    if (current.allowMultipleUnits === true && settings.allowMultipleUnits === false) {
+      const activeCount = await this.repository.countActiveBusinessUnits(tenantId);
+      if (activeCount > 1) {
+        throw new AppError({
+          code: 'TENANT_MULTIPLE_UNITS_ACTIVE',
+          message: 'Não é possível desativar múltiplas unidades quando existem unidades ativas.',
+          statusCode: 409,
+        });
+      }
+    }
+
     const updated = await this.repository.updateSettings(tenantId, settings);
 
     if (updated === null) {

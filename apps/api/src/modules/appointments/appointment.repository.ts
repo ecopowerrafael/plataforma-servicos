@@ -1,9 +1,12 @@
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 const include = {
-  customer: { select: { publicId: true, name: true } },
+  customer: { select: { publicId: true, name: true, phone: true } },
   professional: { select: { publicId: true, publicName: true } },
   service: { select: { publicId: true, name: true } },
+  combo: { select: { publicId: true } },
   unit: { select: { publicId: true, name: true } },
+  treatmentPlan: { select: { publicId: true } },
 } as const;
 export class AppointmentRepository {
   constructor(private readonly client: PrismaClient) {}
@@ -19,6 +22,19 @@ export class AppointmentRepository {
   }
   service(t: bigint, id: string) {
     return this.client.service.findFirst({ where: { tenantId: t, publicId: id, active: true } });
+  }
+  combo(t: bigint, id: string) {
+    return this.client.combo.findFirst({
+      where: { tenantId: t, publicId: id },
+      include: { items: { include: { service: true } } },
+    });
+  }
+  /** Plano de uma sessão já agendada, para recalcular o progresso. */
+  planIdOf(t: bigint, appointmentId: bigint) {
+    return this.client.appointment.findFirst({
+      where: { tenantId: t, id: appointmentId },
+      select: { treatmentPlanId: true },
+    });
   }
   unit(t: bigint, id: string) {
     return this.client.businessUnit.findFirst({
@@ -37,12 +53,17 @@ export class AppointmentRepository {
     t: bigint,
     where: Prisma.AppointmentWhereInput,
     orderBy: Prisma.AppointmentOrderByWithRelationInput = { startsAt: 'asc' },
+    pagination?: { skip: number; take: number },
   ) {
     return this.client.appointment.findMany({
       where: { tenantId: t, ...where },
       orderBy,
       include,
+      ...(pagination ?? {}),
     });
+  }
+  count(t: bigint, where: Prisma.AppointmentWhereInput) {
+    return this.client.appointment.count({ where: { tenantId: t, ...where } });
   }
   conflict(t: bigint, p: bigint, start: Date, end: Date, except?: bigint) {
     return this.client.appointment.findFirst({
@@ -68,6 +89,7 @@ export class AppointmentRepository {
       `;
         if (lock[0]?.acquired !== 1 && lock[0]?.acquired !== 1n) return null;
         try {
+          await new PlanEntitlementService().assertCanCreateAppointment(transaction, BigInt(data.tenantId));
           const conflict = await transaction.appointment.findFirst({
             where: {
               tenantId: data.tenantId,

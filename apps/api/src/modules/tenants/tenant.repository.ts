@@ -29,7 +29,7 @@ export class TenantRepositoryConflictError extends Error {
 export interface BusinessUnitAuditEntry {
   tenantId: bigint;
   userId: bigint;
-  sessionId: bigint;
+  sessionId: bigint | null;
   action: string;
   targetPublicId: string;
 }

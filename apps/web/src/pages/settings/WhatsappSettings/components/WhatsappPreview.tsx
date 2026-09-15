@@ -1,0 +1,6 @@
+import { IconCheck, IconChecks, IconBrandWhatsapp } from '@tabler/icons-react';
+type Props = { message: string; showMenu: boolean; menu: { label: string; active: boolean }[] };
+export function WhatsappPreview({ message, showMenu, menu }: Props) {
+  const resolved = message.replaceAll('{customerName}', 'João Silva').replaceAll('{tenantName}', 'Barbearia Silva').replaceAll('{time}', '30');
+  return <aside className="wa-preview-wrap"><div className="wa-preview-heading"><div><span className="eyebrow">LIVE PREVIEW</span><h2>Veja a experiência do cliente</h2></div><span className="wa-live-dot">Ao vivo</span></div><div className="wa-phone"><div className="wa-phone-notch" /><header><div className="wa-avatar">BS</div><div><strong>Barbearia Silva</strong><small>online</small></div><IconBrandWhatsapp size={20} /></header><div className="wa-chat"><div className="wa-date">HOJE</div><div className="wa-bubble">{resolved || 'Digite uma mensagem para visualizar'}<span className="wa-meta">10:42 <IconCheck size={12} /><IconChecks size={12} /></span></div>{showMenu && <div className="wa-menu">{menu.filter((item) => item.active).map((item, index) => <div key={item.label}><b>{index + 1}</b>{item.label}</div>)}</div>}</div><footer><span>Mensagem</span><b>➤</b></footer></div></aside>;
+}

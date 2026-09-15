@@ -1,0 +1,312 @@
+/* ============================================
+   BOT COBRA MODULE (REDESIGNED)
+   ============================================ */
+
+.bot-cobra-module--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.bot-cobra-module--redesigned .bot-cobra-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.bot-cobra-module--redesigned .bot-cobra-header h2 {
+  color: var(--color-text-primary);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.bot-cobra-module--redesigned .bot-cobra-nav {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--color-border-default);
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.bot-cobra-module--redesigned .bot-cobra-nav button {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.bot-cobra-module--redesigned .bot-cobra-nav button:hover {
+  color: var(--color-text-primary);
+}
+
+.bot-cobra-module--redesigned .bot-cobra-nav button.active {
+  color: var(--color-accent-primary);
+  border-bottom-color: var(--color-accent-primary);
+}
+
+.bot-cobra-module--redesigned .bot-cobra-section {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bot-cobra-module--redesigned .section-title {
+  color: var(--color-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.bot-cobra-module--redesigned .debt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.bot-cobra-module--redesigned .debt-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bot-cobra-module--redesigned .debt-card h4 {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.bot-cobra-module--redesigned .debt-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.bot-cobra-module--redesigned .debt-info label {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.bot-cobra-module--redesigned .debt-info strong {
+  color: var(--color-text-primary);
+}
+
+.bot-cobra-module--redesigned .debt-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(229, 57, 53, 0.1);
+  color: #e53935;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bot-cobra-module--redesigned .debt-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bot-cobra-module--redesigned .campaign-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.bot-cobra-module--redesigned .campaign-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bot-cobra-module--redesigned .campaign-card h4 {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.bot-cobra-module--redesigned .campaign-status {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.bot-cobra-module--redesigned .form-section {
+  display: grid;
+  gap: 16px;
+}
+
+.bot-cobra-module--redesigned .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bot-cobra-module--redesigned .form-group label {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bot-cobra-module--redesigned .form-group input,
+.bot-cobra-module--redesigned .form-group select,
+.bot-cobra-module--redesigned .form-group textarea {
+  padding: 10px 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+}
+
+.bot-cobra-module--redesigned .form-group input:focus,
+.bot-cobra-module--redesigned .form-group select:focus,
+.bot-cobra-module--redesigned .form-group textarea:focus {
+  outline: none;
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+.bot-cobra-module--redesigned .data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bot-cobra-module--redesigned .data-table th {
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.bot-cobra-module--redesigned .data-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.bot-cobra-module--redesigned .data-table tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+.bot-cobra-module--redesigned .promise-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bot-cobra-module--redesigned .promise-item {
+  background: var(--color-bg-secondary);
+  border-left: 3px solid var(--color-accent-primary);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bot-cobra-module--redesigned .promise-info h4 {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.bot-cobra-module--redesigned .promise-info p {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  margin: 0;
+}
+
+.bot-cobra-module--redesigned .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.bot-cobra-module--redesigned .stat-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
+}
+
+.bot-cobra-module--redesigned .stat-card strong {
+  color: var(--color-accent-primary);
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.bot-cobra-module--redesigned .stat-card label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .bot-cobra-module--redesigned .bot-cobra-header {
+    flex-direction: column;
+  }
+
+  .bot-cobra-module--redesigned .bot-cobra-nav {
+    flex-wrap: wrap;
+  }
+
+  .bot-cobra-module--redesigned .debt-grid,
+  .bot-cobra-module--redesigned .campaign-grid,
+  .bot-cobra-module--redesigned .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bot-cobra-module--redesigned .bot-cobra-section {
+    padding: 16px;
+  }
+
+  .bot-cobra-module--redesigned .data-table {
+    font-size: 12px;
+  }
+
+  .bot-cobra-module--redesigned .data-table th,
+  .bot-cobra-module--redesigned .data-table td {
+    padding: 8px 12px;
+  }
+}

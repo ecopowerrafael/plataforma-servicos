@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
-import { BusinessTerminologySchema, TenantBrandingSchema } from './business-profile.js';
-import { TenantPublicIdSchema, TenantSlugSchema } from './tenant.js';
+import {
+  BusinessProfileCodeSchema,
+  BusinessTerminologySchema,
+  TenantBrandingSchema,
+} from './business-profile.js';
+import { ServicePricingModeSchema } from './service.js';
+import { ComboPublicDisplaySchema } from './combo.js';
+import { TenantPublicIdSchema, TenantSlugOutputSchema, TenantSlugSchema } from './tenant.js';
 
 export const TenantMediaKindSchema = z.enum([
   'LOGO',
@@ -13,13 +19,15 @@ export const TenantMediaKindSchema = z.enum([
   'BANNER_MOBILE',
   'INSTITUTIONAL',
 ]);
-export const TenantPublicThemeSchema = z.enum(['CLASSIC', 'MODERN', 'PREMIUM']);
+export const TenantPublicThemeSchema = z.enum(['CLASSIC', 'MODERN', 'PREMIUM', 'LUXURY']);
+/** Modelo (estrutura/UX) do app público — independente do tema visual. */
+export const TenantPublicLayoutSchema = z.enum(['CLASSIC', 'PREMIUM_APP']);
 
 export const TenantMediaAssetSchema = z.object({
   publicId: z.uuid(),
   kind: TenantMediaKindSchema,
   originalName: z.string(),
-  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
   byteSize: z.number().int().positive(),
   altText: z.string().nullable(),
   url: z.string().startsWith('/'),
@@ -35,6 +43,7 @@ const NullableText = (maximum: number) =>
 export const UpdateTenantPublicSiteRequestSchema = z
   .object({
     theme: TenantPublicThemeSchema.optional(),
+    layout: TenantPublicLayoutSchema.optional(),
     heroTitle: NullableText(160),
     heroSubtitle: NullableText(500),
     aboutText: NullableText(4000),
@@ -51,6 +60,7 @@ export const UpdateTenantPublicSiteRequestSchema = z
 
 export const TenantPublicSiteSchema = UpdateTenantPublicSiteRequestSchema.safeExtend({
   theme: TenantPublicThemeSchema,
+  layout: TenantPublicLayoutSchema,
   heroTitle: z.string().nullable(),
   heroSubtitle: z.string().nullable(),
   aboutText: z.string().nullable(),
@@ -63,15 +73,19 @@ export const TenantPublicSiteSchema = UpdateTenantPublicSiteRequestSchema.safeEx
   pwaDescription: z.string().nullable(),
 });
 export const TenantWhiteLabelResponseSchema = z.object({
-  slug: TenantSlugSchema,
+  slug: TenantSlugOutputSchema,
+  displayName: z.string().min(2),
+  businessProfile: BusinessProfileCodeSchema,
   branding: TenantBrandingSchema,
   site: TenantPublicSiteSchema,
   assets: z.array(TenantMediaAssetSchema),
 });
 
 export const PublicTenantSiteResponseSchema = z.object({
-  slug: TenantSlugSchema,
+  publicId: TenantPublicIdSchema,
+  slug: TenantSlugOutputSchema,
   displayName: z.string(),
+  businessProfile: BusinessProfileCodeSchema,
   branding: TenantBrandingSchema,
   terminology: BusinessTerminologySchema,
   site: TenantPublicSiteSchema,
@@ -82,7 +96,11 @@ export const PublicTenantSiteResponseSchema = z.object({
       name: z.string(),
       description: z.string().nullable(),
       imageUrl: z.string().nullable(),
+      iconKey: z.string().nullable(),
       priceCents: z.string(),
+      /** Serviços sob orçamento não expõem preço: o público vê o aviso. */
+      pricingMode: ServicePricingModeSchema.default('FIXED'),
+      quoteNotice: z.string().nullable().default(null),
       durationMinutes: z.number().int(),
     }),
   ),
@@ -94,14 +112,21 @@ export const PublicTenantSiteResponseSchema = z.object({
       photoUrl: z.string().nullable(),
     }),
   ),
+  combos: z.array(ComboPublicDisplaySchema),
   unit: z
     .object({
       name: z.string(),
       street: z.string().nullable(),
       number: z.string().nullable(),
+      complement: z.string().nullable(),
+      district: z.string().nullable(),
       city: z.string().nullable(),
       state: z.string().nullable(),
+      postalCode: z.string().nullable(),
       countryCode: z.string().nullable(),
+      latitude: z.number().nullable(),
+      longitude: z.number().nullable(),
+      googleMapsUrl: z.string().nullable(),
       timezone: z.string(),
     })
     .nullable(),
@@ -112,25 +137,76 @@ export const PublicTenantSiteResponseSchema = z.object({
       isHeadquarters: z.boolean(),
       street: z.string().nullable(),
       number: z.string().nullable(),
+      complement: z.string().nullable(),
+      district: z.string().nullable(),
       city: z.string().nullable(),
       state: z.string().nullable(),
+      postalCode: z.string().nullable(),
       countryCode: z.string().nullable(),
+      latitude: z.number().nullable(),
+      longitude: z.number().nullable(),
+      googleMapsUrl: z.string().nullable(),
       timezone: z.string(),
     }),
   ),
   bookingAvailable: z.boolean().optional(),
   unavailableMessage: z.string().nullable().optional(),
+  /** Instalação só é oferecida quando o tenant publicou o aplicativo. */
+  pwaPublished: z.boolean().default(false),
 });
+/**
+ * Manifest do aplicativo do tenant. O `id` é derivado do `publicId` imutável
+ * do tenant: mudar slug, nome, tema ou ícone NÃO cria outro aplicativo para o
+ * navegador.
+ */
 export const PublicTenantManifestSchema = z.object({
+  id: z.string(),
   name: z.string(),
   short_name: z.string(),
   description: z.string().nullable(),
   theme_color: z.string(),
   background_color: z.string(),
-  icons: z.array(z.object({ src: z.string(), type: z.string() })),
+  icons: z.array(
+    z.object({
+      src: z.string(),
+      sizes: z.string(),
+      type: z.string(),
+      purpose: z.string().optional(),
+    }),
+  ),
   display: z.literal('standalone'),
+  scope: z.string(),
   start_url: z.string(),
 });
+
+export const TenantPwaStatusSchema = z.enum(['DRAFT', 'PUBLISHED']);
+
+/** Requisitos verificados no backend antes de publicar o aplicativo. */
+export const TenantPwaChecklistSchema = z.object({
+  appName: z.boolean(),
+  publicPage: z.boolean(),
+  icon: z.boolean(),
+  iconSquare: z.boolean(),
+  iconMinimumSize: z.boolean(),
+  iconDerivatives: z.boolean(),
+  branding: z.boolean(),
+});
+
+export const TenantPwaResponseSchema = z.object({
+  status: TenantPwaStatusSchema,
+  publishedAt: z.iso.datetime({ offset: true }).nullable(),
+  checklist: TenantPwaChecklistSchema,
+  ready: z.boolean(),
+  appName: z.string(),
+  slug: z.string(),
+  publicUrl: z.string(),
+  /** Instrução exibida quando o ícone impede a publicação. */
+  iconMessage: z.string().nullable(),
+});
+
+export type PublicTenantManifest = z.infer<typeof PublicTenantManifestSchema>;
+export type TenantPwaStatus = z.infer<typeof TenantPwaStatusSchema>;
+export type TenantPwaResponse = z.infer<typeof TenantPwaResponseSchema>;
 export const PublicTenantSlugParamsSchema = z.object({ slug: TenantSlugSchema }).strict();
 export const TenantPublicIdParamsSchema = z
   .object({ tenantPublicId: TenantPublicIdSchema })

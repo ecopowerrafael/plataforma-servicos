@@ -15,6 +15,13 @@ import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDia
 import { ComboForm, type ComboSubmission } from './ComboForm.js';
 import { ServiceImageUpload } from './ServiceImageUpload.js';
 import { TenantServiceImage } from './TenantServiceImage.js';
+import {
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+  StatusBadge,
+} from '../ui/AppUi.js';
+import '../../styles/combos.css';
 
 export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
   const client = useQueryClient();
@@ -143,27 +150,44 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
     });
   };
   return (
-    <section aria-labelledby="combo-title" className="sessions-panel">
-      <p className="eyebrow">Catálogo</p>
-      <h2 id="combo-title">Combos</h2>
+    <section aria-labelledby="combo-title" className="combo-module--redesigned combo-page-container grid grid-cols-12 gap-6">
+      <PageHeader
+        eyebrow="Catálogo"
+        title="Combos"
+        description="Agrupe serviços em ofertas fáceis de entender."
+        actions={
+          <button className="primary-button" type="button" onClick={() => { setCreating(true); }}>
+            + Novo combo
+          </button>
+        }
+      />
       {notice !== null && <p className="success-message">{notice}</p>}
-      <button
-        onClick={() => {
-          setCreating((value) => !value);
-        }}
-        type="button"
-      >
-        {creating ? 'Fechar criação' : 'Criar combo'}
-      </button>
       {creating && (
-        <ComboForm
-          busy={mutation.isPending}
-          error={mutation.error instanceof Error ? mutation.error.message : null}
-          services={services.data?.items ?? []}
-          onSave={save}
-        />
+        <div className="combo-edit-shell mb-20 col-span-12">
+          <header className="combo-page-header">
+            <div>
+              <span>Catálogo / Combos / Novo</span>
+              <h1>Novo Combo</h1>
+            </div>
+          </header>
+          <ComboForm
+            busy={mutation.isPending}
+            error={mutation.error instanceof Error ? mutation.error.message : null}
+            services={services.data?.items ?? []}
+            servicesLoading={services.isPending}
+            professionals={undefined}
+            onSave={save}
+          />
+          <div className="form-actions combo-sticky-actions combo-create-footer">
+            <button className="danger-button" type="button" disabled>Desativar / Excluir</button>
+            <span />
+            <button type="button" onClick={() => setCreating(false)}>Cancelar</button>
+            <button className="primary-button" type="submit" form="combo-edit-form" disabled={mutation.isPending}>Salvar Alterações</button>
+          </div>
+        </div>
       )}
-      <div className="platform-form">
+      <div className="combo-catalog-panel col-span-12 lg:col-span-4">
+      <div className="platform-form combo-catalog-toolbar">
         <label>
           Busca
           <input
@@ -191,17 +215,21 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
         </label>
       </div>
       {combos.isPending ? (
-        <p>Carregando combos…</p>
+        <ListSkeleton rows={5} />
       ) : combos.error instanceof Error ? (
         <p className="form-error">Não foi possível carregar combos.</p>
       ) : combos.data === undefined || combos.data.items.length === 0 ? (
-        <p>Nenhum item encontrado.</p>
+        <EmptyState
+          title="Nenhum combo cadastrado"
+          description="Combine dois ou mais serviços em uma oferta."
+          action={<button onClick={() => { setCreating(true); }}>+ Criar combo</button>}
+        />
       ) : (
         <>
-          <div className="data-list">
+      <div className="service-catalog-list combo-catalog-list">
             {combos.data.items.map((combo) => (
               <button
-                className="data-row"
+                className={`service-catalog-row${selected === combo.publicId ? ' is-selected' : ''}`}
                 key={combo.publicId}
                 onClick={() => {
                   setSelected(combo.publicId);
@@ -215,9 +243,22 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
                   servicePublicId={combo.publicId}
                   tenantPublicId={tenantPublicId}
                 />
-                <span>{combo.name}</span>
-                <span>{`${String(combo.items.length)} serviços · ${String(combo.durationMinutes)} min`}</span>
-                <span>{combo.active ? 'Ativo' : 'Inativo'}</span>
+                <span>
+                  <strong>{combo.name}</strong>
+                  <small>{`${String(combo.items.length)} serviços · ${String(combo.durationMinutes)} min`}</small>
+                </span>
+                <span>
+                  <strong>
+                    {(Number(combo.priceCents) / 100).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </strong>
+                  <small className="combo-service-badges">{combo.items.map((item) => <span className="combo-service-badge" key={item.servicePublicId}>{item.name}</span>)}</small>
+                </span>
+                <StatusBadge active={combo.active}>
+                  {combo.active ? 'Ativo' : 'Inativo'}
+                </StatusBadge>
               </button>
             ))}
           </div>
@@ -244,88 +285,37 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
           </div>
         </>
       )}
+      </div>
+      {selected !== null && detail.isPending && (
+        <article className="sessions-panel combo-editor-panel col-span-12 lg:col-span-8" aria-label="Carregando combo">
+          <div className="combo-loading-skeleton" />
+        </article>
+      )}
       {detail.data !== undefined && (
-        <article className="sessions-panel">
-          <h3>{detail.data.name}</h3>
-          {detail.data.imageUrl !== null && (
-            <TenantServiceImage
-              alt={detail.data.imageAlt ?? detail.data.name}
-              kind="combos"
-              servicePublicId={detail.data.publicId}
-              tenantPublicId={tenantPublicId}
-            />
-          )}
-          <dl className="platform-details">
+        <div className="combo-edit-shell mb-20 col-span-12">
+          <header className="combo-page-header">
             <div>
-              <dt>{'Duração calculada'}</dt>
-              <dd>{`${String(detail.data.durationMinutes)} minutos`}</dd>
+              <span>Catálogo / Combos / Editar</span>
+              <h1>{detail.data.name || 'Editar Combo'}</h1>
             </div>
-            <div>
-              <dt>{'Preço'}</dt>
-              <dd>{detail.data.priceCents}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{detail.data.active ? 'Ativo' : 'Inativo'}</dd>
-            </div>
-            <div>
-              <dt>{'Serviços (na ordem)'}</dt>
-              <dd>
-                {detail.data.items
-                  .slice()
-                  .sort((left, right) => left.sortOrder - right.sortOrder)
-                  .map((item) => item.name)
-                  .join(' → ')}
-              </dd>
-            </div>
-          </dl>
+          </header>
           <ComboForm
             busy={mutation.isPending}
             combo={detail.data}
             error={mutation.error instanceof Error ? mutation.error.message : null}
             services={services.data?.items ?? []}
+            servicesLoading={services.isPending}
+            professionals={eligibleProfessionals.data?.items ?? []}
+            previewImage={detail.data.imageUrl !== null ? <TenantServiceImage alt={detail.data.imageAlt ?? detail.data.name} kind="combos" servicePublicId={detail.data.publicId} tenantPublicId={tenantPublicId} /> : undefined}
+            imageSection={<ServiceImageUpload busy={mutation.isPending} hasImage={detail.data.imageUrl !== null} onRemove={requestRemoveImage} onUpload={updateImage} preview={<TenantServiceImage alt={detail.data.imageAlt ?? detail.data.name} kind="combos" servicePublicId={detail.data.publicId} tenantPublicId={tenantPublicId} />} />}
             onSave={save}
           />
-          <ServiceImageUpload
-            busy={mutation.isPending}
-            hasImage={detail.data.imageUrl !== null}
-            onRemove={requestRemoveImage}
-            onUpload={updateImage}
-          />
-          <section aria-label="Profissionais aptos">
-            <h4>Profissionais aptos</h4>
-            {eligibleProfessionals.data === undefined ||
-            eligibleProfessionals.data.items.length === 0 ? (
-              <p>Nenhum profissional habilitado em todos os serviços do combo.</p>
-            ) : (
-              <ul>
-                {eligibleProfessionals.data.items.map((professional) => (
-                  <li key={professional.publicId}>{professional.publicName}</li>
-                ))}
-              </ul>
-            )}
-          </section>
-          <div className="form-actions">
-            <button
-              disabled={mutation.isPending || detail.data.active}
-              onClick={() => {
-                requestStatus(true);
-              }}
-              type="button"
-            >
-              Ativar
-            </button>
-            <button
-              disabled={mutation.isPending || !detail.data.active}
-              onClick={() => {
-                requestStatus(false);
-              }}
-              type="button"
-            >
-              Desativar
-            </button>
+          <div className="form-actions combo-sticky-actions">
+            <button className="danger-button" type="button" onClick={() => requestStatus(false)} disabled={mutation.isPending || !detail.data.active}>Desativar/Excluir</button>
+            <button type="button" onClick={() => setSelected(null)}>Cancelar</button>
+            <button className="primary-button" type="submit" form="combo-edit-form" disabled={mutation.isPending}>Salvar Alterações</button>
           </div>
-        </article>
+        </div>
       )}
       {confirmation !== null && (
         <ConfirmationDialog

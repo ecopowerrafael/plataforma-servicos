@@ -10,14 +10,174 @@ export class TenantWhiteLabelRepository {
   public findTenant(tenantId: bigint) {
     return this.client.tenant.findUnique({
       where: { id: tenantId },
-      include: { branding: true, terminology: true, publicSite: true },
+      select: {
+        id: true,
+        publicId: true,
+        slug: true,
+        displayName: true,
+        businessProfile: true,
+        status: true,
+        onboardingCompletedAt: true,
+        branding: {
+          select: {
+            useProfileDefaults: true,
+            primaryColor: true,
+            secondaryColor: true,
+            accentColor: true,
+            backgroundColor: true,
+            surfaceColor: true,
+            textColor: true,
+            mutedTextColor: true,
+            borderColor: true,
+            borderRadius: true,
+            fontFamily: true,
+            onPrimaryColor: true,
+            headerColor: true,
+            headerTextColor: true,
+            navigationColor: true,
+            activeColor: true,
+            logoUrl: true,
+            faviconUrl: true,
+            bannerUrl: true,
+            pwaIconUrl: true,
+            splashUrl: true,
+          },
+        },
+        terminology: {
+          select: {
+            professionalSingular: true,
+            professionalPlural: true,
+            customerSingular: true,
+            customerPlural: true,
+            serviceSingular: true,
+            servicePlural: true,
+            appointmentSingular: true,
+            appointmentPlural: true,
+            unitSingular: true,
+            unitPlural: true,
+          },
+        },
+        publicSite: {
+          select: {
+            theme: true,
+            layout: true,
+            heroTitle: true,
+            heroSubtitle: true,
+            aboutText: true,
+            primaryCallToAction: true,
+            footerText: true,
+            seoTitle: true,
+            seoDescription: true,
+            pwaName: true,
+            pwaShortName: true,
+            pwaDescription: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Estado de publicação do PWA, lido isoladamente e à prova de banco ainda
+   * não migrado: se as colunas não existirem, o tenant é tratado como
+   * rascunho em vez de derrubar a página pública e o Brand Studio.
+   */
+  public async findPwaState(
+    tenantId: bigint,
+  ): Promise<{ status: 'DRAFT' | 'PUBLISHED'; publishedAt: Date | null }> {
+    try {
+      const site = await this.client.tenantPublicSite.findUnique({
+        where: { tenantId },
+        select: { pwaStatus: true, pwaPublishedAt: true },
+      });
+      return {
+        status: site?.pwaStatus ?? 'DRAFT',
+        publishedAt: site?.pwaPublishedAt ?? null,
+      };
+    } catch {
+      return { status: 'DRAFT', publishedAt: null };
+    }
+  }
+
+  /** Publicação do aplicativo; cria a linha do site público se ainda não existir. */
+  public async upsertPwaStatus(
+    tenantId: bigint,
+    status: 'DRAFT' | 'PUBLISHED',
+    publishedAt: Date | null,
+  ): Promise<void> {
+    await this.client.tenantPublicSite.upsert({
+      where: { tenantId },
+      create: { tenantId, pwaStatus: status, pwaPublishedAt: publishedAt },
+      update: { pwaStatus: status, pwaPublishedAt: publishedAt },
     });
   }
 
   public findTenantByPublicId(publicId: string) {
     return this.client.tenant.findUnique({
       where: { publicId },
-      include: { branding: true, terminology: true, publicSite: true },
+      select: {
+        id: true,
+        publicId: true,
+        slug: true,
+        displayName: true,
+        businessProfile: true,
+        onboardingCompletedAt: true,
+        branding: {
+          select: {
+            useProfileDefaults: true,
+            primaryColor: true,
+            secondaryColor: true,
+            accentColor: true,
+            backgroundColor: true,
+            surfaceColor: true,
+            textColor: true,
+            mutedTextColor: true,
+            borderColor: true,
+            borderRadius: true,
+            fontFamily: true,
+            onPrimaryColor: true,
+            headerColor: true,
+            headerTextColor: true,
+            navigationColor: true,
+            activeColor: true,
+            logoUrl: true,
+            faviconUrl: true,
+            bannerUrl: true,
+            pwaIconUrl: true,
+            splashUrl: true,
+          },
+        },
+        terminology: {
+          select: {
+            professionalSingular: true,
+            professionalPlural: true,
+            customerSingular: true,
+            customerPlural: true,
+            serviceSingular: true,
+            servicePlural: true,
+            appointmentSingular: true,
+            appointmentPlural: true,
+            unitSingular: true,
+            unitPlural: true,
+          },
+        },
+        publicSite: {
+          select: {
+            theme: true,
+            layout: true,
+            heroTitle: true,
+            heroSubtitle: true,
+            aboutText: true,
+            primaryCallToAction: true,
+            footerText: true,
+            seoTitle: true,
+            seoDescription: true,
+            pwaName: true,
+            pwaShortName: true,
+            pwaDescription: true,
+          },
+        },
+      },
     });
   }
 
@@ -31,14 +191,55 @@ export class TenantWhiteLabelRepository {
   public findPublicTenant(slug: string) {
     return this.client.tenant.findFirst({
       where: { slug, status: 'ACTIVE' },
-      include: {
+      select: {
+        id: true,
+        publicId: true,
+        slug: true,
+        displayName: true,
+        businessProfile: true,
         branding: true,
         terminology: true,
-        publicSite: true,
+        publicSite: {
+          select: {
+            theme: true,
+            layout: true,
+            heroTitle: true,
+            heroSubtitle: true,
+            aboutText: true,
+            primaryCallToAction: true,
+            footerText: true,
+            seoTitle: true,
+            seoDescription: true,
+            pwaName: true,
+            pwaShortName: true,
+            pwaDescription: true,
+          },
+        },
         mediaAssets: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
         services: { where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] },
         professionals: {
           where: { active: true },
+          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        },
+        combos: {
+          where: { active: true },
+          include: {
+            items: {
+              orderBy: { sortOrder: 'asc' },
+              include: {
+                service: {
+                  select: {
+                    publicId: true,
+                    name: true,
+                    durationMinutes: true,
+                    hasPostServiceBreak: true,
+                    postServiceBreakMinutes: true,
+                    active: true,
+                  },
+                },
+              },
+            },
+          },
           orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         },
         businessUnits: {
@@ -82,6 +283,13 @@ export class TenantWhiteLabelRepository {
     });
   }
 
+  public findPublicComboImage(publicId: string) {
+    return this.client.combo.findFirst({
+      where: { publicId, active: true, tenant: { status: 'ACTIVE' } },
+      select: { imagePath: true },
+    });
+  }
+
   public async replaceKind(
     tenantId: bigint,
     kind: TenantMediaKind,
@@ -118,6 +326,20 @@ export class TenantWhiteLabelRepository {
       where: { tenantId },
       create: data,
       update: data,
+      select: {
+        theme: true,
+        layout: true,
+        heroTitle: true,
+        heroSubtitle: true,
+        aboutText: true,
+        primaryCallToAction: true,
+        footerText: true,
+        seoTitle: true,
+        seoDescription: true,
+        pwaName: true,
+        pwaShortName: true,
+        pwaDescription: true,
+      },
     });
   }
 

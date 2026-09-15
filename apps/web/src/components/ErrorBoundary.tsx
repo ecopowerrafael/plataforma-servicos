@@ -2,21 +2,54 @@ import { Component, type ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
+  area?: string;
+  onRetry?: () => void;
+  onBack?: () => void;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  retriedChunk: boolean;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public override state: ErrorBoundaryState = { hasError: false };
+  public override state: ErrorBoundaryState = { hasError: false, retriedChunk: false };
 
   public static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+    return { hasError: true, retriedChunk: false };
+  }
+
+  public override componentDidCatch(error: Error): void {
+    const isChunkError = /dynamically imported module|importing a module script|loading chunk/iu.test(error.message);
+    if (!isChunkError) return;
+    try {
+      const key = `agendei:chunk-reload:${window.location.pathname}:${error.message}`;
+      if (window.sessionStorage.getItem(key) !== null) return;
+      window.sessionStorage.setItem(key, '1');
+      this.setState({ retriedChunk: true });
+      window.location.reload();
+    } catch {
+      // O fallback visual permanece disponível quando o storage não puder ser usado.
+    }
   }
 
   public override render(): ReactNode {
     if (this.state.hasError) {
+      if (this.props.area !== undefined)
+        return (
+          <section className="area-error-state" role="alert">
+            <p className="eyebrow">Área indisponível</p>
+            <h2>Não foi possível carregar {this.props.area}.</h2>
+            <p>Tente novamente. Seus dados não foram alterados.</p>
+            <div className="button-row">
+              <button type="button" className="primary-button" onClick={() => {
+                this.setState({ hasError: false });
+                this.props.onRetry?.();
+              }}>Tentar novamente</button>
+              {this.props.onBack !== undefined && <button type="button" className="secondary-button" onClick={this.props.onBack}>Voltar ao início</button>}
+            </div>
+          </section>
+        );
       return (
         <main className="page-shell">
           <section className="status-panel" role="alert">
@@ -29,7 +62,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 window.location.reload();
               }}
             >
-              Recarregar
+              Atualizar página
             </button>
           </section>
         </main>

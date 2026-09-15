@@ -1,5 +1,6 @@
 import { PublicCommercialPlansResponseSchema } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 
 import { type PlatformService } from './platform.service.js';
 import { type TenantCommercialPolicyService } from './tenant-commercial-policy.service.js';
@@ -14,6 +15,17 @@ export const publicCommercialRoutes: FastifyPluginAsyncZod<PublicCommercialRoute
   app,
   options,
 ) => {
+  app.get(
+    '/public/commercial-contact',
+    {
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+      schema: { response: { 200: z.object({ whatsapp: z.string().nullable() }) } },
+    },
+    async () => {
+      const policy = await options.commercialPolicyService.getOrCreateRaw();
+      return { whatsapp: policy.commercialWhatsapp };
+    },
+  );
   app.get(
     '/public/commercial-plans',
     {

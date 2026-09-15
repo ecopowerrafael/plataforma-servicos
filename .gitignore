@@ -6,11 +6,22 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 apps/api/src/database-client/
 apps/web/.vite/
 uploads/
 *.tsbuildinfo
+
+# Local-only visual harness for /platform (fixtures + fixture-backed
+# fetch mock), used to review the redesign without a live backend.
+# Never referenced by router.tsx/main.tsx, so it never reaches the
+# production bundle either way — gitignored so it also never reaches
+# a commit. Named explicitly (not the whole apps/web/src/dev/
+# directory) so a real, committed file placed there later isn't
+# silently swallowed.
+apps/web/src/dev/PlatformHarnessPage.tsx
+apps/web/src/dev/platform-fixtures.ts
 
 .DS_Store
 Thumbs.db

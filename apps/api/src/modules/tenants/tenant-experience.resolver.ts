@@ -26,6 +26,11 @@ interface TenantExperienceRecord {
     bannerUrl: string | null;
     pwaIconUrl: string | null;
     splashUrl: string | null;
+    onPrimaryColor?: string | null;
+    headerColor?: string | null;
+    headerTextColor?: string | null;
+    navigationColor?: string | null;
+    activeColor?: string | null;
   } | null;
   terminology: TenantTerminologyOverrides | null;
 }
@@ -103,6 +108,12 @@ export function resolveTenantExperience(tenant: TenantExperienceRecord) {
       tenant.branding?.useProfileDefaults === false
         ? tenant.branding.fontFamily
         : defaults.fontFamily,
+    // Tokens semânticos: `null` mantém o comportamento derivado atual.
+    onPrimaryColor: tenant.branding?.onPrimaryColor ?? null,
+    headerColor: tenant.branding?.headerColor ?? null,
+    headerTextColor: tenant.branding?.headerTextColor ?? null,
+    navigationColor: tenant.branding?.navigationColor ?? null,
+    activeColor: tenant.branding?.activeColor ?? null,
     logoUrl: tenant.branding?.logoUrl ?? null,
     faviconUrl: tenant.branding?.faviconUrl ?? null,
     bannerUrl: tenant.branding?.bannerUrl ?? null,

@@ -115,9 +115,9 @@ export function PlanBenefitsEditor({
 
   const requestRemoval = (benefit: Benefit) => {
     setConfirmation({
-      title: 'Remover benefício?',
-      description: `O benefício "${benefit.text}" deixará de aparecer na página pública de planos.`,
-      confirmLabel: 'Remover',
+      title: 'Excluir item do card?',
+      description: `O item "${benefit.text}" deixa de aparecer no card. Nenhuma funcionalidade, limite ou permissão do plano é alterada.`,
+      confirmLabel: 'Excluir',
       requiresReason: false,
       variant: 'danger',
       onConfirm: async () => {
@@ -128,9 +128,10 @@ export function PlanBenefitsEditor({
 
   return (
     <fieldset className="platform-form">
-      <legend>{'Benefícios comerciais (página pública de planos)'}</legend>
+      <legend>Itens do card comercial</legend>
+      <p className="ds-form-hint">Defina o que o visitante verá neste plano. Estes textos não ligam nem desligam nenhuma funcionalidade.</p>
       {ordered.length === 0 ? (
-        <p>Nenhum benefício cadastrado.</p>
+        <p>Nenhum item cadastrado. O card deste plano ficará sem lista de benefícios.</p>
       ) : (
         <div className="data-list">
           {ordered.map((benefit, index) =>
@@ -143,7 +144,7 @@ export function PlanBenefitsEditor({
                   value={editingText}
                 />
                 <button
-                  disabled={busy || editingText.trim() === ''}
+                  disabled={busy || editingText.trim().length < 2}
                   onClick={() => {
                     void updateMutation
                       .mutateAsync({
@@ -226,7 +227,7 @@ export function PlanBenefitsEditor({
         </div>
       )}
       <label>
-        Novo benefício
+        Novo item
         <input
           maxLength={160}
           onChange={(event) => {
@@ -237,13 +238,13 @@ export function PlanBenefitsEditor({
         />
       </label>
       <button
-        disabled={busy || newText.trim() === ''}
+        disabled={busy || newText.trim().length < 2}
         onClick={() => {
           void createMutation.mutateAsync(newText.trim());
         }}
         type="button"
       >
-        Adicionar benefício
+        + Adicionar item
       </button>
       {actionError !== null && (
         <p className="form-error" role="alert">

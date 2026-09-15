@@ -7,8 +7,11 @@ import {
   type UpdateServiceCategoryRequest,
 } from '@plataforma/shared';
 
-import { type ServiceCategoryRepository } from './service-category.repository.js';
-import { Prisma, type ServiceCategory } from '../../database-client/client.js';
+import {
+  type ServiceCategoryRecord,
+  type ServiceCategoryRepository,
+} from './service-category.repository.js';
+import { Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
 interface Actor {
@@ -21,9 +24,16 @@ interface ListInput {
   search?: string | undefined;
   active?: boolean | undefined;
 }
-function toPublic(category: ServiceCategory) {
+function toPublic(category: ServiceCategoryRecord) {
   return ServiceCategoryPublicSchema.parse({
-    ...category,
+    publicId: category.publicId,
+    name: category.name,
+    description: category.description,
+    color: category.color,
+    icon: category.icon,
+    serviceCount: category._count.services,
+    sortOrder: category.sortOrder,
+    active: category.active,
     createdAt: category.createdAt.toISOString(),
     updatedAt: category.updatedAt.toISOString(),
   });

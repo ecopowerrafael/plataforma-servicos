@@ -12,7 +12,7 @@ export function AuthLayout({ title, description, children, footer }: AuthLayoutP
     <main className="auth-shell">
       <section className="auth-card">
         <Link className="brand" to="/">
-          Plataforma de Serviços
+          Agendei
         </Link>
         <h1>{title}</h1>
         {description === undefined ? null : <p className="lead">{description}</p>}

@@ -38,9 +38,9 @@ describe.skipIf(url === undefined)(
               { key: 'units.max', valueType: 'INTEGER', integerValue: 3n },
               { key: 'members.max', valueType: 'INTEGER', integerValue: 10n },
               { key: 'professionals.max', valueType: 'INTEGER', integerValue: 5n },
+              { key: 'services.max', valueType: 'INTEGER', integerValue: 10n },
               { key: 'monthly_appointments.max', valueType: 'INTEGER', integerValue: null },
-              { key: 'storage.megabytes', valueType: 'INTEGER', integerValue: 1024n },
-              { key: 'advanced_reports.enabled', valueType: 'BOOLEAN', booleanValue: true },
+              { key: 'custom_domain.enabled', valueType: 'BOOLEAN', booleanValue: true },
             ],
           },
         },
@@ -169,6 +169,9 @@ describe.skipIf(url === undefined)(
       const professionalsLimit = result.limits.find((limit) => limit.key === 'professionals.max');
       expect(professionalsLimit?.usage).toBe(1);
 
+      const servicesLimit = result.limits.find((limit) => limit.key === 'services.max');
+      expect(servicesLimit?.usage).toBe(1);
+
       const membersLimit = result.limits.find((limit) => limit.key === 'members.max');
       expect(membersLimit?.usage).toBe(0);
 
@@ -177,14 +180,6 @@ describe.skipIf(url === undefined)(
       );
       expect(monthlyAppointmentsLimit?.usage).toBe(1);
 
-      const storageLimit = result.limits.find((limit) => limit.key === 'storage.megabytes');
-      expect(storageLimit?.usage).toBeNull();
-
-      const advancedReportsLimit = result.limits.find(
-        (limit) => limit.key === 'advanced_reports.enabled',
-      );
-      expect(advancedReportsLimit?.usage).toBeNull();
-      expect(advancedReportsLimit?.booleanValue).toBe(true);
     });
 
     it('não inventa dados de consumo para limites sem fonte real', async () => {
@@ -193,6 +188,7 @@ describe.skipIf(url === undefined)(
         'units.max',
         'members.max',
         'professionals.max',
+        'services.max',
         'monthly_appointments.max',
       ]);
       for (const limit of result.limits) {

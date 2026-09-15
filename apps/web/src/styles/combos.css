@@ -1,0 +1,6 @@
+/* apps/web/src/styles/combos.css - CSS LIMPO SEM OVERRIDES */
+@layer utilities {
+  .pb-safe-bottom {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+}

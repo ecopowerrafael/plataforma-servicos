@@ -21,30 +21,52 @@ export function CustomerLoyalty({ slug }: { slug: string }) {
   });
 
   return (
-    <section className="platform-form" aria-label="Fidelidade">
-      <h4>Fidelidade</h4>
-      {summary.isPending ? <p>Carregando…</p> : null}
+    <section className="customer-section" aria-label="Fidelidade">
+      <h1 className="client-page-title">Pontos de fidelidade</h1>
+      {summary.isPending ? (
+        <div className="customer-skeleton-list" aria-busy="true">
+          <span />
+          <span />
+        </div>
+      ) : null}
       {summary.error instanceof Error ? (
-        <p className="form-error">Não foi possível carregar seu saldo de fidelidade.</p>
+        <p className="public-form-error" role="alert">
+          Não foi possível carregar seu saldo de fidelidade.
+        </p>
       ) : null}
       {summary.data !== undefined && (
         <>
-          <ul>
+          <div className="customer-balance-grid">
             {summary.data.balances.map((item) => (
-              <li key={item.type}>
-                {`${typeLabels[item.type] ?? item.type}: ${formatBalance(item.type, item.balance)}`}
-              </li>
+              <article className="customer-balance" key={item.type}>
+                <small>{typeLabels[item.type] ?? item.type}</small>
+                <strong>{formatBalance(item.type, item.balance)}</strong>
+              </article>
             ))}
-          </ul>
-          <h5>Histórico recente</h5>
-          {summary.data.recentEntries.length === 0 ? <p>Nenhuma movimentação ainda.</p> : null}
-          <ul>
-            {summary.data.recentEntries.map((entry) => (
-              <li key={entry.publicId}>
-                {`${entry.direction === 'CREDIT' ? '+' : '-'}${entry.amount} ${typeLabels[entry.type] ?? entry.type} — ${entry.reason} — ${new Date(entry.createdAt).toLocaleDateString('pt-BR')}`}
-              </li>
-            ))}
-          </ul>
+          </div>
+          <section className="customer-card" aria-label="Histórico recente">
+            <header>
+              <strong>Histórico recente</strong>
+            </header>
+            {summary.data.recentEntries.length === 0 ? (
+              <p className="customer-empty">Nenhuma movimentação ainda.</p>
+            ) : (
+              <div className="customer-entry-list">
+                {summary.data.recentEntries.map((entry) => (
+                  <article className="customer-entry" key={entry.publicId}>
+                    <strong className={entry.direction === 'CREDIT' ? 'is-credit' : 'is-debit'}>
+                      {`${entry.direction === 'CREDIT' ? '+' : '−'}${entry.amount}`}
+                    </strong>
+                    <span>
+                      <b>{typeLabels[entry.type] ?? entry.type}</b>
+                      <small>{entry.reason}</small>
+                    </span>
+                    <small>{new Date(entry.createdAt).toLocaleDateString('pt-BR')}</small>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </>
       )}
     </section>

@@ -8,7 +8,8 @@ import { AppError } from '../../errors/AppError.js';
 interface Input {
   date: string;
   professionalPublicId: string;
-  servicePublicId: string;
+  servicePublicId?: string | undefined;
+  comboPublicId?: string | undefined;
   unitPublicId?: string | undefined;
   excludeAppointmentId?: bigint | undefined;
 }
@@ -82,6 +83,23 @@ const localAt = (date: string, minutes: number, timezone: string) => {
 export class AvailabilityService {
   public constructor(private readonly repository: AvailabilityRepository) {}
   public async available(tenantId: bigint, input: Input) {
+    // Validate XOR
+    if ((input.servicePublicId !== undefined) === (input.comboPublicId !== undefined)) {
+      throw new AppError({
+        code: 'AVAILABILITY_OFFERING_REQUIRED',
+        message: 'Informe exatamente um: serviço ou combo.',
+        statusCode: 400,
+      });
+    }
+
+    // Handle combo path
+    if (input.comboPublicId !== undefined) {
+      return this.availableCombo(tenantId, input);
+    }
+
+    // SERVICE path: servicePublicId must be defined after XOR check
+    if (!input.servicePublicId) throw new Error('servicePublicId required for service path');
+
     const context = await this.repository.context(
       tenantId,
       input.professionalPublicId,
@@ -196,6 +214,17 @@ export class AvailabilityService {
       }
       return output;
     });
+    const availableSlots = slots.filter((s) => s.state === 'AVAILABLE').length;
+    console.log('[AVAILABILITY_SERVICE_DEBUG]', {
+      servicePublicId: input.servicePublicId,
+      professionalPublicId: input.professionalPublicId,
+      blockedMinutes,
+      scheduleFound: schedule.length,
+      effectiveScheduleFound: effectiveSchedule.length,
+      appointmentsLoaded: appointments.length,
+      slotsGenerated: slots.length,
+      availableSlots,
+    });
     return AvailabilityResponseSchema.parse({
       date: input.date,
       timezone: context.timezone,
@@ -248,17 +277,20 @@ export class AvailabilityService {
     return CalendarResponseSchema.parse({ timezone: first.timezone, days });
   }
   public async assertSlot(tenantId: bigint, input: Omit<Input, 'date'> & { startsAt: string }) {
-    const context = await this.repository.context(
+    // Get timezone from professional
+    const tenantContext = await this.repository.tenant(
       tenantId,
       input.professionalPublicId,
-      input.servicePublicId,
     );
-    const timezone = context?.timezone ?? 'UTC';
+    const timezone = tenantContext?.timezone ?? 'UTC';
     const date = localDate(new Date(input.startsAt), timezone);
+
+    // Call available with discriminated input
     const result = await this.available(tenantId, {
       date,
       professionalPublicId: input.professionalPublicId,
       servicePublicId: input.servicePublicId,
+      comboPublicId: input.comboPublicId,
       ...(input.unitPublicId === undefined ? {} : { unitPublicId: input.unitPublicId }),
       ...(input.excludeAppointmentId === undefined
         ? {}
@@ -353,5 +385,190 @@ export class AvailabilityService {
         start: timeMinutes(period.startsAt),
         end: timeMinutes(period.endsAt),
       }));
+  }
+  private async availableCombo(tenantId: bigint, input: Input) {
+    // Load professional + basic context
+    const tenant = await this.repository.tenant(tenantId, input.professionalPublicId);
+    if (!tenant)
+      throw new AppError({
+        code: 'AVAILABILITY_RESOURCE_NOT_FOUND',
+        message: 'Profissional não encontrado.',
+        statusCode: 404,
+      });
+    const professional = tenant.professionals[0];
+    if (!professional?.active)
+      throw new AppError({
+        code: 'AVAILABILITY_RESOURCE_INACTIVE',
+        message: 'Profissional indisponível.',
+        statusCode: 400,
+      });
+    // Load combo
+    if (!input.comboPublicId) throw new Error('comboPublicId required');
+    const combo = await this.repository.combo(tenantId, input.comboPublicId);
+    if (!combo?.active)
+      throw new AppError({
+        code: 'COMBO_INACTIVE',
+        message: 'Combo indisponível.',
+        statusCode: 400,
+      });
+    if (combo.items.length === 0)
+      throw new AppError({
+        code: 'COMBO_EMPTY',
+        message: 'Combo sem itens.',
+        statusCode: 400,
+      });
+    // Validate all services active and professional has links
+    const { resolveComboTiming } = await import('@plataforma/shared');
+    const timingItems: Array<{
+      serviceId: bigint;
+      service: { durationMinutes: number; hasPostServiceBreak: boolean; postServiceBreakMinutes: number };
+      link?: { durationMinutes: number | null; hasPostServiceBreak: boolean | null; postServiceBreakMinutes: number | null };
+    }> = [];
+    for (const item of combo.items) {
+      if (!item.service.active)
+        throw new AppError({
+          code: 'COMBO_SERVICE_INACTIVE',
+          message: `Serviço "${item.service.name}" inativo.`,
+          statusCode: 400,
+        });
+      const link = await this.repository.link(tenantId, professional.id, item.serviceId);
+      if (!link?.active)
+        throw new AppError({
+          code: 'COMBO_PROFESSIONAL_INELIGIBLE',
+          message: `Profissional não está vinculado ao serviço "${item.service.name}".`,
+          statusCode: 400,
+        });
+      const timingItem: typeof timingItems[number] = {
+        serviceId: item.serviceId,
+        service: {
+          durationMinutes: item.service.durationMinutes,
+          hasPostServiceBreak: item.service.hasPostServiceBreak,
+          postServiceBreakMinutes: item.service.postServiceBreakMinutes,
+        },
+      };
+      if (
+        link &&
+        (link.durationMinutes !== null ||
+          link.hasPostServiceBreak !== null ||
+          link.postServiceBreakMinutes !== null)
+      ) {
+        timingItem.link = {
+          durationMinutes: link.durationMinutes,
+          hasPostServiceBreak: link.hasPostServiceBreak,
+          postServiceBreakMinutes: link.postServiceBreakMinutes,
+        };
+      }
+      timingItems.push(timingItem);
+    }
+    const timing = resolveComboTiming(timingItems);
+    const blockedMinutes = timing.blockedMinutes;
+    const context = tenant;
+    const interval = context.settings?.defaultAppointmentIntervalMinutes ?? 15;
+    const minimumDate = new Date(
+      Date.now() + (context.settings?.minimumAdvanceMinutes ?? 0) * 60_000,
+    );
+    const nowDate = localDate(minimumDate, context.timezone);
+    const maximumDate = new Date();
+    maximumDate.setUTCDate(
+      maximumDate.getUTCDate() + (context.settings?.maximumAdvanceDays ?? 180),
+    );
+    if (input.date < nowDate || input.date > localDate(maximumDate, context.timezone))
+      throw new AppError({
+        code: 'AVAILABILITY_DATE_OUT_OF_RANGE',
+        message: 'A data está fora da janela de disponibilidade.',
+        statusCode: 400,
+      });
+    const dayStart = localAt(input.date, 0, context.timezone);
+    const dayEnd = localAt(input.date, 1440, context.timezone);
+    const dayOfWeek = weekday(input.date, context.timezone);
+    const [schedule, unavailability, appointments] = await Promise.all([
+      this.repository.schedule(tenantId, professional.id, dayOfWeek, input.unitPublicId),
+      this.repository.unavailabilities(
+        tenantId,
+        professional.id,
+        dayStart,
+        dayEnd,
+        input.unitPublicId,
+      ),
+      this.repository.appointments(
+        tenantId,
+        professional.id,
+        dayStart,
+        dayEnd,
+        input.excludeAppointmentId,
+      ),
+    ]);
+    const effectiveSchedule = await this.clipToOperatingHours(
+      tenantId,
+      input.unitPublicId,
+      input.date,
+      dayOfWeek,
+      schedule,
+    );
+    const slots = effectiveSchedule.flatMap((period) => {
+      const start = timeMinutes(period.startsAt);
+      const end = timeMinutes(period.endsAt);
+      const output = [] as {
+        startsAt: string;
+        endsAt: string;
+        state: 'AVAILABLE' | 'UNAVAILABLE' | 'BLOCKED';
+        reason: string | null;
+      }[];
+      for (let minute = start; minute + blockedMinutes <= end; minute += interval) {
+        const startsAt = localAt(input.date, minute, context.timezone);
+        const endsAt = localAt(input.date, minute + blockedMinutes, context.timezone);
+        const block = unavailability.find((item) => {
+          const itemStart = item.repeatsWeekly
+            ? localAt(input.date, localMinutes(item.startsAt, context.timezone), context.timezone)
+            : item.startsAt;
+          const itemEnd = item.repeatsWeekly
+            ? new Date(itemStart.getTime() + (item.endsAt.getTime() - item.startsAt.getTime()))
+            : item.endsAt;
+          return itemStart < endsAt && itemEnd > startsAt;
+        });
+        const booked = appointments.some(
+          (appointment) => appointment.startsAt < endsAt && appointment.endsAt > startsAt,
+        );
+        output.push({
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt.toISOString(),
+          state:
+            block === undefined
+              ? booked
+                ? 'BLOCKED'
+                : 'AVAILABLE'
+              : block.type === 'BLOCK'
+                ? 'BLOCKED'
+                : 'UNAVAILABLE',
+          reason: block?.title ?? (booked ? 'Horário reservado' : null),
+        });
+      }
+      return output;
+    });
+    const availableSlots = slots.filter((s) => s.state === 'AVAILABLE').length;
+    const effectiveScheduleTimes = effectiveSchedule.map((s) => ({
+      start: s.startsAt,
+      end: s.endsAt,
+    }));
+    console.log('[AVAILABILITY_COMBO_DEBUG]', {
+      comboPublicId: input.comboPublicId,
+      professionalPublicId: input.professionalPublicId,
+      blockedMinutes,
+      durationMinutes: timing.durationMinutes,
+      postServiceBreakMinutes: timing.postServiceBreakMinutes,
+      scheduleFound: schedule.length,
+      effectiveScheduleFound: effectiveSchedule.length,
+      effectiveScheduleTimes,
+      appointmentsLoaded: appointments.length,
+      slotsGenerated: slots.length,
+      availableSlots,
+    });
+    return AvailabilityResponseSchema.parse({
+      date: input.date,
+      timezone: context.timezone,
+      intervalMinutes: interval,
+      blockedMinutes,
+      slots,
+    });
   }
 }

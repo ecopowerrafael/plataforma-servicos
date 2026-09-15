@@ -1,8 +1,11 @@
-import { type CommercialPlanPublicSchema } from '@plataforma/shared';
+import { AuthMeResponseSchema, type CommercialPlanPublicSchema } from '@plataforma/shared';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type z } from 'zod';
 
-import { billingCycleLabels, planLimitLabels } from './marketing-data.js';
+import { annualSavingsCents } from './pricing.js';
+import { httpClient } from '../lib/http.js';
 
 type CommercialPlan = z.infer<typeof CommercialPlanPublicSchema>;
 
@@ -18,12 +21,6 @@ export function formatPlanLimit(limit: CommercialPlan['limits'][number]) {
   if (limit.valueType === 'BOOLEAN')
     return limit.booleanValue === true ? 'Incluído' : 'Não incluído';
   if (limit.integerValue === null) return 'Ilimitado';
-  if (limit.key === 'storage.megabytes') {
-    const megabytes = Number(limit.integerValue);
-    return megabytes >= 1024
-      ? `${new Intl.NumberFormat('pt-BR').format(megabytes / 1024)} GB`
-      : `${new Intl.NumberFormat('pt-BR').format(megabytes)} MB`;
-  }
   return new Intl.NumberFormat('pt-BR').format(Number(limit.integerValue));
 }
 
@@ -45,6 +42,9 @@ export function PricingCards({
   plans: CommercialPlan[];
   compact?: boolean;
 }) {
+  const availableCycles = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const;
+  const [cycle, setCycle] = useState<(typeof availableCycles)[number]>('MONTHLY');
+  const session = useQuery({ queryKey: ['auth', 'me', 'marketing'], queryFn: () => httpClient.request('/auth/me', { schema: AuthMeResponseSchema }), retry: false });
   if (plans.length === 0)
     return (
       <div className="pricing-empty">
@@ -55,10 +55,17 @@ export function PricingCards({
     );
 
   return (
+    <>
+      <div className="pricing-toggle" role="group" aria-label="Periodicidade">{availableCycles.filter((candidate) => plans.some((plan) => plan.billingOptions.some((option) => option.active && option.billingCycle === candidate) || (plan.billingOptions.length === 0 && (candidate === 'MONTHLY' || candidate === 'ANNUAL')))).map((candidate) => <button className={cycle === candidate ? 'nav-active' : ''} key={candidate} onClick={() => { setCycle(candidate); }} type="button">{{ MONTHLY: 'Mensal', QUARTERLY: 'Trimestral', SEMIANNUAL: 'Semestral', ANNUAL: 'Anual' }[candidate]}</button>)}</div>
     <div className={compact ? 'pricing-grid pricing-grid--compact' : 'pricing-grid'}>
       {plans.slice(0, compact ? 3 : undefined).map((plan) => {
-        const enabledBenefits = plan.benefits
+        const option = plan.billingOptions.find((item) => item.active && item.billingCycle === cycle);
+        if (plan.billingOptions.length > 0 && option === undefined) return null;
+        // O card mostra apenas os itens comerciais cadastrados, na ordem
+        // definida pelo Super Admin. Nada é derivado de features/limites.
+        const enabledBenefits = [...plan.benefits]
           .filter((benefit) => benefit.enabled)
+          .sort((left, right) => left.sortOrder - right.sortOrder)
           .slice(0, compact ? 5 : undefined);
         return (
           <article
@@ -79,9 +86,12 @@ export function PricingCards({
               )}
             </div>
             <p className="pricing-price">
-              <strong>{formatMoney(plan)}</strong>
-              <span>{billingCycleLabels[plan.billingCycle]}</span>
+              <strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: plan.currency }).format(Number(option?.priceCents ?? (cycle === 'ANNUAL' ? plan.annualPriceCents : plan.monthlyPriceCents) ?? plan.priceCents) / 100)}</strong>
+              <span>{cycle === 'ANNUAL' ? 'por ano' : 'por mês'}</span>
             </p>
+            {cycle === 'ANNUAL' && annualSavingsCents(plan.monthlyPriceCents, plan.annualPriceCents) > 0 ? (
+              <p className="pricing-savings">Economize {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: plan.currency }).format(annualSavingsCents(plan.monthlyPriceCents, plan.annualPriceCents) / 100)} por ano</p>
+            ) : null}
             {plan.trialDays !== null && plan.trialDays > 0 ? (
               <span className="pricing-trial">{`${String(plan.trialDays)} dias grátis`}</span>
             ) : null}
@@ -92,20 +102,12 @@ export function PricingCards({
                 ))}
               </ul>
             ) : null}
-            <ul>
-              {plan.limits.slice(0, compact ? 4 : 6).map((limit) => (
-                <li key={limit.key}>
-                  <span>{planLimitLabels[limit.key]}</span>
-                  <strong>{formatPlanLimit(limit)}</strong>
-                </li>
-              ))}
-            </ul>
-            <Link className="marketing-button marketing-button--full" to="/login">
+            <Link className="marketing-button marketing-button--full" to={`${session.data === undefined ? '/cadastro' : '/app'}?plan=${encodeURIComponent(plan.publicId)}&billing=${encodeURIComponent(cycle)}`}>
               {plan.ctaText ?? 'Começar grátis'}
             </Link>
           </article>
         );
       })}
-    </div>
+    </div></>
   );
 }

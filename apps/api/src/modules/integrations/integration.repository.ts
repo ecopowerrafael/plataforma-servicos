@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { type WhatsAppProviderId } from './whatsapp-provider.js';
+import { resolveWhatsAppOwner, type WhatsAppOwnerResolution } from './whatsapp-owner.js';
 
 export class IntegrationRepository {
   public constructor(public readonly client: PrismaClient) {}
@@ -105,6 +106,25 @@ export class IntegrationRepository {
       orderBy: { id: 'asc' },
     });
   }
+
+  public async resolveWhatsAppOwner(provider: WhatsAppProviderId, externalInstanceId: string): Promise<WhatsAppOwnerResolution> {
+    const tenants = await this.client.tenantWhatsAppConfig.findMany({
+      where: { provider, phoneNumberId: externalInstanceId },
+      select: { tenantId: true, publicId: true },
+    });
+    const prospecting = provider === 'WAPI'
+      ? await this.client.prospectingWhatsAppConfig.findFirst({
+          where: { instanceId: externalInstanceId, isActive: true },
+          select: { publicId: true },
+        })
+      : null;
+    return resolveWhatsAppOwner({
+      provider,
+      externalInstanceId,
+      tenant: tenants.length > 1 ? { ownerType: 'TENANT' } : tenants.length === 1 && tenants[0] !== undefined ? { ownerType: 'TENANT', tenantId: tenants[0].tenantId.toString(), integrationId: tenants[0].publicId } : null,
+      prospecting: prospecting === null ? null : { ownerType: 'PROSPECTING', integrationId: prospecting.publicId },
+    });
+  }
   public metaWhatsappByWebhookPublicId(webhookPublicId: string) {
     return this.client.tenantWhatsAppConfig.findFirst({
       where: { provider: 'META', webhookPublicId },
@@ -112,6 +132,7 @@ export class IntegrationRepository {
   }
   public createInboundEvent(data: {
     tenantId: bigint;
+    provider?: string;
     instanceId: string;
     externalMessageId: string | null;
     phone: string | null;
@@ -124,9 +145,12 @@ export class IntegrationRepository {
     customerId: bigint | null;
     payload: Prisma.InputJsonValue;
   }) {
-    return this.client.whatsAppInboundEvent.create({ data: { publicId: randomUUID(), ...data } });
+    return this.client.whatsAppInboundEvent.create({ data: { publicId: randomUUID(), provider: data.provider ?? 'WAPI', ...data } });
   }
-  public inboundEventByFingerprint(tenantId: bigint, fingerprint: string) {
+  public inboundEventByFingerprint(tenantId: bigint, fingerprint: string, data?: { provider?: string; instanceId?: string; externalMessageId?: string | null; eventType?: string | null }) {
+    if (data?.provider !== undefined && data.instanceId !== undefined && data.externalMessageId !== undefined && data.eventType !== undefined) {
+      return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, provider: data.provider, instanceId: data.instanceId, externalMessageId: data.externalMessageId, eventType: data.eventType } });
+    }
     return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, fingerprint } });
   }
   public createOutboundMessage(data: {

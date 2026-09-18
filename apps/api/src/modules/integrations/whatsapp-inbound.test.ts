@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 
-import { eventFingerprint, maskPhone, normalizeWApiWebhook, sanitizePayload } from './whatsapp-inbound.js';
+import { eventFingerprint, maskPhone, normalizeWApiWebhook, resolveWApiRemoteIdentity, sanitizePayload } from './whatsapp-inbound.js';
 import { advanceStatus, statusFromEvent } from './whatsapp-message-status.js';
 
 /** Clique real capturado em produção na Etapa 1. */
@@ -91,6 +91,43 @@ void test('não trata um LID sem telefone real como destinatário', () => {
     msgContent: { conversation: 'oi' },
   });
   expect(event.phone).toBeNull();
+  expect(event.identityResult).toBe('LID_UNRESOLVED');
+  expect(event.senderIdKind).toBe('LID');
+});
+
+test.each([
+  ['sender.id', { sender: { id: '5511999999999@s.whatsapp.net' } }],
+  ['chat.id', { sender: { id: '258892474900582@lid' }, chat: { id: '5511888888888@c.us' } }],
+])('resolve telefone canônico em %s', (_name, fields) => {
+  const event = normalizeWApiWebhook({ event: 'webhookReceived', instanceId: 'I', ...fields, msgContent: { conversation: 'oi' } });
+  expect(event.phone).toMatch(/^5511/);
+  expect(event.identityResult).toBe('RESOLVED');
+});
+
+void test('connectedPhone e connectedLid nunca identificam o remetente', () => {
+  const event = normalizeWApiWebhook({
+    event: 'webhookReceived', instanceId: 'I', connectedPhone: '5511999999999', connectedLid: '123@lid',
+    sender: { id: '456@lid' }, msgContent: { conversation: 'oi' },
+  });
+  expect(event.phone).toBeNull();
+  expect(event.identityResult).toBe('LID_UNRESOLVED');
+});
+
+void test('LID pode ser resolvido por cache e por lookup oficial', async () => {
+  const event = normalizeWApiWebhook({ event: 'webhookReceived', instanceId: 'I', sender: { id: '456@lid' }, msgContent: { conversation: 'oi' } });
+  const cache = { findPhone: async () => '5511999999999', savePhone: async () => undefined };
+  expect((await resolveWApiRemoteIdentity(event, cache)).resolutionMethod).toBe('LID_CACHE');
+  const store = { findPhone: async () => null, savePhone: async () => undefined };
+  const lookup = { lookupPhone: async () => '5511888888888@s.whatsapp.net' };
+  const resolved = await resolveWApiRemoteIdentity(event, store, lookup);
+  expect(resolved.phone).toBe('5511888888888');
+  expect(resolved.resolutionMethod).toBe('WAPI_LOOKUP');
+});
+
+void test('fromMe não produz identidade de contato', () => {
+  const event = normalizeWApiWebhook({ event: 'webhookReceived', instanceId: 'I', fromMe: true, sender: { id: '5511999999999' }, msgContent: { conversation: 'oi' } });
+  expect(event.phone).toBeNull();
+  expect(event.identityResult).toBe('FROM_ME');
 });
 
 void test('entrega do provedor vira MESSAGE_SENT', () => {

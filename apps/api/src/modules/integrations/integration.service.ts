@@ -6,6 +6,7 @@ import { WhatsAppAssistantService } from './whatsapp-assistant.service.js';
 import {
   maskPhone,
   normalizeWApiWebhook,
+  resolveWApiRemoteIdentity,
   type NormalizedWhatsAppEvent,
 } from './whatsapp-inbound.js';
 import {
@@ -385,7 +386,8 @@ export class IntegrationService {
    * erroneamente para tenant quando instanceId pertence a Prospecting.
    */
   public async ingestWhatsappInbound(raw: unknown) {
-    const received = normalizeWApiWebhook(raw);
+    const normalized = normalizeWApiWebhook(raw);
+    const received = await resolveWApiRemoteIdentity(normalized, this.remoteIdentityStore());
 
     if (received.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
 
@@ -399,14 +401,51 @@ export class IntegrationService {
       return { accepted: true, ignored: true, reason: 'GROUP_MESSAGE' } as const;
     }
 
+    if (received.fromMe) {
+      console.log('[WebhookRoute]', {
+        routerCandidate: 'IGNORED',
+        normalizedEventType: received.eventType,
+        isGroup: false,
+        result: 'FROM_ME',
+      });
+      return { accepted: true, ignored: true, reason: 'FROM_ME' } as const;
+    }
+
     // Connectivity callbacks are not message events and must never enter
     // prospecting/tenant message processing or mutate message status.
     if (received.providerEvent === 'webhookConnected') {
       return { accepted: true, connectionEvent: true } as const;
     }
 
-    // ROTEAMENTO PROSPECTING: checar instância de Prospecting PRIMEIRO
+    // A propriedade é resolvida pela chave externa antes de tocar em leads,
+    // contatos ou conversas. Repositórios antigos de teste não têm o método;
+    // nesses casos preservamos o comportamento de compatibilidade do fixture.
     if (this.prospectingInbound) {
+      const owner = this.repository.resolveWhatsAppOwner === undefined
+        ? null
+        : await this.repository.resolveWhatsAppOwner('WAPI', received.instanceId);
+      if (owner?.ownerType === 'CONFLICT') {
+        console.log('[WebhookRoute]', { routerCandidate: 'CONFLICT', result: 'OWNER_CONFLICT', instanceId: received.instanceId });
+        return { accepted: false, reason: 'OWNER_CONFLICT', router: 'CONFLICT' } as const;
+      }
+      if (owner?.ownerType === 'TENANT') {
+        const config = await this.repository.whatsappByInstanceId(received.instanceId);
+        if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN', router: 'TENANT' } as const;
+        const result = await this.processTenantWhatsappInbound(config, received);
+        return { ...result, router: 'TENANT' } as const;
+      }
+      if (owner?.ownerType === 'NOT_FOUND') return { accepted: false, reason: 'INSTANCE_UNKNOWN', router: 'OWNER_NOT_FOUND' } as const;
+      if (owner?.ownerType === 'PROSPECTING') {
+        const prospectingConfig = await this.prospectingInbound.getConfig?.();
+        if (received.phone === null && received.remoteLid !== null) return { accepted: true, ignored: true, reason: 'LID_UNRESOLVED', router: 'PROSPECTING' } as const;
+        if (received.phone !== null || received.referencedMessageId !== null) {
+          const result = await this.prospectingInbound.processInbound({ instanceId: received.instanceId, externalMessageId: received.externalMessageId, fromPhone: received.phone, senderName: received.senderName, body: received.text ?? received.selectedDisplayText ?? undefined, messageType: received.messageType, fromMe: received.fromMe, timestamp: received.timestamp ?? undefined, eventType: received.eventType ?? null, referencedMessageId: received.referencedMessageId, selectedIndex: received.selectedIndex, isGroup: received.isGroup });
+          return { accepted: true, prospectingHandled: result.handled, router: 'PROSPECTING', ...result } as const;
+        }
+        return { accepted: true, prospectingHandled: false, router: 'PROSPECTING', prospectingConfig: prospectingConfig !== null } as const;
+      }
+
+      // Compatibilidade temporária para doubles antigos sem resolução de owner.
       // Verificar se instância pertence à Prospecção
       const prosConfig = await this.prospectingInbound.getConfig?.();
       const isProspectingInstance = prosConfig && prosConfig.instanceId === received.instanceId;
@@ -416,7 +455,20 @@ export class IntegrationService {
         normalizedEventType: received.eventType,
         hasReferencedMessageId: received.referencedMessageId !== null,
         hasValidPhone: received.phone !== null,
+        identityResult: received.identityResult,
       });
+      if (isProspectingInstance && received.phone === null && received.remoteLid !== null) {
+        console.log('[WApiRemoteIdentity]', {
+          isGroup: false,
+          senderIdKind: received.senderIdKind,
+          chatIdKind: received.chatIdKind,
+          hasSenderLid: received.hasSenderLid,
+          resolutionMethod: received.resolutionMethod,
+          hasValidPhone: false,
+          result: 'LID_UNRESOLVED',
+        });
+        return { accepted: true, ignored: true, reason: 'LID_UNRESOLVED', router: 'PROSPECTING' } as const;
+      }
       if (isProspectingInstance && (received.phone !== null || received.referencedMessageId !== null)) {
         const prospectingResult = await this.prospectingInbound.processInbound({
           instanceId: received.instanceId || null,
@@ -479,6 +531,28 @@ export class IntegrationService {
     if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING', router: 'TENANT' } as const;
     const result = await this.processTenantWhatsappInbound(config, event);
     return { ...result, router: 'TENANT' } as const;
+  }
+
+  private remoteIdentityStore() {
+    const client = this.repository.client as any;
+    const mapping = client?.wApiRemoteIdentityMapping;
+    if (!mapping) return undefined;
+    return {
+      findPhone: async (instanceId: string, remoteLid: string) => {
+        const row = await mapping.findUnique({
+          where: { instanceId_remoteLid: { instanceId, remoteLid } },
+          select: { normalizedPhone: true },
+        });
+        return typeof row?.normalizedPhone === 'string' ? row.normalizedPhone : null;
+      },
+      savePhone: async (instanceId: string, remoteLid: string, normalizedPhone: string) => {
+        await mapping.upsert({
+          where: { instanceId_remoteLid: { instanceId, remoteLid } },
+          create: { instanceId, remoteLid, normalizedPhone },
+          update: { normalizedPhone },
+        });
+      },
+    };
   }
 
   public async ingestWhatsappInboundForProvider(provider: WhatsAppProviderId, raw: unknown) {
@@ -582,7 +656,12 @@ export class IntegrationService {
     if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
     if (event.phone === null) return { accepted: false, reason: 'PHONE_MISSING' } as const;
     const tenantId = config.tenantId;
-    const existing = await this.repository.inboundEventByFingerprint(tenantId, event.fingerprint);
+    const existing = await this.repository.inboundEventByFingerprint(tenantId, event.fingerprint, {
+      provider: event.provider,
+      instanceId: event.instanceId,
+      externalMessageId: event.externalMessageId,
+      eventType: event.eventType,
+    });
     if (existing !== null) return { accepted: true, duplicated: true } as const;
 
     const resolvedAction = await this.resolveActionId(tenantId, event);
@@ -593,6 +672,7 @@ export class IntegrationService {
     try {
       await this.repository.createInboundEvent({
         tenantId,
+        provider: event.provider,
         instanceId: event.instanceId,
         externalMessageId: event.externalMessageId,
         phone: event.phone,

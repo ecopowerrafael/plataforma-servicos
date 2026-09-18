@@ -180,6 +180,13 @@ export class WhatsAppProvisioningService implements WhatsAppProvisioningProvider
         instanceName: `agendei-${tenant?.slug ?? tenantId.toString()}`,
         webhookUrl: this.wapiWebhookUrl(),
       });
+      const prospecting = await this.client.prospectingWhatsAppConfig?.findFirst({
+        where: { instanceId: instance.instanceId, isActive: true },
+        select: { id: true },
+      }) ?? null;
+      if (prospecting !== null) {
+        throw new AppError({ code: 'WHATSAPP_INSTANCE_ALREADY_LINKED', message: 'Esta instância WhatsApp já está vinculada a outro contexto da plataforma.', statusCode: 409 });
+      }
       return this.client.tenantWhatsAppConfig.create({
         data: {
           publicId: randomUUID(),

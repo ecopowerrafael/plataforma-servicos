@@ -120,11 +120,12 @@ describe('WhatsApp provider persistence hardening', () => {
       findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValue(created),
       create: vi.fn().mockResolvedValue(created),
     };
-    const provider = { createInstance: vi.fn().mockResolvedValue({ instanceId: 'WAPI-ABC', instanceName: 'agendei-7', token: 'TOKEN-WAPI' }) };
+    const provider = { createInstance: vi.fn().mockResolvedValue({ instanceId: 'WAPI-ABC', instanceName: 'agendei-7', token: 'TOKEN-WAPI' }), configureWebhooks: vi.fn().mockResolvedValue(undefined) };
     const client = {
       tenantWhatsAppConfig,
       tenant: { findUnique: vi.fn().mockResolvedValue({ slug: 'tenant-7' }) },
-      tenantSubscription: { findFirst: vi.fn().mockResolvedValue({ plan: { limits: [{ key: 'whatsapp.enabled', booleanValue: true }] } }) },
+      tenantCommercialPolicy: { findUnique: vi.fn().mockResolvedValue({ singleton: true, autoSuspendAfterGrace: true, allowAdminLoginWhileBlocked: false, allowCalendarReadWhileBlocked: false, allowAdminChangesWhileBlocked: false, allowInternalBookingWhileBlocked: false, allowPublicBookingWhileBlocked: false, publicSiteBehaviorWhileBlocked: 'NORMAL', adminMessage: '', publicMessage: '' }) },
+      tenantSubscription: { findFirst: vi.fn().mockResolvedValue({ status: 'ACTIVE', trialEndsAt: null, currentPeriodEndsAt: new Date('2099-01-01'), graceEndsAt: null, plan: { limits: [{ key: 'whatsapp.enabled', booleanValue: true }] } }) },
       $queryRaw: vi.fn().mockResolvedValue([{ acquired: 1 }]),
     };
     const cipher = { encrypt: vi.fn(() => 'TOKEN-WAPI'), decrypt: vi.fn(() => ({ token: 'TOKEN-WAPI' })) };

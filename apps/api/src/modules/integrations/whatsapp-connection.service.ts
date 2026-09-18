@@ -156,6 +156,15 @@ export class WhatsAppConnectionService {
         statusCode: 400,
       });
     }
+    if (phoneNumberId !== undefined && typeof this.client.tenantWhatsAppConfig.findFirst === 'function') {
+      const duplicate = await this.client.tenantWhatsAppConfig.findFirst({
+        where: { provider: 'META', phoneNumberId, NOT: { tenantId } },
+        select: { id: true, tenantId: true },
+      });
+      if (duplicate !== null && duplicate.tenantId !== tenantId) {
+        throw new AppError({ code: 'WHATSAPP_INSTANCE_ALREADY_LINKED', message: 'Esta instância WhatsApp já está vinculada a outro contexto da plataforma.', statusCode: 409 });
+      }
+    }
 
     const webhookPublicId = existingMeta?.webhookPublicId ?? randomUUID();
     const verifyToken = existingMeta?.encryptedVerifyToken === null || existingMeta === null

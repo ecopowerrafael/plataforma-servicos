@@ -85,15 +85,40 @@ function whatsappPhone(value: unknown): string | null {
   return digits.length >= 10 && digits.length <= 15 ? digits : null;
 }
 
-function senderPhone(root: Record<string, unknown>, sender: Record<string, unknown>): string | null {
-  const senderLid =
-    typeof sender.senderLid === 'string' ? sender.senderLid.replace(/\D/gu, '') : null;
-  const candidates = [sender.phoneNumber, sender.phone, sender.number, root.phone, sender.id];
-  for (const candidate of candidates) {
-    const phone = whatsappPhone(candidate);
-    if (phone !== null && phone !== senderLid) return phone;
-  }
-  return null;
+type RemoteIdKind = 'PHONE' | 'LID' | 'GROUP' | 'UNKNOWN';
+
+function remoteIdKind(value: unknown): RemoteIdKind {
+  if (typeof value !== 'string' || value.trim() === '') return 'UNKNOWN';
+  const normalized = value.trim().toLowerCase();
+  if (normalized.endsWith('@g.us')) return 'GROUP';
+  if (normalized.endsWith('@lid')) return 'LID';
+  return whatsappPhone(value) === null ? 'UNKNOWN' : 'PHONE';
+}
+
+function remoteLid(value: unknown): string | null {
+  return remoteIdKind(value) === 'LID' && typeof value === 'string' ? value.trim() : null;
+}
+
+function senderPhone(
+  sender: Record<string, unknown>,
+  chat: Record<string, unknown>,
+): { phone: string | null; senderIdKind: RemoteIdKind; chatIdKind: RemoteIdKind; senderLid: string | null } {
+  const senderId = sender.id;
+  const chatId = chat.id;
+  const senderIdKind = remoteIdKind(senderId);
+  const chatIdKind = remoteIdKind(chatId);
+  const senderLid = remoteLid(senderId) ?? remoteLid(sender.senderLid);
+  // A contact phone comes only from the remote sender/chat identity. Device
+  // fields (connectedPhone/connectedLid) identify our own account, never the
+  // person who sent the message.
+  const phone = whatsappPhone(senderId)
+    ?? whatsappPhone(chatId)
+    // Legacy sender fields are allowed only after the canonical JIDs. In
+    // particular, connectedPhone/connectedLid are intentionally absent.
+    ?? whatsappPhone(sender.phoneNumber)
+    ?? whatsappPhone(sender.phone)
+    ?? whatsappPhone(sender.number);
+  return { phone, senderIdKind, chatIdKind, senderLid };
 }
 
 function isGroupConversation(root: Record<string, unknown>): boolean {
@@ -101,7 +126,8 @@ function isGroupConversation(root: Record<string, unknown>): boolean {
   const key = record(root.key);
   const explicit = [root.isGroup, chat.isGroup];
   if (explicit.some((value) => value === true || value === 1 || value === 'true')) return true;
-  const jids = [chat.id, root.remoteJid, key.remoteJid, root.chatId, root.from];
+  const sender = record(root.sender);
+  const jids = [chat.id, sender.id, sender.senderLid, root.remoteJid, key.remoteJid, root.chatId, root.from];
   return jids.some((value) => typeof value === 'string' && value.trim().toLowerCase().endsWith('@g.us'));
 }
 
@@ -144,6 +170,13 @@ export interface NormalizedWhatsAppEvent {
   instanceId: string | null;
   externalMessageId: string | null;
   phone: string | null;
+  remoteLid: string | null;
+  senderIdKind: RemoteIdKind;
+  chatIdKind: RemoteIdKind;
+  hasSenderLid: boolean;
+  /** Resolução posterior ao normalizador: cache/API oficial ou NONE. */
+  resolutionMethod: 'SENDER_ID' | 'CHAT_ID' | 'LID_CACHE' | 'WAPI_LOOKUP' | 'NONE';
+  identityResult: 'RESOLVED' | 'LID_UNRESOLVED' | 'GROUP_IGNORED' | 'FROM_ME';
   senderName: string | null;
   messageType: string | null;
   /** Texto da mensagem, quando é uma mensagem de texto. */
@@ -161,6 +194,40 @@ export interface NormalizedWhatsAppEvent {
   isGroup: boolean;
   fingerprint: string;
   payload: unknown;
+}
+
+export interface WApiRemoteIdentityStore {
+  findPhone(instanceId: string, remoteLid: string): Promise<string | null>;
+  savePhone(instanceId: string, remoteLid: string, phone: string): Promise<void>;
+}
+
+export interface WApiRemoteIdentityLookup {
+  lookupPhone(instanceId: string, remoteLid: string): Promise<string | null>;
+}
+
+/** Resolve a LID without ever falling back to the connected device number. */
+export async function resolveWApiRemoteIdentity(
+  event: NormalizedWhatsAppEvent,
+  store?: WApiRemoteIdentityStore,
+  lookup?: WApiRemoteIdentityLookup,
+): Promise<NormalizedWhatsAppEvent> {
+  if (event.isGroup || event.fromMe || event.phone !== null || event.remoteLid === null || event.instanceId === null)
+    return event;
+
+  const cached = await store?.findPhone(event.instanceId, event.remoteLid);
+  const lookedUp = cached ?? await lookup?.lookupPhone(event.instanceId, event.remoteLid) ?? null;
+  if (lookedUp === null) {
+    return { ...event, resolutionMethod: 'NONE', identityResult: 'LID_UNRESOLVED' };
+  }
+  const phone = whatsappPhone(lookedUp);
+  if (phone === null) return { ...event, resolutionMethod: 'NONE', identityResult: 'LID_UNRESOLVED' };
+  if (cached === null || cached === undefined) await store?.savePhone(event.instanceId, event.remoteLid, phone);
+  return {
+    ...event,
+    phone,
+    resolutionMethod: cached !== null && cached !== undefined ? 'LID_CACHE' : 'WAPI_LOOKUP',
+    identityResult: 'RESOLVED',
+  };
 }
 
 /**
@@ -184,12 +251,35 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
   const imageMessage = record(content.imageMessage);
   const videoMessage = record(content.videoMessage);
   const sender = record(root.sender);
+  const chat = record(root.chat);
   const reply = record(content.templateButtonReplyMessage);
   const replyContext = record(reply.contextInfo);
   const providerEvent = text(root.event, 80);
   const statusValue = text(root.status, 40);
   const isAction = Object.keys(reply).length > 0;
   const isGroup = isGroupConversation(root);
+  const identity = senderPhone(sender, chat);
+  const fromMe = root.fromMe === true;
+  const resolutionMethod = identity.phone === null ? 'NONE' : identity.senderIdKind === 'PHONE' ? 'SENDER_ID' : 'CHAT_ID';
+  const identityResult = isGroup
+    ? 'GROUP_IGNORED'
+    : fromMe
+      ? 'FROM_ME'
+      : identity.phone !== null
+        ? 'RESOLVED'
+        : identity.senderLid !== null
+          ? 'LID_UNRESOLVED'
+          : 'RESOLVED';
+
+  console.log('[WApiRemoteIdentity]', {
+    isGroup,
+    senderIdKind: identity.senderIdKind,
+    chatIdKind: identity.chatIdKind,
+    hasSenderLid: identity.senderLid !== null,
+    resolutionMethod,
+    hasValidPhone: !isGroup && !fromMe && identity.phone !== null,
+    result: identityResult,
+  });
 
   if (providerEvent === 'webhookReceived') {
     console.log('[WApiWebhookStructure]', structuralKeys(payload));
@@ -215,7 +305,13 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
     providerEvent,
     instanceId: text(root.instanceId, 80),
     externalMessageId,
-    phone: isGroup ? null : senderPhone(root, sender),
+    phone: isGroup || fromMe ? null : identity.phone,
+    remoteLid: identity.senderLid,
+    senderIdKind: identity.senderIdKind,
+    chatIdKind: identity.chatIdKind,
+    hasSenderLid: identity.senderLid !== null,
+    resolutionMethod,
+    identityResult,
     senderName: text(sender.pushName, 180),
     messageType: isAction ? 'BUTTON_REPLY' : text(root.type, 80),
     text: text(
@@ -229,7 +325,7 @@ export function normalizeWApiWebhook(raw: unknown): NormalizedWhatsAppEvent {
     selectedIndex: typeof index === 'number' && Number.isInteger(index) ? index : null,
     selectedDisplayText: text(reply.selectedDisplayText, 191),
     timestamp: typeof moment === 'number' && moment > 0 ? new Date(moment * 1_000) : null,
-    fromMe: root.fromMe === true,
+    fromMe,
     isGroup,
     fingerprint: eventFingerprint({
       eventType,

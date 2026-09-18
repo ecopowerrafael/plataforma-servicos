@@ -32,6 +32,7 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
   };
   const tenantWhatsAppConfig = {
     findUnique: vi.fn().mockResolvedValue(null),
+    findFirst: vi.fn().mockResolvedValue(null),
     upsert: vi.fn().mockImplementation(({ create, update }: { create: Record<string, unknown>; update: Record<string, unknown> }) =>
       Promise.resolve({ ...create, ...update, connectedPhone: null, connectedName: null, connectedAt: null, lastStatusCheckAt: null }),
     ),
@@ -182,7 +183,8 @@ describe('WhatsAppConnectionService', () => {
 
   it('preserves existing Meta secrets when update leaves secret fields empty', async () => {
     const { service, tenantWhatsAppConfig } = subject();
-    tenantWhatsAppConfig.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce({
+    tenantWhatsAppConfig.findUnique.mockImplementation(({ where }: { where: Record<string, unknown> }) => {
+      if ('tenantId_provider' in where && (where.tenantId_provider as { provider?: string }).provider === 'META') return Promise.resolve({
       provider: 'META',
       active: false,
       connectionStatus: 'CREATED',
@@ -190,6 +192,8 @@ describe('WhatsAppConnectionService', () => {
       encryptedAppSecret: 'enc:{"appSecret":"old-secret"}',
       encryptedVerifyToken: 'enc:{"verifyToken":"verify-old"}',
       webhookPublicId: 'hook-old',
+      });
+      return Promise.resolve(null);
     });
 
     await service.selectProvider(7n, {
@@ -207,6 +211,13 @@ describe('WhatsAppConnectionService', () => {
         }),
       }),
     );
+  });
+
+  it('rejects a Meta phone number already owned by another tenant', async () => {
+    const { service, tenantWhatsAppConfig } = subject();
+    tenantWhatsAppConfig.findUnique.mockResolvedValue(null);
+    tenantWhatsAppConfig.findFirst.mockResolvedValue({ id: 9n, tenantId: 99n });
+    await expect(service.selectProvider(7n, { provider: 'META', phoneNumberId: 'PHONE-9', businessAccountId: 'WABA', accessToken: 'access-token-long', appSecret: 'secret' })).rejects.toMatchObject({ code: 'WHATSAPP_INSTANCE_ALREADY_LINKED', statusCode: 409 });
   });
 
   it('blocks provider switch while another provider is actively connected', async () => {

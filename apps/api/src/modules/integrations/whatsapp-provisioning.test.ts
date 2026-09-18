@@ -52,12 +52,13 @@ function client(overrides: Record<string, unknown> = {}) {
   };
   const base = {
     tenantWhatsAppConfig: whatsapp,
+    tenantCommercialPolicy: { findUnique: vi.fn().mockResolvedValue({ singleton: true, autoSuspendAfterGrace: true, allowAdminLoginWhileBlocked: false, allowCalendarReadWhileBlocked: false, allowAdminChangesWhileBlocked: false, allowInternalBookingWhileBlocked: false, allowPublicBookingWhileBlocked: false, publicSiteBehaviorWhileBlocked: 'NORMAL', adminMessage: '', publicMessage: '' }) },
     tenant: { findUnique: vi.fn().mockResolvedValue({ slug: 'studio', displayName: 'Studio' }) },
     // Plano com whatsapp.enabled ligado; os testes de bloqueio sobrescrevem.
     tenantSubscription: {
       findFirst: vi
         .fn()
-        .mockResolvedValue({ plan: { limits: [{ key: 'whatsapp.enabled', booleanValue: true }] } }),
+        .mockResolvedValue({ status: 'ACTIVE', trialEndsAt: null, currentPeriodEndsAt: new Date('2099-01-01'), graceEndsAt: null, plan: { limits: [{ key: 'whatsapp.enabled', booleanValue: true }] } }),
     },
     $queryRaw: vi.fn().mockResolvedValue([{ acquired: 1 }]),
     ...overrides,
@@ -252,6 +253,14 @@ describe('provisionamento — status e desconexão', () => {
   });
 });
 
+describe('proteção de propriedade da instância', () => {
+  it('recusa W-API já vinculada à prospecção com HTTP 409', async () => {
+    const { database } = client({ prospectingWhatsAppConfig: { findFirst: vi.fn().mockResolvedValue({ id: 9n }) } });
+    const { service } = provider({ '/v1/client/create-instance': CREATE_RESPONSE });
+    await expect(new WhatsAppProvisioningService(database, service, cipher).connect(1n)).rejects.toMatchObject({ code: 'WHATSAPP_INSTANCE_ALREADY_LINKED', statusCode: 409 });
+  });
+});
+
 describe('feature gate do plano', () => {
   it('tenant sem whatsapp.enabled não cria instância', async () => {
     const { database, whatsapp } = client({
@@ -260,7 +269,7 @@ describe('feature gate do plano', () => {
     const { fetcher, service } = provider({ '/v1/client/create-instance': CREATE_RESPONSE });
     await expect(
       new WhatsAppProvisioningService(database, service, cipher).connect(1n),
-    ).rejects.toMatchObject({ code: 'PLAN_FEATURE_UNAVAILABLE' });
+    ).rejects.toMatchObject({ code: 'TENANT_SUBSCRIPTION_REQUIRED' });
     expect(whatsapp.create).not.toHaveBeenCalled();
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -273,10 +282,10 @@ describe('feature gate do plano', () => {
     const { service } = provider({});
     const provisioning = new WhatsAppProvisioningService(database, service, cipher);
     await expect(provisioning.qrCode(1n)).rejects.toMatchObject({
-      code: 'PLAN_FEATURE_UNAVAILABLE',
+      code: 'TENANT_SUBSCRIPTION_REQUIRED',
     });
     await expect(provisioning.disconnect(1n)).rejects.toMatchObject({
-      code: 'PLAN_FEATURE_UNAVAILABLE',
+      code: 'TENANT_SUBSCRIPTION_REQUIRED',
     });
   });
 });

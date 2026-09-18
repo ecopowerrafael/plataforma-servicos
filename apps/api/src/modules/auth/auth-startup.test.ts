@@ -81,7 +81,9 @@ describe('ordem de startup do servidor', () => {
     const listenAt = serverSource.indexOf('await app.listen(');
     expect(listenAt).toBeGreaterThan(0);
     expect(serverSource.indexOf('void runPostStartTasks(')).toBeGreaterThan(listenAt);
-    expect(serverSource.indexOf('worker.stop = startWorker()')).toBeGreaterThan(listenAt);
+    expect(serverSource.indexOf('workers.notification = startNotificationWorkerInstance()')).toBeGreaterThan(
+      listenAt,
+    );
     // O provisionamento do admin não pode voltar para antes do listen.
     expect(serverSource.indexOf('ensureInitialAdministrator')).toBeGreaterThan(listenAt);
   });

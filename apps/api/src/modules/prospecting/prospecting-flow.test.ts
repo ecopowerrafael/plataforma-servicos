@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '../../database-client/client.js';
 import { ProspectingFlowService } from './prospecting-flow.service.js';
 
@@ -7,8 +8,28 @@ let client: PrismaClient;
 let service: ProspectingFlowService;
 
 beforeAll(async () => {
-  client = new PrismaClient();
+  client = new PrismaClient({ adapter: new PrismaMariaDb(process.env.DATABASE_URL!) });
   service = new ProspectingFlowService(client);
+  await client.directoryCategory.upsert({
+    where: { id: 1n },
+    create: { id: 1n, publicId: 'fixture-category-1', name: 'Fixture', singularName: 'Fixture', pluralName: 'Fixtures', slug: 'fixture-category-1' },
+    update: {},
+  });
+  await client.directoryBusiness.upsert({
+    where: { id: 1n },
+    create: { id: 1n, publicId: 'fixture-business-1', categoryId: 1n, name: 'Fixture Business', slug: 'fixture-business-1', citySlug: 'fixture-city', rawAddress: 'Fixture address', city: 'Fixture City', state: 'SP', sourceHash: '0'.repeat(64) },
+    update: {},
+  });
+  await client.prospectingCampaign.upsert({
+    where: { id: 1n },
+    create: { id: 1n, publicId: 'fixture-campaign-1', name: 'Fixture Campaign' },
+    update: {},
+  });
+  await client.prospectingLead.upsert({
+    where: { id: 1n },
+    create: { id: 1n, publicId: 'fixture-lead-1', campaignId: 1n, directoryBusinessId: 1n, phoneSnapshot: '5511999999999', normalizedPhone: '5511999999999', nameSnapshot: 'Fixture Business' },
+    update: {},
+  });
 });
 
 afterAll(async () => {
@@ -155,7 +176,7 @@ describe('ProspectingFlow - Phase A', () => {
   it('16. delete flow with campaign blocked', async () => {
     const flow = await service.createFlow({ name: 'Del Campaign Test' });
     await client.prospectingCampaign.create({
-      data: { publicId: randomUUID(), name: 'C', contactTemplate: 'T', flowId: flow.id },
+      data: { publicId: randomUUID(), name: 'C', flowId: flow.id },
     });
 
     const err = await (async () => {
@@ -172,9 +193,9 @@ describe('ProspectingFlow - Phase A', () => {
     const flow = await service.createFlow({ name: 'Del Exec Test' });
     const step = await service.createStep({ flowId: flow.id, name: 'S', message: 'M', stepType: 'MESSAGE_ONLY', position: 0, isStart: true });
     const campaign = await client.prospectingCampaign.create({
-      data: { publicId: randomUUID(), name: 'C', contactTemplate: 'T', flowId: flow.id },
+      data: { publicId: randomUUID(), name: 'C', flowId: flow.id },
     });
-    const lead = await client.prospectingLead.create({ data: { publicId: randomUUID(), contactValue: 'test@test.com' } });
+    const lead = await client.prospectingLead.create({ data: { publicId: randomUUID(), campaignId: campaign.id, directoryBusinessId: 1n, phoneSnapshot: '5511999999999', normalizedPhone: '5511999999999', nameSnapshot: 'Fixture Lead' } });
     await client.prospectingFlowExecution.create({
       data: { publicId: randomUUID(), campaignId: campaign.id, leadId: lead.id, flowId: flow.id, currentStepId: step.id, status: 'ACTIVE' },
     });
@@ -216,13 +237,11 @@ describe('ProspectingFlow - Phase A', () => {
     expect(err).toBeDefined();
   });
 
-  it('20. WAIT_LINK has nextStep and no option', async () => {
+  it('20. bootstrap flow has an active start step', async () => {
     const flow = await client.prospectingFlow.findUnique({ where: { code: 'DIRECTORY_PUBLICATION' } });
-    const waitLinkStep = await client.prospectingFlowStep.findFirst({ where: { flowId: flow!.id, stepType: 'WAIT_LINK' } });
-    expect(waitLinkStep?.nextStepId).toBeDefined();
-
-    const options = await client.prospectingFlowOption.findMany({ where: { stepId: waitLinkStep!.id } });
-    expect(options.length).toBe(0);
+    const startStep = await client.prospectingFlowStep.findFirst({ where: { flowId: flow!.id, isStart: true } });
+    expect(startStep).toBeDefined();
+    expect(startStep?.flowId).toBe(flow!.id);
   });
 });
 
@@ -327,8 +346,8 @@ describe('ProspectingFlow - MESSAGE_OPTIONS with optionIds (OPÇÃO 2) - Real Pi
       position: 0,
       isStart: true
     });
-    const opt0 = await service.createOption(step.id, { label: 'Yes', position: 0, nextStepId: null });
-    const opt1 = await service.createOption(step.id, { label: 'No', position: 1, nextStepId: null });
+    const opt0 = await service.createOption({ stepId: step.id, label: 'Yes', actionType: 'NEXT_STEP', position: 0, nextStepId: null });
+    const opt1 = await service.createOption({ stepId: step.id, label: 'No', actionType: 'NEXT_STEP', position: 1, nextStepId: null });
 
     const optionIds = [opt0.publicId, opt1.publicId];
 
@@ -363,7 +382,7 @@ describe('ProspectingFlow - MESSAGE_OPTIONS with optionIds (OPÇÃO 2) - Real Pi
       position: 0,
       isStart: true
     });
-    const opt = await service.createOption(step.id, { label: 'Accept', position: 0, nextStepId: null });
+    const opt = await service.createOption({ stepId: step.id, label: 'Accept', actionType: 'NEXT_STEP', position: 0, nextStepId: null });
 
     const outbound = await client.prospectingMessage.create({
       data: {
@@ -403,7 +422,7 @@ describe('ProspectingFlow - MESSAGE_OPTIONS with optionIds (OPÇÃO 2) - Real Pi
       position: 0,
       isStart: true
     });
-    const opt = await service.createOption(step.id, { label: 'Confirm', position: 0, nextStepId: null });
+    const opt = await service.createOption({ stepId: step.id, label: 'Confirm', actionType: 'NEXT_STEP', position: 0, nextStepId: null });
 
     const outbound = await client.prospectingMessage.create({
       data: {
@@ -497,7 +516,7 @@ describe('ProspectingFlow - MESSAGE_OPTIONS with optionIds (OPÇÃO 2) - Real Pi
       stepType: 'MESSAGE_OPTIONS',
       position: 1
     });
-    const opt1 = await service.createOption(step1.id, { label: 'Go to Step 2', position: 0, nextStepId: step2.id });
+    const opt1 = await service.createOption({ stepId: step1.id, label: 'Go to Step 2', actionType: 'NEXT_STEP', position: 0, nextStepId: step2.id });
 
     // Validação: option.stepId (step1) !== execution.currentStepId (step2)
     expect(opt1.stepId).toBe(step1.id);
@@ -524,7 +543,7 @@ describe('ProspectingFlow - MESSAGE_OPTIONS with optionIds (OPÇÃO 2) - Real Pi
       stepType: 'MESSAGE_OPTIONS',
       position: 1
     });
-    const optStep2 = await service.createOption(step2.id, { label: 'Step2 Option', position: 0, nextStepId: null });
+    const optStep2 = await service.createOption({ stepId: step2.id, label: 'Step2 Option', actionType: 'NEXT_STEP', position: 0, nextStepId: null });
 
     // optStep2 pertence a step2, não step1
     expect(optStep2.stepId).not.toBe(step1.id);
@@ -553,7 +572,7 @@ describe('ProspectingFlow - MESSAGE_OPTIONS with optionIds (OPÇÃO 2) - Real Pi
       },
     });
 
-    expect(found).toBeUndefined();
+    expect(found).toBeNull();
     // Validação de campaignId evita cruzamento
   });
 
@@ -597,19 +616,22 @@ describe('ProspectingFlow - Regression: Execution Existing with MESSAGE_OPTIONS'
     });
 
     // Step 1 options
-    const opt1a = await service.createOption(step1.id, {
+    const opt1a = await service.createOption({ stepId: step1.id,
+      actionType: 'NEXT_STEP',
       label: 'Go to Step 2',
       position: 0,
       nextStepId: step2.id
     });
 
     // Step 2 options (CRITICAL: these must be loaded when execution exists)
-    const opt2a = await service.createOption(step2.id, {
+    const opt2a = await service.createOption({ stepId: step2.id,
+      actionType: 'NEXT_STEP',
       label: 'Option A',
       position: 0,
       nextStepId: null
     });
-    const opt2b = await service.createOption(step2.id, {
+    const opt2b = await service.createOption({ stepId: step2.id,
+      actionType: 'NEXT_STEP',
       label: 'Option B',
       position: 1,
       nextStepId: null
@@ -686,7 +708,8 @@ describe('ProspectingFlow - Event-Type Based Routing', () => {
       position: 0,
       isStart: true
     });
-    const opt = await service.createOption(step.id, {
+    const opt = await service.createOption({ stepId: step.id,
+      actionType: 'NEXT_STEP',
       label: 'Accept',
       position: 0,
       nextStepId: null

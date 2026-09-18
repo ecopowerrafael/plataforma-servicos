@@ -195,9 +195,20 @@ export class ProspectingInboundService {
         }) ?? await this.client.prospectingConversation.create({
           data: { publicId: randomUUID(), contactId: contact.id, instanceId: payload.instanceId!, status: 'ACTIVE', flowId: startStep ? BigInt(config.attendantFlowId!) : null, currentStepId: startStep?.id ?? null, context: { owner: 'PROSPECTING_ATTENDANT' } },
         });
-        const inbound = await this.client.prospectingMessage.create({
-          data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null },
-        });
+        let inbound;
+        try {
+          inbound = await this.client.prospectingMessage.create({
+            data: { publicId: randomUUID(), campaignId: null, leadId: null, conversationId: conversation.id, direction: 'INBOUND', status: 'RECEIVED', body: payload.body as string, externalMessageId: payload.externalMessageId ?? null, idempotencyKey: payload.externalMessageId ? `${payload.instanceId}:${payload.externalMessageId}` : null },
+          });
+        } catch (error) {
+          // A unique idempotency key closes the race between duplicate W-API
+          // callbacks arriving at the same time.
+          if (payload.externalMessageId) {
+            console.log('[ProspectingInboundTrace]', { ...trace, result: 'DUPLICATE_MESSAGE' });
+            return { handled: true, reason: 'DUPLICATE_MESSAGE' };
+          }
+          throw error;
+        }
         // Takeover manual é uma barreira explícita: registrar a mensagem para
         // a equipe, mas nunca criar outra conversa nem responder pelo bot.
         if (conversation.status === 'MANUAL') {
@@ -355,6 +366,7 @@ export class ProspectingInboundService {
           status: 'RECEIVED',
           body: (payload.body as string) || '',
           externalMessageId: payload.externalMessageId || null,
+          idempotencyKey: payload.externalMessageId ? `${payload.instanceId}:${payload.externalMessageId}` : null,
         },
       });
 
@@ -362,6 +374,10 @@ export class ProspectingInboundService {
         messagePublicId: message.publicId,
       });
     } catch (error: any) {
+      if (payload.externalMessageId && error?.code === 'P2002') {
+        console.log('[ProspectingInboundTrace]', { ...trace, result: 'DUPLICATE_MESSAGE' });
+        return { handled: true, reason: 'DUPLICATE_MESSAGE' };
+      }
       console.error('[STAGE] INBOUND_MESSAGE_CREATE_FAILED');
       console.error('[STAGE_ERROR]', {
         errorName: String(error?.name ?? ''),

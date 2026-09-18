@@ -10,6 +10,8 @@ const url = process.env.DATABASE_URL;
 
 describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
   const client = createPrismaClient(url ?? 'mysql://invalid');
+  const internalCampaignId = async (publicId: string) =>
+    (await client.prospectingCampaign.findUniqueOrThrow({ where: { publicId }, select: { id: true } })).id;
   const suffix = randomUUID().slice(0, 8);
   let tenantId: bigint;
   let categoryId: bigint;
@@ -47,11 +49,15 @@ describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
         data: {
           publicId: randomUUID(),
           name: 'Business 1',
+          slug: `business-1-${randomUUID()}`,
           categoryId,
           active: true,
           whatsapp: '5511987654321',
           state: 'SP',
           city: 'São Paulo',
+          citySlug: 'sao-paulo',
+          rawAddress: 'Rua de teste, 100',
+          sourceHash: randomUUID(),
         },
       })
     ).id;
@@ -61,11 +67,15 @@ describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
         data: {
           publicId: randomUUID(),
           name: 'Business 2',
+          slug: `business-2-${randomUUID()}`,
           categoryId,
           active: true,
           whatsapp: '5511998765432',
           state: 'SP',
           city: 'São Paulo',
+          citySlug: 'sao-paulo',
+          rawAddress: 'Rua de teste, 101',
+          sourceHash: randomUUID(),
         },
       })
     ).id;
@@ -106,11 +116,15 @@ describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
       data: {
         publicId: randomUUID(),
         name: 'Inactive Business',
+        slug: `inactive-${randomUUID()}`,
         categoryId,
         active: false,
         whatsapp: '5511999999999',
         state: 'SP',
         city: 'São Paulo',
+        citySlug: 'sao-paulo',
+        rawAddress: 'Rua de teste, 102',
+        sourceHash: randomUUID(),
       },
     });
 
@@ -119,20 +133,25 @@ describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
       data: {
         publicId: randomUUID(),
         name: 'No WhatsApp Business',
+        slug: `no-whatsapp-${randomUUID()}`,
         categoryId,
         active: true,
         state: 'SP',
         city: 'São Paulo',
+        citySlug: 'sao-paulo',
+        rawAddress: 'Rua de teste, 103',
+        sourceHash: randomUUID(),
       },
     });
 
     const campaign = await service.createCampaign({ name: 'Filter Test' });
-    const count = await service.materializeLeads(campaign.id);
+    const campaignId = await internalCampaignId(campaign.publicId);
+    const count = await service.materializeLeads(campaignId);
 
     // Esperado: apenas os 2 negócios ativos com WhatsApp
     expect(count).toBe(2);
 
-    const leads = await service.getLeads(campaign.id);
+    const leads = await service.getLeads(campaignId);
     expect(leads).toHaveLength(2);
     expect(leads.map((l) => l.phoneSnapshot).sort()).toEqual(['5511987654321', '5511998765432']);
   });
@@ -143,14 +162,15 @@ describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
     const campaign = await service.createCampaign({ name: 'Duplicate Test' });
 
     // Primeira materialização
-    const count1 = await service.materializeLeads(campaign.id);
+    const campaignId = await internalCampaignId(campaign.publicId);
+    const count1 = await service.materializeLeads(campaignId);
     expect(count1).toBe(2);
 
     // Segunda materialização (deve retornar 0, pois leads já existem)
-    const count2 = await service.materializeLeads(campaign.id);
+    const count2 = await service.materializeLeads(campaignId);
     expect(count2).toBe(0);
 
-    const leads = await service.getLeads(campaign.id);
+    const leads = await service.getLeads(campaignId);
     expect(leads).toHaveLength(2);
   });
 
@@ -162,23 +182,27 @@ describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
       data: {
         publicId: randomUUID(),
         name: 'Business RJ',
+        slug: `business-rj-${randomUUID()}`,
         categoryId,
         active: true,
         whatsapp: '5521987654321',
         state: 'RJ',
         city: 'Rio de Janeiro',
+        citySlug: 'rio-de-janeiro',
+        rawAddress: 'Rua de teste, 104',
+        sourceHash: randomUUID(),
       },
     });
 
     const campaign = await service.createCampaign({ name: 'Filter by State' });
 
     // Materializar apenas SP
-    const countSP = await service.materializeLeads(campaign.id, undefined, 'SP');
+    const countSP = await service.materializeLeads(await internalCampaignId(campaign.publicId), undefined, 'SP');
     expect(countSP).toBe(2);
 
     // Tentar materializar RJ em nova campanha (duplicatas na mesma são bloqueadas)
     const campaign2 = await service.createCampaign({ name: 'Filter RJ' });
-    const countRJ = await service.materializeLeads(campaign2.id, undefined, 'RJ');
+    const countRJ = await service.materializeLeads(await internalCampaignId(campaign2.publicId), undefined, 'RJ');
     expect(countRJ).toBe(1);
   });
 
@@ -188,13 +212,14 @@ describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
     const campaign = await service.createCampaign({ name: 'Suppression Test' });
 
     // Suprimir um número
-    await service.addSuppression(campaign.id, '5511987654321', 'Test suppress');
+    const campaignId = await internalCampaignId(campaign.publicId);
+    await service.addSuppression(campaignId, '5511987654321', 'Test suppress');
 
     // Materializar leads (deve ignorar o número suprimido)
-    const count = await service.materializeLeads(campaign.id);
+    const count = await service.materializeLeads(campaignId);
     expect(count).toBe(1); // Apenas business2
 
-    const leads = await service.getLeads(campaign.id);
+    const leads = await service.getLeads(campaignId);
     expect(leads).toHaveLength(1);
     expect(leads[0]?.phoneSnapshot).toBe('5511998765432');
   });
@@ -266,26 +291,26 @@ describe.skipIf(url === undefined)('Prospecting Foundation (Phase 1)', () => {
       data: {
         publicId: randomUUID(),
         name: 'Formatted Phone',
+        slug: `formatted-${randomUUID()}`,
         categoryId,
         active: true,
         whatsapp: '+55 (11) 98765-4321',
         state: 'SP',
         city: 'São Paulo',
+        citySlug: 'sao-paulo',
+        rawAddress: 'Rua de teste, 105',
+        sourceHash: randomUUID(),
       },
     });
 
     const campaign = await service.createCampaign({ name: 'Phone Normalization' });
-    await service.materializeLeads(campaign.id);
-
+    const campaignId = await internalCampaignId(campaign.publicId);
     // Suprimir com telefone normalizado
-    await service.addSuppression(campaign.id, '+55 (11) 98765-4321', 'Formatted suppress');
-
-    // Criar campanha 2 e materializar (o número formatado deve ser bloqueado)
-    const campaign2 = await service.createCampaign({ name: 'Normalization Check' });
-    const count = await service.materializeLeads(campaign2.id);
+    await service.addSuppression(campaignId, '+55 (11) 98765-4321', 'Formatted suppress');
+    await service.materializeLeads(campaignId);
 
     // Verificar se foi bloqueado
-    const leads = await service.getLeads(campaign2.id);
+    const leads = await service.getLeads(campaignId);
     const hasFormattedBusiness = leads.some((l) => l.directoryBusinessId === businessFormatted.id);
     expect(hasFormattedBusiness).toBe(false);
   });

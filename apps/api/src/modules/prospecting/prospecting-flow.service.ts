@@ -81,6 +81,14 @@ export class ProspectingFlowService {
   }
 
   async deleteFlow(publicId: string): Promise<void> {
+    const flow = await this.client.prospectingFlow.findUnique({
+      where: { publicId },
+      select: { id: true, code: true },
+    });
+    if (!flow) throw new Error('Flow not found');
+    if (flow.code === 'DIRECTORY_PUBLICATION') throw new Error('Cannot delete the default flow');
+    const campaignCount = await this.client.prospectingCampaign.count({ where: { flowId: flow.id } });
+    if (campaignCount > 0) throw new Error('Cannot delete a flow with campaigns');
     await this.client.prospectingFlow.delete({
       where: { publicId },
     });
@@ -161,6 +169,12 @@ export class ProspectingFlowService {
   }
 
   async deleteStep(publicId: string): Promise<void> {
+    const step = await this.client.prospectingFlowStep.findUnique({
+      where: { publicId },
+      select: { id: true, isStart: true },
+    });
+    if (!step) throw new Error('Step not found');
+    if (step.isStart) throw new Error('Cannot delete the start step');
     await this.client.prospectingFlowStep.delete({
       where: { publicId },
     });

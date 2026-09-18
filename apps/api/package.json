@@ -33,7 +33,7 @@
     ,"db:status:legacy": "prisma migrate status"
     ,"db:status:v2": "prisma migrate status --config prisma-v2/prisma.config.ts"
     ,"db:migrate:v2": "prisma migrate deploy --config prisma-v2/prisma.config.ts"
-    ,"db:verify": "prisma validate && node ../../scripts/database/verify-schema.mjs"
+    ,"db:verify": "prisma validate && node ../../scripts/database/verify-schema-command.mjs"
     ,"db:backup:schema": "node ../../scripts/database/backup-schema.mjs"
   },
   "dependencies": {

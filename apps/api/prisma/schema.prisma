@@ -1037,6 +1037,7 @@ model TenantWhatsAppConfig {
   metaTemplates        TenantWhatsAppMetaTemplate[]
 
   @@unique([tenantId, provider], map: "tenant_whatsapp_configs_tenant_provider_key")
+  @@unique([provider, phoneNumberId], map: "tenant_whatsapp_configs_provider_external_id_key")
   @@index([provider])
   @@map("tenant_whatsapp_configs")
 }
@@ -1086,6 +1087,7 @@ model WhatsAppInboundEvent {
   id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
   publicId          String   @unique @map("public_id") @db.Char(36)
   tenantId          BigInt   @map("tenant_id") @db.UnsignedBigInt
+  provider          String   @default("WAPI") @db.VarChar(32)
   instanceId        String   @map("instance_id") @db.VarChar(80)
   externalMessageId String?  @map("external_message_id") @db.VarChar(191)
   phone             String?  @db.VarChar(32)
@@ -1106,6 +1108,7 @@ model WhatsAppInboundEvent {
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([tenantId, fingerprint], map: "whatsapp_inbound_events_fingerprint_key")
+  @@unique([tenantId, provider, instanceId, externalMessageId, eventType], map: "whatsapp_inbound_events_provider_event_key")
   @@index([tenantId, receivedAt])
   @@map("whatsapp_inbound_events")
 }
@@ -3987,6 +3990,7 @@ model ProspectingMessage {
   @@index([objectionId, classifiedAt])
   @@index([purpose, status, nextAttemptAt])
   @@index([conversationId, createdAt])
+  @@unique([idempotencyKey], map: "uq_prospecting_message_idempotency_key")
   @@map("prospecting_messages")
 }
 
@@ -4134,6 +4138,21 @@ model ProspectingWhatsAppConfig {
 
   @@unique([instanceId])
   @@map("prospecting_whatsapp_configs")
+}
+
+/// Associação persistente entre a identidade remota LID e o telefone real do
+/// contato. Nunca armazena connectedPhone/connectedLid como identidade remota.
+model WApiRemoteIdentityMapping {
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  instanceId     String   @map("instance_id") @db.VarChar(100)
+  remoteLid      String   @map("remote_lid") @db.VarChar(191)
+  normalizedPhone String  @map("normalized_phone") @db.VarChar(20)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@unique([instanceId, remoteLid], map: "uq_wapi_remote_identity_instance_lid")
+  @@index([normalizedPhone], map: "idx_wapi_remote_identity_phone")
+  @@map("wapi_remote_identity_mappings")
 }
 
 enum ProspectingConversationStatus {

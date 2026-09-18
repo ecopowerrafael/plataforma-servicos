@@ -1,0 +1,27 @@
+import { execFile } from 'node:child_process';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import { safeError } from './sanitize.mjs';
+
+const execFileAsync = promisify(execFile);
+const urlText = process.env.VERIFY_DATABASE_URL;
+const mysql = process.env.MYSQL_BIN ?? 'C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysql.exe';
+if (!urlText) throw new Error('VERIFY_DATABASE_URL é obrigatória; não use DATABASE_URL implícita.');
+const url = new URL(urlText);
+const database = decodeURIComponent(url.pathname.slice(1));
+const env = { ...process.env, MYSQL_PWD: decodeURIComponent(url.password) };
+const args = ['--host', url.hostname, '--port', url.port || '3306', '--user', decodeURIComponent(url.username), '--batch', '--skip-column-names'];
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const schema = await fs.readFile(path.join(projectRoot, 'apps/api/prisma/schema.prisma'), 'utf8');
+const expectedTables = [...schema.matchAll(/^model\s+\w+\s*\{.*?@@map\("([^"]+)"\).*?^\}/gms)].map((match) => match[1]);
+const query = "SELECT 'tables', COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE(); SELECT 'indexes', COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE(); SELECT 'fks', COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE(); SELECT 'wapi_mapping', COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='wapi_remote_identity_mappings'; SELECT 'prospecting_key', COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND INDEX_NAME='uq_prospecting_message_idempotency_key'; SELECT 'provider_key', COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND INDEX_NAME='whatsapp_inbound_events_provider_event_key'; SELECT 'external_key', COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND INDEX_NAME='tenant_whatsapp_configs_provider_external_id_key';";
+const { stdout } = await execFileAsync(mysql, [...args, '-e', query, database], { env, windowsHide: true });
+const actual = Object.fromEntries(stdout.trim().split(/\r?\n/).map((line) => line.split('\t')).filter((row) => row.length === 2).map(([key, value]) => [key, Number(value)]));
+const errors = [];
+if (actual.tables !== expectedTables.length + 1) errors.push(`tabelas: esperado ${expectedTables.length + 1} incluindo _prisma_migrations, obtido ${actual.tables}`);
+if (actual.wapi_mapping !== 1) errors.push('constraint WhatsApp ausente: wapi_mapping');
+for (const key of ['prospecting_key', 'provider_key', 'external_key']) if (actual[key] < 1) errors.push(`constraint WhatsApp ausente: ${key}`);
+console.log(JSON.stringify({ database, expectedApplicationTables: expectedTables.length, actual }, null, 2));
+if (errors.length) throw new Error(safeError(errors.join('; ')));

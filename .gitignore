@@ -27,3 +27,4 @@ apps/web/src/dev/platform-fixtures.ts
 Thumbs.db
 .idea/
 .vscode/
+apps/api/.env.test.local

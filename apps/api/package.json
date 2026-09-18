@@ -11,16 +11,30 @@
     "pretypecheck": "prisma generate",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config ./vitest.config.ts",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
-    "db:migrate:deploy": "prisma migrate deploy",
+    "test:unit": "vitest run --config ./vitest.config.ts --pool=threads --no-file-parallelism --maxWorkers=1 --exclude '**/tests/**' --exclude '**/*integration*' --exclude '**/*.contract.test.ts'",
+    "test:contract": "vitest run --config ./vitest.config.ts --pool=threads --no-file-parallelism --maxWorkers=1 --include '**/*.contract.test.ts'",
+    "test:integration:local": "vitest run --config ./vitest.config.ts --pool=threads --no-file-parallelism --maxWorkers=1 --include '**/*integration*.test.ts' --include '**/*mysql-integration*.test.ts'",
+    "test:critical": "vitest run --config ./vitest.config.ts --pool=threads --no-file-parallelism --maxWorkers=1 --reporter=dot src/modules/auth/auth-startup.test.ts src/modules/integrations/whatsapp-connection.service.test.ts src/modules/integrations/whatsapp-inbound.test.ts src/modules/integrations/whatsapp-provider-persistence.test.ts src/modules/prospecting/prospecting-inbound.test.ts src/modules/payments/payment-origin-validator.test.ts src/modules/tenants/plan-entitlement.service.test.ts",
+    "test:all": "vitest run --config ./vitest.config.ts",
+    "db:generate": "prisma generate --config prisma-v2/prisma.config.ts",
+    "db:generate:v2": "prisma generate --config prisma-v2/prisma.config.ts",
+    "db:migrate": "prisma migrate deploy --config prisma-v2/prisma.config.ts",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma-v2/prisma.config.ts",
+    "db:migrate:legacy": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:reset-initial": "tsx src/database/reset-initial-database.ts",
     "db:bootstrap": "tsx src/database/bootstrap.ts",
+    "db:bootstrap:system": "tsx src/database/bootstrap.ts",
     "db:seed:dev": "tsx src/database/seed-dev-fixtures.ts",
     "platform-admin:create": "tsx src/database/create-platform-admin.ts",
     "worker:once": "node dist/worker/run-once.js",
     "db:migrate:recover": "tsx src/database/recover-failed-migrations.ts"
+    ,"db:status": "prisma migrate status --config prisma-v2/prisma.config.ts"
+    ,"db:status:legacy": "prisma migrate status"
+    ,"db:status:v2": "prisma migrate status --config prisma-v2/prisma.config.ts"
+    ,"db:migrate:v2": "prisma migrate deploy --config prisma-v2/prisma.config.ts"
+    ,"db:verify": "prisma validate && node ../../scripts/database/verify-schema.mjs"
+    ,"db:backup:schema": "node ../../scripts/database/backup-schema.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

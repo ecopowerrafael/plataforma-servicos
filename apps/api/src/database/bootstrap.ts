@@ -1362,7 +1362,7 @@ async function bootstrap(): Promise<void> {
       await seedProspectingTemplates(transaction);
       await seedProspectingFlows(transaction);
       await seedProspectingAttendant(transaction);
-    });
+    }, { maxWait: 10_000, timeout: 60_000 });
 
     // Provisionamento idempotente do primeiro Super Admin durante o deploy,
     // quando PLATFORM_ADMIN_EMAIL/PLATFORM_ADMIN_PASSWORD estão presentes. Cria o

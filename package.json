@@ -70,6 +70,7 @@
     ,"db:backup:schema": "npm run db:backup:schema --workspace=@plataforma/api"
     ,"db:install:fresh": "node scripts/database/install-fresh.mjs"
     ,"db:baseline:register": "node scripts/database/register-baseline.mjs"
+    ,"db:cutover:v2:existing": "node scripts/database/cutover-v2-existing.mjs"
   },
   "dependencies": {
     "typescript": "^6.0.3"

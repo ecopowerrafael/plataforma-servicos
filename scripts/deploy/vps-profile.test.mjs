@@ -20,6 +20,8 @@ assert.match(compose, /mysql:8\.0/);
 assert.match(compose, /caddy:2-alpine/);
 assert.match(compose, /mysql_data:/);
 assert.match(compose, /app_uploads:/);
+assert.match(compose, /DB_HOST: mysql/);
+assert.doesNotMatch(compose, /DATABASE_URL: mysql:\$\{/);
 assert.match(deploy, /build api/);
 assert.doesNotMatch(withoutComments(deploy), /migrate|bootstrap|db:push|reset/i);
 assert.match(rollback, /VPS_IMAGE_TAG/);

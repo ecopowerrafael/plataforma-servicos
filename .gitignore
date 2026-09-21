@@ -28,3 +28,7 @@ Thumbs.db
 .idea/
 .vscode/
 apps/api/.env.test.local
+
+# VPS operator-only configuration and backups
+deploy/vps/vps.env
+deploy/vps/backups/

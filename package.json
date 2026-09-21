@@ -64,6 +64,7 @@
     ,"test:database:schema-drift": "node scripts/database/schema-drift.mjs"
     ,"test:database:v2-state": "node --test scripts/database/v2-state-guard.test.mjs"
     ,"test:database:sanitize": "node --test scripts/database/sanitize.test.mjs"
+    ,"test:deploy:vps-profile": "node scripts/deploy/vps-profile.test.mjs"
     ,"db:status": "npm run db:status --workspace=@plataforma/api"
     ,"db:status:v2": "npm run db:status:v2 --workspace=@plataforma/api"
     ,"db:verify": "npm run db:verify --workspace=@plataforma/api"

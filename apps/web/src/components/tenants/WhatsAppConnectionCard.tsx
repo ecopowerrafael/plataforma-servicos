@@ -43,7 +43,7 @@ const TEMPLATE_STATUS_LABEL: Record<string, string> = {
   UNKNOWN: 'Desconhecido',
 };
 
-type ProviderId = 'WAPI' | 'META';
+type ProviderId = 'WAPI' | 'META' | 'EVOLUTION';
 type MetaTab = 'account' | 'webhook' | 'templates';
 type ProviderCardOption = {
   provider: ProviderId;
@@ -92,6 +92,12 @@ const PROVIDER_PRESENTATION: Record<
       'Podem existir cobranças da Meta conforme regras vigentes',
     ],
   },
+  EVOLUTION: {
+    name: 'Evolution GO',
+    subtitle: 'Conexão por QR Code',
+    description: 'Conecte rapidamente usando o QR Code do WhatsApp.',
+    advantages: ['Provisionamento automático', 'Conexão por QR Code', 'Reconectar pelo painel'],
+  },
 };
 
 export function metaTemplateStatusIcon(status: string) {
@@ -123,7 +129,7 @@ export function whatsappProviderDraftMessage(managedProvider: ProviderId, active
 }
 
 export function shouldShowWapiActivation(managedProvider: ProviderId, activeProvider: ProviderId) {
-  return managedProvider === 'WAPI' && activeProvider !== 'WAPI';
+  return (managedProvider === 'WAPI' || managedProvider === 'EVOLUTION') && activeProvider !== managedProvider;
 }
 
 const timeOf = (iso: string) =>
@@ -197,6 +203,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const providerItems = providers.data?.items ?? [
     { provider: 'WAPI' as const, available: true, configured: activeProvider === 'WAPI' },
     { provider: 'META' as const, available: true, configured: activeProvider === 'META' },
+    { provider: 'EVOLUTION' as const, available: true, configured: activeProvider === 'EVOLUTION' },
   ];
   const selectedProviderOption = providerItems.find((item) => item.provider === managedProvider);
   const managedProviderIsActive = managedProvider === activeProvider;
@@ -258,8 +265,8 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
       httpClient.request('/tenant/integrations/whatsapp/provider', {
         method: 'PUT',
         body: UpdateWhatsAppProviderSchema.parse(
-          provider === 'WAPI'
-            ? { provider: 'WAPI' }
+          provider === 'WAPI' || provider === 'EVOLUTION'
+            ? { provider }
             : {
                 provider: 'META',
                 phoneNumberId: metaForm.phoneNumberId,
@@ -438,7 +445,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                           if (item.configured === true) setConfirmSwitch(item.provider);
                         }}
                       >
-                        {item.configured === true ? (item.provider === 'META' ? 'Usar API Oficial' : 'Usar API não oficial') : item.provider === 'META' ? 'Configurar API Oficial' : 'Configurar'}
+                        {item.configured === true ? (item.provider === 'META' ? 'Usar API Oficial' : item.provider === 'EVOLUTION' ? 'Usar Evolution GO' : 'Usar API não oficial') : item.provider === 'META' ? 'Configurar API Oficial' : item.provider === 'EVOLUTION' ? 'Configurar Evolution GO' : 'Configurar'}
                       </button>
                     )}
                   </div>
@@ -474,7 +481,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
         )}
         {notice === null ? null : <p className="whatsapp-inline-success">{notice}</p>}
 
-        {managedProvider === 'WAPI' ? (
+        {managedProvider === 'WAPI' || managedProvider === 'EVOLUTION' ? (
           <div className="whatsapp-wapi-panel">
             <div className="whatsapp-connection-status">
               <div className="whatsapp-provider-icon" aria-hidden="true">{state === 'CONNECTED' ? <IconPlugConnected size={24} /> : <IconPlugOff size={24} />}</div>
@@ -515,7 +522,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                     )}
                     {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks W-API sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
                     {shouldShowWapiActivation(managedProvider, activeProvider) ? (
-                      <button className="secondary-button" type="button" disabled={busy} onClick={() => setConfirmSwitch('WAPI')}>Usar API não oficial</button>
+                      <button className="secondary-button" type="button" disabled={busy} onClick={() => setConfirmSwitch(managedProvider)}>Usar {managedProvider === 'EVOLUTION' ? 'Evolution GO' : 'API não oficial'}</button>
                     ) : null}
                   </>
                 )}

@@ -128,7 +128,7 @@ export function PlatformPageRebuild() {
       ) : section === 'prospecting' ? (
         <ProspectingModule campaignPublicId={params.resourceId} />
       ) : section === 'settings' ? (
-        <WapiConfigModule />
+        <WhatsAppProvidersModule />
       ) : (
         <AuditModule />
       )}
@@ -286,6 +286,14 @@ function Overview({ onTenants }: { onTenants: () => void }) {
       ) : null}
     </section>
   );
+}
+
+function WhatsAppProvidersModule() {
+  const [message, setMessage] = useState('');
+  const query = useQuery({ queryKey: ['platform', 'whatsapp-providers'], queryFn: () => httpClient.request('/platform/settings/whatsapp/providers', { schema: z.object({ items: z.array(z.object({ provider: z.enum(['EVOLUTION', 'META', 'WAPI']), enabled: z.boolean(), configured: z.boolean(), configurationStatus: z.string(), baseUrl: z.string().nullable(), apiKeyConfigured: z.boolean(), lastHealthStatus: z.string().nullable(), lastHealthCheckAt: z.string().nullable() })) }) }) });
+  const update = useMutation({ mutationFn: (item: { provider: string; enabled: boolean; baseUrl?: string; apiKey?: string }) => httpClient.request(`/platform/settings/whatsapp/providers/${item.provider}`, { method: 'PUT', body: item }), onSuccess: () => { setMessage('Configuração salva.'); void query.refetch(); } });
+  const test = useMutation({ mutationFn: (provider: string) => httpClient.request(`/platform/settings/whatsapp/providers/${provider}/test`, { method: 'POST' }), onSuccess: () => setMessage('Conexão validada.'), onError: () => setMessage('Não foi possível validar a conexão.') });
+  return <section><PageHeader title="WhatsApp / Provedores" description="Controle quais conexões ficam disponíveis para novos estabelecimentos." />{query.isPending ? <i className="platform-skeleton" /> : query.error instanceof Error ? <ErrorState message={query.error.message} retry={() => void query.refetch()} /> : <article className="platform-panel"><p>{message}</p>{query.data?.items.map((item) => <div key={item.provider} style={{ display: 'grid', gap: 8, padding: '16px 0', borderBottom: '1px solid var(--border-color, #ddd)' }}><strong>{item.provider === 'EVOLUTION' ? 'Evolution GO' : item.provider === 'META' ? 'Meta Oficial' : 'W-API'}</strong><label><input type="checkbox" checked={item.enabled} onChange={(event) => update.mutate({ provider: item.provider, enabled: event.target.checked })} /> Disponível para novos estabelecimentos</label>{item.provider === 'EVOLUTION' ? <><input aria-label="URL da Evolution" defaultValue={item.baseUrl ?? ''} placeholder="https://evolution.exemplo" onBlur={(event) => { if (event.target.value !== (item.baseUrl ?? '')) update.mutate({ provider: item.provider, enabled: item.enabled, baseUrl: event.target.value }); }} /><input aria-label="Chave da Evolution" type="password" placeholder={item.apiKeyConfigured ? 'API key configurada (deixe vazio para preservar)' : 'API key global'} onBlur={(event) => { if (event.target.value) update.mutate({ provider: item.provider, enabled: item.enabled, apiKey: event.target.value }); }} /><span>API key configurada: {item.apiKeyConfigured ? 'sim' : 'não'}</span><span>Configuração: {item.configurationStatus === 'READY' ? 'completa' : 'incompleta'}</span><button type="button" onClick={() => test.mutate(item.provider)} disabled={!item.configured}>Testar conexão</button><span>Status: {item.lastHealthStatus ?? 'não testado'}</span></> : null}</div>)}</article>}</section>;
 }
 
 function WapiConfigModule() {

@@ -10,10 +10,12 @@ import {
 import { type NormalizedWhatsAppEvent } from './whatsapp-inbound.js';
 import { type WhatsAppConnectionView } from './whatsapp-provisioning.service.js';
 
-export type WhatsAppProviderId = 'WAPI' | 'META' | (string & {});
+export type WhatsAppProviderId = 'WAPI' | 'META' | 'EVOLUTION' | (string & {});
 
 export interface WhatsAppProviderCapabilities {
   maxInteractiveButtons: number;
+  quickReply?: { supported: boolean; maxOptions: number };
+  list?: { supported: boolean; maxOptions: number };
   qrCode: boolean;
   autoProvision: boolean;
   interactiveMessages: boolean;
@@ -79,6 +81,19 @@ export const META_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
   official: true,
 };
 
+export const EVOLUTION_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
+  maxInteractiveButtons: 3,
+  quickReply: { supported: true, maxOptions: 3 },
+  list: { supported: true, maxOptions: 10 },
+  qrCode: true,
+  autoProvision: true,
+  interactiveMessages: true,
+  templates: false,
+  official: false,
+};
+
 export function whatsappButtonCapacity(provider: WhatsAppProviderId = 'WAPI'): number {
-  return provider === 'META' ? META_WHATSAPP_CAPABILITIES.maxInteractiveButtons : WAPI_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
+  if (provider === 'META') return META_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
+  if (provider === 'EVOLUTION') return EVOLUTION_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
+  return WAPI_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
 }

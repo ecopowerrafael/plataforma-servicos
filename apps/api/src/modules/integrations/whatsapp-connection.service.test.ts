@@ -10,7 +10,7 @@ const capabilities = {
   official: false,
 };
 
-function subject(providerOverrides: Record<string, unknown> = {}) {
+function subject(providerOverrides: Record<string, unknown> = {}, platformRows: Array<Record<string, unknown>> | undefined = undefined) {
   const provider = {
     provider: 'WAPI',
     capabilities,
@@ -48,6 +48,7 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
     encrypt: vi.fn((value: unknown) => `enc:${JSON.stringify(value)}`),
     decrypt: vi.fn((value: string) => JSON.parse(value.replace(/^enc:/u, '')) as Record<string, unknown>),
   };
+  const platformWhatsAppProviderSetting = { findMany: vi.fn().mockResolvedValue(platformRows ?? []) };
   return {
     provider,
     resolver,
@@ -55,10 +56,11 @@ function subject(providerOverrides: Record<string, unknown> = {}) {
     cipher,
     service: new WhatsAppConnectionService(
       resolver as never,
-      { tenantWhatsAppConfig, tenantWhatsAppSettings } as never,
+      { tenantWhatsAppConfig, tenantWhatsAppSettings, platformWhatsAppProviderSetting } as never,
       cipher as never,
     ),
     tenantWhatsAppSettings,
+    platformWhatsAppProviderSetting,
   };
 }
 
@@ -74,8 +76,21 @@ describe('WhatsAppConnectionService', () => {
           configured: false,
           capabilities: expect.objectContaining({ qrCode: false, templates: false, official: true }),
         }),
+        expect.objectContaining({ provider: 'EVOLUTION', available: true, configured: false, capabilities: expect.objectContaining({ qrCode: true, official: false }) }),
       ],
     });
+  });
+
+  it('does not make incomplete Evolution configuration available for new selection', async () => {
+    const { service } = subject({}, [{ provider: 'EVOLUTION', enabled: true, baseUrl: null, encryptedApiKey: null }, { provider: 'META', enabled: true }]);
+    const result = await service.providers(7n);
+    expect(result.items.find((item) => item.provider === 'EVOLUTION')?.available).toBe(false);
+  });
+
+  it('makes complete enabled Evolution configuration available', async () => {
+    const { service } = subject({}, [{ provider: 'EVOLUTION', enabled: true, baseUrl: 'https://evolution.example', encryptedApiKey: 'cipher:key' }, { provider: 'META', enabled: true }]);
+    const result = await service.providers(7n);
+    expect(result.items.find((item) => item.provider === 'EVOLUTION')?.available).toBe(true);
   });
 
   it('exposes saved Meta summary without plaintext access token or app secret', async () => {
@@ -107,6 +122,7 @@ describe('WhatsAppConnectionService', () => {
           tokenConfigured: true,
           appSecretConfigured: true,
         }),
+        expect.objectContaining({ provider: 'EVOLUTION', configured: false }),
       ],
     });
   });

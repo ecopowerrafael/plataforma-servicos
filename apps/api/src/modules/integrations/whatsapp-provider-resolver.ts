@@ -10,6 +10,7 @@ import {
   type WhatsAppProviderId,
   type WhatsAppProvisioningProvider,
   WAPI_WHATSAPP_CAPABILITIES,
+  EVOLUTION_WHATSAPP_CAPABILITIES,
 } from './whatsapp-provider.js';
 
 export class WhatsAppProviderNotSupportedError extends AppError {
@@ -120,6 +121,7 @@ export class WhatsAppProviderResolver {
     const registered = this.providers[provider];
     if (registered?.capabilities !== undefined) return registered.capabilities;
     if (provider === 'META') return META_WHATSAPP_CAPABILITIES;
+    if (provider === 'EVOLUTION') return EVOLUTION_WHATSAPP_CAPABILITIES;
     throw new WhatsAppProviderNotSupportedError(provider);
   }
 }

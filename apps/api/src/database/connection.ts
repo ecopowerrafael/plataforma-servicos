@@ -53,8 +53,14 @@ import { MetaWhatsAppDelivery } from '../modules/integrations/meta-whatsapp-deli
 import { MetaTemplateService } from '../modules/integrations/meta-template.service.js';
 import { ProviderResolvedWhatsAppDelivery } from '../modules/integrations/whatsapp-provider-delivery.js';
 import { WhatsAppProviderResolver } from '../modules/integrations/whatsapp-provider-resolver.js';
+import { EvolutionWhatsAppClient } from '../modules/integrations/evolution-whatsapp-client.js';
+import { EvolutionWhatsAppDelivery } from '../modules/integrations/evolution-whatsapp-delivery.js';
+import { EvolutionWhatsAppProvisioning } from '../modules/integrations/evolution-whatsapp-provisioning.js';
+import { WApiInboundNormalizer } from '../modules/integrations/whatsapp-inbound.js';
+import { EVOLUTION_WHATSAPP_CAPABILITIES } from '../modules/integrations/whatsapp-provider.js';
 import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
 import { WapiConfigService } from '../modules/platform/wapi-config.service.js';
+import { WhatsAppProviderConfigService } from '../modules/platform/whatsapp-provider-config.service.js';
 import { AppointmentNotificationService } from '../modules/notifications/appointment-notification.service.js';
 import { AppointmentReminderService } from '../modules/notifications/appointment-reminder.service.js';
 import { AppointmentReminderConfigService } from '../modules/notifications/appointment-reminder-config.service.js';
@@ -228,6 +234,7 @@ export interface DatabaseConnection {
   readonly tenantPaymentOptions?: TenantPaymentOptionsService;
   readonly integrations?: IntegrationService;
   readonly wapiConfig?: WapiConfigService;
+  readonly whatsappProviderConfig?: WhatsAppProviderConfigService;
   readonly publicBooking?: PublicBookingService;
   readonly products?: ProductCatalogService;
   readonly stockMovements?: StockMovementService;
@@ -265,6 +272,8 @@ export interface CustomerAuthOptions {
   /** Credencial mestra da W-API; nunca sai do backend. */
   wapiMasterApiKey?: string;
   wapiBaseUrl?: string;
+  evolutionBaseUrl?: string;
+  evolutionApiKey?: string;
   appWebUrl?: string;
 }
 
@@ -415,6 +424,13 @@ export function createDatabaseConnection(
   }, {
     delivery: metaWhatsAppDelivery,
     provisioning: new MetaWhatsAppConnection(client, credentialsCipher),
+  }, {
+    EVOLUTION: {
+      delivery: new EvolutionWhatsAppDelivery(client, new EvolutionWhatsAppClient(async () => (await client.platformWhatsAppProviderSetting.findUnique({ where: { provider: 'EVOLUTION' } }))?.baseUrl ?? customerAuthOptions?.evolutionBaseUrl ?? process.env.EVOLUTION_BASE_URL ?? '', async () => { const setting = await client.platformWhatsAppProviderSetting.findUnique({ where: { provider: 'EVOLUTION' } }); if (setting?.encryptedApiKey && credentialsCipher) { const value = credentialsCipher.decrypt(setting.encryptedApiKey).apiKey; if (typeof value === 'string') return value; } return customerAuthOptions?.evolutionApiKey ?? process.env.EVOLUTION_API_KEY ?? ''; }), credentialsCipher),
+      provisioning: new EvolutionWhatsAppProvisioning(client, new EvolutionWhatsAppClient(async () => (await client.platformWhatsAppProviderSetting.findUnique({ where: { provider: 'EVOLUTION' } }))?.baseUrl ?? customerAuthOptions?.evolutionBaseUrl ?? process.env.EVOLUTION_BASE_URL ?? '', async () => { const setting = await client.platformWhatsAppProviderSetting.findUnique({ where: { provider: 'EVOLUTION' } }); if (setting?.encryptedApiKey && credentialsCipher) { const value = credentialsCipher.decrypt(setting.encryptedApiKey).apiKey; if (typeof value === 'string') return value; } return customerAuthOptions?.evolutionApiKey ?? process.env.EVOLUTION_API_KEY ?? ''; }), credentialsCipher),
+      inbound: new WApiInboundNormalizer(),
+      capabilities: EVOLUTION_WHATSAPP_CAPABILITIES,
+    },
   });
   const providerResolvedWhatsAppDelivery = new ProviderResolvedWhatsAppDelivery(whatsappProviderResolver);
   const whatsappConnection = new WhatsAppConnectionService(whatsappProviderResolver, client, credentialsCipher);
@@ -666,6 +682,7 @@ export function createDatabaseConnection(
       appointmentNotifications,
     ),
     wapiConfig: wapiConfigService,
+    whatsappProviderConfig: new WhatsAppProviderConfigService(client, credentialsCipher),
     async ping() {
       try {
         await activeClient.$queryRaw`SELECT 1`;

@@ -769,7 +769,7 @@ export class IntegrationService {
       event.referencedMessageId,
     );
     const actionIds = Array.isArray(outbound?.actionIds) ? outbound.actionIds : [];
-    const matched = event.provider === 'META'
+    const matched = event.actionId !== null
       ? actionIds.find((actionId): actionId is string => typeof actionId === 'string' && actionId === event.actionId)
       : event.selectedIndex === null
         ? null

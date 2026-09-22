@@ -236,6 +236,10 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   }, [connection.data?.provider]);
 
   useEffect(() => {
+    if (connection.data?.state === 'CONNECTED') setQrCode(null);
+  }, [connection.data?.state]);
+
+  useEffect(() => {
     if (managedProvider !== 'META' || metaConnectionDetails === null) return;
     setMetaForm((value) => ({
       ...value,

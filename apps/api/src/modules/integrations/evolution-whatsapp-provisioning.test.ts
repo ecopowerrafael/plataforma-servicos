@@ -26,8 +26,9 @@ describe('EvolutionWhatsAppProvisioning', () => {
   });
 
   it('returns QR data as a browser-safe data URL and preserves reconnect flow', async () => {
-    const { service } = subject();
-    await expect(service.qr(7n)).resolves.toMatchObject({ qrCode: 'data:image/png;base64,png' });
+    const { service, evolution } = subject();
+    await expect(service.qrCode(7n)).resolves.toMatchObject({ qrCode: 'data:image/png;base64,png' });
     await expect(service.reconnect(7n)).resolves.toMatchObject({ qrCode: 'data:image/png;base64,next-qr' });
+    expect(evolution.createInstance).not.toHaveBeenCalled();
   });
 });

@@ -12,7 +12,7 @@ export class EvolutionWhatsAppClient {
       headers: { 'content-type': 'application/json', apikey: apiKey, ...(init.headers ?? {}) },
     });
     const body = await response.json().catch(() => null);
-    if (!response.ok) throw new AppError({ code: response.status === 401 || response.status === 403 ? 'EVOLUTION_UNAUTHORIZED' : 'EVOLUTION_PROVIDER_ERROR', message: `A Evolution respondeu HTTP ${response.status}.`, statusCode: response.status === 401 || response.status === 403 ? 401 : 502, details: body });
+    if (!response.ok) { const details = Array.isArray(body) ? body.filter((item): item is { path: string; message: string } => Boolean(item && typeof item === 'object' && 'path' in item && 'message' in item)) : []; throw new AppError({ code: response.status === 401 || response.status === 403 ? 'EVOLUTION_UNAUTHORIZED' : 'EVOLUTION_PROVIDER_ERROR', message: `A Evolution respondeu HTTP ${response.status}.`, statusCode: response.status === 401 || response.status === 403 ? 401 : 502, ...(details.length > 0 ? { details } : {}) }); }
     return ((body as { data?: unknown } | null)?.data ?? body) as T;
   }
 

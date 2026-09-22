@@ -56,7 +56,7 @@ import { WhatsAppProviderResolver } from '../modules/integrations/whatsapp-provi
 import { EvolutionWhatsAppClient } from '../modules/integrations/evolution-whatsapp-client.js';
 import { EvolutionWhatsAppDelivery } from '../modules/integrations/evolution-whatsapp-delivery.js';
 import { EvolutionWhatsAppProvisioning } from '../modules/integrations/evolution-whatsapp-provisioning.js';
-import { WApiInboundNormalizer } from '../modules/integrations/whatsapp-inbound.js';
+import { EvolutionInboundNormalizer } from '../modules/integrations/evolution-whatsapp-inbound.js';
 import { EVOLUTION_WHATSAPP_CAPABILITIES } from '../modules/integrations/whatsapp-provider.js';
 import { WhatsAppProvisioningService } from '../modules/integrations/whatsapp-provisioning.service.js';
 import { WapiConfigService } from '../modules/platform/wapi-config.service.js';
@@ -428,7 +428,7 @@ export function createDatabaseConnection(
     EVOLUTION: {
       delivery: new EvolutionWhatsAppDelivery(client, new EvolutionWhatsAppClient(async () => (await client.platformWhatsAppProviderSetting.findUnique({ where: { provider: 'EVOLUTION' } }))?.baseUrl ?? customerAuthOptions?.evolutionBaseUrl ?? process.env.EVOLUTION_BASE_URL ?? '', async () => { const setting = await client.platformWhatsAppProviderSetting.findUnique({ where: { provider: 'EVOLUTION' } }); if (setting?.encryptedApiKey && credentialsCipher) { const value = credentialsCipher.decrypt(setting.encryptedApiKey).apiKey; if (typeof value === 'string') return value; } return customerAuthOptions?.evolutionApiKey ?? process.env.EVOLUTION_API_KEY ?? ''; }), credentialsCipher),
       provisioning: new EvolutionWhatsAppProvisioning(client, new EvolutionWhatsAppClient(async () => (await client.platformWhatsAppProviderSetting.findUnique({ where: { provider: 'EVOLUTION' } }))?.baseUrl ?? customerAuthOptions?.evolutionBaseUrl ?? process.env.EVOLUTION_BASE_URL ?? '', async () => { const setting = await client.platformWhatsAppProviderSetting.findUnique({ where: { provider: 'EVOLUTION' } }); if (setting?.encryptedApiKey && credentialsCipher) { const value = credentialsCipher.decrypt(setting.encryptedApiKey).apiKey; if (typeof value === 'string') return value; } return customerAuthOptions?.evolutionApiKey ?? process.env.EVOLUTION_API_KEY ?? ''; }), credentialsCipher),
-      inbound: new WApiInboundNormalizer(),
+      inbound: new EvolutionInboundNormalizer(),
       capabilities: EVOLUTION_WHATSAPP_CAPABILITIES,
     },
   });

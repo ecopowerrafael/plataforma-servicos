@@ -162,7 +162,7 @@ export function mapStatusValue(value: string | null): WhatsAppEventType | null {
 }
 
 export interface NormalizedWhatsAppEvent {
-  provider: 'WAPI' | 'META';
+  provider: 'WAPI' | 'META' | 'EVOLUTION';
   /** Tipo interno. `null` quando o evento não é de nosso interesse. */
   eventType: WhatsAppEventType | null;
   /** Nome cru do evento, guardado só para diagnóstico. */

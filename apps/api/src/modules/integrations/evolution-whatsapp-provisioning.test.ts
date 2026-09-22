@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { EvolutionWhatsAppProvisioning } from './evolution-whatsapp-provisioning.js';
 
 function subject() {
-  const row = { phoneNumberId: 'evo-1', instanceName: 'tenant-7-demo', active: false, connectionStatus: 'CREATED', encryptedAccessToken: 'cipher:instance-token', connectedAt: null, connectedPhone: null, connectedName: null, lastStatusCheckAt: null };
+  const row = { phoneNumberId: 'evo-1', webhookPublicId: 'hook-evo-1', instanceName: 'tenant-7-demo', active: false, connectionStatus: 'CREATED', encryptedAccessToken: 'cipher:instance-token', connectedAt: null, connectedPhone: null, connectedName: null, lastStatusCheckAt: null };
   const config = { findUnique: vi.fn().mockResolvedValue(row), create: vi.fn().mockResolvedValue(row), update: vi.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ ...row, ...data })) };
-  const evolution = { createInstance: vi.fn().mockResolvedValue({ id: 'evo-1', name: 'tenant-7-demo' }), qr: vi.fn().mockResolvedValue({ Qrcode: 'png' }), status: vi.fn().mockResolvedValue({ connected: true, loggedIn: true }), disconnect: vi.fn(), reconnect: vi.fn().mockResolvedValue({ Code: 'next-qr' }) };
+  const evolution = { createInstance: vi.fn().mockResolvedValue({ id: 'evo-1', name: 'tenant-7-demo' }), connect: vi.fn().mockResolvedValue({}), qr: vi.fn().mockResolvedValue({ Qrcode: 'png' }), status: vi.fn().mockResolvedValue({ connected: true, loggedIn: true }), disconnect: vi.fn(), reconnect: vi.fn().mockResolvedValue({ Code: 'next-qr' }) };
   const client = { tenantWhatsAppConfig: config, tenant: { findUnique: vi.fn().mockResolvedValue({ slug: 'demo' }) } };
   const cipher = { encrypt: vi.fn((value: unknown) => `cipher:${JSON.stringify(value)}`), decrypt: vi.fn(() => ({ token: 'instance-token' })) };
   return { service: new EvolutionWhatsAppProvisioning(client as never, evolution as never, cipher as never), config, evolution, cipher };

@@ -63,3 +63,13 @@ As respostas `data`, `Qrcode` e `Code` são normalizadas pelo client.
 ## Risco pendente
 
 A tag privada `ecopowerrafael/evolution-go-agendei:agendei-evolution-0.7.2-interactive.1` não ficou acessível pelo ambiente para inspeção direta. Os nomes de endpoints e formatos tratados foram conferidos contra a referência pública Evolution GO 0.7.x, mas a confirmação final dessa build específica ainda requer acesso ao repositório/tag ou Swagger correspondente.
+
+## Inbound Evolution
+
+- Endpoint público: `POST /public/webhooks/whatsapp/evolution/:webhookPublicId` (também disponível no caminho canônico sem `/public`).
+- Cada instância Evolution recebe `webhookPublicId` aleatório; o tenant é resolvido por esse identificador e o `instanceId` do payload precisa coincidir com a configuração.
+- O provider selecionado também precisa continuar sendo `EVOLUTION`.
+- A build não fornece assinatura nativa confirmada para esse webhook; a proteção usada é o identificador público forte, validação de provider/instância e rejeição de inconsistências. Rate limiting global da API permanece aplicável.
+- Texto vira `MESSAGE_RECEIVED`; `ButtonClick` vira `MESSAGE_ACTION` com `actionId=ButtonId`; `list_response.selected_row_id` vira `actionId` preservando o ID lógico.
+- `fromMe` e eventos desconhecidos são aceitos e ignorados; deduplicação reaproveita `WhatsAppInboundEvent` e o fingerprint existente.
+- Antes de QR/reconnect, o backend usa `POST /instance/connect` com o token da instância e `webhookUrl`/`subscribe`, sem GLOBAL_API_KEY. Esse contrato é documentado publicamente para configuração de webhook por instância. ([Evolution GO — conexão com webhook](https://github.com/evolution-foundation/evolution-go/blob/main/docs/wiki/guias-api/api-instances.md))

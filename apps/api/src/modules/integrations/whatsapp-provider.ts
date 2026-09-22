@@ -13,7 +13,6 @@ import { type WhatsAppConnectionView } from './whatsapp-provisioning.service.js'
 export type WhatsAppProviderId = 'WAPI' | 'META' | 'EVOLUTION' | (string & {});
 
 export interface WhatsAppProviderCapabilities {
-  maxInteractiveButtons: number;
   quickReply?: { supported: boolean; maxOptions: number };
   list?: { supported: boolean; maxOptions: number };
   qrCode: boolean;
@@ -64,7 +63,7 @@ export interface WhatsAppInboundNormalizer extends WhatsAppProvider {
 }
 
 export const WAPI_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
-  maxInteractiveButtons: 10,
+  quickReply: { supported: true, maxOptions: 10 },
   qrCode: true,
   autoProvision: true,
   interactiveMessages: true,
@@ -73,7 +72,8 @@ export const WAPI_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
 };
 
 export const META_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
-  maxInteractiveButtons: 3,
+  quickReply: { supported: true, maxOptions: 3 },
+  list: { supported: true, maxOptions: 10 },
   qrCode: false,
   autoProvision: false,
   interactiveMessages: true,
@@ -82,7 +82,6 @@ export const META_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
 };
 
 export const EVOLUTION_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
-  maxInteractiveButtons: 3,
   quickReply: { supported: true, maxOptions: 3 },
   list: { supported: true, maxOptions: 10 },
   qrCode: true,
@@ -93,7 +92,7 @@ export const EVOLUTION_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
 };
 
 export function whatsappButtonCapacity(provider: WhatsAppProviderId = 'WAPI'): number {
-  if (provider === 'META') return META_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
-  if (provider === 'EVOLUTION') return EVOLUTION_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
-  return WAPI_WHATSAPP_CAPABILITIES.maxInteractiveButtons;
+  if (provider === 'META') return META_WHATSAPP_CAPABILITIES.quickReply?.maxOptions ?? 0;
+  if (provider === 'EVOLUTION') return EVOLUTION_WHATSAPP_CAPABILITIES.quickReply?.maxOptions ?? 0;
+  return WAPI_WHATSAPP_CAPABILITIES.quickReply?.maxOptions ?? 0;
 }

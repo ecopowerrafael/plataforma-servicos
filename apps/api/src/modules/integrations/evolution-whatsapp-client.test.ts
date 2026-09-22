@@ -19,4 +19,16 @@ describe('EvolutionWhatsAppClient', () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'bad request' }), { status: 400 }));
     await expect(new EvolutionWhatsAppClient('https://evolution.internal', 'secret-global-key', fetcher).status('instance-1')).rejects.toMatchObject({ code: 'EVOLUTION_PROVIDER_ERROR' });
   });
+
+  it('uses the instance token and preserves quick-reply IDs', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { id: 'button-1' } }), { status: 200 }));
+    await new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher).sendButton('instance-token', '5511999999999', 'Escolha', [{ id: 'confirmar', label: 'Confirmar' }]);
+    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/send/button', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ number: '5511999999999', text: 'Escolha', buttons: [{ type: 'quick_reply', id: 'confirmar', displayText: 'Confirmar' }] }) }));
+  });
+
+  it('uses the instance token and preserves list row IDs', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { id: 'list-1' } }), { status: 200 }));
+    await new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher).sendList('instance-token', '5511999999999', 'Escolha', [{ rowId: 'service-1', title: 'Serviço' }]);
+    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/send/list', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ number: '5511999999999', text: 'Escolha', buttonText: 'Ver opções', sections: [{ title: 'Opções', rows: [{ rowId: 'service-1', title: 'Serviço' }] }] }) }));
+  });
 });

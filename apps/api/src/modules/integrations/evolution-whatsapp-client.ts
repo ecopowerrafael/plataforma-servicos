@@ -23,4 +23,6 @@ export class EvolutionWhatsAppClient {
   public disconnect(instanceToken: string) { return this.request<unknown>('/instance/disconnect', { method: 'POST' }, instanceToken); }
   public reconnect(instanceToken: string) { return this.request<{ qrCode?: string; code?: string; Qrcode?: string; Code?: string }>('/instance/reconnect', { method: 'POST' }, instanceToken); }
   public sendText(instanceToken: string, number: string, text: string) { return this.request<{ id?: string; messageId?: string }>('/send/text', { method: 'POST', body: JSON.stringify({ number, text }) }, instanceToken); }
+  public sendButton(instanceToken: string, number: string, text: string, buttons: Array<{ id: string; label: string }>) { return this.request<{ id?: string; messageId?: string }>('/send/button', { method: 'POST', body: JSON.stringify({ number, text, buttons: buttons.map((button) => ({ type: 'quick_reply', id: button.id, displayText: button.label })) }) }, instanceToken); }
+  public sendList(instanceToken: string, number: string, text: string, rows: Array<{ rowId: string; title: string }>) { return this.request<{ id?: string; messageId?: string }>('/send/list', { method: 'POST', body: JSON.stringify({ number, text, buttonText: 'Ver opções', sections: [{ title: 'Opções', rows }] }) }, instanceToken); }
 }

@@ -606,8 +606,8 @@ export class IntegrationService {
         recognized: event.actionId !== null,
       });
       if (event.phone === null) {
-        const raw = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
-        const data = raw.data !== null && typeof raw.data === 'object' && !Array.isArray(raw.data) ? raw.data as Record<string, unknown> : {};
+        const rawPayload = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+        const data = rawPayload.data !== null && typeof rawPayload.data === 'object' && !Array.isArray(rawPayload.data) ? rawPayload.data as Record<string, unknown> : {};
         const identityFields = ['phone', 'Phone', 'jid', 'JID', 'chat', 'Chat', 'sender', 'Sender', 'remoteJid', 'RemoteJid']
           .filter((key) => data[key] !== undefined)
           .map((key) => {

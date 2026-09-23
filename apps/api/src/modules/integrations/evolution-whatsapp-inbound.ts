@@ -22,6 +22,8 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const payload = sanitizePayload(raw);
   const root = record(payload);
   const data = record(root.data);
+  const dataPhone = record(data.phone ?? data.Phone);
+  const dataJid = record(data.jid ?? data.JID);
   const dataChat = record(data.chat ?? data.Chat);
   const dataExtra = record(data.extraData ?? data.extra_data);
   const message = record(root.message ?? root.Message ?? data.message ?? data.Message);
@@ -59,8 +61,18 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
     data.from,
     data.phone,
     data.Phone,
+    dataPhone.id,
+    dataPhone.jid,
+    dataPhone.JID,
+    dataPhone.number,
+    dataPhone.phone,
     data.jid,
     data.JID,
+    dataJid.id,
+    dataJid.jid,
+    dataJid.JID,
+    dataJid.number,
+    dataJid.phone,
     data.remoteJid,
     data.RemoteJid,
     data.chat,
@@ -72,6 +84,8 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
     dataChat.JID,
     dataChat.phone,
     dataChat.Phone,
+    dataChat.number,
+    dataChat.Number,
     dataExtra.phone,
     dataExtra.jid,
     info.sender,

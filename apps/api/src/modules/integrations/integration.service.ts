@@ -612,7 +612,10 @@ export class IntegrationService {
           .filter((key) => data[key] !== undefined)
           .map((key) => {
             const value = data[key];
-            if (typeof value !== 'string') return { key, type: typeof value };
+            if (typeof value !== 'string') {
+              const objectKeys = value !== null && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value as object).sort() : undefined;
+              return { key, type: typeof value, ...(objectKeys === undefined ? {} : { objectKeys }) };
+            }
             return { key, type: 'string', length: value.length, suffix: value.slice(-4), isLid: value.endsWith('@lid') };
           });
         console.info('[WHATSAPP_INTERACTIVE_IDENTITY]', { provider: 'EVOLUTION', phoneResolved: false, fields: identityFields });

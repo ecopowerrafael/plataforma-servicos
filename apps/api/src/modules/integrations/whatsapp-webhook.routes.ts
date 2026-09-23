@@ -127,10 +127,12 @@ export const whatsappWebhookRoutes: FastifyPluginAsyncZod<{ service: Integration
     const diagnostics = result.diagnostics;
     const reason = 'reason' in diagnostics ? diagnostics.reason : undefined;
     const providerEvent = 'providerEvent' in diagnostics ? diagnostics.providerEvent : undefined;
+    const assistantReplied = 'assistantReplied' in diagnostics ? diagnostics.assistantReplied : undefined;
+    const assistantSkipped = 'assistantSkipped' in diagnostics ? diagnostics.assistantSkipped : undefined;
     const payloadKeys = 'payloadKeys' in diagnostics ? diagnostics.payloadKeys.join(',') : undefined;
     const dataKeys = 'dataKeys' in diagnostics ? diagnostics.dataKeys.join(',') : undefined;
     const messageKeys = 'messageKeys' in diagnostics ? diagnostics.messageKeys.join(',') : undefined;
-    request.log.info({ operation: 'whatsapp_evolution_webhook_received', webhookPublicId: params.webhookPublicId, statusCode: result.statusCode, ...diagnostics }, `Evento Evolution recebido stage=${diagnostics.stage} outcome=${diagnostics.outcome} status=${result.statusCode}${reason === undefined ? '' : ` reason=${reason}`}${providerEvent === undefined ? '' : ` providerEvent=${providerEvent}`}${payloadKeys === undefined ? '' : ` payloadKeys=${payloadKeys}`}${dataKeys === undefined ? '' : ` dataKeys=${dataKeys}`}${messageKeys === undefined ? '' : ` messageKeys=${messageKeys}`}`);
+    request.log.info({ operation: 'whatsapp_evolution_webhook_received', webhookPublicId: params.webhookPublicId, statusCode: result.statusCode, ...diagnostics }, `Evento Evolution recebido stage=${diagnostics.stage} outcome=${diagnostics.outcome} status=${result.statusCode}${reason === undefined ? '' : ` reason=${reason}`}${providerEvent === undefined ? '' : ` providerEvent=${providerEvent}`}${assistantReplied === undefined ? '' : ` assistantReplied=${assistantReplied}`}${assistantSkipped === undefined ? '' : ` assistantSkipped=${assistantSkipped}`}${payloadKeys === undefined ? '' : ` payloadKeys=${payloadKeys}`}${dataKeys === undefined ? '' : ` dataKeys=${dataKeys}`}${messageKeys === undefined ? '' : ` messageKeys=${messageKeys}`}`);
     return reply.status(result.statusCode).send(result.body);
   };
 

@@ -72,6 +72,7 @@ export class CustomerNotificationDispatcher {
               select: { active: true },
             })
           )?.active === true;
+    console.info('[WHATSAPP_DISPATCH]', JSON.stringify({ stage: 'ELIGIBILITY', tenantId: tenantId.toString(), kind, hasRecipient: whatsappRecipient !== null, entitled: whatsappEntitled, configured: whatsappConfigured }));
     if (customer.email === null && subscriptions.length === 0 && !whatsappConfigured) return false;
 
     const tenant = await this.client.tenant.findUnique({
@@ -160,7 +161,10 @@ export class CustomerNotificationDispatcher {
           body: whatsappBody,
           whatsappButtons,
         }, scheduledAt);
+        console.info('[WHATSAPP_DISPATCH]', JSON.stringify({ stage: 'ENQUEUED', tenantId: tenantId.toString(), kind, recipientSuffix: recipient.slice(-4) }));
       }
+    } else {
+      console.info('[WHATSAPP_DISPATCH]', JSON.stringify({ stage: 'NOT_ENQUEUED', tenantId: tenantId.toString(), kind, hasRecipient: whatsappRecipient !== null, entitled: whatsappEntitled, configured: whatsappConfigured, hasTemplate: whatsappBody !== null }));
     }
 
     return true;

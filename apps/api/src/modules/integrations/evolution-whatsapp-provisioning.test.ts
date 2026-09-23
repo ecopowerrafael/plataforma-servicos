@@ -39,6 +39,13 @@ describe('EvolutionWhatsAppProvisioning', () => {
     expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ connectedPhone: '5511999999999', connectedName: 'Barbearia Silva' }) }));
   });
 
+  it('extracts the connected number from Evolution Go jid', async () => {
+    const { service, evolution } = subject();
+    evolution.status.mockResolvedValueOnce({ status: 'open', jid: '5511999999999@s.whatsapp.net', name: 'Barbearia Silva' });
+    const result = await service.refreshStatus(7n);
+    expect(result.connectedPhone).toBe('5511999999999');
+  });
+
   it('recognizes the Evolution Go response casing used in production', async () => {
     const { service, evolution, config } = subject();
     evolution.status.mockResolvedValueOnce({ Connected: true, LoggedIn: true, Name: 'Barbearia Silva' });

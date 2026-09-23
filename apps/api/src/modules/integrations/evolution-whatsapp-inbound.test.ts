@@ -62,6 +62,25 @@ describe('normalizeEvolutionWebhook', () => {
     });
   });
 
+  it('resolves the sender phone from the real interactive jid/chat fields', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: {
+        buttonId: 'MAIN_MENU_BOOK',
+        buttonText: 'Agendar horário',
+        messageId: 'outbound-4',
+        jid: '5511999999999@s.whatsapp.net',
+        fromMe: false,
+        type: 'template_button_reply',
+      },
+    })).toMatchObject({
+      eventType: 'MESSAGE_ACTION',
+      actionId: 'MAIN_MENU_BOOK',
+      phone: '5511999999999',
+    });
+  });
+
   it('normalizes a list response envelope under data', () => {
     expect(normalizeEvolutionWebhook({
       event: 'ListResponse',

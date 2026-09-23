@@ -15,6 +15,8 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const payload = sanitizePayload(raw);
   const root = record(payload);
   const data = record(root.data);
+  const dataChat = record(data.chat ?? data.Chat);
+  const dataExtra = record(data.extraData ?? data.extra_data);
   const message = record(root.message ?? root.Message ?? data.message ?? data.Message);
   const content = record(message.extendedTextMessage ?? message.ExtendedTextMessage ?? message.imageMessage ?? message.ImageMessage ?? message.videoMessage ?? message.VideoMessage);
   const info = record(root.info ?? root.Info ?? data.info ?? data.Info);
@@ -43,7 +45,30 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const fromMe = root.fromMe === true || root.IsFromMe === true || data.fromMe === true || data.IsFromMe === true || info.fromMe === true || info.IsFromMe === true || key.fromMe === true || key.FromMe === true;
   const externalMessageId = firstText(root.messageId, root.id, data.messageId, data.id, info.id, info.ID, info.Id, key.id, key.ID, message.id, message.ID);
   const instanceId = firstText(root.instanceId, root.instanceId as unknown, data.instanceId, instance.instanceId, instance.id, root.instanceName, data.instanceName);
-  const phone = firstText(root.from, root.phone, root.remoteJid, data.from, data.phone, info.sender, info.Sender, info.chat, info.Chat, info.jid, info.JID, sender.phone, sender.id, message.from, message.From);
+  const phone = firstText(
+    root.from,
+    root.phone,
+    root.remoteJid,
+    data.from,
+    data.phone,
+    data.jid,
+    data.remoteJid,
+    dataChat.id,
+    dataChat.jid,
+    dataChat.phone,
+    dataExtra.phone,
+    dataExtra.jid,
+    info.sender,
+    info.Sender,
+    info.chat,
+    info.Chat,
+    info.jid,
+    info.JID,
+    sender.phone,
+    sender.id,
+    message.from,
+    message.From,
+  );
   const selectedId = firstText(button.buttonId, button.ButtonId, button.id, list.selected_row_id, list.selectedRowId, root.selected_row_id);
   const selectedDisplayText = firstText(button.displayText, button.title, button.text, list.title, list.selected_row_title, list.selectedRowTitle);
   const body = firstText(root.text, root.body, root.conversation, data.text, data.body, message.text, message.Text, message.body, message.Body, message.conversation, message.Conversation, content.text, content.Text, content.caption, content.Caption);

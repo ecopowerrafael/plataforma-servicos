@@ -178,6 +178,48 @@ describe('normalizeEvolutionWebhook', () => {
     });
   });
 
+  it('classifies Evolution native-flow list selections as LIST_RESPONSE', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: {
+        buttonId: 'service_123',
+        buttonText: 'Corte',
+        messageId: 'outbound-native-list',
+        phone: '5511999999999',
+        fromMe: false,
+        type: 'native_flow_response',
+        extraData: {
+          type: 'native_flow_response',
+          name: 'single_select',
+          paramsJSON: JSON.stringify({ selected_row_id: 'service_123', display_text: 'Corte' }),
+        },
+      },
+    })).toMatchObject({
+      eventType: 'MESSAGE_ACTION',
+      actionId: 'service_123',
+      selectedDisplayText: 'Corte',
+      messageType: 'LIST_RESPONSE',
+    });
+  });
+
+  it('keeps Evolution native-flow quick replies as BUTTON_REPLY', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: {
+        buttonId: 'MAIN_MENU_BOOK',
+        buttonText: 'Agendar horário',
+        type: 'native_flow_response',
+        extraData: {
+          type: 'native_flow_response',
+          name: 'quick_reply',
+          paramsJSON: JSON.stringify({ id: 'MAIN_MENU_BOOK', display_text: 'Agendar horário' }),
+        },
+      },
+    })).toMatchObject({ messageType: 'BUTTON_REPLY', actionId: 'MAIN_MENU_BOOK' });
+  });
+
   it('marks unknown valid events as ignorable', () => {
     expect(normalizeEvolutionWebhook({ event: 'connection.update', instanceId: 'evo-1', status: 'open' })).toMatchObject({ provider: 'EVOLUTION', eventType: null, instanceId: 'evo-1' });
   });

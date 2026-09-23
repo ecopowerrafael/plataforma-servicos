@@ -5,6 +5,15 @@ import { type WhatsAppInboundNormalizer, EVOLUTION_WHATSAPP_CAPABILITIES } from 
 
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const text = (value: unknown): string | null => typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+const jsonRecord = (value: unknown): Record<string, unknown> => {
+  const raw = text(value);
+  if (raw === null) return {};
+  try {
+    return record(JSON.parse(raw));
+  } catch {
+    return {};
+  }
+};
 const firstText = (...values: unknown[]) => values.map(text).find((value): value is string => value !== null) ?? null;
 const whatsappPhone = (value: string | null): string | null => {
   if (value === null || value.endsWith('@lid')) return null;
@@ -61,6 +70,12 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const buttonContext = record(button.contextInfo ?? button.context_info);
   const listContext = record(list.contextInfo ?? list.context_info);
   const messageContext = record(message.contextInfo ?? message.context_info);
+  const nativeFlowParams = jsonRecord(dataExtra.paramsJSON ?? dataExtra.paramsJson);
+  const isListResponse = list.selected_row_id !== undefined
+    || list.selectedRowId !== undefined
+    || text(button.type)?.toLowerCase() === 'list_response'
+    || nativeFlowParams.selected_row_id !== undefined
+    || nativeFlowParams.selectedRowId !== undefined;
   const instance = record(root.instance ?? data.instance);
   const sender = record(root.sender ?? data.sender ?? message.sender);
   const eventName = firstText(root.event, root.eventType, root.type, data.event, data.eventType);
@@ -140,7 +155,7 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
     resolutionMethod: normalizedPhone === null ? 'NONE' : 'SENDER_ID',
     identityResult: fromMe ? 'FROM_ME' : normalizedPhone === null ? 'RESOLVED' : 'RESOLVED',
     senderName: firstText(root.senderName, sender.pushName, sender.name),
-    messageType: isAction ? (list.selected_row_id !== undefined ? 'LIST_RESPONSE' : 'BUTTON_REPLY') : body !== null ? 'TEXT' : null,
+    messageType: isAction ? (isListResponse ? 'LIST_RESPONSE' : 'BUTTON_REPLY') : body !== null ? 'TEXT' : null,
     text: body,
     actionId: selectedId,
     referencedMessageId: firstText(

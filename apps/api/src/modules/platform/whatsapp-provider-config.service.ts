@@ -18,9 +18,13 @@ export class WhatsAppProviderConfigService {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('URL da Evolution deve usar http ou https.');
     return parsed.toString().replace(/\/+$/u, '');
   }
+  private exposedBaseUrl(value: string | null | undefined) {
+    if (!value) return null;
+    try { return this.normalizeBaseUrl(value); } catch { return null; }
+  }
   public async list() {
     const rows = await this.client.platformWhatsAppProviderSetting.findMany({ orderBy: { provider: 'asc' } });
-    return { items: PROVIDERS.map((provider) => { const row = rows.find((item) => item.provider === provider); const baseUrl = provider === 'EVOLUTION' ? row?.baseUrl ?? null : null; const apiKeyConfigured = provider === 'EVOLUTION' ? Boolean(row?.encryptedApiKey) : false; return { provider, enabled: row?.enabled ?? (provider === 'META'), baseUrl, apiKeyConfigured, configured: provider === 'EVOLUTION' ? (baseUrl !== null && apiKeyConfigured) : false, configurationStatus: provider === 'EVOLUTION' && (baseUrl === null || !apiKeyConfigured) ? 'INCOMPLETE' : 'READY', lastHealthStatus: row?.lastHealthStatus ?? null, lastHealthCheckAt: row?.lastHealthCheckAt?.toISOString() ?? null }; }) };
+    return { items: PROVIDERS.map((provider) => { const row = rows.find((item) => item.provider === provider); const baseUrl = provider === 'EVOLUTION' ? this.exposedBaseUrl(row?.baseUrl) : null; const apiKeyConfigured = provider === 'EVOLUTION' ? Boolean(row?.encryptedApiKey) : false; return { provider, enabled: row?.enabled ?? (provider === 'META'), baseUrl, apiKeyConfigured, configured: provider === 'EVOLUTION' ? (baseUrl !== null && apiKeyConfigured) : false, configurationStatus: provider === 'EVOLUTION' && (baseUrl === null || !apiKeyConfigured) ? 'INCOMPLETE' : 'READY', lastHealthStatus: row?.lastHealthStatus ?? null, lastHealthCheckAt: row?.lastHealthCheckAt?.toISOString() ?? null }; }) };
   }
   public async update(provider: Provider, input: { enabled: boolean; baseUrl?: string; apiKey?: string }) {
     if (provider === 'EVOLUTION' && input.apiKey !== undefined && !this.cipher) throw new Error('Criptografia de credenciais não configurada.');

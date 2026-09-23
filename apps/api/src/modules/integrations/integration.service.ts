@@ -623,12 +623,18 @@ export class IntegrationService {
         const rawPayload = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
         const data = rawPayload.data !== null && typeof rawPayload.data === 'object' && !Array.isArray(rawPayload.data) ? rawPayload.data as Record<string, unknown> : {};
         const info = rawPayload.Info ?? rawPayload.info ?? data.Info ?? data.info;
+        const own = (key: string) => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : undefined;
         const identitySources = [
-          ['data.phone', data.phone ?? data.Phone],
-          ['data.jid', data.jid ?? data.JID],
-          ['data.chat', data.chat ?? data.Chat],
-          ['data.sender', data.sender ?? data.Sender],
-          ['data.remoteJid', data.remoteJid ?? data.RemoteJid],
+          ['data.phone', own('phone')],
+          ['data.Phone', own('Phone')],
+          ['data.jid', own('jid')],
+          ['data.JID', own('JID')],
+          ['data.chat', own('chat')],
+          ['data.Chat', own('Chat')],
+          ['data.sender', own('sender')],
+          ['data.Sender', own('Sender')],
+          ['data.remoteJid', own('remoteJid')],
+          ['data.RemoteJid', own('RemoteJid')],
           ['Info.Sender', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).Sender ?? (info as Record<string, unknown>).sender : undefined],
           ['Info.Chat', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).Chat ?? (info as Record<string, unknown>).chat : undefined],
           ['Info.SenderAlt', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).SenderAlt ?? (info as Record<string, unknown>).senderAlt : undefined],

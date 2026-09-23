@@ -81,6 +81,22 @@ describe('normalizeEvolutionWebhook', () => {
     });
   });
 
+  it('resolves a string sender/chat JID from the Evolution envelope', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: {
+        buttonId: 'MAIN_MENU_BOOK',
+        buttonText: 'Agendar horário',
+        messageId: 'outbound-5',
+        Sender: '5511999999999@s.whatsapp.net',
+        Chat: '5511999999999@s.whatsapp.net',
+        fromMe: false,
+        type: 'template_button_reply',
+      },
+    })).toMatchObject({ phone: '5511999999999' });
+  });
+
   it('normalizes a list response envelope under data', () => {
     expect(normalizeEvolutionWebhook({
       event: 'ListResponse',

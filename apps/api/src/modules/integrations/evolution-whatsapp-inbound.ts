@@ -8,7 +8,8 @@ const text = (value: unknown): string | null => typeof value === 'string' && val
 const firstText = (...values: unknown[]) => values.map(text).find((value): value is string => value !== null) ?? null;
 const whatsappPhone = (value: string | null): string | null => {
   if (value === null || value.endsWith('@lid')) return null;
-  const digits = value.replace(/@(s\.whatsapp\.net|c\.us)$/u, '').replace(/\D/gu, '');
+  const withoutDevice = value.replace(/:\d+(?=@(?:s\.whatsapp\.net|c\.us)$)/u, '');
+  const digits = withoutDevice.replace(/@(s\.whatsapp\.net|c\.us)$/u, '').replace(/\D/gu, '');
   return digits.length >= 10 && digits.length <= 15 ? digits : null;
 };
 const firstPhone = (...values: unknown[]) => values.map(text).map(whatsappPhone).find((value): value is string => value !== null) ?? null;

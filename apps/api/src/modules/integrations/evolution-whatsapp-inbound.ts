@@ -6,6 +6,12 @@ import { type WhatsAppInboundNormalizer, EVOLUTION_WHATSAPP_CAPABILITIES } from 
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const text = (value: unknown): string | null => typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 const firstText = (...values: unknown[]) => values.map(text).find((value): value is string => value !== null) ?? null;
+const whatsappPhone = (value: string | null): string | null => {
+  if (value === null || value.endsWith('@lid')) return null;
+  const digits = value.replace(/@(s\.whatsapp\.net|c\.us)$/u, '').replace(/\D/gu, '');
+  return digits.length >= 10 && digits.length <= 15 ? digits : null;
+};
+const firstPhone = (...values: unknown[]) => values.map(text).map(whatsappPhone).find((value): value is string => value !== null) ?? null;
 
 const fingerprint = (eventType: string | null, externalMessageId: string | null, payload: unknown) => externalMessageId === null
   ? `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`
@@ -45,7 +51,7 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const fromMe = root.fromMe === true || root.IsFromMe === true || data.fromMe === true || data.IsFromMe === true || info.fromMe === true || info.IsFromMe === true || key.fromMe === true || key.FromMe === true;
   const externalMessageId = firstText(root.messageId, root.id, data.messageId, data.id, info.id, info.ID, info.Id, key.id, key.ID, message.id, message.ID);
   const instanceId = firstText(root.instanceId, root.instanceId as unknown, data.instanceId, instance.instanceId, instance.id, root.instanceName, data.instanceName);
-  const phone = firstText(
+  const phone = firstPhone(
     root.from,
     root.phone,
     root.remoteJid,
@@ -80,7 +86,7 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const eventType = firstText(eventName, button.type, list.type)?.toLowerCase().includes('status') ? null : isAction ? 'MESSAGE_ACTION' : body !== null ? 'MESSAGE_RECEIVED' : null;
   const timestampValue = Number(firstText(root.timestamp, root.moment, data.timestamp, message.timestamp));
   const timestamp = Number.isFinite(timestampValue) ? new Date(timestampValue > 10_000_000_000 ? timestampValue : timestampValue * 1000) : null;
-  const normalizedPhone = phone === null ? null : phone.replace(/\D/gu, '').replace(/@s\.whatsapp\.net$/u, '');
+  const normalizedPhone = phone;
   return {
     provider: 'EVOLUTION',
     providerEvent: eventName,

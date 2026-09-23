@@ -97,6 +97,22 @@ describe('normalizeEvolutionWebhook', () => {
     })).toMatchObject({ phone: '5511999999999' });
   });
 
+  it('skips a LID candidate and uses the next valid phone candidate', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: {
+        buttonId: 'MAIN_MENU_BOOK',
+        buttonText: 'Agendar horário',
+        messageId: 'outbound-6',
+        phone: '123456789012345678@lid',
+        jid: '5511999999999@s.whatsapp.net',
+        fromMe: false,
+        type: 'template_button_reply',
+      },
+    })).toMatchObject({ phone: '5511999999999' });
+  });
+
   it('normalizes a list response envelope under data', () => {
     expect(normalizeEvolutionWebhook({
       event: 'ListResponse',

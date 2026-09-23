@@ -599,7 +599,12 @@ export class IntegrationService {
     const event = new EvolutionInboundNormalizer().normalize(raw);
     if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' }, diagnostics: { stage: 'NORMALIZED', outcome: 'REJECTED', eventType: event.eventType, hasInstanceId: event.instanceId !== null, hasPhone: event.phone !== null } } as const;
     if (await this.repository.selectedWhatsappProvider(config.tenantId) !== 'EVOLUTION') return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_PROVIDER_MISMATCH' }, diagnostics: { stage: 'PROVIDER_CHECK', outcome: 'REJECTED', eventType: event.eventType } } as const;
-    if (event.fromMe || event.eventType === null) return { statusCode: 200, body: { received: true, ignored: true }, diagnostics: { stage: 'NORMALIZED', outcome: 'IGNORED', reason: event.fromMe ? 'FROM_ME' : 'EVENT_TYPE_OR_TEXT_MISSING', eventType: event.eventType, providerEvent: event.providerEvent, hasPhone: event.phone !== null } } as const;
+    if (event.fromMe || event.eventType === null) {
+      const payload = event.payload !== null && typeof event.payload === 'object' && !Array.isArray(event.payload) ? event.payload as Record<string, unknown> : {};
+      const data = payload.data !== null && typeof payload.data === 'object' && !Array.isArray(payload.data) ? payload.data as Record<string, unknown> : {};
+      const message = payload.message !== null && typeof payload.message === 'object' && !Array.isArray(payload.message) ? payload.message as Record<string, unknown> : data.message !== null && typeof data.message === 'object' && !Array.isArray(data.message) ? data.message as Record<string, unknown> : {};
+      return { statusCode: 200, body: { received: true, ignored: true }, diagnostics: { stage: 'NORMALIZED', outcome: 'IGNORED', reason: event.fromMe ? 'FROM_ME' : 'EVENT_TYPE_OR_TEXT_MISSING', eventType: event.eventType, providerEvent: event.providerEvent, hasPhone: event.phone !== null, payloadKeys: Object.keys(payload).slice(0, 20), dataKeys: Object.keys(data).slice(0, 20), messageKeys: Object.keys(message).slice(0, 20) } } as const;
+    }
     const result = await this.processTenantWhatsappInbound(config, event);
     return { statusCode: 200, body: { received: true, processed: result.duplicated ? 0 : 1, duplicated: result.duplicated ? 1 : 0, rejected: result.accepted ? 0 : 1 }, diagnostics: { stage: 'INGESTION', outcome: result.accepted ? (result.duplicated ? 'DUPLICATED' : 'PROCESSED') : 'REJECTED', eventType: event.eventType, hasPhone: event.phone !== null, assistantReplied: 'assistantReplied' in result ? result.assistantReplied : undefined, reason: 'reason' in result ? result.reason : undefined } } as const;
   }

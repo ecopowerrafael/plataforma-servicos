@@ -40,13 +40,14 @@ export class WhatsAppConnectionService {
     ]);
     const selected = await this.selectedProvider(tenantId);
     const enabled = await this.enabledProviders();
+    const selectedConfig = selected === 'WAPI' ? wapiConfig : selected === 'META' ? metaConfig : evolutionConfig;
     return {
       items: [
         {
           provider: 'WAPI',
           label: 'API não oficial',
           description: 'Conexão por QR Code.',
-          available: enabled.has('WAPI') || selected === 'WAPI',
+          available: enabled.has('WAPI') || (selected === 'WAPI' && selectedConfig !== null),
           configured: wapiConfig !== null,
           capabilities: this.resolver.capabilities('WAPI'),
         },
@@ -54,22 +55,22 @@ export class WhatsAppConnectionService {
           provider: 'META',
           label: 'API Oficial',
           description: 'Meta Cloud API.',
-          available: enabled.has('META') || selected === 'META',
+          available: enabled.has('META') || (selected === 'META' && selectedConfig !== null),
           configured: metaConfig !== null,
           phoneNumberId: metaConfig?.phoneNumberId ?? null,
           businessAccountId: metaConfig?.businessAccountId ?? null,
           apiVersion: metaConfig?.apiVersion ?? null,
           webhookUrl: metaConfig === null ? null : this.metaWebhookUrl(metaConfig.webhookPublicId),
           verifyToken: metaConfig?.encryptedVerifyToken == null ? null : this.decryptString(metaConfig.encryptedVerifyToken, 'verifyToken'),
-          tokenConfigured: metaConfig !== null && metaConfig.encryptedAccessToken.trim() !== '',
-          appSecretConfigured: metaConfig?.encryptedAppSecret != null && metaConfig.encryptedAppSecret.trim() !== '',
+          tokenConfigured: Boolean(metaConfig?.encryptedAccessToken?.trim()),
+          appSecretConfigured: Boolean(metaConfig?.encryptedAppSecret?.trim()),
           capabilities: this.resolver.capabilities('META'),
         },
         {
           provider: 'EVOLUTION',
           label: 'Conexão por QR Code',
           description: 'Conecte o WhatsApp escaneando um QR Code.',
-          available: enabled.has('EVOLUTION') || selected === 'EVOLUTION',
+          available: enabled.has('EVOLUTION') || (selected === 'EVOLUTION' && selectedConfig !== null),
           configured: evolutionConfig !== null,
           phoneNumberId: evolutionConfig?.phoneNumberId ?? null,
           capabilities: this.resolver.capabilities('EVOLUTION'),
@@ -79,9 +80,9 @@ export class WhatsAppConnectionService {
   }
 
   private async enabledProviders(): Promise<Set<SupportedWhatsAppProviderId>> {
-    const rows = await (this.client as any).platformWhatsAppProviderSetting?.findMany?.({ where: { enabled: true }, select: { provider: true, baseUrl: true, encryptedApiKey: true } }) ?? [];
-    if (rows.length === 0) return new Set(['META', 'EVOLUTION']);
-    return new Set(rows.filter((row: { provider: string; baseUrl?: string | null; encryptedApiKey?: string | null }) => row.provider !== 'EVOLUTION' || (row.baseUrl?.trim() !== '' && row.baseUrl != null && row.encryptedApiKey?.trim() !== '' && row.encryptedApiKey != null)).map((row: { provider: string }) => row.provider as SupportedWhatsAppProviderId));
+    const rows = await (this.client as any).platformWhatsAppProviderSetting?.findMany?.({ where: { enabled: true }, select: { provider: true, enabled: true, baseUrl: true, encryptedApiKey: true } }) ?? [];
+    if (rows.length === 0) return new Set(['WAPI', 'META', 'EVOLUTION']);
+    return new Set(rows.filter((row: { provider: string; enabled?: boolean; baseUrl?: string | null; encryptedApiKey?: string | null }) => row.enabled !== false && (row.provider === 'WAPI' || row.provider === 'META' || row.provider === 'EVOLUTION') && (row.provider !== 'EVOLUTION' || (row.baseUrl?.trim() !== '' && row.baseUrl != null && row.encryptedApiKey?.trim() !== '' && row.encryptedApiKey != null))).map((row: { provider: string }) => row.provider as SupportedWhatsAppProviderId));
   }
 
   private async selectedProvider(tenantId: bigint): Promise<SupportedWhatsAppProviderId> {
@@ -125,11 +126,12 @@ export class WhatsAppConnectionService {
   ): Promise<{ provider: SupportedWhatsAppProviderId; capabilities: WhatsAppProviderCapabilities; connection: WhatsAppConnectionView }> {
     const enabled = await this.enabledProviders();
     const currentSelected = await this.selectedProvider(tenantId);
-    if (!enabled.has(input.provider) && currentSelected !== input.provider) {
+    const currentSelectedConfig = await this.providerConfig(tenantId, currentSelected);
+    if (!enabled.has(input.provider) && (currentSelected !== input.provider || currentSelectedConfig === null)) {
       throw new AppError({ code: 'WHATSAPP_PROVIDER_DISABLED', message: 'Este provedor não está disponível para novos tenants.', statusCode: 409 });
     }
     const selectedProvider = await this.selectedProvider(tenantId);
-    const current = await this.providerConfig(tenantId, selectedProvider);
+    const current = currentSelectedConfig;
     if (
       current !== null &&
       selectedProvider !== input.provider &&

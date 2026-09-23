@@ -8,9 +8,17 @@ import {
   whatsappProviderBadge,
   whatsappProviderBadgeState,
   whatsappProviderDraftMessage,
+  normalizeWhatsAppProviderItems,
 } from './WhatsAppConnectionCard.js';
 
 describe('WhatsAppConnectionCard provider switching state', () => {
+  it('normalizes missing and legacy provider collections without crashing', () => {
+    expect(normalizeWhatsAppProviderItems(undefined)).toEqual([]);
+    expect(normalizeWhatsAppProviderItems({ providers: [{ provider: 'META', available: true }] })).toEqual([
+      expect.objectContaining({ provider: 'META', available: true }),
+    ]);
+    expect(normalizeWhatsAppProviderItems({ items: [{ provider: 'UNKNOWN', available: true }] })).toEqual([]);
+  });
   it('marks Meta as available when backend says it is available', () => {
     expect(whatsappProviderBadge({ provider: 'META', available: true, configured: false }, 'WAPI')).toBe('NÃO CONFIGURADA');
     expect(whatsappProviderBadgeState({ provider: 'META', available: true, configured: false }, 'WAPI')).toBe('is-not-configured');

@@ -13,7 +13,6 @@ import {
   UpdateWhatsAppProviderSchema,
   WhatsAppConnectionSchema,
   WhatsAppProviderSelectionResultSchema,
-  WhatsAppProvidersResponseSchema,
   WhatsAppQrCodeSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -97,8 +96,35 @@ const PROVIDER_PRESENTATION: Record<
     subtitle: 'Conexão por QR Code',
     description: 'Conecte rapidamente usando o QR Code do WhatsApp.',
     advantages: ['Provisionamento automático', 'Conexão por QR Code', 'Reconectar pelo painel'],
+    considerations: ['Depende da disponibilidade do servidor Evolution GO', 'A conexão é feita por QR Code'],
   },
 };
+
+const PROVIDER_IDS = new Set<ProviderId>(['WAPI', 'META', 'EVOLUTION']);
+
+export function normalizeWhatsAppProviderItems(response: unknown): ProviderCardOption[] {
+  if (response === null || typeof response !== 'object') return [];
+  const record = response as { items?: unknown; providers?: unknown };
+  const rawItems = Array.isArray(record.items) ? record.items : Array.isArray(record.providers) ? record.providers : [];
+  return rawItems.flatMap((value) => {
+    if (value === null || typeof value !== 'object') return [];
+    const item = value as Record<string, unknown>;
+    if (typeof item.provider !== 'string' || !PROVIDER_IDS.has(item.provider as ProviderId)) return [];
+    const provider = item.provider as ProviderId;
+    return [{
+      provider,
+      available: item.available === true,
+      configured: item.configured === true,
+      phoneNumberId: typeof item.phoneNumberId === 'string' || item.phoneNumberId === null ? item.phoneNumberId : null,
+      businessAccountId: typeof item.businessAccountId === 'string' || item.businessAccountId === null ? item.businessAccountId : null,
+      apiVersion: typeof item.apiVersion === 'string' || item.apiVersion === null ? item.apiVersion : null,
+      webhookUrl: typeof item.webhookUrl === 'string' || item.webhookUrl === null ? item.webhookUrl : null,
+      verifyToken: typeof item.verifyToken === 'string' || item.verifyToken === null ? item.verifyToken : null,
+      tokenConfigured: item.tokenConfigured === true,
+      appSecretConfigured: item.appSecretConfigured === true,
+    } satisfies ProviderCardOption];
+  });
+}
 
 export function metaTemplateStatusIcon(status: string) {
   return TEMPLATE_STATUS_LABEL[status] ?? TEMPLATE_STATUS_LABEL.UNKNOWN;
@@ -178,7 +204,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
 
   const providers = useQuery({
     queryKey: ['tenant', tenantPublicId, 'whatsapp', 'providers'],
-    queryFn: () => httpClient.request('/tenant/integrations/whatsapp/providers', { schema: WhatsAppProvidersResponseSchema, tenantPublicId }),
+    queryFn: async () => normalizeWhatsAppProviderItems(await httpClient.request('/tenant/integrations/whatsapp/providers', { tenantPublicId })),
     retry: false,
   });
   const connection = useQuery({
@@ -198,13 +224,9 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const state = connection.data?.state ?? 'NOT_CREATED';
   const available = connection.data?.available ?? true;
   const provisioned = connection.data?.provisioned ?? false;
-  const activePresentation = PROVIDER_PRESENTATION[activeProvider];
-  const managedPresentation = PROVIDER_PRESENTATION[managedProvider];
-  const providerItems = providers.data?.items ?? [
-    { provider: 'WAPI' as const, available: true, configured: activeProvider === 'WAPI' },
-    { provider: 'META' as const, available: true, configured: activeProvider === 'META' },
-    { provider: 'EVOLUTION' as const, available: true, configured: activeProvider === 'EVOLUTION' },
-  ];
+  const activePresentation = PROVIDER_PRESENTATION[activeProvider] ?? PROVIDER_PRESENTATION.WAPI;
+  const managedPresentation = PROVIDER_PRESENTATION[managedProvider] ?? PROVIDER_PRESENTATION.WAPI;
+  const providerItems = providers.data?.length ? providers.data : connection.data?.provisioned ? [{ provider: activeProvider, available: true, configured: true }] : [];
   const selectedProviderOption = providerItems.find((item) => item.provider === managedProvider);
   const managedProviderIsActive = managedProvider === activeProvider;
   const metaConnectionDetails = managedProvider === 'META'
@@ -393,6 +415,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
           <h2>Formas de conexão</h2>
           <p>Escolha a opção mais adequada para a operação do seu estabelecimento.</p>
         </div>
+        {providers.error ? <div className="form-error" role="alert">Não foi possível carregar as opções de WhatsApp. <button className="secondary-button" type="button" onClick={() => void providers.refetch()}>Tentar novamente</button></div> : null}
         <div className="whatsapp-provider-grid" role="list" aria-label="Formas de conexão do WhatsApp">
           {providerItems.map((item) => {
             const presentation = PROVIDER_PRESENTATION[item.provider];

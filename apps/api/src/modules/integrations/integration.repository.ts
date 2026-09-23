@@ -151,8 +151,11 @@ export class IntegrationRepository {
     return this.client.whatsAppInboundEvent.create({ data: { publicId: randomUUID(), provider: data.provider ?? 'WAPI', ...data } });
   }
   public inboundEventByFingerprint(tenantId: bigint, fingerprint: string, data?: { provider?: string; instanceId?: string; externalMessageId?: string | null; eventType?: string | null }) {
-    if (data?.provider !== undefined && data.instanceId !== undefined && data.externalMessageId !== undefined && data.eventType !== undefined) {
-      return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, provider: data.provider, instanceId: data.instanceId, externalMessageId: data.externalMessageId, eventType: data.eventType } });
+    if (data?.provider !== undefined && data.instanceId !== undefined && data.eventType !== undefined) {
+      if (data.externalMessageId !== null && data.externalMessageId !== undefined) {
+        return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, provider: data.provider, instanceId: data.instanceId, externalMessageId: data.externalMessageId, eventType: data.eventType } });
+      }
+      return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, provider: data.provider, instanceId: data.instanceId, eventType: data.eventType, fingerprint } });
     }
     return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, fingerprint } });
   }

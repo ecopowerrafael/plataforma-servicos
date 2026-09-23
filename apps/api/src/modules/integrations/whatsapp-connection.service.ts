@@ -14,6 +14,7 @@ export interface WhatsAppProviderOption {
   label: string;
   description: string;
   available: boolean;
+  availableForNew?: boolean;
   configured?: boolean;
   phoneNumberId?: string | null;
   businessAccountId?: string | null;

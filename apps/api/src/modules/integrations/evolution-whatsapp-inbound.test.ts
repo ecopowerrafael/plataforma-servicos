@@ -4,7 +4,18 @@ import { normalizeEvolutionWebhook } from './evolution-whatsapp-inbound.js';
 describe('normalizeEvolutionWebhook', () => {
   it('normalizes Evolution text messages and ignores fromMe as inbound', () => {
     expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'msg-1', from: '5511999999999', message: { text: 'Olá' } })).toMatchObject({ provider: 'EVOLUTION', instanceId: 'evo-1', externalMessageId: 'msg-1', phone: '5511999999999', text: 'Olá', eventType: 'MESSAGE_RECEIVED', fromMe: false });
-    expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'msg-2', from: '5511999999999', fromMe: true, message: { text: 'eco' } })).toMatchObject({ eventType: 'MESSAGE_RECEIVED', phone: null, fromMe: true, identityResult: 'FROM_ME' });
+  expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'msg-2', from: '5511999999999', fromMe: true, message: { text: 'eco' } })).toMatchObject({ eventType: 'MESSAGE_RECEIVED', phone: null, fromMe: true, identityResult: 'FROM_ME' });
+});
+
+  it('normalizes Evolution Go 0.7.2 uppercase data.Message and data.Info payload', () => {
+  expect(normalizeEvolutionWebhook({
+    event: 'Message',
+    instanceId: 'evo-1',
+    data: {
+      Info: { ID: 'msg-3', Sender: '5511999999999@s.whatsapp.net', IsFromMe: false },
+      Message: { Conversation: 'Olá' },
+    },
+  })).toMatchObject({ provider: 'EVOLUTION', instanceId: 'evo-1', externalMessageId: 'msg-3', phone: '5511999999999', text: 'Olá', eventType: 'MESSAGE_RECEIVED', fromMe: false });
   });
 
   it('preserves quick reply and list IDs without using display text', () => {

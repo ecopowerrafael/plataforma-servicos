@@ -605,6 +605,18 @@ export class IntegrationService {
         actionId: event.actionId,
         recognized: event.actionId !== null,
       });
+      if (event.phone === null) {
+        const raw = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+        const data = raw.data !== null && typeof raw.data === 'object' && !Array.isArray(raw.data) ? raw.data as Record<string, unknown> : {};
+        const identityFields = ['phone', 'Phone', 'jid', 'JID', 'chat', 'Chat', 'sender', 'Sender', 'remoteJid', 'RemoteJid']
+          .filter((key) => data[key] !== undefined)
+          .map((key) => {
+            const value = data[key];
+            if (typeof value !== 'string') return { key, type: typeof value };
+            return { key, type: 'string', length: value.length, suffix: value.slice(-4), isLid: value.endsWith('@lid') };
+          });
+        console.info('[WHATSAPP_INTERACTIVE_IDENTITY]', { provider: 'EVOLUTION', phoneResolved: false, fields: identityFields });
+      }
     }
     if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' }, diagnostics: { stage: 'NORMALIZED', outcome: 'REJECTED', eventType: event.eventType, hasInstanceId: event.instanceId !== null, hasPhone: event.phone !== null } } as const;
     if (await this.repository.selectedWhatsappProvider(config.tenantId) !== 'EVOLUTION') return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_PROVIDER_MISMATCH' }, diagnostics: { stage: 'PROVIDER_CHECK', outcome: 'REJECTED', eventType: event.eventType } } as const;

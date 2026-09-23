@@ -682,7 +682,7 @@ export function createDatabaseConnection(
       appointmentNotifications,
     ),
     wapiConfig: wapiConfigService,
-    whatsappProviderConfig: new WhatsAppProviderConfigService(client, credentialsCipher),
+    whatsappProviderConfig: new WhatsAppProviderConfigService(client, credentialsCipher, wapiConfigService),
     async ping() {
       try {
         await activeClient.$queryRaw`SELECT 1`;

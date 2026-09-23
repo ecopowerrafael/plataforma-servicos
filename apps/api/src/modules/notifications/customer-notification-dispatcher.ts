@@ -44,9 +44,10 @@ export class CustomerNotificationDispatcher {
   ): Promise<boolean> {
     const customer = await this.client.customer.findUnique({
       where: { id: customerId },
-      select: { email: true, whatsapp: true, acceptsCommunications: true },
+      select: { email: true, phone: true, whatsapp: true, acceptsCommunications: true },
     });
     if (customer === null) return false;
+    const whatsappRecipient = customer.whatsapp ?? customer.phone;
     // Transacionais (confirmação, cancelamento, lembrete) fazem parte do
     // serviço e são enviadas mesmo sem opt-in; marketing e automações
     // continuam exigindo `acceptsCommunications`. A regra vale igualmente
@@ -63,7 +64,7 @@ export class CustomerNotificationDispatcher {
       'whatsapp.enabled',
     );
     const whatsappConfigured =
-      customer.whatsapp === null || !whatsappEntitled
+      whatsappRecipient === null || !whatsappEntitled
         ? false
         : (
             await this.client.tenantWhatsAppConfig.findFirst({
@@ -146,8 +147,8 @@ export class CustomerNotificationDispatcher {
         body: push.body,
       }, scheduledAt);
     }
-    if (whatsappConfigured && customer.whatsapp !== null && whatsappBody !== null) {
-      const recipient = normalizeWhatsAppPhone(customer.whatsapp);
+    if (whatsappConfigured && whatsappRecipient !== null && whatsappBody !== null) {
+      const recipient = normalizeWhatsAppPhone(whatsappRecipient);
       if (recipient !== null) {
         await this.notifications.enqueue(tenantId, {
           channel: 'WHATSAPP',

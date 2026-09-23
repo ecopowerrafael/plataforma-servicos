@@ -19,8 +19,21 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const content = record(message.extendedTextMessage ?? message.ExtendedTextMessage ?? message.imageMessage ?? message.ImageMessage ?? message.videoMessage ?? message.VideoMessage);
   const info = record(root.info ?? root.Info ?? data.info ?? data.Info);
   const key = record(root.key ?? root.Key ?? message.key ?? message.Key ?? data.key ?? data.Key ?? info);
-  const button = record(root.ButtonClick ?? data.ButtonClick ?? message.ButtonClick);
-  const list = record(root.list_response ?? data.list_response ?? message.list_response);
+  const button = record(root.ButtonClick ?? data.ButtonClick ?? message.ButtonClick ?? (
+    data.buttonId !== undefined || data.buttonText !== undefined ? {
+      buttonId: data.buttonId,
+      displayText: data.buttonText,
+      type: data.type,
+      contextInfo: data.contextInfo ?? data.context_info,
+    } : undefined
+  ));
+  const list = record(root.list_response ?? data.list_response ?? message.list_response ?? (
+    data.selected_row_id !== undefined || data.selectedRowId !== undefined || data.rowId !== undefined ? {
+      selected_row_id: data.selected_row_id ?? data.selectedRowId ?? data.rowId,
+      title: data.title ?? data.rowTitle,
+      contextInfo: data.contextInfo ?? data.context_info,
+    } : undefined
+  ));
   const buttonContext = record(button.contextInfo ?? button.context_info);
   const listContext = record(list.contextInfo ?? list.context_info);
   const messageContext = record(message.contextInfo ?? message.context_info);
@@ -63,6 +76,7 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
       data.referencedMessageId,
       data.stanzaId,
       data.stanzaID,
+      data.messageId,
       button.referencedMessageId,
       button.stanzaId,
       button.stanzaID,

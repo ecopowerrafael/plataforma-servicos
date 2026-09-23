@@ -41,6 +41,48 @@ describe('normalizeEvolutionWebhook', () => {
     });
   });
 
+  it('normalizes the real Evolution ButtonClick envelope under data', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: {
+        buttonId: 'MAIN_MENU_BOOK',
+        buttonText: 'Agendar horário',
+        messageId: 'outbound-2',
+        phone: '5511999999999',
+        fromMe: false,
+        type: 'template_button_reply',
+      },
+    })).toMatchObject({
+      eventType: 'MESSAGE_ACTION',
+      actionId: 'MAIN_MENU_BOOK',
+      selectedDisplayText: 'Agendar horário',
+      referencedMessageId: 'outbound-2',
+      messageType: 'BUTTON_REPLY',
+    });
+  });
+
+  it('normalizes a list response envelope under data', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ListResponse',
+      instanceId: 'evo-1',
+      data: {
+        selectedRowId: 'service_123',
+        rowTitle: 'Corte',
+        messageId: 'outbound-3',
+        phone: '5511999999999',
+        fromMe: false,
+        type: 'list_response',
+      },
+    })).toMatchObject({
+      eventType: 'MESSAGE_ACTION',
+      actionId: 'service_123',
+      selectedDisplayText: 'Corte',
+      referencedMessageId: 'outbound-3',
+      messageType: 'LIST_RESPONSE',
+    });
+  });
+
   it('marks unknown valid events as ignorable', () => {
     expect(normalizeEvolutionWebhook({ event: 'connection.update', instanceId: 'evo-1', status: 'open' })).toMatchObject({ provider: 'EVOLUTION', eventType: null, instanceId: 'evo-1' });
   });

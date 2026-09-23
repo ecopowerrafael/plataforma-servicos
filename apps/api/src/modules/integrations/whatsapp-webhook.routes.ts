@@ -124,7 +124,8 @@ export const whatsappWebhookRoutes: FastifyPluginAsyncZod<{ service: Integration
   const ingestEvolution = async (request: FastifyRequest, reply: FastifyReply) => {
     const params = request.params as { webhookPublicId: string };
     const result = await options.service.ingestEvolutionWebhook(params.webhookPublicId, request.body);
-    request.log.info({ operation: 'whatsapp_evolution_webhook_received', webhookPublicId: params.webhookPublicId, statusCode: result.statusCode, ...result.diagnostics }, 'Evento Evolution recebido');
+    const diagnostics = result.diagnostics;
+    request.log.info({ operation: 'whatsapp_evolution_webhook_received', webhookPublicId: params.webhookPublicId, statusCode: result.statusCode, ...diagnostics }, `Evento Evolution recebido stage=${diagnostics.stage} outcome=${diagnostics.outcome} status=${result.statusCode}`);
     return reply.status(result.statusCode).send(result.body);
   };
 

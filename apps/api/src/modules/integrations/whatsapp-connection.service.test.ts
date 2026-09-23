@@ -87,6 +87,19 @@ describe('WhatsAppConnectionService', () => {
     expect(result.items.find((item) => item.provider === 'EVOLUTION')?.available).toBe(false);
   });
 
+  it('keeps an existing WAPI tenant visible when WAPI is globally disabled', async () => {
+    const { service, tenantWhatsAppConfig } = subject({}, [{ provider: 'WAPI', enabled: false }, { provider: 'META', enabled: true }]);
+    tenantWhatsAppConfig.findUnique.mockResolvedValue({ provider: 'WAPI', active: true, connectionStatus: 'CONNECTED' });
+    const result = await service.providers(7n);
+    expect(result.items.find((item) => item.provider === 'WAPI')?.available).toBe(true);
+  });
+
+  it('hides disabled WAPI from a tenant without an existing configuration', async () => {
+    const { service } = subject({}, [{ provider: 'WAPI', enabled: false }, { provider: 'META', enabled: true }]);
+    const result = await service.providers(7n);
+    expect(result.items.find((item) => item.provider === 'WAPI')?.available).toBe(false);
+  });
+
   it('makes complete enabled Evolution configuration available', async () => {
     const { service } = subject({}, [{ provider: 'EVOLUTION', enabled: true, baseUrl: 'https://evolution.example', encryptedApiKey: 'cipher:key' }, { provider: 'META', enabled: true }]);
     const result = await service.providers(7n);

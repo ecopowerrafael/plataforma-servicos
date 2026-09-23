@@ -100,7 +100,7 @@ export const frequentlyAskedQuestions = [
   {
     question: 'Preciso instalar alguma coisa?',
     answer:
-      'Não. A plataforma é acessada pelo navegador, tanto pela equipe quanto pelos clientes que usam a página pública do estabelecimento.',
+      'Não. A plataforma funciona pelo navegador para a equipe e para os clientes na página pública do estabelecimento. Se preferir, ela também pode ser instalada no celular como um app (PWA), com acesso rápido pela tela inicial, sem precisar baixar nada em uma loja de aplicativos.',
   },
   {
     question: 'Funciona no celular?',
@@ -143,12 +143,20 @@ export const planLimitLabels = {
   'units.max': 'Unidades',
   'members.max': 'Membros da equipe',
   'professionals.max': 'Profissionais',
+  'services.max': 'Serviços',
   'monthly_appointments.max': 'Agendamentos por mês',
-  'storage.megabytes': 'Armazenamento',
-  'branding.customization.enabled': 'Personalização de marca',
   'custom_domain.enabled': 'Domínio próprio',
+  'branding.customization.enabled': 'Personalização da marca',
   'advanced_reports.enabled': 'Relatórios avançados',
-  'priority_support.enabled': 'Suporte prioritário',
+  'products.enabled': 'Produtos',
+  'stock.enabled': 'Estoque',
+  'commissions.enabled': 'Comissões',
+  'waitlist.enabled': 'Lista de espera',
+  'automations.enabled': 'Automações',
+  'whatsapp.enabled': 'WhatsApp',
+  'integrations.enabled': 'Integrações externas',
+  'loyalty.enabled': 'Fidelidade',
+  'coupons.enabled': 'Cupons',
 } as const;
 
 export const billingCycleLabels = {

@@ -1,0 +1,580 @@
+/* ===== FLOWS LIST PAGE ===== */
+
+.prospecting-flows-container {
+  padding: 1rem;
+}
+
+.prospecting-flows-container .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--ds-border-neutral);
+}
+
+.prospecting-flows-container .page-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--ds-text-primary);
+}
+
+.prospecting-flows-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.prospecting-flow-card {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: box-shadow 0.2s ease;
+}
+
+.prospecting-flow-card:hover {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.flow-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.flow-card-title {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.flow-card-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  flex: 1;
+}
+
+.flow-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.flow-card-description {
+  margin: 0 0 0.75rem 0;
+  color: var(--ds-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.flow-card-meta {
+  margin: 1rem 0 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ds-border-neutral);
+  color: var(--ds-text-tertiary);
+  font-size: 0.85rem;
+}
+
+.prospecting-empty-state {
+  padding: 3rem 2rem;
+  text-align: center;
+  color: var(--ds-text-tertiary);
+  background: var(--ds-background-secondary);
+  border-radius: 8px;
+  border: 1px dashed var(--ds-border-neutral);
+}
+
+.prospecting-feedback {
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.prospecting-feedback.success {
+  background: var(--ds-background-positive-subtle);
+  color: var(--ds-text-positive);
+  border: 1px solid var(--ds-border-positive);
+}
+
+.prospecting-feedback.error {
+  background: var(--ds-background-negative-subtle);
+  color: var(--ds-text-negative);
+  border: 1px solid var(--ds-border-negative);
+}
+
+/* ===== FLOW EDITOR PAGE ===== */
+
+.flow-editor-page {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.flow-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.flow-editor-page .back-button {
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.flow-editor-page .back-button:hover {
+  color: var(--ds-text-primary);
+}
+
+.flow-editor-breadcrumb {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--ds-text-tertiary);
+  min-width: 200px;
+}
+
+.flow-editor-status {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Badges: using global design system - no override */
+.flow-editor-status .badge-start {
+  background: var(--ds-background-tertiary);
+  color: var(--ds-text-secondary);
+  font-size: 0.65rem;
+  padding: 0.2rem 0.4rem;
+}
+
+/* ===== FLOW INFO CARD ===== */
+
+.flow-info-card {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.flow-info-card h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ds-text-primary);
+}
+
+.flow-info-description {
+  margin: 0.5rem 0 1rem 0;
+  color: var(--ds-text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.flow-info-meta {
+  color: var(--ds-text-tertiary);
+  font-size: 0.85rem;
+}
+
+/* ===== FLOW SETTINGS CARD ===== */
+
+.flow-settings-card {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.flow-settings-card h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.flow-settings-card .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.flow-settings-card .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--ds-text-primary);
+}
+
+.flow-settings-card .form-input {
+  display: block;
+  width: 100%;
+  max-width: 500px;
+  padding: 0.75rem;
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--ds-text-primary);
+  background: var(--ds-background-primary);
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.flow-settings-card .form-input:focus {
+  outline: none;
+  border-color: var(--ds-border-focus);
+  box-shadow: 0 0 0 2px var(--ds-background-focus-subtle);
+}
+
+.flow-settings-card .form-input textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.flow-settings-card .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--ds-text-primary);
+}
+
+.flow-settings-card .checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== FLOW STEPS CARD ===== */
+
+.flow-steps-card {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.flow-steps-card h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.flow-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+/* ===== FLOW STEP CARD ===== */
+
+.flow-step-card {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--ds-background-secondary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.flow-step-card:hover {
+  background: var(--ds-background-primary);
+}
+
+.flow-step-number {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--ds-background-tertiary);
+  color: var(--ds-text-secondary);
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.flow-step-header {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+}
+
+.flow-step-info {
+  flex: 1;
+}
+
+.flow-step-title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.flow-step-type {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+}
+
+.flow-step-message {
+  margin: 0.75rem 0 0 0;
+  padding: 0.75rem 1rem;
+  background: var(--ds-background-primary);
+  border-left: 2px solid var(--ds-border-neutral);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.flow-step-responses {
+  margin: 0.75rem 0 0 0;
+  font-size: 0.85rem;
+  color: var(--ds-text-tertiary);
+}
+
+.flow-step-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ===== MODALS (namespaced to avoid global conflict) ===== */
+
+.flow-editor-page .prospecting-form-backdrop,
+.prospecting-flows-container .prospecting-form-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.flow-editor-page .prospecting-form-drawer,
+.prospecting-flows-container .prospecting-form-drawer {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 2rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+  color: var(--ds-text-primary);
+}
+
+.flow-editor-page .prospecting-form-drawer h2,
+.prospecting-flows-container .prospecting-form-drawer h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.flow-editor-page .drawer-close,
+.prospecting-flows-container .drawer-close {
+  background: none;
+  border: none;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+  padding: 0.5rem;
+  margin: -0.5rem 0 1rem -0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.flow-editor-page .drawer-close:hover,
+.prospecting-flows-container .drawer-close:hover {
+  color: var(--ds-text-primary);
+}
+
+.flow-editor-page .modal-actions,
+.prospecting-flows-container .modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.flow-editor-page .form-checkbox,
+.prospecting-flows-container .form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  cursor: pointer;
+}
+
+.flow-editor-page .form-checkbox input[type="checkbox"],
+.prospecting-flows-container .form-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* ===== EMPTY STATE (namespaced) ===== */
+
+.flow-editor-page .empty-state,
+.prospecting-flows-container .empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: var(--ds-text-tertiary);
+  background: var(--ds-background-secondary);
+  border-radius: 6px;
+  border: 1px dashed var(--ds-border-neutral);
+}
+
+.flow-editor-loading {
+  padding: 3rem 2rem;
+  text-align: center;
+  color: var(--ds-text-secondary);
+  font-size: 0.95rem;
+}
+
+.flow-editor-error {
+  padding: 2rem;
+  text-align: center;
+}
+
+.flow-editor-error p {
+  color: var(--ds-text-secondary);
+  margin: 0 0 1.5rem 0;
+  font-size: 0.95rem;
+}
+
+/* ===== FLOW STEP EDITOR (SUBPAGE) ===== */
+
+.flow-step-editor {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-top: 2rem;
+}
+
+.flow-step-editor h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+
+.flow-step-editor .variables-section {
+  margin-top: 1rem;
+}
+
+.flow-step-editor .variables-section small {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: var(--ds-text-secondary);
+  font-size: 0.85rem;
+}
+
+.flow-step-editor .variables-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.flow-step-editor .variable-chip {
+  padding: 0.4rem 0.75rem;
+  background: var(--ds-background-secondary);
+  border: 1px solid var(--ds-border-neutral);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--ds-text-primary);
+  font-weight: 500;
+}
+
+.flow-step-editor .variable-chip:hover {
+  background: var(--ds-background-tertiary);
+  border-color: var(--ds-border-focus);
+}
+
+.flow-step-editor .form-value {
+  padding: 0.75rem;
+  background: var(--ds-background-secondary);
+  border-radius: 4px;
+  color: var(--ds-text-primary);
+  font-size: 0.9rem;
+}
+
+/* ===== RESPONSIVE ===== */
+
+@media (max-width: 768px) {
+  .flow-editor-page {
+    padding: 1rem;
+  }
+
+  .flow-editor-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .flow-card-actions {
+    width: 100%;
+  }
+
+  .flow-card-header {
+    flex-direction: column;
+  }
+
+  .prospecting-flows-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prospecting-form-drawer {
+    max-width: 100%;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+
+  .flow-step-card {
+    flex-direction: column;
+  }
+}

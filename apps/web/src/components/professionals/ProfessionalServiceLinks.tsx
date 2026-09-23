@@ -1,15 +1,16 @@
 import {
   ProfessionalListResponseSchema,
-  ProfessionalServicePublicSchema,
   ProfessionalServicesResponseSchema,
-  ProfessionalServiceStatusResponseSchema,
   ServiceListResponseSchema,
-  UpsertProfessionalServiceRequestSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
+
+const money = (cents: string | number) =>
+  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 export function ProfessionalServiceLinks({
   tenantPublicId,
   professionalPublicId,
@@ -21,171 +22,293 @@ export function ProfessionalServiceLinks({
 }) {
   const client = useQueryClient();
   const isProfessional = professionalPublicId !== undefined;
-  const [target, setTarget] = useState('');
-  const [price, setPrice] = useState('');
-  const [duration, setDuration] = useState('');
-  const [pause, setPause] = useState('');
-  const [commissionType, setCommissionType] = useState<'' | 'PERCENTAGE' | 'FIXED'>('');
-  const [commissionValue, setCommissionValue] = useState('');
+  const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedOverride, setExpandedOverride] = useState<string | null>(null);
+
   const url = isProfessional
     ? `/tenant/professionals/${professionalPublicId}/services`
     : `/tenant/services/${servicePublicId ?? ''}/professionals`;
+
   const links = useQuery({
     queryKey: ['links', url],
     queryFn: () =>
       httpClient.request(url, { schema: ProfessionalServicesResponseSchema, tenantPublicId }),
+    retry: false,
   });
+
   const services = useQuery({
     queryKey: ['services', tenantPublicId],
     queryFn: () =>
-      httpClient.request('/tenant/services?limit=100&active=true', {
+      httpClient.request('/tenant/services?limit=100', {
         schema: ServiceListResponseSchema,
         tenantPublicId,
       }),
     enabled: isProfessional,
+    retry: false,
   });
+
   const professionals = useQuery({
     queryKey: ['professionals', tenantPublicId],
     queryFn: () =>
-      httpClient.request('/tenant/professionals?limit=100&active=true', {
+      httpClient.request('/tenant/professionals?limit=100', {
         schema: ProfessionalListResponseSchema,
         tenantPublicId,
       }),
     enabled: !isProfessional,
+    retry: false,
   });
-  const refresh = () => client.invalidateQueries({ queryKey: ['links', url] });
-  const save = useMutation({
-    mutationFn: () =>
-      httpClient.request(
-        `/tenant/professionals/${isProfessional ? professionalPublicId : target}/services`,
+
+  const initializeSelection = () => {
+    const linkedIds = new Set((links.data?.items ?? []).map((item) =>
+      isProfessional ? item.servicePublicId : item.professionalPublicId
+    ));
+    setSelectedIds(linkedIds);
+  };
+
+  const filteredCatalog = useMemo(() => {
+    const catalog = isProfessional ? services.data?.items ?? [] : professionals.data?.items ?? [];
+    return catalog.filter((item) =>
+      ('name' in item ? item.name : item.publicName)
+        .toLocaleLowerCase('pt-BR')
+        .includes(search.toLocaleLowerCase('pt-BR'))
+    );
+  }, [search, services.data?.items, professionals.data?.items, isProfessional]);
+
+  const bulkSave = useMutation({
+    mutationFn: () => {
+      const desiredServicePublicIds = Array.from(selectedIds);
+      const endpoint = isProfessional
+        ? `/tenant/professionals/${professionalPublicId}/services/bulk`
+        : `/tenant/services/${servicePublicId}/professionals/bulk`;
+      return httpClient.request(
+        endpoint,
         {
           method: 'PUT',
-          body: UpsertProfessionalServiceRequestSchema.parse({
-            servicePublicId: isProfessional ? target : servicePublicId,
-            priceCents: price === '' ? null : Number(price),
-            durationMinutes: duration === '' ? null : Number(duration),
-            hasPostServiceBreak: pause === '' ? null : Number(pause) > 0,
-            postServiceBreakMinutes: pause === '' ? null : Number(pause),
-            commissionType: commissionType === '' ? null : commissionType,
-            commissionValue: commissionValue === '' ? null : Number(commissionValue),
-            active: true,
-          }),
-          schema: ProfessionalServicePublicSchema,
+          body: { desiredServicePublicIds },
+          schema: ProfessionalServicesResponseSchema,
           tenantPublicId,
         },
-      ),
-    onSuccess: refresh,
+      );
+    },
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ['links', url] });
+    },
   });
-  const status = useMutation({
-    mutationFn: (item: { serviceId: string; active: boolean }) =>
-      httpClient.request(
-        `/tenant/professionals/${isProfessional ? professionalPublicId : target}/services/${item.serviceId}/${item.active ? 'activate' : 'deactivate'}`,
-        { method: 'POST', schema: ProfessionalServiceStatusResponseSchema, tenantPublicId },
-      ),
-    onSuccess: refresh,
-  });
-  return (
-    <section className="platform-form">
-      <h4>Vínculos</h4>
-      <select
-        value={target}
-        onChange={(e) => {
-          setTarget(e.target.value);
-        }}
-      >
-        <option value="">Selecionar</option>
-        {isProfessional
-          ? services.data?.items.map((x) => (
-              <option key={x.publicId} value={x.publicId}>
-                {x.name}
-              </option>
-            ))
-          : professionals.data?.items.map((x) => (
-              <option key={x.publicId} value={x.publicId}>
-                {x.publicName}
-              </option>
-            ))}
-      </select>
-      <input
-        min="0"
-        placeholder="Preço em centavos"
-        type="number"
-        value={price}
-        onChange={(e) => {
-          setPrice(e.target.value);
-        }}
-      />
-      <input
-        min="1"
-        placeholder="Duração"
-        type="number"
-        value={duration}
-        onChange={(e) => {
-          setDuration(e.target.value);
-        }}
-      />
-      <input
-        min="0"
-        placeholder="Pausa"
-        type="number"
-        value={pause}
-        onChange={(e) => {
-          setPause(e.target.value);
-        }}
-      />
-      <select
-        value={commissionType}
-        onChange={(e) => {
-          setCommissionType(e.target.value as '' | 'PERCENTAGE' | 'FIXED');
-        }}
-      >
-        <option value="">Comissão padrão</option>
-        <option value="PERCENTAGE">Comissão percentual</option>
-        <option value="FIXED">Comissão fixa</option>
-      </select>
-      <input
-        min="0"
-        placeholder="Valor da comissão"
-        type="number"
-        value={commissionValue}
-        onChange={(e) => {
-          setCommissionValue(e.target.value);
-        }}
-      />
-      <button
-        disabled={target === '' || save.isPending}
-        type="button"
-        onClick={() => void save.mutateAsync()}
-      >
-        Salvar
-      </button>
-      {links.data?.items.map((x) => (
-        <div key={x.publicId}>
-          <span>{isProfessional ? x.servicePublicId : x.professionalPublicId}</span>
-          <span>{` Preço ${String(x.priceCents ?? 'padrão')} · Duração ${String(x.durationMinutes ?? 'padrão')} · Pausa ${String(x.postServiceBreakMinutes ?? 'padrão')} · Comissão ${x.commissionType === null ? 'padrão' : String(x.commissionValue) + (x.commissionType === 'PERCENTAGE' ? '%' : '')}`}</span>
+
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const selectAll = () => {
+    const elegibleIds = new Set(
+      filteredCatalog
+        .filter((item) => {
+          if (!isProfessional) {
+            return ('active' in item) && item.active;
+          }
+          return true;
+        })
+        .map((item) => item.publicId),
+    );
+    setSelectedIds(elegibleIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  if (links.isPending || (isProfessional && services.isPending))
+    return (
+      <div className="profile-skeleton">
+        <span /> <span /> <span />
+      </div>
+    );
+
+  if (links.error instanceof Error || services.error instanceof Error)
+    return (
+      <div className="profile-inline-error">
+        <strong>Não foi possível carregar os dados.</strong>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => {
+            void links.refetch();
+            void services.refetch();
+          }}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+
+  if (!isProfessional) {
+    return (
+      <section className="profile-section">
+        <header>
+          <div>
+            <h3>Profissionais vinculados</h3>
+            <p>Escolha quais profissionais podem executar este serviço.</p>
+          </div>
+        </header>
+        <div className="assignment-toolbar">
+          <label>
+            Pesquisar profissional
+            <input
+              type="search"
+              value={search}
+              placeholder="Digite o nome"
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+          <div className="assignment-actions">
+            <span className="assignment-count">
+              {selectedIds.size} de {filteredCatalog.length} selecionados
+            </span>
+            <button className="text-button" type="button" onClick={selectAll}>
+              Selecionar todos
+            </button>
+            <button className="text-button" type="button" onClick={clearSelection}>
+              Limpar seleção
+            </button>
+          </div>
+        </div>
+        <div className="service-assignment-list">
+          {filteredCatalog.map((professional) => (
+            <article className="service-assignment-card" key={professional.publicId}>
+              <input
+                type="checkbox"
+                checked={selectedIds.has(professional.publicId)}
+                onChange={() => toggleSelect(professional.publicId)}
+                aria-label={`Vincular ${professional.publicName}`}
+              />
+              <span className="service-assignment-icon">
+                {professional.publicName.slice(0, 1)}
+              </span>
+              <div>
+                <strong>{professional.publicName}</strong>
+                <span className={`profile-status ${professional.active ? 'active' : 'inactive'}`}>
+                  {professional.active ? 'Ativo' : 'Inativo'}
+                </span>
+              </div>
+            </article>
+          ))}
+        </div>
+        {filteredCatalog.length === 0 && (
+          <div className="profile-empty">
+            <strong>
+              {search === '' ? 'Nenhum profissional cadastrado.' : 'Nenhum resultado encontrado.'}
+            </strong>
+          </div>
+        )}
+        <footer className="profile-section-footer">
+          {bulkSave.error instanceof Error && (
+            <p className="form-error">Erro ao salvar. Tente novamente.</p>
+          )}
           <button
+            className="primary-button"
             type="button"
-            onClick={() => {
-              setTarget(isProfessional ? x.servicePublicId : x.professionalPublicId);
-              setPrice(x.priceCents === null ? '' : String(x.priceCents));
-              setDuration(x.durationMinutes === null ? '' : String(x.durationMinutes));
-              setPause(x.postServiceBreakMinutes === null ? '' : String(x.postServiceBreakMinutes));
-              setCommissionType(x.commissionType ?? '');
-              setCommissionValue(x.commissionValue === null ? '' : String(x.commissionValue));
-            }}
+            disabled={bulkSave.isPending}
+            onClick={() => void bulkSave.mutateAsync()}
           >
-            Editar
+            {bulkSave.isPending ? 'Salvando…' : 'Salvar alterações'}
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              void status.mutateAsync({ serviceId: x.servicePublicId, active: !x.active })
-            }
-          >
-            {x.active ? 'Desativar' : 'Ativar'}
+        </footer>
+      </section>
+    );
+  }
+
+  return (
+    <section className="profile-section service-manager">
+      <header>
+        <div>
+          <p className="eyebrow">Catálogo</p>
+          <h3>Serviços executados</h3>
+          <p>Escolha quais serviços este profissional realiza.</p>
+        </div>
+      </header>
+      <div className="assignment-toolbar">
+        <label>
+          Pesquisar serviço
+          <input
+            type="search"
+            value={search}
+            placeholder="Digite o nome"
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <div className="assignment-actions">
+          <span className="assignment-count">
+            {selectedIds.size} de {filteredCatalog.length} selecionados
+          </span>
+          <button className="text-button" type="button" onClick={selectAll}>
+            Selecionar todos
+          </button>
+          <button className="text-button" type="button" onClick={clearSelection}>
+            Limpar seleção
           </button>
         </div>
-      ))}
+      </div>
+      <div className="service-assignment-list">
+        {filteredCatalog.map((service) => (
+          <article className="service-assignment-card" key={service.publicId}>
+            <input
+              type="checkbox"
+              checked={selectedIds.has(service.publicId)}
+              onChange={() => toggleSelect(service.publicId)}
+              aria-label={`Vincular ${service.name}`}
+            />
+            <span className="service-assignment-icon" style={{ background: service.color ?? '#e2e8f0' }}>
+              ✦
+            </span>
+            <div>
+              <strong>{service.name}</strong>
+              <span>
+                {service.durationMinutes} min · {money(service.priceCents)}
+              </span>
+            </div>
+            {selectedIds.has(service.publicId) && (
+              <button
+                className="text-button"
+                type="button"
+                onClick={() =>
+                  setExpandedOverride(
+                    expandedOverride === service.publicId ? null : service.publicId,
+                  )
+                }
+              >
+                {expandedOverride === service.publicId ? 'Fechar' : 'Personalizar'}
+              </button>
+            )}
+          </article>
+        ))}
+      </div>
+      {filteredCatalog.length === 0 && (
+        <div className="profile-empty">
+          <strong>
+            {search === '' ? 'Nenhum serviço cadastrado.' : 'Nenhum resultado encontrado.'}
+          </strong>
+        </div>
+      )}
+      <footer className="profile-section-footer">
+        {bulkSave.error instanceof Error && (
+          <p className="form-error">Erro ao salvar. Tente novamente.</p>
+        )}
+        <button
+          className="primary-button"
+          type="button"
+          disabled={bulkSave.isPending || selectedIds.size === 0}
+          onClick={() => void bulkSave.mutateAsync()}
+        >
+          {bulkSave.isPending ? 'Salvando…' : 'Salvar alterações'}
+        </button>
+      </footer>
     </section>
   );
 }

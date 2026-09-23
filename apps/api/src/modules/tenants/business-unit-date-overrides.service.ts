@@ -12,7 +12,7 @@ import { AppError } from '../../errors/AppError.js';
 
 interface Actor {
   userId: bigint;
-  sessionId: bigint;
+  sessionId: bigint | null;
 }
 
 interface OverrideRow {

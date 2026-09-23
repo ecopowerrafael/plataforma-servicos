@@ -31,7 +31,7 @@ const localParts = (value: Date, timezone: string) =>
   );
 
 export class AppointmentWaitlistRepository {
-  public constructor(private readonly client: PrismaClient) {}
+  public constructor(public readonly client: PrismaClient) {}
   public customer(t: bigint, id: string) {
     return this.client.customer.findFirst({
       where: { tenantId: t, publicId: id, status: 'ACTIVE' },
@@ -147,6 +147,7 @@ export class AppointmentWaitlistRepository {
           where: { id: appointmentId, tenantId: t, status: 'CANCELED', unitId: { not: null } },
         });
         if (appointment?.unitId === null || appointment === null) return null;
+        if (appointment.serviceId === null) return null;
         const tenant = await tx.tenant.findUniqueOrThrow({
           where: { id: t },
           select: { timezone: true },

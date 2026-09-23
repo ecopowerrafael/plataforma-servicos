@@ -1,10 +1,11 @@
 import { AuthMeResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AuthLayout } from '../components/AuthLayout.js';
 import { httpClient } from '../lib/http.js';
-import { selectTenant } from '../lib/tenant-selection.js';
+import { selectSingleTenantIfAvailable, selectTenant, tenantDestination, tenantRoleLabel } from '../lib/tenant-selection.js';
 
 export function SelectTenantPage() {
   const navigate = useNavigate();
@@ -12,6 +13,12 @@ export function SelectTenantPage() {
     queryKey: ['auth', 'me', 'tenant-list'],
     queryFn: () => httpClient.request('/auth/me', { schema: AuthMeResponseSchema }),
   });
+
+  useEffect(() => {
+    if (query.data === undefined) return;
+    const destination = selectSingleTenantIfAvailable(query.data.tenants);
+    if (destination !== null) void navigate(destination, { replace: true });
+  }, [navigate, query.data]);
 
   return (
     <AuthLayout
@@ -28,11 +35,11 @@ export function SelectTenantPage() {
             key={tenant.publicId}
             onClick={() => {
               selectTenant(tenant.publicId);
-              void navigate('/app');
+              void navigate(tenantDestination({ tenant, membership }));
             }}
           >
             <strong>{tenant.displayName}</strong>
-            <span>{membership.roleCode}</span>
+            <span>{tenantRoleLabel(membership.roleCode)}</span>
           </button>
         ))}
       </div>

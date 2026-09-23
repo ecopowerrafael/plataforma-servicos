@@ -1,0 +1,20 @@
+CREATE TABLE `directory_business_events` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `public_id` CHAR(36) NOT NULL,
+  `business_id` BIGINT UNSIGNED NOT NULL,
+  `type` ENUM('BUSINESS_VIEW','WHATSAPP_CLICK') NOT NULL,
+  `visitor_hash` CHAR(64) NULL,
+  `session_hash` CHAR(64) NULL,
+  `source_path` VARCHAR(500) NOT NULL,
+  `referrer` VARCHAR(500) NULL,
+  `utm_source` VARCHAR(160) NULL,
+  `utm_medium` VARCHAR(160) NULL,
+  `utm_campaign` VARCHAR(160) NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `udbe_public_id` (`public_id`),
+  INDEX `idbe_business_type_created` (`business_id`, `type`, `created_at`),
+  INDEX `idbe_type_created` (`type`, `created_at`),
+  INDEX `idbe_visitor_business_type_created` (`visitor_hash`, `business_id`, `type`, `created_at`),
+  CONSTRAINT `fdbe_business` FOREIGN KEY (`business_id`) REFERENCES `directory_businesses`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

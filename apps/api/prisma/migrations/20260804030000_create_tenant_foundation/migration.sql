@@ -1,4 +1,4 @@
-CREATE TABLE `tenants` (
+CREATE TABLE IF NOT EXISTS `tenants` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `public_id` CHAR(36) NOT NULL,
   `slug` VARCHAR(63) NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE `tenants` (
   PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE `tenant_settings` (
+CREATE TABLE IF NOT EXISTS `tenant_settings` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `tenant_id` BIGINT UNSIGNED NOT NULL,
   `allow_multiple_units` BOOLEAN NOT NULL DEFAULT false,
@@ -44,7 +44,7 @@ CREATE TABLE `tenant_settings` (
   PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE `business_units` (
+CREATE TABLE IF NOT EXISTS `business_units` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `public_id` CHAR(36) NOT NULL,
   `tenant_id` BIGINT UNSIGNED NOT NULL,
@@ -70,8 +70,6 @@ CREATE TABLE `business_units` (
     CHECK (`country_code` IS NULL OR `country_code` REGEXP '^[A-Z]{2}$'),
   UNIQUE INDEX `business_units_public_id_key` (`public_id`),
   UNIQUE INDEX `business_units_tenant_id_slug_key` (`tenant_id`, `slug`),
-  UNIQUE INDEX `business_units_one_headquarters_per_tenant`
-    ((CASE WHEN `is_headquarters` = true THEN `tenant_id` ELSE NULL END)),
   INDEX `business_units_tenant_id_status_idx` (`tenant_id`, `status`),
   PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

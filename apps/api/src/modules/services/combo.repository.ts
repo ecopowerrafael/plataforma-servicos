@@ -147,6 +147,7 @@ export class PrismaComboRepository {
         professionalId: true,
         serviceId: true,
         professional: { select: { publicId: true, publicName: true } },
+        service: { select: { publicId: true } },
       },
     });
   }

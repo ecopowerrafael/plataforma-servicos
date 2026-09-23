@@ -1,0 +1,328 @@
+/* ============================================
+   TENANTS ADDITIONAL MODULES (REDESIGNED)
+   ============================================ */
+
+/* ============================================
+   MEMBERS MODULE (REDESIGNED)
+   ============================================ */
+
+.members-module--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.members-module--redesigned .members-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.members-module--redesigned .members-header h2 {
+  color: var(--color-text-primary);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.members-module--redesigned .members-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 300px;
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+}
+
+.members-module--redesigned .members-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.members-module--redesigned .members-search input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.members-module--redesigned .members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.members-module--redesigned .member-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.members-module--redesigned .member-card:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.1);
+}
+
+.members-module--redesigned .member-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent-primary);
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.members-module--redesigned .member-info h3 {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.members-module--redesigned .member-info p {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  margin: 4px 0 0 0;
+}
+
+.members-module--redesigned .member-role {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 20px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.members-module--redesigned .member-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.members-module--redesigned .member-actions button {
+  flex: 1;
+  min-width: 80px;
+  padding: 8px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.members-module--redesigned .member-actions button:hover {
+  border-color: var(--color-accent-light);
+  background: var(--color-accent-light);
+  color: white;
+}
+
+.members-module--redesigned .members-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.members-module--redesigned .members-table th {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.members-module--redesigned .members-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.members-module--redesigned .members-table tr:hover {
+  background: var(--color-bg-secondary);
+}
+
+/* ============================================
+   TENANT PWA MODULE (REDESIGNED)
+   ============================================ */
+
+.tenant-pwa--redesigned {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.tenant-pwa--redesigned .pwa-section {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tenant-pwa--redesigned .pwa-section h3 {
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tenant-pwa--redesigned .pwa-section p {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.tenant-pwa--redesigned .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tenant-pwa--redesigned .form-group label {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tenant-pwa--redesigned .form-group input,
+.tenant-pwa--redesigned .form-group select,
+.tenant-pwa--redesigned .form-group textarea {
+  padding: 10px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+}
+
+.tenant-pwa--redesigned .form-group input:focus,
+.tenant-pwa--redesigned .form-group select:focus,
+.tenant-pwa--redesigned .form-group textarea:focus {
+  outline: none;
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+.tenant-pwa--redesigned .pwa-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-bg-secondary);
+  border-radius: 6px;
+}
+
+.tenant-pwa--redesigned .toggle-switch {
+  width: 44px;
+  height: 24px;
+  background: var(--color-border-default);
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s ease;
+}
+
+.tenant-pwa--redesigned .toggle-switch.active {
+  background: var(--color-accent-primary);
+}
+
+.tenant-pwa--redesigned .toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: left 0.2s ease;
+}
+
+.tenant-pwa--redesigned .toggle-switch.active::after {
+  left: 22px;
+}
+
+.tenant-pwa--redesigned .pwa-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 430px) {
+  .members-module--redesigned .members-header {
+    flex-direction: column;
+  }
+
+  .members-module--redesigned .members-search {
+    max-width: 100%;
+  }
+
+  .members-module--redesigned .members-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .members-module--redesigned .member-card {
+    padding: 12px;
+  }
+
+  .tenant-pwa--redesigned .pwa-section {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .members-module--redesigned .members-header {
+    flex-direction: column;
+  }
+
+  .members-module--redesigned .members-search {
+    max-width: 100%;
+  }
+
+  .members-module--redesigned .members-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+
+  .members-module--redesigned .members-table {
+    font-size: 12px;
+  }
+
+  .members-module--redesigned .members-table th,
+  .members-module--redesigned .members-table td {
+    padding: 8px 12px;
+  }
+
+  .tenant-pwa--redesigned .pwa-section {
+    padding: 16px;
+  }
+}

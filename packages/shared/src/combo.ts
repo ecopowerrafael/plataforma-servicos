@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { ImageUrlSchema } from './image-url.js';
+
 const MoneyInputSchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const MoneyPublicSchema = z.string().regex(/^\d+$/u);
 
@@ -54,10 +56,7 @@ export const ComboPublicSchema = z
     name: z.string(),
     description: z.string().nullable(),
     imageAlt: z.string().nullable(),
-    imageUrl: z
-      .string()
-      .regex(/^\/tenant\/combos\/[0-9a-f-]{36}\/image$/iu)
-      .nullable(),
+    imageUrl: ImageUrlSchema,
     priceCents: MoneyPublicSchema,
     sortOrder: z.number().int(),
     active: z.boolean(),
@@ -88,5 +87,24 @@ export const ComboEligibleProfessionalsResponseSchema = z.object({
   items: z.array(ComboEligibleProfessionalSchema),
 });
 
+/**
+ * Schema para combos expostos na API pública (/public/sites/:slug).
+ * Exclui campos administrativos: active, createdAt, updatedAt.
+ */
+export const ComboPublicDisplaySchema = z
+  .object({
+    publicId: z.uuid(),
+    name: z.string(),
+    description: z.string().nullable(),
+    imageAlt: z.string().nullable(),
+    imageUrl: z.string().nullable(),
+    priceCents: MoneyPublicSchema,
+    sortOrder: z.number().int(),
+    items: z.array(ComboItemPublicSchema),
+    durationMinutes: z.number().int(),
+  })
+  .strict();
+
 export type CreateComboRequest = z.infer<typeof CreateComboRequestSchema>;
 export type UpdateComboRequest = z.infer<typeof UpdateComboRequestSchema>;
+export type ComboPublicDisplay = z.infer<typeof ComboPublicDisplaySchema>;

@@ -1,0 +1,98 @@
+import { type WhatsAppConnectionResult } from './whatsapp-connection.js';
+import {
+  type WhatsAppControlTest,
+  type WhatsAppInstanceDiagnostics,
+  type WhatsAppInteractiveButton,
+  type WhatsAppOperationResult,
+  type WhatsAppReplyButtonType,
+  type WhatsAppSendOutcome,
+} from './integration-delivery.js';
+import { type NormalizedWhatsAppEvent } from './whatsapp-inbound.js';
+import { type WhatsAppConnectionView } from './whatsapp-provisioning.service.js';
+
+export type WhatsAppProviderId = 'WAPI' | 'META' | 'EVOLUTION' | (string & {});
+
+export interface WhatsAppProviderCapabilities {
+  quickReply?: { supported: boolean; maxOptions: number };
+  list?: { supported: boolean; maxOptions: number };
+  qrCode: boolean;
+  autoProvision: boolean;
+  interactiveMessages: boolean;
+  templates: boolean;
+  official: boolean;
+}
+
+export interface WhatsAppProvider {
+  readonly provider: WhatsAppProviderId;
+  readonly capabilities: WhatsAppProviderCapabilities;
+}
+
+export interface WhatsAppDeliveryProvider extends WhatsAppProvider {
+  send(tenantId: bigint, to: string, text: string): Promise<void>;
+  sendPlainText(tenantId: bigint, to: string, message: string): Promise<WhatsAppSendOutcome>;
+  sendInteractiveButtons(
+    tenantId: bigint,
+    to: string,
+    message: string,
+    buttons: WhatsAppInteractiveButton[],
+    replyType?: WhatsAppReplyButtonType,
+  ): Promise<WhatsAppSendOutcome>;
+  testConnection(
+    tenantId: bigint,
+    input?: { instanceId?: string | undefined; token?: string | undefined },
+  ): Promise<WhatsAppConnectionResult>;
+  configureReceivedWebhook(tenantId: bigint, url: string): Promise<WhatsAppOperationResult>;
+  configureStatusWebhook(tenantId: bigint, url: string): Promise<WhatsAppOperationResult>;
+  inspectInstance(tenantId: bigint): Promise<WhatsAppInstanceDiagnostics>;
+  runControlTest(tenantId: bigint, to: string, message: string): Promise<WhatsAppControlTest>;
+}
+
+export interface WhatsAppProvisioningProvider extends WhatsAppProvider {
+  current(tenantId: bigint): Promise<WhatsAppConnectionView>;
+  connect(tenantId: bigint): Promise<WhatsAppConnectionView>;
+  qrCode?(tenantId: bigint): Promise<{ qrCode: string; view: WhatsAppConnectionView }>;
+  refreshStatus(tenantId: bigint): Promise<WhatsAppConnectionView>;
+  reconfigureWebhooks?(tenantId: bigint): Promise<{ success: true }>;
+  disconnect(tenantId: bigint): Promise<WhatsAppConnectionView>;
+  reconnect?(tenantId: bigint): Promise<{ qrCode: string; view: WhatsAppConnectionView }>;
+}
+
+export interface WhatsAppInboundNormalizer extends WhatsAppProvider {
+  normalize(raw: unknown): NormalizedWhatsAppEvent;
+  normalizeMany?(raw: unknown): NormalizedWhatsAppEvent[];
+}
+
+export const WAPI_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
+  quickReply: { supported: true, maxOptions: 10 },
+  qrCode: true,
+  autoProvision: true,
+  interactiveMessages: true,
+  templates: false,
+  official: false,
+};
+
+export const META_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
+  quickReply: { supported: true, maxOptions: 3 },
+  list: { supported: true, maxOptions: 10 },
+  qrCode: false,
+  autoProvision: false,
+  interactiveMessages: true,
+  templates: false,
+  official: true,
+};
+
+export const EVOLUTION_WHATSAPP_CAPABILITIES: WhatsAppProviderCapabilities = {
+  quickReply: { supported: true, maxOptions: 3 },
+  list: { supported: true, maxOptions: 10 },
+  qrCode: true,
+  autoProvision: true,
+  interactiveMessages: true,
+  templates: false,
+  official: false,
+};
+
+export function whatsappButtonCapacity(provider: WhatsAppProviderId = 'WAPI'): number {
+  if (provider === 'META') return META_WHATSAPP_CAPABILITIES.quickReply?.maxOptions ?? 0;
+  if (provider === 'EVOLUTION') return EVOLUTION_WHATSAPP_CAPABILITIES.quickReply?.maxOptions ?? 0;
+  return WAPI_WHATSAPP_CAPABILITIES.quickReply?.maxOptions ?? 0;
+}

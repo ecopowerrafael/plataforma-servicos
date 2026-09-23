@@ -15,6 +15,7 @@ import {
 import { type AppointmentService } from './appointment.service.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
   userId: bigint;
@@ -35,7 +36,9 @@ export class AppointmentWaitlistService {
     private readonly appointments: AppointmentService,
     private readonly availability: AvailabilityService,
   ) {}
+  private assertEnabled(tenantId: bigint) { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repo.client, tenantId, 'waitlist.enabled'); }
   public async list(t: bigint, query: AppointmentWaitlistFilter) {
+    await this.assertEnabled(t);
     await this.repo.expire(t, new Date());
     const items = await this.repo.list(t, {
       ...(query.status === undefined ? {} : { status: query.status }),
@@ -55,12 +58,14 @@ export class AppointmentWaitlistService {
     });
   }
   public async get(t: bigint, id: string) {
+    await this.assertEnabled(t);
     await this.repo.expire(t, new Date());
     const item = await this.repo.find(t, id);
     if (item === null) throw this.notFound();
     return this.pub(item);
   }
   public async create(t: bigint, input: CreateAppointmentWaitlistRequest, actor: Actor) {
+    await this.assertEnabled(t);
     const [customer, service, unit] = await Promise.all([
       this.repo.customer(t, input.customerPublicId),
       this.repo.service(t, input.servicePublicId),
@@ -144,6 +149,7 @@ export class AppointmentWaitlistService {
     return this.pub(item);
   }
   public async cancel(t: bigint, id: string, reason: string, actor: Actor) {
+    await this.assertEnabled(t);
     const item = await this.repo.find(t, id);
     if (item === null) throw this.notFound();
     if (item.status !== 'WAITING' && item.status !== 'MATCHED')
@@ -163,6 +169,7 @@ export class AppointmentWaitlistService {
     input: ConvertAppointmentWaitlistRequest,
     actor: Actor,
   ) {
+    await this.assertEnabled(t);
     const initial = await this.repo.find(t, id);
     if (initial === null) throw this.notFound();
     const result = await this.repo.withConversionLock(t, initial.id, async () => {

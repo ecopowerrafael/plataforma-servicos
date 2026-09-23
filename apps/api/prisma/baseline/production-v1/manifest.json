@@ -1,0 +1,24 @@
+{
+  "version": "production-v1",
+  "sourceCommit": "8ed9dd07bb19ca72cfa82aab02e4788f41913316",
+  "generatedAt": "2026-09-17",
+  "mysqlVersion": "8.0.46",
+  "prismaVersion": "7.9.1",
+  "schemaSha256": "79eb73c0968209a730b84abd565f6a0de8d3076e63618ba01fb27315611cc2e6",
+  "tableCount": 159,
+  "indexCount": 1173,
+  "foreignKeyCount": 332,
+  "lastMigrationIncluded": "20261011000002_add_commercial_remittances",
+  "firstIncrementalMigrationAfterBaseline": null,
+  "includedWhatsAppMigrations": [
+    "20260915000001_add_wapi_remote_identity_mapping",
+    "20260915000002_add_prospecting_inbound_idempotency",
+    "20260917000001_add_whatsapp_inbound_provider_idempotency",
+    "20260917000002_add_whatsapp_external_id_uniqueness"
+  ],
+  "dataIncluded": false,
+  "viewsIncluded": false,
+  "triggersIncluded": false,
+  "routinesIncluded": false,
+  "eventsIncluded": false
+}

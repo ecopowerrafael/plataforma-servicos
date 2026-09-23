@@ -1,27 +1,97 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 
+import { type WhatsAppDelivery } from './integration-delivery.js';
 import { type IntegrationRepository } from './integration.repository.js';
+import { WhatsAppAssistantService } from './whatsapp-assistant.service.js';
+import {
+  maskPhone,
+  normalizeWApiWebhook,
+  resolveWApiRemoteIdentity,
+  type NormalizedWhatsAppEvent,
+} from './whatsapp-inbound.js';
+import {
+  advanceStatus,
+  statusFromEvent,
+  timestampColumn,
+  type WhatsAppMessageStatus,
+} from './whatsapp-message-status.js';
+import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
+import { type WhatsAppProviderResolver } from './whatsapp-provider-resolver.js';
+import { type WhatsAppProviderId } from './whatsapp-provider.js';
+import { MetaInboundNormalizer } from './meta-whatsapp-inbound.js';
+import { EvolutionInboundNormalizer } from './evolution-whatsapp-inbound.js';
+import { type Prisma } from '../../database-client/client.js';
+import { type Environment } from '../../config/environment.js';
 import { AppError } from '../../errors/AppError.js';
+import { type AppointmentService } from '../appointments/appointment.service.js';
+import { type AvailabilityService } from '../calendar/availability.service.js';
+import { type CollectionAttemptExecutionService } from '../collections/collection-attempt-execution.service.js';
+import { type CustomerAuthService } from '../customers/customer-auth.service.js';
+import { type CustomerService } from '../customers/customer.service.js';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
+import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-payment-options.service.js';
+import { type PaymentService } from '../payments/payment.service.js';
+import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
+import { ProspectingInboundService } from '../prospecting/prospecting-inbound.service.js';
+
+const sanitizedEvolutionShape = (value: unknown) => {
+  if (Array.isArray(value)) {
+    const first = value[0];
+    return {
+      type: 'array',
+      length: value.length,
+      itemTypes: [...new Set(value.slice(0, 5).map((item) => typeof item))],
+      ...(first !== null && typeof first === 'object' && !Array.isArray(first) ? { firstItemKeys: Object.keys(first as object).sort() } : {}),
+    };
+  }
+  if (value !== null && typeof value === 'object') return { type: 'object', keys: Object.keys(value as object).sort() };
+  return { type: typeof value };
+};
+import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
+import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
+import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
+import { type ProspectingMessageSender } from '../prospecting/prospecting-message-sender.js';
+import { ProspectingRealtimeReplyService } from '../prospecting/prospecting-realtime-reply.service.js';
 
 interface Actor {
   userId: bigint;
-  sessionId: bigint;
+  // null quando a ação vem de um contexto sem sessão de tenant real — ex.:
+  // um admin da plataforma agindo em nome do tenant (AuditLog.sessionId é
+  // uma FK nullable; nunca inventar um id de sessão que não exista).
+  sessionId: bigint | null;
 }
+type WhatsAppConfigByInstance = NonNullable<
+  Awaited<ReturnType<IntegrationRepository['whatsappByInstanceId']>>
+>;
 const whatsappPublic = (
   item: {
     active: boolean;
     phoneNumberId: string;
-    businessAccountId: string;
-    apiVersion: string;
+    encryptedAccessToken: string;
+    lastValidationStatus: string | null;
+    lastValidatedAt: Date | null;
   } | null,
-) => ({
+  available: boolean,
+) => {
+  const storedStatus = item?.lastValidationStatus;
+  const connectionStatus: 'NOT_CONFIGURED' | 'INACTIVE' | 'CONNECTED' | 'ERROR' | null =
+    item === null
+      ? 'NOT_CONFIGURED'
+      : storedStatus === 'CONNECTED' || storedStatus === 'ERROR'
+        ? storedStatus
+        : item.active
+          ? null
+          : 'INACTIVE';
+  return ({
+  available,
   configured: item !== null,
   active: item?.active ?? false,
-  phoneNumberId: item?.phoneNumberId ?? null,
-  businessAccountId: item?.businessAccountId ?? null,
-  apiVersion: item?.apiVersion ?? null,
-});
+  instanceId: item?.phoneNumberId ?? null,
+  tokenConfigured: item !== null && item.encryptedAccessToken.length > 0,
+  connectionStatus,
+  lastValidatedAt: item?.lastValidatedAt?.toISOString() ?? null,
+  });
+};
 const externalPublic = (item: {
   publicId: string;
   name: string;
@@ -39,29 +109,73 @@ const externalPublic = (item: {
 });
 
 export class IntegrationService {
+  private readonly assistant: WhatsAppAssistantService;
+  private readonly prospectingInbound: ProspectingInboundService;
+
   public constructor(
     private readonly repository: IntegrationRepository,
     private readonly cipher: CredentialsCipher | undefined,
-  ) {}
+    private readonly whatsappDelivery?: WhatsAppDelivery,
+    appointmentService?: AppointmentService,
+    availabilityService?: AvailabilityService,
+    tenantWhiteLabel?: TenantWhiteLabelService,
+    professionalServices?: ProfessionalServiceLinkService,
+    customerService?: CustomerService,
+    paymentOptions?: TenantPaymentOptionsService,
+    payments?: PaymentService,
+    customerAuth?: CustomerAuthService,
+    private readonly collectionAttemptExecution?: CollectionAttemptExecutionService,
+    client?: any, // PrismaClient
+    prospectingConfigService?: ProspectingWhatsAppConfigService,
+    private readonly environment?: Environment | null,
+    private readonly providerResolver?: WhatsAppProviderResolver,
+    prospectingMessageSender?: ProspectingMessageSender,
+  ) {
+    this.assistant = new WhatsAppAssistantService(
+      repository,
+      whatsappDelivery,
+      appointmentService,
+      availabilityService,
+      tenantWhiteLabel,
+      professionalServices,
+      customerService,
+      paymentOptions,
+      payments,
+      customerAuth,
+    );
+
+    this.prospectingInbound = client && prospectingConfigService
+      ? new ProspectingInboundService(client, prospectingConfigService, this.environment, prospectingMessageSender ? new ProspectingRealtimeReplyService(client, prospectingMessageSender) : null)
+      : new ProspectingInboundService();
+  }
+  private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {
+    return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repository.client, tenantId, key);
+  }
   public async whatsapp(tenantId: bigint) {
-    return whatsappPublic(await this.repository.whatsapp(tenantId));
+    const available = await new PlanEntitlementService().featureEnabledForTenant(
+      this.repository.client,
+      tenantId,
+      'whatsapp.enabled',
+    );
+    return whatsappPublic(await this.repository.whatsapp(tenantId), available);
   }
   public async updateWhatsapp(
     tenantId: bigint,
     input: {
       active: boolean;
-      phoneNumberId: string;
-      businessAccountId: string;
-      accessToken?: string | undefined;
-      apiVersion: string;
+      instanceId: string;
+      token?: string | undefined;
+      instanceName?: string | undefined;
+      phoneNumber?: string | undefined;
     },
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
     const old = await this.repository.whatsapp(tenantId);
     const encryptedAccessToken =
-      input.accessToken === undefined
+      input.token === undefined
         ? old?.encryptedAccessToken
-        : this.encrypt({ accessToken: input.accessToken });
+        : this.encrypt({ token: input.token });
     if (encryptedAccessToken === undefined)
       throw new AppError({
         code: 'WHATSAPP_TOKEN_REQUIRED',
@@ -70,15 +184,692 @@ export class IntegrationService {
       });
     const result = await this.repository.upsertWhatsapp(tenantId, {
       active: input.active,
-      phoneNumberId: input.phoneNumberId,
-      businessAccountId: input.businessAccountId,
+      instanceId: input.instanceId,
       encryptedAccessToken,
-      apiVersion: input.apiVersion,
+      instanceName: input.instanceName,
+      phoneNumber: input.phoneNumber,
     });
     await this.audit(tenantId, actor, 'integration.whatsapp.updated', result.publicId);
-    return whatsappPublic(result);
+    return whatsappPublic(result, true);
   }
+  /**
+   * Visão administrativa (suporte/plataforma) da instância do WhatsApp do
+   * tenant — nunca devolve o token, só se ele está configurado.
+   */
+  public async whatsappAdminView(tenantId: bigint) {
+    const available = await new PlanEntitlementService().featureEnabledForTenant(
+      this.repository.client,
+      tenantId,
+      'whatsapp.enabled',
+    );
+    const config = await this.repository.whatsapp(tenantId);
+    return {
+      available,
+      configured: config !== null,
+      active: config?.active ?? false,
+      instanceId: config?.phoneNumberId ?? null,
+      instanceName: config?.instanceName ?? null,
+      phoneNumber: config?.connectedPhone ?? null,
+      tokenConfigured: config !== null && config.encryptedAccessToken.length > 0,
+      connectionStatus: config?.connectionStatus ?? 'NOT_CONFIGURED',
+      lastCheckedAt: config?.lastStatusCheckAt?.toISOString() ?? null,
+    };
+  }
+  public async testWhatsapp(tenantId: bigint,input: {instanceId?:string|undefined;token?:string|undefined}) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    if (this.whatsappDelivery === undefined)
+      throw new AppError({ code: 'WHATSAPP_UNAVAILABLE', message: 'Teste indisponivel.', statusCode: 503 });
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null && (input.instanceId===undefined||input.token===undefined))
+      throw new AppError({ code: 'WHATSAPP_NOT_CONFIGURED', message: 'Configure o WhatsApp primeiro.', statusCode: 400 });
+    const result=await this.whatsappDelivery.testConnection(tenantId,input);
+    if(configured!==null)await this.repository.updateWhatsappValidation(tenantId,result.connected?'CONNECTED':'ERROR',new Date());
+    return result;
+  }
+  /** IDs usados só na prova de integração — nenhuma decisão vem do texto do botão. */
+  public static readonly testActionIds = ['TEST_CONFIRM', 'TEST_CANCEL'] as const;
+  // Mensagem em uma única linha: o exemplo da documentação não usa quebra de
+  // linha em mensagem com botões, e isso já foi descartado como variável.
+  private static readonly testMessage =
+    'Teste do Assistente Agendei. Clique em uma opção para validar a integração.';
+
+  private whatsappDeliveryOrFail() {
+    if (this.whatsappDelivery === undefined)
+      throw new AppError({
+        code: 'WHATSAPP_UNAVAILABLE',
+        message: 'Envio indisponível.',
+        statusCode: 503,
+      });
+    return this.whatsappDelivery;
+  }
+
+  /** Envia a mensagem de teste com os dois botões de prova. */
+  public async sendWhatsappButtonTest(tenantId: bigint, phone: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const delivery = this.whatsappDeliveryOrFail();
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'Configure o WhatsApp primeiro.',
+        statusCode: 400,
+      });
+    const buttons = [
+      { buttonId: 'TEST_CONFIRM', label: 'Confirmar teste' },
+      { buttonId: 'TEST_CANCEL', label: 'Cancelar teste' },
+    ];
+    const result = await delivery.sendInteractiveButtons(
+      tenantId,
+      phone,
+      IntegrationService.testMessage,
+      buttons,
+    );
+    const actionIds = buttons.map((button) => button.buttonId);
+    // A ordem enviada é o que permite traduzir o `selectedIndex` do clique de
+    // volta para a nossa ação, então ela precisa ser persistida com o envio.
+    await this.repository.createOutboundMessage({
+      tenantId,
+      instanceId: configured.phoneNumberId,
+      phone,
+      externalMessageId: result.externalMessageId,
+      actionIds,
+      status: result.status,
+      customerId: await this.customerIdForPhone(tenantId, phone),
+      errorCode: result.errorCode,
+    });
+    await this.audit(tenantId, actor, 'integration.whatsapp.button_test_sent', configured.publicId);
+    return { ...result, actionIds };
+  }
+
+  /** Registra as duas URLs de webhook na instância: mensagens recebidas e status. */
+  public async configureWhatsappWebhook(tenantId: bigint, url: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const delivery = this.whatsappDeliveryOrFail();
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'Configure o WhatsApp primeiro.',
+        statusCode: 400,
+      });
+    const received = await delivery.configureReceivedWebhook(tenantId, url);
+    const status = await delivery.configureStatusWebhook(tenantId, url);
+    await this.audit(tenantId, actor, 'integration.whatsapp.webhook_configured', configured.publicId);
+    return { received, status, webhookUrl: url };
+  }
+
+  /** Cliente do tenant correspondente ao telefone, ou `null`. Não cria cadastro. */
+  private async customerIdForPhone(tenantId: bigint, phone: string | null) {
+    if (phone === null) return null;
+    const normalized = normalizeWhatsAppPhone(phone);
+    if (normalized === null) return null;
+    const withoutCountry = normalized.startsWith('55') ? normalized.slice(2) : normalized;
+    const candidates = [...new Set([normalized, withoutCountry, phone])];
+    const customer = await this.repository.customerByPhone(tenantId, candidates);
+    return customer?.id ?? null;
+  }
+
+  /**
+   * Grupo de controle: confirma o número e envia um texto simples. Isola se a
+   * falha é do recurso de botões ou de qualquer envio para aquele destinatário.
+   */
+  public async sendWhatsappControlTest(tenantId: bigint, phone: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const delivery = this.whatsappDeliveryOrFail();
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'Configure o WhatsApp primeiro.',
+        statusCode: 400,
+      });
+    const result = await delivery.runControlTest(
+      tenantId,
+      phone,
+      'Teste do Assistente Agendei — mensagem de controle, sem botões.',
+    );
+    await this.audit(tenantId, actor, 'integration.whatsapp.control_test_sent', configured.publicId);
+    return result;
+  }
+
+  /** Dados da instância + fila pendente, para saber se a mensagem realmente saiu. */
+  public async whatsappInstanceDiagnostics(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const delivery = this.whatsappDeliveryOrFail();
+    const configured = await this.repository.whatsapp(tenantId);
+    if (configured === null)
+      throw new AppError({
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'Configure o WhatsApp primeiro.',
+        statusCode: 400,
+      });
+    return delivery.inspectInstance(tenantId);
+  }
+
+  public async lastWhatsappInboundEvent(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'whatsapp.enabled');
+    const [event, outbound, conversation] = await Promise.all([
+      this.repository.lastInboundEvent(tenantId),
+      this.repository.lastOutboundMessage(tenantId),
+      this.repository.lastConversation(tenantId),
+    ]);
+    const lastConversation =
+      conversation === null
+        ? null
+        : {
+            maskedPhone: maskPhone(conversation.phone),
+            status: conversation.status,
+            currentFlow: conversation.currentFlow,
+            lastInboundAt: conversation.lastInboundAt.toISOString(),
+          };
+    const lastMessage =
+      outbound === null
+        ? null
+        : {
+            externalMessageId: outbound.externalMessageId,
+            status: outbound.status as WhatsAppMessageStatus,
+            maskedPhone: maskPhone(outbound.phone),
+            sentAt: outbound.sentAt.toISOString(),
+            deliveredAt: outbound.deliveredAt?.toISOString() ?? null,
+            readAt: outbound.readAt?.toISOString() ?? null,
+            failedAt: outbound.failedAt?.toISOString() ?? null,
+            errorCode: outbound.errorCode,
+          };
+    if (event === null) return { event: null, lastMessage, lastConversation };
+    return {
+      lastMessage,
+      lastConversation,
+      event: {
+        publicId: event.publicId,
+        eventType: event.eventType,
+        messageType: event.messageType,
+        maskedPhone: maskPhone(event.phone),
+        externalMessageId: event.externalMessageId,
+        actionId: event.actionId,
+        text: event.text,
+        receivedAt: event.receivedAt.toISOString(),
+        payload: event.payload ?? null,
+      },
+    };
+  }
+
+  /**
+   * Ingestão do webhook: o tenant vem sempre da configuração local a partir do
+   * instanceId — nunca de um tenantId recebido de fora.
+   *
+   * IMPORTANTE: Checar Prospecting ANTES de resolver tenant para evitar rotear
+   * erroneamente para tenant quando instanceId pertence a Prospecting.
+   */
+  public async ingestWhatsappInbound(raw: unknown) {
+    const normalized = normalizeWApiWebhook(raw);
+    const received = await resolveWApiRemoteIdentity(normalized, this.remoteIdentityStore());
+
+    if (received.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
+
+    if (received.isGroup) {
+      console.log('[WebhookRoute]', {
+        routerCandidate: 'IGNORED',
+        normalizedEventType: received.eventType,
+        isGroup: true,
+        result: 'GROUP_MESSAGE',
+      });
+      return { accepted: true, ignored: true, reason: 'GROUP_MESSAGE' } as const;
+    }
+
+    if (received.fromMe) {
+      console.log('[WebhookRoute]', {
+        routerCandidate: 'IGNORED',
+        normalizedEventType: received.eventType,
+        isGroup: false,
+        result: 'FROM_ME',
+      });
+      return { accepted: true, ignored: true, reason: 'FROM_ME' } as const;
+    }
+
+    // Connectivity callbacks are not message events and must never enter
+    // prospecting/tenant message processing or mutate message status.
+    if (received.providerEvent === 'webhookConnected') {
+      return { accepted: true, connectionEvent: true } as const;
+    }
+
+    // A propriedade é resolvida pela chave externa antes de tocar em leads,
+    // contatos ou conversas. Repositórios antigos de teste não têm o método;
+    // nesses casos preservamos o comportamento de compatibilidade do fixture.
+    if (this.prospectingInbound) {
+      const owner = this.repository.resolveWhatsAppOwner === undefined
+        ? null
+        : await this.repository.resolveWhatsAppOwner('WAPI', received.instanceId);
+      if (owner?.ownerType === 'CONFLICT') {
+        console.log('[WebhookRoute]', { routerCandidate: 'CONFLICT', result: 'OWNER_CONFLICT', instanceId: received.instanceId });
+        return { accepted: false, reason: 'OWNER_CONFLICT', router: 'CONFLICT' } as const;
+      }
+      if (owner?.ownerType === 'TENANT') {
+        const config = await this.repository.whatsappByInstanceId(received.instanceId);
+        if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN', router: 'TENANT' } as const;
+        const result = await this.processTenantWhatsappInbound(config, received);
+        return { ...result, router: 'TENANT' } as const;
+      }
+      if (owner?.ownerType === 'NOT_FOUND') return { accepted: false, reason: 'INSTANCE_UNKNOWN', router: 'OWNER_NOT_FOUND' } as const;
+      if (owner?.ownerType === 'PROSPECTING') {
+        const prospectingConfig = await this.prospectingInbound.getConfig?.();
+        if (received.phone === null && received.remoteLid !== null) return { accepted: true, ignored: true, reason: 'LID_UNRESOLVED', router: 'PROSPECTING' } as const;
+        if (received.phone !== null || received.referencedMessageId !== null) {
+          const result = await this.prospectingInbound.processInbound({ instanceId: received.instanceId, externalMessageId: received.externalMessageId, fromPhone: received.phone, senderName: received.senderName, body: received.text ?? received.selectedDisplayText ?? undefined, messageType: received.messageType, fromMe: received.fromMe, timestamp: received.timestamp ?? undefined, eventType: received.eventType ?? null, actionId: received.actionId, referencedMessageId: received.referencedMessageId, selectedIndex: received.selectedIndex, isGroup: received.isGroup });
+          return { accepted: true, prospectingHandled: result.handled, router: 'PROSPECTING', ...result } as const;
+        }
+        return { accepted: true, prospectingHandled: false, router: 'PROSPECTING', prospectingConfig: prospectingConfig !== null } as const;
+      }
+
+      // Compatibilidade temporária para doubles antigos sem resolução de owner.
+      // Verificar se instância pertence à Prospecção
+      const prosConfig = await this.prospectingInbound.getConfig?.();
+      const isProspectingInstance = prosConfig && prosConfig.instanceId === received.instanceId;
+
+      console.log('[WebhookRoute]', {
+        routerCandidate: isProspectingInstance ? 'PROSPECTING' : 'TENANT',
+        normalizedEventType: received.eventType,
+        hasReferencedMessageId: received.referencedMessageId !== null,
+        hasValidPhone: received.phone !== null,
+        identityResult: received.identityResult,
+      });
+      if (isProspectingInstance && received.phone === null && received.remoteLid !== null) {
+        console.log('[WApiRemoteIdentity]', {
+          isGroup: false,
+          senderIdKind: received.senderIdKind,
+          chatIdKind: received.chatIdKind,
+          hasSenderLid: received.hasSenderLid,
+          resolutionMethod: received.resolutionMethod,
+          hasValidPhone: false,
+          result: 'LID_UNRESOLVED',
+        });
+        return { accepted: true, ignored: true, reason: 'LID_UNRESOLVED', router: 'PROSPECTING' } as const;
+      }
+      if (isProspectingInstance && (received.phone !== null || received.referencedMessageId !== null)) {
+        const prospectingResult = await this.prospectingInbound.processInbound({
+          instanceId: received.instanceId || null,
+          externalMessageId: received.externalMessageId || null,
+          fromPhone: received.phone || null,
+          senderName: received.senderName,
+          body: received.text ?? received.selectedDisplayText ?? undefined,
+          messageType: received.messageType,
+          fromMe: received.fromMe,
+          timestamp: received.timestamp || undefined,
+          eventType: received.eventType || null,
+          actionId: received.actionId ?? null,
+          referencedMessageId: received.referencedMessageId ?? null,
+          selectedIndex: received.selectedIndex ?? null,
+          isGroup: received.isGroup,
+        });
+
+        // Se foi processado por Prospecting, retornar resultado
+        if (prospectingResult.handled) {
+          return { accepted: true, prospectingHandled: true, router: 'PROSPECTING', ...prospectingResult } as const;
+        }
+
+        // Um telefone recebido na instância da prospecção pertence ao atendente
+        // Agendei, mesmo quando ainda não há lead comercial correlacionado.
+        // O fallback para tenant só é permitido quando não há telefone do
+        // remetente (por exemplo, eventos de mídia sem identificação).
+        if (received.phone !== null) {
+          return {
+            accepted: true,
+            prospectingHandled: false,
+            prospectingReason: prospectingResult.reason,
+            router: 'PROSPECTING',
+          } as const;
+        }
+
+        // A instância pode ser compartilhada com um tenant para eventos sem
+        // identidade de remetente, preservando o roteamento legado.
+        if (!['LEAD_NOT_FOUND', 'CONVERSATION_NOT_FOUND', 'NO_MATCH'].includes(prospectingResult.reason ?? '')) {
+          return {
+            accepted: true,
+            prospectingHandled: false,
+            prospectingReason: prospectingResult.reason,
+            router: 'PROSPECTING',
+          } as const;
+        }
+      }
+    }
+
+    // FLUXO TENANT: continuar com comportamento anterior
+    const config = await this.repository.whatsappByInstanceId(received.instanceId);
+    if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN', router: 'TENANT' } as const;
+    const provider = typeof config.provider === 'string' ? config.provider : 'WAPI';
+    const selectedProvider = this.repository.selectedWhatsappProvider === undefined
+      ? provider
+      : await this.repository.selectedWhatsappProvider(config.tenantId);
+    if (provider !== selectedProvider) return { accepted: false, reason: 'PROVIDER_MISMATCH', router: 'TENANT' } as const;
+    // Valida o provider configurado sem normalizar o payload novamente.
+    this.providerResolver?.inbound(provider);
+    // O evento WAPI já foi normalizado no início deste método.
+    const event = received;
+    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING', router: 'TENANT' } as const;
+    const result = await this.processTenantWhatsappInbound(config, event);
+    return { ...result, router: 'TENANT' } as const;
+  }
+
+  private remoteIdentityStore() {
+    const client = this.repository.client as any;
+    const mapping = client?.wApiRemoteIdentityMapping;
+    if (!mapping) return undefined;
+    return {
+      findPhone: async (instanceId: string, remoteLid: string) => {
+        const row = await mapping.findUnique({
+          where: { instanceId_remoteLid: { instanceId, remoteLid } },
+          select: { normalizedPhone: true },
+        });
+        return typeof row?.normalizedPhone === 'string' ? row.normalizedPhone : null;
+      },
+      savePhone: async (instanceId: string, remoteLid: string, normalizedPhone: string) => {
+        await mapping.upsert({
+          where: { instanceId_remoteLid: { instanceId, remoteLid } },
+          create: { instanceId, remoteLid, normalizedPhone },
+          update: { normalizedPhone },
+        });
+      },
+    };
+  }
+
+  public async ingestWhatsappInboundForProvider(provider: WhatsAppProviderId, raw: unknown) {
+    if (provider === 'WAPI') return this.ingestWhatsappInbound(raw);
+    if (this.providerResolver === undefined)
+      throw new AppError({
+        code: 'WHATSAPP_PROVIDER_NOT_SUPPORTED',
+        message: 'Resolver de provider de WhatsApp indisponivel.',
+        statusCode: 400,
+      });
+    const normalizer = this.providerResolver.inbound(provider);
+    const events = normalizer.normalizeMany?.(raw) ?? [normalizer.normalize(raw)];
+    const summary = { received: true, processed: 0, duplicated: 0, rejected: 0 };
+    for (const event of events) {
+      if (event.instanceId === null) {
+        summary.rejected += 1;
+        continue;
+      }
+      const config = await this.repository.whatsappByInstanceId(event.instanceId);
+      if (config === null) {
+        summary.rejected += 1;
+        continue;
+      }
+      const configuredProvider = typeof config.provider === 'string' ? config.provider : 'WAPI';
+      const selectedProvider = this.repository.selectedWhatsappProvider === undefined
+        ? configuredProvider
+        : await this.repository.selectedWhatsappProvider(config.tenantId);
+      if (configuredProvider !== provider || selectedProvider !== provider) {
+        summary.rejected += 1;
+        continue;
+      }
+      const result = await this.processTenantWhatsappInbound(config, event);
+      if (result.accepted && result.duplicated) summary.duplicated += 1;
+      else if (result.accepted) summary.processed += 1;
+      else summary.rejected += 1;
+    }
+    return summary;
+  }
+
+  public async ingestEvolutionWebhook(webhookPublicId: string, raw: unknown) {
+    const config = await this.repository.evolutionWhatsappByWebhookPublicId(webhookPublicId);
+    if (config === null) return { statusCode: 404, body: { code: 'EVOLUTION_WEBHOOK_NOT_FOUND' }, diagnostics: { stage: 'CONFIG_LOOKUP', outcome: 'REJECTED' } } as const;
+    const event = new EvolutionInboundNormalizer().normalize(raw);
+    if (event.eventType === 'MESSAGE_ACTION') {
+      console.info('[WHATSAPP_INTERACTIVE_ACTION]', {
+        provider: 'EVOLUTION',
+        source: event.messageType === 'LIST_RESPONSE' ? 'LIST' : 'BUTTON',
+        actionId: event.actionId,
+        recognized: event.actionId !== null,
+      });
+      if (event.phone === null) {
+        const rawPayload = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+        const data = rawPayload.data !== null && typeof rawPayload.data === 'object' && !Array.isArray(rawPayload.data) ? rawPayload.data as Record<string, unknown> : {};
+        const info = rawPayload.Info ?? rawPayload.info ?? data.Info ?? data.info;
+        const own = (key: string) => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : undefined;
+        const identitySources = [
+          ['data.phone', own('phone')],
+          ['data.Phone', own('Phone')],
+          ['data.jid', own('jid')],
+          ['data.JID', own('JID')],
+          ['data.chat', own('chat')],
+          ['data.Chat', own('Chat')],
+          ['data.sender', own('sender')],
+          ['data.Sender', own('Sender')],
+          ['data.remoteJid', own('remoteJid')],
+          ['data.RemoteJid', own('RemoteJid')],
+          ['Info.Sender', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).Sender ?? (info as Record<string, unknown>).sender : undefined],
+          ['Info.Chat', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).Chat ?? (info as Record<string, unknown>).chat : undefined],
+          ['Info.SenderAlt', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).SenderAlt ?? (info as Record<string, unknown>).senderAlt : undefined],
+          ['Info.MessageSource', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).MessageSource ?? (info as Record<string, unknown>).messageSource : undefined],
+        ].map(([key, value]) => ({ key, present: value !== undefined, shape: sanitizedEvolutionShape(value) }));
+        console.info('[WHATSAPP_INTERACTIVE_IDENTITY]', { provider: 'EVOLUTION', phoneResolved: false, dataKeys: Object.keys(data).sort(), infoShape: sanitizedEvolutionShape(info), fields: identitySources });
+      }
+    }
+    if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' }, diagnostics: { stage: 'NORMALIZED', outcome: 'REJECTED', eventType: event.eventType, hasInstanceId: event.instanceId !== null, hasPhone: event.phone !== null } } as const;
+    if (await this.repository.selectedWhatsappProvider(config.tenantId) !== 'EVOLUTION') return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_PROVIDER_MISMATCH' }, diagnostics: { stage: 'PROVIDER_CHECK', outcome: 'REJECTED', eventType: event.eventType } } as const;
+    if (event.fromMe || event.eventType === null) {
+      const payload = event.payload !== null && typeof event.payload === 'object' && !Array.isArray(event.payload) ? event.payload as Record<string, unknown> : {};
+      const data = payload.data !== null && typeof payload.data === 'object' && !Array.isArray(payload.data) ? payload.data as Record<string, unknown> : {};
+      const message = payload.message !== null && typeof payload.message === 'object' && !Array.isArray(payload.message) ? payload.message as Record<string, unknown> : data.message !== null && typeof data.message === 'object' && !Array.isArray(data.message) ? data.message as Record<string, unknown> : {};
+      return { statusCode: 200, body: { received: true, ignored: true }, diagnostics: { stage: 'NORMALIZED', outcome: 'IGNORED', reason: event.fromMe ? 'FROM_ME' : 'EVENT_TYPE_OR_TEXT_MISSING', eventType: event.eventType, providerEvent: event.providerEvent, hasPhone: event.phone !== null, payloadKeys: Object.keys(payload).slice(0, 20), dataKeys: Object.keys(data).slice(0, 20), messageKeys: Object.keys(message).slice(0, 20) } } as const;
+    }
+    const result = await this.processTenantWhatsappInbound(config, event);
+    return { statusCode: 200, body: { received: true, processed: result.duplicated ? 0 : 1, duplicated: result.duplicated ? 1 : 0, rejected: result.accepted ? 0 : 1 }, diagnostics: { stage: 'INGESTION', outcome: result.accepted ? (result.duplicated ? 'DUPLICATED' : 'PROCESSED') : 'REJECTED', eventType: event.eventType, hasPhone: event.phone !== null, assistantReplied: 'assistantReplied' in result ? result.assistantReplied : undefined, assistantSkipped: 'assistantSkipped' in result ? result.assistantSkipped : undefined, reason: 'reason' in result ? result.reason : undefined } } as const;
+  }
+
+  public async verifyMetaWebhook(webhookPublicId: string, query: { mode?: string | undefined; verifyToken?: string | undefined; challenge?: string | undefined }) {
+    if (query.mode !== 'subscribe') return null;
+    const config = await this.repository.metaWhatsappByWebhookPublicId(webhookPublicId);
+    if (config === null || config.encryptedVerifyToken === null || this.cipher === undefined) return null;
+    const stored = this.cipher.decrypt(config.encryptedVerifyToken);
+    const expected = typeof stored.verifyToken === 'string' ? stored.verifyToken : null;
+    if (expected === null || query.verifyToken === undefined) return null;
+    const expectedBuffer = Buffer.from(expected);
+    const receivedBuffer = Buffer.from(query.verifyToken);
+    if (expectedBuffer.length !== receivedBuffer.length || !timingSafeEqual(expectedBuffer, receivedBuffer)) return null;
+    return query.challenge ?? '';
+  }
+
+  public async ingestMetaWebhook(webhookPublicId: string, rawBody: string | undefined, body: unknown, signatureHeader: string | string[] | undefined) {
+    const config = await this.repository.metaWhatsappByWebhookPublicId(webhookPublicId);
+    if (config === null) return { statusCode: 404, body: { code: 'META_WEBHOOK_NOT_FOUND' } } as const;
+    if (this.cipher === undefined || config.encryptedAppSecret === null) {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_APP_SECRET_REQUIRED' } } as const;
+    }
+    const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
+    if (signature === undefined || !signature.startsWith('sha256=')) {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_SIGNATURE_REQUIRED' } } as const;
+    }
+    const stored = this.cipher.decrypt(config.encryptedAppSecret);
+    const appSecret = typeof stored.appSecret === 'string' ? stored.appSecret : null;
+    if (appSecret === null || appSecret.trim() === '') {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_APP_SECRET_REQUIRED' } } as const;
+    }
+    const payload = rawBody ?? (typeof body === 'string' ? body : JSON.stringify(body ?? {}));
+    const expected = createHmac('sha256', appSecret).update(payload).digest('hex');
+    const received = signature.slice('sha256='.length);
+    const expectedBuffer = Buffer.from(expected, 'hex');
+    const receivedBuffer = Buffer.from(received, 'hex');
+    if (expectedBuffer.length !== receivedBuffer.length || !timingSafeEqual(expectedBuffer, receivedBuffer)) {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_SIGNATURE_INVALID' } } as const;
+    }
+    const normalizer = new MetaInboundNormalizer();
+    const events = normalizer.normalizeMany(body);
+    if (events.length === 0 || events.some((event) => event.instanceId !== config.phoneNumberId)) {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_PHONE_NUMBER_MISMATCH' } } as const;
+    }
+    const selectedProvider = this.repository.selectedWhatsappProvider === undefined
+      ? 'META'
+      : await this.repository.selectedWhatsappProvider(config.tenantId);
+    if (selectedProvider !== 'META') {
+      return { statusCode: 403, body: { code: 'META_WEBHOOK_PROVIDER_MISMATCH' } } as const;
+    }
+    const summary = { received: true, processed: 0, duplicated: 0, rejected: 0 };
+    for (const event of events) {
+      const result = await this.processTenantWhatsappInbound(config, event);
+      if (result.accepted && result.duplicated) summary.duplicated += 1;
+      else if (result.accepted) summary.processed += 1;
+      else summary.rejected += 1;
+    }
+    return { statusCode: 200, body: summary } as const;
+  }
+
+  private async processTenantWhatsappInbound(
+    config: WhatsAppConfigByInstance,
+    event: NormalizedWhatsAppEvent,
+  ) {
+    if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
+    if (event.phone === null) return { accepted: false, reason: 'PHONE_MISSING' } as const;
+    const tenantId = config.tenantId;
+    const existing = await this.repository.inboundEventByFingerprint(tenantId, event.fingerprint, {
+      provider: event.provider,
+      instanceId: event.instanceId,
+      externalMessageId: event.externalMessageId,
+      eventType: event.eventType,
+    });
+    if (existing !== null) return { accepted: true, duplicated: true } as const;
+
+    const resolvedAction = await this.resolveActionId(tenantId, event);
+    const actionId = resolvedAction?.actionId ?? null;
+    await this.applyStatusEvent(tenantId, event);
+    const customerId = await this.customerIdForPhone(tenantId, event.phone);
+
+    try {
+      await this.repository.createInboundEvent({
+        tenantId,
+        provider: event.provider,
+        instanceId: event.instanceId,
+        externalMessageId: event.externalMessageId,
+        phone: event.phone,
+        eventType: event.eventType,
+        messageType: event.messageType,
+        actionId,
+        fingerprint: event.fingerprint,
+        text: event.text,
+        referencedMessageId: event.referencedMessageId,
+        customerId,
+        payload: event.payload as Prisma.InputJsonValue,
+      });
+    } catch {
+      // Corrida entre entregas simultâneas do mesmo evento: a unique key resolve.
+      return { accepted: true, duplicated: true } as const;
+    }
+
+    // Resposta de tentativa agendada (collection_attempt): rota para Bot Cobra
+    if (resolvedAction?.collectionAttemptPublicId !== null && resolvedAction?.collectionAttemptPublicId !== undefined) {
+      const result = await this.collectionAttemptExecution?.handleWhatsAppResponse(
+        tenantId,
+        resolvedAction.collectionAttemptPublicId,
+        actionId,
+      );
+      return {
+        accepted: true,
+        duplicated: false,
+        eventType: event.eventType,
+        collectionResponseHandled: result?.handled ?? false,
+      } as const;
+    }
+
+    // Resposta imediata de cobrança (collection_reply): rota para Bot Cobra
+    if (resolvedAction?.collectionDebtPublicId !== null && resolvedAction?.collectionDebtPublicId !== undefined) {
+      const result = await this.collectionAttemptExecution?.handleWhatsAppDebtResponse(
+        tenantId,
+        resolvedAction.collectionDebtPublicId,
+        actionId,
+      );
+      return {
+        accepted: true,
+        duplicated: false,
+        eventType: event.eventType,
+        collectionResponseHandled: result?.handled ?? false,
+      } as const;
+    }
+
+    // O evento já está persistido; a automação roda depois e só para mensagens
+    // do cliente, de modo que uma falha aqui não perde o registro do webhook.
+    const entitled = await new PlanEntitlementService().featureEnabledForTenant(
+      this.repository.client,
+      tenantId,
+      'whatsapp.enabled',
+    );
+    const assistant = await this.assistant.handleInbound({
+      tenantId,
+      instanceId: event.instanceId,
+      event,
+      customerId,
+      actionId,
+      appointmentPublicId: resolvedAction?.appointmentPublicId ?? null,
+      entitled,
+    });
+    return {
+      accepted: true,
+      duplicated: false,
+      eventType: event.eventType,
+      assistantReplied: assistant.replied,
+      ...(assistant.reason === undefined ? {} : { assistantSkipped: assistant.reason }),
+    } as const;
+  }
+
+  /**
+   * O clique traz a posição do botão e o id da mensagem original. Cruzando com
+   * o que foi enviado, chegamos ao nosso actionId — sem olhar o texto visível
+   * nem o id gerado pelo provedor.
+   */
+  private async resolveActionId(tenantId: bigint, event: NormalizedWhatsAppEvent) {
+    if (event.referencedMessageId === null) return null;
+    const outbound = await this.repository.outboundByExternalMessageId(
+      tenantId,
+      event.referencedMessageId,
+    );
+    const actionIds = Array.isArray(outbound?.actionIds) ? outbound.actionIds : [];
+    const matched = event.actionId !== null
+      ? actionIds.find((actionId): actionId is string => typeof actionId === 'string' && actionId === event.actionId)
+      : event.selectedIndex === null
+        ? null
+        : actionIds[event.selectedIndex];
+    if (typeof matched !== 'string') return null;
+    const appointmentPublicId =
+      outbound?.notification?.targetType === 'appointment' &&
+      typeof outbound.notification.targetPublicId === 'string'
+        ? outbound.notification.targetPublicId
+        : null;
+    const collectionAttemptPublicId =
+      outbound?.notification?.targetType === 'collection_attempt' &&
+      typeof outbound.notification.targetPublicId === 'string'
+        ? outbound.notification.targetPublicId
+        : null;
+    const collectionDebtPublicId =
+      outbound?.notification?.targetType === 'collection_reply' &&
+      typeof outbound.notification.targetPublicId === 'string'
+        ? outbound.notification.targetPublicId
+        : null;
+    return { actionId: matched, appointmentPublicId, collectionAttemptPublicId, collectionDebtPublicId };
+  }
+
+  /**
+   * Avança o ciclo de vida da mensagem enviada. A busca é sempre por tenant, de
+   * modo que um evento de um tenant nunca alcança a mensagem de outro, e a
+   * transição é monotônica: webhook repetido ou fora de ordem não regride.
+   */
+  private async applyStatusEvent(tenantId: bigint, event: NormalizedWhatsAppEvent) {
+    if (event.eventType === null || event.externalMessageId === null) return;
+    const next = statusFromEvent(event.eventType);
+    if (next === null) return;
+    const outbound = await this.repository.outboundByExternalMessageId(
+      tenantId,
+      event.externalMessageId,
+    );
+    if (outbound === null) return;
+    const current = outbound.status as WhatsAppMessageStatus;
+    const advanced = advanceStatus(current, next);
+    if (advanced === current) return;
+    const column = timestampColumn(advanced);
+    await this.repository.updateOutboundStatus(outbound.id, {
+      status: advanced,
+      ...(column === null ? {} : { [column]: event.timestamp ?? new Date() }),
+    });
+  }
+
   public async list(tenantId: bigint) {
+    await this.assertEnabled(tenantId, 'integrations.enabled');
     return { items: (await this.repository.integrations(tenantId)).map(externalPublic) };
   }
   public async save(
@@ -93,6 +884,7 @@ export class IntegrationService {
     },
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId, 'integrations.enabled');
     const old = publicId === null ? null : await this.repository.integration(tenantId, publicId);
     if (publicId !== null && old === null)
       throw new AppError({
@@ -117,6 +909,7 @@ export class IntegrationService {
     return externalPublic(result);
   }
   public async remove(tenantId: bigint, publicId: string, actor: Actor) {
+    await this.assertEnabled(tenantId, 'integrations.enabled');
     const item = await this.repository.integration(tenantId, publicId);
     if (item === null)
       throw new AppError({

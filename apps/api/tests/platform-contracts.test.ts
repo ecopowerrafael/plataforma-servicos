@@ -26,6 +26,36 @@ describe('contratos comerciais da plataforma', () => {
     ).toBe(true);
   });
 
+  it('mantém preços mensal e anual no mesmo plano, em centavos', () => {
+    const result = CreateCommercialPlanRequestSchema.parse({
+      code: 'PRO',
+      name: 'Profissional',
+      billingCycle: 'MONTHLY',
+      priceCents: 5990,
+      monthlyPriceCents: 5990,
+      annualPriceCents: 59900,
+      currency: 'BRL',
+      limits: [],
+    });
+    expect(result.monthlyPriceCents).toBe(5990);
+    expect(result.annualPriceCents).toBe(59900);
+    expect(result.code).toBe('PRO');
+  });
+
+  it('aceita as quatro periodicidades configuradas em um único plano', () => {
+    const result = CreateCommercialPlanRequestSchema.safeParse({
+      code: 'PERIODOS', name: 'Plano com períodos', billingCycle: 'MONTHLY', priceCents: 5990,
+      currency: 'BRL', limits: [],
+      billingOptions: [
+        { billingCycle: 'MONTHLY', priceCents: 5990, active: true, sortOrder: 0, recommended: true },
+        { billingCycle: 'QUARTERLY', priceCents: 16990, active: true, sortOrder: 1, recommended: false },
+        { billingCycle: 'SEMIANNUAL', priceCents: 32990, active: true, sortOrder: 2, recommended: false },
+        { billingCycle: 'ANNUAL', priceCents: 59900, active: false, sortOrder: 3, recommended: false },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
   it.each([
     { key: 'unknown.limit', valueType: 'INTEGER', integerValue: 1 },
     { key: 'units.max', valueType: 'BOOLEAN', integerValue: 1 },
@@ -57,9 +87,9 @@ describe('contratos comerciais da plataforma', () => {
     ).toBe(true);
     expect(
       PlanLimitInputSchema.safeParse({
-        key: 'storage.megabytes',
-        valueType: 'INTEGER',
-        integerValue: null,
+        key: 'custom_domain.enabled',
+        valueType: 'BOOLEAN',
+        booleanValue: null,
       }).success,
     ).toBe(false);
   });

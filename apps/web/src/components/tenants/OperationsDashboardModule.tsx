@@ -1,8 +1,10 @@
-import { TenantDashboardResponseSchema, TenantReportResponseSchema } from '@plataforma/shared';
+import { TenantDashboardResponseSchema } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { IconCalendar, IconClock, IconCheck, IconUser } from '@tabler/icons-react';
 
 import { httpClient } from '../../lib/http.js';
+import { PageHeader, Skeleton } from '../ui/DesignSystemComponents.js';
+import { SectionCard, ListContainer, ListItem, Badge } from '../ui/DesignSystemComponents.js';
 
 const statusLabels: Record<string, string> = {
   PENDING: 'Pendentes',
@@ -13,17 +15,43 @@ const statusLabels: Record<string, string> = {
   NO_SHOW: 'Faltas',
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const statusColors: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
+  PENDING: 'warning',
+  CONFIRMED: 'info',
+  IN_PROGRESS: 'info',
+  COMPLETED: 'success',
+  CANCELED: 'neutral',
+  NO_SHOW: 'danger',
+};
 
-const startOfDayIso = (date: string) => `${date}T00:00:00.000Z`;
-const endOfDayIso = (date: string) => `${date}T23:59:59.999Z`;
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  unit,
+}: {
+  icon: React.ComponentType<{ size: number }>;
+  label: string;
+  value: number;
+  unit?: string;
+}) {
+  return (
+    <div className="metric-card-v2">
+      <div className="metric-icon-wrapper">
+        <Icon size={24} />
+      </div>
+      <div className="metric-content">
+        <p className="metric-label">{label}</p>
+        <div className="metric-value">
+          {value}
+          {unit && <span className="metric-unit">{unit}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function OperationsDashboardModule({ tenantPublicId }: { tenantPublicId: string }) {
-  const [reportFrom, setReportFrom] = useState(() =>
-    startOfDayIso(new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10)),
-  );
-  const [reportTo, setReportTo] = useState(() => endOfDayIso(today()));
-
   const dashboard = useQuery({
     queryKey: ['tenant', tenantPublicId, 'dashboard'],
     queryFn: () =>
@@ -34,177 +62,105 @@ export function OperationsDashboardModule({ tenantPublicId }: { tenantPublicId: 
     retry: false,
   });
 
-  const report = useQuery({
-    queryKey: ['tenant', tenantPublicId, 'reports', reportFrom, reportTo],
-    queryFn: () =>
-      httpClient.request(
-        `/tenant/reports?${new URLSearchParams({ from: reportFrom, to: reportTo }).toString()}`,
-        { schema: TenantReportResponseSchema, tenantPublicId },
-      ),
-    retry: false,
-  });
+  const todayDate = dashboard.data?.date
+    ? new Date(`${dashboard.data.date}T12:00:00`).toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+      })
+    : '';
 
   return (
-    <>
-      <section className="platform-form" aria-label="Dashboard operacional">
-        <h3>Dashboard operacional</h3>
-        {dashboard.isPending ? <p>Carregando…</p> : null}
-        {dashboard.error instanceof Error ? (
-          <p className="form-error">Não foi possível carregar o dashboard.</p>
-        ) : null}
-        {dashboard.data !== undefined && (
-          <>
-            <p>
-              <strong>Data:</strong> {dashboard.data.date}
-            </p>
-            <div className="session-grid">
-              <article className="info-card">
-                <span>Atendimentos de hoje</span>
-                <strong>{dashboard.data.today.total}</strong>
-              </article>
-              <article className="info-card">
-                <span>Próximos atendimentos</span>
-                <strong>{dashboard.data.today.upcoming}</strong>
-              </article>
-              <article className="info-card">
-                <span>Check-ins</span>
-                <strong>{dashboard.data.today.checkedIn}</strong>
-              </article>
-              <article className="info-card">
-                <span>Encaixes</span>
-                <strong>{dashboard.data.today.fitIn}</strong>
-              </article>
-            </div>
-            <h4>Por status</h4>
-            <ul>
-              {Object.entries(dashboard.data.today.byStatus).map(([status, count]) => (
-                <li key={status}>
-                  {statusLabels[status] ?? status}: {count}
-                </li>
-              ))}
-            </ul>
-            {dashboard.data.today.byProfessional.length > 0 && (
-              <>
-                <h4>Por profissional</h4>
-                <ul>
-                  {dashboard.data.today.byProfessional.map((entry) => (
-                    <li key={entry.professionalPublicId}>
-                      {entry.professionalName}: {entry.total}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {dashboard.data.today.byUnit.length > 0 && (
-              <>
-                <h4>Por unidade</h4>
-                <ul>
-                  {dashboard.data.today.byUnit.map((entry) => (
-                    <li key={entry.unitPublicId ?? 'sem-unidade'}>
-                      {entry.unitName}: {entry.total}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </>
-        )}
-      </section>
+    <div className="operations-dashboard">
+      <PageHeader
+        title="Seu dia em resumo"
+        subtitle={todayDate ? `Hoje, ${todayDate}` : 'Visão geral'}
+      />
 
-      <section className="platform-form" aria-label="Relatórios">
-        <h3>Relatórios</h3>
-        <div className="form-row">
-          <label>
-            De
-            <input
-              type="date"
-              value={reportFrom.slice(0, 10)}
-              onChange={(event) => {
-                setReportFrom(startOfDayIso(event.target.value));
-              }}
-            />
-          </label>
-          <label>
-            Até
-            <input
-              type="date"
-              value={reportTo.slice(0, 10)}
-              onChange={(event) => {
-                setReportTo(endOfDayIso(event.target.value));
-              }}
-            />
-          </label>
+      {dashboard.isPending && (
+        <div className="metrics-grid">
+          <Skeleton count={4} type="card" />
         </div>
-        {report.isPending ? <p>Carregando…</p> : null}
-        {report.error instanceof Error ? (
-          <p className="form-error">Não foi possível carregar o relatório.</p>
-        ) : null}
-        {report.data !== undefined && (
-          <>
-            <p>
-              <strong>Total no período:</strong> {report.data.total}
-            </p>
-            <p>
-              <strong>Novos clientes:</strong> {report.data.newCustomers}
-            </p>
-            <p>
-              <strong>Taxa de cancelamento:</strong>{' '}
-              {(report.data.cancellationRate * 100).toFixed(1)}%
-            </p>
-            <p>
-              <strong>Taxa de falta:</strong> {(report.data.noShowRate * 100).toFixed(1)}%
-            </p>
+      )}
 
-            <h4>Por status</h4>
-            <ul>
-              {Object.entries(report.data.byStatus).map(([status, count]) => (
-                <li key={status}>
-                  {statusLabels[status] ?? status}: {count}
-                </li>
+      {dashboard.error instanceof Error && (
+        <div className="alert alert-danger">
+          <p>Não foi possível carregar o dashboard. Tente novamente.</p>
+        </div>
+      )}
+
+      {dashboard.data !== undefined && (
+        <>
+          {/* Metrics Grid */}
+          <div className="metrics-grid">
+            <MetricCard
+              icon={IconCalendar}
+              label="Atendimentos de hoje"
+              value={dashboard.data.today.total}
+            />
+            <MetricCard
+              icon={IconClock}
+              label="Próximos atendimentos"
+              value={dashboard.data.today.upcoming}
+            />
+            <MetricCard
+              icon={IconCheck}
+              label="Check-ins"
+              value={dashboard.data.today.checkedIn}
+            />
+            <MetricCard
+              icon={IconUser}
+              label="Encaixes"
+              value={dashboard.data.today.fitIn}
+            />
+          </div>
+
+          {/* Status Breakdown */}
+          <SectionCard title="Atendimentos por status">
+            <div className="status-grid">
+              {Object.entries(dashboard.data.today.byStatus).map(([status, count]) => (
+                <div key={status} className="status-item">
+                  <div className="status-info">
+                    <p className="status-name">{statusLabels[status] ?? status}</p>
+                    <p className="status-count">{count}</p>
+                  </div>
+                  <Badge type={statusColors[status] ?? 'neutral'}>{count}</Badge>
+                </div>
               ))}
-            </ul>
+            </div>
+          </SectionCard>
 
-            {report.data.byProfessional.length > 0 && (
-              <>
-                <h4>Por profissional</h4>
-                <ul>
-                  {report.data.byProfessional.map((entry) => (
-                    <li key={entry.professionalPublicId}>
-                      {entry.professionalName}: {entry.total}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+          {/* By Professional */}
+          {dashboard.data.today.byProfessional.length > 0 && (
+            <SectionCard title="Atendimentos por profissional">
+              <ListContainer>
+                {dashboard.data.today.byProfessional.map((entry) => (
+                  <ListItem
+                    key={entry.professionalPublicId}
+                    title={entry.professionalName}
+                    badge={<Badge type="primary">{entry.total}</Badge>}
+                  />
+                ))}
+              </ListContainer>
+            </SectionCard>
+          )}
 
-            {report.data.byService.length > 0 && (
-              <>
-                <h4>Por serviço</h4>
-                <ul>
-                  {report.data.byService.map((entry) => (
-                    <li key={entry.servicePublicId}>
-                      {entry.serviceName}: {entry.total}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-
-            {report.data.byUnit.length > 0 && (
-              <>
-                <h4>Por unidade</h4>
-                <ul>
-                  {report.data.byUnit.map((entry) => (
-                    <li key={entry.unitPublicId ?? 'sem-unidade'}>
-                      {entry.unitName}: {entry.total}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </>
-        )}
-      </section>
-    </>
+          {/* By Unit */}
+          {dashboard.data.today.byUnit.length > 0 && (
+            <SectionCard title="Atendimentos por unidade">
+              <ListContainer>
+                {dashboard.data.today.byUnit.map((entry) => (
+                  <ListItem
+                    key={entry.unitPublicId ?? 'sem-unidade'}
+                    title={entry.unitName}
+                    badge={<Badge type="primary">{entry.total}</Badge>}
+                  />
+                ))}
+              </ListContainer>
+            </SectionCard>
+          )}
+        </>
+      )}
+    </div>
   );
 }

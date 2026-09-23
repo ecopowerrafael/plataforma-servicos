@@ -9,21 +9,71 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=20.20.0",
+    "node": ">=22.0.0",
     "npm": ">=10.8.0"
   },
   "scripts": {
     "dev": "concurrently --names api,web --prefix-colors blue,green \"npm run dev --workspace=@plataforma/api\" \"npm run dev --workspace=@plataforma/web\"",
-    "build": "npm run build --workspace=@plataforma/shared && npm run build --workspace=@plataforma/api && npm run build --workspace=@plataforma/web",
+    "build": "npm run build:phase-a",
+    "build:phase-a": "npm run db:generate && npm run build:shared && npm run build:api && npm run build:web",
+    "build:phase-b:v2": "npm run db:generate && npm run build:shared && npm run db:migrate:deploy && npm run db:bootstrap && npm run build:api && npm run build:web",
+    "build:shared": "npm run build --workspace=@plataforma/shared",
+    "build:api": "npm run build --workspace=@plataforma/api",
+    "build:web": "npm run build --workspace=@plataforma/web",
+    "build:code": "npm run build:shared && npm run build:api && npm run build:web",
+    "start": "node apps/api/dist/server.js",
+    "worker:once": "node apps/api/dist/worker/run-once.js",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "typecheck": "npm run build --workspace=@plataforma/shared && npm run typecheck --workspace=@plataforma/api && npm run typecheck --workspace=@plataforma/web",
     "test": "npm run test --workspace=@plataforma/api",
+    "test:unit": "npm run test:unit --workspace=@plataforma/api",
+    "test:contract": "npm run test:contract --workspace=@plataforma/api",
+    "test:integration:local": "npm run test:integration:local --workspace=@plataforma/api",
+    "test:integration:external": "node scripts/testing/external-suite.mjs",
+    "test:critical": "npm run test:critical --workspace=@plataforma/api",
+    "test:production-critical": "npm run test:critical --workspace=@plataforma/api",
+    "test:all": "npm run test:all --workspace=@plataforma/api",
     "db:generate": "npm run db:generate --workspace=@plataforma/api",
+    "db:generate:v2": "npm run db:generate:v2 --workspace=@plataforma/api",
     "db:migrate": "npm run db:migrate --workspace=@plataforma/api",
+    "db:migrate:deploy": "node scripts/database/migrate-v2-guarded.mjs",
+    "db:migrate:deploy:unguarded": "npm run db:migrate:deploy --workspace=@plataforma/api",
+    "db:migrate:v2": "npm run db:migrate:v2 --workspace=@plataforma/api",
     "db:migrate:dev": "npm run db:migrate:dev --workspace=@plataforma/api",
-    "db:bootstrap": "npm run db:bootstrap --workspace=@plataforma/api"
+    "db:migrate:production": "npm run db:migrate:v2 --workspace=@plataforma/api",
+    "db:migrate:legacy": "npm run db:migrate:legacy --workspace=@plataforma/api",
+    "db:reset-initial": "npm run db:reset-initial --workspace=@plataforma/api",
+    "db:bootstrap": "npm run db:bootstrap --workspace=@plataforma/api",
+    "db:bootstrap:system": "npm run db:bootstrap:system --workspace=@plataforma/api",
+    "db:migrate:recover": "npm run db:migrate:recover --workspace=@plataforma/api"
+    ,"db:test:guard": "node scripts/test-db/guard-test-database.mjs"
+    ,"db:test:prepare": "node scripts/test-db/prepare-integration-database.mjs"
+    ,"db:test:migrate": "node scripts/test-db/migrate-integration.mjs"
+    ,"db:test:baseline": "node scripts/test-db/baseline-legacy-migrations.mjs"
+    ,"db:test:sanitize-snapshot": "node scripts/test-db/sanitize-production-snapshot.mjs"
+    ,"db:test:verify": "node scripts/test-db/verify-financial-integrity.mjs"
+    ,"test:integration:financial": "npm run db:test:guard && npm run test --workspace=@plataforma/api -- --run tests/commercial-subscription-settlement-mysql-integration.test.ts"
+    ,"test:database:migration-files": "node scripts/database/validate-migrations.mjs"
+    ,"test:database:fresh-install": "node scripts/database/fresh-install-v2.mjs"
+    ,"db:reset:fresh:v2": "node scripts/database/reset-fresh-v2.mjs"
+    ,"test:database:fresh-install:legacy": "node scripts/database/fresh-install-gate.mjs"
+    ,"audit:database:legacy-migrations": "node scripts/database/audit-legacy-migrations.mjs"
+    ,"test:database:same-target": "node scripts/database/assert-same-database.test.mjs"
+    ,"test:database:schema-drift": "node scripts/database/schema-drift.mjs"
+    ,"test:database:v2-state": "node --test scripts/database/v2-state-guard.test.mjs"
+    ,"test:database:sanitize": "node --test scripts/database/sanitize.test.mjs"
+    ,"db:status": "npm run db:status --workspace=@plataforma/api"
+    ,"db:status:v2": "npm run db:status:v2 --workspace=@plataforma/api"
+    ,"db:verify": "npm run db:verify --workspace=@plataforma/api"
+    ,"db:backup:schema": "npm run db:backup:schema --workspace=@plataforma/api"
+    ,"db:install:fresh": "node scripts/database/install-fresh.mjs"
+    ,"db:baseline:register": "node scripts/database/register-baseline.mjs"
+    ,"db:cutover:v2:existing": "node scripts/database/cutover-v2-existing.mjs"
+  },
+  "dependencies": {
+    "typescript": "^6.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -35,7 +85,6 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.9.0",
     "prettier": "^3.9.6",
-    "typescript": "^6.0.3",
     "typescript-eslint": "^8.66.0"
   }
 }

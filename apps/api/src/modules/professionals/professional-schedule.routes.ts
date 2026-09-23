@@ -62,6 +62,15 @@ export const professionalScheduleRoutes: FastifyPluginAsyncZod<{
     },
   );
 
+  app.put(
+    '/tenant/professionals/:publicId/schedule',
+    { schema: { params: professionalParams, body: UpsertProfessionalScheduleRequestSchema, response: { 200: ProfessionalScheduleResponseSchema } } },
+    (request) => {
+      options.authService.requirePermission(request.tenant, 'professional.schedule.manage');
+      return options.service.replace(request.tenant.id, request.params.publicId, request.body, actor(request));
+    },
+  );
+
   app.patch(
     '/tenant/professionals/:publicId/schedule/:periodPublicId',
     {

@@ -15,6 +15,7 @@ export const WhatsAppProviderOptionSchema = z.object({
   label: z.string(),
   description: z.string(),
   available: z.boolean(),
+  availableForNew: z.boolean().optional(),
   configured: z.boolean().optional(),
   phoneNumberId: z.string().nullable().optional(),
   businessAccountId: z.string().nullable().optional(),

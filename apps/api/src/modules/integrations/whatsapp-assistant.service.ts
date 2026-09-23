@@ -1991,6 +1991,7 @@ export class WhatsAppAssistantService {
     conversationId: bigint,
   ) {
     const delivery = this.delivery;
+    console.info('[WHATSAPP_REPLY_DISPATCH]', JSON.stringify({ provider: delivery?.provider ?? null, hasReply: true, hasRecipient: phone.trim().length > 0, deliveryResolved: delivery !== undefined }));
     if (delivery === undefined) return;
     const result = await delivery.sendInteractiveButtons(input.tenantId, phone, message, menuButtons);
     await this.trackOutbound(input, phone, result, menuActionIds, conversationId);
@@ -2003,6 +2004,7 @@ export class WhatsAppAssistantService {
     conversationId: bigint,
   ) {
     const delivery = this.delivery;
+    console.info('[WHATSAPP_REPLY_DISPATCH]', JSON.stringify({ provider: delivery?.provider ?? null, hasReply: true, hasRecipient: phone.trim().length > 0, deliveryResolved: delivery !== undefined }));
     if (delivery === undefined) return;
     const result = await delivery.sendPlainText(input.tenantId, phone, message);
     await this.trackOutbound(input, phone, result, [], conversationId);
@@ -2010,6 +2012,7 @@ export class WhatsAppAssistantService {
 
   private async dispatchCustomButtons(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, phone: string, message: string, buttons: WhatsAppInteractiveButton[], conversationId: bigint) {
     const delivery = this.delivery;
+    console.info('[WHATSAPP_REPLY_DISPATCH]', JSON.stringify({ provider: delivery?.provider ?? null, hasReply: true, hasRecipient: phone.trim().length > 0, deliveryResolved: delivery !== undefined }));
     if (delivery === undefined) return;
     const result = await delivery.sendInteractiveButtons(input.tenantId, phone, message, buttons);
     await this.trackOutbound(input, phone, result, buttons.map((button) => button.buttonId), conversationId);

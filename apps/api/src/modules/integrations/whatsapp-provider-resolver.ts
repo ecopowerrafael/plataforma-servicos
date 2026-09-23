@@ -91,7 +91,14 @@ export class WhatsAppProviderResolver {
   }
 
   public async deliveryForTenant(tenantId: bigint): Promise<WhatsAppDeliveryProvider> {
-    return this.delivery(await this.providerForTenant(tenantId));
+    const provider = await this.providerForTenant(tenantId);
+    const delivery = this.delivery(provider);
+    console.info('[WHATSAPP_PROVIDER_RESOLVED]', JSON.stringify({
+      tenantId: tenantId.toString(),
+      provider,
+      delivery: delivery.constructor.name,
+    }));
+    return delivery;
   }
 
   public async provisioningForTenant(tenantId: bigint): Promise<WhatsAppProvisioningProvider> {

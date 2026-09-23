@@ -125,7 +125,9 @@ export const whatsappWebhookRoutes: FastifyPluginAsyncZod<{ service: Integration
     const params = request.params as { webhookPublicId: string };
     const result = await options.service.ingestEvolutionWebhook(params.webhookPublicId, request.body);
     const diagnostics = result.diagnostics;
-    request.log.info({ operation: 'whatsapp_evolution_webhook_received', webhookPublicId: params.webhookPublicId, statusCode: result.statusCode, ...diagnostics }, `Evento Evolution recebido stage=${diagnostics.stage} outcome=${diagnostics.outcome} status=${result.statusCode}`);
+    const reason = 'reason' in diagnostics ? diagnostics.reason : undefined;
+    const providerEvent = 'providerEvent' in diagnostics ? diagnostics.providerEvent : undefined;
+    request.log.info({ operation: 'whatsapp_evolution_webhook_received', webhookPublicId: params.webhookPublicId, statusCode: result.statusCode, ...diagnostics }, `Evento Evolution recebido stage=${diagnostics.stage} outcome=${diagnostics.outcome} status=${result.statusCode}${reason === undefined ? '' : ` reason=${reason}`}${providerEvent === undefined ? '' : ` providerEvent=${providerEvent}`}`);
     return reply.status(result.statusCode).send(result.body);
   };
 

@@ -47,6 +47,38 @@ const sanitizedEvolutionShape = (value: unknown) => {
   if (value !== null && typeof value === 'object') return { type: 'object', keys: Object.keys(value as object).sort() };
   return { type: typeof value };
 };
+
+const evolutionDedupeField = (value: unknown): string | number | boolean | null =>
+  typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : null;
+
+const evolutionDedupeDiagnostics = (payload: unknown) => {
+  const root = payload !== null && typeof payload === 'object' && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
+  const data = root.data !== null && typeof root.data === 'object' && !Array.isArray(root.data) ? root.data as Record<string, unknown> : {};
+  const extraData = data.extraData !== null && typeof data.extraData === 'object' && !Array.isArray(data.extraData) ? data.extraData as Record<string, unknown> : {};
+  const paramsJson = typeof extraData.paramsJSON === 'string' ? extraData.paramsJSON : typeof extraData.paramsJson === 'string' ? extraData.paramsJson : null;
+  let params: Record<string, unknown> = {};
+  if (paramsJson !== null) {
+    try {
+      const parsed: unknown = JSON.parse(paramsJson);
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) params = parsed as Record<string, unknown>;
+    } catch {
+      // Diagnostic logging must never make webhook ingestion fail.
+    }
+  }
+  return {
+    providerEvent: evolutionDedupeField(root.event),
+    dataMessageId: evolutionDedupeField(data.messageId),
+    dataType: evolutionDedupeField(data.type),
+    dataButtonId: evolutionDedupeField(data.buttonId),
+    dataRowId: evolutionDedupeField(data.rowId),
+    dataSelectedRowId: evolutionDedupeField(data.selectedRowId),
+    dataSelected_row_id: evolutionDedupeField(data.selected_row_id),
+    extraDataType: evolutionDedupeField(extraData.type),
+    extraDataName: evolutionDedupeField(extraData.name),
+    paramsSelected_row_id: evolutionDedupeField(params.selected_row_id),
+    paramsId: evolutionDedupeField(params.id),
+  };
+};
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
@@ -719,6 +751,17 @@ export class IntegrationService {
     if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
     if (event.phone === null) return { accepted: false, reason: 'PHONE_MISSING' } as const;
     const tenantId = config.tenantId;
+    if (event.eventType === 'MESSAGE_ACTION' && event.provider === 'EVOLUTION') {
+      console.info('[WHATSAPP_DEDUPE_KEY]', {
+        provider: event.provider,
+        eventType: event.eventType,
+        messageType: event.messageType,
+        actionId: event.actionId,
+        externalMessageId: event.externalMessageId,
+        fingerprint: event.fingerprint,
+        ...evolutionDedupeDiagnostics(event.payload),
+      });
+    }
     const existing = await this.repository.inboundEventByFingerprint(tenantId, event.fingerprint, {
       provider: event.provider,
       instanceId: event.instanceId,

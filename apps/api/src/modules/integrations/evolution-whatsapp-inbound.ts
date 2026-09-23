@@ -21,6 +21,9 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const key = record(root.key ?? root.Key ?? message.key ?? message.Key ?? data.key ?? data.Key ?? info);
   const button = record(root.ButtonClick ?? data.ButtonClick ?? message.ButtonClick);
   const list = record(root.list_response ?? data.list_response ?? message.list_response);
+  const buttonContext = record(button.contextInfo ?? button.context_info);
+  const listContext = record(list.contextInfo ?? list.context_info);
+  const messageContext = record(message.contextInfo ?? message.context_info);
   const instance = record(root.instance ?? data.instance);
   const sender = record(root.sender ?? data.sender ?? message.sender);
   const eventName = firstText(root.event, root.eventType, root.type, data.event, data.eventType);
@@ -53,7 +56,27 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
     messageType: isAction ? (list.selected_row_id !== undefined ? 'LIST_RESPONSE' : 'BUTTON_REPLY') : body !== null ? 'TEXT' : null,
     text: body,
     actionId: selectedId,
-    referencedMessageId: firstText(root.referencedMessageId, root.stanzaId, data.referencedMessageId, key.id),
+    referencedMessageId: firstText(
+      root.referencedMessageId,
+      root.stanzaId,
+      root.stanzaID,
+      data.referencedMessageId,
+      data.stanzaId,
+      data.stanzaID,
+      button.referencedMessageId,
+      button.stanzaId,
+      button.stanzaID,
+      buttonContext.stanzaId,
+      buttonContext.stanzaID,
+      list.referencedMessageId,
+      list.stanzaId,
+      list.stanzaID,
+      listContext.stanzaId,
+      listContext.stanzaID,
+      messageContext.stanzaId,
+      messageContext.stanzaID,
+      key.id,
+    ),
     selectedIndex: null,
     selectedDisplayText,
     timestamp,

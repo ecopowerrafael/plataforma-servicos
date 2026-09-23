@@ -23,6 +23,24 @@ describe('normalizeEvolutionWebhook', () => {
     expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'list-1', from: '5511999999999', list_response: { selected_row_id: 'horario_1400', title: '14:00' } })).toMatchObject({ eventType: 'MESSAGE_ACTION', actionId: 'horario_1400', selectedDisplayText: '14:00', messageType: 'LIST_RESPONSE' });
   });
 
+  it('extracts the referenced outbound message from interactive contextInfo', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'messages.upsert',
+      instanceId: 'evo-1',
+      messageId: 'click-2',
+      from: '5511999999999',
+      list_response: {
+        selected_row_id: 'service_123',
+        title: 'Corte',
+        contextInfo: { stanzaID: 'outbound-1' },
+      },
+    })).toMatchObject({
+      eventType: 'MESSAGE_ACTION',
+      actionId: 'service_123',
+      referencedMessageId: 'outbound-1',
+    });
+  });
+
   it('marks unknown valid events as ignorable', () => {
     expect(normalizeEvolutionWebhook({ event: 'connection.update', instanceId: 'evo-1', status: 'open' })).toMatchObject({ provider: 'EVOLUTION', eventType: null, instanceId: 'evo-1' });
   });

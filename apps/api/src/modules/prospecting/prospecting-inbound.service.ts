@@ -16,6 +16,7 @@ interface ProspectingInboundPayload {
   fromMe?: boolean;
   timestamp: Date | null | undefined;
   eventType: string | null;
+  actionId?: string | null;
   referencedMessageId?: string | null;
   selectedIndex?: number | null;
   senderName?: string | null;
@@ -228,10 +229,10 @@ export class ProspectingInboundService {
         let attendantButtons: Array<{ publicId: string; label: string }> = [];
         let attendantMenu: string | null = typeof conversationContext.menu === 'string' ? conversationContext.menu : null;
         let attendantContextPatch: Record<string, any> = {};
-        if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex != null) {
+        if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && (payload.actionId || payload.selectedIndex != null)) {
           const previous = await this.client.prospectingMessage.findFirst({ where: { externalMessageId: payload.referencedMessageId, direction: 'OUTBOUND', conversationId: conversation.id }, select: { optionIds: true } });
           const ids = Array.isArray(previous?.optionIds) ? previous.optionIds : [];
-          const selected = ids[payload.selectedIndex];
+          const selected = payload.actionId ?? (payload.selectedIndex == null ? undefined : ids[payload.selectedIndex]);
           const selectedId = typeof selected === 'string' ? selected : selected && typeof selected === 'object' && 'id' in selected && typeof selected.id === 'string' ? selected.id : null;
           const selectedOption = typeof selectedId === 'string' ? await this.client.prospectingFlowOption.findUnique({ where: { publicId: selectedId }, include: { patterns: true } }) : null;
           if (selectedOption && selectedOption.stepId === conversation.currentStepId) {
@@ -547,10 +548,10 @@ export class ProspectingInboundService {
 
     // Cliques do Atendente usam o snapshot de optionIds da mensagem original,
     // mesmo quando o contato também pertence a uma campanha.
-    if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && payload.selectedIndex != null && config.attendantFlowId && this.realtimeReply) {
+    if (payload.eventType === 'MESSAGE_ACTION' && payload.referencedMessageId && (payload.actionId || payload.selectedIndex != null) && config.attendantFlowId && this.realtimeReply) {
       const outbound = await this.client.prospectingMessage.findFirst({ where: { externalMessageId: payload.referencedMessageId, direction: 'OUTBOUND', leadId: leadData.id }, select: { optionIds: true } });
       const ids = Array.isArray(outbound?.optionIds) ? outbound.optionIds : [];
-      const selected = ids[payload.selectedIndex];
+      const selected = payload.actionId ?? (payload.selectedIndex == null ? undefined : ids[payload.selectedIndex]);
       const selectedId = typeof selected === 'string' ? selected : selected && typeof selected === 'object' && 'id' in selected && typeof selected.id === 'string' ? selected.id : null;
       const option = typeof selectedId === 'string' ? await this.client.prospectingFlowOption.findUnique({ where: { publicId: selectedId }, include: { step: true } }) : null;
       if (option && option.step.flowId === BigInt(config.attendantFlowId)) {
@@ -581,9 +582,13 @@ export class ProspectingInboundService {
       if (execution?.status === 'WAITING') {
         const flowEngine = new ProspectingFlowEngine(this.client);
 
-        // Resolver opção por index (OPÇÃO 2)
+        // O ID lógico é a fonte principal; o índice permanece somente como
+        // fallback para eventos legados que não trazem ButtonId/selected_row_id.
         let selectedOptionPublicId: string | undefined;
-        if (payload.referencedMessageId && payload.selectedIndex !== null && payload.selectedIndex !== undefined) {
+        if (payload.actionId) {
+          selectedOptionPublicId = payload.actionId;
+          console.info('[WHATSAPP_INTERACTIVE_ACTION]', { provider: 'EVOLUTION', source: 'LIST_OR_BUTTON', actionId: selectedOptionPublicId, recognized: true });
+        } else if (payload.referencedMessageId && payload.selectedIndex !== null && payload.selectedIndex !== undefined) {
           const indexResolution = await this.findMatchingOptionByIndex(
             payload.referencedMessageId,
             payload.selectedIndex,

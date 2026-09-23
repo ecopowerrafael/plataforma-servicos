@@ -440,7 +440,7 @@ export class IntegrationService {
         const prospectingConfig = await this.prospectingInbound.getConfig?.();
         if (received.phone === null && received.remoteLid !== null) return { accepted: true, ignored: true, reason: 'LID_UNRESOLVED', router: 'PROSPECTING' } as const;
         if (received.phone !== null || received.referencedMessageId !== null) {
-          const result = await this.prospectingInbound.processInbound({ instanceId: received.instanceId, externalMessageId: received.externalMessageId, fromPhone: received.phone, senderName: received.senderName, body: received.text ?? received.selectedDisplayText ?? undefined, messageType: received.messageType, fromMe: received.fromMe, timestamp: received.timestamp ?? undefined, eventType: received.eventType ?? null, referencedMessageId: received.referencedMessageId, selectedIndex: received.selectedIndex, isGroup: received.isGroup });
+          const result = await this.prospectingInbound.processInbound({ instanceId: received.instanceId, externalMessageId: received.externalMessageId, fromPhone: received.phone, senderName: received.senderName, body: received.text ?? received.selectedDisplayText ?? undefined, messageType: received.messageType, fromMe: received.fromMe, timestamp: received.timestamp ?? undefined, eventType: received.eventType ?? null, actionId: received.actionId, referencedMessageId: received.referencedMessageId, selectedIndex: received.selectedIndex, isGroup: received.isGroup });
           return { accepted: true, prospectingHandled: result.handled, router: 'PROSPECTING', ...result } as const;
         }
         return { accepted: true, prospectingHandled: false, router: 'PROSPECTING', prospectingConfig: prospectingConfig !== null } as const;
@@ -481,6 +481,7 @@ export class IntegrationService {
           fromMe: received.fromMe,
           timestamp: received.timestamp || undefined,
           eventType: received.eventType || null,
+          actionId: received.actionId ?? null,
           referencedMessageId: received.referencedMessageId ?? null,
           selectedIndex: received.selectedIndex ?? null,
           isGroup: received.isGroup,
@@ -597,6 +598,14 @@ export class IntegrationService {
     const config = await this.repository.evolutionWhatsappByWebhookPublicId(webhookPublicId);
     if (config === null) return { statusCode: 404, body: { code: 'EVOLUTION_WEBHOOK_NOT_FOUND' }, diagnostics: { stage: 'CONFIG_LOOKUP', outcome: 'REJECTED' } } as const;
     const event = new EvolutionInboundNormalizer().normalize(raw);
+    if (event.eventType === 'MESSAGE_ACTION') {
+      console.info('[WHATSAPP_INTERACTIVE_ACTION]', {
+        provider: 'EVOLUTION',
+        source: event.messageType === 'LIST_RESPONSE' ? 'LIST' : 'BUTTON',
+        actionId: event.actionId,
+        recognized: event.actionId !== null,
+      });
+    }
     if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' }, diagnostics: { stage: 'NORMALIZED', outcome: 'REJECTED', eventType: event.eventType, hasInstanceId: event.instanceId !== null, hasPhone: event.phone !== null } } as const;
     if (await this.repository.selectedWhatsappProvider(config.tenantId) !== 'EVOLUTION') return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_PROVIDER_MISMATCH' }, diagnostics: { stage: 'PROVIDER_CHECK', outcome: 'REJECTED', eventType: event.eventType } } as const;
     if (event.fromMe || event.eventType === null) {

@@ -4140,6 +4140,20 @@ model ProspectingWhatsAppConfig {
   @@map("prospecting_whatsapp_configs")
 }
 
+model PlatformWhatsAppProviderSetting {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String   @unique @map("public_id") @db.Char(36)
+  provider          String   @unique @db.VarChar(32)
+  enabled           Boolean  @default(false)
+  baseUrl           String?  @map("base_url") @db.VarChar(500)
+  encryptedApiKey   String?  @map("encrypted_api_key") @db.Text
+  lastHealthStatus  String?  @map("last_health_status") @db.VarChar(32)
+  lastHealthCheckAt DateTime? @map("last_health_check_at") @db.DateTime(3)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  @@map("platform_whatsapp_provider_settings")
+}
+
 /// Associação persistente entre a identidade remota LID e o telefone real do
 /// contato. Nunca armazena connectedPhone/connectedLid como identidade remota.
 model WApiRemoteIdentityMapping {

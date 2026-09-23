@@ -12,6 +12,8 @@ export const canonicalWapiWhatsAppWebhookPath = '/webhooks/whatsapp/wapi';
 export const canonicalMetaWhatsAppWebhookPath = '/webhooks/whatsapp/meta/:webhookPublicId';
 export const wapiWhatsAppWebhookPath = '/public/webhooks/whatsapp/wapi';
 export const metaWhatsAppWebhookPath = '/public/webhooks/whatsapp/meta/:webhookPublicId';
+export const canonicalEvolutionWhatsAppWebhookPath = '/webhooks/whatsapp/evolution/:webhookPublicId';
+export const evolutionWhatsAppWebhookPath = '/public/webhooks/whatsapp/evolution/:webhookPublicId';
 
 interface RawBodyRequest {
   rawBody?: string;
@@ -119,9 +121,17 @@ export const whatsappWebhookRoutes: FastifyPluginAsyncZod<{ service: Integration
     );
     return reply.status(result.statusCode).send(result.body);
   };
+  const ingestEvolution = async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { webhookPublicId: string };
+    const result = await options.service.ingestEvolutionWebhook(params.webhookPublicId, request.body);
+    request.log.info({ operation: 'whatsapp_evolution_webhook_received', webhookPublicId: params.webhookPublicId, statusCode: result.statusCode }, 'Evento Evolution recebido');
+    return reply.status(result.statusCode).send(result.body);
+  };
 
   app.get(canonicalMetaWhatsAppWebhookPath, verifyMetaWebhook);
   app.get(metaWhatsAppWebhookPath, verifyMetaWebhook);
   app.post(canonicalMetaWhatsAppWebhookPath, ingestMeta);
   app.post(metaWhatsAppWebhookPath, ingestMeta);
+  app.post(canonicalEvolutionWhatsAppWebhookPath, ingestEvolution);
+  app.post(evolutionWhatsAppWebhookPath, ingestEvolution);
 };

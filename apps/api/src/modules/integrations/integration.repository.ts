@@ -130,6 +130,9 @@ export class IntegrationRepository {
       where: { provider: 'META', webhookPublicId },
     });
   }
+  public evolutionWhatsappByWebhookPublicId(webhookPublicId: string) {
+    return this.client.tenantWhatsAppConfig.findFirst({ where: { provider: 'EVOLUTION', webhookPublicId } });
+  }
   public createInboundEvent(data: {
     tenantId: bigint;
     provider?: string;

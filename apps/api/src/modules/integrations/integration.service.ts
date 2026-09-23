@@ -19,6 +19,7 @@ import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
 import { type WhatsAppProviderResolver } from './whatsapp-provider-resolver.js';
 import { type WhatsAppProviderId } from './whatsapp-provider.js';
 import { MetaInboundNormalizer } from './meta-whatsapp-inbound.js';
+import { EvolutionInboundNormalizer } from './evolution-whatsapp-inbound.js';
 import { type Prisma } from '../../database-client/client.js';
 import { type Environment } from '../../config/environment.js';
 import { AppError } from '../../errors/AppError.js';
@@ -592,6 +593,17 @@ export class IntegrationService {
     return summary;
   }
 
+  public async ingestEvolutionWebhook(webhookPublicId: string, raw: unknown) {
+    const config = await this.repository.evolutionWhatsappByWebhookPublicId(webhookPublicId);
+    if (config === null) return { statusCode: 404, body: { code: 'EVOLUTION_WEBHOOK_NOT_FOUND' } } as const;
+    const event = new EvolutionInboundNormalizer().normalize(raw);
+    if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' } } as const;
+    if (await this.repository.selectedWhatsappProvider(config.tenantId) !== 'EVOLUTION') return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_PROVIDER_MISMATCH' } } as const;
+    if (event.fromMe || event.eventType === null) return { statusCode: 200, body: { received: true, ignored: true } } as const;
+    const result = await this.processTenantWhatsappInbound(config, event);
+    return { statusCode: 200, body: { received: true, processed: result.duplicated ? 0 : 1, duplicated: result.duplicated ? 1 : 0, rejected: result.accepted ? 0 : 1 } } as const;
+  }
+
   public async verifyMetaWebhook(webhookPublicId: string, query: { mode?: string | undefined; verifyToken?: string | undefined; challenge?: string | undefined }) {
     if (query.mode !== 'subscribe') return null;
     const config = await this.repository.metaWhatsappByWebhookPublicId(webhookPublicId);
@@ -757,7 +769,7 @@ export class IntegrationService {
       event.referencedMessageId,
     );
     const actionIds = Array.isArray(outbound?.actionIds) ? outbound.actionIds : [];
-    const matched = event.provider === 'META'
+    const matched = event.actionId !== null
       ? actionIds.find((actionId): actionId is string => typeof actionId === 'string' && actionId === event.actionId)
       : event.selectedIndex === null
         ? null

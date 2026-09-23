@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
-export const WhatsAppProviderIdSchema = z.enum(['WAPI', 'META']);
+export const WhatsAppProviderIdSchema = z.enum(['WAPI', 'META', 'EVOLUTION']);
 export const WhatsAppProviderCapabilitiesSchema = z.object({
+  quickReply: z.object({ supported: z.boolean(), maxOptions: z.number().int().nonnegative() }).optional(),
+  list: z.object({ supported: z.boolean(), maxOptions: z.number().int().nonnegative() }).optional(),
   qrCode: z.boolean(),
   autoProvision: z.boolean(),
   interactiveMessages: z.boolean(),

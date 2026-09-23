@@ -18,6 +18,7 @@ const build = async () => {
   const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
   const service = {
     ingestWhatsappInbound: vi.fn().mockResolvedValue({ accepted: true, provider: 'WAPI' }),
+    ingestEvolutionWebhook: vi.fn().mockResolvedValue({ statusCode: 200, body: { received: true, processed: 1, duplicated: 0, rejected: 0 } }),
     verifyMetaWebhook: vi.fn().mockResolvedValue('abc123'),
     ingestMetaWebhook: vi.fn().mockResolvedValue({ statusCode: 200, body: { received: true, processed: 1, duplicated: 0, rejected: 0 } }),
   };
@@ -93,6 +94,15 @@ describe('whatsappWebhookRoutes', () => {
       verifyToken: 'verify-a',
       challenge: 'abc123',
     });
+    await app.close();
+  });
+
+  it('routes Evolution by webhookPublicId and does not expose credentials', async () => {
+    const { app, service } = await build();
+    const response = await app.inject({ method: 'POST', url: '/public/webhooks/whatsapp/evolution/evo-hook', payload: { event: 'messages.upsert', instanceId: 'evo-1' } });
+    expect(response.statusCode).toBe(200);
+    expect(service.ingestEvolutionWebhook).toHaveBeenCalledWith('evo-hook', { event: 'messages.upsert', instanceId: 'evo-1' });
+    expect(response.body).not.toContain('apikey');
     await app.close();
   });
 

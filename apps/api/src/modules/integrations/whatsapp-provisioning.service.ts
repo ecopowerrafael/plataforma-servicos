@@ -22,7 +22,7 @@ export type WhatsAppConnectionState =
   | 'ERROR';
 
 export interface WhatsAppConnectionView {
-  provider: 'WAPI' | 'META';
+  provider: 'WAPI' | 'META' | 'EVOLUTION';
   available: boolean;
   provisioned: boolean;
   state: WhatsAppConnectionState;

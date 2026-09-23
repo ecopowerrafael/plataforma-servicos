@@ -29,6 +29,6 @@ describe('EvolutionWhatsAppClient', () => {
   it('uses the instance token and preserves list row IDs', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { id: 'list-1' } }), { status: 200 }));
     await new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher).sendList('instance-token', '5511999999999', 'Escolha', [{ rowId: 'service-1', title: 'Serviço' }]);
-    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/send/list', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ number: '5511999999999', description: 'Escolha', buttonText: 'Ver opções', sections: [{ title: 'Opções', rows: [{ rowId: 'service-1', title: 'Serviço' }] }] }) }));
+    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/send/list', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ number: '5511999999999', title: 'Agendei', description: 'Escolha', buttonText: 'Ver opções', footerText: 'Agendei', sections: [{ title: 'Opções', rows: [{ rowId: 'service-1', title: 'Serviço' }] }] }) }));
   });
 });

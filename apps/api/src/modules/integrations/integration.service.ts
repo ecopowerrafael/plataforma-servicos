@@ -33,6 +33,20 @@ import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-pay
 import { type PaymentService } from '../payments/payment.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { ProspectingInboundService } from '../prospecting/prospecting-inbound.service.js';
+
+const sanitizedEvolutionShape = (value: unknown) => {
+  if (Array.isArray(value)) {
+    const first = value[0];
+    return {
+      type: 'array',
+      length: value.length,
+      itemTypes: [...new Set(value.slice(0, 5).map((item) => typeof item))],
+      ...(first !== null && typeof first === 'object' && !Array.isArray(first) ? { firstItemKeys: Object.keys(first as object).sort() } : {}),
+    };
+  }
+  if (value !== null && typeof value === 'object') return { type: 'object', keys: Object.keys(value as object).sort() };
+  return { type: typeof value };
+};
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
@@ -608,17 +622,19 @@ export class IntegrationService {
       if (event.phone === null) {
         const rawPayload = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
         const data = rawPayload.data !== null && typeof rawPayload.data === 'object' && !Array.isArray(rawPayload.data) ? rawPayload.data as Record<string, unknown> : {};
-        const identityFields = ['phone', 'Phone', 'jid', 'JID', 'chat', 'Chat', 'sender', 'Sender', 'remoteJid', 'RemoteJid']
-          .filter((key) => data[key] !== undefined)
-          .map((key) => {
-            const value = data[key];
-            if (typeof value !== 'string') {
-              const objectKeys = value !== null && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value as object).sort() : undefined;
-              return { key, type: typeof value, ...(objectKeys === undefined ? {} : { objectKeys }) };
-            }
-            return { key, type: 'string', length: value.length, suffix: value.slice(-4), isLid: value.endsWith('@lid') };
-          });
-        console.info('[WHATSAPP_INTERACTIVE_IDENTITY]', { provider: 'EVOLUTION', phoneResolved: false, fields: identityFields });
+        const info = rawPayload.Info ?? rawPayload.info ?? data.Info ?? data.info;
+        const identitySources = [
+          ['data.phone', data.phone ?? data.Phone],
+          ['data.jid', data.jid ?? data.JID],
+          ['data.chat', data.chat ?? data.Chat],
+          ['data.sender', data.sender ?? data.Sender],
+          ['data.remoteJid', data.remoteJid ?? data.RemoteJid],
+          ['Info.Sender', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).Sender ?? (info as Record<string, unknown>).sender : undefined],
+          ['Info.Chat', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).Chat ?? (info as Record<string, unknown>).chat : undefined],
+          ['Info.SenderAlt', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).SenderAlt ?? (info as Record<string, unknown>).senderAlt : undefined],
+          ['Info.MessageSource', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).MessageSource ?? (info as Record<string, unknown>).messageSource : undefined],
+        ].filter(([, value]) => value !== undefined).map(([key, value]) => ({ key, shape: sanitizedEvolutionShape(value) }));
+        console.info('[WHATSAPP_INTERACTIVE_IDENTITY]', { provider: 'EVOLUTION', phoneResolved: false, dataKeys: Object.keys(data).sort(), infoShape: sanitizedEvolutionShape(info), fields: identitySources });
       }
     }
     if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' }, diagnostics: { stage: 'NORMALIZED', outcome: 'REJECTED', eventType: event.eventType, hasInstanceId: event.instanceId !== null, hasPhone: event.phone !== null } } as const;

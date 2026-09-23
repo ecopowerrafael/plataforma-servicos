@@ -12,7 +12,20 @@ const whatsappPhone = (value: string | null): string | null => {
   const digits = withoutDevice.replace(/@(s\.whatsapp\.net|c\.us)$/u, '').replace(/\D/gu, '');
   return digits.length >= 10 && digits.length <= 15 ? digits : null;
 };
-const firstPhone = (...values: unknown[]) => values.map(text).map(whatsappPhone).find((value): value is string => value !== null) ?? null;
+const evolutionIdentityKeys = ['User', 'user', 'ID', 'Id', 'id', 'JID', 'jid', 'number', 'Number', 'phone', 'Phone', 'Raw', 'raw'];
+const evolutionPhoneCandidates = (value: unknown, depth = 0): string[] => {
+  if (depth > 4 || value === null || value === undefined) return [];
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap((item) => evolutionPhoneCandidates(item, depth + 1));
+  if (typeof value !== 'object') return [];
+  const objectValue = value as Record<string, unknown>;
+  return evolutionIdentityKeys.flatMap((key) => evolutionPhoneCandidates(objectValue[key], depth + 1));
+};
+const firstPhone = (...values: unknown[]) => values
+  .flatMap((value) => evolutionPhoneCandidates(value))
+  .map(text)
+  .map(whatsappPhone)
+  .find((value): value is string => value !== null) ?? null;
 
 const fingerprint = (eventType: string | null, externalMessageId: string | null, payload: unknown) => externalMessageId === null
   ? `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`
@@ -92,6 +105,12 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
     info.Sender,
     info.chat,
     info.Chat,
+    info.SenderAlt,
+    info.senderAlt,
+    info.Recipient,
+    info.recipient,
+    info.MessageSource,
+    info.messageSource,
     info.jid,
     info.JID,
     sender.phone,

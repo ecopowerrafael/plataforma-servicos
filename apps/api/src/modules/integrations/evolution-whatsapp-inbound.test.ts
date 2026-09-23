@@ -128,6 +128,35 @@ describe('normalizeEvolutionWebhook', () => {
     })).toMatchObject({ phone: '5515996741538' });
   });
 
+  it('extracts the sender from nested Evolution Info identity objects', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: {
+        buttonId: 'MAIN_MENU_BOOK',
+        Info: {
+          Sender: { User: '5515999999999', Server: 's.whatsapp.net', Device: 52 },
+          Chat: { User: '5515999999999', Server: 's.whatsapp.net' },
+        },
+        fromMe: false,
+      },
+    })).toMatchObject({ actionId: 'MAIN_MENU_BOOK', phone: '5515999999999' });
+  });
+
+  it('extracts the sender from array-shaped interactive identity fields', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ListResponse',
+      instanceId: 'evo-1',
+      data: {
+        selectedRowId: 'service_123',
+        Info: {
+          Sender: [{ User: '5515999999999', Server: 's.whatsapp.net' }],
+        },
+        fromMe: false,
+      },
+    })).toMatchObject({ actionId: 'service_123', phone: '5515999999999' });
+  });
+
   it('normalizes a list response envelope under data', () => {
     expect(normalizeEvolutionWebhook({
       event: 'ListResponse',

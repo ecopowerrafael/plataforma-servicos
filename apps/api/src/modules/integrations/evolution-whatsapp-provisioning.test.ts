@@ -39,6 +39,13 @@ describe('EvolutionWhatsAppProvisioning', () => {
     expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ connectedPhone: '5511999999999', connectedName: 'Barbearia Silva' }) }));
   });
 
+  it('recognizes the Evolution Go response casing used in production', async () => {
+    const { service, evolution, config } = subject();
+    evolution.status.mockResolvedValueOnce({ Connected: true, LoggedIn: true, Name: 'Barbearia Silva' });
+    await expect(service.refreshStatus(7n)).resolves.toMatchObject({ state: 'CONNECTED', connectedName: 'Barbearia Silva' });
+    expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: true, connectionStatus: 'CONNECTED', connectedName: 'Barbearia Silva' }) }));
+  });
+
   it('does not reconnect the Evolution instance while refreshing a waiting QR', async () => {
     const { service, evolution, config } = subject();
     config.findUnique.mockResolvedValueOnce({ ...await config.findUnique(), connectionStatus: 'WAITING_QR' });

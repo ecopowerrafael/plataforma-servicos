@@ -331,11 +331,19 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const requestQr = useMutation({
     mutationFn: (path: 'qr' | 'reconnect') => httpClient.request(`/tenant/integrations/whatsapp/${path}`, { method: 'POST', body: {}, schema: WhatsAppQrCodeSchema, tenantPublicId }),
     onSuccess: async (data) => {
-      setQrCode(data.qrCode);
+      setQrCode((current) => current === data.qrCode ? current : data.qrCode);
       setNotice(null);
       await refresh();
     },
+    onError: () => setQrCode(null),
   });
+  useEffect(() => {
+    if (qrCode === null || connection.data?.provider !== 'EVOLUTION' || connection.data.state === 'CONNECTED') return;
+    const timer = window.setInterval(() => {
+      if (!requestQr.isPending) requestQr.mutate('qr');
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [connection.data?.provider, connection.data?.state, qrCode, requestQr.isPending]);
   const disconnect = useMutation({
     mutationFn: () => httpClient.request('/tenant/integrations/whatsapp/disconnect', { method: 'POST', body: {}, schema: WhatsAppConnectionSchema, tenantPublicId }),
     onSuccess: async () => {

@@ -25,6 +25,27 @@ describe('EvolutionWhatsAppProvisioning', () => {
     expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: true, connectionStatus: 'CONNECTED' }) }));
   });
 
+  it('recognizes the Evolution Go open state as connected', async () => {
+    const { service, evolution, config } = subject();
+    evolution.status.mockResolvedValueOnce({ status: 'open', connected: false, loggedIn: false });
+    await expect(service.refreshStatus(7n)).resolves.toMatchObject({ state: 'CONNECTED' });
+    expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: true, connectionStatus: 'CONNECTED' }) }));
+  });
+
+  it('persists optional phone and name fields without requiring them for connection', async () => {
+    const { service, evolution, config } = subject();
+    evolution.status.mockResolvedValueOnce({ status: 'open', number: '5511999999999', name: 'Barbearia Silva' });
+    await service.refreshStatus(7n);
+    expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ connectedPhone: '5511999999999', connectedName: 'Barbearia Silva' }) }));
+  });
+
+  it('does not reconnect the Evolution instance while refreshing a waiting QR', async () => {
+    const { service, evolution, config } = subject();
+    config.findUnique.mockResolvedValueOnce({ ...await config.findUnique(), connectionStatus: 'WAITING_QR' });
+    await expect(service.qrCode(7n)).resolves.toMatchObject({ qrCode: 'data:image/png;base64,png' });
+    expect(evolution.connect).not.toHaveBeenCalled();
+  });
+
   it('returns QR data as a browser-safe data URL and preserves reconnect flow', async () => {
     const { service, evolution } = subject();
     await expect(service.qrCode(7n)).resolves.toMatchObject({ qrCode: 'data:image/png;base64,png' });

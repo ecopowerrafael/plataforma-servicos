@@ -53,6 +53,15 @@ describe('EvolutionWhatsAppProvisioning', () => {
     expect(evolution.connect).not.toHaveBeenCalled();
   });
 
+  it('reconfigures the Evolution webhook with the instance token and public URL', async () => {
+    const { service, evolution } = subject();
+    const previous = process.env.APP_WEB_URL;
+    process.env.APP_WEB_URL = 'https://agendei.site';
+    await expect(service.reconfigureWebhooks(7n)).resolves.toEqual({ success: true });
+    expect(evolution.connect).toHaveBeenCalledWith('instance-token', 'https://agendei.site/public/webhooks/whatsapp/evolution/hook-evo-1');
+    process.env.APP_WEB_URL = previous;
+  });
+
   it('returns QR data as a browser-safe data URL and preserves reconnect flow', async () => {
     const { service, evolution } = subject();
     await expect(service.qrCode(7n)).resolves.toMatchObject({ qrCode: 'data:image/png;base64,png' });

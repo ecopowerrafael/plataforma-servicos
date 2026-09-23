@@ -296,7 +296,7 @@ export class WhatsAppConnectionService {
 
   public async reconfigureWebhooks(tenantId: bigint): Promise<{ success: true }> {
     const provider = await this.resolver.provisioningForTenant(tenantId);
-    if (provider.provider !== 'WAPI' || provider.reconfigureWebhooks === undefined) {
+    if (provider.reconfigureWebhooks === undefined) {
       throw new AppError({ code: 'WHATSAPP_PROVIDER_CAPABILITY_UNAVAILABLE', message: 'Reconfiguração de webhooks indisponível para este provedor.', statusCode: 400 });
     }
     return provider.reconfigureWebhooks(tenantId);

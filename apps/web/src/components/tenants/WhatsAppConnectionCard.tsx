@@ -47,6 +47,7 @@ type MetaTab = 'account' | 'webhook' | 'templates';
 type ProviderCardOption = {
   provider: ProviderId;
   available: boolean;
+  availableForNew?: boolean;
   configured?: boolean;
   phoneNumberId?: string | null;
   businessAccountId?: string | null;
@@ -114,6 +115,7 @@ export function normalizeWhatsAppProviderItems(response: unknown): ProviderCardO
     return [{
       provider,
       available: item.available === true,
+      availableForNew: item.availableForNew === true,
       configured: item.configured === true,
       phoneNumberId: typeof item.phoneNumberId === 'string' || item.phoneNumberId === null ? item.phoneNumberId : null,
       businessAccountId: typeof item.businessAccountId === 'string' || item.businessAccountId === null ? item.businessAccountId : null,
@@ -226,7 +228,8 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const provisioned = connection.data?.provisioned ?? false;
   const activePresentation = PROVIDER_PRESENTATION[activeProvider] ?? PROVIDER_PRESENTATION.WAPI;
   const managedPresentation = PROVIDER_PRESENTATION[managedProvider] ?? PROVIDER_PRESENTATION.WAPI;
-  const providerItems = providers.data?.length ? providers.data : connection.data?.provisioned ? [{ provider: activeProvider, available: true, configured: true }] : [];
+  const providerItems = providers.data?.length ? providers.data : connection.data?.provisioned ? [{ provider: activeProvider, available: true, availableForNew: false, configured: true }] : [];
+  const visibleProviderItems = providerItems.filter((item) => item.available || item.configured);
   const selectedProviderOption = providerItems.find((item) => item.provider === managedProvider);
   const managedProviderIsActive = managedProvider === activeProvider;
   const metaConnectionDetails = managedProvider === 'META'
@@ -417,7 +420,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
         </div>
         {providers.error ? <div className="form-error" role="alert">Não foi possível carregar as opções de WhatsApp. <button className="secondary-button" type="button" onClick={() => void providers.refetch()}>Tentar novamente</button></div> : null}
         <div className="whatsapp-provider-grid" role="list" aria-label="Formas de conexão do WhatsApp">
-          {providerItems.map((item) => {
+          {visibleProviderItems.map((item) => {
             const presentation = PROVIDER_PRESENTATION[item.provider];
             const isActive = activeProvider === item.provider;
             const isManaged = managedProvider === item.provider;
@@ -506,6 +509,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
             </div>
           </div>
         )}
+        {selectedProviderOption?.configured === true && selectedProviderOption.availableForNew === false ? <p className="whatsapp-inline-hint" role="status">{managedProvider === 'WAPI' ? 'W-API não está disponível para novas configurações, mas sua conexão existente continua ativa.' : `${managedPresentation.name} não está disponível para novas configurações, mas sua conexão existente continua ativa.`}</p> : null}
         {notice === null ? null : <p className="whatsapp-inline-success">{notice}</p>}
 
         {managedProvider === 'WAPI' || managedProvider === 'EVOLUTION' ? (

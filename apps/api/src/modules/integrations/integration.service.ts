@@ -633,7 +633,7 @@ export class IntegrationService {
           ['Info.Chat', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).Chat ?? (info as Record<string, unknown>).chat : undefined],
           ['Info.SenderAlt', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).SenderAlt ?? (info as Record<string, unknown>).senderAlt : undefined],
           ['Info.MessageSource', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).MessageSource ?? (info as Record<string, unknown>).messageSource : undefined],
-        ].filter(([, value]) => value !== undefined).map(([key, value]) => ({ key, shape: sanitizedEvolutionShape(value) }));
+        ].map(([key, value]) => ({ key, present: value !== undefined, shape: sanitizedEvolutionShape(value) }));
         console.info('[WHATSAPP_INTERACTIVE_IDENTITY]', { provider: 'EVOLUTION', phoneResolved: false, dataKeys: Object.keys(data).sort(), infoShape: sanitizedEvolutionShape(info), fields: identitySources });
       }
     }

@@ -303,6 +303,7 @@ export class NotificationService {
 
   private async attempt(id: bigint): Promise<void> {
     const log = await this.client.notificationLog.findUniqueOrThrow({ where: { id } });
+    if (log.channel === 'WHATSAPP') console.info('[WHATSAPP_NOTIFICATION]', JSON.stringify({ stage: 'CLAIMED', outcome: 'STARTED', notificationId: id.toString(), tenantId: log.tenantId.toString(), kind: log.kind }));
     const delivery =
       log.channel === 'PUSH'
         ? this.deliveries.push
@@ -389,6 +390,7 @@ export class NotificationService {
         where: { id },
         data: { status: 'SENT', attempts: { increment: 1 }, lastError: null, sentAt: new Date() },
       });
+      if (log.channel === 'WHATSAPP') console.info('[WHATSAPP_NOTIFICATION]', JSON.stringify({ stage: 'PERSISTED', outcome: 'SENT', notificationId: id.toString(), tenantId: log.tenantId.toString() }));
     } catch (error) {
       await this.client.notificationLog.update({
         where: { id },
@@ -398,6 +400,7 @@ export class NotificationService {
           lastError: error instanceof Error ? error.message.slice(0, 500) : 'Erro desconhecido.',
         },
       });
+      if (log.channel === 'WHATSAPP') console.error('[WHATSAPP_NOTIFICATION]', JSON.stringify({ stage: 'DELIVERY', outcome: error instanceof IntegrationUnavailableError ? 'SKIPPED' : 'FAILED', notificationId: id.toString(), tenantId: log.tenantId.toString(), error: error instanceof Error ? error.message.slice(0, 160) : 'Erro desconhecido.' }));
     }
   }
 

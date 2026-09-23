@@ -595,13 +595,13 @@ export class IntegrationService {
 
   public async ingestEvolutionWebhook(webhookPublicId: string, raw: unknown) {
     const config = await this.repository.evolutionWhatsappByWebhookPublicId(webhookPublicId);
-    if (config === null) return { statusCode: 404, body: { code: 'EVOLUTION_WEBHOOK_NOT_FOUND' } } as const;
+    if (config === null) return { statusCode: 404, body: { code: 'EVOLUTION_WEBHOOK_NOT_FOUND' }, diagnostics: { stage: 'CONFIG_LOOKUP', outcome: 'REJECTED' } } as const;
     const event = new EvolutionInboundNormalizer().normalize(raw);
-    if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' } } as const;
-    if (await this.repository.selectedWhatsappProvider(config.tenantId) !== 'EVOLUTION') return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_PROVIDER_MISMATCH' } } as const;
-    if (event.fromMe || event.eventType === null) return { statusCode: 200, body: { received: true, ignored: true } } as const;
+    if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' }, diagnostics: { stage: 'NORMALIZED', outcome: 'REJECTED', eventType: event.eventType, hasInstanceId: event.instanceId !== null, hasPhone: event.phone !== null } } as const;
+    if (await this.repository.selectedWhatsappProvider(config.tenantId) !== 'EVOLUTION') return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_PROVIDER_MISMATCH' }, diagnostics: { stage: 'PROVIDER_CHECK', outcome: 'REJECTED', eventType: event.eventType } } as const;
+    if (event.fromMe || event.eventType === null) return { statusCode: 200, body: { received: true, ignored: true }, diagnostics: { stage: 'NORMALIZED', outcome: 'IGNORED', eventType: event.eventType, fromMe: event.fromMe, hasPhone: event.phone !== null } } as const;
     const result = await this.processTenantWhatsappInbound(config, event);
-    return { statusCode: 200, body: { received: true, processed: result.duplicated ? 0 : 1, duplicated: result.duplicated ? 1 : 0, rejected: result.accepted ? 0 : 1 } } as const;
+    return { statusCode: 200, body: { received: true, processed: result.duplicated ? 0 : 1, duplicated: result.duplicated ? 1 : 0, rejected: result.accepted ? 0 : 1 }, diagnostics: { stage: 'INGESTION', outcome: result.accepted ? (result.duplicated ? 'DUPLICATED' : 'PROCESSED') : 'REJECTED', eventType: event.eventType, hasPhone: event.phone !== null, assistantReplied: 'assistantReplied' in result ? result.assistantReplied : undefined, reason: 'reason' in result ? result.reason : undefined } } as const;
   }
 
   public async verifyMetaWebhook(webhookPublicId: string, query: { mode?: string | undefined; verifyToken?: string | undefined; challenge?: string | undefined }) {

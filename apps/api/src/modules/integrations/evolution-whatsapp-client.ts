@@ -18,10 +18,10 @@ export class EvolutionWhatsAppClient {
 
   public createInstance(instanceName: string, instanceToken: string) { return this.request<{ id?: string; instanceId?: string; name?: string; instanceName?: string }>('/instance/create', { method: 'POST', body: JSON.stringify({ name: instanceName, token: instanceToken }) }); }
   public listInstances() { return this.request<unknown[]>('/instance/all', { method: 'GET' }); }
-  public qr(instanceToken: string) { return this.request<{ qrCode?: string; code?: string; Qrcode?: string; Code?: string }>('/instance/qr', { method: 'GET' }, instanceToken); }
+  public qr(instanceToken: string) { return this.request<{ qrCode?: string; qrcode?: string; code?: string; Qrcode?: string; Code?: string }>('/instance/qr', { method: 'GET' }, instanceToken); }
   public status(instanceToken: string) { return this.request<{ status?: string; state?: string; connected?: boolean; loggedIn?: boolean }>('/instance/status', { method: 'GET' }, instanceToken); }
   public disconnect(instanceToken: string) { return this.request<unknown>('/instance/disconnect', { method: 'POST' }, instanceToken); }
-  public reconnect(instanceToken: string) { return this.request<{ qrCode?: string; code?: string; Qrcode?: string; Code?: string }>('/instance/reconnect', { method: 'POST' }, instanceToken); }
+  public reconnect(instanceToken: string) { return this.request<unknown>('/instance/reconnect', { method: 'POST' }, instanceToken); }
   public connect(instanceToken: string, webhookUrl: string) { return this.request<{ webhookUrl?: string; eventString?: string }>('/instance/connect', { method: 'POST', body: JSON.stringify({ webhookUrl, subscribe: ['messages.upsert', 'connection.update'] }) }, instanceToken); }
   public sendText(instanceToken: string, number: string, text: string) { return this.request<{ id?: string; messageId?: string }>('/send/text', { method: 'POST', body: JSON.stringify({ number, text }) }, instanceToken); }
   public sendButton(instanceToken: string, number: string, text: string, buttons: Array<{ id: string; label: string }>) { return this.request<{ id?: string; messageId?: string }>('/send/button', { method: 'POST', body: JSON.stringify({ number, text, buttons: buttons.map((button) => ({ type: 'quick_reply', id: button.id, displayText: button.label })) }) }, instanceToken); }

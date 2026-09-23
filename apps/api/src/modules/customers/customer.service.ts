@@ -531,21 +531,14 @@ export class CustomerService {
     const phone = input.phone ?? null;
     const email = input.email ?? null;
     const existing = await this.repo.findByContact(t, phone, email);
-    if (existing !== null) {
-      const contactPatch = {
-        ...(phone !== null && existing.phone === null ? { phone } : {}),
-        ...(phone !== null && existing.whatsapp === null ? { whatsapp: phone } : {}),
-      };
-      if (Object.keys(contactPatch).length > 0) return publicValue(await this.repo.update(existing.id, contactPatch));
-      return publicValue(existing);
-    }
+    if (existing !== null) return publicValue(existing);
     const created = await this.repo.create({
       publicId: randomUUID(),
       tenantId: t,
       name: input.name,
       socialName: null,
       phone,
-      whatsapp: phone,
+      whatsapp: null,
       email,
       birthDate: null,
       document: null,

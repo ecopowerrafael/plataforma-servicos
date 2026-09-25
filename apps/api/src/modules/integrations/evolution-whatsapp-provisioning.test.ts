@@ -25,11 +25,11 @@ describe('EvolutionWhatsAppProvisioning', () => {
     expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: true, connectionStatus: 'CONNECTED' }) }));
   });
 
-  it('recognizes the Evolution Go open state as connected', async () => {
+  it('does not treat an open transport without a logged-in session as connected', async () => {
     const { service, evolution, config } = subject();
     evolution.status.mockResolvedValueOnce({ status: 'open', connected: false, loggedIn: false });
-    await expect(service.refreshStatus(7n)).resolves.toMatchObject({ state: 'CONNECTED' });
-    expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: true, connectionStatus: 'CONNECTED' }) }));
+    await expect(service.refreshStatus(7n)).resolves.toMatchObject({ state: 'DISCONNECTED' });
+    expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: false, connectionStatus: 'DISCONNECTED' }) }));
   });
 
   it('persists optional phone and name fields without requiring them for connection', async () => {
@@ -51,6 +51,12 @@ describe('EvolutionWhatsAppProvisioning', () => {
     evolution.status.mockResolvedValueOnce({ Connected: true, LoggedIn: true, Name: 'Barbearia Silva' });
     await expect(service.refreshStatus(7n)).resolves.toMatchObject({ state: 'CONNECTED', connectedName: 'Barbearia Silva' });
     expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: true, connectionStatus: 'CONNECTED', connectedName: 'Barbearia Silva' }) }));
+  });
+
+  it('does not treat a live socket as a logged-in WhatsApp session', async () => {
+    const { service, evolution } = subject();
+    evolution.status.mockResolvedValueOnce({ connected: true, loggedIn: false, status: 'open' });
+    await expect(service.refreshStatus(7n)).resolves.toMatchObject({ state: 'DISCONNECTED' });
   });
 
   it('persists DISCONNECTED from the real Evolution status even when the cached row was connected', async () => {

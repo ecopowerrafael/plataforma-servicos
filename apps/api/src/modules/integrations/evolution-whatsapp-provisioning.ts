@@ -55,7 +55,10 @@ export class EvolutionWhatsAppProvisioning implements WhatsAppProvisioningProvid
       const rawState = String(result.status ?? result.state ?? '').trim().toUpperCase().replace(/[\s-]+/gu, '_');
       const connectedFlag = result.connected ?? result.Connected;
       const loggedInFlag = result.loggedIn ?? result.LoggedIn;
-      const connected = connectedFlag === true || (loggedInFlag === true && connectedFlag !== false) || ['OPEN', 'CONNECTED', 'ONLINE', 'LOGGED_IN', 'LOGGEDIN'].includes(rawState) || rawState.includes('CONNECTED');
+      const hasLoggedInSignal = typeof loggedInFlag === 'boolean';
+      const connected = hasLoggedInSignal
+        ? loggedInFlag === true && connectedFlag !== false
+        : connectedFlag === true || ['OPEN', 'CONNECTED', 'ONLINE', 'LOGGED_IN', 'LOGGEDIN'].includes(rawState) || rawState.includes('CONNECTED');
       const state = connected ? 'CONNECTED' : 'DISCONNECTED';
       const jid = result.jid;
       const jidPhone = typeof jid === 'string' ? jid.split('@', 1)[0]?.replace(/\D/gu, '') : undefined;

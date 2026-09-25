@@ -212,7 +212,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const connection = useQuery({
     queryKey,
     queryFn: () => httpClient.request('/tenant/integrations/whatsapp/status', { schema: WhatsAppConnectionSchema, tenantPublicId }),
-    refetchInterval: qrCode === null ? false : 4000,
+    refetchInterval: (query) => query.state.data?.provider === 'EVOLUTION' ? 12000 : (qrCode === null ? false : 4000),
     retry: false,
   });
   const metaTemplates = useQuery({

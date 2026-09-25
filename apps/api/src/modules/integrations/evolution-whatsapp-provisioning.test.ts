@@ -53,6 +53,22 @@ describe('EvolutionWhatsAppProvisioning', () => {
     expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: true, connectionStatus: 'CONNECTED', connectedName: 'Barbearia Silva' }) }));
   });
 
+  it('persists DISCONNECTED from the real Evolution status even when the cached row was connected', async () => {
+    const { service, evolution, config } = subject();
+    config.findUnique.mockResolvedValueOnce({ ...(await config.findUnique()), connectedAt: new Date(), connectionStatus: 'CONNECTED', active: true });
+    evolution.status.mockResolvedValueOnce({ status: 'close', connected: false, loggedIn: false });
+    await expect(service.refreshStatus(7n)).resolves.toMatchObject({ state: 'DISCONNECTED' });
+    expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: false, connectionStatus: 'DISCONNECTED', lastStatusCheckAt: expect.any(Date) }) }));
+  });
+
+  it('does not keep CONNECTED when the Evolution status request fails', async () => {
+    const { service, evolution, config } = subject();
+    config.findUnique.mockResolvedValueOnce({ ...(await config.findUnique()), connectedAt: new Date(), connectionStatus: 'CONNECTED', active: true });
+    evolution.status.mockRejectedValueOnce(new Error('provider unavailable'));
+    await expect(service.refreshStatus(7n)).resolves.toMatchObject({ state: 'ERROR' });
+    expect(config.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ active: false, connectionStatus: 'ERROR', lastStatusCheckAt: expect.any(Date) }) }));
+  });
+
   it('does not reconnect the Evolution instance while refreshing a waiting QR', async () => {
     const { service, evolution, config } = subject();
     config.findUnique.mockResolvedValueOnce({ ...await config.findUnique(), connectionStatus: 'WAITING_QR' });

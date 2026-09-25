@@ -15,6 +15,23 @@ describe('EvolutionWhatsAppClient', () => {
     expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/instance/status', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }) }));
   });
 
+  it('configures the webhook with the Evolution event name MESSAGE', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { webhookUrl: 'https://app.test/hook' } }), { status: 200 }));
+    await new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher).connect('instance-token', 'https://app.test/hook');
+    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/instance/connect', expect.objectContaining({
+      method: 'POST', headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ webhookUrl: 'https://app.test/hook', subscribe: ['MESSAGE'] }),
+    }));
+  });
+
+  it('updates and reads advanced settings with the instance token', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { readMessages: true, ignoreGroups: true, ignoreStatus: true, alwaysOnline: false, rejectCall: false } }), { status: 200 }));
+    const client = new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher);
+    await client.updateAdvancedSettings('evo-1', 'instance-token');
+    await client.getAdvancedSettings('evo-1', 'instance-token');
+    expect(fetcher).toHaveBeenNthCalledWith(1, 'https://evolution.internal/instance/evo-1/advanced-settings', expect.objectContaining({ method: 'PUT', headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ alwaysOnline: false, rejectCall: false, msgRejectCall: '', readMessages: true, ignoreGroups: true, ignoreStatus: true }) }));
+    expect(fetcher).toHaveBeenNthCalledWith(2, 'https://evolution.internal/instance/evo-1/advanced-settings', expect.objectContaining({ method: 'GET', headers: expect.objectContaining({ apikey: 'instance-token' }) }));
+  });
+
   it('normalizes provider errors without logging or returning the api key', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'bad request' }), { status: 400 }));
     await expect(new EvolutionWhatsAppClient('https://evolution.internal', 'secret-global-key', fetcher).status('instance-1')).rejects.toMatchObject({ code: 'EVOLUTION_PROVIDER_ERROR' });

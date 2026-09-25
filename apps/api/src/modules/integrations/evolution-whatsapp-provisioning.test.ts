@@ -4,7 +4,7 @@ import { EvolutionWhatsAppProvisioning } from './evolution-whatsapp-provisioning
 function subject() {
   const row = { phoneNumberId: 'evo-1', webhookPublicId: 'hook-evo-1', instanceName: 'tenant-7-demo', active: false, connectionStatus: 'CREATED', encryptedAccessToken: 'cipher:instance-token', connectedAt: null, connectedPhone: null, connectedName: null, lastStatusCheckAt: null };
   const config = { findUnique: vi.fn().mockResolvedValue(row), create: vi.fn().mockResolvedValue(row), update: vi.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ ...row, ...data })) };
-  const evolution = { createInstance: vi.fn().mockResolvedValue({ id: 'evo-1', name: 'tenant-7-demo' }), connect: vi.fn().mockResolvedValue({}), qr: vi.fn().mockResolvedValue({ Qrcode: 'png' }), status: vi.fn().mockResolvedValue({ connected: true, loggedIn: true }), disconnect: vi.fn(), reconnect: vi.fn().mockResolvedValue({}) };
+  const evolution = { createInstance: vi.fn().mockResolvedValue({ id: 'evo-1', name: 'tenant-7-demo' }), connect: vi.fn().mockResolvedValue({}), getAdvancedSettings: vi.fn().mockResolvedValue({ alwaysOnline: false, rejectCall: false, readMessages: true, ignoreGroups: true, ignoreStatus: true }), updateAdvancedSettings: vi.fn().mockResolvedValue({}), qr: vi.fn().mockResolvedValue({ Qrcode: 'png' }), status: vi.fn().mockResolvedValue({ connected: true, loggedIn: true }), disconnect: vi.fn(), reconnect: vi.fn().mockResolvedValue({}) };
   const client = { tenantWhatsAppConfig: config, tenant: { findUnique: vi.fn().mockResolvedValue({ slug: 'demo' }) } };
   const cipher = { encrypt: vi.fn((value: unknown) => `cipher:${JSON.stringify(value)}`), decrypt: vi.fn(() => ({ token: 'instance-token' })) };
   return { service: new EvolutionWhatsAppProvisioning(client as never, evolution as never, cipher as never), config, evolution, cipher };
@@ -66,7 +66,16 @@ describe('EvolutionWhatsAppProvisioning', () => {
     process.env.APP_WEB_URL = 'https://agendei.site';
     await expect(service.reconfigureWebhooks(7n)).resolves.toEqual({ success: true });
     expect(evolution.connect).toHaveBeenCalledWith('instance-token', 'https://agendei.site/public/webhooks/whatsapp/evolution/hook-evo-1');
+    expect(evolution.updateAdvancedSettings).toHaveBeenCalledWith('evo-1', 'instance-token');
+    expect(evolution.getAdvancedSettings).toHaveBeenCalledWith('evo-1', 'instance-token');
     process.env.APP_WEB_URL = previous;
+  });
+
+  it('applies and verifies the required advanced settings when reconfiguring', async () => {
+    const { service, evolution } = subject();
+    await service.reconfigureWebhooks(7n);
+    expect(evolution.updateAdvancedSettings).toHaveBeenCalledWith('evo-1', 'instance-token');
+    expect(evolution.getAdvancedSettings).toHaveBeenCalledWith('evo-1', 'instance-token');
   });
 
   it('returns QR data as a browser-safe data URL and preserves reconnect flow', async () => {
@@ -75,7 +84,7 @@ describe('EvolutionWhatsAppProvisioning', () => {
     evolution.qr.mockResolvedValueOnce({ qrcode: 'next-qr' });
     await expect(service.reconnect(7n)).resolves.toMatchObject({ qrCode: 'data:image/png;base64,next-qr' });
     expect(evolution.reconnect).toHaveBeenCalledWith('instance-token');
-    expect(evolution.connect).toHaveBeenCalledTimes(1);
+    expect(evolution.connect).toHaveBeenCalledTimes(2);
     expect(evolution.createInstance).not.toHaveBeenCalled();
   });
 });

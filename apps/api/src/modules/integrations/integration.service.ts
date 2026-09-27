@@ -85,6 +85,19 @@ export const resolveDirectMainMenuAction = (actionId: string | null) => {
   if (actionId === null) return null;
   return MAIN_MENU_ACTIONS.some((action) => action.actionId === actionId) ? actionId : null;
 };
+
+const PUBLIC_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const directBookingActionPatterns = [
+  new RegExp(`^BOOKING_CREATE_SERVICE:${PUBLIC_ID}$`, 'i'),
+  new RegExp(`^BOOKING_CREATE_PROFESSIONAL:${PUBLIC_ID}$`, 'i'),
+  /^BOOKING_CREATE_DATE:\d{4}-\d{2}-\d{2}$/u,
+  /^BOOKING_CREATE_TIME:\d{2}:\d{2}$/u,
+  /^BOOKING_CREATE_SERVICES_PAGE:\d+$/u,
+  /^BOOKING_CREATE_TIMES_PAGE:\d+$/u,
+];
+
+export const resolveDirectBookingAction = (actionId: string | null) =>
+  actionId !== null && directBookingActionPatterns.some((pattern) => pattern.test(actionId)) ? actionId : null;
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
@@ -863,7 +876,8 @@ export class IntegrationService {
    * nem o id gerado pelo provedor.
    */
   private async resolveActionId(tenantId: bigint, event: NormalizedWhatsAppEvent) {
-    const directAction = resolveDirectMainMenuAction(event.actionId);
+    if (event.provider !== 'EVOLUTION' || event.eventType !== 'MESSAGE_ACTION') return null;
+    const directAction = resolveDirectMainMenuAction(event.actionId) ?? resolveDirectBookingAction(event.actionId);
     if (directAction !== null)
       return { actionId: directAction, appointmentPublicId: null, collectionAttemptPublicId: null, collectionDebtPublicId: null };
     // Evolution pode entregar o id da ação interativa sem o id da mensagem

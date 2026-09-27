@@ -13,7 +13,7 @@ import { DEFAULT_WHATSAPP_ASSISTANT_CONFIG } from './whatsapp-assistant-config.j
 import { WhatsAppAssistantService } from './whatsapp-assistant.service.js';
 import { normalizeWApiWebhook } from './whatsapp-inbound.js';
 import { AppointmentService } from '../appointments/appointment.service.js';
-import { IntegrationService, resolveDirectMainMenuAction } from './integration.service.js';
+import { IntegrationService, resolveDirectBookingAction, resolveDirectMainMenuAction } from './integration.service.js';
 
 import type { WhatsAppDelivery } from './integration-delivery.js';
 
@@ -582,6 +582,11 @@ void test('MAIN_MENU_BOOK sem mensagem referenciada preserva a ação e não cai
   assert.equal(resolveDirectMainMenuAction('MAIN_MENU_BOOK'), 'MAIN_MENU_BOOK');
   assert.equal(resolveDirectMainMenuAction('MAIN_MENU_TREATMENTS'), 'MAIN_MENU_TREATMENTS');
   assert.equal(resolveDirectMainMenuAction('MAIN_MENU_QUERY'), 'MAIN_MENU_QUERY');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_SERVICE:b359cb77-ee79-4ab6-804e-576a633b7bbe'), 'BOOKING_CREATE_SERVICE:b359cb77-ee79-4ab6-804e-576a633b7bbe');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_PROFESSIONAL:b359cb77-ee79-4ab6-804e-576a633b7bbe'), 'BOOKING_CREATE_PROFESSIONAL:b359cb77-ee79-4ab6-804e-576a633b7bbe');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_DATE:2026-09-27'), 'BOOKING_CREATE_DATE:2026-09-27');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_TIME:14:30'), 'BOOKING_CREATE_TIME:14:30');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_SERVICE:invalid'), null);
   assert.equal(resolveDirectMainMenuAction('UNKNOWN_ACTION'), null);
 });
 

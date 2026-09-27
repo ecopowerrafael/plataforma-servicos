@@ -718,6 +718,14 @@ export class WhatsAppAssistantService {
       return;
     }
     const page = site.services.slice(offset, offset + 4);
+    console.info('[WHATSAPP_BOOKING_SERVICES]', JSON.stringify({
+      tenantId: input.tenantId.toString(),
+      totalServices: site.services.length,
+      totalGroups: Array.isArray(site.combos) ? site.combos.length : 0,
+      totalRows: page.length,
+      sectionTitles: ['Opções'],
+      responseType: page.length > 3 ? 'list' : 'buttons',
+    }));
     if (page.length === 0) {
       await this.dispatchCustomButtons(input, phone, 'Não encontrei serviços disponíveis para agendamento.', [{ buttonId: 'BOOKING_CREATE_ABORT', label: 'Voltar ao menu' }], conversationId);
       return;
@@ -2033,6 +2041,12 @@ export class WhatsAppAssistantService {
   private async dispatchCustomButtons(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, phone: string, message: string, buttons: WhatsAppInteractiveButton[], conversationId: bigint) {
     const delivery = this.delivery;
     console.info('[WHATSAPP_REPLY_DISPATCH]', JSON.stringify({ provider: delivery?.provider ?? null, hasReply: true, hasRecipient: phone.trim().length > 0, deliveryResolved: delivery !== undefined }));
+    console.info('[WHATSAPP_INTERACTIVE_OUTBOUND]', JSON.stringify({
+      type: buttons.length > 3 ? 'list' : 'buttons',
+      sectionsCount: buttons.length > 3 ? 1 : 0,
+      rowsCount: buttons.length,
+      rowActionPrefixes: [...new Set(buttons.map((button) => button.buttonId.split(':', 1)[0]))],
+    }));
     if (delivery === undefined) return;
     const result = await delivery.sendInteractiveButtons(input.tenantId, phone, message, buttons);
     await this.trackOutbound(input, phone, result, buttons.map((button) => button.buttonId), conversationId);

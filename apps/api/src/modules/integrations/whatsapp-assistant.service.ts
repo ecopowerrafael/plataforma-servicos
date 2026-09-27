@@ -47,6 +47,15 @@ const menuButtons: WhatsAppInteractiveButton[] = MAIN_MENU_ACTIONS.map((action) 
 }));
 const menuActionIds = MAIN_MENU_ACTIONS.map((action) => action.actionId);
 
+type BookingCreateContext = {
+  servicePublicId?: string | undefined;
+  comboPublicId?: string | undefined;
+  professionalPublicId: string;
+  date?: string | undefined;
+  time?: string | undefined;
+  customerName?: string | undefined;
+};
+
 const appointmentPublicIdFrom = (context: unknown): string | null => {
   if (context === null || typeof context !== 'object' || Array.isArray(context)) return null;
   const value = (context as Record<string, unknown>).appointmentPublicId;
@@ -300,6 +309,10 @@ export class WhatsAppAssistantService {
         phone,
         input.actionId.slice('BOOKING_CREATE_SERVICE:'.length),
       );
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.actionId?.startsWith('BOOKING_CREATE_COMBO:') === true) {
+      await this.selectBookingCombo(input, conversation, phone, input.actionId.slice('BOOKING_CREATE_COMBO:'.length));
       return { replied: true, conversationPublicId: conversation.publicId };
     }
     if (input.actionId?.startsWith('BOOKING_CREATE_SERVICES_PAGE:') === true) {
@@ -717,11 +730,25 @@ export class WhatsAppAssistantService {
       await this.dispatchText(input, phone, site?.unavailableMessage ?? 'Agendamento online indisponível no momento.', conversationId);
       return;
     }
-    const page = site.services.slice(offset, offset + 4);
+    const tenant = await this.repository.tenantName(input.tenantId);
+    const options = [
+      ...site.services.map((service) => ({
+        buttonId: `BOOKING_CREATE_SERVICE:${service.publicId}`,
+        label: `${service.name} · ${(Number(service.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: tenant?.currency ?? 'BRL' })}`,
+      })),
+      ...site.combos.map((combo) => ({
+        buttonId: `BOOKING_CREATE_COMBO:${combo.publicId}`,
+        label: `${combo.name} · ${(Number(combo.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: tenant?.currency ?? 'BRL' })}`,
+      })),
+    ];
+    const pageSize = options.length > offset + 9 ? 8 : 9;
+    const page = options.slice(offset, offset + pageSize);
     console.info('[WHATSAPP_BOOKING_SERVICES]', JSON.stringify({
       tenantId: input.tenantId.toString(),
       totalServices: site.services.length,
-      totalGroups: Array.isArray(site.combos) ? site.combos.length : 0,
+      totalGroups: site.combos.length,
+      totalCombos: site.combos.length,
+      totalOptions: options.length,
       totalRows: page.length,
       sectionTitles: ['Opções'],
       responseType: page.length > 3 ? 'list' : 'buttons',
@@ -730,12 +757,8 @@ export class WhatsAppAssistantService {
       await this.dispatchCustomButtons(input, phone, 'Não encontrei serviços disponíveis para agendamento.', [{ buttonId: 'BOOKING_CREATE_ABORT', label: 'Voltar ao menu' }], conversationId);
       return;
     }
-    const tenant = await this.repository.tenantName(input.tenantId);
-    const buttons = page.map((service) => ({
-      buttonId: `BOOKING_CREATE_SERVICE:${service.publicId}`,
-      label: `${service.name} · ${(Number(service.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: tenant?.currency ?? 'BRL' })}`,
-    }));
-    if (site.services.length > offset + page.length)
+    const buttons = [...page];
+    if (options.length > offset + page.length)
       buttons.push({ buttonId: `BOOKING_CREATE_SERVICES_PAGE:${String(offset + page.length)}`, label: 'Ver mais serviços' });
     await this.dispatchCustomButtons(input, phone, 'Qual serviço você deseja agendar?', buttons, conversationId);
   }
@@ -786,6 +809,34 @@ export class WhatsAppAssistantService {
     );
   }
 
+  private async selectBookingCombo(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversation: { id: bigint },
+    phone: string,
+    comboPublicId: string,
+  ): Promise<void> {
+    const site = await this.bookingSite(input.tenantId);
+    const combo = site?.combos.find((item) => item.publicId === comboPublicId);
+    if (site === null || combo === undefined) {
+      await this.dispatchText(input, phone, 'Esse combo não está disponível para agendamento.', conversation.id);
+      return;
+    }
+    const professionals = await this.bookingProfessionalsForCombo(input.tenantId, combo, site);
+    if (professionals.length === 0) {
+      await this.dispatchCustomButtons(input, phone, 'Não encontrei profissionais disponíveis para este combo.', [{ buttonId: 'BOOKING_CREATE_CHANGE_SERVICE', label: 'Escolher outra opção' }, { buttonId: 'BOOKING_CREATE_ABORT', label: 'Voltar ao menu' }], conversation.id);
+      return;
+    }
+    await this.repository.updateConversation(conversation.id, {
+      currentFlow: 'BOOKING_CREATE',
+      currentStep: 'PROFESSIONAL_SELECTION',
+      context: { comboPublicId },
+    });
+    await this.dispatchCustomButtons(input, phone, 'Com qual profissional você deseja agendar?', [
+      ...professionals.slice(0, 8).map((professional) => ({ buttonId: `BOOKING_CREATE_PROFESSIONAL:${professional.publicId}`, label: professional.name })),
+      { buttonId: 'BOOKING_CREATE_CHANGE_SERVICE', label: 'Escolher outra opção' },
+    ], conversation.id);
+  }
+
   private async selectBookingProfessional(
     input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
     conversation: { id: bigint; context: unknown },
@@ -793,12 +844,20 @@ export class WhatsAppAssistantService {
     professionalPublicId: string,
   ): Promise<void> {
     const servicePublicId = contextString(conversation.context, 'servicePublicId');
+    const comboPublicId = contextString(conversation.context, 'comboPublicId');
     const site = await this.bookingSite(input.tenantId);
-    if (servicePublicId === null || site === null) {
+    if ((servicePublicId === null && comboPublicId === null) || site === null) {
       await this.dispatchText(input, phone, 'Esse profissional não está disponível para este serviço.', conversation.id);
       return;
     }
-    const professionals = await this.bookingProfessionals(input.tenantId, servicePublicId, site);
+    const combo = comboPublicId === null ? undefined : site.combos.find((item) => item.publicId === comboPublicId);
+    if (comboPublicId !== null && combo === undefined) {
+      await this.dispatchText(input, phone, 'Esse combo não está disponível para agendamento.', conversation.id);
+      return;
+    }
+    const professionals = comboPublicId !== null
+      ? await this.bookingProfessionalsForCombo(input.tenantId, combo!, site)
+      : await this.bookingProfessionals(input.tenantId, servicePublicId!, site);
     if (!professionals.some((professional) => professional.publicId === professionalPublicId)) {
       await this.dispatchText(input, phone, 'Esse profissional não está disponível para este serviço.', conversation.id);
       return;
@@ -806,11 +865,11 @@ export class WhatsAppAssistantService {
     await this.repository.updateConversation(conversation.id, {
       currentFlow: 'BOOKING_CREATE',
       currentStep: 'PROFESSIONAL_SELECTED',
-      context: { servicePublicId, professionalPublicId },
+      context: { ...(servicePublicId === null ? { comboPublicId } : { servicePublicId }), professionalPublicId },
     });
     await this.showBookingCreateDates(
       input,
-      { ...conversation, context: { servicePublicId, professionalPublicId } },
+      { ...conversation, context: { ...(servicePublicId === null ? { comboPublicId } : { servicePublicId }), professionalPublicId } },
       phone,
     );
   }
@@ -839,6 +898,19 @@ export class WhatsAppAssistantService {
     return site.professionals.filter((professional) => eligible.has(professional.publicId));
   }
 
+  private async bookingProfessionalsForCombo(
+    tenantId: bigint,
+    combo: NonNullable<Awaited<ReturnType<WhatsAppAssistantService['bookingSite']>>>['combos'][number],
+    site: NonNullable<Awaited<ReturnType<WhatsAppAssistantService['bookingSite']>>>,
+  ) {
+    if (this.professionalServices === undefined) return [];
+    const eligibleSets = await Promise.all(combo.items.map(async (item) => {
+      const links = await this.professionalServices!.listService(tenantId, item.servicePublicId);
+      return new Set(links.items.filter((link) => link.active).map((link) => link.professionalPublicId));
+    }));
+    return site.professionals.filter((professional) => eligibleSets.every((eligible) => eligible.has(professional.publicId)));
+  }
+
   private async showBookingCreateDates(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string): Promise<void> {
     const context = this.bookingCreateContext(conversation.context);
     if (context === null) return this.dispatchText(input, phone, 'Não foi possível continuar o agendamento.', conversation.id);
@@ -854,10 +926,10 @@ export class WhatsAppAssistantService {
     await this.showBookingCreateTimes(input, conversation, phone, 0, { ...context, date });
   }
 
-  private async showBookingCreateTimes(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string, offset: number, known?: { servicePublicId: string; professionalPublicId: string; date: string }): Promise<void> {
+  private async showBookingCreateTimes(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string, offset: number, known?: BookingCreateContext & { date: string }): Promise<void> {
     const context = known ?? this.bookingCreateContext(conversation.context); if (context?.date === undefined) return this.dispatchText(input, phone, 'Não foi possível continuar o agendamento.', conversation.id);
     const slots = await this.availableBookingCreateSlots(input.tenantId, context, context.date); if (slots.length === 0) return this.dispatchCustomButtons(input, phone, 'Não há mais horários disponíveis para esta data.', [{ buttonId: 'BOOKING_CREATE_CHANGE_DATE', label: 'Escolher outra data' }, { buttonId: 'BOOKING_CREATE_ABORT', label: 'Voltar ao menu' }], conversation.id);
-    const tenant = await this.repository.tenantName(input.tenantId); const timezone = tenant?.timezone ?? 'UTC'; const page = slots.slice(offset, offset + 3); const buttons = page.map((slot) => ({ buttonId: `BOOKING_CREATE_TIME:${formatAppointmentTime(slot, timezone)}`, label: formatAppointmentTime(slot, timezone) })); if (slots.length > offset + page.length) buttons.push({ buttonId: `BOOKING_CREATE_TIMES_PAGE:${String(offset + page.length)}`, label: 'Ver próximos' }); buttons.push({ buttonId: 'BOOKING_CREATE_CHANGE_DATE', label: 'Escolher outra data' }); await this.dispatchCustomButtons(input, phone, 'Escolha um horário disponível:', buttons, conversation.id);
+    const tenant = await this.repository.tenantName(input.tenantId); const timezone = tenant?.timezone ?? 'UTC'; const page = slots.slice(offset, offset + 8); const buttons = page.map((slot) => ({ buttonId: `BOOKING_CREATE_TIME:${formatAppointmentTime(slot, timezone)}`, label: formatAppointmentTime(slot, timezone) })); if (slots.length > offset + page.length) buttons.push({ buttonId: `BOOKING_CREATE_TIMES_PAGE:${String(offset + page.length)}`, label: 'Ver próximos' }); buttons.push({ buttonId: 'BOOKING_CREATE_CHANGE_DATE', label: 'Escolher outra data' }); await this.dispatchCustomButtons(input, phone, 'Escolha um horário disponível:', buttons, conversation.id);
   }
 
   private async selectBookingCreateTime(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; customerId: bigint | null; context: unknown }, phone: string, time: string): Promise<void> {
@@ -866,13 +938,13 @@ export class WhatsAppAssistantService {
     await this.showBookingCreateConfirmation(input, conversation.id, phone, next, customerId);
   }
 
-  private bookingCreateContext(context: unknown): { servicePublicId: string; professionalPublicId: string; date?: string | undefined; time?: string | undefined; customerName?: string | undefined } | null {
-    const servicePublicId = contextString(context, 'servicePublicId'); const professionalPublicId = contextString(context, 'professionalPublicId'); if (servicePublicId === null || professionalPublicId === null) return null;
-    return { servicePublicId, professionalPublicId, ...(contextString(context, 'date') === null ? {} : { date: contextString(context, 'date') ?? undefined }), ...(contextString(context, 'time') === null ? {} : { time: contextString(context, 'time') ?? undefined }), ...(contextString(context, 'customerName') === null ? {} : { customerName: contextString(context, 'customerName') ?? undefined }) };
+  private bookingCreateContext(context: unknown): BookingCreateContext | null {
+    const servicePublicId = contextString(context, 'servicePublicId'); const comboPublicId = contextString(context, 'comboPublicId'); const professionalPublicId = contextString(context, 'professionalPublicId'); if (professionalPublicId === null || (servicePublicId === null && comboPublicId === null)) return null;
+    return { ...(servicePublicId === null ? { comboPublicId: comboPublicId! } : { servicePublicId }), professionalPublicId, ...(contextString(context, 'date') === null ? {} : { date: contextString(context, 'date') ?? undefined }), ...(contextString(context, 'time') === null ? {} : { time: contextString(context, 'time') ?? undefined }), ...(contextString(context, 'customerName') === null ? {} : { customerName: contextString(context, 'customerName') ?? undefined }) };
   }
 
-  private async availableBookingCreateSlots(tenantId: bigint, context: { servicePublicId: string; professionalPublicId: string }, date: string): Promise<string[]> {
-    if (this.availability === undefined) return []; try { const result = await this.availability.available(tenantId, { date, professionalPublicId: context.professionalPublicId, servicePublicId: context.servicePublicId }); return result.slots.filter((slot) => slot.state === 'AVAILABLE').map((slot) => slot.startsAt); } catch { return []; }
+  private async availableBookingCreateSlots(tenantId: bigint, context: BookingCreateContext, date: string): Promise<string[]> {
+    if (this.availability === undefined) return []; try { const result = await this.availability.available(tenantId, { date, professionalPublicId: context.professionalPublicId, ...(context.servicePublicId === undefined ? { comboPublicId: context.comboPublicId } : { servicePublicId: context.servicePublicId }) }); return result.slots.filter((slot) => slot.state === 'AVAILABLE').map((slot) => slot.startsAt); } catch { return []; }
   }
 
   private async captureBookingCustomerName(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string, name: string): Promise<void> {
@@ -898,9 +970,9 @@ export class WhatsAppAssistantService {
     } catch { await this.dispatchText(input, phone, 'Este e-mail já está vinculado a outro cadastro. Informe outro e-mail ou fale com o estabelecimento.', conversation.id); }
   }
 
-  private async showBookingCreateConfirmation(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversationId: bigint, phone: string, context: { servicePublicId: string; professionalPublicId: string; date: string; time: string; customerName?: string | undefined }, customerId: bigint | null): Promise<void> {
-    const site = await this.bookingSite(input.tenantId); const service = site?.services.find((item) => item.publicId === context.servicePublicId); const professional = site?.professionals.find((item) => item.publicId === context.professionalPublicId); if (service === undefined || professional === undefined) return this.dispatchText(input, phone, 'Não foi possível continuar o agendamento.', conversationId);
-    await this.repository.updateConversation(conversationId, { currentFlow: 'BOOKING_CREATE', currentStep: 'CONFIRMATION', ...(customerId === null ? {} : { customerId }), context }); const tenant = await this.repository.tenantName(input.tenantId); const timezone = tenant?.timezone ?? 'UTC'; const price = (Number(service.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: tenant?.currency ?? 'BRL' }); await this.dispatchCustomButtons(input, phone, `Confirmar agendamento?\n\n📅 ${formatAppointmentDate(`${context.date}T12:00:00.000Z`, timezone)}\n🕐 ${context.time}\n✂️ ${service.name}\n👤 ${professional.name}\n💰 ${price}`, [{ buttonId: 'BOOKING_CREATE_CONFIRM', label: 'Confirmar agendamento' }, { buttonId: 'BOOKING_CREATE_CHANGE_TIME', label: 'Escolher outro horário' }, { buttonId: 'BOOKING_CREATE_ABORT', label: 'Cancelar' }], conversationId);
+  private async showBookingCreateConfirmation(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversationId: bigint, phone: string, context: BookingCreateContext & { date: string; time: string }, customerId: bigint | null): Promise<void> {
+    const site = await this.bookingSite(input.tenantId); const offering = context.servicePublicId === undefined ? site?.combos.find((item) => item.publicId === context.comboPublicId) : site?.services.find((item) => item.publicId === context.servicePublicId); const professional = site?.professionals.find((item) => item.publicId === context.professionalPublicId); if (offering === undefined || professional === undefined) return this.dispatchText(input, phone, 'Não foi possível continuar o agendamento.', conversationId);
+    await this.repository.updateConversation(conversationId, { currentFlow: 'BOOKING_CREATE', currentStep: 'CONFIRMATION', ...(customerId === null ? {} : { customerId }), context }); const tenant = await this.repository.tenantName(input.tenantId); const timezone = tenant?.timezone ?? 'UTC'; const price = (Number(offering.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: tenant?.currency ?? 'BRL' }); await this.dispatchCustomButtons(input, phone, `Confirmar agendamento?\n\n📅 ${formatAppointmentDate(`${context.date}T12:00:00.000Z`, timezone)}\n🕐 ${context.time}\n✂️ ${offering.name}\n👤 ${professional.name}\n💰 ${price}`, [{ buttonId: 'BOOKING_CREATE_CONFIRM', label: 'Confirmar agendamento' }, { buttonId: 'BOOKING_CREATE_CHANGE_TIME', label: 'Escolher outro horário' }, { buttonId: 'BOOKING_CREATE_ABORT', label: 'Cancelar' }], conversationId);
   }
 
   private async confirmBookingCreate(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; customerId: bigint | null; context: unknown }, phone: string): Promise<void> {
@@ -908,7 +980,7 @@ export class WhatsAppAssistantService {
     const tenant = await this.repository.tenantName(input.tenantId); const timezone = tenant?.timezone ?? 'UTC'; const target = (await this.availableBookingCreateSlots(input.tenantId, context, context.date)).find((slot) => formatAppointmentTime(slot, timezone) === context.time); if (target === undefined) { await this.dispatchText(input, phone, 'Esse horário acabou de ficar indisponível.', conversation.id); await this.showBookingCreateTimes(input, conversation, phone, 0); return; }
     const customerId = conversation.customerId ?? input.customerId;
     if (customerId === null) return this.dispatchText(input, phone, 'Não foi possível concluir seus dados.', conversation.id); const customer = await this.repository.customerName(customerId); if (customer === null) return this.dispatchText(input, phone, 'Não foi possível concluir seus dados.', conversation.id);
-    try { const created = await this.appointments.create(input.tenantId, { customerPublicId: (await this.repository.client.customer.findUnique({ where: { id: customerId }, select: { publicId: true } }))?.publicId ?? '', professionalPublicId: context.professionalPublicId, servicePublicId: context.servicePublicId, startsAt: target, source: 'PUBLIC_BOOKING' }, { userId: null, sessionId: null }); await this.openBookingPayment(input, conversation.id, phone, customerId, created.publicId); } catch { await this.dispatchText(input, phone, 'Esse horário acabou de ficar indisponível.', conversation.id); }
+    try { const created = await this.appointments.create(input.tenantId, { customerPublicId: (await this.repository.client.customer.findUnique({ where: { id: customerId }, select: { publicId: true } }))?.publicId ?? '', professionalPublicId: context.professionalPublicId, ...(context.servicePublicId === undefined ? { comboPublicId: context.comboPublicId } : { servicePublicId: context.servicePublicId }), startsAt: target, source: 'PUBLIC_BOOKING' }, { userId: null, sessionId: null }); await this.openBookingPayment(input, conversation.id, phone, customerId, created.publicId); } catch { await this.dispatchText(input, phone, 'Esse horário acabou de ficar indisponível.', conversation.id); }
   }
 
   private async showSelectedAppointment(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; customerId: bigint | null; context?: unknown }, phone: string, publicId: string) {

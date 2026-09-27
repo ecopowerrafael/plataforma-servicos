@@ -101,12 +101,23 @@ const availableDates = (enabled = true) => ({
     }),
 });
 
+const availableSlots = (count: number) => ({
+  available: (_tenantId: bigint, _input: { date: string }) =>
+    Promise.resolve({
+      slots: Array.from({ length: count }, (_, index) => ({
+        state: 'AVAILABLE',
+        startsAt: `2026-09-27T${String(9 + Math.floor(index / 2)).padStart(2, '0')}:${index % 2 === 0 ? '00' : '30'}:00.000Z`,
+      })),
+    }),
+});
+
 const bookingCatalog = (
   services: { publicId: string; name: string; priceCents: string; durationMinutes: number }[],
   professionals: { publicId: string; name: string }[],
   unit: Record<string, unknown> | null = null,
+  combos: { publicId: string; name: string; priceCents: string; items: { servicePublicId: string }[] }[] = [],
 ) => ({
-  publicSite: () => Promise.resolve({ bookingAvailable: true, unavailableMessage: null, services, professionals, unit }),
+  publicSite: () => Promise.resolve({ bookingAvailable: true, unavailableMessage: null, services, professionals, combos, unit }),
 });
 
 const professionalLinks = (professionalPublicIds: string[]) => ({
@@ -578,6 +589,25 @@ void test('agendar abre o fluxo e lista serviços públicos reais', async () => 
   assert.deepEqual(at(sent, 0).actionIds, ['BOOKING_CREATE_SERVICE:service-a']);
 });
 
+void test('combo ativo entra na seleção e preserva comboPublicId no fluxo', async () => {
+  const now = new Date();
+  const comboPublicId = 'b359cb77-ee79-4ab6-804e-576a633b7bbe';
+  const { repository, delivery, conversations, sent } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'MAIN_MENU', context: {}, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
+  const site = bookingCatalog(
+    [{ publicId: 'service-a', name: 'Corte', priceCents: '5000', durationMinutes: 30 }],
+    [{ publicId: 'pro-a', name: 'Rafael' }],
+    null,
+    [{ publicId: comboPublicId, name: 'Corte + Barba', priceCents: '8000', items: [{ servicePublicId: 'service-a' }] }],
+  );
+  const service = new WhatsAppAssistantService(repository, delivery, undefined, undefined, site as never, professionalLinks(['pro-a']) as never);
+  await handle(service, inbound(), { actionId: 'MAIN_MENU_BOOK' });
+  assert.equal(at(sent, 0).actionIds.includes(`BOOKING_CREATE_COMBO:${comboPublicId}`), true);
+  await handle(service, inbound(), { actionId: `BOOKING_CREATE_COMBO:${comboPublicId}` });
+  assert.equal(at(conversations, 0).currentStep, 'PROFESSIONAL_SELECTION');
+  assert.deepEqual(at(conversations, 0).context, { comboPublicId });
+  assert.equal(at(sent, 1).actionIds.includes('BOOKING_CREATE_PROFESSIONAL:pro-a'), true);
+});
+
 void test('MAIN_MENU_BOOK sem mensagem referenciada preserva a ação e não cai no menu', () => {
   assert.equal(resolveDirectMainMenuAction('MAIN_MENU_BOOK'), 'MAIN_MENU_BOOK');
   assert.equal(resolveDirectMainMenuAction('MAIN_MENU_TREATMENTS'), 'MAIN_MENU_TREATMENTS');
@@ -586,8 +616,34 @@ void test('MAIN_MENU_BOOK sem mensagem referenciada preserva a ação e não cai
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_PROFESSIONAL:b359cb77-ee79-4ab6-804e-576a633b7bbe'), 'BOOKING_CREATE_PROFESSIONAL:b359cb77-ee79-4ab6-804e-576a633b7bbe');
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_DATE:2026-09-27'), 'BOOKING_CREATE_DATE:2026-09-27');
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_TIME:14:30'), 'BOOKING_CREATE_TIME:14:30');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_CONFIRM'), 'BOOKING_CREATE_CONFIRM');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_CHANGE_DATE'), 'BOOKING_CREATE_CHANGE_DATE');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_CHANGE_TIME'), 'BOOKING_CREATE_CHANGE_TIME');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_CHANGE_SERVICE'), 'BOOKING_CREATE_CHANGE_SERVICE');
+  assert.equal(resolveDirectBookingAction('BOOKING_CREATE_ABORT'), 'BOOKING_CREATE_ABORT');
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_SERVICE:invalid'), null);
   assert.equal(resolveDirectMainMenuAction('UNKNOWN_ACTION'), null);
+});
+
+void test.each([3, 8, 9, 10, 14, 20])('paginação de horários com %i slots não perde nem repete opções', async (count) => {
+  const now = new Date();
+  const { repository, delivery, conversations, sent } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'BOOKING_CREATE', currentStep: 'PROFESSIONAL_SELECTED', context: { servicePublicId: 'service-a', professionalPublicId: 'pro-a' }, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
+  const service = new WhatsAppAssistantService(repository, delivery, undefined, availableSlots(count) as never, bookingCatalog([{ publicId: 'service-a', name: 'Corte', priceCents: '5000', durationMinutes: 30 }], [{ publicId: 'pro-a', name: 'Rafael' }]) as never, professionalLinks(['pro-a']) as never);
+  const seen: string[] = [];
+  let offset = 0;
+  do {
+    const before = sent.length;
+    await handle(service, inbound(), { actionId: offset === 0 ? 'BOOKING_CREATE_DATE:2026-09-27' : `BOOKING_CREATE_TIMES_PAGE:${String(offset)}` });
+    const page = at(sent, before).actionIds.filter((id) => id.startsWith('BOOKING_CREATE_TIME:'));
+    assert.equal(page.length <= 10, true);
+    seen.push(...page);
+    const next = at(sent, before).actionIds.find((id) => id.startsWith('BOOKING_CREATE_TIMES_PAGE:'));
+    if (next === undefined) break;
+    offset = Number(next.slice('BOOKING_CREATE_TIMES_PAGE:'.length));
+  } while (offset < count);
+  assert.equal(new Set(seen).size, count);
+  assert.equal(seen.length, count);
+  assert.equal(at(conversations, 0).currentFlow, 'BOOKING_CREATE');
 });
 
 void test('serviço inválido não é aceito e serviço válido filtra profissionais', async () => {

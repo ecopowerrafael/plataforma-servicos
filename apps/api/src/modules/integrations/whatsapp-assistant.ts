@@ -23,6 +23,15 @@ export const BOOKING_ACTIONS = [
   { actionId: 'MAIN_MENU_BACK', label: 'Voltar ao menu' },
 ] as const;
 
+/** Ações internas do fluxo de criação de agendamento. */
+export const BOOKING_CREATE_ACTIONS = [
+  'BOOKING_CREATE_CONFIRM',
+  'BOOKING_CREATE_CHANGE_TIME',
+  'BOOKING_CREATE_CHANGE_DATE',
+  'BOOKING_CREATE_CHANGE_SERVICE',
+  'BOOKING_CREATE_ABORT',
+] as const;
+
 export const TREATMENT_ACTIONS = [
   { actionId: 'TREATMENT_APPROVE', label: 'Aprovar orçamento' },
   { actionId: 'TREATMENT_SCHEDULE_FIRST', label: 'Agendar primeira sessão' },

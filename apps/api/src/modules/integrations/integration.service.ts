@@ -33,7 +33,7 @@ import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-pay
 import { type PaymentService } from '../payments/payment.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { ProspectingInboundService } from '../prospecting/prospecting-inbound.service.js';
-import { MAIN_MENU_ACTIONS } from './whatsapp-assistant.js';
+import { BOOKING_CREATE_ACTIONS, MAIN_MENU_ACTIONS } from './whatsapp-assistant.js';
 
 const sanitizedEvolutionShape = (value: unknown) => {
   if (Array.isArray(value)) {
@@ -89,6 +89,7 @@ export const resolveDirectMainMenuAction = (actionId: string | null) => {
 const PUBLIC_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 const directBookingActionPatterns = [
   new RegExp(`^BOOKING_CREATE_SERVICE:${PUBLIC_ID}$`, 'i'),
+  new RegExp(`^BOOKING_CREATE_COMBO:${PUBLIC_ID}$`, 'i'),
   new RegExp(`^BOOKING_CREATE_PROFESSIONAL:${PUBLIC_ID}$`, 'i'),
   /^BOOKING_CREATE_DATE:\d{4}-\d{2}-\d{2}$/u,
   /^BOOKING_CREATE_TIME:\d{2}:\d{2}$/u,
@@ -97,7 +98,7 @@ const directBookingActionPatterns = [
 ];
 
 export const resolveDirectBookingAction = (actionId: string | null) =>
-  actionId !== null && directBookingActionPatterns.some((pattern) => pattern.test(actionId)) ? actionId : null;
+  actionId !== null && (directBookingActionPatterns.some((pattern) => pattern.test(actionId)) || BOOKING_CREATE_ACTIONS.includes(actionId as (typeof BOOKING_CREATE_ACTIONS)[number])) ? actionId : null;
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';

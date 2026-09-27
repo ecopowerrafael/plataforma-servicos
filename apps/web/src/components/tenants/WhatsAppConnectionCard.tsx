@@ -20,7 +20,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
-import { ConnectionStatusBanner } from './ConnectionStatusBanner.js';
 
 const STATE_LABEL: Record<string, string> = {
   NOT_CREATED: 'Não configurado',
@@ -395,13 +394,14 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
       <section className="whatsapp-current-card" aria-label="Conexão atual">
         <div className="whatsapp-provider-icon" aria-hidden="true"><ProviderIcon provider={activeProvider} /></div>
         <div>
-          <p className="whatsapp-section-kicker">CONEXÃO ATUAL</p>
-          <h2>{activePresentation.name}</h2>
+          <p className="whatsapp-section-kicker">STATUS DA CONEXÃO</p>
+          <h2>WhatsApp {state === 'CONNECTED' ? 'conectado' : 'não conectado'}</h2>
           <span>{activePresentation.subtitle}</span>
           <dl className="whatsapp-current-card__facts">
             <div><dt>Número</dt><dd>{prettyPhone(connection.data?.connectedPhone) ?? 'Ainda não identificado'}</dd></div>
             <div><dt>Última verificação</dt><dd>{connection.data?.lastStatusCheckAt == null ? 'Ainda não verificada' : timeOf(connection.data.lastStatusCheckAt)}</dd></div>
             <div><dt>Status</dt><dd>{STATE_LABEL[state] ?? 'Não configurado'}</dd></div>
+            <div><dt>Provedor</dt><dd>{activePresentation.name}</dd></div>
           </dl>
         </div>
         <div className="whatsapp-current-card__actions">
@@ -410,19 +410,10 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
             <StatusBadge tone={connectionTone(state)}>{STATE_LABEL[state] ?? 'Não configurado'}</StatusBadge>
           </div>
           <button className="primary-button" type="button" disabled={busy} onClick={() => { if (!provisioned) createInstance.mutate(); else requestQr.mutate(state === 'DISCONNECTED' || state === 'ERROR' ? 'reconnect' : 'qr'); }}>Reconectar</button>
+          <button className="secondary-button" type="button" disabled={busy || connection.isFetching} onClick={() => void refresh()}><IconRefresh size={16} aria-hidden="true" />Atualizar status</button>
           {canManage ? <button className="text-button" type="button" disabled={busy} onClick={() => disconnect.mutate()}>Desconectar</button> : null}
         </div>
       </section>
-
-      <ConnectionStatusBanner
-        state={state}
-        provider={activeProvider}
-        phone={prettyPhone(connection.data?.connectedPhone) ?? ''}
-        lastCheck={connection.data?.lastStatusCheckAt == null ? '' : timeOf(connection.data.lastStatusCheckAt)}
-        onTest={() => void refresh()}
-        onChange={() => openProvider(activeProvider)}
-        disabled={busy || connection.isFetching}
-      />
 
       <section className="whatsapp-section-block" aria-label="Saúde da conexão">
         <div className="whatsapp-section-heading"><h2>Saúde da conexão</h2><p>Indicadores baseados no status atual da integração.</p></div>

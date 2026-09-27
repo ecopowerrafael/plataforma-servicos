@@ -12204,10 +12204,10 @@ h1 {
 }
 .whatsapp-current-card {
   align-items: center;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--ds-color-primary) 10%, var(--ds-bg-surface)), var(--ds-bg-surface));
-  border: 1px solid color-mix(in srgb, var(--ds-color-primary) 38%, var(--ds-border));
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+  background: linear-gradient(135deg, color-mix(in srgb, #25a366 13%, var(--ds-bg-surface)), var(--ds-bg-surface) 58%, color-mix(in srgb, #0f766e 7%, var(--ds-bg-surface)));
+  border: 1px solid color-mix(in srgb, #25a366 42%, var(--ds-border));
+  border-radius: 20px;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.11), 0 0 26px color-mix(in srgb, #25a366 15%, transparent), inset 0 1px 0 rgba(255,255,255,.65);
   display: grid;
   gap: 18px;
   grid-template-columns: auto 1fr auto;
@@ -12224,6 +12224,9 @@ h1 {
   height: 48px;
   justify-content: center;
   width: 48px;
+}
+.whatsapp-current-card > .whatsapp-provider-icon {
+  box-shadow: 0 8px 20px color-mix(in srgb, #25a366 24%, transparent);
 }
 .whatsapp-current-card h2,
 .whatsapp-current-card span,

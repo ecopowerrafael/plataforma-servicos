@@ -21,9 +21,12 @@ const whatsappPhone = (value: string | null): string | null => {
   const digits = withoutDevice.replace(/@(s\.whatsapp\.net|c\.us)$/u, '').replace(/\D/gu, '');
   return digits.length >= 10 && digits.length <= 15 ? digits : null;
 };
-const evolutionIdentityKeys = ['User', 'user', 'ID', 'Id', 'id', 'JID', 'jid', 'number', 'Number', 'phone', 'Phone', 'Raw', 'raw'];
+const evolutionIdentityKeys = [
+  'User', 'user', 'ID', 'Id', 'id', 'JID', 'jid', 'number', 'Number', 'phone', 'Phone',
+  'Raw', 'raw', 'String', 'string', 'Value', 'value', 'Address', 'address', 'RemoteJid', 'remoteJid',
+];
 const evolutionPhoneCandidates = (value: unknown, depth = 0): string[] => {
-  if (depth > 4 || value === null || value === undefined) return [];
+  if (depth > 8 || value === null || value === undefined) return [];
   if (typeof value === 'string') return [value];
   if (Array.isArray(value)) return value.flatMap((item) => evolutionPhoneCandidates(item, depth + 1));
   if (typeof value !== 'object') return [];

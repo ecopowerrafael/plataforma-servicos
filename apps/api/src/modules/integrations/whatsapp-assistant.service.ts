@@ -98,6 +98,15 @@ const followingDates = (timezone: string, count: number) => {
   return dates;
 };
 
+export function bookingDatePage(availableDates: string[], offset: number) {
+  const pageSize = availableDates.length > offset + 9 ? 8 : 9;
+  const dates = availableDates.slice(offset, offset + pageSize);
+  return {
+    dates,
+    nextOffset: availableDates.length > offset + dates.length ? offset + dates.length : null,
+  };
+}
+
 /**
  * Assistente do WhatsApp: abre a sessão, saúda e apresenta o menu principal.
  * Nenhuma funcionalidade de agenda é executada aqui — o roteador apenas
@@ -332,6 +341,11 @@ export class WhatsAppAssistantService {
     }
     if (input.actionId?.startsWith('BOOKING_CREATE_DATE:') === true) {
       await this.selectBookingCreateDate(input, conversation, phone, input.actionId.slice('BOOKING_CREATE_DATE:'.length));
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.actionId?.startsWith('BOOKING_CREATE_DATES_PAGE:') === true) {
+      const offset = Number(input.actionId.slice('BOOKING_CREATE_DATES_PAGE:'.length));
+      if (Number.isSafeInteger(offset) && offset >= 0) await this.showBookingCreateDates(input, conversation, phone, offset);
       return { replied: true, conversationPublicId: conversation.publicId };
     }
     if (input.actionId?.startsWith('BOOKING_CREATE_TIME:') === true) {
@@ -911,13 +925,18 @@ export class WhatsAppAssistantService {
     return site.professionals.filter((professional) => eligibleSets.every((eligible) => eligible.has(professional.publicId)));
   }
 
-  private async showBookingCreateDates(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string): Promise<void> {
+  private async showBookingCreateDates(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string, offset = 0): Promise<void> {
     const context = this.bookingCreateContext(conversation.context);
     if (context === null) return this.dispatchText(input, phone, 'Não foi possível continuar o agendamento.', conversation.id);
     const tenant = await this.repository.tenantName(input.tenantId); const timezone = tenant?.timezone ?? 'UTC';
-    const dates = (await Promise.all(followingDates(timezone, 7).map(async (date) => (await this.availableBookingCreateSlots(input.tenantId, context, date)).length > 0 ? date : null))).flatMap((date) => date === null ? [] : [date]).slice(0, 3);
-    if (dates.length === 0) return this.dispatchText(input, phone, 'Não encontrei datas disponíveis para agendamento.', conversation.id);
-    await this.dispatchCustomButtons(input, phone, 'Escolha uma data para seu agendamento:', [...dates.map((date) => ({ buttonId: `BOOKING_CREATE_DATE:${date}`, label: formatAppointmentDate(`${date}T12:00:00.000Z`, timezone) })), { buttonId: 'BOOKING_CREATE_ABORT', label: 'Voltar ao menu' }], conversation.id);
+    const availableDates = (await Promise.all(followingDates(timezone, 30).map(async (date) => (await this.availableBookingCreateSlots(input.tenantId, context, date)).length > 0 ? date : null))).flatMap((date) => date === null ? [] : [date]);
+    if (availableDates.length === 0) return this.dispatchText(input, phone, 'Não encontrei datas disponíveis para agendamento.', conversation.id);
+    const page = bookingDatePage(availableDates, offset);
+    const dates = page.dates;
+    const buttons = dates.map((date) => ({ buttonId: `BOOKING_CREATE_DATE:${date}`, label: formatAppointmentDate(`${date}T12:00:00.000Z`, timezone) }));
+    if (page.nextOffset !== null) buttons.push({ buttonId: `BOOKING_CREATE_DATES_PAGE:${String(page.nextOffset)}`, label: 'Ver próximas' });
+    buttons.push({ buttonId: 'BOOKING_CREATE_ABORT', label: 'Voltar ao menu' });
+    await this.dispatchCustomButtons(input, phone, 'Escolha uma data para seu agendamento:', buttons, conversation.id);
   }
 
   private async selectBookingCreateDate(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; context: unknown }, phone: string, date: string): Promise<void> {

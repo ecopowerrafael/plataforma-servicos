@@ -10,7 +10,7 @@ import {
   greetingMessage,
 } from './whatsapp-assistant.js';
 import { DEFAULT_WHATSAPP_ASSISTANT_CONFIG } from './whatsapp-assistant-config.js';
-import { WhatsAppAssistantService } from './whatsapp-assistant.service.js';
+import { bookingDatePage, WhatsAppAssistantService } from './whatsapp-assistant.service.js';
 import { normalizeWApiWebhook } from './whatsapp-inbound.js';
 import { AppointmentService } from '../appointments/appointment.service.js';
 import { IntegrationService, resolveDirectBookingAction, resolveDirectMainMenuAction } from './integration.service.js';
@@ -623,6 +623,41 @@ void test('MAIN_MENU_BOOK sem mensagem referenciada preserva a ação e não cai
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_ABORT'), 'BOOKING_CREATE_ABORT');
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_SERVICE:invalid'), null);
   assert.equal(resolveDirectMainMenuAction('UNKNOWN_ACTION'), null);
+});
+
+void test('todas as actions fixas do assistant são preservadas diretamente', () => {
+  const fixed = [
+    'MAIN_MENU_BOOK', 'MAIN_MENU_TREATMENTS', 'MAIN_MENU_QUERY', 'MAIN_MENU_RESCHEDULE',
+    'MAIN_MENU_CANCEL', 'MAIN_MENU_OTHER', 'BOOKING_CONFIRM', 'BOOKING_RESCHEDULE',
+    'BOOKING_CANCEL', 'BOOKING_DIRECTIONS', 'MAIN_MENU_BACK',
+    'BOOKING_CREATE_CONFIRM', 'BOOKING_CREATE_CHANGE_TIME', 'BOOKING_CREATE_CHANGE_DATE',
+    'BOOKING_CREATE_CHANGE_SERVICE', 'BOOKING_CREATE_ABORT', 'BOOKING_PAYMENT_PIX',
+    'BOOKING_PAYMENT_LOCAL', 'BOOKING_PAYMENT_MERCADO_PAGO', 'BOOKING_PAYMENT_STATUS',
+    'BOOKING_PAYMENT_ABORT', 'BOOKING_CANCEL_CONFIRM', 'BOOKING_CANCEL_ABORT',
+    'BOOKING_RESCHEDULE_CONFIRM', 'BOOKING_RESCHEDULE_CHANGE_TIME', 'BOOKING_RESCHEDULE_ABORT',
+  ];
+  for (const action of fixed) assert.equal(resolveDirectBookingAction(action), action);
+});
+
+void test.each([0, 3, 8, 9, 10, 14, 20])('pagina datas disponíveis sem saltos para %i datas', (count) => {
+  const available = Array.from({ length: count }, (_, index) => `2026-10-${String(index + 1).padStart(2, '0')}`);
+  const seen: string[] = [];
+  let offset = 0;
+  do {
+    const page = bookingDatePage(available, offset);
+    assert.equal(page.dates.length <= 9, true);
+    seen.push(...page.dates);
+    if (page.nextOffset === null) break;
+    offset = page.nextOffset;
+  } while (offset < available.length);
+  assert.deepEqual(seen, available);
+});
+
+void test('pagina somente datas disponíveis mesmo com indisponíveis intercaladas', () => {
+  const available = ['2026-10-01', '2026-10-03', '2026-10-07', '2026-10-11', '2026-10-14'];
+  const first = bookingDatePage(available, 0);
+  assert.deepEqual(first.dates, available);
+  assert.equal(first.nextOffset, null);
 });
 
 void test.each([3, 8, 9, 10, 14, 20])('paginação de horários com %i slots não perde nem repete opções', async (count) => {

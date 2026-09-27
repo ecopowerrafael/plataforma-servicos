@@ -33,7 +33,7 @@ import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-pay
 import { type PaymentService } from '../payments/payment.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { ProspectingInboundService } from '../prospecting/prospecting-inbound.service.js';
-import { BOOKING_CREATE_ACTIONS, MAIN_MENU_ACTIONS } from './whatsapp-assistant.js';
+import { MAIN_MENU_ACTIONS, WHATSAPP_ASSISTANT_FIXED_ACTIONS } from './whatsapp-assistant.js';
 
 const sanitizedEvolutionShape = (value: unknown) => {
   if (Array.isArray(value)) {
@@ -92,13 +92,21 @@ const directBookingActionPatterns = [
   new RegExp(`^BOOKING_CREATE_COMBO:${PUBLIC_ID}$`, 'i'),
   new RegExp(`^BOOKING_CREATE_PROFESSIONAL:${PUBLIC_ID}$`, 'i'),
   /^BOOKING_CREATE_DATE:\d{4}-\d{2}-\d{2}$/u,
+  /^BOOKING_CREATE_DATES_PAGE:\d+$/u,
   /^BOOKING_CREATE_TIME:\d{2}:\d{2}$/u,
   /^BOOKING_CREATE_SERVICES_PAGE:\d+$/u,
   /^BOOKING_CREATE_TIMES_PAGE:\d+$/u,
+  new RegExp(`^BOOKING_SELECT:${PUBLIC_ID}$`, 'i'),
+  new RegExp(`^TREATMENT_SELECT:${PUBLIC_ID}$`, 'i'),
+  new RegExp(`^TREATMENT_APPROVE:${PUBLIC_ID}$`, 'i'),
+  new RegExp(`^TREATMENT_SCHEDULE:${PUBLIC_ID}$`, 'i'),
+  new RegExp(`^TREATMENT_DATE:${PUBLIC_ID}:\\d{4}-\\d{2}-\\d{2}$`, 'i'),
+  new RegExp(`^TREATMENT_TIME:${PUBLIC_ID}:[0-9T:+-]+$`, 'i'),
+  new RegExp(`^TREATMENT_CONFIRM:${PUBLIC_ID}:[0-9T:+-]+$`, 'i'),
 ];
 
 export const resolveDirectBookingAction = (actionId: string | null) =>
-  actionId !== null && (directBookingActionPatterns.some((pattern) => pattern.test(actionId)) || BOOKING_CREATE_ACTIONS.includes(actionId as (typeof BOOKING_CREATE_ACTIONS)[number])) ? actionId : null;
+  actionId !== null && (directBookingActionPatterns.some((pattern) => pattern.test(actionId)) || WHATSAPP_ASSISTANT_FIXED_ACTIONS.includes(actionId as (typeof WHATSAPP_ASSISTANT_FIXED_ACTIONS)[number])) ? actionId : null;
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';

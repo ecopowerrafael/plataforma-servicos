@@ -32,6 +32,29 @@ export const BOOKING_CREATE_ACTIONS = [
   'BOOKING_CREATE_ABORT',
 ] as const;
 
+export const BOOKING_PAYMENT_ACTIONS = [
+  'BOOKING_PAYMENT_PIX',
+  'BOOKING_PAYMENT_MERCADO_PAGO',
+  'BOOKING_PAYMENT_LOCAL',
+  'BOOKING_PAYMENT_STATUS',
+  'BOOKING_PAYMENT_ABORT',
+] as const;
+
+/** Actions literais aceitas pelo assistant, antes de qualquer lookup contextual. */
+export const WHATSAPP_ASSISTANT_FIXED_ACTIONS = [
+  ...MAIN_MENU_ACTIONS.map((action) => action.actionId),
+  ...BOOKING_ACTIONS.map((action) => action.actionId),
+  ...BOOKING_CREATE_ACTIONS,
+  ...BOOKING_PAYMENT_ACTIONS,
+  'MAIN_MENU_BACK',
+  'BOOKING_CANCEL_CONFIRM',
+  'BOOKING_CANCEL_ABORT',
+  'BOOKING_RESCHEDULE_CONFIRM',
+  'BOOKING_RESCHEDULE_CHANGE_TIME',
+  'BOOKING_RESCHEDULE_ABORT',
+  'BOOKING_DIRECTIONS',
+] as const;
+
 export const TREATMENT_ACTIONS = [
   { actionId: 'TREATMENT_APPROVE', label: 'Aprovar orçamento' },
   { actionId: 'TREATMENT_SCHEDULE_FIRST', label: 'Agendar primeira sessão' },

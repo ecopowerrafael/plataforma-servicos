@@ -39,13 +39,13 @@ describe('EvolutionWhatsAppClient', () => {
 
   it('uses the instance token and preserves quick-reply IDs', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { id: 'button-1' } }), { status: 200 }));
-    await new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher).sendButton('instance-token', '5511999999999', 'Escolha', [{ id: 'confirmar', label: 'Confirmar' }]);
-    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/send/button', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ number: '5511999999999', title: 'Agendei', description: 'Escolha', footer: 'Agendei', buttons: [{ type: 'reply', id: 'confirmar', displayText: 'Confirmar' }] }) }));
+    await new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher).sendButton('instance-token', '5511999999999', 'Escolha', [{ id: 'confirmar', label: 'Confirmar' }], 'Barbearia Silva');
+    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/send/button', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ number: '5511999999999', title: 'Barbearia Silva', description: 'Escolha', footer: 'Barbearia Silva', buttons: [{ type: 'reply', id: 'confirmar', displayText: 'Confirmar' }] }) }));
   });
 
   it('uses the instance token and preserves list row IDs', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { id: 'list-1' } }), { status: 200 }));
-    await new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher).sendList('instance-token', '5511999999999', 'Escolha', [{ rowId: 'service-1', title: 'Serviço' }]);
-    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/send/list', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ number: '5511999999999', title: 'Agendei', description: 'Escolha', buttonText: 'Ver opções', footerText: 'Agendei', sections: [{ title: 'Opções', rows: [{ rowId: 'service-1', title: 'Serviço' }] }] }) }));
+    await new EvolutionWhatsAppClient('https://evolution.internal', 'global-key', fetcher).sendList('instance-token', '5511999999999', 'Escolha', [{ rowId: 'service-1', title: 'Serviço' }], 'Barbearia Silva');
+    expect(fetcher).toHaveBeenCalledWith('https://evolution.internal/send/list', expect.objectContaining({ headers: expect.objectContaining({ apikey: 'instance-token' }), body: JSON.stringify({ number: '5511999999999', title: 'Barbearia Silva', description: 'Escolha', buttonText: 'Ver opções', footerText: 'Barbearia Silva', sections: [{ title: 'Opções', rows: [{ rowId: 'service-1', title: 'Serviço' }] }] }) }));
   });
 });

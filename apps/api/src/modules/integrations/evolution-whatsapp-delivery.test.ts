@@ -3,7 +3,7 @@ import { EvolutionWhatsAppDelivery } from './evolution-whatsapp-delivery.js';
 
 function subject() {
   const config = { findUnique: vi.fn().mockResolvedValue({ active: true, connectionStatus: 'CONNECTED', encryptedAccessToken: 'cipher:token' }) };
-  const client = { tenantWhatsAppSettings: config, tenantWhatsAppConfig: config };
+  const client = { tenantWhatsAppSettings: config, tenantWhatsAppConfig: config, tenant: { findUnique: vi.fn().mockResolvedValue({ displayName: 'Barbearia Silva' }) } };
   const evolution = { sendText: vi.fn().mockResolvedValue({ messageId: 'message-1' }), sendButton: vi.fn().mockResolvedValue({ messageId: 'button-1' }), sendList: vi.fn().mockResolvedValue({ messageId: 'list-1' }) };
   const cipher = { decrypt: vi.fn().mockReturnValue({ token: 'instance-token' }) };
   return { delivery: new EvolutionWhatsAppDelivery(client as never, evolution as never, cipher as never), evolution, cipher };
@@ -26,10 +26,10 @@ describe('EvolutionWhatsAppDelivery', () => {
     const { delivery, evolution } = subject();
     const buttons = Array.from({ length: 3 }, (_, index) => ({ buttonId: `quick-${index}`, label: `Opção ${index}` }));
     await expect(delivery.sendInteractiveButtons(7n, '(11) 99999-9999', 'Escolha', buttons)).resolves.toMatchObject({ status: 'SENT', externalMessageId: 'button-1' });
-    expect(evolution.sendButton).toHaveBeenCalledWith('instance-token', '5511999999999', 'Escolha', buttons.map((button) => ({ id: button.buttonId, label: button.label })));
+    expect(evolution.sendButton).toHaveBeenCalledWith('instance-token', '5511999999999', 'Escolha', buttons.map((button) => ({ id: button.buttonId, label: button.label })), 'Barbearia Silva');
     const list = Array.from({ length: 10 }, (_, index) => ({ buttonId: `row-${index}`, label: `Linha ${index}` }));
     await expect(delivery.sendInteractiveButtons(7n, '5511999999999', 'Escolha', [...list.slice(0, 4)])).resolves.toMatchObject({ status: 'SENT', externalMessageId: 'list-1' });
-    expect(evolution.sendList).toHaveBeenCalledWith('instance-token', '5511999999999', 'Escolha', list.slice(0, 4).map((button) => ({ rowId: button.buttonId, title: button.label })));
+    expect(evolution.sendList).toHaveBeenCalledWith('instance-token', '5511999999999', 'Escolha', list.slice(0, 4).map((button) => ({ rowId: button.buttonId, title: button.label })), 'Barbearia Silva');
   });
 
   it('rejects more than 10 options without truncating', async () => {

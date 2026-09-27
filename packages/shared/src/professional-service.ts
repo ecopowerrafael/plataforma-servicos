@@ -47,6 +47,9 @@ const override = z
 export const UpsertProfessionalServiceRequestSchema = override
   .extend({ servicePublicId: z.uuid(), active: z.boolean().default(true) })
   .strict();
+export const BulkUpsertProfessionalServiceRequestSchema = z.object({
+  desiredServicePublicIds: z.array(z.uuid()),
+});
 export const ProfessionalServicePublicSchema = override
   .extend({
     publicId: z.uuid(),
@@ -63,4 +66,7 @@ export const ProfessionalServicesResponseSchema = z.object({
 export const ProfessionalServiceStatusResponseSchema = z.object({ success: z.literal(true) });
 export type UpsertProfessionalServiceRequest = z.infer<
   typeof UpsertProfessionalServiceRequestSchema
+>;
+export type BulkUpsertProfessionalServiceRequest = z.infer<
+  typeof BulkUpsertProfessionalServiceRequestSchema
 >;

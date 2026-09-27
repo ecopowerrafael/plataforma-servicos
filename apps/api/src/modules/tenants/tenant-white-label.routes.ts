@@ -4,6 +4,7 @@ import {
   SuccessResponseSchema,
   TenantMediaAssetSchema,
   TenantMediaListResponseSchema,
+  TenantPwaResponseSchema,
   TenantWhiteLabelResponseSchema,
   UpdateTenantBrandingRequestSchema,
   UpdateTenantMediaMetadataRequestSchema,
@@ -13,11 +14,11 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { tenantContextPlugin } from './tenant-context.plugin.js';
+import { APP_ICON_SIZES, validateTenantMediaUpload } from './tenant-media.storage.js';
 import { type TenantWhiteLabelService } from './tenant-white-label.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
-import { validateServiceImageUpload } from '../services/service-image.storage.js';
 
 interface Options {
   service: TenantWhiteLabelService;
@@ -25,6 +26,7 @@ interface Options {
   cookieName: string;
   client?: PrismaClient;
 }
+const ImageVariantQuerySchema = z.object({ variant: z.enum(['original', 'thumbnail']).default('original') }).strict();
 const AssetKindSchema = z
   .object({
     kind: z.enum([
@@ -41,6 +43,7 @@ const AssetKindSchema = z
   .strict();
 const AssetParamsSchema = z.object({ assetPublicId: z.uuid() }).strict();
 const PublicSlugSchema = z.object({ slug: z.string().trim().min(2).max(63) }).strict();
+const ProfessionalManifestParamsSchema = z.object({ tenantPublicId: z.uuid(), professionalPublicId: z.uuid() }).strict();
 const PublicEntityParamsSchema = z.object({ publicId: z.uuid() }).strict();
 const actor = (request: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
   userId: request.auth.user.id,
@@ -95,7 +98,7 @@ export const tenantWhiteLabelRoutes: FastifyPluginAsyncZod<Options> = async (app
           statusCode: 400,
         });
       const image = await upload.toBuffer();
-      validateServiceImageUpload(image, upload.filename, upload.mimetype);
+      validateTenantMediaUpload(image, upload.filename, upload.mimetype, request.params.kind);
       return reply
         .status(201)
         .send(
@@ -141,6 +144,22 @@ export const tenantWhiteLabelRoutes: FastifyPluginAsyncZod<Options> = async (app
       return { success: true } as const;
     },
   );
+  app.get(
+    '/tenant/pwa',
+    { schema: { response: { 200: TenantPwaResponseSchema } } },
+    (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.branding.read');
+      return options.service.pwa(request.tenant.id);
+    },
+  );
+  app.post(
+    '/tenant/pwa/publish',
+    { schema: { response: { 200: TenantPwaResponseSchema } } },
+    (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.branding.manage');
+      return options.service.publishPwa(request.tenant.id, actor(request));
+    },
+  );
   app.patch(
     '/tenant/public-site',
     { schema: { body: UpdateTenantPublicSiteRequestSchema } },
@@ -174,6 +193,27 @@ export const publicTenantWhiteLabelRoutes: FastifyPluginAsyncZod<{
         .send(await options.service.manifest(request.params.slug)),
   );
   app.get(
+    '/public/professionals/:tenantPublicId/:professionalPublicId/manifest.webmanifest',
+    { schema: { params: ProfessionalManifestParamsSchema, response: { 200: PublicTenantManifestSchema } } },
+    async (request, reply) => reply.type('application/manifest+json').send(await options.service.professionalManifest(request.params.tenantPublicId, request.params.professionalPublicId)),
+  );
+  // Um arquivo real por tamanho declarado no manifest, derivado do APP_ICON.
+  for (const size of APP_ICON_SIZES)
+    app.get(
+      `/public/sites/:slug/app-icon-${String(size)}.png`,
+      {
+        config: { rateLimit: { max: 240, timeWindow: '1 minute' } },
+        schema: { params: PublicSlugSchema },
+      },
+      async (request, reply) => {
+        const icon = await options.service.appIcon(request.params.slug, size);
+        return reply
+          .header('Cache-Control', 'public, max-age=300')
+          .type(icon.mimeType)
+          .send(icon.buffer);
+      },
+    );
+  app.get(
     '/public/media/:assetPublicId',
     {
       config: { rateLimit: { max: 240, timeWindow: '1 minute' } },
@@ -191,10 +231,13 @@ export const publicTenantWhiteLabelRoutes: FastifyPluginAsyncZod<{
     '/public/services/:publicId/image',
     {
       config: { rateLimit: { max: 240, timeWindow: '1 minute' } },
-      schema: { params: PublicEntityParamsSchema },
+      schema: { params: PublicEntityParamsSchema, querystring: ImageVariantQuerySchema },
     },
     async (request, reply) => {
-      const image = await options.service.publicServiceImage(request.params.publicId);
+      const image = await options.service.publicServiceImage(
+        request.params.publicId,
+        request.query.variant,
+      );
       return reply
         .header('Cache-Control', 'public, max-age=300')
         .type(image.mimeType)
@@ -205,10 +248,30 @@ export const publicTenantWhiteLabelRoutes: FastifyPluginAsyncZod<{
     '/public/professionals/:publicId/image',
     {
       config: { rateLimit: { max: 240, timeWindow: '1 minute' } },
-      schema: { params: PublicEntityParamsSchema },
+      schema: { params: PublicEntityParamsSchema, querystring: ImageVariantQuerySchema },
     },
     async (request, reply) => {
-      const image = await options.service.publicProfessionalImage(request.params.publicId);
+      const image = await options.service.publicProfessionalImage(
+        request.params.publicId,
+        request.query.variant,
+      );
+      return reply
+        .header('Cache-Control', 'public, max-age=300')
+        .type(image.mimeType)
+        .send(image.buffer);
+    },
+  );
+  app.get(
+    '/public/combos/:publicId/image',
+    {
+      config: { rateLimit: { max: 240, timeWindow: '1 minute' } },
+      schema: { params: PublicEntityParamsSchema, querystring: ImageVariantQuerySchema },
+    },
+    async (request, reply) => {
+      const image = await options.service.publicComboImage(
+        request.params.publicId,
+        request.query.variant,
+      );
       return reply
         .header('Cache-Control', 'public, max-age=300')
         .type(image.mimeType)

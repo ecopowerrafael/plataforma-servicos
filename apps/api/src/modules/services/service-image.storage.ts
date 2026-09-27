@@ -4,11 +4,11 @@ import { basename, extname, join, resolve, sep } from 'node:path';
 
 import { AppError } from '../../errors/AppError.js';
 
-export type ServiceImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
+export type ServiceImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 interface DetectedImage {
   mimeType: ServiceImageMimeType;
-  extension: 'jpg' | 'png' | 'webp';
+  extension: 'jpg' | 'png' | 'webp' | 'gif';
   width: number;
   height: number;
 }
@@ -20,7 +20,10 @@ export interface StoredServiceImage {
 
 export interface ServiceImageStorage {
   save(tenantPublicId: string, servicePublicId: string, image: Buffer): Promise<StoredServiceImage>;
-  read(key: string): Promise<{ buffer: Buffer; mimeType: ServiceImageMimeType }>;
+  read(
+    key: string,
+    variant?: 'original' | 'thumbnail',
+  ): Promise<{ buffer: Buffer; mimeType: ServiceImageMimeType }>;
   remove(key: string): Promise<void>;
 }
 
@@ -121,11 +124,21 @@ export function inspectServiceImage(buffer: Buffer): DetectedImage {
     const dimensions = webpDimensions(buffer);
     if (dimensions !== null)
       detected = { mimeType: 'image/webp', extension: 'webp', ...dimensions };
+  } else if (
+    buffer.length >= 10 &&
+    ['GIF87a', 'GIF89a'].includes(buffer.subarray(0, 6).toString('ascii'))
+  ) {
+    detected = {
+      mimeType: 'image/gif',
+      extension: 'gif',
+      width: buffer.readUInt16LE(6),
+      height: buffer.readUInt16LE(8),
+    };
   }
   if (detected === null)
     throw imageError(
       'SERVICE_IMAGE_TYPE_INVALID',
-      'O arquivo enviado n\u00e3o \u00e9 uma imagem permitida.',
+      'N\u00e3o foi poss\u00edvel identificar o formato da imagem. Tente export\u00e1-la novamente como JPG ou PNG.',
     );
   const dimensions = configuredDimensions();
   if (
@@ -170,33 +183,46 @@ function validateUpload(
   originalName: string,
   declaredMimeType: string,
 ): DetectedImage {
-  if (buffer.length === 0 || buffer.length > serviceImageMaxBytes()) {
-    throw imageError('SERVICE_IMAGE_SIZE_INVALID', 'O arquivo excede o tamanho permitido.');
+  if (buffer.length === 0) {
+    throw imageError(
+      'SERVICE_IMAGE_TYPE_INVALID',
+      'O arquivo enviado n\u00e3o \u00e9 uma imagem v\u00e1lida.',
+    );
+  }
+  if (buffer.length > serviceImageMaxBytes()) {
+    const maximumMegabytes = Math.floor(serviceImageMaxBytes() / (1024 * 1024));
+    throw imageError(
+      'SERVICE_IMAGE_SIZE_INVALID',
+      `A imagem excede o limite permitido de ${String(maximumMegabytes)} MB.`,
+    );
+  }
+  const extension = extname(basename(originalName)).toLowerCase();
+  if (!['.jpg', '.jpeg', '.png', '.webp'].includes(extension)) {
+    throw imageError('SERVICE_IMAGE_EXTENSION_INVALID', 'Use uma imagem JPG, JPEG, PNG ou WebP.');
   }
   const detected = inspectServiceImage(buffer);
-  const extension = extname(basename(originalName)).toLowerCase();
   const allowedExtensions: Record<ServiceImageMimeType, readonly string[]> = {
     'image/jpeg': ['.jpg', '.jpeg'],
     'image/png': ['.png'],
     'image/webp': ['.webp'],
+    'image/gif': ['.gif'],
   };
-  if (
-    declaredMimeType !== detected.mimeType ||
-    !allowedExtensions[detected.mimeType].includes(extension)
-  ) {
+  if (!allowedExtensions[detected.mimeType].includes(extension)) {
     throw imageError(
       'SERVICE_IMAGE_MIME_MISMATCH',
-      'O tipo declarado da imagem n\u00e3o corresponde ao arquivo enviado.',
+      'A extens\u00e3o do arquivo n\u00e3o corresponde ao formato real da imagem.',
     );
   }
+  void declaredMimeType;
   return detected;
 }
 
 export class LocalServiceImageStorage implements ServiceImageStorage {
-  private readonly root: string;
+  protected readonly root: string;
 
   public constructor(
     root = process.env.SERVICE_IMAGE_STORAGE_DIR ?? join(process.cwd(), 'uploads', 'services'),
+    private readonly preset: 'service' | 'professional' | 'passthrough' = 'service',
   ) {
     this.root = resolve(root);
   }
@@ -211,21 +237,41 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
     if (!directory.startsWith(`${this.root}${sep}`))
       throw imageError('SERVICE_IMAGE_PATH_INVALID', 'Local de armazenamento inv\u00e1lido.', 500);
     await mkdir(directory, { recursive: true });
-    const filename = `${randomUUID()}.${detected.extension}`;
+    const filename = `${randomUUID()}.${this.preset === 'passthrough' ? detected.extension : 'webp'}`;
     const target = resolve(directory, filename);
     const temporary = resolve(directory, `.${randomUUID()}.tmp`);
-    await writeFile(temporary, image, { flag: 'wx' });
+    const normalized = await this.normalize(image, 'original');
+    await writeFile(temporary, normalized, { flag: 'wx' });
     await rename(temporary, target);
+    if (this.preset !== 'passthrough') {
+      const thumbnail = await this.normalize(image, 'thumbnail');
+      const thumbnailTarget = this.thumbnailPath(target);
+      const thumbnailTemporary = resolve(directory, `.${randomUUID()}.thumb.tmp`);
+      await writeFile(thumbnailTemporary, thumbnail, { flag: 'wx' });
+      await rename(thumbnailTemporary, thumbnailTarget);
+    }
     return {
       key: join(tenantPublicId, servicePublicId, filename).replaceAll('\\', '/'),
-      mimeType: detected.mimeType,
+      mimeType: this.preset === 'passthrough' ? detected.mimeType : 'image/webp',
     };
   }
 
-  public async read(key: string): Promise<{ buffer: Buffer; mimeType: ServiceImageMimeType }> {
+  public async read(
+    key: string,
+    variant: 'original' | 'thumbnail' = 'original',
+  ): Promise<{ buffer: Buffer; mimeType: ServiceImageMimeType }> {
     const path = this.resolveKey(key);
     try {
-      const buffer = await readFile(path);
+      let buffer: Buffer;
+      if (variant === 'thumbnail' && this.preset !== 'passthrough') {
+        try {
+          buffer = await readFile(this.thumbnailPath(path));
+        } catch {
+          buffer = await this.normalize(await readFile(path), 'thumbnail');
+        }
+      } else {
+        buffer = await readFile(path);
+      }
       return { buffer, mimeType: inspectServiceImage(buffer).mimeType };
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -239,7 +285,11 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
 
   public async remove(key: string): Promise<void> {
     try {
-      await rm(this.resolveKey(key), { force: true });
+      const path = this.resolveKey(key);
+      await Promise.all([
+        rm(path, { force: true }),
+        ...(this.preset === 'passthrough' ? [] : [rm(this.thumbnailPath(path), { force: true })]),
+      ]);
     } catch {
       // The persisted service record remains authoritative if filesystem cleanup fails.
     }
@@ -249,11 +299,31 @@ export class LocalServiceImageStorage implements ServiceImageStorage {
     validateUpload(buffer, originalName, declaredMimeType);
   }
 
-  private resolveKey(key: string): string {
+  protected resolveKey(key: string): string {
     const path = resolve(this.root, key);
     if (!path.startsWith(`${this.root}${sep}`))
       throw imageError('SERVICE_IMAGE_PATH_INVALID', 'Caminho da imagem inv\u00e1lido.', 400);
     return path;
+  }
+
+  private thumbnailPath(path: string): string {
+    const extension = extname(path);
+    return `${path.slice(0, -extension.length)}.thumb.webp`;
+  }
+
+  private async normalize(image: Buffer, variant: 'original' | 'thumbnail'): Promise<Buffer> {
+    if (this.preset === 'passthrough') return image;
+    // Import sob demanda: `sharp` é pesado e não pode entrar no caminho até o
+    // `listen` (o ambiente da Hostinger derruba o processo se demorar).
+    const sharp = (await import('sharp')).default;
+    const square = this.preset === 'professional';
+    const width = variant === 'thumbnail' ? (square ? 320 : 400) : square ? 800 : 1200;
+    const height = variant === 'thumbnail' ? (square ? 320 : 300) : square ? 800 : 900;
+    return sharp(image)
+      .rotate()
+      .resize(width, height, { fit: 'cover', position: 'attention' })
+      .webp({ quality: variant === 'thumbnail' ? 78 : 86, effort: 4 })
+      .toBuffer();
   }
 }
 

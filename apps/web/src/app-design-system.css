@@ -1,0 +1,1901 @@
+/* Design system do painel do estabelecimento. Mantido separado do legado para evitar novas regras por rota. */
+.app-shell {
+  --app-accent: var(--color-primary, #3157d5);
+  --app-accent-hover: #2747ba;
+  --app-bg: #f5f7fb;
+  --app-surface: #fff;
+  --app-surface-subtle: #f8fafc;
+  --app-text: #172033;
+  --app-muted: #64748b;
+  --app-border: #e2e8f0;
+  --app-border-strong: #cbd5e1;
+  --app-danger: #b42318;
+  --app-danger-soft: #fff1f0;
+  --app-success: #15803d;
+  --app-success-soft: #ecfdf3;
+  --app-warning: #a15c00;
+  --app-warning-soft: #fff7e8;
+  --app-radius-sm: 0.625rem;
+  --app-radius-md: 0.875rem;
+  --app-radius-lg: 1.125rem;
+  --app-shadow-sm: 0 1px 2px rgb(15 23 42 / 4%);
+  --app-shadow-md: 0 12px 32px rgb(15 23 42 / 7%);
+  --app-field-height: 2.5rem;
+  --app-button-height: 2.5rem;
+  --app-content-max: 90rem;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+.app-shell * {
+  box-sizing: border-box;
+}
+.app-shell :where(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--app-accent) 25%, transparent);
+  outline-offset: 2px;
+}
+.app-shell
+  :where(input:not([type='checkbox']):not([type='radio']):not([type='color']), select, textarea) {
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font: inherit;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.app-shell :where(input:not([type='checkbox']):not([type='radio']):not([type='color']), select) {
+  width: min(100%, 20rem);
+  height: var(--app-field-height);
+  min-height: var(--app-field-height);
+  padding: 0.45rem 0.7rem;
+}
+.app-shell textarea {
+  width: min(100%, 42rem);
+  min-height: 6rem;
+  padding: 0.65rem 0.75rem;
+}
+.app-shell :where(input, select, textarea):hover {
+  border-color: #94a3b8;
+}
+.app-shell :where(input, select, textarea):focus {
+  border-color: var(--app-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 14%, transparent) !important;
+  outline: 0;
+}
+.app-shell :where(input, select, textarea):disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+.app-shell label {
+  color: #334155;
+  display: grid;
+  font-size: 0.82rem;
+  font-weight: 700;
+  gap: 0.35rem;
+  line-height: 1.3;
+}
+.app-shell label small {
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  font-weight: 450;
+}
+.app-shell input[type='checkbox'],
+.app-shell input[type='radio'] {
+  accent-color: var(--app-accent);
+  height: 1rem;
+  margin: 0;
+  width: 1rem;
+}
+.app-shell label:has(> input[type='checkbox']),
+.app-shell label:has(> input[type='radio']) {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  min-height: 2.5rem;
+}
+.segmented-control {
+  background: #eef2f6;
+  border-radius: 0.7rem;
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.2rem;
+}
+.segmented-control :where(button, label) {
+  background: transparent;
+  color: var(--app-muted);
+  min-height: 2rem;
+  padding: 0.3rem 0.65rem;
+}
+.segmented-control :where(.active, [aria-pressed='true'], label:has(input:checked)) {
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-sm);
+  color: var(--app-text);
+}
+.field-xs,
+.control-xs {
+  width: 6.5rem !important;
+}
+.field-sm,
+.control-sm {
+  width: 10rem !important;
+}
+.field-md,
+.control-md {
+  width: 15rem !important;
+}
+.field-lg,
+.control-lg {
+  width: 22rem !important;
+}
+.field-full,
+.control-full {
+  max-width: none !important;
+  width: 100% !important;
+}
+.app-shell :where(button, .button) {
+  align-items: center;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 750;
+  justify-content: center;
+  min-height: var(--app-button-height);
+  padding: 0.5rem 0.85rem;
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+.app-shell :where(button, .button):disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none !important;
+}
+.app-shell :where(.primary-button, .button--primary),
+.app-shell .platform-form > button:not(.secondary-button):not(.text-button) {
+  background: var(--app-accent);
+  color: #fff;
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--app-accent) 20%, transparent);
+}
+.app-shell :where(.primary-button, .button--primary):hover {
+  background: var(--app-accent-hover);
+}
+.app-shell :where(.secondary-button, .button--secondary) {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-strong);
+  color: #334155;
+  box-shadow: var(--app-shadow-sm);
+}
+.app-shell :where(.secondary-button, .button--secondary):hover {
+  background: var(--app-surface-subtle);
+  border-color: #94a3b8;
+}
+.app-shell :where(.text-button, .button--ghost) {
+  background: transparent;
+  color: #475569;
+  box-shadow: none;
+}
+.app-shell :where(.danger-button, .button--danger) {
+  background: var(--app-danger);
+  color: #fff;
+}
+.app-shell .button--sm {
+  min-height: 2.125rem;
+  padding: 0.35rem 0.65rem;
+}
+.ds-page-header,
+.app-shell .module-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin: 0 0 1.25rem;
+}
+.ds-page-header h2,
+.app-shell .module-header h2 {
+  color: var(--app-text);
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0.15rem 0 0;
+}
+.ds-page-header p:not(.ds-eyebrow),
+.app-shell .module-header p:not(.eyebrow) {
+  color: var(--app-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0.35rem 0 0;
+}
+.ds-eyebrow {
+  color: var(--app-accent);
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  margin: 0;
+  text-transform: uppercase;
+}
+.ds-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ds-toolbar,
+.app-filter-bar {
+  align-items: end;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+}
+.ds-toolbar-disclosure > summary {
+  display: none;
+}
+.ds-toolbar-disclosure {
+  margin: 0 0 1rem;
+}
+.ds-toolbar-disclosure .ds-toolbar,
+.ds-toolbar-disclosure .app-filter-bar {
+  margin-bottom: 0;
+}
+.ds-toolbar label,
+.app-filter-bar label {
+  flex: 0 1 auto;
+  min-width: 8rem;
+}
+.ds-toolbar label:first-child,
+.app-filter-bar label:first-child {
+  flex: 1 1 15rem;
+}
+.ds-toolbar label:first-child input,
+.app-filter-bar label:first-child input {
+  max-width: 24rem;
+  width: 100%;
+}
+.app-shell :where(.sessions-panel, .app-card) {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-md);
+  margin: 0 0 1rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+.app-shell .platform-form {
+  align-items: end;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, max-content));
+  margin: 0 0 1rem;
+  padding: 1rem;
+}
+.app-shell .platform-form > h2,
+.app-shell .platform-form > h3,
+.app-shell .platform-form > h4,
+.app-shell .platform-form > .module-header,
+.app-shell .platform-form > .form-error,
+.app-shell .platform-form > .success-message {
+  grid-column: 1/-1;
+}
+.app-shell .data-list {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: grid;
+  margin: 0;
+  overflow: hidden;
+}
+.app-shell .data-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--app-text);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  min-height: 3.75rem;
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+  text-align: left;
+  width: 100%;
+}
+.app-shell .data-row:last-child {
+  border-bottom: 0;
+}
+.appointment-module .entity-list .data-row {
+  grid-template-columns:
+    minmax(6rem, 0.8fr) minmax(9rem, 1fr) minmax(9rem, 1.2fr) minmax(9rem, 1fr)
+    minmax(6rem, 0.7fr) minmax(6rem, 0.7fr);
+}
+.members-module {
+  display: grid;
+  gap: 1rem;
+}
+.app-shell .data-row:hover {
+  background: #f8fafc;
+  transform: none;
+}
+.ds-badge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.7rem;
+  font-weight: 800;
+  justify-self: start;
+  padding: 0.22rem 0.5rem;
+  width: max-content;
+}
+.ds-badge--success {
+  background: var(--app-success-soft);
+  color: var(--app-success);
+}
+.ds-badge--muted {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.ds-switch-field {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  gap: 0.6rem;
+  font-size: 0.86rem;
+}
+.app-shell input.ds-switch {
+  appearance: none;
+  background: #cbd5e1;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  flex: none;
+  height: 1.4rem;
+  margin: 0;
+  position: relative;
+  transition: background 0.15s ease-in-out;
+  width: 2.5rem;
+}
+.app-shell input.ds-switch::after {
+  background: #fff;
+  border-radius: 50%;
+  content: '';
+  height: 1.05rem;
+  left: 0.18rem;
+  position: absolute;
+  top: 0.175rem;
+  transition: left 0.15s ease-in-out;
+  width: 1.05rem;
+}
+.app-shell input.ds-switch:checked {
+  background: var(--app-accent);
+}
+.app-shell input.ds-switch:checked::after {
+  left: 1.27rem;
+}
+.app-shell input.ds-switch:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+.app-shell .data-list:has(.service-thumbnail) .service-thumbnail {
+  height: 2.75rem;
+  width: 3.5rem;
+}
+.app-shell .data-list .data-row:has(.service-thumbnail) {
+  grid-template-columns: 3.5rem minmax(10rem, 2fr) repeat(2, minmax(6rem, 1fr));
+}
+.app-shell .platform-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 44rem;
+  width: 100%;
+}
+.app-shell .platform-table th {
+  background: #f8fafc;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.65rem 0.8rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+.app-shell .platform-table td {
+  border-bottom: 1px solid #edf1f5;
+  color: #334155;
+  font-size: 0.84rem;
+  padding: 0.7rem 0.8rem;
+}
+.app-shell .platform-table tbody tr:hover td {
+  background: #fafcff;
+}
+.ds-empty-state,
+.empty-state {
+  align-items: center;
+  background: var(--app-surface-subtle);
+  border: 1px dashed var(--app-border-strong);
+  border-radius: var(--app-radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: center;
+  min-height: 12rem;
+  padding: 2rem;
+  text-align: center;
+}
+.ds-empty-state > span {
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 50%;
+  color: var(--app-accent);
+  display: flex;
+  font-size: 1.25rem;
+  height: 2.75rem;
+  justify-content: center;
+  width: 2.75rem;
+}
+.ds-empty-state strong,
+.empty-state strong {
+  color: var(--app-text);
+}
+.ds-empty-state p,
+.empty-state span {
+  color: var(--app-muted);
+  font-size: 0.84rem;
+  margin: 0;
+  max-width: 30rem;
+}
+.ds-list-skeleton {
+  display: grid;
+  gap: 0.5rem;
+}
+.ds-list-skeleton i {
+  animation: ds-pulse 1.2s ease-in-out infinite;
+  background: #eef2f6;
+  border-radius: 0.65rem;
+  height: 3.75rem;
+}
+.ds-pagination {
+  align-items: center;
+  color: var(--app-muted);
+  display: flex;
+  font-size: 0.78rem;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+.ds-pagination span {
+  min-width: 4rem;
+  text-align: center;
+}
+.app-shell .form-error,
+.app-shell .form-notice,
+.app-shell .success-message {
+  border-radius: var(--app-radius-sm);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  padding: 0.65rem 0.75rem;
+}
+.app-shell .form-error {
+  background: var(--app-danger-soft);
+  border: 1px solid #fecaca;
+  color: var(--app-danger);
+}
+.app-shell .success-message {
+  background: var(--app-success-soft);
+  border: 1px solid #bbf7d0;
+  color: var(--app-success);
+}
+.app-drawer {
+  background: var(--app-surface);
+  border-left: 1px solid var(--app-border);
+  box-shadow: -20px 0 50px rgb(15 23 42 / 14%);
+  height: 100dvh;
+  max-width: 32rem;
+  overflow: auto;
+  padding: 1.25rem;
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: min(92vw, 32rem);
+  z-index: 80;
+}
+.app-shell .dialog-backdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 48%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 100;
+}
+.app-shell .dialog {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: 0 24px 70px rgb(15 23 42 / 24%);
+  max-width: 30rem;
+  padding: 1.25rem;
+  width: 100%;
+}
+.app-shell .dialog h2,
+.app-shell .dialog h3 {
+  color: var(--app-text);
+  margin-top: 0;
+}
+.app-shell .dialog p {
+  color: var(--app-muted);
+  line-height: 1.5;
+}
+.drawer-header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--app-border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+}
+.app-navigation {
+  scrollbar-color: #52627d transparent;
+  scrollbar-width: thin;
+}
+.app-navigation-brand {
+  display: grid;
+  gap: 0.15rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.app-navigation-brand::after {
+  color: #90a0b9;
+  content: 'Painel do estabelecimento';
+  font-size: 0.65rem;
+  font-weight: 550;
+}
+.app-navigation summary {
+  min-height: 2.5rem;
+}
+.app-navigation a {
+  min-height: 2.25rem;
+}
+.app-navigation summary::before {
+  color: #71819e;
+  content: '•';
+  margin-right: 0.5rem;
+}
+.app-navigation a.active {
+  position: relative;
+}
+.app-navigation a.active::before {
+  background: #fff;
+  border-radius: 99px;
+  content: '';
+  height: 1rem;
+  left: 0.3rem;
+  position: absolute;
+  width: 3px;
+}
+.app-mobile-nav {
+  backdrop-filter: blur(16px);
+  background: rgb(255 255 255 / 94%);
+  border-top: 1px solid var(--app-border);
+  bottom: 0;
+  box-shadow: 0 -10px 30px rgb(15 23 42 / 9%);
+  grid-template-columns: repeat(5, 1fr);
+  display: grid;
+  left: 0;
+  padding: 0.45rem 0.5rem calc(0.45rem + env(safe-area-inset-bottom));
+  position: fixed;
+  right: 0;
+  z-index: 70;
+}
+.app-mobile-nav :where(a, button) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--app-muted) !important;
+  display: grid;
+  font-size: 0.68rem;
+  gap: 0.18rem;
+  min-height: 3rem;
+  padding: 0.25rem !important;
+  place-items: center;
+}
+.app-mobile-nav a.active {
+  color: var(--app-accent) !important;
+  font-weight: 850;
+}
+.app-mobile-nav .mobile-plus {
+  background: var(--app-accent) !important;
+  border-radius: 50% !important;
+  color: #fff !important;
+  font-size: 1.35rem;
+  height: 3rem;
+  margin-top: -1rem;
+  min-height: 3rem;
+  width: 3rem;
+}
+.mobile-sheet {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 1.25rem 1.25rem 0 0;
+  bottom: calc(4rem + env(safe-area-inset-bottom));
+  box-shadow: 0 -20px 55px rgb(15 23 42 / 18%);
+  display: grid !important;
+  gap: 0.4rem;
+  left: 0;
+  max-height: min(70dvh, 40rem);
+  overflow: auto;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  position: fixed;
+  right: 0;
+  z-index: 65;
+}
+.mobile-menu-sheet details {
+  border-bottom: 1px solid var(--app-border);
+}
+.mobile-menu-sheet summary {
+  color: var(--app-text);
+  font-weight: 800;
+  padding: 0.75rem 0.25rem;
+}
+.mobile-menu-sheet a {
+  color: #475569;
+  display: block;
+  padding: 0.65rem 0.75rem;
+  text-decoration: none;
+}
+.mobile-menu-sheet a.active {
+  background: #eef2ff;
+  border-radius: 0.6rem;
+  color: var(--app-accent);
+  font-weight: 800;
+}
+@keyframes ds-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (max-width: 899px) {
+  .app-shell {
+    padding: 1rem 1rem calc(5.5rem + env(safe-area-inset-bottom));
+    width: 100%;
+  }
+  .app-navigation {
+    display: none;
+  }
+  .app-header {
+    padding: 0.25rem 0 1rem;
+  }
+  .app-header h1 {
+    font-size: 1.55rem;
+  }
+  .ds-page-header,
+  .app-shell .module-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ds-page-actions > * {
+    flex: 1;
+  }
+  .ds-toolbar,
+  .app-filter-bar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+  .ds-toolbar-disclosure {
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-md);
+    box-shadow: var(--app-shadow-sm);
+    overflow: hidden;
+  }
+  .ds-toolbar-disclosure > summary {
+    align-items: center;
+    color: var(--app-text);
+    cursor: pointer;
+    display: flex;
+    font-size: 0.84rem;
+    font-weight: 800;
+    justify-content: space-between;
+    list-style: none;
+    min-height: 2.75rem;
+    padding: 0.65rem 0.8rem;
+  }
+  .ds-toolbar-disclosure > summary::after {
+    content: '⌄';
+  }
+  .ds-toolbar-disclosure[open] > summary {
+    border-bottom: 1px solid var(--app-border);
+  }
+  .ds-toolbar-disclosure .ds-toolbar,
+  .ds-toolbar-disclosure .app-filter-bar {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .ds-toolbar label,
+  .app-filter-bar label {
+    min-width: 0;
+  }
+  .ds-toolbar label:first-child,
+  .app-filter-bar label:first-child {
+    grid-column: 1/-1;
+  }
+  .ds-toolbar label :where(input, select),
+  .app-filter-bar label :where(input, select) {
+    max-width: none;
+    width: 100%;
+  }
+  .app-shell .data-row {
+    grid-template-columns: 1fr auto;
+  }
+  .app-shell .data-row > *:not(:first-child):not(:last-child) {
+    color: var(--app-muted);
+    font-size: 0.78rem;
+  }
+  .app-shell .data-list .data-row:has(.service-thumbnail) {
+    grid-template-columns: 3.5rem 1fr;
+  }
+  .app-shell .data-list .data-row:has(.service-thumbnail) > *:nth-child(n + 3) {
+    grid-column: 2;
+  }
+  .app-drawer {
+    border-radius: 1.25rem 1.25rem 0 0;
+    bottom: 0;
+    height: min(88dvh, 48rem);
+    max-width: none;
+    top: auto;
+    width: 100%;
+  }
+  .app-shell .dialog-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .app-shell .dialog {
+    border-radius: 1.25rem 1.25rem 0 0;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  }
+  .ds-pagination {
+    justify-content: center;
+  }
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 900px) {
+  .app-shell details.ds-toolbar-disclosure:not([open]) > :not(summary) {
+    display: flex;
+  }
+  .app-shell {
+    max-width: none;
+    padding: 1.25rem 2rem 2rem 18rem;
+    width: 100%;
+  }
+  .app-shell > .app-header,
+  .app-shell > :not(.app-navigation):not(.app-mobile-nav):not(.mobile-sheet) {
+    max-width: var(--app-content-max);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .app-navigation {
+    bottom: 1rem;
+    height: calc(100dvh - 2rem);
+    left: 1rem;
+    position: fixed;
+    top: 1rem;
+    width: 15rem;
+  }
+  .app-mobile-nav,
+  .mobile-sheet {
+    display: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell * {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   Componentes compartilhados: cartões de seção, métricas, formulários,
+   tabelas responsivas, consumo de plano e avisos em linha.
+   ========================================================================== */
+.app-shell .ds-section-card {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+}
+.ds-section-card-header {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+.ds-section-card-header h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+.ds-section-card-header p {
+  color: var(--app-muted);
+  font-size: 0.84rem;
+  margin: 0.2rem 0 0;
+  max-width: 46rem;
+}
+.ds-section-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ds-section-card-body {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.ds-stack {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.ds-stat-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+.ds-stat-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+}
+.ds-stat-card strong {
+  color: var(--app-text);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+.ds-stat-card small {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+}
+.ds-stat-card--success strong {
+  color: var(--app-success);
+}
+.ds-stat-card--warning strong {
+  color: var(--app-warning);
+}
+.ds-stat-card--danger strong {
+  color: var(--app-danger);
+}
+.app-shell .ds-form-section {
+  border: 0;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+.app-shell .ds-form-section > legend {
+  color: var(--app-text);
+  font-size: 0.86rem;
+  font-weight: 750;
+  padding: 0;
+}
+.app-shell .ds-form-hint {
+  color: var(--app-muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+.app-shell .ds-form-section--2,
+.app-shell .ds-form-section--3 {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.app-shell .ds-form-section > legend,
+.app-shell .ds-form-section > .ds-form-hint,
+.app-shell .ds-form-section > .ds-field-full {
+  grid-column: 1/-1;
+}
+.app-shell .ds-form-section label {
+  min-width: 0;
+}
+.app-shell .ds-form-section :where(input, select, textarea) {
+  width: 100%;
+}
+.ds-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ds-table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+.app-shell .ds-data-table {
+  min-width: 34rem;
+}
+.app-shell .ds-data-table td {
+  vertical-align: middle;
+}
+.ds-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+.ds-usage {
+  background: #eef2f6;
+  border-radius: 999px;
+  height: 0.5rem;
+  overflow: hidden;
+  width: 100%;
+}
+.ds-usage > span {
+  background: var(--app-accent);
+  display: block;
+  height: 100%;
+}
+.ds-usage--warning > span {
+  background: var(--app-warning);
+}
+.ds-usage--danger > span {
+  background: var(--app-danger);
+}
+.ds-inline-alert {
+  align-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.8rem 0.95rem;
+}
+.ds-inline-alert strong {
+  display: block;
+  font-size: 0.88rem;
+}
+.ds-inline-alert p {
+  color: inherit;
+  font-size: 0.82rem;
+  margin: 0.15rem 0 0;
+  opacity: 0.9;
+}
+.ds-inline-alert--info {
+  background: var(--app-surface-subtle);
+  color: var(--app-text);
+}
+.ds-inline-alert--warning {
+  background: var(--app-warning-soft);
+  border-color: #f5d9a8;
+  color: var(--app-warning);
+}
+.ds-inline-alert--danger {
+  background: var(--app-danger-soft);
+  border-color: #fecaca;
+  color: var(--app-danger);
+}
+.ds-badge--warning {
+  background: var(--app-warning-soft);
+  color: var(--app-warning);
+}
+.ds-badge--danger {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+.ds-badge--info {
+  background: #eef2ff;
+  color: var(--app-accent);
+}
+@media (max-width: 699px) {
+  .ds-stat-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-shell .ds-form-section--2,
+  .app-shell .ds-form-section--3 {
+    grid-template-columns: 1fr;
+  }
+  .ds-row-actions {
+    justify-content: flex-start;
+  }
+  .ds-section-card-actions > button {
+    flex: 1;
+    min-height: 2.75rem;
+  }
+  /* Tabelas viram cartões: cada linha empilha rótulo (data-label) + valor. */
+  .app-shell .ds-data-table {
+    min-width: 0;
+  }
+  .app-shell .ds-data-table thead {
+    display: none;
+  }
+  .app-shell .ds-data-table tbody tr {
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-md);
+    display: grid;
+    gap: 0.3rem;
+    margin-bottom: 0.6rem;
+    padding: 0.75rem 0.85rem;
+  }
+  .app-shell .ds-data-table td {
+    border: 0;
+    display: grid;
+    gap: 0.15rem;
+    grid-template-columns: minmax(7rem, auto) 1fr;
+    padding: 0.15rem 0;
+  }
+  .app-shell .ds-data-table td::before {
+    color: var(--app-muted);
+    content: attr(data-label);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+}
+
+/* Sidebar: identidade fixa no topo, apenas o menu rola. */
+@media (min-width: 900px) {
+  .app-navigation {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .app-navigation-brand {
+    flex: none;
+    position: static;
+  }
+  .app-navigation-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-color: #52627d transparent;
+    scrollbar-width: thin;
+  }
+}
+.app-navigation-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Disponibilidade */
+.availability-day {
+  grid-template-columns: minmax(9rem, 1fr) auto minmax(10rem, 2fr);
+}
+.availability-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.availability-period {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding: 0.2rem 0.6rem;
+}
+.app-shell .availability-form,
+.app-shell .payment-method-form {
+  background: var(--app-surface-subtle);
+  display: grid;
+  gap: 0.85rem;
+}
+
+/* Formas de pagamento */
+.payment-method-row {
+  grid-template-columns: 2.5rem minmax(10rem, 1fr) auto auto;
+}
+.payment-method-icon {
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 50%;
+  color: var(--app-accent);
+  display: flex;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+.payment-method-info {
+  display: grid;
+  min-width: 0;
+}
+
+/* Pagamento online: campos de credencial com mostrar/ocultar. */
+.gateway-secret-field {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+}
+.gateway-secret-field input {
+  flex: 1;
+  min-width: 0;
+}
+.app-shell .gateway-secret-field > button {
+  flex: none;
+  min-height: 2.5rem;
+  min-width: 2.5rem;
+  padding: 0 0.5rem;
+}
+
+/* Minha assinatura */
+.app-shell .subscription-card {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+.subscription-card-header {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+.subscription-card-header h3 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+.subscription-price {
+  align-items: baseline;
+  display: flex;
+  gap: 0.35rem;
+  margin: 0;
+}
+.subscription-price strong {
+  font-size: 1.6rem;
+}
+.subscription-price span {
+  color: var(--app-muted);
+  font-size: 0.9rem;
+}
+.subscription-details {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+.subscription-usage-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+.subscription-usage {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.85rem;
+}
+.subscription-usage strong {
+  font-size: 1.2rem;
+}
+.subscription-usage small {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+}
+.subscription-features {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.subscription-features li {
+  align-items: center;
+  display: flex;
+  font-size: 0.88rem;
+  gap: 0.45rem;
+}
+.subscription-features .is-included {
+  color: var(--app-text);
+}
+.subscription-features .is-included svg {
+  color: var(--app-success);
+}
+.subscription-features .is-excluded {
+  color: var(--app-muted);
+}
+@media (max-width: 699px) {
+  .availability-day,
+  .payment-method-row {
+    grid-template-columns: 1fr;
+  }
+  .payment-method-row .ds-row-actions > button,
+  .availability-form button,
+  .payment-method-form button {
+    min-height: 2.75rem;
+  }
+  .subscription-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Lista de definições usada nos resumos (dl > div > dt + dd). */
+.app-shell .platform-details {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+.app-shell .platform-details > div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.app-shell .platform-details dt {
+  color: var(--app-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.app-shell .platform-details dd {
+  color: var(--app-text);
+  font-size: 0.9rem;
+  font-weight: 650;
+  margin: 0;
+}
+
+/* Publicação do aplicativo (Minha empresa → Aplicativo) */
+.pwa-checklist {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Platform usa a mesma base visual do painel do tenant. */
+.app-shell.platform-app {
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-family: inherit;
+  grid-template-columns: 15rem minmax(0, 1fr);
+}
+.app-shell .platform-sidebar {
+  border-color: var(--app-border);
+  padding: 1rem 0.75rem;
+  width: 15rem;
+}
+.app-shell .platform-brand strong {
+  color: var(--app-accent);
+}
+.app-shell .platform-sidebar nav button {
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  min-height: 2.65rem;
+}
+.app-shell .platform-sidebar nav button:hover,
+.app-shell .platform-sidebar nav button.nav-active {
+  background: color-mix(in srgb, var(--app-accent) 9%, white);
+  color: var(--app-accent);
+}
+.app-shell .platform-topbar {
+  border-color: var(--app-border);
+  height: 4rem;
+}
+.app-shell .platform-page {
+  max-width: var(--app-content-max);
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+.app-shell .platform-metrics-grid {
+  gap: 0.75rem;
+}
+.app-shell .platform-panel,
+.app-shell .platform-table-wrap {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+}
+.app-shell .platform-filter-bar {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+}
+.app-shell .platform-full-form {
+  max-width: 80rem;
+}
+.app-shell .platform-full-form > .platform-form {
+  align-items: stretch;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: none;
+  padding: 0;
+}
+.app-shell .platform-full-form > .platform-form > h4 {
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
+  font-size: 1rem;
+  margin: 0.5rem 0 0;
+  padding-bottom: 0.65rem;
+}
+.app-shell .platform-full-form :where(input:not([type='hidden']), select, textarea) {
+  max-width: none;
+  width: 100%;
+}
+/* ---- Editor de plano (tela de configuração por blocos) ---- */
+.app-shell .platform-breadcrumb {
+  align-items: center;
+  color: var(--app-muted);
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+.app-shell .platform-breadcrumb a {
+  color: var(--app-muted);
+  text-decoration: none;
+}
+.app-shell .platform-breadcrumb a:hover {
+  color: var(--app-accent);
+}
+.app-shell .plan-editor {
+  display: grid;
+  gap: 0;
+  max-width: var(--app-content-max);
+  min-width: 0;
+}
+.app-shell .plan-editor-topbar {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+}
+.app-shell .plan-editor-identity h2 {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+  gap: 0.6rem;
+  margin: 0;
+}
+.app-shell .plan-editor-identity p {
+  color: var(--app-muted);
+  margin: 0.3rem 0 0;
+}
+.app-shell .plan-editor-topbar-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.app-shell .plan-editor-tabs {
+  border-bottom: 1px solid var(--app-border);
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+}
+.app-shell .plan-editor-tabs button {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--app-muted);
+  font-weight: 600;
+  height: auto;
+  padding: 0.7rem 0.9rem;
+  white-space: nowrap;
+}
+.app-shell .plan-editor-tabs button:hover {
+  color: var(--app-text);
+}
+.app-shell .plan-editor-tabs button.is-active {
+  border-bottom-color: var(--app-accent);
+  color: var(--app-accent);
+}
+.app-shell .plan-editor-layout {
+  align-items: start;
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) 24rem;
+}
+.app-shell .plan-editor-main {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.app-shell .plan-block {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 1.1rem;
+  min-width: 0;
+  padding: 1.35rem;
+}
+.app-shell .plan-block > header h3 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+.app-shell .plan-block > header p {
+  color: var(--app-muted);
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0;
+}
+.app-shell .plan-field-grid {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.app-shell .plan-field-grid--halves {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.app-shell .plan-field-grid--quarters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.app-shell .plan-block label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+  min-width: 0;
+}
+.app-shell .plan-block label small {
+  color: var(--app-muted);
+  font-weight: 500;
+}
+.app-shell .plan-field-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.app-shell .plan-block textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+.app-shell .plan-field-narrow {
+  max-width: 12rem;
+}
+.app-shell .plan-toggle-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.app-shell .plan-toggle-inline {
+  align-items: center;
+  display: flex !important;
+  gap: 0.55rem;
+  min-height: var(--app-field-height);
+}
+.app-shell .plan-toggle-inline small {
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+.app-shell .plan-hint {
+  align-items: center;
+  background: var(--app-surface-subtle);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+}
+/* Preços */
+.app-shell .plan-price-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.app-shell .plan-price-table th,
+.app-shell .plan-price-table td {
+  border-bottom: 1px solid var(--app-border);
+  padding: 0.6rem 0.5rem;
+  text-align: left;
+}
+.app-shell .plan-price-table thead th {
+  color: var(--app-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.app-shell .plan-price-table tbody th {
+  font-size: 0.9rem;
+  font-weight: 600;
+  width: 20%;
+}
+.app-shell .plan-price-table td:nth-child(3),
+.app-shell .plan-price-table td:nth-child(4),
+.app-shell .plan-price-table th:nth-child(3),
+.app-shell .plan-price-table th:nth-child(4) {
+  text-align: center;
+  width: 15%;
+}
+.app-shell .plan-money-field {
+  align-items: center;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  display: flex;
+  gap: 0.45rem;
+  max-width: 15rem;
+  padding: 0 0.7rem;
+}
+.app-shell .plan-money-field > span {
+  color: var(--app-muted);
+  font-size: 0.85rem;
+}
+.app-shell .plan-money-field input {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding-inline: 0;
+}
+.app-shell .plan-money-field input:focus {
+  box-shadow: none;
+  outline: none;
+}
+/* Limites */
+.app-shell .plan-usage-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.app-shell .plan-usage-field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.app-shell .plan-usage-unlimited {
+  align-items: center;
+  background: var(--app-surface-subtle);
+  border: 1px dashed var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  display: flex;
+  font-size: 0.85rem;
+  margin: 0;
+  min-height: var(--app-field-height);
+  padding-inline: 0.75rem;
+}
+.app-shell .plan-error-summary {
+  background: var(--app-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--app-danger) 35%, transparent);
+  border-radius: var(--app-radius-md);
+  color: var(--app-danger);
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.15rem;
+}
+.app-shell .plan-error-summary ul {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.app-shell .plan-error-summary li {
+  font-size: 0.88rem;
+}
+.app-shell .plan-error-summary button {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: inherit;
+  font-weight: 700;
+  height: auto;
+  padding: 0;
+  text-decoration: underline;
+}
+.app-shell .plan-unlimited-check {
+  align-items: center;
+  color: var(--app-muted);
+  display: flex !important;
+  font-size: 0.82rem;
+  font-weight: 500;
+  gap: 0.4rem;
+}
+.app-shell .plan-unlimited-check input {
+  height: 1rem;
+  width: 1rem;
+}
+/* Recursos */
+.app-shell .plan-feature-groups {
+  display: grid;
+  gap: 1.4rem;
+}
+.app-shell .plan-feature-group h4 {
+  color: var(--app-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+}
+.app-shell .plan-feature-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.app-shell .plan-feature-group li {
+  border-bottom: 1px solid var(--app-border);
+}
+.app-shell .plan-feature-group li:last-child {
+  border-bottom: 0;
+}
+.app-shell .plan-feature-row {
+  align-items: center;
+  cursor: pointer;
+  display: flex !important;
+  font-weight: 500;
+  justify-content: space-between;
+  padding: 0.7rem 0;
+}
+/* Comercial */
+.app-shell .plan-radio-list {
+  display: grid;
+  gap: 0.6rem;
+}
+.app-shell .plan-radio-list label {
+  align-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  cursor: pointer;
+  display: flex !important;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+}
+.app-shell .plan-radio-list label:has(input:checked) {
+  background: color-mix(in srgb, var(--app-accent) 5%, white);
+  border-color: var(--app-accent);
+}
+.app-shell .plan-radio-list span {
+  display: grid;
+  gap: 0.15rem;
+}
+.app-shell .plan-radio-list small {
+  color: var(--app-muted);
+  font-weight: 500;
+}
+.app-shell .plan-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+/* Preview */
+.app-shell .plan-preview-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.25rem;
+  position: sticky;
+  top: 1rem;
+}
+.app-shell .plan-preview-title {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+.app-shell .plan-preview-title svg {
+  color: var(--app-accent);
+  height: 1.15rem;
+  width: 1.15rem;
+}
+.app-shell .plan-preview-title h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+.app-shell .plan-preview-card {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  overflow: hidden;
+}
+.app-shell .plan-preview-card.is-highlighted {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+.app-shell .plan-preview-badge {
+  background: var(--app-accent);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0;
+  padding: 0.5rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+.app-shell .plan-preview-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.25rem;
+}
+.app-shell .plan-preview-body h4 {
+  font-size: 1.35rem;
+  margin: 0;
+}
+.app-shell .plan-preview-description {
+  color: var(--app-muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+.app-shell .plan-preview-price {
+  align-items: baseline;
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+}
+.app-shell .plan-preview-symbol {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.app-shell .plan-preview-price strong {
+  font-size: 2.1rem;
+  line-height: 1;
+}
+.app-shell .plan-preview-cycle {
+  color: var(--app-muted);
+  font-size: 0.9rem;
+}
+.app-shell .plan-preview-caption,
+.app-shell .plan-preview-trial {
+  color: var(--app-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.app-shell .plan-preview-list {
+  display: grid;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+.app-shell .plan-preview-list--divided {
+  border-top: 1px solid var(--app-border);
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+}
+.app-shell .plan-preview-list li {
+  font-size: 0.88rem;
+  padding-left: 1.4rem;
+  position: relative;
+}
+.app-shell .plan-preview-list li::before {
+  color: var(--app-success);
+  content: '✓';
+  font-weight: 700;
+  left: 0;
+  position: absolute;
+}
+.app-shell .plan-preview-cta {
+  background: var(--app-accent);
+  border-radius: var(--app-radius-sm);
+  color: #fff;
+  font-weight: 700;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  text-align: center;
+}
+.app-shell .plan-preview-hint {
+  background: var(--app-surface-subtle);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  font-size: 0.8rem;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+}
+@media (max-width: 1180px) {
+  .app-shell .plan-editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .plan-preview-panel {
+    position: static;
+  }
+  .app-shell .plan-usage-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.app-shell .platform-subscription-summary {
+  gap: 0.75rem;
+}
+.app-shell .platform-subscription-summary article {
+  border-color: var(--app-border);
+  border-radius: var(--app-radius-md);
+}
+.app-shell .platform-commercial-timeline li {
+  border-color: var(--app-border);
+}
+.app-shell .platform-commercial-timeline li::before {
+  background: var(--app-accent);
+}
+@media (max-width: 1000px) {
+  .app-shell .plan-field-grid--quarters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 699px) {
+  .app-shell.platform-app {
+    display: block;
+  }
+  .app-shell .platform-full-form > .platform-form,
+  .app-shell .plan-field-grid--halves,
+  .app-shell .plan-field-grid--quarters,
+  .app-shell .plan-usage-grid,
+  .app-shell .platform-subscription-summary {
+    grid-template-columns: 1fr;
+  }
+  .app-shell .plan-editor-topbar-actions {
+    width: 100%;
+  }
+  .app-shell .plan-editor-topbar-actions > * {
+    flex: 1 1 auto;
+  }
+  .app-shell .platform-page {
+    overflow-x: clip;
+    padding: 1rem;
+  }
+  .app-shell .platform-topbar {
+    padding-inline: 0.75rem;
+  }
+  .app-shell .ds-page-actions > * {
+    flex: 1;
+  }
+}
+.ds-switch-row {
+  align-items: center;
+  border-bottom: 1px solid var(--app-border);
+  display: flex;
+  flex-direction: row !important;
+  gap: 1rem;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.75rem 0;
+}
+.ds-switch-row > span {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.ds-switch-row > span small {
+  color: var(--app-muted);
+  font-weight: 450;
+}
+.pwa-checklist li {
+  align-items: center;
+  display: flex;
+  font-size: 0.88rem;
+  gap: 0.45rem;
+}
+.pwa-checklist .is-done svg {
+  color: var(--app-success);
+}
+.pwa-checklist .is-pending {
+  color: var(--app-muted);
+}
+.pwa-checklist .is-pending svg {
+  color: var(--app-warning);
+}

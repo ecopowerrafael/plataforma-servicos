@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { PlanEntitlementService } from './plan-entitlement.service.js';
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 
 export class TenantDomainRepository {
@@ -37,8 +38,13 @@ export class TenantDomainRepository {
     active: boolean;
   }) {
     try {
-      return await this.client.tenantDomain.create({
-        data: {
+      return await this.client.$transaction(async (transaction) => {
+        await new PlanEntitlementService().assertFeatureEnabled(
+          transaction,
+          data.tenantId,
+          'custom_domain.enabled',
+        );
+        return transaction.tenantDomain.create({ data: {
           publicId: randomUUID(),
           tenantId: data.tenantId,
           hostname: data.hostname,
@@ -46,7 +52,7 @@ export class TenantDomainRepository {
           verificationToken: data.verificationToken,
           status: data.active ? 'ACTIVE' : 'PENDING',
           verifiedAt: data.active ? new Date() : null,
-        },
+        } });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')

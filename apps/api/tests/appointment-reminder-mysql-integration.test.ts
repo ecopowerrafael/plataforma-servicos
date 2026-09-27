@@ -84,6 +84,28 @@ describe.skipIf(url === undefined)(
       tenantId = tenant.id;
       otherTenantId = other.id;
 
+      await client.appointmentReminderConfig.create({
+        data: {
+          tenantId,
+          dayBeforeEnabled: true,
+          dayBeforeHour: 9,
+          dayBeforeMinute: 0,
+          upcomingEnabled: true,
+          upcomingMinutesBefore: 60,
+        },
+      });
+
+      await client.appointmentReminderConfig.create({
+        data: {
+          tenantId: otherTenantId,
+          dayBeforeEnabled: true,
+          dayBeforeHour: 9,
+          dayBeforeMinute: 0,
+          upcomingEnabled: true,
+          upcomingMinutesBefore: 60,
+        },
+      });
+
       const professional = await client.professional.create({
         data: {
           publicId: randomUUID(),
@@ -113,12 +135,13 @@ describe.skipIf(url === undefined)(
       await client.notificationLog.deleteMany({ where: { tenantId: { in: ids } } });
       await client.appointment.deleteMany({ where: { tenantId: { in: ids } } });
       await client.customer.deleteMany({ where: { tenantId: { in: ids } } });
+      await client.appointmentReminderConfig.deleteMany({ where: { tenantId: { in: ids } } });
       await client.service.deleteMany({ where: { tenantId: { in: ids } } });
       await client.professional.deleteMany({ where: { tenantId: { in: ids } } });
       await client.tenant.deleteMany({ where: { id: { in: ids } } });
     });
 
-    it('agenda lembretes apenas para agendamentos dentro da janela, respeitando acceptsCommunications', async () => {
+    it('agenda lembretes para agendamentos válidos (transacionais ignoram acceptsCommunications)', async () => {
       const delivery = new CapturingEmailDelivery();
       const notifications = new NotificationService(client, {
         email: delivery,
@@ -133,19 +156,30 @@ describe.skipIf(url === undefined)(
         'dentro-janela@test.invalid',
         true,
       );
-      await create(new Date(Date.now() + 48 * 3_600_000), 'fora-janela@test.invalid', true);
-      await create(new Date(Date.now() + 10 * 3_600_000), 'sem-optin@test.invalid', false);
+      const transactionalNoOptin = await create(
+        new Date(Date.now() + 10 * 3_600_000),
+        'transactional-no-optin@test.invalid',
+        false,
+      );
       await create(new Date(Date.now() + 10 * 3_600_000), null, true);
 
       const result = await reminders.scheduleUpcomingReminders();
-      expect(result.scheduled).toBe(1);
+      expect(result.scheduled).toBe(2);
 
       const { items } = await notifications.list(tenantId, { page: 1, limit: 20 });
-      expect(items).toHaveLength(1);
-      expect(items[0]?.kind).toBe('appointment.reminder');
-      expect(items[0]?.recipient).toBe('dentro-janela@test.invalid');
-      expect(items[0]?.targetPublicId).toBe(withinWindow.publicId);
-      expect(items[0]?.status).toBe('PENDING');
+      expect(items).toHaveLength(2);
+
+      const byRecipient = new Map(items.map((i) => [i.recipient, i]));
+      const item1 = byRecipient.get('dentro-janela@test.invalid');
+      const item2 = byRecipient.get('transactional-no-optin@test.invalid');
+
+      expect(item1?.kind).toBe('appointment.upcoming_reminder');
+      expect(item1?.targetPublicId).toBe(withinWindow.publicId);
+      expect(item1?.status).toBe('PENDING');
+
+      expect(item2?.kind).toBe('appointment.upcoming_reminder');
+      expect(item2?.targetPublicId).toBe(transactionalNoOptin.publicId);
+      expect(item2?.status).toBe('PENDING');
     });
 
     it('não duplica o lembrete em execuções subsequentes do scheduler (idempotência)', async () => {

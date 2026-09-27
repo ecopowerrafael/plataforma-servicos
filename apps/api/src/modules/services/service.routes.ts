@@ -21,6 +21,9 @@ interface Options {
   cookieName: string;
   client?: PrismaClient;
 }
+const ImageVariantQuerySchema = z
+  .object({ variant: z.enum(['original', 'thumbnail']).default('original') })
+  .strict();
 
 function auditActor(request: { auth: { user: { id: bigint }; session: { id: bigint } } }) {
   return { userId: request.auth.user.id, sessionId: request.auth.session.id };
@@ -33,6 +36,7 @@ const QuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).default(20),
     search: z.string().trim().min(1).max(120).optional(),
     active: z.enum(['true', 'false']).optional(),
+    categoryPublicId: z.uuid().optional(),
   })
   .strict();
 
@@ -53,6 +57,7 @@ export const serviceRoutes: FastifyPluginAsyncZod<Options> = async (app, options
         limit: request.query.limit,
         search: request.query.search,
         active: request.query.active === undefined ? undefined : request.query.active === 'true',
+        categoryPublicId: request.query.categoryPublicId,
       });
     },
   );
@@ -149,10 +154,14 @@ export const serviceRoutes: FastifyPluginAsyncZod<Options> = async (app, options
   );
   app.get(
     '/tenant/services/:publicId/image',
-    { schema: { params: PublicIdParamsSchema } },
+    { schema: { params: PublicIdParamsSchema, querystring: ImageVariantQuerySchema } },
     async (request, reply) => {
       options.authService.requirePermission(request.tenant, 'service.read');
-      const image = await options.service.getImage(request.tenant.id, request.params.publicId);
+      const image = await options.service.getImage(
+        request.tenant.id,
+        request.params.publicId,
+        request.query.variant,
+      );
       return reply
         .header('Cache-Control', 'private, max-age=300')
         .type(image.mimeType)

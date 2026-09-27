@@ -21,7 +21,50 @@ interface Actor {
   sessionId: bigint | null;
 }
 
-type RegisterWithUnit = CashRegister & { unit: { publicId: string } | null };
+type RegisterWithUnit = CashRegister & {
+  unit: { publicId: string } | null;
+  openedByUser?: { email: string } | null;
+  closedByUser?: { email: string } | null;
+};
+
+type MovementWithContext = CashMovement & {
+  payment: {
+    publicId: string;
+    paymentMethod: { name: string };
+    appointment: {
+      publicId: string;
+      customer: { name: string };
+      service: { name: string } | null;
+      comboNameSnapshot: string | null;
+    } | null;
+  } | null;
+  user?: { email: string } | null;
+};
+
+/** Include unico do caixa: responsavel e contexto do pagamento sem consulta extra. */
+const registerInclude = {
+  unit: { select: { publicId: true } },
+  openedByUser: { select: { email: true } },
+  closedByUser: { select: { email: true } },
+} as const;
+
+const movementInclude = {
+  user: { select: { email: true } },
+  payment: {
+    select: {
+      publicId: true,
+      paymentMethod: { select: { name: true } },
+      appointment: {
+        select: {
+          publicId: true,
+          customer: { select: { name: true } },
+          service: { select: { name: true } },
+          comboNameSnapshot: true,
+        },
+      },
+    },
+  },
+} as const;
 
 function balanceOf(register: CashRegister, movements: CashMovement[]): bigint {
   return movements.reduce(
@@ -31,8 +74,27 @@ function balanceOf(register: CashRegister, movements: CashMovement[]): bigint {
   );
 }
 
-const pubRegister = (register: RegisterWithUnit, balanceCents: bigint) =>
+const pubRegister = (
+  register: RegisterWithUnit,
+  balanceCents: bigint,
+  movements: CashMovement[] = [],
+) =>
   CashRegisterPublicSchema.parse({
+    openedByEmail: register.openedByUser?.email ?? null,
+    closedByEmail: register.closedByUser?.email ?? null,
+    totalInCents: movements
+      .filter((item) => item.direction === 'IN')
+      .reduce((total, item) => total + item.amountCents, 0n)
+      .toString(),
+    totalOutCents: movements
+      .filter((item) => item.direction === 'OUT')
+      .reduce((total, item) => total + item.amountCents, 0n)
+      .toString(),
+    // Parte das entradas que apenas reflete pagamentos: nao e receita extra do caixa.
+    paymentInCents: movements
+      .filter((item) => item.direction === 'IN' && item.type === 'PAYMENT')
+      .reduce((total, item) => total + item.amountCents, 0n)
+      .toString(),
     publicId: register.publicId,
     unitPublicId: register.unit?.publicId ?? null,
     status: register.status,
@@ -44,8 +106,11 @@ const pubRegister = (register: RegisterWithUnit, balanceCents: bigint) =>
     notes: register.notes,
   });
 
-const pubMovement = (movement: CashMovement & { payment: { publicId: string } | null }) =>
-  ({
+const pubMovement = (movement: MovementWithContext) => {
+  const offeringName = movement.payment?.appointment
+    ? movement.payment.appointment.service?.name ?? movement.payment.appointment.comboNameSnapshot ?? null
+    : null;
+  return {
     publicId: movement.publicId,
     type: movement.type,
     direction: movement.direction,
@@ -53,7 +118,13 @@ const pubMovement = (movement: CashMovement & { payment: { publicId: string } | 
     reason: movement.reason,
     paymentPublicId: movement.payment?.publicId ?? null,
     createdAt: movement.createdAt.toISOString(),
-  }) as const;
+    userEmail: movement.user?.email ?? null,
+    paymentMethodName: movement.payment?.paymentMethod.name ?? null,
+    customerName: movement.payment?.appointment?.customer.name ?? null,
+    serviceName: offeringName,
+    appointmentPublicId: movement.payment?.appointment?.publicId ?? null,
+  } as const;
+};
 
 export class CashRegisterService {
   public constructor(private readonly client: PrismaClient) {}
@@ -98,7 +169,7 @@ export class CashRegisterService {
         openedByUserId: actor.userId,
         openedBySessionId: actor.sessionId,
       },
-      include: { unit: { select: { publicId: true } } },
+      include: registerInclude,
     });
     await this.client.auditLog.create({
       data: {
@@ -143,7 +214,7 @@ export class CashRegisterService {
         closedBySessionId: actor.sessionId,
         notes: input.notes ?? register.notes,
       },
-      include: { unit: { select: { publicId: true } } },
+      include: registerInclude,
     });
     await this.client.auditLog.create({
       data: {
@@ -193,7 +264,7 @@ export class CashRegisterService {
         userId: actor.userId,
         sessionId: actor.sessionId,
       },
-      include: { payment: { select: { publicId: true } } },
+      include: movementInclude,
     });
     await this.client.auditLog.create({
       data: {
@@ -217,7 +288,7 @@ export class CashRegisterService {
     const movements = await this.client.cashMovement.findMany({
       where: { tenantId, cashRegisterId: register.id },
       orderBy: { createdAt: 'desc' },
-      include: { payment: { select: { publicId: true } } },
+      include: movementInclude,
     });
     const balanceCents = balanceOf(register, movements);
     return CashRegisterDetailResponseSchema.parse({
@@ -226,6 +297,7 @@ export class CashRegisterService {
         register.status === 'CLOSED' && register.closingBalanceCents !== null
           ? register.closingBalanceCents
           : balanceCents,
+        movements,
       ),
       movements: movements.map(pubMovement),
     });
@@ -235,16 +307,16 @@ export class CashRegisterService {
     const unitId = await this.resolveUnitId(tenantId, unitPublicId);
     const register = await this.client.cashRegister.findFirst({
       where: { tenantId, unitId, status: 'OPEN' },
-      include: { unit: { select: { publicId: true } } },
+      include: registerInclude,
     });
     if (register === null) return null;
     const movements = await this.client.cashMovement.findMany({
       where: { tenantId, cashRegisterId: register.id },
       orderBy: { createdAt: 'desc' },
-      include: { payment: { select: { publicId: true } } },
+      include: movementInclude,
     });
     return CashRegisterDetailResponseSchema.parse({
-      register: pubRegister(register, balanceOf(register, movements)),
+      register: pubRegister(register, balanceOf(register, movements), movements),
       movements: movements.map(pubMovement),
     });
   }
@@ -253,7 +325,7 @@ export class CashRegisterService {
     const registers = await this.client.cashRegister.findMany({
       where: { tenantId },
       orderBy: { openedAt: 'desc' },
-      include: { unit: { select: { publicId: true } } },
+      include: registerInclude,
     });
     const items = await Promise.all(
       registers.map(async (register) => {
@@ -262,7 +334,7 @@ export class CashRegisterService {
         const movements = await this.client.cashMovement.findMany({
           where: { tenantId, cashRegisterId: register.id },
         });
-        return pubRegister(register, balanceOf(register, movements));
+        return pubRegister(register, balanceOf(register, movements), movements);
       }),
     );
     return CashRegisterListResponseSchema.parse({ items });
@@ -320,7 +392,7 @@ export class CashRegisterService {
   private async findRegisterOrThrow(tenantId: bigint, registerPublicId: string) {
     const register = await this.client.cashRegister.findFirst({
       where: { tenantId, publicId: registerPublicId },
-      include: { unit: { select: { publicId: true } } },
+      include: registerInclude,
     });
     if (register === null)
       throw new AppError({

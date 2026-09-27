@@ -1,0 +1,12 @@
+import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { parseAndGuardDatabaseUrl } from './guard-test-database.mjs';
+const target = parseAndGuardDatabaseUrl(process.env.MYSQL_INTEGRATION_DATABASE_URL);
+const migrations = (process.env.BASELINE_MIGRATIONS || '').split(',').map((v) => v.trim()).filter(Boolean);
+if (!migrations.length) throw new Error('BASELINE_MIGRATIONS is required');
+const mysql = process.env.MYSQL_BIN || 'mysql';
+const values = migrations.map((name) => `('${randomUUID()}', SHA2('${name.replaceAll("'", "''")}',256), NOW(3), '${name.replaceAll("'", "''")}', NULL, NULL, NOW(3), 0)`).join(',');
+const sql = `CREATE TABLE IF NOT EXISTS _prisma_migrations (id VARCHAR(36) NOT NULL PRIMARY KEY, checksum VARCHAR(64) NOT NULL, finished_at DATETIME(3) NULL, migration_name VARCHAR(255) NOT NULL, logs TEXT NULL, rolled_back_at DATETIME(3) NULL, started_at DATETIME(3) NOT NULL, applied_steps_count INT UNSIGNED NOT NULL DEFAULT 0); INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ${values};`;
+const result = spawnSync(mysql, ['--protocol=TCP', '-h', target.host, '-P', String(target.port), '-u', target.user, target.database, '-e', sql], { env: { ...process.env, MYSQL_PWD: target.password }, stdio: 'inherit' });
+if (result.status !== 0) process.exit(result.status ?? 1);
+console.log(`Legacy baseline recorded for ${migrations.length} migrations in ${target.database}.`);

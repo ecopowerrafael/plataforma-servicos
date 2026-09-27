@@ -12,6 +12,7 @@ import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDia
 import { BusinessUnitDateOverrides } from './BusinessUnitDateOverrides.js';
 import { BusinessUnitForm } from './BusinessUnitForm.js';
 import { BusinessUnitOperatingHours } from './BusinessUnitOperatingHours.js';
+import '../../styles/company.css';
 
 export function UnitsModule({
   tenantPublicId,
@@ -119,7 +120,7 @@ export function UnitsModule({
     error instanceof HttpError ? error.message : error instanceof Error ? error.message : null;
 
   return (
-    <section className="sessions-panel">
+    <section className="sessions-panel units-module--redesigned">
       <p className="eyebrow">Estrutura</p>
       <h2>Unidades</h2>
       {!canManage ? (

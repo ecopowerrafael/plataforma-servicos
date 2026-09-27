@@ -1,0 +1,527 @@
+/* ============================================
+   DESIGN SYSTEM CENTRAL — AGENDEI /app
+   Baseado em referência visual do ZIP
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Cinzel:wght@400;500;600;700&display=swap');
+
+/* ============================================
+   1. CORES (Tokens)
+   ============================================ */
+
+:root {
+  /* Backgrounds */
+  --color-bg-primary: #fdfcf9;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #faf8f5;
+  --color-bg-muted: #f5f0eb;
+
+  /* Borders */
+  --color-border-subtle: #ede8e1;
+  --color-border-default: #dfd4c4;
+  --color-border-strong: #d4c4b0;
+
+  /* Text */
+  --color-text-primary: #1c1917;
+  --color-text-secondary: #78716f;
+  --color-text-tertiary: #9a8f89;
+  --color-text-muted: #b5aca5;
+
+  /* Accent (Ouro) */
+  --color-accent-light: #c5a059;
+  --color-accent-default: #b8860b;
+  --color-accent-dark: #996515;
+  --color-accent-darker: #855811;
+
+  /* Semantic */
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-info: #60a5fa;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(28, 25, 23, 0.01);
+  --shadow-sm: 0 2px 6px -1px rgba(28, 25, 23, 0.02);
+  --shadow-md: 0 4px 20px -2px rgba(28, 25, 23, 0.03);
+  --shadow-lg: 0 8px 28px -4px rgba(197, 160, 89, 0.12), 0 4px 10px -2px rgba(28, 25, 23, 0.04);
+  --shadow-xl: 0 20px 40px -4px rgba(28, 25, 23, 0.08);
+}
+
+/* ============================================
+   2. TIPOGRAFIA
+   ============================================ */
+
+* {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6,
+.font-serif-display,
+.font-serif-luxury {
+  font-family: 'Playfair Display', serif;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+h1, .text-h1 {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+h2, .text-h2 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+h3, .text-h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+h4, .text-h4 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.text-body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.text-small {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.text-caption {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.font-brand {
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================
+   3. CARDS
+   ============================================ */
+
+.card,
+.luxury-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  padding: 24px;
+}
+
+.card-hover,
+.luxury-card-hover {
+  transition: all 0.2s ease-in-out;
+}
+
+.card-hover:hover,
+.luxury-card-hover:hover {
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.card-compact {
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.card-sm {
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+/* ============================================
+   4. BOTÕES
+   ============================================ */
+
+.btn,
+button[class*="btn-"],
+[role="button"][class*="btn-"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-accent-dark) 0%, var(--color-accent-light) 100%);
+  color: white;
+  border-color: transparent;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+.btn-secondary {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-accent-light);
+  background: var(--color-bg-tertiary);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.btn-ghost:hover {
+  background: var(--color-bg-muted);
+}
+
+.btn-danger {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.btn-danger:hover {
+  background: #fecaca;
+}
+
+.btn-success {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.btn-success:hover {
+  background: #bbf7d0;
+}
+
+.btn-sm {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 15px;
+}
+
+/* ============================================
+   5. INPUTS & FORMS
+   ============================================ */
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="search"],
+textarea,
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  transition: all 0.2s ease-in-out;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--color-text-primary);
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-error {
+  font-size: 12px;
+  color: var(--color-danger);
+  margin-top: 4px;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  margin-top: 4px;
+}
+
+/* ============================================
+   6. BADGES & TAGS
+   ============================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-primary {
+  background: rgba(197, 160, 89, 0.15);
+  color: var(--color-accent-dark);
+}
+
+.badge-success {
+  background: rgba(74, 222, 128, 0.15);
+  color: #16a34a;
+}
+
+.badge-warning {
+  background: rgba(251, 191, 36, 0.15);
+  color: #d97706;
+}
+
+.badge-danger {
+  background: rgba(248, 113, 113, 0.15);
+  color: #dc2626;
+}
+
+.badge-neutral {
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+}
+
+/* ============================================
+   7. SCROLLBAR CUSTOMIZADO
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-muted);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* ============================================
+   8. TABELAS
+   ============================================ */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead {
+  background: var(--color-bg-muted);
+}
+
+th {
+  padding: 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+td {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 14px;
+}
+
+tbody tr {
+  transition: background 0.2s ease-in-out;
+}
+
+tbody tr:hover {
+  background: var(--color-bg-muted);
+}
+
+/* ============================================
+   9. MODAIS & DRAWERS
+   ============================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 25, 23, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 40;
+}
+
+.modal-content,
+.drawer-content {
+  background: var(--color-bg-secondary);
+  border-radius: 20px;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+.modal-header,
+.drawer-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-body,
+.drawer-body {
+  padding: 24px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.modal-footer,
+.drawer-footer {
+  padding: 24px;
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* ============================================
+   10. UTILIDADES
+   ============================================ */
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-accent {
+  color: var(--color-accent-default);
+}
+
+.bg-muted {
+  background: var(--color-bg-muted);
+}
+
+.border-subtle {
+  border-color: var(--color-border-subtle);
+}
+
+.border-default {
+  border-color: var(--color-border-default);
+}
+
+.rounded-xl {
+  border-radius: 16px;
+}
+
+.rounded-lg {
+  border-radius: 12px;
+}
+
+.rounded-md {
+  border-radius: 8px;
+}
+
+.shadow-card {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+.transition-smooth {
+  transition: all 0.2s ease-in-out;
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #996515 0%, #c5a059 50%, #855811 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gold-border-glow:focus-within,
+.gold-border-glow:hover {
+  border-color: rgba(197, 160, 89, 0.6);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.08);
+}
+
+/* ============================================
+   11. DARK MODE SUPPORT (quando implementar)
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-primary: #1a1815;
+    --color-bg-secondary: #2a2622;
+    --color-bg-tertiary: #201d19;
+    --color-bg-muted: #2f2a25;
+
+    --color-border-subtle: #3f3a35;
+    --color-border-default: #4a4540;
+    --color-border-strong: #5a5550;
+
+    --color-text-primary: #f5f1ed;
+    --color-text-secondary: #a99f98;
+    --color-text-tertiary: #8b8177;
+    --color-text-muted: #6b6157;
+  }
+}

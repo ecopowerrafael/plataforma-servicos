@@ -1,0 +1,428 @@
+import { type PrismaClient } from '../../database-client/client.js';
+import { whatsappButtonCapacity, type WhatsAppProviderId } from '../integrations/whatsapp-provider.js';
+
+interface ProcessStepResponseInput {
+  execution: any;
+  step: any;
+  inboundMessage: any;
+  tx?: PrismaClient;
+  selectedOptionPublicId?: string | undefined;
+}
+
+interface MatchedOption {
+  option: any;
+  pattern: any;
+  matchedVia: 'EXACT' | 'STARTS_WITH' | 'ENDS_WITH' | 'CONTAINS';
+}
+
+/** Regras mínimas compartilhadas pelo editor e pelo runtime. */
+export function validateFlowStepOptions(step: { stepType: string; message?: string | null; options?: Array<{ actionType: string; nextStepId?: bigint | null }> }, provider: WhatsAppProviderId = 'WAPI'): string[] {
+  const errors: string[] = [];
+  const options = step.options ?? [];
+  const capacity = whatsappButtonCapacity(provider);
+  if (step.stepType === 'MESSAGE_OPTIONS' && options.length > capacity) errors.push(`MESSAGE_OPTIONS suporta no máximo ${capacity} botões para ${provider}.`);
+  for (const option of options) {
+    if (option.actionType === 'NEXT_STEP' && !option.nextStepId) errors.push('Toda opção NEXT_STEP precisa de um destino.');
+    if (option.actionType === 'END' && !step.message?.trim()) errors.push('Toda opção END precisa de uma mensagem final.');
+  }
+  return errors;
+}
+
+export function validateFlowGraph(steps: Array<{ id: bigint; flowId?: bigint; isStart: boolean; stepType: string; nextStepId?: bigint | null; options?: Array<{ actionType: string; nextStepId?: bigint | null }> }>): string[] {
+  const errors: string[] = [];
+  const byId = new Map(steps.map((step) => [step.id.toString(), step]));
+  for (const step of steps) {
+    if (step.stepType === 'MESSAGE_OPTIONS' && (step.options ?? []).length === 0) errors.push(`A etapa ${step.id.toString()} MESSAGE_OPTIONS não possui opções.`);
+    for (const option of step.options ?? []) {
+      if (option.actionType === 'NEXT_STEP' && !option.nextStepId) errors.push(`A etapa ${step.id.toString()} possui NEXT_STEP sem destino.`);
+      if (option.nextStepId) {
+        const target = byId.get(option.nextStepId.toString());
+        if (!target || (step.flowId !== undefined && target.flowId !== undefined && step.flowId !== target.flowId)) errors.push(`A etapa ${step.id.toString()} aponta para uma etapa inexistente ou de outro fluxo.`);
+      }
+    }
+    if (step.nextStepId) {
+      const target = byId.get(step.nextStepId.toString());
+      if (!target || (step.flowId !== undefined && target.flowId !== undefined && step.flowId !== target.flowId)) errors.push(`A etapa ${step.id.toString()} aponta para uma etapa inexistente ou de outro fluxo.`);
+    }
+  }
+  const start = steps.find((step) => step.isStart);
+  const reachable = new Set<string>();
+  const visit = (id: string) => {
+    if (reachable.has(id)) return;
+    const step = byId.get(id);
+    if (!step) return;
+    reachable.add(id);
+    if (step.nextStepId) visit(step.nextStepId.toString());
+    for (const option of step.options ?? []) if (option.nextStepId) visit(option.nextStepId.toString());
+  };
+  if (start) visit(start.id.toString());
+  if (reachable.size !== steps.length) errors.push('Há etapas inacessíveis a partir da etapa inicial.');
+
+  const visiting = new Map<string, number>();
+  const visited = new Set<string>();
+  let invalidCycle = false;
+  const detectCycle = (id: string, path: string[]): void => {
+    if (invalidCycle || visited.has(id)) return;
+    const cycleStart = visiting.get(id);
+    if (cycleStart !== undefined) {
+      const cycleIds = path.slice(cycleStart);
+      const hasTerminalExit = cycleIds.some((cycleId) => {
+        const cycleStep = byId.get(cycleId);
+        return cycleStep?.stepType === 'END' || cycleStep?.stepType === 'MANUAL' || cycleStep?.options?.some((option) => option.actionType === 'END' || option.actionType === 'MANUAL');
+      });
+      const returnsToMenu = start ? cycleIds.includes(start.id.toString()) : false;
+      if (!hasTerminalExit && !returnsToMenu) invalidCycle = true;
+      return;
+    }
+    visiting.set(id, path.length);
+    const step = byId.get(id);
+    const destinations = [step?.nextStepId, ...(step?.options ?? []).map((option) => option.nextStepId)].filter((value): value is bigint => value != null);
+    for (const destination of destinations) detectCycle(destination.toString(), [...path, id]);
+    visiting.delete(id);
+    visited.add(id);
+  };
+  if (start) detectCycle(start.id.toString(), []);
+  if (invalidCycle) errors.push('Há ciclo no fluxo sem saída detectável.');
+  return errors;
+}
+
+/**
+ * Engine para processar respostas inbound dentro de FlowExecution.
+ * Reutiliza padrões de normalização sem acoplar ao ObjectionEngine.
+ */
+export class ProspectingFlowEngine {
+  public constructor(private readonly client: PrismaClient) {}
+
+  /**
+   * Processa inbound recebido durante WAITING de FlowExecution.
+   */
+  public async processStepResponse(input: ProcessStepResponseInput): Promise<{
+    executionAdvanced: boolean;
+    newStepId?: bigint;
+    reason?: string;
+  }> {
+    const { execution, step, inboundMessage, selectedOptionPublicId } = input;
+    const tx = input.tx || this.client;
+
+    if (execution.status !== 'WAITING') {
+      return { executionAdvanced: false, reason: 'EXECUTION_NOT_WAITING' };
+    }
+
+    const normalizedText = this.normalizeText(inboundMessage.body);
+
+    // Processar conforme tipo de step
+    switch (step.stepType) {
+      case 'MESSAGE_OPTIONS':
+        return await this.handleMessageOptions(tx, execution, step, normalizedText, inboundMessage, selectedOptionPublicId);
+
+      case 'WAIT_TEXT':
+        return await this.handleWaitText(tx, execution, step, inboundMessage);
+
+      case 'WAIT_LINK':
+        return await this.handleWaitLink(tx, execution, step, normalizedText, inboundMessage);
+
+      default:
+        return { executionAdvanced: false, reason: 'UNSUPPORTED_STEP_TYPE' };
+    }
+  }
+
+  private async handleMessageOptions(
+    tx: any,
+    execution: any,
+    step: any,
+    normalizedText: string,
+    inboundMessage: any,
+    selectedOptionPublicId?: string,
+  ): Promise<any> {
+    let matchedOption: MatchedOption | null = null;
+
+    // PRIORIDADE 1: Usar selectedOptionPublicId (resolvido deterministicamente via index)
+    if (selectedOptionPublicId) {
+      const option = step.options.find((opt: any) => opt.publicId === selectedOptionPublicId);
+      if (option) {
+        matchedOption = {
+          option,
+          pattern: null,
+          matchedVia: 'EXACT',
+        };
+        console.log('[FlowEngine] Resolved option by index', { optionPublicId: selectedOptionPublicId });
+      }
+    }
+
+    // PRIORIDADE 2: Fallback para text matching (compatibilidade legada)
+    if (!matchedOption) {
+      matchedOption = this.findMatchingOption(normalizedText, step);
+    }
+
+    // Persistir response sempre
+    await tx.prospectingFlowResponse.create({
+      data: {
+        executionId: execution.id,
+        stepId: step.id,
+        inboundMessageId: inboundMessage.id,
+        responseText: inboundMessage.body,
+        matchedOptionId: matchedOption?.option.id || null,
+        createdAt: new Date(),
+      },
+    });
+
+    if (!matchedOption) {
+      // Sem match: continuar esperando
+      return { executionAdvanced: false, reason: 'NO_OPTION_MATCH' };
+    }
+
+    // Aplicar ação da option
+    return await this.applyOptionAction(tx, execution, step, matchedOption.option);
+  }
+
+  private async handleWaitText(
+    tx: any,
+    execution: any,
+    step: any,
+    inboundMessage: any,
+  ): Promise<any> {
+    // Persistir response (sem publicId)
+    await tx.prospectingFlowResponse.create({
+      data: {
+        executionId: execution.id,
+        stepId: step.id,
+        inboundMessageId: inboundMessage.id,
+        responseText: inboundMessage.body,
+        matchedOptionId: null,
+        createdAt: new Date(),
+      },
+    });
+
+    // Avançar para próximo step
+    if (step.nextStepId) {
+      await tx.prospectingFlowExecution.update({
+        where: { id: execution.id },
+        data: { currentStepId: step.nextStepId, status: 'ACTIVE' },
+      });
+
+      await tx.prospectingLead.update({
+        where: { id: execution.leadId },
+        data: {
+          status: 'SCHEDULED',
+          nextActionAt: new Date(),
+        },
+      });
+
+      return { executionAdvanced: true, newStepId: step.nextStepId };
+    } else {
+      // Sem próximo: completar
+      await tx.prospectingFlowExecution.update({
+        where: { id: execution.id },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      });
+
+      return { executionAdvanced: true, reason: 'FLOW_COMPLETED' };
+    }
+  }
+
+  private async handleWaitLink(
+    tx: any,
+    execution: any,
+    step: any,
+    _normalizedText: string,
+    inboundMessage: any,
+  ): Promise<any> {
+    const url = this.extractUrlFromText(inboundMessage.body);
+
+    // Persistir response (sem publicId)
+    await tx.prospectingFlowResponse.create({
+      data: {
+        executionId: execution.id,
+        stepId: step.id,
+        inboundMessageId: inboundMessage.id,
+        responseText: inboundMessage.body,
+        matchedOptionId: null,
+        createdAt: new Date(),
+      },
+    });
+
+    if (!url || !this.isValidUrl(url)) {
+      // URL inválida: continuar esperando
+      return { executionAdvanced: false, reason: 'INVALID_OR_NO_URL' };
+    }
+
+    // URL válida: avançar
+    if (step.nextStepId) {
+      await tx.prospectingFlowExecution.update({
+        where: { id: execution.id },
+        data: { currentStepId: step.nextStepId, status: 'ACTIVE' },
+      });
+
+      await tx.prospectingLead.update({
+        where: { id: execution.leadId },
+        data: {
+          status: 'SCHEDULED',
+          nextActionAt: new Date(),
+        },
+      });
+
+      return { executionAdvanced: true, newStepId: step.nextStepId };
+    } else {
+      await tx.prospectingFlowExecution.update({
+        where: { id: execution.id },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      });
+
+      return { executionAdvanced: true, reason: 'FLOW_COMPLETED' };
+    }
+  }
+
+  private async applyOptionAction(tx: any, execution: any, _step: any, option: any): Promise<any> {
+    switch (option.actionType) {
+      case 'NEXT_STEP':
+        if (!option.nextStepId) {
+          return { executionAdvanced: false, reason: 'NEXT_STEP_MISSING_DESTINATION' };
+        }
+
+        // Validar que nextStep pertence ao mesmo flow
+        const nextStep = await tx.prospectingFlowStep.findUnique({
+          where: { id: option.nextStepId },
+        });
+
+        if (!nextStep || nextStep.flowId !== execution.flowId) {
+          return { executionAdvanced: false, reason: 'NEXT_STEP_NOT_FOUND' };
+        }
+
+        await tx.prospectingFlowExecution.update({
+          where: { id: execution.id },
+          data: { currentStepId: nextStep.id, status: 'ACTIVE' },
+        });
+
+        await tx.prospectingLead.update({
+          where: { id: execution.leadId },
+          data: {
+            status: 'SCHEDULED',
+            nextActionAt: new Date(),
+          },
+        });
+
+        return { executionAdvanced: true, newStepId: nextStep.id };
+
+      case 'END':
+        await tx.prospectingFlowExecution.update({
+          where: { id: execution.id },
+          data: { status: 'COMPLETED', completedAt: new Date() },
+        });
+
+        await tx.prospectingLead.update({
+          where: { id: execution.leadId },
+          data: { nextActionAt: null },
+        });
+
+        return { executionAdvanced: true, reason: 'FLOW_ENDED' };
+
+      case 'MANUAL':
+        await tx.prospectingFlowExecution.update({
+          where: { id: execution.id },
+          data: { status: 'MANUAL' },
+        });
+
+        await tx.prospectingLead.update({
+          where: { id: execution.leadId },
+          data: {
+            humanLockUntil: new Date(Date.now() + 30 * 24 * 3600_000),
+            humanLockType: 'FLOW_MANUAL',
+            humanLockReason: 'Manual intervention required by flow',
+            nextActionAt: null,
+          },
+        });
+
+        return { executionAdvanced: true, reason: 'FLOW_MANUAL_REQUIRED' };
+
+      default:
+        return { executionAdvanced: false, reason: 'UNKNOWN_ACTION_TYPE' };
+    }
+  }
+
+  private findMatchingOption(normalizedText: string, step: any): MatchedOption | null {
+    // Coletar todos os patterns
+    const allPatterns = step.options
+      .flatMap((opt: any) => opt.patterns.map((p: any) => ({ ...p, option: opt })))
+      .sort((a: any, b: any) => {
+        // 1. Priority DESC
+        if (a.priority !== b.priority) {
+          return b.priority - a.priority;
+        }
+
+        // 2. Specificity DESC
+        const specMap = { EXACT: 4, STARTS_WITH: 3, ENDS_WITH: 3, CONTAINS: 2 };
+        const specA = specMap[a.patternType as keyof typeof specMap] ?? 0;
+        const specB = specMap[b.patternType as keyof typeof specMap] ?? 0;
+        if (specA !== specB) {
+          return specB - specA;
+        }
+
+        // 3. Option position ASC
+        if (a.option.position !== b.option.position) {
+          return a.option.position - b.option.position;
+        }
+
+        // 4. Pattern ID ASC (BigInt safe)
+        if (a.id < b.id) return -1;
+        if (a.id > b.id) return 1;
+        return 0;
+      });
+
+    const seenOptions = new Set<bigint>();
+
+    // Test cada padrão
+    for (const p of allPatterns) {
+      if (seenOptions.has(p.option.id)) {
+        continue;
+      }
+
+      const normalized = this.normalizeText(p.pattern);
+      let matched = false;
+
+      if (p.patternType === 'EXACT' && normalizedText === normalized) {
+        matched = true;
+      } else if (p.patternType === 'STARTS_WITH' && normalizedText.startsWith(normalized)) {
+        matched = true;
+      } else if (p.patternType === 'ENDS_WITH' && normalizedText.endsWith(normalized)) {
+        matched = true;
+      } else if (p.patternType === 'CONTAINS' && normalizedText.includes(normalized)) {
+        matched = true;
+      }
+
+      if (matched) {
+        seenOptions.add(p.option.id);
+        return {
+          option: p.option,
+          pattern: p,
+          matchedVia: p.patternType,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private extractUrlFromText(text: string): string | null {
+    const urlRegex = /https?:\/\/[^\s]+/i;
+    const match = text.match(urlRegex);
+    return match?.[0] ?? null;
+  }
+
+  private isValidUrl(url: string): boolean {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private normalizeText(text: string): string {
+    return text
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+  }
+}

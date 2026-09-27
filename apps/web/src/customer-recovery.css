@@ -1,0 +1,275 @@
+/* /app/clientes/recuperacao — central operacional de reativação. */
+.recovery-page {
+  min-width: 0;
+}
+.recovery-metrics-skeleton i {
+  height: 5.5rem;
+}
+
+/* Réguas */
+.recovery-rules {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+.recovery-rule-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem 1rem;
+}
+.recovery-rule-card header {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+.recovery-rule-card p {
+  color: var(--app-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.recovery-rule-count {
+  color: var(--app-text);
+  font-size: 0.92rem;
+}
+
+/* Filtros */
+.recovery-filters {
+  margin: 0 0 0.75rem;
+}
+.recovery-filters .recovery-filter-search {
+  flex: 1 1 16rem;
+}
+.recovery-search-field {
+  align-items: center;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  display: flex;
+  gap: 0.4rem;
+  height: var(--app-field-height);
+  padding: 0 0.6rem;
+}
+.app-shell .recovery-search-field input {
+  border: 0;
+  height: auto;
+  padding: 0;
+  width: 100%;
+}
+.app-shell .recovery-search-field input:focus {
+  box-shadow: none !important;
+}
+.recovery-search-field:focus-within {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 14%, transparent);
+}
+
+/* Tabela e cards */
+.recovery-table-wrap {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+}
+.app-shell .recovery-table {
+  min-width: 58rem;
+}
+.recovery-identity {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  min-width: 0;
+}
+.recovery-identity > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+.recovery-identity small {
+  color: var(--app-muted);
+  font-size: 0.74rem;
+}
+.app-shell .recovery-identity .text-button {
+  font-size: 0.86rem;
+  font-weight: 750;
+  padding: 0;
+  text-align: left;
+}
+.recovery-avatar {
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 50%;
+  color: var(--app-accent);
+  display: inline-flex;
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 800;
+  height: 2.1rem;
+  justify-content: center;
+  width: 2.1rem;
+}
+.recovery-row-actions {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.app-shell .recovery-whatsapp {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.3rem;
+  text-decoration: none;
+}
+.recovery-menu {
+  position: relative;
+}
+.recovery-menu-list {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-md);
+  display: grid;
+  list-style: none;
+  margin: 0;
+  min-width: 12rem;
+  padding: 0.3rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 25;
+}
+.app-shell .recovery-menu-list :where(button, a) {
+  background: transparent;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  display: block;
+  font-size: 0.82rem;
+  padding: 0.5rem 0.55rem;
+  text-align: left;
+  text-decoration: none;
+  width: 100%;
+}
+.app-shell .recovery-menu-list :where(button, a):hover {
+  background: var(--app-surface-subtle);
+}
+.recovery-cards {
+  display: none;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.recovery-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  padding: 0.85rem;
+}
+.recovery-card-facts {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  width: 100%;
+}
+.recovery-card-facts dt {
+  color: var(--app-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.recovery-card-facts dd {
+  font-size: 0.84rem;
+  margin: 0.1rem 0 0;
+}
+
+/* Execuções */
+.recovery-executions {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.recovery-executions > li {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+}
+.recovery-executions summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+}
+.recovery-executions summary > span:first-child {
+  display: grid;
+}
+.recovery-executions summary small {
+  color: var(--app-muted);
+  font-size: 0.74rem;
+}
+.recovery-execution-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.recovery-execution-items {
+  border-top: 1px solid var(--app-border);
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+}
+.recovery-execution-items li {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+.recovery-execution-items small {
+  color: var(--app-muted);
+  font-size: 0.74rem;
+}
+.recovery-run-list {
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.recovery-run-list li {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+.recovery-run-total {
+  font-weight: 800;
+}
+
+@media (max-width: 899px) {
+  .recovery-table-wrap {
+    display: none;
+  }
+  .recovery-cards {
+    display: grid;
+  }
+  .recovery-page {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .app-shell .recovery-filters label,
+  .app-shell .recovery-filters .recovery-search-field {
+    width: 100%;
+  }
+  .recovery-execution-items li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

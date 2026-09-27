@@ -11,6 +11,7 @@ import { useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
 import { UnitSelect } from '../tenants/UnitSelect.js';
+import '../../styles/professionals-modules.css';
 
 export function AppointmentWaitlistModule({ tenantPublicId }: { tenantPublicId: string }) {
   const cache = useQueryClient();
@@ -105,7 +106,7 @@ export function AppointmentWaitlistModule({ tenantPublicId }: { tenantPublicId: 
     setFilters((current) => ({ ...current, [key]: value }));
   };
   return (
-    <section className="sessions-panel">
+    <section className="appointment-waitlist--redesigned">
       <p className="eyebrow">Lista de espera</p>
       <h2>Fila de agendamento</h2>
       <div className="session-grid">

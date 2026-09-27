@@ -1,4 +1,6 @@
 import {
+  AgendaOverviewQuerySchema,
+  AgendaOverviewResponseSchema,
   TenantDashboardQuerySchema,
   TenantDashboardResponseSchema,
   TenantReportQuerySchema,
@@ -30,6 +32,22 @@ export const appointmentOperationsRoutes: FastifyPluginAsyncZod<{
     (r) => {
       o.authService.requirePermission(r.tenant, 'appointment.read');
       return o.service.dashboard(r.tenant.id, r.query.date);
+    },
+  );
+
+  app.get(
+    '/tenant/agenda/overview',
+    {
+      schema: {
+        querystring: AgendaOverviewQuerySchema,
+        response: { 200: AgendaOverviewResponseSchema },
+      },
+    },
+    (r) => {
+      o.authService.requirePermission(r.tenant, 'appointment.read');
+      // O bloco financeiro depende de permissão própria: sem ela o servidor não devolve valores.
+      const includeFinancial = r.tenant.membership.permissions.includes('payment.read');
+      return o.service.agendaOverview(r.tenant.id, r.query, { includeFinancial });
     },
   );
 

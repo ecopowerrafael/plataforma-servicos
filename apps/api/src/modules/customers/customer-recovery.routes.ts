@@ -40,13 +40,14 @@ export const customerRecoveryRoutes: FastifyPluginAsyncZod<{
     '/tenant/customer-recovery/eligible',
     {
       schema: {
-        querystring: z.object({ rule: RecoveryRuleSchema }).strict(),
+        // Sem `rule` a resposta cobre todas as réguas configuradas, com as contagens.
+        querystring: z.object({ rule: RecoveryRuleSchema.optional() }).strict(),
         response: { 200: RecoveryEligibleListResponseSchema },
       },
     },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'automation.read');
-      return { items: await options.service.eligible(request.tenant.id, request.query.rule) };
+      return options.service.eligible(request.tenant.id, request.query.rule);
     },
   );
   app.get(
@@ -58,6 +59,7 @@ export const customerRecoveryRoutes: FastifyPluginAsyncZod<{
         items: (await options.service.executions(request.tenant.id)).map((item) => ({
           publicId: item.publicId,
           customerPublicId: item.customer.publicId,
+          customerName: item.customer.name,
           rule: item.rule.rule,
           periodKey: item.periodKey,
           status: item.status,

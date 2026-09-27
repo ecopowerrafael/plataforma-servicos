@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { CommissionListResponseSchema, CommissionRecordPublicSchema } from '@plataforma/shared';
 
 import { type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
   userId: bigint | null;
@@ -12,7 +13,14 @@ interface Actor {
 const include = {
   payment: { select: { publicId: true } },
   professional: { select: { publicId: true, name: true } },
-  appointment: { select: { publicId: true, protocol: true, service: { select: { name: true } } } },
+  appointment: {
+    select: {
+      publicId: true,
+      protocol: true,
+      service: { select: { name: true } },
+      comboNameSnapshot: true,
+    },
+  },
 } as const;
 
 interface CommissionWithRelations {
@@ -28,18 +36,19 @@ interface CommissionWithRelations {
   createdAt: Date;
   payment: { publicId: string };
   professional: { publicId: string; name: string };
-  appointment: { publicId: string; protocol: string; service: { name: string } };
+  appointment: { publicId: string; protocol: string; service: { name: string } | null; comboNameSnapshot: string | null };
 }
 
-const pub = (commission: CommissionWithRelations) =>
-  CommissionRecordPublicSchema.parse({
+const pub = (commission: CommissionWithRelations) => {
+  const offeringName = commission.appointment.service?.name ?? commission.appointment.comboNameSnapshot ?? 'Oferta';
+  return CommissionRecordPublicSchema.parse({
     publicId: commission.publicId,
     paymentPublicId: commission.payment.publicId,
     appointmentPublicId: commission.appointment.publicId,
     appointmentProtocol: commission.appointment.protocol,
     professionalPublicId: commission.professional.publicId,
     professionalName: commission.professional.name,
-    serviceName: commission.appointment.service.name,
+    serviceName: offeringName,
     commissionType: commission.commissionType,
     commissionValue: commission.commissionValue,
     ruleSource: commission.ruleSource,
@@ -50,9 +59,11 @@ const pub = (commission: CommissionWithRelations) =>
     canceledReason: commission.canceledReason,
     createdAt: commission.createdAt.toISOString(),
   });
+};
 
 export class ProfessionalCommissionService {
   public constructor(private readonly client: PrismaClient) {}
+  private assertEnabled(tenantId: bigint) { return new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'commissions.enabled'); }
 
   /**
    * Calcula e registra, a partir do pagamento realmente recebido, um snapshot da regra de
@@ -63,23 +74,26 @@ export class ProfessionalCommissionService {
   public async recordForPayment(
     tenantId: bigint,
     payment: { id: bigint; amountCents: bigint },
-    appointment: { id: bigint; professionalId: bigint; serviceId: bigint },
+    appointment: { id: bigint; professionalId: bigint; serviceId: bigint | null },
     actor: Actor,
   ) {
+    await this.assertEnabled(tenantId);
     const [professional, override] = await Promise.all([
       this.client.professional.findFirst({
         where: { id: appointment.professionalId },
         select: { commissionType: true, commissionValue: true },
       }),
-      this.client.professionalService.findFirst({
-        where: { professionalId: appointment.professionalId, serviceId: appointment.serviceId },
-        select: { commissionType: true, commissionValue: true },
-      }),
+      appointment.serviceId !== null
+        ? this.client.professionalService.findFirst({
+            where: { professionalId: appointment.professionalId, serviceId: appointment.serviceId },
+            select: { commissionType: true, commissionValue: true },
+          })
+        : Promise.resolve(null),
     ]);
     if (professional === null) return;
 
     const rule =
-      override?.commissionType != null && override.commissionValue != null
+      appointment.serviceId !== null && override?.commissionType != null && override.commissionValue != null
         ? {
             type: override.commissionType,
             value: override.commissionValue,
@@ -179,9 +193,14 @@ export class ProfessionalCommissionService {
   }
 
   /** Comissões geradas do próprio profissional (self-service, isolado por professionalId). */
-  public async listForProfessional(tenantId: bigint, professionalId: bigint) {
+  public async listForProfessional(
+    tenantId: bigint,
+    professionalId: bigint,
+    query: { from?: string; to?: string } = {},
+  ) {
+    await this.assertEnabled(tenantId);
     const items = await this.client.professionalCommission.findMany({
-      where: { tenantId, professionalId },
+      where: { tenantId, professionalId, ...(query.from === undefined && query.to === undefined ? {} : { createdAt: { ...(query.from === undefined ? {} : { gte: new Date(query.from) }), ...(query.to === undefined ? {} : { lt: new Date(query.to) }) } }) },
       orderBy: { createdAt: 'desc' },
       include,
     });

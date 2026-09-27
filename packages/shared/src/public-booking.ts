@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { ComboPublicDisplaySchema } from './combo.js';
+import { ImageUrlSchema } from './image-url.js';
 import { TenantSlugSchema } from './tenant.js';
 
 export const PublicServiceProfessionalSchema = z.object({
@@ -11,6 +13,25 @@ export const PublicServiceProfessionalSchema = z.object({
 export const PublicServiceProfessionalsResponseSchema = z.object({
   professionals: z.array(PublicServiceProfessionalSchema),
 });
+
+export const PublicProfessionalServiceSchema = z.object({
+  publicId: z.uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  imageUrl: ImageUrlSchema,
+  iconKey: z.string().nullable(),
+  priceCents: z.string().regex(/^\d+$/u),
+  pricingMode: z.enum(['FIXED', 'QUOTE']),
+  quoteNotice: z.string().nullable(),
+  durationMinutes: z.number().int(),
+});
+export const PublicProfessionalOfferingsResponseSchema = z.object({
+  services: z.array(PublicProfessionalServiceSchema),
+  combos: z.array(ComboPublicDisplaySchema),
+});
+
+// Backwards compatibility alias (to be removed)
+export const PublicProfessionalServicesResponseSchema = PublicProfessionalOfferingsResponseSchema;
 
 const PublicBookingCustomerInputSchema = z
   .object({
@@ -24,10 +45,12 @@ const PublicBookingCustomerInputSchema = z
     'Informe telefone ou e-mail para contato.',
   );
 
-export const CreatePublicBookingRequestSchema = z
+// Discriminated union: exactly one of servicePublicId or comboPublicId
+const CreateServiceBookingRequestSchema = z
   .object({
     unitPublicId: z.uuid().nullable().optional(),
     servicePublicId: z.uuid(),
+    comboPublicId: z.never().optional(),
     professionalPublicId: z.uuid(),
     startsAt: z.iso.datetime({ offset: true }),
     notes: z.string().trim().max(2000).nullable().optional(),
@@ -35,13 +58,31 @@ export const CreatePublicBookingRequestSchema = z
   })
   .strict();
 
+const CreateComboBookingRequestSchema = z
+  .object({
+    unitPublicId: z.uuid().nullable().optional(),
+    servicePublicId: z.never().optional(),
+    comboPublicId: z.uuid(),
+    professionalPublicId: z.uuid(),
+    startsAt: z.iso.datetime({ offset: true }),
+    notes: z.string().trim().max(2000).nullable().optional(),
+    customer: PublicBookingCustomerInputSchema,
+  })
+  .strict();
+
+export const CreatePublicBookingRequestSchema = z.union([
+  CreateServiceBookingRequestSchema,
+  CreateComboBookingRequestSchema,
+]);
+
 export const PublicBookingConfirmationSchema = z.object({
   protocol: z.string(),
   appointmentPublicId: z.uuid(),
   status: z.enum(['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED', 'NO_SHOW']),
   startsAt: z.iso.datetime({ offset: true }),
   endsAt: z.iso.datetime({ offset: true }),
-  serviceName: z.string(),
+  serviceName: z.string().nullable(),
+  comboName: z.string().nullable(),
   professionalName: z.string(),
   unitName: z.string().nullable(),
   customerName: z.string(),
@@ -51,6 +92,33 @@ export const PublicBookingSlugParamsSchema = z.object({ slug: TenantSlugSchema }
 export const PublicBookingServiceParamsSchema = PublicBookingSlugParamsSchema.extend({
   servicePublicId: z.uuid(),
 }).strict();
+export const PublicProfessionalServicesParamsSchema = PublicBookingSlugParamsSchema.extend({
+  professionalPublicId: z.uuid(),
+}).strict();
+
+export const AvailableDatesQuerySchema = z
+  .object({
+    professionalPublicId: z.uuid(),
+    servicePublicId: z.uuid().optional(),
+    comboPublicId: z.uuid().optional(),
+    unitPublicId: z.uuid().optional(),
+    from: z.string().date(),
+    to: z.string().date(),
+  })
+  .strict()
+  .refine(
+    (value) => (value.servicePublicId ?? null) !== null || (value.comboPublicId ?? null) !== null,
+    'Informe servicePublicId ou comboPublicId.',
+  )
+  .refine(
+    (value) => !((value.servicePublicId ?? null) !== null && (value.comboPublicId ?? null) !== null),
+    'Informe apenas um de servicePublicId ou comboPublicId.',
+  );
+
+export const AvailableDatesResponseSchema = z.object({
+  dates: z.array(z.string().date()),
+});
 
 export type CreatePublicBookingRequest = z.infer<typeof CreatePublicBookingRequestSchema>;
 export type PublicBookingConfirmation = z.infer<typeof PublicBookingConfirmationSchema>;
+export type AvailableDatesQuery = z.infer<typeof AvailableDatesQuerySchema>;

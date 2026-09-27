@@ -1,0 +1,2 @@
+ALTER TABLE `directory_imports`
+  ADD COLUMN `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);

@@ -2,14 +2,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   TenantSettingsInputSchema,
   TenantSettingsResponseSchema,
+  TenantExperienceResponseSchema,
   type TenantSettings,
+  type TenantTerminologyOverrides,
 } from '@plataforma/shared';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type z } from 'zod';
 
+import { TreatmentPlansConfigSection } from '../treatment-plans/TreatmentPlansConfigSection.js';
+import { TreatmentPlansReminderConfigSection } from '../treatment-plans/TreatmentPlansReminderConfigSection.js';
 import { httpClient } from '../../lib/http.js';
+import '../../styles/settings.css';
 
 type Input = z.input<typeof TenantSettingsInputSchema>;
 
@@ -26,6 +31,16 @@ export function TenantSettingsModule({
     queryFn: () =>
       httpClient.request('/tenant/settings', {
         schema: TenantSettingsResponseSchema,
+        tenantPublicId,
+      }),
+    retry: false,
+  });
+
+  const experienceQuery = useQuery({
+    queryKey: ['tenant', tenantPublicId, 'experience'],
+    queryFn: () =>
+      httpClient.request('/tenant/experience', {
+        schema: TenantExperienceResponseSchema,
         tenantPublicId,
       }),
     retry: false,
@@ -61,7 +76,7 @@ export function TenantSettingsModule({
   }, [reset, settingsQuery.data]);
 
   return (
-    <section className="module-card">
+    <section className="module-card tenant-settings--redesigned">
       <h2>Configurações do estabelecimento</h2>
       {settingsQuery.isPending ? <p>Carregando configurações…</p> : null}
       {settingsQuery.error instanceof Error ? (
@@ -148,6 +163,22 @@ export function TenantSettingsModule({
           Salvar configurações
         </button>
       </form>
+
+      <TreatmentPlansConfigSection
+        tenantPublicId={tenantPublicId}
+        terminology={experienceQuery.data?.terminology as TenantTerminologyOverrides}
+        canUpdate={canUpdate}
+      />
+
+      <TreatmentPlansReminderConfigSection
+        tenantPublicId={tenantPublicId}
+        canUpdate={canUpdate}
+        treatmentPlanLabels={{
+          singular:
+            (experienceQuery.data?.terminology as TenantTerminologyOverrides)
+              ?.treatmentPlanSingular ?? 'orçamento',
+        }}
+      />
     </section>
   );
 }

@@ -22,6 +22,15 @@ export interface ResolvableCommercialPolicy {
   publicMessage: string;
 }
 
+/** Single commercial access decision shared by HTTP and non-HTTP callers. */
+export function resolveSubscriptionAccess(
+  subscription: ResolvableSubscription,
+  policy: ResolvableCommercialPolicy,
+  now: Date = new Date(),
+): TenantCommercialStatus {
+  return new TenantCommercialStatusResolver().resolve(subscription, policy, now);
+}
+
 export class TenantCommercialStatusResolver {
   public resolve(
     subscription: ResolvableSubscription,
@@ -29,14 +38,17 @@ export class TenantCommercialStatusResolver {
     now: Date = new Date(),
   ): TenantCommercialStatus {
     const state = this.resolveState(subscription, now);
-    const blocked = state !== 'TRIALING' && state !== 'ACTIVE';
+    const paidPeriodCurrent = subscription.currentPeriodEndsAt !== null && subscription.currentPeriodEndsAt.getTime() > now.getTime();
+    const trialCurrent = subscription.status === 'TRIALING' && subscription.trialEndsAt !== null && subscription.trialEndsAt.getTime() > now.getTime();
+    const accessCurrent = trialCurrent || ((subscription.status === 'ACTIVE' || subscription.status === 'CANCELED') && paidPeriodCurrent);
+    const blocked = !accessCurrent && state !== 'GRACE';
 
     const trialDaysRemaining =
       state === 'TRIALING' && subscription.trialEndsAt !== null
         ? Math.max(0, Math.ceil((subscription.trialEndsAt.getTime() - now.getTime()) / 86_400_000))
         : null;
 
-    const capabilities = this.resolveCapabilities(state, policy);
+    const capabilities = this.resolveCapabilities(state, policy, accessCurrent);
 
     const result: TenantCommercialStatus = {
       state,
@@ -56,8 +68,8 @@ export class TenantCommercialStatusResolver {
     subscription: ResolvableSubscription,
     now: Date,
   ): TenantCommercialStatus['state'] {
-    if (subscription.status === 'TRIALING') return 'TRIALING';
-    if (subscription.status === 'ACTIVE') return 'ACTIVE';
+    if (subscription.status === 'TRIALING') return subscription.trialEndsAt !== null && subscription.trialEndsAt.getTime() > now.getTime() ? 'TRIALING' : 'EXPIRED';
+    if (subscription.status === 'ACTIVE') return subscription.currentPeriodEndsAt !== null && subscription.currentPeriodEndsAt.getTime() > now.getTime() ? 'ACTIVE' : 'EXPIRED';
     if (subscription.status === 'PAST_DUE') {
       return subscription.graceEndsAt !== null && subscription.graceEndsAt.getTime() > now.getTime()
         ? 'GRACE'
@@ -69,8 +81,9 @@ export class TenantCommercialStatusResolver {
   private resolveCapabilities(
     state: TenantCommercialStatus['state'],
     policy: ResolvableCommercialPolicy,
+    accessCurrent: boolean,
   ): TenantCommercialStatus['capabilities'] {
-    if (state === 'TRIALING' || state === 'ACTIVE') {
+    if (accessCurrent) {
       return {
         canAccessAdmin: true,
         canReadCalendar: true,

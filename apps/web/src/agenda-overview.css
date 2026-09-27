@@ -1,0 +1,315 @@
+/* Visão da agenda: cockpit operacional. Usa exclusivamente os tokens do Premium App. */
+.agenda-overview {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.agenda-overview .ds-page-header {
+  margin: 0;
+}
+.agenda-period-controls {
+  align-items: center;
+}
+.agenda-overview .agenda-period-controls input[type='date'] {
+  width: 9.5rem;
+}
+.agenda-period-label {
+  color: var(--app-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin: -0.75rem 0 0;
+  text-transform: capitalize;
+}
+.agenda-metrics-skeleton i {
+  height: 6rem;
+}
+.agenda-overview .agenda-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-sm);
+  min-width: 0;
+  padding: 1.1rem 1.2rem;
+}
+.agenda-analytics {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+}
+.agenda-analytics-wide {
+  grid-column: 1/-1;
+}
+
+/* Donut de status */
+.agenda-donut {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(8rem, 10rem) 1fr;
+}
+.agenda-donut svg {
+  width: 100%;
+}
+.agenda-donut-track {
+  fill: none;
+  stroke: #eef2f6;
+  stroke-width: 20;
+}
+.agenda-donut-value {
+  fill: var(--app-text);
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-anchor: middle;
+}
+.agenda-donut-label {
+  fill: var(--app-muted);
+  font-size: 0.62rem;
+  text-anchor: middle;
+}
+.agenda-donut-legend {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+.agenda-donut-legend li {
+  align-items: center;
+  display: grid;
+  font-size: 0.82rem;
+  gap: 0.5rem;
+  grid-template-columns: 0.6rem 1fr auto auto;
+}
+.agenda-donut-legend i {
+  border-radius: 50%;
+  height: 0.6rem;
+  width: 0.6rem;
+}
+.agenda-donut-legend small {
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  min-width: 3.2rem;
+  text-align: right;
+}
+
+/* Ranking de profissionais */
+.agenda-ranking {
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.agenda-overview .agenda-ranking button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 2rem minmax(5rem, 9rem) 1fr auto;
+  padding: 0.4rem 0.5rem;
+  width: 100%;
+}
+.agenda-overview .agenda-ranking button:hover,
+.agenda-overview .agenda-ranking button.is-active {
+  background: var(--app-surface-subtle);
+  border-color: var(--app-border);
+}
+.agenda-ranking-name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agenda-avatar {
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 50%;
+  color: var(--app-accent);
+  display: inline-flex;
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 800;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
+}
+
+/* Horários mais movimentados */
+.agenda-hour-chart {
+  align-items: end;
+  display: flex;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  min-height: 9rem;
+  overflow-x: auto;
+  padding: 0;
+}
+.agenda-hour-chart li {
+  display: grid;
+  flex: 1 0 2.2rem;
+  gap: 0.2rem;
+  grid-template-rows: 6rem auto auto;
+  justify-items: center;
+}
+.agenda-hour-bar {
+  align-self: end;
+  background: color-mix(in srgb, var(--app-accent) 75%, #fff);
+  border-radius: 0.35rem 0.35rem 0 0;
+  min-height: 0.15rem;
+  width: 100%;
+}
+.agenda-hour-chart strong {
+  font-size: 0.74rem;
+}
+.agenda-hour-chart small {
+  color: var(--app-muted);
+  font-size: 0.68rem;
+}
+
+/* Filtros e lista */
+.agenda-filters .agenda-filter-search {
+  flex: 1 1 16rem;
+}
+.agenda-overview .agenda-filters .agenda-filter-search input {
+  width: 100%;
+}
+.agenda-overview .agenda-table {
+  min-width: 58rem;
+}
+.agenda-table-wrap {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+}
+.agenda-customer {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+}
+.agenda-customer > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+.agenda-overview .agenda-customer .text-button {
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+}
+.agenda-customer small {
+  color: var(--app-muted);
+  font-size: 0.74rem;
+}
+.agenda-row-actions {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.agenda-menu {
+  position: relative;
+}
+.agenda-menu-list {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-md);
+  display: grid;
+  list-style: none;
+  margin: 0;
+  min-width: 12rem;
+  padding: 0.3rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 20;
+}
+.agenda-overview .agenda-menu-list button {
+  background: transparent;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  font-size: 0.82rem;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  width: 100%;
+}
+.agenda-overview .agenda-menu-list button:hover {
+  background: var(--app-surface-subtle);
+}
+.agenda-overview .agenda-menu-list button.is-danger {
+  color: var(--app-danger);
+}
+.agenda-overview .agenda-radio {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  font-weight: 600;
+  gap: 0.5rem;
+}
+
+/* Cartões operacionais no mobile */
+.agenda-cards {
+  display: none;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.agenda-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: var(--app-shadow-sm);
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem;
+}
+.agenda-card-head {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+}
+.agenda-card-head strong {
+  font-size: 1.05rem;
+}
+.agenda-card-service {
+  color: var(--app-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.agenda-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.agenda-card .agenda-row-actions {
+  justify-content: flex-start;
+}
+
+@media (max-width: 899px) {
+  .agenda-table-wrap {
+    display: none;
+  }
+  .agenda-cards {
+    display: grid;
+  }
+  .agenda-donut {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .agenda-donut svg {
+    max-width: 12rem;
+  }
+  .agenda-donut-legend {
+    width: 100%;
+  }
+  .agenda-period-controls {
+    width: 100%;
+  }
+}

@@ -7,6 +7,7 @@ import {
   TenantPublicSchema,
   TenantSettingsSchema,
   UserPublicSchema,
+  normalizeOperatingModel,
   type AvailableTenant,
   type CreateTenantWithOwnerResponse,
   type InvitationPublic,
@@ -30,11 +31,13 @@ import {
   type InvitationRecord,
   type MembershipListInput,
   type MembershipListResult,
+  type PasswordUserInput,
   type PasswordResetInput,
   type RequestMetadata,
 } from './identity.repository.js';
 import { generatePublicId } from './token.service.js';
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
+import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 const userSelect = {
   id: true,
@@ -167,6 +170,9 @@ export class PrismaIdentityRepository implements IdentityRepository {
               city: input.request.initialUnit.city ?? null,
               state: input.request.initialUnit.state ?? null,
               countryCode: input.request.initialUnit.countryCode ?? null,
+              latitude: input.request.initialUnit.latitude ?? null,
+              longitude: input.request.initialUnit.longitude ?? null,
+              googleMapsUrl: input.request.initialUnit.googleMapsUrl ?? null,
             },
           });
           const now = new Date();
@@ -204,7 +210,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
           });
 
           return CreateTenantWithOwnerResponseSchema.parse({
-            tenant: TenantPublicSchema.parse(tenant),
+            tenant: TenantPublicSchema.parse({ ...tenant, operatingModel: normalizeOperatingModel(tenant.operatingModel) }),
             settings: TenantSettingsSchema.parse({
               ...settings,
               timeFormat: timeFormat(settings.timeFormat),
@@ -227,6 +233,70 @@ export class PrismaIdentityRepository implements IdentityRepository {
       select: userSelect,
     });
     return user === null ? null : mapUser(user);
+  }
+
+  public async findUserByGoogleSub(googleSub: string): Promise<AuthUserRecord | null> {
+    const user = await this.client.user.findUnique({
+      where: { googleSub },
+      select: userSelect,
+    });
+    return user === null ? null : mapUser(user);
+  }
+
+  public async linkGoogleSub(userId: bigint, googleSub: string): Promise<void> {
+    try {
+      await this.client.user.update({
+        where: { id: userId },
+        data: { googleSub },
+      });
+    } catch (error) {
+      return conflict(error);
+    }
+  }
+
+  public async createGoogleUser(input: {
+    publicId: string;
+    email: string;
+    normalizedEmail: string;
+    googleSub: string;
+    name: string;
+    passwordHash: string;
+  }): Promise<AuthUserRecord> {
+    try {
+      const user = await this.client.user.create({
+        data: {
+          publicId: input.publicId,
+          email: input.email,
+          normalizedEmail: input.normalizedEmail,
+          googleSub: input.googleSub,
+          passwordHash: input.passwordHash,
+          status: 'ACTIVE',
+        },
+        select: userSelect,
+      });
+      return mapUser(user);
+    } catch (error) {
+      return conflict(error);
+    }
+  }
+
+  public async createPasswordUser(input: PasswordUserInput): Promise<AuthUserRecord> {
+    try {
+      const user = await this.client.user.create({
+        data: {
+          publicId: input.publicId,
+          email: input.email,
+          normalizedEmail: input.normalizedEmail,
+          passwordHash: input.passwordHash,
+          status: 'ACTIVE',
+          passwordChangedAt: new Date(),
+        },
+        select: userSelect,
+      });
+      return mapUser(user);
+    } catch (error) {
+      return conflict(error);
+    }
   }
 
   public async createLoginSession(input: CreateLoginSessionInput): Promise<AuthSessionRecord> {
@@ -320,7 +390,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
       include: { tenant: true, role: { select: { code: true } } },
     });
     return memberships.map((membership) => ({
-      tenant: TenantPublicSchema.parse(membership.tenant),
+      tenant: TenantPublicSchema.parse({ ...membership.tenant, operatingModel: normalizeOperatingModel(membership.tenant.operatingModel) }),
       membership: { publicId: membership.publicId, roleCode: membership.role.code },
     }));
   }
@@ -340,7 +410,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     if (membership === null) return null;
     return {
       id: membership.tenant.id,
-      ...TenantPublicSchema.parse(membership.tenant),
+      ...TenantPublicSchema.parse({ ...membership.tenant, operatingModel: normalizeOperatingModel(membership.tenant.operatingModel) }),
       membership: {
         id: membership.id,
         publicId: membership.publicId,
@@ -493,10 +563,23 @@ export class PrismaIdentityRepository implements IdentityRepository {
     try {
       return await this.client.$transaction(
         async (transaction) => {
+          // Serializa convites por tenant antes de revalidar o e-mail pendente.
+          await transaction.$queryRaw`
+            SELECT id FROM tenants WHERE id = ${input.tenantId} FOR UPDATE
+          `;
           const role = await transaction.role.findFirst({
             where: { code: input.request.roleCode, isSystem: true, tenantId: null },
           });
           if (role === null) throw new IdentityConflictError('STRUCTURE');
+          const pending = await transaction.userInvitation.findFirst({
+            where: {
+              tenantId: input.tenantId,
+              normalizedEmail: input.normalizedEmail,
+              status: 'PENDING',
+            },
+            select: { id: true },
+          });
+          if (pending !== null) throw new IdentityConflictError('INVITATION');
           const existingUser = await transaction.user.findUnique({
             where: { normalizedEmail: input.normalizedEmail },
             select: { id: true },
@@ -634,6 +717,17 @@ export class PrismaIdentityRepository implements IdentityRepository {
             if (invitation?.status !== 'PENDING' || invitation.expiresAt <= input.now) {
               throw new IdentityConflictError('INVITATION');
             }
+            if (invitation.role.code === 'OWNER') {
+              // A linha do tenant é o mutex transacional portátil para promoção a OWNER.
+              await transaction.$queryRaw`
+                SELECT id FROM tenants WHERE id = ${invitation.tenantId} FOR UPDATE
+              `;
+              const owner = await transaction.tenantMembership.findFirst({
+                where: { tenantId: invitation.tenantId, isOwner: true },
+                select: { id: true },
+              });
+              if (owner !== null) throw new IdentityConflictError('MEMBERSHIP');
+            }
             let user = await transaction.user.findUnique({
               where: { normalizedEmail: invitation.normalizedEmail },
             });
@@ -660,6 +754,10 @@ export class PrismaIdentityRepository implements IdentityRepository {
               throw new IdentityConflictError('MEMBERSHIP');
             }
             if (existingMembership === null) {
+              await new PlanEntitlementService().assertCanAddMember(
+                transaction,
+                invitation.tenantId,
+              );
               await transaction.tenantMembership.create({
                 data: {
                   publicId: input.membershipPublicId,

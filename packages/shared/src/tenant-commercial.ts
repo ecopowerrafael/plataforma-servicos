@@ -3,6 +3,17 @@ import { z } from 'zod';
 import { PublicSiteBehaviorSchema } from './platform.js';
 
 const IsoDateSchema = z.iso.datetime({ offset: true });
+const CommercialWhatsappSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== 'string') return value;
+    const normalized = value.replace(/[^0-9]/gu, '');
+    return normalized.length === 0 ? null : normalized;
+  },
+  z
+    .string()
+    .regex(/^[1-9][0-9]{7,14}$/u, 'Informe um número válido com DDI e DDD.')
+    .nullable(),
+);
 
 export const TenantCommercialPolicySchema = z.object({
   publicId: z.uuid(),
@@ -17,6 +28,7 @@ export const TenantCommercialPolicySchema = z.object({
   publicSiteBehaviorWhileBlocked: PublicSiteBehaviorSchema,
   adminMessage: z.string(),
   publicMessage: z.string(),
+  commercialWhatsapp: z.string().nullable(),
   createdAt: IsoDateSchema,
   updatedAt: IsoDateSchema,
 });
@@ -34,6 +46,7 @@ export const UpdateTenantCommercialPolicyRequestSchema = z
     publicSiteBehaviorWhileBlocked: PublicSiteBehaviorSchema.optional(),
     adminMessage: z.string().trim().min(1).max(1000).optional(),
     publicMessage: z.string().trim().min(1).max(1000).optional(),
+    commercialWhatsapp: CommercialWhatsappSchema.optional(),
   })
   .strict();
 

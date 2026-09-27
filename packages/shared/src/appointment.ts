@@ -12,6 +12,8 @@ const inputShape = {
   fitInReason: z.string().trim().min(3).max(500).optional(),
   depositType: DepositTypeSchema.nullable().optional(),
   depositValue: z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+  /** Agenda uma sessão do plano informado, em vez de um atendimento comum. */
+  treatmentPlanPublicId: z.uuid().optional(),
 };
 function withFitInValidation<T extends z.ZodType>(schema: T): T {
   return schema.superRefine((value, context) => {
@@ -84,17 +86,27 @@ export const AppointmentQuerySchema = z
     servicePublicId: z.uuid().optional(),
     unitPublicId: z.uuid().optional(),
     search: z.string().trim().min(1).max(160).optional(),
+    /* Paginação opcional: sem `limit` a listagem devolve o período inteiro, como antes. */
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+    direction: z.enum(['asc', 'desc']).optional(),
   })
   .strict();
+/** Papel do agendamento; persistido, nunca inferido pelo status ou pelo nome. */
+export const AppointmentKindSchema = z.enum(['STANDARD', 'EVALUATION', 'TREATMENT_SESSION']);
+export const AppointmentChargeSourceSchema = z.enum(['SERVICE_PRICE', 'MEMBERSHIP_INCLUDED', 'MEMBERSHIP_DISCOUNT']);
 export const AppointmentPublicSchema = z.object({
   publicId: z.uuid(),
   protocol: z.string(),
   customerPublicId: z.uuid(),
   customerName: z.string(),
+  customerPhone: z.string().nullable(),
   professionalPublicId: z.uuid(),
   professionalName: z.string(),
-  servicePublicId: z.uuid(),
-  serviceName: z.string(),
+  servicePublicId: z.uuid().nullable(),
+  serviceName: z.string().nullable(),
+  comboPublicId: z.uuid().nullable(),
+  comboName: z.string().nullable(),
   unitPublicId: z.uuid().nullable(),
   unitName: z.string().nullable(),
   startsAt: z.iso.datetime({ offset: true }),
@@ -102,11 +114,18 @@ export const AppointmentPublicSchema = z.object({
   durationMinutes: z.number().int(),
   postServiceBreakMinutes: z.number().int(),
   priceCents: z.string(),
+  chargeSource: AppointmentChargeSourceSchema.nullable(),
+  referencePriceCents: z.string().nullable(),
+  amountDueCents: z.string().nullable(),
   status: z.enum(['PENDING', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED', 'NO_SHOW']),
   notes: z.string().nullable(),
   source: z.string(),
   canceledReason: z.string().nullable(),
   rescheduleReason: z.string().nullable(),
+  kind: AppointmentKindSchema,
+  /** Plano de tratamento das sessões; nulo em avaliações e atendimentos comuns. */
+  treatmentPlanPublicId: z.uuid().nullable(),
+  sessionNumber: z.number().int().min(1).nullable(),
   isFitIn: z.boolean(),
   fitInReason: z.string().nullable(),
   checkedInAt: z.iso.datetime({ offset: true }).nullable(),
@@ -116,7 +135,13 @@ export const AppointmentPublicSchema = z.object({
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
-export const AppointmentListResponseSchema = z.object({ items: z.array(AppointmentPublicSchema) });
+export const AppointmentListResponseSchema = z.object({
+  items: z.array(AppointmentPublicSchema),
+  /* Presentes apenas quando a consulta é paginada. */
+  total: z.number().int().nonnegative().optional(),
+  page: z.number().int().min(1).optional(),
+  limit: z.number().int().min(1).optional(),
+});
 export const AppointmentStatusResponseSchema = z.object({ success: z.literal(true) });
 export type CreateAppointmentRequest = z.infer<typeof CreateAppointmentRequestSchema>;
 export type UpdateAppointmentRequest = z.infer<typeof UpdateAppointmentRequestSchema>;

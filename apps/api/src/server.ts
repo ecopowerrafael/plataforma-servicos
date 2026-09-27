@@ -1,13 +1,17 @@
 import pino from 'pino';
 
 import { buildApp } from './app.js';
+import { databaseOptionsFromEnvironment } from './config/database-options.js';
 import {
   EnvironmentValidationError,
   loadEnvironment,
   type Environment,
 } from './config/environment.js';
-import { createDatabaseConnection } from './database/connection.js';
+import { createDatabaseConnection, type DatabaseConnection } from './database/connection.js';
+import { PasswordService } from './modules/auth/password.service.js';
 import { startNotificationWorker } from './modules/notifications/notification-worker.js';
+import { ProspectingWorkerService } from './modules/prospecting/prospecting-worker.service.js';
+import { WApiProspectingMessageSender } from './modules/prospecting/prospecting-message-sender.service.js';
 
 const bootstrapLogger = pino({
   level: 'info',
@@ -17,65 +21,54 @@ const bootstrapLogger = pino({
   },
 });
 
-async function start(environment: Environment): Promise<void> {
-  const database = createDatabaseConnection(environment.DATABASE_URL, {
-    ...(environment.PUBLIC_BASE_DOMAIN === undefined
-      ? {}
-      : { publicBaseDomain: environment.PUBLIC_BASE_DOMAIN }),
-    passwordArgon2: {
-      memoryCost: environment.PASSWORD_ARGON2_MEMORY_COST,
-      timeCost: environment.PASSWORD_ARGON2_TIME_COST,
-      parallelism: environment.PASSWORD_ARGON2_PARALLELISM,
-    },
-    sessionTtlHours: environment.AUTH_SESSION_TTL_HOURS,
-    ...(environment.SMTP_HOST === undefined || environment.SMTP_FROM === undefined
-      ? {}
-      : {
-          smtp: {
-            host: environment.SMTP_HOST,
-            port: environment.SMTP_PORT,
-            secure: environment.SMTP_SECURE,
-            user: environment.SMTP_USER,
-            pass: environment.SMTP_PASS,
-            from: environment.SMTP_FROM,
-          },
-        }),
-    ...(environment.VAPID_PUBLIC_KEY === undefined ||
-    environment.VAPID_PRIVATE_KEY === undefined ||
-    environment.VAPID_SUBJECT === undefined
-      ? {}
-      : {
-          vapid: {
-            publicKey: environment.VAPID_PUBLIC_KEY,
-            privateKey: environment.VAPID_PRIVATE_KEY,
-            subject: environment.VAPID_SUBJECT,
-          },
-        }),
-    ...(environment.PAYMENT_GATEWAY_ENCRYPTION_KEY === undefined
-      ? {}
-      : { paymentGatewayEncryptionKey: environment.PAYMENT_GATEWAY_ENCRYPTION_KEY }),
-  });
+async function start(environment: Environment, startedAt: number): Promise<void> {
+  const since = () => `${String(Date.now() - startedAt)}ms`;
+  const database = createDatabaseConnection(
+    environment.DATABASE_URL,
+    databaseOptionsFromEnvironment(environment),
+    environment,
+  );
+  bootstrapLogger.info({ elapsed: since() }, 'Conexão de banco criada');
   const app = await buildApp({ environment, database });
+  bootstrapLogger.info({ elapsed: since() }, 'Aplicação construída');
   let shuttingDown = false;
 
-  const stopNotificationWorker =
+  const startNotificationWorkerInstance = () =>
     database.appointmentReminders !== undefined && database.notifications !== undefined
       ? startNotificationWorker(
           {
             reminders: database.appointmentReminders,
             notifications: database.notifications,
+            ...(database.notificationCampaigns === undefined
+              ? {}
+              : { campaigns: database.notificationCampaigns }),
             ...(database.automations === undefined ? {} : { automations: database.automations }),
             ...(database.customerRecovery === undefined
               ? {}
               : { customerRecovery: database.customerRecovery }),
+            ...(database.collectionAttempts === undefined
+              ? {}
+              : { collectionAttempts: database.collectionAttempts }),
+            ...(database.collectionAttemptExecution === undefined
+              ? {}
+              : { collectionAttemptExecution: database.collectionAttemptExecution }),
+            ...(database.paymentPromises === undefined
+              ? {}
+              : { paymentPromises: database.paymentPromises }),
             ...(database.loyalty === undefined ? {} : { loyalty: database.loyalty }),
             ...(database.commercialSweep === undefined
               ? {}
               : { commercialSweep: database.commercialSweep }),
+            ...(database.directorySeo === undefined ? {} : { directorySeo: database.directorySeo }),
           },
           { intervalMs: 60_000, logger: app.log },
         )
       : undefined;
+
+  const workers: { notification: (() => void) | undefined; prospecting: (() => Promise<void>) | undefined } = {
+    notification: undefined,
+    prospecting: undefined,
+  };
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) {
@@ -84,7 +77,8 @@ async function start(environment: Environment): Promise<void> {
 
     shuttingDown = true;
     app.log.info({ signal }, 'Encerramento iniciado');
-    stopNotificationWorker?.();
+    workers.notification?.();
+    await workers.prospecting?.();
 
     try {
       await app.close();
@@ -102,19 +96,106 @@ async function start(environment: Environment): Promise<void> {
     void shutdown('SIGTERM');
   });
 
+  // A partir daqui nada mais pode atrasar o listen: o ambiente da Hostinger
+  // derruba o processo se o servidor não abrir a porta em poucos segundos.
   await app.listen({ host: environment.API_HOST, port: environment.API_PORT });
-  app.log.info({ host: environment.API_HOST, port: environment.API_PORT }, 'API inicializada');
-}
+  app.log.info(
+    { host: environment.API_HOST, port: environment.API_PORT, elapsed: since() },
+    'API inicializada',
+  );
 
-try {
-  const environment = loadEnvironment();
-  await start(environment);
-} catch (error) {
-  if (error instanceof EnvironmentValidationError) {
-    bootstrapLogger.fatal({ fields: error.fields }, error.message);
+  // Tarefas auxiliares só depois que o HTTP já responde.
+  void runPostStartTasks(environment, database, app);
+  workers.notification = startNotificationWorkerInstance();
+
+  // Iniciar ProspectingWorker se habilitado
+  if (
+    environment.PROSPECTING_WORKER_ENABLED &&
+    database.prospectingWhatsAppConfig !== undefined
+  ) {
+    const messageSender = new WApiProspectingMessageSender(
+      database.prospectingWhatsAppConfig,
+      environment,
+    );
+    const prospectingWorker = new ProspectingWorkerService(
+      database.client,
+      environment,
+      messageSender,
+      database.prospectingWhatsAppConfig,
+    );
+    prospectingWorker.start();
+    workers.prospecting = () => prospectingWorker.stop();
+    app.log.info(
+      {
+        interval: environment.PROSPECTING_WORKER_INTERVAL_SECONDS,
+        timezone: environment.PROSPECTING_TIMEZONE,
+        dryRun: environment.PROSPECTING_DRY_RUN,
+      },
+      'Prospecting worker iniciado',
+    );
+  } else if (environment.PROSPECTING_WORKER_ENABLED) {
+    app.log.warn('Prospecting worker desativado: dependências não disponíveis');
   } else {
-    bootstrapLogger.fatal({ err: error }, 'Falha ao inicializar a API');
+    app.log.info('Prospecting worker desativado por configuração');
   }
 
-  process.exitCode = 1;
+  app.log.info({ elapsed: since() }, 'Tarefas pós-início disparadas');
 }
+
+/**
+ * Provisionamento idempotente do primeiro administrador da plataforma quando
+ * PLATFORM_ADMIN_EMAIL/PLATFORM_ADMIN_PASSWORD estão presentes. Não-fatal e
+ * fora do caminho crítico: roda depois do `listen`, sem bloquear o HTTP.
+ */
+async function runPostStartTasks(
+  environment: Environment,
+  database: DatabaseConnection,
+  app: Awaited<ReturnType<typeof buildApp>>,
+): Promise<void> {
+  if (
+    environment.PLATFORM_ADMIN_EMAIL === undefined ||
+    environment.PLATFORM_ADMIN_PASSWORD === undefined ||
+    database.platform === undefined
+  )
+    return;
+  const email = environment.PLATFORM_ADMIN_EMAIL;
+  const password = environment.PLATFORM_ADMIN_PASSWORD;
+  try {
+    const passwordService = new PasswordService({
+      memoryCost: environment.PASSWORD_ARGON2_MEMORY_COST,
+      timeCost: environment.PASSWORD_ARGON2_TIME_COST,
+      parallelism: environment.PASSWORD_ARGON2_PARALLELISM,
+    });
+    const result = await database.platform.ensureInitialAdministrator({
+      email,
+      hashPassword: () => passwordService.hash(password),
+      metadata: { ipAddress: null, userAgent: 'startup-platform-admin-provisioning' },
+    });
+    app.log.info({ email, result }, 'Provisionamento do administrador da plataforma concluído.');
+  } catch (error) {
+    app.log.error({ err: error }, 'Falha ao provisionar o administrador da plataforma.');
+  }
+}
+
+// Sem `await` de topo: o loader de Node.js da Hostinger (LiteSpeed lsnode)
+// carrega o entry file com `require()`, que não aceita um grafo ESM com
+// top-level await (ERR_REQUIRE_ASYNC_MODULE). Encapsulamos a inicialização em
+// uma função assíncrona disparada sem await no escopo do módulo.
+async function bootstrap(): Promise<void> {
+  try {
+    const startedAt = Date.now();
+    const environment = loadEnvironment();
+    bootstrapLogger.info({ elapsed: `${String(Date.now() - startedAt)}ms` }, 'Ambiente carregado');
+    await start(environment, startedAt);
+  } catch (error) {
+    if (error instanceof EnvironmentValidationError) {
+      bootstrapLogger.fatal({ fields: error.fields }, error.message);
+    } else {
+      bootstrapLogger.fatal({ err: error }, 'Falha ao inicializar a API');
+    }
+
+    process.exitCode = 1;
+  }
+}
+
+void bootstrap();

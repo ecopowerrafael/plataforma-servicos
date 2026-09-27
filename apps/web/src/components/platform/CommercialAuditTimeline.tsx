@@ -1,0 +1,7 @@
+import { IconArrowUp, IconCheck, IconClock, IconHistory } from '@tabler/icons-react';
+import { formatDate, formatStatus } from './PlatformUi.js';
+
+const labels: Record<string, string> = { PLAN_CHANGED: 'Plano alterado', ACTIVATED: 'Pagamento/assinatura ativada', TRIAL_STARTED: 'Trial iniciado', TRIAL_EXTENDED: 'Trial estendido', PERIOD_UPDATED: 'Período atualizado', SUSPENDED: 'Assinatura suspensa', CANCELED: 'Assinatura cancelada' };
+export function CommercialAuditTimeline({ events }: { events: Array<{ publicId: string; action: string; createdAt: string; previousStatus?: string | null; newStatus?: string | null; performedBy?: { email?: string } | null; reason?: string | null }> }) {
+  return <ol className="platform-commercial-timeline">{events.map((event) => { const Icon = event.action === 'ACTIVATED' ? IconCheck : event.action.includes('TRIAL') ? IconClock : event.action === 'PLAN_CHANGED' ? IconArrowUp : IconHistory; return <li key={event.publicId}><span className="platform-timeline-icon"><Icon size={16} /></span><time>{formatDate(event.createdAt, true)}</time><strong>{labels[event.action] ?? event.action.replaceAll('_', ' ')}</strong>{event.previousStatus || event.newStatus ? <span>{event.previousStatus ? formatStatus(event.previousStatus) : '—'} → {event.newStatus ? formatStatus(event.newStatus) : '—'}</span> : null}<small>Responsável: {event.performedBy?.email ?? 'Sistema'}</small>{event.reason ? <small>Motivo: {event.reason}</small> : null}</li>; })}</ol>;
+}

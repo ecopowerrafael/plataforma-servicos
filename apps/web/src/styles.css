@@ -12148,8 +12148,14 @@ h1 {
 }
 
 /* Conexão WhatsApp: camada visual enxuta sobre os componentes de integração existentes. */
-.whatsapp-legacy-provider-selector,
-.whatsapp-connection-dashboard > .whatsapp-current-card { display: none; }
+.whatsapp-tabs { display:flex; gap:4px; border-bottom:1px solid #e2e8f0; margin:0 0 24px; }
+.whatsapp-tabs button { border:0; border-bottom:2px solid transparent; background:transparent; color:#64748b; padding:12px 16px; cursor:pointer; font:inherit; }
+.whatsapp-tabs button.is-active { color:#166534; border-bottom-color:#25a366; font-weight:700; }
+.whatsapp-health-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.whatsapp-health-grid article { display:flex; flex-direction:column; gap:6px; padding:16px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+.whatsapp-health-grid span { color:#166534; font-size:14px; }
+.whatsapp-current-card { display:flex; align-items:flex-start; gap:16px; padding:22px; border:1px solid #e2e8f0; border-radius:16px; background:#fff; }
+.whatsapp-current-card__actions { margin-left:auto; display:flex; align-items:flex-end; flex-direction:column; gap:10px; }
 .whatsapp-status-banner { display:flex; align-items:center; gap:16px; margin:18px 0 24px; padding:18px 20px; border:1px solid var(--border-color, #e5e7eb); border-radius:16px; background:#fff; box-shadow:0 8px 24px rgba(15,23,42,.05); }
 .whatsapp-status-banner.is-connected { border-color:#bbf7d0; background:#f0fdf4; }
 .whatsapp-status-banner.is-disconnected { border-color:#fecaca; background:#fffafa; }
@@ -12173,7 +12179,7 @@ h1 {
 .whatsapp-comparison-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:22px 0; }
 .whatsapp-comparison-grid > div { padding:18px; border:1px solid #e2e8f0; border-radius:12px; }
 .whatsapp-comparison-grid ul { padding-left:18px; color:#475569; }
-@media (max-width:700px) { .whatsapp-status-banner { align-items:flex-start; flex-wrap:wrap; } .whatsapp-status-banner__actions { width:100%; justify-content:flex-start; } .whatsapp-provider-grid--compact,.whatsapp-comparison-grid { grid-template-columns:1fr; } }
+@media (max-width:700px) { .whatsapp-status-banner { align-items:flex-start; flex-wrap:wrap; } .whatsapp-status-banner__actions { width:100%; justify-content:flex-start; } .whatsapp-provider-grid--compact,.whatsapp-comparison-grid { grid-template-columns:1fr; } .whatsapp-tabs { width:100%; } .whatsapp-tabs button { flex:1; } .whatsapp-current-card { flex-direction:column; } .whatsapp-current-card__actions { width:100%; align-items:stretch; margin-left:0; } .whatsapp-health-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .whatsapp-connection-hero {
   display: grid;
   gap: 8px;

@@ -21,8 +21,6 @@ import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
 import { ConnectionStatusBanner } from './ConnectionStatusBanner.js';
-import { ConnectionTypeSelector } from './ConnectionTypeSelector.js';
-import { ComparisonModal } from './ComparisonModal.js';
 
 const STATE_LABEL: Record<string, string> = {
   NOT_CREATED: 'Não configurado',
@@ -63,7 +61,7 @@ const PROVIDER_PRESENTATION: Record<
   { name: string; subtitle: string; description: string; advantages: string[]; considerations: string[] }
 > = {
   WAPI: {
-    name: 'API não oficial',
+    name: 'API Própria',
     subtitle: 'Conexão por QR Code',
     description: 'Conecte rapidamente usando o QR Code do WhatsApp, sem precisar configurar uma conta na Meta.',
     advantages: ['Configuração simples por QR Code', 'Conexão rápida', 'Não exige configuração na Meta', 'Boa opção para começar rapidamente'],
@@ -76,7 +74,7 @@ const PROVIDER_PRESENTATION: Record<
   },
   META: {
     name: 'API Oficial',
-    subtitle: 'Meta Cloud API',
+    subtitle: 'API oficial da Meta',
     description: 'Integração direta com a plataforma oficial do WhatsApp Business da Meta.',
     advantages: [
       'Integração oficial da Meta',
@@ -93,11 +91,11 @@ const PROVIDER_PRESENTATION: Record<
     ],
   },
   EVOLUTION: {
-    name: 'Evolution GO',
+    name: 'API Própria',
     subtitle: 'Conexão por QR Code',
     description: 'Conecte rapidamente usando o QR Code do WhatsApp.',
     advantages: ['Provisionamento automático', 'Conexão por QR Code', 'Reconectar pelo painel'],
-    considerations: ['Depende da disponibilidade do servidor Evolution GO', 'A conexão é feita por QR Code'],
+    considerations: ['A conexão é feita por QR Code'],
   },
 };
 
@@ -198,7 +196,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [confirmSwitch, setConfirmSwitch] = useState<ProviderId | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'status' | 'switch'>('status');
   const [managedProvider, setManagedProvider] = useState<ProviderId>('WAPI');
   const [metaTab, setMetaTab] = useState<MetaTab>('account');
   const [metaForm, setMetaForm] = useState({ phoneNumberId: '', businessAccountId: '', accessToken: '', appSecret: '', apiVersion: 'v23.0' });
@@ -229,7 +227,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const activePresentation = PROVIDER_PRESENTATION[activeProvider] ?? PROVIDER_PRESENTATION.WAPI;
   const managedPresentation = PROVIDER_PRESENTATION[managedProvider] ?? PROVIDER_PRESENTATION.WAPI;
   const providerItems = providers.data?.length ? providers.data : connection.data?.provisioned ? [{ provider: activeProvider, available: true, availableForNew: false, configured: true }] : [];
-  const visibleProviderItems = providerItems.filter((item) => item.available || item.configured);
+  const visibleProviderItems = providerItems.filter((item) => item.available === true);
   const selectedProviderOption = providerItems.find((item) => item.provider === managedProvider);
   const managedProviderIsActive = managedProvider === activeProvider;
   const metaConnectionDetails = managedProvider === 'META'
@@ -353,7 +351,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   });
   const reconfigureWebhooks = useMutation({
     mutationFn: () => httpClient.request('/tenant/integrations/whatsapp/webhooks/reconfigure', { method: 'POST', body: {}, schema: z.object({ success: z.literal(true) }), tenantPublicId }),
-    onSuccess: () => setNotice('Webhooks W-API reconfigurados com sucesso.'),
+    onSuccess: () => setNotice('Webhooks reconfigurados com sucesso.'),
   });
 
   const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || reconfigureWebhooks.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
@@ -376,17 +374,24 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
     setQrCode(null);
     setConfirmSwitch(null);
     setNotice(null);
+    setActiveTab('switch');
   };
   const switchProvider = (provider: ProviderId) => updateProvider.mutate(provider);
 
   return (
     <section className="whatsapp-connection-dashboard">
       <header className="whatsapp-connection-hero">
-        <p className="eyebrow">INTEGRAÇÃO</p>
-        <h1>Conexão do WhatsApp</h1>
-        <p>Escolha como o Agendei se conecta ao WhatsApp do seu estabelecimento.</p>
+        <p className="eyebrow">WHATSAPP</p>
+        <h1>WhatsApp</h1>
+        <p>Gerencie a conexão do WhatsApp do seu estabelecimento.</p>
       </header>
 
+      <div className="whatsapp-tabs" role="tablist" aria-label="Configuração do WhatsApp">
+        <button type="button" role="tab" aria-selected={activeTab === 'status'} className={activeTab === 'status' ? 'is-active' : ''} onClick={() => setActiveTab('status')}>Status da conexão</button>
+        <button type="button" role="tab" aria-selected={activeTab === 'switch'} className={activeTab === 'switch' ? 'is-active' : ''} onClick={() => setActiveTab('switch')}>Trocar API</button>
+      </div>
+
+      {activeTab === 'status' ? <>
       <section className="whatsapp-current-card" aria-label="Conexão atual">
         <div className="whatsapp-provider-icon" aria-hidden="true"><ProviderIcon provider={activeProvider} /></div>
         <div>
@@ -404,7 +409,8 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
             <StatusBadge tone="primary">EM USO</StatusBadge>
             <StatusBadge tone={connectionTone(state)}>{STATE_LABEL[state] ?? 'Não configurado'}</StatusBadge>
           </div>
-          <button className="secondary-button" type="button" onClick={() => openProvider(activeProvider)}>Gerenciar conexão</button>
+          <button className="primary-button" type="button" disabled={busy} onClick={() => { if (!provisioned) createInstance.mutate(); else requestQr.mutate(state === 'DISCONNECTED' || state === 'ERROR' ? 'reconnect' : 'qr'); }}>Reconectar</button>
+          {canManage ? <button className="text-button" type="button" disabled={busy} onClick={() => disconnect.mutate()}>Desconectar</button> : null}
         </div>
       </section>
 
@@ -418,10 +424,18 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
         disabled={busy || connection.isFetching}
       />
 
-      <ConnectionTypeSelector selected={managedProvider} active={activeProvider} onSelect={openProvider} onCompare={() => setIsComparisonOpen(true)} />
-      <ComparisonModal open={isComparisonOpen} onClose={() => setIsComparisonOpen(false)} />
+      <section className="whatsapp-section-block" aria-label="Saúde da conexão">
+        <div className="whatsapp-section-heading"><h2>Saúde da conexão</h2><p>Indicadores baseados no status atual da integração.</p></div>
+        <div className="whatsapp-health-grid">
+          <article><strong>WhatsApp</strong><span>{state === 'CONNECTED' ? 'Conectado' : 'Offline'}</span></article>
+          {activeProvider === 'META' && connection.data?.webhookUrl ? <article><strong>Webhook</strong><span>Ativo</span></article> : null}
+          {activeProvider === 'EVOLUTION' || activeProvider === 'WAPI' ? <article><strong>Servidor</strong><span>{state === 'CONNECTED' ? 'Online' : 'Offline'}</span></article> : null}
+          {state === 'CONNECTED' ? <article><strong>Recebimento</strong><span>Funcionando</span></article> : null}
+        </div>
+      </section>
+      </> : null}
 
-      <section className="whatsapp-section-block whatsapp-legacy-provider-selector">
+      {activeTab === 'switch' ? <section className="whatsapp-section-block whatsapp-legacy-provider-selector">
         <div className="whatsapp-section-heading">
           <h2>Formas de conexão</h2>
           <p>Escolha a opção mais adequada para a operação do seu estabelecimento.</p>
@@ -483,7 +497,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                           if (item.configured === true) setConfirmSwitch(item.provider);
                         }}
                       >
-                        {item.configured === true ? (item.provider === 'META' ? 'Usar API Oficial' : item.provider === 'EVOLUTION' ? 'Usar Evolution GO' : 'Usar API não oficial') : item.provider === 'META' ? 'Configurar API Oficial' : item.provider === 'EVOLUTION' ? 'Configurar Evolution GO' : 'Configurar'}
+                        {item.configured === true ? (item.provider === 'META' ? 'Usar API Oficial' : 'Usar API Própria') : item.provider === 'META' ? 'Configurar API Oficial' : 'Configurar API Própria'}
                       </button>
                     )}
                   </div>
@@ -492,7 +506,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
             );
           })}
         </div>
-      </section>
+      </section> : null}
 
       <section className="whatsapp-managed-panel" aria-label={`Configuração de ${managedPresentation.name}`}>
         <header className="whatsapp-managed-panel__header">
@@ -517,7 +531,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
             </div>
           </div>
         )}
-        {selectedProviderOption?.configured === true && selectedProviderOption.availableForNew === false ? <p className="whatsapp-inline-hint" role="status">{managedProvider === 'WAPI' ? 'W-API não está disponível para novas configurações, mas sua conexão existente continua ativa.' : `${managedPresentation.name} não está disponível para novas configurações, mas sua conexão existente continua ativa.`}</p> : null}
+        {selectedProviderOption?.configured === true && selectedProviderOption.availableForNew === false ? <p className="whatsapp-inline-hint" role="status">Esta conexão existente continua ativa, mas não está disponível para novas configurações.</p> : null}
         {notice === null ? null : <p className="whatsapp-inline-success">{notice}</p>}
 
         {managedProvider === 'WAPI' || managedProvider === 'EVOLUTION' ? (
@@ -545,7 +559,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                 {state === 'CONNECTED' ? (
                   <>
                     <button className="secondary-button" type="button" disabled={busy || connection.isFetching} onClick={() => void refresh()}><IconRefresh size={16} aria-hidden="true" />Atualizar status</button>
-                    {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks W-API sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
+                    {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
                     <button className="text-button" type="button" disabled={busy} onClick={() => disconnect.mutate()}>Desconectar</button>
                   </>
                 ) : (
@@ -559,9 +573,9 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                         {createInstance.isPending ? 'Preparando conexão…' : 'Configurar'}
                       </button>
                     )}
-                    {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks W-API sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
+                    {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
                     {shouldShowWapiActivation(managedProvider, activeProvider) ? (
-                      <button className="secondary-button" type="button" disabled={busy} onClick={() => setConfirmSwitch(managedProvider)}>Usar {managedProvider === 'EVOLUTION' ? 'Evolution GO' : 'API não oficial'}</button>
+                      <button className="secondary-button" type="button" disabled={busy} onClick={() => setConfirmSwitch(managedProvider)}>Usar API Própria</button>
                     ) : null}
                   </>
                 )}

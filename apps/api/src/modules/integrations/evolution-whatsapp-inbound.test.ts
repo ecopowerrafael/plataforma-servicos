@@ -157,6 +157,18 @@ describe('normalizeEvolutionWebhook', () => {
     })).toMatchObject({ actionId: 'MAIN_MENU_BOOK', phone: '5515999999999' });
   });
 
+  it('extracts the sender when the JID object uses encoder-specific field names', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: {
+        buttonId: 'MAIN_MENU_BOOK',
+        phone: { encodedUser: { rawValue: '5515999999999@s.whatsapp.net' } },
+        fromMe: false,
+      },
+    })).toMatchObject({ actionId: 'MAIN_MENU_BOOK', phone: '5515999999999' });
+  });
+
   it('extracts the sender from array-shaped interactive identity fields', () => {
     expect(normalizeEvolutionWebhook({
       event: 'ListResponse',

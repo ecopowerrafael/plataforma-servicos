@@ -31,7 +31,11 @@ const evolutionPhoneCandidates = (value: unknown, depth = 0): string[] => {
   if (Array.isArray(value)) return value.flatMap((item) => evolutionPhoneCandidates(item, depth + 1));
   if (typeof value !== 'object') return [];
   const objectValue = value as Record<string, unknown>;
-  return evolutionIdentityKeys.flatMap((key) => evolutionPhoneCandidates(objectValue[key], depth + 1));
+  const namedCandidates = evolutionIdentityKeys.flatMap((key) => evolutionPhoneCandidates(objectValue[key], depth + 1));
+  // Evolution Go may serialize a JID as a struct whose field names vary by
+  // JSON encoder. These values originate only from phone/jid/chat identity
+  // fields, so inspect their bounded nested values without logging them.
+  return [...namedCandidates, ...Object.values(objectValue).flatMap((item) => evolutionPhoneCandidates(item, depth + 1))];
 };
 const firstPhone = (...values: unknown[]) => values
   .flatMap((value) => evolutionPhoneCandidates(value))

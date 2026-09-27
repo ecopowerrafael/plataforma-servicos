@@ -41,7 +41,7 @@ describe('normalizeEvolutionWebhook', () => {
     });
   });
 
-  it('normalizes the real Evolution ButtonClick envelope under data', () => {
+  it('does not treat ButtonClick data.messageId as the referenced outbound message', () => {
     expect(normalizeEvolutionWebhook({
       event: 'ButtonClick',
       instanceId: 'evo-1',
@@ -57,7 +57,7 @@ describe('normalizeEvolutionWebhook', () => {
       eventType: 'MESSAGE_ACTION',
       actionId: 'MAIN_MENU_BOOK',
       selectedDisplayText: 'Agendar horário',
-      referencedMessageId: 'outbound-2',
+        referencedMessageId: null,
       messageType: 'BUTTON_REPLY',
     });
   });
@@ -69,7 +69,7 @@ describe('normalizeEvolutionWebhook', () => {
       data: {
         buttonId: 'MAIN_MENU_BOOK',
         buttonText: 'Agendar horário',
-        messageId: 'outbound-4',
+        messageId: 'click-123',
         jid: '5511999999999@s.whatsapp.net',
         fromMe: false,
         type: 'template_button_reply',
@@ -207,7 +207,7 @@ describe('normalizeEvolutionWebhook', () => {
       eventType: 'MESSAGE_ACTION',
       actionId: 'service_123',
       selectedDisplayText: 'Corte',
-      referencedMessageId: 'outbound-3',
+      referencedMessageId: null,
       messageType: 'LIST_RESPONSE',
     });
   });

@@ -81,8 +81,8 @@ const evolutionDedupeDiagnostics = (payload: unknown) => {
   };
 };
 
-export const resolveDirectMainMenuAction = (actionId: string | null, referencedMessageId: string | null) => {
-  if (referencedMessageId !== null || actionId === null) return null;
+export const resolveDirectMainMenuAction = (actionId: string | null) => {
+  if (actionId === null) return null;
   return MAIN_MENU_ACTIONS.some((action) => action.actionId === actionId) ? actionId : null;
 };
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
@@ -863,14 +863,14 @@ export class IntegrationService {
    * nem o id gerado pelo provedor.
    */
   private async resolveActionId(tenantId: bigint, event: NormalizedWhatsAppEvent) {
+    const directAction = resolveDirectMainMenuAction(event.actionId);
+    if (directAction !== null)
+      return { actionId: directAction, appointmentPublicId: null, collectionAttemptPublicId: null, collectionDebtPublicId: null };
     // Evolution pode entregar o id da ação interativa sem o id da mensagem
     // original. Para ações do menu principal, o próprio id é o contrato do
     // botão; não cair no fallback aqui evita reenviar o menu indefinidamente.
     if (event.referencedMessageId === null) {
-      const directAction = resolveDirectMainMenuAction(event.actionId, event.referencedMessageId);
-      return directAction !== null
-        ? { actionId: directAction, appointmentPublicId: null, collectionAttemptPublicId: null, collectionDebtPublicId: null }
-        : null;
+      return null;
     }
     const outbound = await this.repository.outboundByExternalMessageId(
       tenantId,

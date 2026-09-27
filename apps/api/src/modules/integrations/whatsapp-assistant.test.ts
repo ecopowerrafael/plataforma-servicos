@@ -579,9 +579,10 @@ void test('agendar abre o fluxo e lista serviços públicos reais', async () => 
 });
 
 void test('MAIN_MENU_BOOK sem mensagem referenciada preserva a ação e não cai no menu', () => {
-  assert.equal(resolveDirectMainMenuAction('MAIN_MENU_BOOK', null), 'MAIN_MENU_BOOK');
-  assert.equal(resolveDirectMainMenuAction('MAIN_MENU_BOOK', 'outbound-1'), null);
-  assert.equal(resolveDirectMainMenuAction('UNKNOWN_ACTION', null), null);
+  assert.equal(resolveDirectMainMenuAction('MAIN_MENU_BOOK'), 'MAIN_MENU_BOOK');
+  assert.equal(resolveDirectMainMenuAction('MAIN_MENU_TREATMENTS'), 'MAIN_MENU_TREATMENTS');
+  assert.equal(resolveDirectMainMenuAction('MAIN_MENU_QUERY'), 'MAIN_MENU_QUERY');
+  assert.equal(resolveDirectMainMenuAction('UNKNOWN_ACTION'), null);
 });
 
 void test('serviço inválido não é aceito e serviço válido filtra profissionais', async () => {

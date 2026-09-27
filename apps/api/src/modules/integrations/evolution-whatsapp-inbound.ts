@@ -173,7 +173,6 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
       data.referencedMessageId,
       data.stanzaId,
       data.stanzaID,
-      data.messageId,
       button.referencedMessageId,
       button.stanzaId,
       button.stanzaID,

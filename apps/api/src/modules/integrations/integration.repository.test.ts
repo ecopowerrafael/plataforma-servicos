@@ -7,6 +7,27 @@ const buildRepository = () => {
 };
 
 describe('IntegrationRepository inbound dedupe lookup', () => {
+  it.each(['LIST_RESPONSE', 'BUTTON_REPLY'])('processes distinct null-ID events and deduplicates exact re-delivery for %s', async (eventType) => {
+    const rows: Array<{ provider: string; instanceId: string; fingerprint: string; externalMessageId: string | null; eventType: string }> = [];
+    const findFirst = vi.fn().mockImplementation(async ({ where }: { where: Record<string, unknown> }) => rows.find((row) =>
+      Object.entries(where).filter(([key]) => key !== 'tenantId').every(([key, value]) => row[key as keyof typeof row] === value),
+    ) ?? null);
+    const repository = new IntegrationRepository({ whatsAppInboundEvent: { findFirst } } as never);
+    const lookup = (fingerprint: string, externalMessageId: string | null) => repository.inboundEventByFingerprint(1n, fingerprint, { provider: 'EVOLUTION', instanceId: 'instance-1', externalMessageId, eventType });
+    const ingest = async (fingerprint: string, externalMessageId: string | null) => {
+      const duplicate = await lookup(fingerprint, externalMessageId);
+      if (duplicate !== null) return 'DUPLICATED';
+      rows.push({ provider: 'EVOLUTION', instanceId: 'instance-1', fingerprint, externalMessageId, eventType });
+      return 'PROCESSED';
+    };
+
+    await expect(ingest('A', null)).resolves.toBe('PROCESSED');
+    await expect(ingest('B', null)).resolves.toBe('PROCESSED');
+    await expect(ingest('A', null)).resolves.toBe('DUPLICATED');
+    await expect(ingest('C', 'id-123')).resolves.toBe('PROCESSED');
+    await expect(ingest('D', 'id-123')).resolves.toBe('DUPLICATED');
+  });
+
   it('uses fingerprint for null external IDs and does not match other null-ID events', async () => {
     const { findFirst, repository } = buildRepository();
 

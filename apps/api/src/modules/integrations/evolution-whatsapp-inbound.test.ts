@@ -169,6 +169,14 @@ describe('normalizeEvolutionWebhook', () => {
     })).toMatchObject({ actionId: 'MAIN_MENU_BOOK', phone: '5515999999999' });
   });
 
+  it('extracts the sender when the structured identity contains a numeric user', () => {
+    expect(normalizeEvolutionWebhook({
+      event: 'ButtonClick',
+      instanceId: 'evo-1',
+      data: { buttonId: 'MAIN_MENU_BOOK', phone: { User: 5515999999999 }, fromMe: false },
+    })).toMatchObject({ phone: '5515999999999' });
+  });
+
   it('extracts the sender from array-shaped interactive identity fields', () => {
     expect(normalizeEvolutionWebhook({
       event: 'ListResponse',

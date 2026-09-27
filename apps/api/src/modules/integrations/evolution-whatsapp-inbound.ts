@@ -28,6 +28,7 @@ const evolutionIdentityKeys = [
 const evolutionPhoneCandidates = (value: unknown, depth = 0): string[] => {
   if (depth > 8 || value === null || value === undefined) return [];
   if (typeof value === 'string') return [value];
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return [String(value)];
   if (Array.isArray(value)) return value.flatMap((item) => evolutionPhoneCandidates(item, depth + 1));
   if (typeof value !== 'object') return [];
   const objectValue = value as Record<string, unknown>;

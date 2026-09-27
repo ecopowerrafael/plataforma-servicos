@@ -33,6 +33,7 @@ import { type TenantPaymentOptionsService } from '../payments/gateway/tenant-pay
 import { type PaymentService } from '../payments/payment.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { ProspectingInboundService } from '../prospecting/prospecting-inbound.service.js';
+import { MAIN_MENU_ACTIONS } from './whatsapp-assistant.js';
 
 const sanitizedEvolutionShape = (value: unknown) => {
   if (Array.isArray(value)) {
@@ -78,6 +79,11 @@ const evolutionDedupeDiagnostics = (payload: unknown) => {
     paramsSelected_row_id: evolutionDedupeField(params.selected_row_id),
     paramsId: evolutionDedupeField(params.id),
   };
+};
+
+export const resolveDirectMainMenuAction = (actionId: string | null, referencedMessageId: string | null) => {
+  if (referencedMessageId !== null || actionId === null) return null;
+  return MAIN_MENU_ACTIONS.some((action) => action.actionId === actionId) ? actionId : null;
 };
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
@@ -857,7 +863,15 @@ export class IntegrationService {
    * nem o id gerado pelo provedor.
    */
   private async resolveActionId(tenantId: bigint, event: NormalizedWhatsAppEvent) {
-    if (event.referencedMessageId === null) return null;
+    // Evolution pode entregar o id da ação interativa sem o id da mensagem
+    // original. Para ações do menu principal, o próprio id é o contrato do
+    // botão; não cair no fallback aqui evita reenviar o menu indefinidamente.
+    if (event.referencedMessageId === null) {
+      const directAction = resolveDirectMainMenuAction(event.actionId, event.referencedMessageId);
+      return directAction !== null
+        ? { actionId: directAction, appointmentPublicId: null, collectionAttemptPublicId: null, collectionDebtPublicId: null }
+        : null;
+    }
     const outbound = await this.repository.outboundByExternalMessageId(
       tenantId,
       event.referencedMessageId,

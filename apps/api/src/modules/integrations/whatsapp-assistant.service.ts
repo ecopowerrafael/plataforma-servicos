@@ -218,6 +218,7 @@ export class WhatsAppAssistantService {
 
     if (input.actionId === 'MAIN_MENU_BOOK') {
       await this.startBookingCreate(input, conversation, phone);
+      await this.logActionRoute(input.tenantId, input.actionId, 'startBookingCreate', conversation, phone, 'BOOKING_SERVICES');
       return { replied: true, conversationPublicId: conversation.publicId };
     }
     if (input.actionId === 'MAIN_MENU_CANCEL') {
@@ -458,7 +459,26 @@ export class WhatsAppAssistantService {
     }
     if (outcome.nextStatus !== conversation.status)
       await this.repository.updateConversation(conversation.id, { status: outcome.nextStatus });
+    await this.logActionRoute(input.tenantId, input.actionId, 'routeAction:fallback', conversation, phone, outcome.resendMenu ? 'MAIN_MENU' : 'TEXT');
     return { replied: true, conversationPublicId: conversation.publicId };
+  }
+
+  private async logActionRoute(
+    tenantId: bigint,
+    actionId: string | null,
+    handler: string,
+    stateBefore: { currentFlow: string; currentStep?: string | null },
+    phone: string,
+    responseType: string,
+  ): Promise<void> {
+    const after = await this.repository.conversationFor(tenantId, phone).catch(() => null);
+    console.info('[WHATSAPP_ACTION_ROUTE]', {
+      actionId,
+      handler,
+      stateBefore: `${stateBefore.currentFlow}:${stateBefore.currentStep ?? 'NONE'}`,
+      stateAfter: after === null ? 'UNKNOWN' : `${after.currentFlow}:${after.currentStep ?? 'NONE'}`,
+      responseType,
+    });
   }
 
   private async queryAppointments(

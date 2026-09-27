@@ -13,7 +13,7 @@ import { DEFAULT_WHATSAPP_ASSISTANT_CONFIG } from './whatsapp-assistant-config.j
 import { WhatsAppAssistantService } from './whatsapp-assistant.service.js';
 import { normalizeWApiWebhook } from './whatsapp-inbound.js';
 import { AppointmentService } from '../appointments/appointment.service.js';
-import { IntegrationService } from './integration.service.js';
+import { IntegrationService, resolveDirectMainMenuAction } from './integration.service.js';
 
 import type { WhatsAppDelivery } from './integration-delivery.js';
 
@@ -576,6 +576,12 @@ void test('agendar abre o fluxo e lista serviços públicos reais', async () => 
   assert.equal(at(conversations, 0).currentFlow, 'BOOKING_CREATE');
   assert.deepEqual(at(conversations, 0).context, {});
   assert.deepEqual(at(sent, 0).actionIds, ['BOOKING_CREATE_SERVICE:service-a']);
+});
+
+void test('MAIN_MENU_BOOK sem mensagem referenciada preserva a ação e não cai no menu', () => {
+  assert.equal(resolveDirectMainMenuAction('MAIN_MENU_BOOK', null), 'MAIN_MENU_BOOK');
+  assert.equal(resolveDirectMainMenuAction('MAIN_MENU_BOOK', 'outbound-1'), null);
+  assert.equal(resolveDirectMainMenuAction('UNKNOWN_ACTION', null), null);
 });
 
 void test('serviço inválido não é aceito e serviço válido filtra profissionais', async () => {

@@ -639,6 +639,21 @@ void test('todas as actions fixas do assistant são preservadas diretamente', ()
   for (const action of fixed) assert.equal(resolveDirectBookingAction(action), action);
 });
 
+void test.each([
+  'BOOKING_RESCHEDULE_DATE:2026-09-30',
+  'BOOKING_RESCHEDULE_TIME:10:30',
+  'BOOKING_RESCHEDULE_TIMES_PAGE:8',
+  'BOOKING_RESCHEDULE_CONFIRM',
+  'BOOKING_RESCHEDULE_ABORT',
+])('actions de reagendamento reconhecidas são preservadas: %s', (action) => {
+  assert.equal(resolveDirectBookingAction(action), action);
+});
+
+void test('action de reagendamento desconhecida continua rejeitada', () => {
+  assert.equal(resolveDirectBookingAction('BOOKING_RESCHEDULE_DATE:not-a-date'), null);
+  assert.equal(resolveDirectBookingAction('BOOKING_RESCHEDULE_UNKNOWN'), null);
+});
+
 void test.each([0, 3, 8, 9, 10, 14, 20])('pagina datas disponíveis sem saltos para %i datas', (count) => {
   const available = Array.from({ length: count }, (_, index) => `2026-10-${String(index + 1).padStart(2, '0')}`);
   const seen: string[] = [];

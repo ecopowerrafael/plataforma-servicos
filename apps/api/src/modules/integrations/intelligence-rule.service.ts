@@ -6,6 +6,7 @@ const intents = new Set<IntelligenceRuleIntent>(['BOOKING', 'AVAILABILITY', 'PRI
 export class IntelligenceRuleService {
   public constructor(private readonly repository: IntelligenceRuleRepository) {}
   public list() { return this.repository.list(); }
+  public ensureDefaultRules() { return this.repository.ensureDefaultRules(); }
   public async create(input: { name: string; description?: string | undefined; intent: string; enabled?: boolean | undefined; priority?: number | undefined; baseConfidence: number; patterns: string[] }) {
     this.validate(input); return this.repository.create(input);
   }

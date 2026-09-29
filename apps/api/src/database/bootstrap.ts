@@ -7,6 +7,7 @@ import { createPrismaClient } from './connection.js';
 import { buildDatabaseUrl } from '../config/database-url.js';
 import { PasswordService } from '../modules/auth/password.service.js';
 import { PlatformService } from '../modules/platform/platform.service.js';
+import { IntelligenceRuleRepository } from '../modules/integrations/intelligence-rule.repository.js';
 
 // Carrega o .env local (desenvolvimento) sem exigir a validação completa do
 // ambiente da aplicação — o bootstrap precisa apenas da conexão com o banco,
@@ -1363,6 +1364,7 @@ async function bootstrap(): Promise<void> {
       await seedProspectingFlows(transaction);
       await seedProspectingAttendant(transaction);
     }, { maxWait: 10_000, timeout: 60_000 });
+    await new IntelligenceRuleRepository(client).ensureDefaultRules();
 
     // Provisionamento idempotente do primeiro Super Admin durante o deploy,
     // quando PLATFORM_ADMIN_EMAIL/PLATFORM_ADMIN_PASSWORD estão presentes. Cria o

@@ -3,6 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { normalizePattern } from './intelligence-rules.js';
 import { type PrismaClient } from '../../database-client/client.js';
 
+const DEFAULT_RULES = [
+  { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000001', name: 'Agendamento básico', intent: 'BOOKING', patterns: ['quero {SERVICE}', 'quero agendar {SERVICE}', 'quero marcar {SERVICE}', 'quero {SERVICE} com {PROFESSIONAL}', 'quero {SERVICE} {DATE}', 'quero {SERVICE} com {PROFESSIONAL} {DATE}', 'quero {SERVICE} {DATE} às {TIME}'] },
+  { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000002', name: 'Disponibilidade', intent: 'AVAILABILITY', patterns: ['tem horário {DATE}', 'tem vaga {DATE}', 'tem {SERVICE} {DATE}', 'tem horário com {PROFESSIONAL} {DATE}', 'tem {SERVICE} {DATE} {DAY_PERIOD}'] },
+  { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000003', name: 'Consulta de preço', intent: 'PRICE_QUERY', patterns: ['quanto custa {SERVICE}', 'qual valor do {SERVICE}', 'preço do {SERVICE}', 'quanto é {SERVICE}'] },
+  { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000004', name: 'Formas de pagamento', intent: 'PAYMENT_METHODS', patterns: ['aceita {PAYMENT_METHOD}', 'posso pagar com {PAYMENT_METHOD}', 'como posso pagar'] },
+] as const;
+
 export class IntelligenceRuleRepository {
   public constructor(private readonly client: PrismaClient) {}
 
@@ -55,6 +62,14 @@ export class IntelligenceRuleRepository {
 
   public listAliases(tenantId: bigint) {
     return this.client.tenantIntelligenceEntityAlias.findMany({ where: { tenantId, enabled: true }, orderBy: [{ entityType: 'asc' }, { normalizedAlias: 'asc' }] });
+  }
+
+  public async ensureDefaultRules(): Promise<void> {
+    for (const rule of DEFAULT_RULES) {
+      const existing = await this.client.intelligenceRule.findUnique({ where: { publicId: rule.id }, select: { id: true } });
+      if (existing !== null) continue;
+      await this.client.intelligenceRule.create({ data: { publicId: rule.id, name: rule.name, intent: rule.intent as never, enabled: true, priority: 0, baseConfidence: 0.75, patterns: { create: rule.patterns.map((pattern, index) => ({ publicId: randomUUID(), pattern, normalizedPattern: normalizePattern(pattern), sortOrder: index })) } } });
+    }
   }
 
   public async catalogForTenant(tenantPublicId: string) {

@@ -17,10 +17,10 @@ import {
 } from './whatsapp-message-status.js';
 import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
 import { type WhatsAppProviderResolver } from './whatsapp-provider-resolver.js';
-import { type WhatsAppProviderId } from './whatsapp-provider.js';
 import { MetaInboundNormalizer } from './meta-whatsapp-inbound.js';
 import { EvolutionInboundNormalizer } from './evolution-whatsapp-inbound.js';
-import { type Prisma } from '../../database-client/client.js';
+import { type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { type IntelligenceRuleRepository } from './intelligence-rule.repository.js';
 import { type Environment } from '../../config/environment.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AppointmentService } from '../appointments/appointment.service.js';
@@ -188,11 +188,12 @@ export class IntegrationService {
     payments?: PaymentService,
     customerAuth?: CustomerAuthService,
     private readonly collectionAttemptExecution?: CollectionAttemptExecutionService,
-    client?: any, // PrismaClient
+    client?: PrismaClient,
     prospectingConfigService?: ProspectingWhatsAppConfigService,
     private readonly environment?: Environment | null,
     private readonly providerResolver?: WhatsAppProviderResolver,
     prospectingMessageSender?: ProspectingMessageSender,
+    intelligenceRules?: IntelligenceRuleRepository,
   ) {
     this.assistant = new WhatsAppAssistantService(
       repository,
@@ -205,6 +206,8 @@ export class IntegrationService {
       paymentOptions,
       payments,
       customerAuth,
+      undefined,
+      intelligenceRules,
     );
 
     this.prospectingInbound = client && prospectingConfigService
@@ -789,7 +792,9 @@ export class IntegrationService {
         const latest = buffered.at(-1) ?? stored;
         const bufferedText = buffered.map((item) => item.text).filter((text): text is string => text !== null && text.trim() !== '').join(' ');
         const event: NormalizedWhatsAppEvent = {
-          provider: latest.provider as WhatsAppProviderId,
+          provider: latest.provider === 'WAPI' || latest.provider === 'META' || latest.provider === 'EVOLUTION'
+            ? latest.provider
+            : 'WAPI',
           eventType: latest.eventType as NormalizedWhatsAppEvent['eventType'],
           providerEvent: null,
           instanceId: latest.instanceId,

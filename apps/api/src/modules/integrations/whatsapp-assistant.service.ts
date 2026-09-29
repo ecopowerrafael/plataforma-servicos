@@ -26,6 +26,9 @@ import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.serv
 import { type TreatmentPlanService } from '../appointments/treatment-plan.service.js';
 import { nextAllowedReplyAt } from './whatsapp-response-interval.js';
 import { interpretText, normalizePortugueseText, type TextInterpretation } from './whatsapp-text-interpreter.js';
+import { type IntelligenceRuleRepository } from './intelligence-rule.repository.js';
+import { chooseBestMatch } from './intelligence-rule-matcher.js';
+import { EntityResolver } from './intelligence-entity-resolver.js';
 
 /** Motivo pelo qual o assistente não respondeu — usado só em log/diagnóstico. */
 export type AssistantSkipReason =
@@ -144,6 +147,7 @@ export class WhatsAppAssistantService {
     private readonly payments?: PaymentService,
     private readonly customerAuth?: CustomerAuthService,
     private readonly treatmentPlans?: TreatmentPlanService,
+    private readonly intelligenceRules?: IntelligenceRuleRepository,
   ) {}
 
   /**
@@ -269,6 +273,8 @@ export class WhatsAppAssistantService {
     // os actionIds e o roteamento existente, sem interpretar o texto visível.
     if (input.actionId === null && event.text !== null) {
       const site = await this.bookingSite(input.tenantId);
+      const aliases = this.intelligenceRules === undefined ? [] : await this.intelligenceRules.listAliases(input.tenantId);
+      const persistedRules = this.intelligenceRules === undefined ? [] : await this.intelligenceRules.findActiveForMatching();
       const interpretation = interpretText({
         text: event.text,
         conversationContext: conversation.context,
@@ -277,38 +283,55 @@ export class WhatsAppAssistantService {
           combos: site.combos.map((item) => ({ publicId: item.publicId, name: item.name })),
           professionals: site.professionals.map((item) => ({ publicId: item.publicId, name: item.name, active: true })),
         } }),
+        aliases: aliases.map((alias) => ({ entityType: alias.entityType as 'SERVICE' | 'COMBO' | 'PROFESSIONAL', entityPublicId: alias.entityPublicId, alias: alias.alias, enabled: alias.enabled })),
       });
+      const ruleMatch = chooseBestMatch(event.text, persistedRules.flatMap((rule) => rule.patterns.map((pattern) => ({ ruleId: rule.publicId, ruleName: rule.name, intent: rule.intent as 'BOOKING' | 'AVAILABILITY' | 'PRICE_QUERY' | 'PAYMENT_METHODS' | 'PAYMENT' | 'CANCEL' | 'RESCHEDULE' | 'BOOKING_QUERY' | 'UNKNOWN', priority: rule.priority, baseConfidence: Number(rule.baseConfidence), patternId: pattern.publicId, pattern: pattern.pattern }))));
+      const resolver = new EntityResolver();
+      const runtimeEntities = ruleMatch === null ? interpretation.entities : ruleMatch.entities.reduce((entities, entity) => {
+        const candidates = [
+          ...(site?.services ?? []).map((item) => ({ publicId: item.publicId, name: item.name, entityType: 'SERVICE' as const })),
+          ...(site?.combos ?? []).map((item) => ({ publicId: item.publicId, name: item.name, entityType: 'COMBO' as const })),
+          ...(site?.professionals ?? []).map((item) => ({ publicId: item.publicId, name: item.name, entityType: 'PROFESSIONAL' as const })),
+        ];
+        const resolved = resolver.resolve(entity.tag, entity.value, candidates, aliases.map((alias) => ({ publicId: alias.entityPublicId, name: alias.entityPublicId, entityType: alias.entityType as 'SERVICE' | 'COMBO' | 'PROFESSIONAL', alias: alias.alias })));
+        if (resolved.entity === undefined) return entities;
+        if (entity.tag === 'SERVICE') return { ...entities, serviceId: resolved.entity.publicId, serviceName: resolved.entity.name };
+        if (entity.tag === 'COMBO') return { ...entities, comboId: resolved.entity.publicId, comboName: resolved.entity.name };
+        if (entity.tag === 'PROFESSIONAL') return { ...entities, professionalId: resolved.entity.publicId, professionalName: resolved.entity.name };
+        return entities;
+      }, interpretation.entities);
+      const runtimeInterpretation = ruleMatch === null ? interpretation : { ...interpretation, intent: ruleMatch.intent, entities: runtimeEntities, confidence: Math.max(interpretation.confidence, Math.min(0.99, ruleMatch.score / 100)) };
       const hasBookingCorrection = interpretation.intent === 'UNKNOWN' && conversation.currentFlow === 'BOOKING_CREATE' && Object.keys(interpretation.entities).length > 0;
-      if (interpretation.confidence >= 0.65 || hasBookingCorrection) {
+      if (runtimeInterpretation.confidence >= 0.65 || hasBookingCorrection) {
         if (hasBookingCorrection) {
           await this.progressFreeTextBooking(input, conversation, phone, interpretation, site);
           return { replied: true, conversationPublicId: conversation.publicId };
         }
-        if (interpretation.intent === 'BOOKING') {
-          await this.progressFreeTextBooking(input, conversation, phone, interpretation, site);
+        if (runtimeInterpretation.intent === 'BOOKING') {
+          await this.progressFreeTextBooking(input, conversation, phone, runtimeInterpretation, site);
           return { replied: true, conversationPublicId: conversation.publicId };
         }
-        if (interpretation.intent === 'AVAILABILITY') {
-          await this.progressFreeTextBooking(input, conversation, phone, interpretation, site);
+        if (runtimeInterpretation.intent === 'AVAILABILITY') {
+          await this.progressFreeTextBooking(input, conversation, phone, runtimeInterpretation, site);
           return { replied: true, conversationPublicId: conversation.publicId };
         }
-        if (interpretation.intent === 'CANCEL') {
+        if (runtimeInterpretation.intent === 'CANCEL') {
           await this.startUpcomingAppointmentAction(input, conversation, phone, 'CANCEL');
           return { replied: true, conversationPublicId: conversation.publicId };
         }
-        if (interpretation.intent === 'RESCHEDULE') {
+        if (runtimeInterpretation.intent === 'RESCHEDULE') {
           await this.startUpcomingAppointmentAction(input, conversation, phone, 'RESCHEDULE');
           return { replied: true, conversationPublicId: conversation.publicId };
         }
-        if (interpretation.intent === 'BOOKING_QUERY') {
+        if (runtimeInterpretation.intent === 'BOOKING_QUERY') {
           await this.queryAppointments(input, conversation, phone);
           return { replied: true, conversationPublicId: conversation.publicId };
         }
-        if (interpretation.intent === 'PRICE_QUERY') {
-          await this.answerPriceQuery(input, conversation.id, phone, interpretation.entities.serviceName);
+        if (runtimeInterpretation.intent === 'PRICE_QUERY') {
+          await this.answerPriceQuery(input, conversation.id, phone, runtimeInterpretation.entities.serviceName);
           return { replied: true, conversationPublicId: conversation.publicId };
         }
-        if (interpretation.intent === 'PAYMENT_METHODS') {
+        if (runtimeInterpretation.intent === 'PAYMENT_METHODS') {
           const appointmentPublicId = appointmentPublicIdFrom(conversation.context);
           if (appointmentPublicId !== null && (conversation.customerId ?? input.customerId) !== null) {
             await this.openBookingPayment(input, conversation.id, phone, conversation.customerId ?? input.customerId as bigint, appointmentPublicId);
@@ -941,7 +964,7 @@ export class WhatsAppAssistantService {
 
   private async selectBookingService(
     input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
-    conversation: { id: bigint },
+    conversation: { id: bigint; context: unknown },
     phone: string,
     servicePublicId: string,
   ): Promise<void> {
@@ -987,7 +1010,7 @@ export class WhatsAppAssistantService {
 
   private async selectBookingCombo(
     input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
-    conversation: { id: bigint },
+    conversation: { id: bigint; context: unknown },
     phone: string,
     comboPublicId: string,
   ): Promise<void> {

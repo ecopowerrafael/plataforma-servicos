@@ -675,6 +675,7 @@ export function createDatabaseConnection(
       environment,
       whatsappProviderResolver,
       credentialsCipher ? new WApiProspectingMessageSender(new ProspectingWhatsAppConfigService(client, credentialsCipher), environment!) : undefined,
+      new IntelligenceRuleRepository(client),
     ),
     publicBooking: new PublicBookingService(
       tenantWhiteLabelRepository,

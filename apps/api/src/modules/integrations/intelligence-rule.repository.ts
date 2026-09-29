@@ -8,6 +8,10 @@ const DEFAULT_RULES = [
   { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000002', name: 'Disponibilidade', intent: 'AVAILABILITY', patterns: ['tem horário {DATE}', 'tem vaga {DATE}', 'tem {SERVICE} {DATE}', 'tem horário com {PROFESSIONAL} {DATE}', 'tem {SERVICE} {DATE} {DAY_PERIOD}'] },
   { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000003', name: 'Consulta de preço', intent: 'PRICE_QUERY', patterns: ['quanto custa {SERVICE}', 'qual valor do {SERVICE}', 'preço do {SERVICE}', 'quanto é {SERVICE}'] },
   { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000004', name: 'Formas de pagamento', intent: 'PAYMENT_METHODS', patterns: ['aceita {PAYMENT_METHOD}', 'posso pagar com {PAYMENT_METHOD}', 'como posso pagar'] },
+  { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000005', name: 'Pagamento', intent: 'PAYMENT', patterns: ['quero pagar', 'como faço para pagar', 'me manda o pix', 'quero fazer o pagamento', 'preciso pagar'] },
+  { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000006', name: 'Cancelamento', intent: 'CANCEL', patterns: ['quero cancelar', 'quero cancelar meu horário', 'quero cancelar meu agendamento', 'quero desmarcar', 'preciso desmarcar', 'não vou conseguir ir'] },
+  { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000007', name: 'Reagendamento', intent: 'RESCHEDULE', patterns: ['quero remarcar', 'quero reagendar', 'quero mudar meu horário', 'quero trocar meu horário', 'quero trocar o dia', 'preciso mudar meu agendamento'] },
+  { id: '9c5b9a2e-0e6a-4f70-8f4c-100000000008', name: 'Consulta de agendamento', intent: 'BOOKING_QUERY', patterns: ['qual meu horário', 'quando é meu horário', 'qual dia eu marquei', 'quando é meu agendamento', 'tenho horário marcado', 'tenho agendamento', 'qual meu agendamento'] },
 ] as const;
 
 export class IntelligenceRuleRepository {
@@ -84,9 +88,14 @@ export class IntelligenceRuleRepository {
 
   public async ensureDefaultRules(): Promise<void> {
     for (const rule of DEFAULT_RULES) {
-      const existing = await this.client.intelligenceRule.findUnique({ where: { publicId: rule.id }, select: { id: true } });
-      if (existing !== null) continue;
-      await this.client.intelligenceRule.create({ data: { publicId: rule.id, name: rule.name, intent: rule.intent as never, enabled: true, priority: 0, baseConfidence: 0.75, patterns: { create: rule.patterns.map((pattern, index) => ({ publicId: randomUUID(), pattern, normalizedPattern: normalizePattern(pattern), sortOrder: index })) } } });
+      const existing = await this.client.intelligenceRule.findUnique({ where: { publicId: rule.id }, select: { id: true, patterns: { select: { normalizedPattern: true, sortOrder: true } } } });
+      if (existing === null) {
+        await this.client.intelligenceRule.create({ data: { publicId: rule.id, name: rule.name, intent: rule.intent as never, enabled: true, priority: 0, baseConfidence: 0.75, patterns: { create: rule.patterns.map((pattern, index) => ({ publicId: randomUUID(), pattern, normalizedPattern: normalizePattern(pattern), sortOrder: index })) } } });
+        continue;
+      }
+      const known = new Set(existing.patterns.map((pattern) => pattern.normalizedPattern));
+      const missing = rule.patterns.filter((pattern) => !known.has(normalizePattern(pattern)));
+      if (missing.length > 0) await this.client.intelligenceRulePattern.createMany({ data: missing.map((pattern, index) => ({ publicId: randomUUID(), ruleId: existing.id, pattern, normalizedPattern: normalizePattern(pattern), sortOrder: existing.patterns.length + index })) });
     }
   }
 

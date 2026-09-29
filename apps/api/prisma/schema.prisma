@@ -1159,6 +1159,10 @@ model WhatsAppConversation {
   context       Json?
   lastInboundAt DateTime  @map("last_inbound_at") @db.DateTime(3)
   lastOutboundAt DateTime? @map("last_outbound_at") @db.DateTime(3)
+  pendingReplyAt DateTime? @map("pending_reply_at") @db.DateTime(3)
+  pendingReplyEventId BigInt? @map("pending_reply_event_id") @db.UnsignedBigInt
+  replyProcessingAt DateTime? @map("reply_processing_at") @db.DateTime(3)
+  replyProcessingToken String? @map("reply_processing_token") @db.VarChar(80)
   expiresAt     DateTime  @map("expires_at") @db.DateTime(3)
   createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)

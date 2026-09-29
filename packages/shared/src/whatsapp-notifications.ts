@@ -95,6 +95,7 @@ export const WhatsAppAssistantMenuSchema = z.object({
 });
 
 export const WhatsAppAssistantConfigSchema = z.object({
+  responseIntervalSeconds: z.number().int().min(0).max(3600).default(0),
   greeting: WhatsAppAssistantGreetingSchema,
   menu: WhatsAppAssistantMenuSchema,
 });

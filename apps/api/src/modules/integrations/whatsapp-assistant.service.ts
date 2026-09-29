@@ -24,6 +24,8 @@ import { type PaymentService } from '../payments/payment.service.js';
 import { type ProfessionalServiceLinkService } from '../professionals/professional-service.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
 import { type TreatmentPlanService } from '../appointments/treatment-plan.service.js';
+import { nextAllowedReplyAt } from './whatsapp-response-interval.js';
+import { interpretText, normalizePortugueseText, type TextInterpretation } from './whatsapp-text-interpreter.js';
 
 /** Motivo pelo qual o assistente não respondeu — usado só em log/diagnóstico. */
 export type AssistantSkipReason =
@@ -33,7 +35,9 @@ export type AssistantSkipReason =
   | 'NO_PHONE'
   | 'NOT_ENTITLED'
   | 'HUMAN_SUPPORT'
-  | 'DELIVERY_UNAVAILABLE';
+  | 'DELIVERY_UNAVAILABLE'
+  | 'RESPONSE_INTERVAL';
+
 
 export interface AssistantResult {
   replied: boolean;
@@ -98,6 +102,21 @@ const followingDates = (timezone: string, count: number) => {
   return dates;
 };
 
+const resolveInterpreterDate = (value: string | undefined, timezone: string): string | undefined => {
+  if (value === undefined) return undefined;
+  const today = localDate(new Date(), timezone);
+  const base = new Date(`${today}T12:00:00.000Z`);
+  if (value === 'TODAY') return today;
+  if (value === 'TOMORROW' || value === 'DAY_AFTER_TOMORROW') { base.setUTCDate(base.getUTCDate() + (value === 'TOMORROW' ? 1 : 2)); return base.toISOString().slice(0, 10); }
+  const explicit = value.match(/^(\d{2})\/(\d{2})(?:\/(\d{4}))?$/u);
+  if (explicit !== null) return `${explicit[3] ?? String(base.getUTCFullYear())}-${explicit[2]}-${explicit[1]}`;
+  const weekdays = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+  const target = weekdays.indexOf(value);
+  if (target < 0) return undefined;
+  for (let offset = 0; offset <= 7; offset += 1) { const candidate = new Date(base); candidate.setUTCDate(candidate.getUTCDate() + offset); if (candidate.getUTCDay() === target) return candidate.toISOString().slice(0, 10); }
+  return undefined;
+};
+
 export function bookingDatePage(availableDates: string[], offset: number) {
   const pageSize = availableDates.length > offset + 9 ? 8 : 9;
   const dates = availableDates.slice(offset, offset + pageSize);
@@ -140,6 +159,8 @@ export class WhatsAppAssistantService {
     actionId: string | null;
     appointmentPublicId: string | null;
     entitled: boolean;
+    inboundEventId?: bigint;
+    bypassResponseInterval?: boolean;
   }): Promise<AssistantResult> {
     const { event } = input;
     if (event.eventType !== 'MESSAGE_RECEIVED' && event.eventType !== 'MESSAGE_ACTION')
@@ -199,6 +220,16 @@ export class WhatsAppAssistantService {
       ...(input.appointmentPublicId === null ? {} : { context: { appointmentPublicId: input.appointmentPublicId } }),
     });
 
+    if (!input.bypassResponseInterval && input.inboundEventId !== undefined) {
+      const assistantConfig = await this.repository.whatsappAssistantConfig(input.tenantId);
+      const intervalSeconds = resolveAssistantConfig(assistantConfig).responseIntervalSeconds;
+      const nextAllowed = nextAllowedReplyAt(conversation.lastOutboundAt, intervalSeconds);
+      if (nextAllowed !== null && nextAllowed.getTime() > now.getTime()) {
+        await this.repository.updateConversation(conversation.id, { pendingReplyAt: nextAllowed, pendingReplyEventId: input.inboundEventId });
+        return { replied: false, reason: 'RESPONSE_INTERVAL' as const, conversationPublicId: conversation.publicId };
+      }
+    }
+
     if (input.appointmentPublicId !== null && input.actionId === 'BOOKING_CONFIRM') {
       await this.confirmAppointment(
         input,
@@ -232,6 +263,61 @@ export class WhatsAppAssistantService {
     if (conversation.currentFlow === 'BOOKING_CREATE' && conversation.currentStep === 'CUSTOMER_EMAIL' && event.text !== null) {
       await this.captureBookingCustomerEmail(input, conversation, phone, event.text);
       return { replied: true, conversationPublicId: conversation.publicId };
+    }
+
+    // Texto livre é uma camada adicional. Ações interativas continuam usando
+    // os actionIds e o roteamento existente, sem interpretar o texto visível.
+    if (input.actionId === null && event.text !== null) {
+      const site = await this.bookingSite(input.tenantId);
+      const interpretation = interpretText({
+        text: event.text,
+        conversationContext: conversation.context,
+        catalog: site === null ? undefined : {
+          services: site.services.map((item) => ({ publicId: item.publicId, name: item.name })),
+          combos: site.combos.map((item) => ({ publicId: item.publicId, name: item.name })),
+          professionals: site.professionals.map((item) => ({ publicId: item.publicId, name: item.name, active: true })),
+        },
+      });
+      const hasBookingCorrection = interpretation.intent === 'UNKNOWN' && conversation.currentFlow === 'BOOKING_CREATE' && Object.keys(interpretation.entities).length > 0;
+      if (interpretation.confidence >= 0.65 || hasBookingCorrection) {
+        if (hasBookingCorrection) {
+          await this.progressFreeTextBooking(input, conversation, phone, interpretation, site);
+          return { replied: true, conversationPublicId: conversation.publicId };
+        }
+        if (interpretation.intent === 'BOOKING') {
+          await this.progressFreeTextBooking(input, conversation, phone, interpretation, site);
+          return { replied: true, conversationPublicId: conversation.publicId };
+        }
+        if (interpretation.intent === 'AVAILABILITY') {
+          await this.progressFreeTextBooking(input, conversation, phone, interpretation, site);
+          return { replied: true, conversationPublicId: conversation.publicId };
+        }
+        if (interpretation.intent === 'CANCEL') {
+          await this.startUpcomingAppointmentAction(input, conversation, phone, 'CANCEL');
+          return { replied: true, conversationPublicId: conversation.publicId };
+        }
+        if (interpretation.intent === 'RESCHEDULE') {
+          await this.startUpcomingAppointmentAction(input, conversation, phone, 'RESCHEDULE');
+          return { replied: true, conversationPublicId: conversation.publicId };
+        }
+        if (interpretation.intent === 'BOOKING_QUERY') {
+          await this.queryAppointments(input, conversation, phone);
+          return { replied: true, conversationPublicId: conversation.publicId };
+        }
+        if (interpretation.intent === 'PRICE_QUERY') {
+          await this.answerPriceQuery(input, conversation.id, phone, interpretation.entities.serviceName);
+          return { replied: true, conversationPublicId: conversation.publicId };
+        }
+        if (interpretation.intent === 'PAYMENT_METHODS') {
+          const appointmentPublicId = appointmentPublicIdFrom(conversation.context);
+          if (appointmentPublicId !== null && (conversation.customerId ?? input.customerId) !== null) {
+            await this.openBookingPayment(input, conversation.id, phone, conversation.customerId ?? input.customerId as bigint, appointmentPublicId);
+          } else {
+            await this.dispatchText(input, phone, 'Posso consultar as formas de pagamento do seu agendamento. Primeiro, qual horário você deseja consultar?', conversation.id);
+          }
+          return { replied: true, conversationPublicId: conversation.publicId };
+        }
+      }
     }
 
     if (input.actionId === 'MAIN_MENU_BOOK') {
@@ -777,6 +863,82 @@ export class WhatsAppAssistantService {
     await this.dispatchCustomButtons(input, phone, 'Qual serviço você deseja agendar?', buttons, conversationId);
   }
 
+  private async answerPriceQuery(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversationId: bigint,
+    phone: string,
+    serviceName?: string,
+  ): Promise<void> {
+    const site = await this.bookingSite(input.tenantId);
+    const tenant = await this.repository.tenantName(input.tenantId);
+    const query = serviceName?.toLocaleLowerCase('pt-BR');
+    const offerings = [
+      ...(site?.services.map((item) => ({ name: item.name, priceCents: item.priceCents })) ?? []),
+      ...(site?.combos.map((item) => ({ name: item.name, priceCents: item.priceCents })) ?? []),
+    ];
+    const matches = query === undefined ? offerings : offerings.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query));
+    if (matches.length === 0) {
+      await this.dispatchText(input, phone, query === undefined ? 'Qual serviço você gostaria de consultar?' : 'Não encontrei esse serviço cadastrado. Qual outro serviço você gostaria de consultar?', conversationId);
+      return;
+    }
+    const currency = tenant?.currency ?? 'BRL';
+    const message = matches.map((item) => `${item.name}: ${(Number(item.priceCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency })}`).join('\n');
+    await this.dispatchText(input, phone, `Valores cadastrados:\n\n${message}\n\nQuer ver os horários disponíveis?`, conversationId);
+  }
+
+  private async progressFreeTextBooking(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversation: { id: bigint; customerId: bigint | null; context: unknown },
+    phone: string,
+    interpretation: TextInterpretation,
+    site: Awaited<ReturnType<WhatsAppAssistantService['bookingSite']>>,
+  ): Promise<void> {
+    if (site === null) return this.startBookingCreate(input, conversation, phone);
+    const context = conversation.context;
+    const existingService = contextString(context, 'servicePublicId');
+    const existingCombo = contextString(context, 'comboPublicId');
+    const existingProfessional = contextString(context, 'professionalPublicId');
+    const requestedService = interpretation.entities.serviceId ?? site.services.find((item) => interpretation.entities.serviceName !== undefined && normalizePortugueseText(item.name).includes(normalizePortugueseText(interpretation.entities.serviceName)))?.publicId;
+    const requestedCombo = interpretation.entities.comboId ?? site.combos.find((item) => interpretation.entities.comboName !== undefined && normalizePortugueseText(item.name).includes(normalizePortugueseText(interpretation.entities.comboName)))?.publicId;
+    const servicePublicId = existingService ?? (requestedCombo === undefined ? requestedService : undefined);
+    const comboPublicId = existingCombo ?? (servicePublicId === undefined ? requestedCombo : undefined);
+    if (servicePublicId === undefined && comboPublicId === undefined) {
+      await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_CREATE', currentStep: 'SERVICE_SELECTION', context: { ...(interpretation.entities.date === undefined ? {} : { date: interpretation.entities.date }), ...(interpretation.entities.professionalName === undefined ? {} : { pendingProfessionalName: interpretation.entities.professionalName }) } });
+      await this.showBookingServices(input, conversation.id, phone);
+      return;
+    }
+    const offeringProfessionals = comboPublicId === undefined
+      ? await this.bookingProfessionals(input.tenantId, servicePublicId!, site)
+      : await this.bookingProfessionalsForCombo(input.tenantId, site.combos.find((item) => item.publicId === comboPublicId)!, site);
+    const requestedProfessional = interpretation.entities.professionalId ?? offeringProfessionals.find((item) => interpretation.entities.professionalName !== undefined && normalizePortugueseText(item.name).includes(normalizePortugueseText(interpretation.entities.professionalName)))?.publicId;
+    const professionalPublicId = existingProfessional ?? requestedProfessional;
+    if (professionalPublicId === undefined || !offeringProfessionals.some((item) => item.publicId === professionalPublicId)) {
+      const candidates = interpretation.entities.professionalName === undefined
+        ? offeringProfessionals
+        : offeringProfessionals.filter((item) => normalizePortugueseText(item.name).includes(normalizePortugueseText(interpretation.entities.professionalName!)));
+      if (candidates.length !== 1) {
+        await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_CREATE', currentStep: 'PROFESSIONAL_SELECTION', context: { ...(servicePublicId === undefined ? { comboPublicId } : { servicePublicId }), ...(interpretation.entities.date === undefined ? {} : { date: interpretation.entities.date }) } });
+        await this.dispatchCustomButtons(input, phone, candidates.length === 0 ? 'Não encontrei esse profissional para o serviço. Escolha uma opção:' : 'Encontrei mais de um profissional com esse nome. Qual você prefere?', candidates.slice(0, 8).map((item) => ({ buttonId: `BOOKING_CREATE_PROFESSIONAL:${item.publicId}`, label: item.name })).concat([{ buttonId: 'BOOKING_CREATE_CHANGE_SERVICE', label: 'Escolher outro serviço' }]), conversation.id);
+        return;
+      }
+      const selected = candidates[0];
+      if (selected === undefined) return this.dispatchText(input, phone, 'Não encontrei profissionais disponíveis para esse serviço.', conversation.id);
+      return this.progressFreeTextBooking(input, conversation, phone, { ...interpretation, entities: { ...interpretation.entities, professionalId: selected.publicId, professionalName: selected.name } }, site);
+    }
+    const tenant = await this.repository.tenantName(input.tenantId);
+    const date = resolveInterpreterDate(interpretation.entities.date ?? contextString(context, 'date') ?? undefined, tenant?.timezone ?? 'UTC');
+    const time = interpretation.entities.time ?? contextString(context, 'time') ?? undefined;
+    const nextContext = { ...(servicePublicId === undefined ? { comboPublicId } : { servicePublicId }), professionalPublicId, ...(date === undefined ? {} : { date }), ...(time === undefined ? {} : { time }) };
+    await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_CREATE', currentStep: date === undefined ? 'DATE_SELECTION' : time === undefined ? 'TIME_SELECTION' : 'CONFIRMATION', context: nextContext });
+    const nextConversation = { ...conversation, context: nextContext };
+    if (date === undefined) return this.showBookingCreateDates(input, nextConversation, phone);
+    if (time === undefined) return this.showBookingCreateTimes(input, nextConversation, phone, 0);
+    const slots = await this.availableBookingCreateSlots(input.tenantId, { ...nextContext, professionalPublicId } as BookingCreateContext, date);
+    const timezone = tenant?.timezone ?? 'UTC';
+    if (!slots.some((slot) => formatAppointmentTime(slot, timezone) === time)) return this.dispatchText(input, phone, 'Esse horário não está disponível. Escolha um dos horários disponíveis:', conversation.id).then(() => this.showBookingCreateTimes(input, nextConversation, phone, 0));
+    await this.showBookingCreateConfirmation(input, conversation.id, phone, { ...nextContext, professionalPublicId, date, time } as BookingCreateContext & { date: string; time: string }, conversation.customerId ?? input.customerId);
+  }
+
   private async selectBookingService(
     input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
     conversation: { id: bigint },
@@ -806,7 +968,7 @@ export class WhatsAppAssistantService {
     await this.repository.updateConversation(conversation.id, {
       currentFlow: 'BOOKING_CREATE',
       currentStep: 'PROFESSIONAL_SELECTION',
-      context: { servicePublicId },
+      context: { ...(conversation.context as Record<string, unknown> ?? {}), servicePublicId },
     });
     await this.dispatchCustomButtons(
       input,
@@ -843,7 +1005,7 @@ export class WhatsAppAssistantService {
     await this.repository.updateConversation(conversation.id, {
       currentFlow: 'BOOKING_CREATE',
       currentStep: 'PROFESSIONAL_SELECTION',
-      context: { comboPublicId },
+      context: { ...(conversation.context as Record<string, unknown> ?? {}), comboPublicId },
     });
     await this.dispatchCustomButtons(input, phone, 'Com qual profissional você deseja agendar?', [
       ...professionals.slice(0, 8).map((professional) => ({ buttonId: `BOOKING_CREATE_PROFESSIONAL:${professional.publicId}`, label: professional.name })),
@@ -879,11 +1041,11 @@ export class WhatsAppAssistantService {
     await this.repository.updateConversation(conversation.id, {
       currentFlow: 'BOOKING_CREATE',
       currentStep: 'PROFESSIONAL_SELECTED',
-      context: { ...(servicePublicId === null ? { comboPublicId } : { servicePublicId }), professionalPublicId },
+      context: { ...(conversation.context as Record<string, unknown> ?? {}), ...(servicePublicId === null ? { comboPublicId } : { servicePublicId }), professionalPublicId },
     });
     await this.showBookingCreateDates(
       input,
-      { ...conversation, context: { ...(servicePublicId === null ? { comboPublicId } : { servicePublicId }), professionalPublicId } },
+      { ...conversation, context: { ...(conversation.context as Record<string, unknown> ?? {}), ...(servicePublicId === null ? { comboPublicId } : { servicePublicId }), professionalPublicId } },
       phone,
     );
   }

@@ -775,6 +775,66 @@ export class IntegrationService {
     return { statusCode: 200, body: summary } as const;
   }
 
+  /** Processa respostas adiadas pelo intervalo, sempre fora do request inbound. */
+  public async processPendingWhatsappReplies(limit = 50) {
+    let processed = 0;
+    for (let index = 0; index < limit; index += 1) {
+      const token = randomUUID();
+      const claimed = await this.repository.claimPendingReply(new Date(), token, new Date(Date.now() - 120_000));
+      if (claimed === null || claimed.pendingReplyEventId === null) break;
+      try {
+        const stored = await this.repository.inboundEventById(claimed.pendingReplyEventId);
+        if (stored === null) continue;
+        const buffered = await this.repository.inboundEventsAfter(stored.tenantId, stored.phone ?? '', claimed.lastOutboundAt);
+        const latest = buffered.at(-1) ?? stored;
+        const bufferedText = buffered.map((item) => item.text).filter((text): text is string => text !== null && text.trim() !== '').join(' ');
+        const event: NormalizedWhatsAppEvent = {
+          provider: latest.provider as WhatsAppProviderId,
+          eventType: latest.eventType as NormalizedWhatsAppEvent['eventType'],
+          providerEvent: null,
+          instanceId: latest.instanceId,
+          externalMessageId: latest.externalMessageId,
+          phone: latest.phone,
+          remoteLid: null,
+          senderIdKind: 'PHONE',
+          chatIdKind: 'PHONE',
+          hasSenderLid: false,
+          resolutionMethod: 'NONE',
+          identityResult: 'RESOLVED',
+          senderName: null,
+          messageType: latest.messageType,
+          text: bufferedText || latest.text,
+          actionId: latest.actionId,
+          referencedMessageId: latest.referencedMessageId,
+          selectedIndex: null,
+          selectedDisplayText: null,
+          timestamp: latest.receivedAt,
+          fromMe: false,
+          isGroup: false,
+          fingerprint: `deferred:${stored.id.toString()}`,
+          payload: latest.payload,
+        };
+        const resolvedAction = await this.resolveActionId(stored.tenantId, event);
+        const entitled = await new PlanEntitlementService().featureEnabledForTenant(this.repository.client, stored.tenantId, 'whatsapp.enabled');
+        await this.assistant.handleInbound({
+          tenantId: stored.tenantId,
+          instanceId: stored.instanceId,
+          event,
+          customerId: stored.customerId,
+          actionId: resolvedAction?.actionId ?? stored.actionId,
+          appointmentPublicId: resolvedAction?.appointmentPublicId ?? null,
+          entitled,
+          inboundEventId: stored.id,
+          bypassResponseInterval: true,
+        });
+        processed += 1;
+      } finally {
+        await this.repository.completePendingReply(claimed.id, token);
+      }
+    }
+    return { processed };
+  }
+
   private async processTenantWhatsappInbound(
     config: WhatsAppConfigByInstance,
     event: NormalizedWhatsAppEvent,
@@ -806,8 +866,9 @@ export class IntegrationService {
     await this.applyStatusEvent(tenantId, event);
     const customerId = await this.customerIdForPhone(tenantId, event.phone);
 
+    let persistedInboundEvent;
     try {
-      await this.repository.createInboundEvent({
+      persistedInboundEvent = await this.repository.createInboundEvent({
         tenantId,
         provider: event.provider,
         instanceId: event.instanceId,
@@ -872,6 +933,7 @@ export class IntegrationService {
       actionId,
       appointmentPublicId: resolvedAction?.appointmentPublicId ?? null,
       entitled,
+      inboundEventId: persistedInboundEvent.id,
     });
     return {
       accepted: true,

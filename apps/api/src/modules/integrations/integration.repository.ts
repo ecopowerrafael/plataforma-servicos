@@ -150,6 +150,15 @@ export class IntegrationRepository {
   }) {
     return this.client.whatsAppInboundEvent.create({ data: { publicId: randomUUID(), provider: data.provider ?? 'WAPI', ...data } });
   }
+  public inboundEventById(id: bigint) {
+    return this.client.whatsAppInboundEvent.findUnique({ where: { id } });
+  }
+  public inboundEventsAfter(tenantId: bigint, phone: string, after: Date | null) {
+    return this.client.whatsAppInboundEvent.findMany({
+      where: { tenantId, phone, eventType: { in: ['MESSAGE_RECEIVED', 'MESSAGE_ACTION'] }, ...(after === null ? {} : { receivedAt: { gt: after } }) },
+      orderBy: { receivedAt: 'asc' },
+    });
+  }
   public inboundEventByFingerprint(tenantId: bigint, fingerprint: string, data?: { provider?: string; instanceId?: string; externalMessageId?: string | null; eventType?: string | null }) {
     if (data?.provider !== undefined && data.instanceId !== undefined && data.eventType !== undefined) {
       if (data.externalMessageId !== null && data.externalMessageId !== undefined) {
@@ -229,10 +238,37 @@ export class IntegrationRepository {
       customerId?: bigint | null;
       lastInboundAt?: Date;
       lastOutboundAt?: Date;
+      pendingReplyAt?: Date | null;
+      pendingReplyEventId?: bigint | null;
+      replyProcessingAt?: Date | null;
+      replyProcessingToken?: string | null;
       expiresAt?: Date;
     },
   ) {
     return this.client.whatsAppConversation.update({ where: { id }, data });
+  }
+  public async claimPendingReply(now: Date, token: string, staleBefore: Date) {
+    const candidate = await this.client.whatsAppConversation.findFirst({
+      where: {
+        pendingReplyAt: { lte: now },
+        OR: [{ replyProcessingAt: null }, { replyProcessingAt: { lt: staleBefore } }],
+      },
+      orderBy: { pendingReplyAt: 'asc' },
+    });
+    if (candidate === null || candidate.pendingReplyEventId === null) return null;
+    const claimed = await this.client.whatsAppConversation.updateMany({
+      where: {
+        id: candidate.id,
+        pendingReplyAt: candidate.pendingReplyAt,
+        pendingReplyEventId: candidate.pendingReplyEventId,
+        OR: [{ replyProcessingAt: null }, { replyProcessingAt: { lt: staleBefore } }],
+      },
+      data: { replyProcessingAt: now, replyProcessingToken: token },
+    });
+    return claimed.count === 1 ? candidate : null;
+  }
+  public completePendingReply(id: bigint, token: string) {
+    return this.client.whatsAppConversation.updateMany({ where: { id, replyProcessingToken: token }, data: { pendingReplyAt: null, pendingReplyEventId: null, replyProcessingAt: null, replyProcessingToken: null } });
   }
   public closeConversation(id: bigint) {
     return this.client.whatsAppConversation.update({ where: { id }, data: { status: 'CLOSED' } });

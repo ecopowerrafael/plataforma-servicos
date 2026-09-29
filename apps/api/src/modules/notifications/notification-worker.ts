@@ -9,6 +9,7 @@ import { type CustomerRecoveryService } from '../customers/customer-recovery.ser
 import { type LoyaltyService } from '../payments/loyalty.service.js';
 import { type TenantCommercialSweepService } from '../platform/tenant-commercial-sweep.service.js';
 import { type DirectorySeoService } from '../platform/directory-seo.service.js';
+import { type IntegrationService } from '../integrations/integration.service.js';
 
 interface WorkerLogger {
   info: (payload: unknown, message?: string) => void;
@@ -27,6 +28,7 @@ interface WorkerDeps {
   loyalty?: LoyaltyService;
   commercialSweep?: TenantCommercialSweepService;
   directorySeo?: DirectorySeoService;
+  whatsappIntegration?: IntegrationService;
 }
 
 interface WorkerOptions {
@@ -51,7 +53,7 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
     if (running) return;
     running = true;
     try {
-      await deps.reminders.scheduleDayBeforeReminders();
+      await deps.reminders.scheduleDayBeforeReminders?.();
       await deps.reminders.scheduleUpcomingReminders();
       await deps.automations?.run();
       await deps.customerRecovery?.run();
@@ -66,6 +68,7 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
       await deps.directorySeo?.processSyncs();
       await deps.directorySeo?.processIndexNow();
       await deps.directorySeo?.processInspections();
+      await deps.whatsappIntegration?.processPendingWhatsappReplies();
       // Só registra lotes com trabalho real: ticks ociosos não geram log.
       if (processed > 0) options.logger.info({ processed }, 'Lote de notificações processado');
     } catch (error) {

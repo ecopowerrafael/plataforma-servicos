@@ -60,6 +60,7 @@ async function start(environment: Environment, startedAt: number): Promise<void>
               ? {}
               : { commercialSweep: database.commercialSweep }),
             ...(database.directorySeo === undefined ? {} : { directorySeo: database.directorySeo }),
+            ...(database.integrations === undefined ? {} : { whatsappIntegration: database.integrations }),
           },
           { intervalMs: 60_000, logger: app.log },
         )

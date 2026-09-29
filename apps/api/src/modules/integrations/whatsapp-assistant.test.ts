@@ -899,6 +899,30 @@ void test('IntegrationService entrega as dependências críticas ao assistant', 
   );
 });
 
+void test('texto livre preenche progressivamente serviço, profissional, data e horário', async () => {
+  const now = new Date();
+  const { repository, delivery, conversations, sent } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: null, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'MAIN_MENU', context: {}, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
+  const service = new WhatsAppAssistantService(
+    repository,
+    delivery,
+    undefined,
+    { available: (tenantId: bigint, input: { date: string }) => Promise.resolve({ slots: [{ state: 'AVAILABLE', startsAt: `${input.date}T18:00:00.000Z` }] }) } as never,
+    bookingCatalog([{ publicId: 'svc-1', name: 'Corte masculino', priceCents: '4500', durationMinutes: 30 }], [{ publicId: 'pro-1', name: 'João Silva' }]) as never,
+    professionalLinks(['pro-1']) as never,
+  );
+  await handle(service, inbound({ msgContent: { conversation: 'quero cortar com João amanhã às 15h' } }));
+  assert.deepEqual(conversations[0]?.context, { servicePublicId: 'svc-1', professionalPublicId: 'pro-1', date: expectDate(conversations[0]?.context), time: '15:00' });
+  assert.equal(conversations[0]?.currentStep, 'CONFIRMATION');
+  assert.equal(sent.some((message) => message.message.includes('Confirmar agendamento')), true);
+});
+
+function expectDate(context: unknown): string {
+  assert.equal(typeof context, 'object');
+  const date = (context as { date?: unknown }).date;
+  assert.equal(typeof date, 'string');
+  return date;
+}
+
 void test('cliente do tenant A não acessa agendamento do tenant B', async () => {
   const findCalls: { tenantId: bigint; publicId: string }[] = [];
   const appointments = new AppointmentService(

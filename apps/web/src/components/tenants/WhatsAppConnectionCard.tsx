@@ -415,15 +415,12 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
           <button className="secondary-button" type="button" disabled={busy || connection.isFetching} onClick={() => void refresh()}><IconRefresh size={16} aria-hidden="true" />Atualizar status</button>
           {canManage ? <button className="text-button" type="button" disabled={busy} onClick={() => disconnect.mutate()}>Desconectar</button> : null}
         </div>
-      </section>
-
-      <section className="whatsapp-section-block" aria-label="Saúde da conexão">
-        <div className="whatsapp-section-heading"><h2>Saúde da conexão</h2><p>Indicadores baseados no status atual da integração.</p></div>
-        <div className="whatsapp-health-grid">
-          {activeProvider === 'META' && connection.data?.webhookUrl ? <article><strong>Webhook</strong><span>Ativo</span></article> : null}
-          {activeProvider === 'EVOLUTION' || activeProvider === 'WAPI' ? <article><strong>Servidor</strong><span>{state === 'CONNECTED' ? 'Online' : 'Offline'}</span></article> : null}
-          {state === 'CONNECTED' ? <article><strong>Recebimento</strong><span>Funcionando</span></article> : null}
-        </div>
+        {activeProvider !== 'META' && qrCode !== null ? (
+          <div className="whatsapp-inline-qr whatsapp-current-card__qr" aria-live="polite">
+            <div><h3>QR Code para conexão</h3><p>Abra o WhatsApp no celular, acesse Dispositivos conectados e escaneie o código.</p></div>
+            <img alt="QR Code para conectar o WhatsApp" src={qrCode} />
+          </div>
+        ) : null}
       </section>
       </> : null}
 
@@ -527,15 +524,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
         {notice === null ? null : <p className="whatsapp-inline-success">{notice}</p>}
 
         {managedProvider === 'WAPI' || managedProvider === 'EVOLUTION' ? (
-          <div className="whatsapp-wapi-panel">
-            {qrCode === null ? null : (
-              <div className="whatsapp-inline-qr" aria-live="polite">
-                <div><h3>QR Code para conexão</h3><p>Abra o WhatsApp no celular, acesse Dispositivos conectados e escaneie o código.</p></div>
-                <img alt="QR Code para conectar o WhatsApp" src={qrCode} />
-              </div>
-            )}
-            {accountError === undefined ? null : <p className="form-error">{accountError.message}</p>}
-          </div>
+          accountError === undefined ? null : <p className="form-error">{accountError.message}</p>
         ) : (
           <div className="whatsapp-meta-panel">
             <div className="whatsapp-tablist" role="tablist" aria-label="Configuração da API Oficial">

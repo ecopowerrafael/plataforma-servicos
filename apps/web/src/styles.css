@@ -12270,6 +12270,9 @@ h1 {
   gap: 12px;
   justify-items: end;
 }
+.whatsapp-current-card__qr {
+  grid-column: 1 / -1;
+}
 .whatsapp-badge-row {
   display: flex;
   flex-wrap: wrap;

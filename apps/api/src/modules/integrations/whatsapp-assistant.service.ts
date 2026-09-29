@@ -107,6 +107,7 @@ const followingDates = (timezone: string, count: number) => {
 
 const resolveInterpreterDate = (value: string | undefined, timezone: string): string | undefined => {
   if (value === undefined) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(value)) return value;
   const today = localDate(new Date(), timezone);
   const base = new Date(`${today}T12:00:00.000Z`);
   if (value === 'TODAY') return today;

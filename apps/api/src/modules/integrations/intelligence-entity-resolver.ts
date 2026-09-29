@@ -23,7 +23,8 @@ export class EntityResolver {
       if (entity.entityType !== tag) return false;
       const direct = normalizeIntelligenceText(entity.name);
       const aliasMatch = aliases.some((alias) => alias.enabled !== false && alias.entityType === tag && alias.publicId === entity.publicId && normalizeIntelligenceText(alias.alias) === normalized);
-      return direct === normalized || direct.includes(normalized) || aliasMatch;
+      const fuzzyWordMatch = normalized.split(' ').length === 1 && normalized.length >= 4 && direct.split(' ')[0]!.slice(0, 4) === normalized.slice(0, 4);
+      return direct === normalized || direct.includes(normalized) || fuzzyWordMatch || aliasMatch;
     });
     return { tag, value, ...(matches.length === 1 ? { entity: matches[0] } : {}), candidates: matches, ambiguous: matches.length > 1 };
   }

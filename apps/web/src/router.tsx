@@ -80,6 +80,9 @@ const PrivacyPage = lazy(async () => ({
 const TermsPage = lazy(async () => ({
   default: (await import('./routes/LegalPages.js')).TermsPage,
 }));
+const WhatsappApiHelpPage = lazy(async () => ({
+  default: (await import('./routes/WhatsappApiHelpPage.js')).WhatsappApiHelpPage,
+}));
 
 const FeaturesPage = lazy(async () => {
   const module = await import('./routes/FeaturesPage.js');
@@ -252,6 +255,7 @@ export const router = createBrowserRouter([
   { path: '/politica-de-privacidade', element: lazyPage(PrivacyPage) },
   { path: '/termos', element: lazyPage(TermsPage) },
   { path: '/termos-de-uso', element: lazyPage(TermsPage) },
+  { path: '/ajuda/whatsapp-api-oficial-vs-api-propria', element: lazyPage(WhatsappApiHelpPage) },
   { path: '/encontre', element: lazyPage(DirectoryHomePage) },
   { path: '/encontre/:categorySlug', element: lazyPage(DirectoryCategoryPage) },
   { path: '/encontre/:categorySlug/:citySlug', element: lazyPage(DirectoryCityPage) },

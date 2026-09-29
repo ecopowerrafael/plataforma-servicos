@@ -12651,6 +12651,57 @@ h1 {
   margin-top: auto;
   padding: 20px 24px 24px;
 }
+.whatsapp-provider-option__help {
+  align-items: center;
+  color: var(--ds-color-primary);
+  display: inline-flex;
+  font-size: .84rem;
+  font-weight: 800;
+  margin-right: auto;
+  text-decoration: none;
+}
+.whatsapp-provider-option__help:hover { text-decoration: underline; }
+.whatsapp-provider-option__lists--summary { gap: 8px; }
+.whatsapp-provider-option__lists--summary ul { margin-top: 2px; }
+
+.whatsapp-help-page { background: #f6f8fb; color: var(--ds-text-primary); margin: -32px -32px 0; min-height: 100vh; padding: 32px clamp(20px, 5vw, 80px) 72px; }
+.whatsapp-help-back { align-items: center; color: var(--ds-text-muted); display: inline-flex; gap: 7px; font-weight: 700; text-decoration: none; }
+.whatsapp-help-back:hover { color: var(--ds-color-primary); }
+.whatsapp-help-hero, .whatsapp-help-section, .whatsapp-help-choice-grid, .whatsapp-help-final { margin-left: auto; margin-right: auto; max-width: 1080px; }
+.whatsapp-help-hero { padding: 72px 0 40px; text-align: center; }
+.whatsapp-help-hero h1 { font-size: clamp(2.2rem, 5vw, 4rem); letter-spacing: -.04em; line-height: 1.05; margin: 10px auto 18px; max-width: 760px; }
+.whatsapp-help-hero > p:not(.eyebrow) { color: var(--ds-text-muted); font-size: 1.1rem; line-height: 1.65; margin: 0 auto 14px; max-width: 760px; }
+.whatsapp-help-analogy { background: #fff; border: 1px solid var(--ds-border); border-radius: 16px; padding: 16px 20px; }
+.whatsapp-help-choice-grid { display: grid; gap: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.whatsapp-help-choice, .whatsapp-help-section, .whatsapp-help-final { background: #fff; border: 1px solid var(--ds-border); border-radius: 20px; box-shadow: 0 10px 30px rgba(15,23,42,.05); padding: clamp(22px, 4vw, 36px); }
+.whatsapp-help-choice h2, .whatsapp-help-section h2, .whatsapp-help-final h2 { letter-spacing: -.025em; margin: 6px 0 10px; }
+.whatsapp-help-choice p, .whatsapp-help-section p, .whatsapp-help-final p { color: var(--ds-text-muted); line-height: 1.65; }
+.whatsapp-help-icon { align-items: center; background: color-mix(in srgb, var(--ds-color-primary) 12%, white); border-radius: 14px; color: var(--ds-color-primary); display: flex; height: 48px; justify-content: center; width: 48px; }
+.whatsapp-help-kicker { color: var(--ds-color-primary) !important; font-size: .75rem; font-weight: 900; letter-spacing: .08em; margin: 20px 0 0 !important; text-transform: uppercase; }
+.whatsapp-help-subtitle { font-weight: 800; margin-top: 0 !important; }
+.whatsapp-help-choice ul { list-style: none; margin: 22px 0; padding: 0; }
+.whatsapp-help-choice li { align-items: center; display: flex; gap: 8px; margin: 10px 0; }
+.whatsapp-help-choice li svg { color: #15803d; flex: 0 0 auto; }
+.whatsapp-help-callout { background: #eef8f2; border-radius: 14px; padding: 14px 16px; }
+.whatsapp-help-callout--warning { background: #fff7e8; }
+.whatsapp-help-callout p { font-size: .9rem; margin: 5px 0 0; }
+.whatsapp-help-section { margin-top: 20px; }
+.whatsapp-help-risk { border-color: #f3c36b; }
+.whatsapp-help-section-heading { align-items: center; display: flex; gap: 14px; }
+.whatsapp-help-section-heading > svg { color: #c2410c; flex: 0 0 auto; }
+.whatsapp-help-section-heading .whatsapp-help-kicker { margin-top: 0 !important; }
+.whatsapp-help-number-flow, .whatsapp-help-example-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 22px 0; }
+.whatsapp-help-number-flow span, .whatsapp-help-example-grid > div { background: #f4f7fa; border-radius: 14px; padding: 16px; }
+.whatsapp-help-number-flow strong { display: block; margin-top: 6px; }
+.whatsapp-help-example-grid .is-risk { background: #fff2ef; }
+.whatsapp-help-table-wrap { overflow-x: auto; }
+.whatsapp-help-page table { border-collapse: collapse; min-width: 680px; width: 100%; }
+.whatsapp-help-page th, .whatsapp-help-page td { border-bottom: 1px solid var(--ds-border); padding: 13px 12px; text-align: left; }
+.whatsapp-help-page th { color: var(--ds-text-primary); }
+.whatsapp-help-page td { color: var(--ds-text-muted); }
+.whatsapp-help-final { background: #12352b; color: #fff; margin-top: 20px; }
+.whatsapp-help-final p { color: #d8e8e1; }
+@media (max-width: 700px) { .whatsapp-help-page { margin: -20px -16px 0; padding: 20px 16px 48px; } .whatsapp-help-hero { padding-top: 48px; } .whatsapp-help-choice-grid, .whatsapp-help-number-flow, .whatsapp-help-example-grid { grid-template-columns: 1fr; } .whatsapp-provider-option__footer { align-items: flex-start; flex-wrap: wrap; gap: 12px; } .whatsapp-provider-option__help { flex-basis: 100%; order: 2; } }
 @media (max-width: 899px) {
   .whatsapp-provider-grid {
     grid-template-columns: 1fr;

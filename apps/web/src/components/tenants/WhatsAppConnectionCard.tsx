@@ -446,32 +446,20 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
                   {isManaged ? <span className="whatsapp-provider-option__managed">Configuração aberta</span> : null}
                   <p className="whatsapp-provider-option__description">{presentation.description}</p>
                   <div className="whatsapp-provider-option__divider" />
-                  <div className="whatsapp-provider-option__lists">
-                    <div>
-                      <span>Vantagens</span>
-                      <ul className="whatsapp-check-list">
-                        {presentation.advantages.map((advantage) => <li key={advantage}><span className="whatsapp-check-icon"><IconCheck size={12} aria-hidden="true" /></span>{advantage}</li>)}
-                      </ul>
-                    </div>
-                    <div>
-                      <span>Pontos a considerar</span>
-                      <ul className="whatsapp-info-list">{presentation.considerations.map((consideration) => <li key={consideration}><IconInfoCircle size={15} aria-hidden="true" />{consideration}</li>)}</ul>
-                    </div>
+                  <div className="whatsapp-provider-option__lists whatsapp-provider-option__lists--summary">
+                    <span>O que você ganha</span>
+                    <ul className="whatsapp-check-list">
+                      {presentation.advantages.slice(0, 3).map((advantage) => <li key={advantage}><span className="whatsapp-check-icon"><IconCheck size={12} aria-hidden="true" /></span>{advantage}</li>)}
+                    </ul>
                   </div>
-                  {item.provider === 'WAPI' ? (
-                    <p className="whatsapp-provider-note">
-                      <IconInfoCircle size={16} aria-hidden="true" />
-                      Esta conexão utiliza uma integração não oficial do WhatsApp. O Agendei trabalha para manter a conexão estável, porém eventuais limitações ou bloqueios aplicados pelo WhatsApp não estão sob nosso controle.
-                    </p>
-                  ) : (
-                    <p className="whatsapp-provider-note whatsapp-provider-note--official">
-                      <IconInfoCircle size={16} aria-hidden="true" />
-                      <span><strong>Recomendado para</strong> Operações profissionais, maior volume de mensagens e uso de templates oficiais.</span>
-                    </p>
-                  )}
+                  <p className={`whatsapp-provider-note ${item.provider === 'META' ? 'whatsapp-provider-note--official' : ''}`}>
+                    <IconInfoCircle size={16} aria-hidden="true" />
+                    <span>{item.provider === 'META' ? 'A Meta pode cobrar pelo envio de determinadas mensagens, conforme categoria, destino e regras vigentes.' : 'Integração não oficial: existe risco de limitação ou bloqueio do número pelo WhatsApp.'}</span>
+                  </p>
                 </button>
                 {canManage ? (
                   <div className="whatsapp-provider-option__footer">
+                    <a className="whatsapp-provider-option__help" href="/ajuda/whatsapp-api-oficial-vs-api-propria">Entenda a diferença</a>
                     {isActive ? (
                       <button className="secondary-button" type="button" onClick={() => openProvider(item.provider)}>
                         {item.provider === 'META' ? 'Gerenciar API Oficial' : 'Gerenciar conexão'}

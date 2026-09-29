@@ -582,6 +582,7 @@ model Tenant {
   whatsappOutboundMessages     WhatsAppOutboundMessage[]
   whatsappConversations        WhatsAppConversation[]
   intelligenceAliases          TenantIntelligenceEntityAlias[]
+  intelligencePatterns          TenantIntelligencePattern[]
   appointmentReminderConfig    AppointmentReminderConfig?
   externalIntegrations         ExternalIntegration[]
   directoryBusinesses          DirectoryBusiness[]
@@ -4749,5 +4750,22 @@ model TenantIntelligenceEntityAlias {
   @@unique([tenantId, entityType, entityPublicId, normalizedAlias])
   @@index([tenantId, entityType, normalizedAlias])
   @@map("tenant_intelligence_entity_aliases")
+}
+
+model TenantIntelligencePattern {
+  id                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String              @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt              @map("tenant_id") @db.UnsignedBigInt
+  intent            IntelligenceRuleIntent
+  pattern           String              @db.VarChar(500)
+  normalizedPattern String              @map("normalized_pattern") @db.VarChar(500)
+  enabled           Boolean             @default(true)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, intent, normalizedPattern])
+  @@index([tenantId, intent, enabled])
+  @@map("tenant_intelligence_patterns")
 }
 

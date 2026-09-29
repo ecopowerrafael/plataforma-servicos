@@ -275,6 +275,7 @@ export class WhatsAppAssistantService {
       const site = await this.bookingSite(input.tenantId);
       const aliases = this.intelligenceRules === undefined ? [] : await this.intelligenceRules.listAliases(input.tenantId);
       const persistedRules = this.intelligenceRules === undefined ? [] : await this.intelligenceRules.findActiveForMatching();
+      const tenantPatterns = this.intelligenceRules === undefined ? [] : await this.intelligenceRules.listTenantPatterns(input.tenantId);
       const interpretation = interpretText({
         text: event.text,
         conversationContext: conversation.context,
@@ -285,7 +286,9 @@ export class WhatsAppAssistantService {
         } }),
         aliases: aliases.map((alias) => ({ entityType: alias.entityType as 'SERVICE' | 'COMBO' | 'PROFESSIONAL', entityPublicId: alias.entityPublicId, alias: alias.alias, enabled: alias.enabled })),
       });
-      const ruleMatch = chooseBestMatch(event.text, persistedRules.flatMap((rule) => rule.patterns.map((pattern) => ({ ruleId: rule.publicId, ruleName: rule.name, intent: rule.intent as 'BOOKING' | 'AVAILABILITY' | 'PRICE_QUERY' | 'PAYMENT_METHODS' | 'PAYMENT' | 'CANCEL' | 'RESCHEDULE' | 'BOOKING_QUERY' | 'UNKNOWN', priority: rule.priority, baseConfidence: Number(rule.baseConfidence), patternId: pattern.publicId, pattern: pattern.pattern }))));
+      const globalCandidates = persistedRules.flatMap((rule) => rule.patterns.map((pattern) => ({ ruleId: rule.publicId, ruleName: rule.name, intent: rule.intent as 'BOOKING' | 'AVAILABILITY' | 'PRICE_QUERY' | 'PAYMENT_METHODS' | 'PAYMENT' | 'CANCEL' | 'RESCHEDULE' | 'BOOKING_QUERY' | 'UNKNOWN', priority: rule.priority, baseConfidence: Number(rule.baseConfidence), patternId: pattern.publicId, pattern: pattern.pattern })));
+      const tenantCandidates = tenantPatterns.filter((pattern) => pattern.enabled).map((pattern) => ({ ruleId: `tenant:${pattern.publicId}`, ruleName: 'Treinamento do estabelecimento', intent: pattern.intent as 'BOOKING' | 'AVAILABILITY' | 'PRICE_QUERY' | 'PAYMENT_METHODS' | 'PAYMENT' | 'CANCEL' | 'RESCHEDULE' | 'BOOKING_QUERY' | 'UNKNOWN', priority: 1, baseConfidence: 0.8, patternId: pattern.publicId, pattern: pattern.pattern }));
+      const ruleMatch = chooseBestMatch(event.text, [...globalCandidates, ...tenantCandidates]);
       const resolver = new EntityResolver();
       const runtimeEntities = ruleMatch === null ? interpretation.entities : ruleMatch.entities.reduce((entities, entity) => {
         const candidates = [

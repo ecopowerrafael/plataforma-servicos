@@ -13,6 +13,9 @@ import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
+import { IntelligenceRuleRepository } from './intelligence-rule.repository.js';
+import { chooseBestMatch } from './intelligence-rule-matcher.js';
+import { EntityResolver } from './intelligence-entity-resolver.js';
 
 export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
   authService: AuthService;
@@ -23,6 +26,7 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
 
   const client = o.client;
   const assertWhatsApp = (tenantId: bigint) => new PlanEntitlementService().assertFeatureEnabledForTenant(client, tenantId, 'whatsapp.enabled');
+  const intelligenceRepository = new IntelligenceRuleRepository(client);
 
   app.get(
     '/tenant/integrations/whatsapp/assistant-config',
@@ -143,7 +147,26 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
       client.professional.findMany({ where: { tenantId: r.tenant.id, active: true }, select: { publicId: true, name: true } }),
       client.tenantIntelligenceEntityAlias.findMany({ where: { tenantId: r.tenant.id, enabled: true }, orderBy: { normalizedAlias: 'asc' } }),
     ]);
-    return { services, combos, professionals, aliases };
+    return { services, combos, professionals, aliases, patterns: await intelligenceRepository.listTenantPatterns(r.tenant.id), rules: await intelligenceRepository.findActiveForMatching() };
+  });
+
+  app.post('/tenant/integrations/whatsapp/assistant-config/intelligence/patterns', { schema: { body: z.object({ intent: z.enum(['BOOKING', 'AVAILABILITY', 'PRICE_QUERY', 'PAYMENT_METHODS', 'PAYMENT', 'CANCEL', 'RESCHEDULE', 'BOOKING_QUERY']), pattern: z.string().trim().min(1).max(500) }) } }, async (r, reply) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage'); await assertWhatsApp(r.tenant.id);
+    return reply.code(201).send(await intelligenceRepository.createTenantPattern({ tenantId: r.tenant.id, intent: r.body.intent, pattern: r.body.pattern }));
+  });
+  app.patch('/tenant/integrations/whatsapp/assistant-config/intelligence/patterns/:publicId', { schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ intent: z.enum(['BOOKING', 'AVAILABILITY', 'PRICE_QUERY', 'PAYMENT_METHODS', 'PAYMENT', 'CANCEL', 'RESCHEDULE', 'BOOKING_QUERY']).optional(), pattern: z.string().trim().min(1).max(500).optional(), enabled: z.boolean().optional() }) } }, async (r) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage'); await assertWhatsApp(r.tenant.id); await intelligenceRepository.updateTenantPattern(r.tenant.id, r.params.publicId, r.body); return { success: true as const };
+  });
+  app.delete('/tenant/integrations/whatsapp/assistant-config/intelligence/patterns/:publicId', { schema: { params: z.object({ publicId: z.uuid() }) } }, async (r) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage'); await assertWhatsApp(r.tenant.id); await intelligenceRepository.deleteTenantPattern(r.tenant.id, r.params.publicId); return { success: true as const };
+  });
+  app.post('/tenant/integrations/whatsapp/assistant-config/intelligence/simulator', { schema: { body: z.object({ text: z.string().trim().min(1).max(2000) }) } }, async (r) => {
+    o.authService.requirePermission(r.tenant, 'integration.read'); await assertWhatsApp(r.tenant.id);
+    const tenant = await client.tenant.findUniqueOrThrow({ where: { id: r.tenant.id }, select: { publicId: true } });
+    const [rules, custom, catalog] = await Promise.all([intelligenceRepository.findActiveForMatching(), intelligenceRepository.listTenantPatterns(r.tenant.id), intelligenceRepository.catalogForTenant(tenant.publicId)]);
+    const candidates = [...rules.flatMap((rule) => rule.patterns.map((item) => ({ ruleId: rule.publicId, ruleName: rule.name, intent: rule.intent, priority: rule.priority, baseConfidence: Number(rule.baseConfidence), patternId: item.publicId, pattern: item.pattern }))), ...custom.filter((item) => item.enabled).map((item) => ({ ruleId: `tenant:${item.publicId}`, ruleName: 'Treinamento do estabelecimento', intent: item.intent, priority: 1, baseConfidence: 0.8, patternId: item.publicId, pattern: item.pattern }))];
+    const winner = chooseBestMatch(r.body.text, candidates); const resolver = new EntityResolver(); const entities = [...catalog.services.map((item) => ({ publicId: item.publicId, name: item.name, entityType: 'SERVICE' as const })), ...catalog.combos.map((item) => ({ publicId: item.publicId, name: item.name, entityType: 'COMBO' as const })), ...catalog.professionals.map((item) => ({ publicId: item.publicId, name: item.publicName ?? item.name, entityType: 'PROFESSIONAL' as const }))]; const resolved = winner?.entities.map((item) => resolver.resolve(item.tag, item.value, entities, catalog.aliases.map((alias) => ({ publicId: alias.entityPublicId, name: alias.entityPublicId, entityType: alias.entityType as 'SERVICE' | 'COMBO' | 'PROFESSIONAL', alias: alias.alias })))) ?? [];
+    return { intent: winner?.intent ?? 'UNKNOWN', pattern: winner?.pattern ?? null, source: winner?.ruleId.startsWith('tenant:') ? 'TENANT_TRAINING' : 'PLATFORM', confidence: winner?.baseConfidence ?? 0, entities: resolved.map((item) => ({ tag: item.tag, value: item.value, entity: item.entity ?? null })), ambiguousEntities: resolved.filter((item) => item.ambiguous).map((item) => item.value), missingFields: winner === null ? ['INTENT'] : [] };
   });
 
   app.post('/tenant/integrations/whatsapp/assistant-config/intelligence/aliases', { schema: { body: z.object({ entityType: z.enum(['SERVICE', 'COMBO', 'PROFESSIONAL']), entityPublicId: z.uuid(), alias: z.string().trim().min(1).max(160) }) } }, async (r, reply) => {

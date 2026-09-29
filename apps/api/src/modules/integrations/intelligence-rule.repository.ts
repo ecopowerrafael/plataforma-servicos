@@ -64,6 +64,24 @@ export class IntelligenceRuleRepository {
     return this.client.tenantIntelligenceEntityAlias.findMany({ where: { tenantId, enabled: true }, orderBy: [{ entityType: 'asc' }, { normalizedAlias: 'asc' }] });
   }
 
+  public listTenantPatterns(tenantId: bigint) {
+    return this.client.tenantIntelligencePattern.findMany({ where: { tenantId }, orderBy: [{ intent: 'asc' }, { createdAt: 'asc' }] });
+  }
+
+  public createTenantPattern(input: { tenantId: bigint; intent: string; pattern: string }) {
+    const normalizedPattern = normalizePattern(input.pattern);
+    return this.client.tenantIntelligencePattern.create({ data: { publicId: randomUUID(), tenantId: input.tenantId, intent: input.intent as never, pattern: input.pattern.trim(), normalizedPattern } });
+  }
+
+  public updateTenantPattern(tenantId: bigint, publicId: string, input: { intent?: string; pattern?: string; enabled?: boolean }) {
+    const normalizedPattern = input.pattern === undefined ? undefined : normalizePattern(input.pattern);
+    return this.client.tenantIntelligencePattern.updateMany({ where: { tenantId, publicId }, data: { ...(input.intent === undefined ? {} : { intent: input.intent as never }), ...(input.pattern === undefined ? {} : { pattern: input.pattern.trim(), normalizedPattern }), ...(input.enabled === undefined ? {} : { enabled: input.enabled }) } });
+  }
+
+  public deleteTenantPattern(tenantId: bigint, publicId: string) {
+    return this.client.tenantIntelligencePattern.deleteMany({ where: { tenantId, publicId } });
+  }
+
   public async ensureDefaultRules(): Promise<void> {
     for (const rule of DEFAULT_RULES) {
       const existing = await this.client.intelligenceRule.findUnique({ where: { publicId: rule.id }, select: { id: true } });

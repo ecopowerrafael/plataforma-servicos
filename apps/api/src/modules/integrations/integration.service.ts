@@ -17,6 +17,7 @@ import {
 } from './whatsapp-message-status.js';
 import { normalizeWhatsAppPhone } from './whatsapp-phone.js';
 import { type WhatsAppProviderResolver } from './whatsapp-provider-resolver.js';
+import type { WhatsAppProviderId } from './whatsapp-provider.js';
 import { MetaInboundNormalizer } from './meta-whatsapp-inbound.js';
 import { EvolutionInboundNormalizer } from './evolution-whatsapp-inbound.js';
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';

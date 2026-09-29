@@ -73,9 +73,9 @@ export class IntelligenceRuleRepository {
     return this.client.tenantIntelligencePattern.create({ data: { publicId: randomUUID(), tenantId: input.tenantId, intent: input.intent as never, pattern: input.pattern.trim(), normalizedPattern } });
   }
 
-  public updateTenantPattern(tenantId: bigint, publicId: string, input: { intent?: string; pattern?: string; enabled?: boolean }) {
+  public updateTenantPattern(tenantId: bigint, publicId: string, input: { intent?: string | undefined; pattern?: string | undefined; enabled?: boolean | undefined }) {
     const normalizedPattern = input.pattern === undefined ? undefined : normalizePattern(input.pattern);
-    return this.client.tenantIntelligencePattern.updateMany({ where: { tenantId, publicId }, data: { ...(input.intent === undefined ? {} : { intent: input.intent as never }), ...(input.pattern === undefined ? {} : { pattern: input.pattern.trim(), normalizedPattern }), ...(input.enabled === undefined ? {} : { enabled: input.enabled }) } });
+    return this.client.tenantIntelligencePattern.updateMany({ where: { tenantId, publicId }, data: { ...(input.intent === undefined ? {} : { intent: input.intent as never }), ...(input.pattern === undefined || normalizedPattern === undefined ? {} : { pattern: input.pattern.trim(), normalizedPattern }), ...(input.enabled === undefined ? {} : { enabled: input.enabled }) } });
   }
 
   public deleteTenantPattern(tenantId: bigint, publicId: string) {

@@ -154,6 +154,8 @@ import { TenantSubscriptionService } from '../modules/tenants/tenant-subscriptio
 import { TenantWhiteLabelRepository } from '../modules/tenants/tenant-white-label.repository.js';
 import { TenantWhiteLabelService } from '../modules/tenants/tenant-white-label.service.js';
 import { type TenantRepository } from '../modules/tenants/tenant.repository.js';
+import { IntelligenceRuleRepository } from '../modules/integrations/intelligence-rule.repository.js';
+import { IntelligenceRuleService } from '../modules/integrations/intelligence-rule.service.js';
 
 export interface DatabaseConnection {
   readonly client: PrismaClient;
@@ -235,6 +237,8 @@ export interface DatabaseConnection {
   readonly integrations?: IntegrationService;
   readonly wapiConfig?: WapiConfigService;
   readonly whatsappProviderConfig?: WhatsAppProviderConfigService;
+  readonly intelligenceRules?: IntelligenceRuleService;
+  readonly intelligenceRuleRepository?: IntelligenceRuleRepository;
   readonly publicBooking?: PublicBookingService;
   readonly products?: ProductCatalogService;
   readonly stockMovements?: StockMovementService;
@@ -683,6 +687,8 @@ export function createDatabaseConnection(
     ),
     wapiConfig: wapiConfigService,
     whatsappProviderConfig: new WhatsAppProviderConfigService(client, credentialsCipher, wapiConfigService),
+    intelligenceRuleRepository: new IntelligenceRuleRepository(client),
+    intelligenceRules: new IntelligenceRuleService(new IntelligenceRuleRepository(client)),
     async ping() {
       try {
         await activeClient.$queryRaw`SELECT 1`;

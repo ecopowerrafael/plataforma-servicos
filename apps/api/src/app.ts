@@ -87,6 +87,7 @@ import { platformRoutes } from './modules/platform/platform.routes.js';
 import { commercialRoutes } from './modules/commercial/commercial.routes.js';
 import { wapiConfigRoutes } from './modules/platform/wapi-config.routes.js';
 import { whatsappProviderConfigRoutes } from './modules/platform/whatsapp-provider-config.routes.js';
+import { intelligenceRuleRoutes } from './modules/platform/intelligence-rule.routes.js';
 import { publicCommercialRoutes } from './modules/platform/public-commercial.routes.js';
 import { directoryRoutes, publicDirectoryRoutes } from './modules/platform/directory.routes.js';
 import { DirectoryLocationService } from './modules/platform/directory-location.service.js';
@@ -1065,6 +1066,14 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.whatsappProviderConfig && options.database.platform)
     await app.register(whatsappProviderConfigRoutes, {
       service: options.database.whatsappProviderConfig,
+      platformService: options.database.platform,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+    });
+  if (options.database.intelligenceRules && options.database.intelligenceRuleRepository && options.database.platform)
+    await app.register(intelligenceRuleRoutes, {
+      service: options.database.intelligenceRules,
+      repository: options.database.intelligenceRuleRepository,
       platformService: options.database.platform,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,

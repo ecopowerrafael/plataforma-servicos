@@ -27,6 +27,7 @@ import { SubscriptionModule } from '../components/platform/SubscriptionModule.js
 import { TenantModule } from '../components/platform/TenantModule.js';
 import { DirectoryModule } from '../components/platform/DirectoryModule.js';
 import { ProspectingModule } from '../components/platform/ProspectingModule.js';
+import { IntelligenceRulesModule } from '../components/platform/IntelligenceRulesModule.js';
 import { HttpError, httpClient } from '../lib/http.js';
 
 export function PlatformPageRebuild() {
@@ -50,6 +51,7 @@ export function PlatformPageRebuild() {
     'audit',
     'directory',
     'prospecting',
+    'intelligence',
     'settings',
   ].includes(routeSection ?? '')
     ? (routeSection as PlatformSection | 'settings')
@@ -127,6 +129,8 @@ export function PlatformPageRebuild() {
         <DirectoryModule />
       ) : section === 'prospecting' ? (
         <ProspectingModule campaignPublicId={params.resourceId} />
+      ) : section === 'intelligence' ? (
+        <IntelligenceRulesModule />
       ) : section === 'settings' ? (
         <>
           <WhatsAppProvidersModule />

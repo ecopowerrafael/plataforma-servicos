@@ -272,11 +272,11 @@ export class WhatsAppAssistantService {
       const interpretation = interpretText({
         text: event.text,
         conversationContext: conversation.context,
-        catalog: site === null ? undefined : {
+        ...(site === null ? {} : { catalog: {
           services: site.services.map((item) => ({ publicId: item.publicId, name: item.name })),
           combos: site.combos.map((item) => ({ publicId: item.publicId, name: item.name })),
           professionals: site.professionals.map((item) => ({ publicId: item.publicId, name: item.name, active: true })),
-        },
+        } }),
       });
       const hasBookingCorrection = interpretation.intent === 'UNKNOWN' && conversation.currentFlow === 'BOOKING_CREATE' && Object.keys(interpretation.entities).length > 0;
       if (interpretation.confidence >= 0.65 || hasBookingCorrection) {

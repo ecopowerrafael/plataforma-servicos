@@ -31,6 +31,7 @@ export type PlatformSection =
   | 'audit'
   | 'directory'
   | 'prospecting'
+  | 'intelligence'
   | 'settings';
 
 const items: { id: PlatformSection; label: string; icon: typeof IconLayoutDashboard }[] = [
@@ -44,6 +45,7 @@ const items: { id: PlatformSection; label: string; icon: typeof IconLayoutDashbo
   { id: 'audit', label: 'Auditoria', icon: IconScript },
   { id: 'directory', label: 'Diretório', icon: IconCompass },
   { id: 'prospecting', label: 'Prospecção', icon: IconSend2 },
+  { id: 'intelligence', label: 'Inteligência', icon: IconScript },
   { id: 'settings', label: 'Configurações', icon: IconSettings },
 ];
 

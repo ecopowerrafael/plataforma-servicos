@@ -27,6 +27,12 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
   const client = o.client;
   const assertWhatsApp = (tenantId: bigint) => new PlanEntitlementService().assertFeatureEnabledForTenant(client, tenantId, 'whatsapp.enabled');
   const intelligenceRepository = new IntelligenceRuleRepository(client);
+  const safePattern = (item: { publicId: string; intent: string; pattern: string; enabled: boolean }) => ({
+    publicId: item.publicId,
+    intent: item.intent,
+    pattern: item.pattern,
+    enabled: item.enabled,
+  });
 
   app.get(
     '/tenant/integrations/whatsapp/assistant-config',
@@ -147,12 +153,21 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
       client.professional.findMany({ where: { tenantId: r.tenant.id, active: true }, select: { publicId: true, name: true } }),
       client.tenantIntelligenceEntityAlias.findMany({ where: { tenantId: r.tenant.id, enabled: true }, orderBy: { normalizedAlias: 'asc' } }),
     ]);
-    return { services, combos, professionals, aliases, patterns: await intelligenceRepository.listTenantPatterns(r.tenant.id), rules: await intelligenceRepository.findActiveForMatching() };
+    const [patterns, rules] = await Promise.all([intelligenceRepository.listTenantPatterns(r.tenant.id), intelligenceRepository.findActiveForMatching()]);
+    return {
+      services,
+      combos,
+      professionals,
+      aliases: aliases.map((item) => ({ publicId: item.publicId, entityType: item.entityType, entityPublicId: item.entityPublicId, alias: item.alias })),
+      patterns: patterns.map(safePattern),
+      rules: rules.map((rule) => ({ publicId: rule.publicId, name: rule.name, intent: rule.intent, patterns: rule.patterns.map((item) => ({ publicId: item.publicId, pattern: item.pattern })) })),
+    };
   });
 
   app.post('/tenant/integrations/whatsapp/assistant-config/intelligence/patterns', { schema: { body: z.object({ intent: z.enum(['BOOKING', 'AVAILABILITY', 'PRICE_QUERY', 'PAYMENT_METHODS', 'PAYMENT', 'CANCEL', 'RESCHEDULE', 'BOOKING_QUERY']), pattern: z.string().trim().min(1).max(500) }) } }, async (r, reply) => {
     o.authService.requirePermission(r.tenant, 'integration.manage'); await assertWhatsApp(r.tenant.id);
-    return reply.code(201).send(await intelligenceRepository.createTenantPattern({ tenantId: r.tenant.id, intent: r.body.intent, pattern: r.body.pattern }));
+    const created = await intelligenceRepository.createTenantPattern({ tenantId: r.tenant.id, intent: r.body.intent, pattern: r.body.pattern });
+    return reply.code(201).send(safePattern(created));
   });
   app.patch('/tenant/integrations/whatsapp/assistant-config/intelligence/patterns/:publicId', { schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ intent: z.enum(['BOOKING', 'AVAILABILITY', 'PRICE_QUERY', 'PAYMENT_METHODS', 'PAYMENT', 'CANCEL', 'RESCHEDULE', 'BOOKING_QUERY']).optional(), pattern: z.string().trim().min(1).max(500).optional(), enabled: z.boolean().optional() }) } }, async (r) => {
     o.authService.requirePermission(r.tenant, 'integration.manage'); await assertWhatsApp(r.tenant.id); await intelligenceRepository.updateTenantPattern(r.tenant.id, r.params.publicId, r.body); return { success: true as const };
@@ -179,7 +194,8 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
         : await client.professional.findFirst({ where: { tenantId: r.tenant.id, publicId: r.body.entityPublicId }, select: { publicId: true } });
     if (entity === null) return reply.code(404).send({ message: 'Entidade não encontrada neste tenant.' });
     const normalizedAlias = r.body.alias.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLowerCase().replace(/\s+/gu, ' ').trim();
-    return reply.code(201).send(await client.tenantIntelligenceEntityAlias.create({ data: { publicId: randomUUID(), tenantId: r.tenant.id, entityType: r.body.entityType, entityPublicId: r.body.entityPublicId, alias: r.body.alias, normalizedAlias } }));
+    const created = await client.tenantIntelligenceEntityAlias.create({ data: { publicId: randomUUID(), tenantId: r.tenant.id, entityType: r.body.entityType, entityPublicId: r.body.entityPublicId, alias: r.body.alias, normalizedAlias } });
+    return reply.code(201).send({ publicId: created.publicId, entityType: created.entityType, entityPublicId: created.entityPublicId, alias: created.alias });
   });
 
   app.delete('/tenant/integrations/whatsapp/assistant-config/intelligence/aliases/:publicId', { schema: { params: z.object({ publicId: z.uuid() }) } }, async (r) => {

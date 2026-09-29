@@ -262,8 +262,8 @@ export function CommercialPolicyModule() {
           <section className="platform-panel">
             <h3>Atendimento comercial</h3>
             <label className="platform-field">
-              <strong>WhatsApp comercial do Agendei</strong>
-              <small>Exibido somente no botão flutuante das páginas comerciais públicas.</small>
+              <strong>WhatsApp de atendimento</strong>
+              <small>Número utilizado nos botões de contato e atendimento do Agendei.</small>
               <input
                 inputMode="tel"
                 placeholder="5511999999999"

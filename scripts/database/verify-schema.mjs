@@ -7,6 +7,12 @@ import { safeError } from './sanitize.mjs';
 import { parseAllowedExtraTables } from './v2-state-guard.mjs';
 
 const execFileAsync = promisify(execFile);
+// Legacy backup tables preserved from September 2026 WhatsApp migrations.
+const LEGACY_ALLOWED_TABLES = Object.freeze([
+  'tenant_whatsapp_configs_bak_20260907_ssh_mig',
+  'tenant_whatsapp_configs_bak_20260907_meta_webhook',
+  'tenant_whatsapp_configs_bak_20260908_meta_templates',
+]);
 const urlText = process.env.VERIFY_DATABASE_URL;
 const mysql = process.env.MYSQL_BIN ?? 'C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysql.exe';
 if (!urlText) throw new Error('VERIFY_DATABASE_URL é obrigatória; não use DATABASE_URL implícita.');
@@ -22,7 +28,8 @@ const { stdout } = await execFileAsync(mysql, [...args, '-e', query, database], 
 const rows = stdout.trim().split(/\r?\n/).map((line) => line.split('\t')).filter((row) => row.length === 2);
 const actual = Object.fromEntries(rows.filter(([key]) => key !== 'table_name').map(([key, value]) => [key, Number(value)]));
 const actualTables = rows.filter(([key]) => key === 'table_name').map(([, value]) => value);
-const allowedExtraTables = parseAllowedExtraTables(process.env.V2_ALLOWED_EXTRA_TABLES);
+const configuredAllowedExtraTables = parseAllowedExtraTables(process.env.V2_ALLOWED_EXTRA_TABLES);
+const allowedExtraTables = [...new Set([...LEGACY_ALLOWED_TABLES, ...configuredAllowedExtraTables])];
 const errors = [];
 const missingTables = expectedTables.filter((table) => !actualTables.includes(table));
 const extras = actualTables.filter((table) => table !== '_prisma_migrations' && !expectedTables.includes(table));

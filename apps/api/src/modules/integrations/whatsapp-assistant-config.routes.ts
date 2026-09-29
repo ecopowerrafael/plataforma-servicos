@@ -133,4 +133,36 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
       return { success: true as const };
     },
   );
+
+  app.get('/tenant/integrations/whatsapp/assistant-config/intelligence', async (r) => {
+    o.authService.requirePermission(r.tenant, 'integration.read');
+    await assertWhatsApp(r.tenant.id);
+    const [services, combos, professionals, aliases] = await Promise.all([
+      client.service.findMany({ where: { tenantId: r.tenant.id, active: true }, select: { publicId: true, name: true } }),
+      client.combo.findMany({ where: { tenantId: r.tenant.id, active: true }, select: { publicId: true, name: true } }),
+      client.professional.findMany({ where: { tenantId: r.tenant.id, active: true }, select: { publicId: true, name: true } }),
+      client.tenantIntelligenceEntityAlias.findMany({ where: { tenantId: r.tenant.id, enabled: true }, orderBy: { normalizedAlias: 'asc' } }),
+    ]);
+    return { services, combos, professionals, aliases };
+  });
+
+  app.post('/tenant/integrations/whatsapp/assistant-config/intelligence/aliases', { schema: { body: z.object({ entityType: z.enum(['SERVICE', 'COMBO', 'PROFESSIONAL']), entityPublicId: z.uuid(), alias: z.string().trim().min(1).max(160) }) } }, async (r, reply) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage');
+    await assertWhatsApp(r.tenant.id);
+    const entity = r.body.entityType === 'SERVICE'
+      ? await client.service.findFirst({ where: { tenantId: r.tenant.id, publicId: r.body.entityPublicId }, select: { publicId: true } })
+      : r.body.entityType === 'COMBO'
+        ? await client.combo.findFirst({ where: { tenantId: r.tenant.id, publicId: r.body.entityPublicId }, select: { publicId: true } })
+        : await client.professional.findFirst({ where: { tenantId: r.tenant.id, publicId: r.body.entityPublicId }, select: { publicId: true } });
+    if (entity === null) return reply.code(404).send({ message: 'Entidade não encontrada neste tenant.' });
+    const normalizedAlias = r.body.alias.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLowerCase().replace(/\s+/gu, ' ').trim();
+    return reply.code(201).send(await client.tenantIntelligenceEntityAlias.create({ data: { publicId: randomUUID(), tenantId: r.tenant.id, entityType: r.body.entityType, entityPublicId: r.body.entityPublicId, alias: r.body.alias, normalizedAlias } }));
+  });
+
+  app.delete('/tenant/integrations/whatsapp/assistant-config/intelligence/aliases/:publicId', { schema: { params: z.object({ publicId: z.uuid() }) } }, async (r) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage');
+    await assertWhatsApp(r.tenant.id);
+    await client.tenantIntelligenceEntityAlias.deleteMany({ where: { publicId: r.params.publicId, tenantId: r.tenant.id } });
+    return { success: true as const };
+  });
 };

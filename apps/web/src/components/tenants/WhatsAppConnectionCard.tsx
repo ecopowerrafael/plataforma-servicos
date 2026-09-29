@@ -3,8 +3,6 @@ import {
   IconCloud,
   IconCopy,
   IconInfoCircle,
-  IconPlugConnected,
-  IconPlugOff,
   IconQrcode,
   IconRefresh,
 } from '@tabler/icons-react';
@@ -183,6 +181,12 @@ function connectionTone(state: string): 'success' | 'danger' | 'neutral' | 'warn
   return 'neutral';
 }
 
+function connectionBadgeLabel(state: string) {
+  if (state === 'CONNECTED') return 'CONECTADO';
+  if (state === 'WAITING_QR' || state === 'CREATED') return 'RECONECTANDO';
+  return 'DESCONECTADO';
+}
+
 function templateStatusTone(status: string): 'success' | 'danger' | 'neutral' | 'warning' {
   if (status === 'APPROVED') return 'success';
   if (status === 'PENDING') return 'warning';
@@ -348,13 +352,8 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
       await refresh();
     },
   });
-  const reconfigureWebhooks = useMutation({
-    mutationFn: () => httpClient.request('/tenant/integrations/whatsapp/webhooks/reconfigure', { method: 'POST', body: {}, schema: z.object({ success: z.literal(true) }), tenantPublicId }),
-    onSuccess: () => setNotice('Webhooks reconfigurados com sucesso.'),
-  });
-
-  const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || reconfigureWebhooks.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
-  const accountError = [createInstance.error, requestQr.error, disconnect.error, reconfigureWebhooks.error, updateProvider.error, connection.error, providers.error].find((item): item is Error => item instanceof Error);
+  const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
+  const accountError = [createInstance.error, requestQr.error, disconnect.error, updateProvider.error, connection.error, providers.error].find((item): item is Error => item instanceof Error);
   const templateError = [provisionTemplates.error, refreshTemplates.error, metaTemplates.error].find((item): item is Error => item instanceof Error);
 
   if (!available) {
@@ -394,22 +393,25 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
       <section className="whatsapp-current-card" aria-label="Conexão atual">
         <div className="whatsapp-provider-icon" aria-hidden="true"><ProviderIcon provider={activeProvider} /></div>
         <div>
-          <p className="whatsapp-section-kicker">STATUS DA CONEXÃO</p>
-          <h2>WhatsApp {state === 'CONNECTED' ? 'conectado' : 'não conectado'}</h2>
+          <p className="whatsapp-section-kicker">{activePresentation.name}</p>
+          <h2>WhatsApp {state === 'CONNECTED' ? 'conectado' : 'desconectado'}</h2>
           <span>{activePresentation.subtitle}</span>
           <dl className="whatsapp-current-card__facts">
-            <div><dt>Número</dt><dd>{prettyPhone(connection.data?.connectedPhone) ?? 'Ainda não identificado'}</dd></div>
+            <div><dt>Número conectado</dt><dd>{prettyPhone(connection.data?.connectedPhone) ?? 'Ainda não identificado'}</dd></div>
             <div><dt>Última verificação</dt><dd>{connection.data?.lastStatusCheckAt == null ? 'Ainda não verificada' : timeOf(connection.data.lastStatusCheckAt)}</dd></div>
-            <div><dt>Status</dt><dd>{STATE_LABEL[state] ?? 'Não configurado'}</dd></div>
-            <div><dt>Provedor</dt><dd>{activePresentation.name}</dd></div>
+            <div><dt>Estado</dt><dd>{STATE_LABEL[state] ?? 'Não configurado'}</dd></div>
+            {activeProvider === 'META' ? <>
+              {connection.data?.businessAccountId ? <div><dt>Business Account / WABA</dt><dd>{connection.data.businessAccountId}</dd></div> : null}
+              {connection.data?.phoneNumberId ? <div><dt>Phone Number ID</dt><dd>{connection.data.phoneNumberId}</dd></div> : null}
+              {connection.data?.webhookUrl ? <div><dt>Webhook</dt><dd>Ativo</dd></div> : null}
+            </> : <div><dt>Tipo</dt><dd>QR Code</dd></div>}
           </dl>
         </div>
         <div className="whatsapp-current-card__actions">
           <div className="whatsapp-badge-row">
-            <StatusBadge tone="primary">EM USO</StatusBadge>
-            <StatusBadge tone={connectionTone(state)}>{STATE_LABEL[state] ?? 'Não configurado'}</StatusBadge>
+            <StatusBadge tone={connectionTone(state)}>{connectionBadgeLabel(state)}</StatusBadge>
           </div>
-          <button className="primary-button" type="button" disabled={busy} onClick={() => { if (!provisioned) createInstance.mutate(); else requestQr.mutate(state === 'DISCONNECTED' || state === 'ERROR' ? 'reconnect' : 'qr'); }}>Reconectar</button>
+          {activeProvider !== 'META' ? <button className="primary-button" type="button" disabled={busy} onClick={() => { if (!provisioned) createInstance.mutate(); else requestQr.mutate(state === 'DISCONNECTED' || state === 'ERROR' ? 'reconnect' : 'qr'); }}>Reconectar</button> : <button className="primary-button" type="button" disabled={busy} onClick={() => setActiveTab('switch')}>Gerenciar</button>}
           <button className="secondary-button" type="button" disabled={busy || connection.isFetching} onClick={() => void refresh()}><IconRefresh size={16} aria-hidden="true" />Atualizar status</button>
           {canManage ? <button className="text-button" type="button" disabled={busy} onClick={() => disconnect.mutate()}>Desconectar</button> : null}
         </div>
@@ -418,7 +420,6 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
       <section className="whatsapp-section-block" aria-label="Saúde da conexão">
         <div className="whatsapp-section-heading"><h2>Saúde da conexão</h2><p>Indicadores baseados no status atual da integração.</p></div>
         <div className="whatsapp-health-grid">
-          <article><strong>WhatsApp</strong><span>{state === 'CONNECTED' ? 'Conectado' : 'Offline'}</span></article>
           {activeProvider === 'META' && connection.data?.webhookUrl ? <article><strong>Webhook</strong><span>Ativo</span></article> : null}
           {activeProvider === 'EVOLUTION' || activeProvider === 'WAPI' ? <article><strong>Servidor</strong><span>{state === 'CONNECTED' ? 'Online' : 'Offline'}</span></article> : null}
           {state === 'CONNECTED' ? <article><strong>Recebimento</strong><span>Funcionando</span></article> : null}
@@ -527,17 +528,6 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
 
         {managedProvider === 'WAPI' || managedProvider === 'EVOLUTION' ? (
           <div className="whatsapp-wapi-panel">
-            <div className="whatsapp-connection-status">
-              <div className="whatsapp-provider-icon" aria-hidden="true">{state === 'CONNECTED' ? <IconPlugConnected size={24} /> : <IconPlugOff size={24} />}</div>
-              <div>
-                <h3>Status da conexão</h3>
-                <p>{state === 'CONNECTED' ? 'Seu WhatsApp está conectado.' : 'Conecte seu WhatsApp lendo o QR Code.'}</p>
-                <dl>
-                  <div><dt>Número conectado</dt><dd>{prettyPhone(connection.data?.connectedPhone) ?? 'Ainda não identificado'}</dd></div>
-                  <div><dt>Estado</dt><dd>{STATE_LABEL[state] ?? 'Não configurado'}</dd></div>
-                </dl>
-              </div>
-            </div>
             {qrCode === null ? null : (
               <div className="whatsapp-inline-qr" aria-live="polite">
                 <div><h3>QR Code para conexão</h3><p>Abra o WhatsApp no celular, acesse Dispositivos conectados e escaneie o código.</p></div>
@@ -545,33 +535,6 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
               </div>
             )}
             {accountError === undefined ? null : <p className="form-error">{accountError.message}</p>}
-            {canManage ? (
-              <footer className="whatsapp-panel-actions">
-                {state === 'CONNECTED' ? (
-                  <>
-                    <button className="secondary-button" type="button" disabled={busy || connection.isFetching} onClick={() => void refresh()}><IconRefresh size={16} aria-hidden="true" />Atualizar status</button>
-                    {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
-                    <button className="text-button" type="button" disabled={busy} onClick={() => disconnect.mutate()}>Desconectar</button>
-                  </>
-                ) : (
-                  <>
-                    {provisioned ? (
-                      <button className="primary-button" type="button" disabled={busy} onClick={() => requestQr.mutate(state === 'DISCONNECTED' || state === 'ERROR' ? 'reconnect' : 'qr')}>
-                        {requestQr.isPending ? 'Gerando QR Code…' : state === 'DISCONNECTED' || state === 'ERROR' ? 'Reconectar' : 'Gerar QR Code'}
-                      </button>
-                    ) : (
-                      <button className="primary-button" type="button" disabled={busy} onClick={() => createInstance.mutate()}>
-                        {createInstance.isPending ? 'Preparando conexão…' : 'Configurar'}
-                      </button>
-                    )}
-                    {provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
-                    {shouldShowWapiActivation(managedProvider, activeProvider) ? (
-                      <button className="secondary-button" type="button" disabled={busy} onClick={() => setConfirmSwitch(managedProvider)}>Usar API Própria</button>
-                    ) : null}
-                  </>
-                )}
-              </footer>
-            ) : null}
           </div>
         ) : (
           <div className="whatsapp-meta-panel">

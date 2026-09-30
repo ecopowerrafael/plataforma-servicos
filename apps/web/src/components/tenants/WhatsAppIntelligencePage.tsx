@@ -7,8 +7,8 @@ export function WhatsAppIntelligencePage({ tenantPublicId, canManage }: { tenant
         <div className="settings-header">
           <div>
             <p className="eyebrow">WhatsApp</p>
-            <h1>Inteligência</h1>
-            <p className="settings-subtitle">Gerencie vocabulário, treinamento e testes do assistente.</p>
+            <h1>Inteligência do atendimento</h1>
+            <p className="settings-subtitle">Ensine ao Agendei como seus clientes falam e teste o que ele entende.</p>
           </div>
         </div>
         <IntelligenceTab tenantPublicId={tenantPublicId} canManage={canManage} />

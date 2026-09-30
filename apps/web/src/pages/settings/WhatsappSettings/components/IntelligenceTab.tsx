@@ -128,6 +128,8 @@ export function IntelligenceTab({
   const [section, setSection] = useState<Section>("overview");
   const [selected, setSelected] = useState("");
   const [alias, setAlias] = useState("");
+  const [aliasTerms, setAliasTerms] = useState<string[]>([]);
+  const [aliasSaveMessage, setAliasSaveMessage] = useState<string | null>(null);
   const [intent, setIntent] = useState("BOOKING");
   const [pattern, setPattern] = useState("");
   const [text, setText] = useState("");
@@ -148,21 +150,26 @@ export function IntelligenceTab({
   });
   const refresh = () => client.invalidateQueries({ queryKey });
   const addAlias = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const [entityType, entityPublicId] = selected.split(":");
-      return httpClient.request(
-        "/tenant/integrations/whatsapp/assistant-config/intelligence/aliases",
-        {
-          method: "POST",
-          body: { entityType, entityPublicId, alias },
-          schema: z.unknown(),
-          tenantPublicId,
-        },
-      );
+      const existing = new Set(data.aliases.filter((item) => item.entityType === entityType && item.entityPublicId === entityPublicId).map((item) => item.alias.trim().toLocaleLowerCase()));
+      const saved: string[] = [];
+      const failed: string[] = [];
+      for (const term of aliasTerms) {
+        if (existing.has(term.toLocaleLowerCase())) { failed.push(term); continue; }
+        try {
+          await httpClient.request("/tenant/integrations/whatsapp/assistant-config/intelligence/aliases", { method: "POST", body: { entityType, entityPublicId, alias: term }, schema: z.unknown(), tenantPublicId });
+          existing.add(term.toLocaleLowerCase());
+          saved.push(term);
+        } catch { failed.push(term); }
+      }
+      return { saved, failed };
     },
-    onSuccess: async () => {
+    onSuccess: async ({ saved, failed }) => {
       setAlias("");
-      setAliasModalOpen(false);
+      setAliasTerms(failed);
+      setAliasSaveMessage(failed.length > 0 ? `${saved.length} ${saved.length === 1 ? "nome foi adicionado" : "nomes foram adicionados"}. ${failed.length} não pôde ser salvo: ${failed.map((term) => `“${term}”`).join(", ")}.` : saved.length === 1 ? "Nome alternativo adicionado." : `${saved.length} nomes alternativos adicionados.`);
+      if (failed.length === 0) setAliasModalOpen(false);
       await refresh();
     },
   });
@@ -281,6 +288,8 @@ export function IntelligenceTab({
     setEditingAlias(null);
     setSelected("");
     setAlias("");
+    setAliasTerms([]);
+    setAliasSaveMessage(null);
     setAliasModalOpen(true);
   };
   const openEditAlias = (publicId: string) => {
@@ -289,6 +298,8 @@ export function IntelligenceTab({
     setEditingAlias(publicId);
     setSelected(`${item.entityType}:${item.entityPublicId}`);
     setAlias(item.alias);
+    setAliasTerms([item.alias]);
+    setAliasSaveMessage(null);
     setAliasModalOpen(true);
   };
   const confirmationRequest: ConfirmationRequest | null = confirmingAlias === null ? null : {
@@ -298,6 +309,18 @@ export function IntelligenceTab({
     requiresReason: false,
     variant: "danger",
     onConfirm: async () => { await removeAlias.mutateAsync(confirmingAlias); setConfirmingAlias(null); },
+  };
+  const addAliasTerms = (rawValue: string) => {
+    const candidates = rawValue.split(",").map((value) => value.trim()).filter(Boolean);
+    const existing = new Set(aliasTerms.map((term) => term.toLocaleLowerCase()));
+    const duplicates: string[] = [];
+    const next = [...aliasTerms];
+    for (const candidate of candidates) {
+      if (existing.has(candidate.toLocaleLowerCase())) duplicates.push(candidate);
+      else { existing.add(candidate.toLocaleLowerCase()); next.push(candidate); }
+    }
+    setAliasTerms(next);
+    setAliasSaveMessage(duplicates.length > 0 ? "Esse nome já está cadastrado." : null);
   };
   const customPatterns = data.patterns.filter((item) => item.enabled);
   const intelligenceConfigured = data.aliases.length > 0 || customPatterns.length > 0;
@@ -362,7 +385,7 @@ export function IntelligenceTab({
                 mesmo serviço.
               </p>
             </div>
-            <button className="wa-primary-action" type="button" onClick={openNewAlias} disabled={!canManage}>+ Adicionar nome alternativo</button>
+            <div className="wa-vocabulary-header-action"><button className="wa-primary-action" type="button" onClick={openNewAlias} disabled={!canManage} title={!canManage ? "Você não tem permissão para alterar esta configuração." : undefined}>+ Adicionar nome alternativo</button>{!canManage && <small>Você não tem permissão para alterar esta configuração.</small>}</div>
           </div>
           <StatGrid>
             <div className="wa-overview-stat"><IconTag size={19} aria-hidden="true" /><StatCard label="Total de nomes" value={String(data.aliases.length)} hint="Jeitos diferentes de falar." tone="info" /></div>
@@ -370,81 +393,15 @@ export function IntelligenceTab({
             <div className="wa-overview-stat"><IconMessageCircle size={19} aria-hidden="true" /><StatCard label="Combos" value={String(aliasCountByType("COMBO"))} hint="Nomes personalizados." tone="muted" /></div>
             <div className="wa-overview-stat"><IconCheck size={19} aria-hidden="true" /><StatCard label="Profissionais" value={String(aliasCountByType("PROFESSIONAL"))} hint="Nomes personalizados." tone="warning" /></div>
           </StatGrid>
-          <div className="wa-card wa-vocabulary-form">
-            <div className="wa-section-heading">
-              <div>
-                <h2>Buscar e filtrar</h2>
-                <p>
-                  Encontre rapidamente um nome cadastrado.
-                </p>
-              </div>
-            </div>
+          <SectionCard title="Buscar e filtrar" description="Encontre rapidamente um nome cadastrado." className="wa-vocabulary-filters">
             <div className="wa-form-grid">
-              <label>
-                Buscar nome
-                <input
-                  value={aliasSearch}
-                  placeholder="Ex.: cabelo, João…"
-                  onChange={(event) => setAliasSearch(event.target.value)}
-                />
-              </label>
-              <label>
-                Tipo
-                <select
-                  value={aliasType}
-                  onChange={(event) => setAliasType(event.target.value)}
-                >
-                  <option value="ALL">Todos os tipos</option>
-                  <option value="SERVICE">Serviços</option>
-                  <option value="COMBO">Combos</option>
-                  <option value="PROFESSIONAL">Profissionais</option>
-                </select>
-              </label>
-              <label>
-                Status
-                <select aria-label="Status" defaultValue="ACTIVE">
-                  <option value="ALL">Todos</option>
-                  <option value="ACTIVE">Ativo</option>
-                </select>
-              </label>
+              <label>Buscar<input value={aliasSearch} placeholder="Ex.: cabelinho, corte, João…" onChange={(event) => setAliasSearch(event.target.value)} /></label>
+              <label>Tipo<select value={aliasType} onChange={(event) => setAliasType(event.target.value)}><option value="ALL">Todos</option><option value="SERVICE">Serviço</option><option value="COMBO">Combo</option><option value="PROFESSIONAL">Profissional</option></select></label>
+              <label>Status<select defaultValue="ALL"><option value="ALL">Todos</option><option value="ACTIVE">Ativo</option></select></label>
               <button className="wa-secondary-button wa-clear-filters" type="button" onClick={() => { setAliasSearch(""); setAliasType("ALL"); }}>Limpar filtros</button>
-              <label className="wa-alias-create-field">
-                Item real
-                <select
-                  value={selected}
-                  disabled={!canManage}
-                  onChange={(event) => setSelected(event.target.value)}
-                >
-                  <option value="">Escolha um item</option>
-                  {entities.map((item) => (
-                    <option
-                      key={`${item.type}:${item.publicId}`}
-                      value={`${item.type}:${item.publicId}`}
-                    >
-                      {typeLabel[item.type]} · {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="wa-alias-create-field">
-                Nome que o cliente usa
-                <input
-                  value={alias}
-                  disabled={!canManage || !selected}
-                  placeholder="Ex.: cabelinho"
-                  onChange={(event) => setAlias(event.target.value)}
-                />
-              </label>
-              <button
-                className="wa-primary-action wa-alias-create-field"
-                type="button"
-                disabled={!canManage || !selected || !alias.trim()}
-                onClick={() => addAlias.mutate()}
-              >
-                + Adicionar
-              </button>
             </div>
-          </div>
+          </SectionCard>
+          {aliasSaveMessage !== null && !aliasModalOpen && <p className="wa-inline-success" role="status">{aliasSaveMessage}</p>}
           <div className="wa-table-wrap">
             <table className="wa-table">
               <thead>
@@ -467,7 +424,7 @@ export function IntelligenceTab({
                         <small>
                           {data.aliases.length === 0 ? "Cadastre palavras que seus clientes usam no WhatsApp para o sistema entender melhor os pedidos." : "Tente mudar os filtros para encontrar outro nome."}
                         </small>
-                        {data.aliases.length === 0 && canManage && <button className="wa-primary-action" type="button" onClick={openNewAlias}>+ Adicionar primeiro nome alternativo</button>}
+                        {data.aliases.length === 0 && <button className="wa-primary-action" type="button" onClick={openNewAlias} disabled={!canManage} title={!canManage ? "Você não tem permissão para alterar esta configuração." : undefined}>+ Adicionar primeiro nome alternativo</button>}
                       </div>
                     </td>
                   </tr>
@@ -535,16 +492,17 @@ export function IntelligenceTab({
         footer={
           <>
             <button type="button" className="wa-secondary-button" onClick={() => setAliasModalOpen(false)} disabled={addAlias.isPending || updateAlias.isPending}>Cancelar</button>
-            <button type="button" className="wa-primary-action" disabled={!canManage || !selected || !alias.trim() || addAlias.isPending || updateAlias.isPending} onClick={() => { if (editingAlias === null) addAlias.mutate(); else updateAlias.mutate({ publicId: editingAlias, alias: alias.trim() }); }}>{addAlias.isPending || updateAlias.isPending ? "Salvando…" : editingAlias === null ? "Salvar nome alternativo" : "Salvar alterações"}</button>
+            <button type="button" className="wa-primary-action" disabled={!canManage || !selected || (editingAlias === null ? aliasTerms.length === 0 : !alias.trim()) || addAlias.isPending || updateAlias.isPending} onClick={() => { if (editingAlias === null) addAlias.mutate(); else updateAlias.mutate({ publicId: editingAlias, alias: alias.trim() }); }}>{addAlias.isPending ? `Salvando ${aliasTerms.length} nomes…` : updateAlias.isPending ? "Salvando…" : editingAlias === null ? `Salvar ${aliasTerms.length || ""} ${aliasTerms.length === 1 ? "nome" : "nomes"}` : "Salvar alteração"}</button>
           </>
         }
       >
         <p className="wa-modal-help">Escolha o item real do sistema e diga como seus clientes costumam chamá-lo.</p>
         <div className="wa-modal-form">
           <label>O que é isso?<select value={selected.split(":")[0] || "SERVICE"} disabled={editingAlias !== null || !canManage} onChange={(event) => { setSelected(`${event.target.value}:`); }}><option value="SERVICE">Serviço</option><option value="COMBO">Combo</option><option value="PROFESSIONAL">Profissional</option></select><small>Escolha se é um serviço, combo ou profissional.</small></label>
-          <label>Item real<select value={selected} disabled={!canManage} onChange={(event) => setSelected(event.target.value)}><option value="">Selecione um item</option>{entities.filter((item) => selected.split(":")[0] === item.type || selected.split(":")[0] === "").map((item) => <option key={`${item.type}:${item.publicId}`} value={`${item.type}:${item.publicId}`}>{item.name}</option>)}</select><small>Este é o nome oficial cadastrado no sistema.</small></label>
-          <label>Nome que o cliente fala<input value={alias} disabled={!canManage || !selected} placeholder="Ex.: cabelinho" onChange={(event) => setAlias(event.target.value)} /><small>Escreva do jeito que o cliente costuma pedir no WhatsApp.</small></label>
-          {(addAlias.isError || updateAlias.isError) && <p className="wa-form-error" role="alert">Não foi possível salvar agora. Confira os campos e tente novamente.</p>}
+          <label>Item do sistema<select value={selected} disabled={!canManage} onChange={(event) => setSelected(event.target.value)}><option value="">Selecione um item</option>{entities.filter((item) => selected.split(":")[0] === item.type || selected.split(":")[0] === "").map((item) => <option key={`${item.type}:${item.publicId}`} value={`${item.type}:${item.publicId}`}>{typeLabel[item.type]} · {item.name}</option>)}</select><small>Escolha o serviço, combo ou profissional que esses nomes representam.</small></label>
+          <label>{editingAlias === null ? "Como seus clientes chamam isso?" : "Nome atual"}{editingAlias === null ? <><div className="wa-alias-chips">{aliasTerms.map((term) => <span key={term}>{term}<button type="button" aria-label={`Remover ${term}`} onClick={() => setAliasTerms((current) => current.filter((value) => value !== term))}>×</button></span>)}</div><input disabled={!canManage || !selected} placeholder="Ex.: cabelinho" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addAliasTerms(event.currentTarget.value); event.currentTarget.value = ""; } }} onBlur={(event) => { if (event.currentTarget.value.trim()) { addAliasTerms(event.currentTarget.value); event.currentTarget.value = ""; } }} /></> : <input value={alias} disabled={!canManage || !selected} placeholder="Ex.: cabelinho" onChange={(event) => setAlias(event.target.value)} />}<small>{editingAlias === null ? "Digite um nome e pressione Enter. Você pode adicionar vários." : "Altere o nome que o cliente costuma usar."}</small></label>
+          <div className="wa-alias-example"><strong>Exemplo</strong><span>Cliente escreve: “quero fazer cabelinho amanhã”</span><span>Agendei entende: Serviço → Corte</span></div>
+          {(aliasSaveMessage || addAlias.isError || updateAlias.isError) && <p className="wa-form-error" role="alert">{aliasSaveMessage ?? "Não foi possível salvar agora. Confira os campos e tente novamente."}</p>}
         </div>
       </Modal>
       {confirmationRequest !== null && <ConfirmationDialog request={confirmationRequest} onClose={() => setConfirmingAlias(null)} />}

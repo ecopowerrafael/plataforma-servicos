@@ -1,17 +1,17 @@
 import { WhatsAppAssistantConfigResponseSchema, SuccessResponseSchema, type WhatsAppAssistantConfig } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { IconCircleCheck, IconPlugConnected } from '@tabler/icons-react';
 import { httpClient } from '../../../lib/http.js';
 import { TabsHeader, type WhatsappTab } from './components/TabsHeader.js';
 import { MenuSettingsTab } from './components/MenuSettingsTab.js';
 import { AutomatedMessagesTab } from './components/AutomatedMessagesTab.js';
-import { IntelligenceTab } from './components/IntelligenceTab.js';
 import { WhatsappPreview } from './components/WhatsappPreview.js';
 import { UnsavedChangesBar } from './components/UnsavedChangesBar.js';
 
 export function WhatsappSettings({ tenantPublicId, canManage, whatsappConnected }: { tenantPublicId: string; canManage: boolean; whatsappConnected: boolean }) {
-  const client = useQueryClient(); const [tab, setTab] = useState<WhatsappTab>('menu'); const [draft, setDraft] = useState<WhatsAppAssistantConfig | null>(null); const [saved, setSaved] = useState<WhatsAppAssistantConfig | null>(null);
+  const navigate = useNavigate(); const client = useQueryClient(); const [tab, setTab] = useState<WhatsappTab>('menu'); const [draft, setDraft] = useState<WhatsAppAssistantConfig | null>(null); const [saved, setSaved] = useState<WhatsAppAssistantConfig | null>(null);
   const queryKey = ['tenant', tenantPublicId, 'whatsapp-assistant-config'];
   const query = useQuery({ queryKey, queryFn: () => httpClient.request('/tenant/integrations/whatsapp/assistant-config', { schema: WhatsAppAssistantConfigResponseSchema, tenantPublicId }), retry: false });
   useEffect(() => { if (query.data?.config && !saved) { setSaved(query.data.config); setDraft(query.data.config); } }, [query.data, saved]);
@@ -21,5 +21,5 @@ export function WhatsappSettings({ tenantPublicId, canManage, whatsappConnected 
   const previewMenu = useMemo(() => draft?.menu.buttons ?? [], [draft]);
   if (query.isPending || !draft) return <div className="wa-settings-loading">Carregando configurações…</div>;
   if (query.isError) return <div className="wa-settings-error">Não foi possível carregar as configurações. <button type="button" onClick={() => query.refetch()}>Tentar novamente</button></div>;
-  return <div className="wa-settings-shell"><header className="wa-settings-header"><div><span className="wa-kicker">WHATSAPP · ASSISTENTE VIRTUAL</span><h1>Atendimento automático</h1><p>Personalize as mensagens automáticas e o comportamento do assistente virtual.</p></div><div className={`wa-connection-pill ${whatsappConnected ? 'connected' : ''}`}><span />{whatsappConnected ? 'WhatsApp conectado' : 'WhatsApp não conectado'}</div></header><TabsHeader activeTab={tab} onChange={setTab} /><div className="wa-settings-grid"><main>{tab === 'menu' && <MenuSettingsTab greeting={draft.greeting} menu={draft.menu} canManage={canManage} onChange={(next) => setDraft({ ...draft, ...next })} />}{tab === 'automated' && <AutomatedMessagesTab canManage={canManage} responseIntervalSeconds={draft.responseIntervalSeconds} onIntervalChange={(value) => setDraft({ ...draft, responseIntervalSeconds: value })} />}{tab === 'connection' && <IntelligenceTab tenantPublicId={tenantPublicId} canManage={canManage} />}</main>{tab === 'menu' && <WhatsappPreview message={previewMessage} showMenu={draft.menu.buttons.some((button) => button.enabled)} menu={previewMenu} />}</div>{isDirty && canManage && <UnsavedChangesBar saving={mutation.isPending} disabled={mutation.isPending} onDiscard={() => setDraft(saved)} onSave={() => mutation.mutate(draft)} />}</div>;
+  return <div className="wa-settings-shell"><header className="wa-settings-header"><div><span className="wa-kicker">WHATSAPP · ASSISTENTE VIRTUAL</span><h1>Atendimento automático</h1><p>Personalize as mensagens automáticas e o comportamento do assistente virtual.</p></div><div className={`wa-connection-pill ${whatsappConnected ? 'connected' : ''}`}><span />{whatsappConnected ? 'WhatsApp conectado' : 'WhatsApp não conectado'}</div></header><TabsHeader activeTab={tab} onChange={setTab} /><div className="wa-settings-grid"><main>{tab === 'menu' && <MenuSettingsTab greeting={draft.greeting} menu={draft.menu} canManage={canManage} onChange={(next) => setDraft({ ...draft, ...next })} />}{tab === 'automated' && <AutomatedMessagesTab canManage={canManage} responseIntervalSeconds={draft.responseIntervalSeconds} onIntervalChange={(value) => setDraft({ ...draft, responseIntervalSeconds: value })} />}{tab === 'connection' && <section className="wa-card"><h2>Inteligência</h2><p>Gerencie vocabulário, treinamento e testes do assistente na área dedicada.</p><button className="btn btn-primary" type="button" onClick={() => void navigate('/app/whatsapp/inteligencia')}>Gerenciar Inteligência</button></section>}</main>{tab === 'menu' && <WhatsappPreview message={previewMessage} showMenu={draft.menu.buttons.some((button) => button.enabled)} menu={previewMenu} />}</div>{isDirty && canManage && <UnsavedChangesBar saving={mutation.isPending} disabled={mutation.isPending} onDiscard={() => setDraft(saved)} onSave={() => mutation.mutate(draft)} />}</div>;
 }

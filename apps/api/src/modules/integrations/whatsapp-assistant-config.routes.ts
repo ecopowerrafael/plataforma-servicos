@@ -199,6 +199,15 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
     return reply.code(201).send({ publicId: created.publicId, entityType: created.entityType, entityPublicId: created.entityPublicId, alias: created.alias });
   });
 
+  app.patch('/tenant/integrations/whatsapp/assistant-config/intelligence/aliases/:publicId', { schema: { params: z.object({ publicId: z.uuid() }), body: z.object({ alias: z.string().trim().min(1).max(160) }) } }, async (r, reply) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage');
+    await assertWhatsApp(r.tenant.id);
+    const normalizedAlias = r.body.alias.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLowerCase().replace(/\s+/gu, ' ').trim();
+    const updated = await client.tenantIntelligenceEntityAlias.updateMany({ where: { publicId: r.params.publicId, tenantId: r.tenant.id }, data: { alias: r.body.alias, normalizedAlias } });
+    if (updated.count === 0) return reply.code(404).send({ message: 'Alias não encontrado neste tenant.' });
+    return { success: true as const };
+  });
+
   app.delete('/tenant/integrations/whatsapp/assistant-config/intelligence/aliases/:publicId', { schema: { params: z.object({ publicId: z.uuid() }) } }, async (r) => {
     o.authService.requirePermission(r.tenant, 'integration.manage');
     await assertWhatsApp(r.tenant.id);

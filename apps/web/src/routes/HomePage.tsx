@@ -194,6 +194,7 @@ const WhiteLabelModule = load(
   'WhiteLabelModule',
 );
 const WhatsAppPage = load(import('../components/tenants/WhatsAppPage.js'), 'WhatsAppPage');
+const WhatsAppIntelligencePage = load(import('../components/tenants/WhatsAppIntelligencePage.js'), 'WhatsAppIntelligencePage');
 const EmailTemplateModule = load(
   import('../components/tenants/EmailTemplateModule.js'),
   'EmailTemplateModule',
@@ -883,6 +884,7 @@ export function HomePage() {
       items: [
         { label: 'Conexão', to: '/app/whatsapp/conexao', visible: planFeatureEnabled('whatsapp.enabled') },
         { label: 'Mensagens', to: '/app/whatsapp/mensagens', visible: planFeatureEnabled('whatsapp.enabled') },
+        { label: 'Inteligência', to: '/app/whatsapp/inteligencia', visible: planFeatureEnabled('whatsapp.enabled') },
       ],
     },
     {
@@ -2028,6 +2030,13 @@ export function HomePage() {
               canManage={canManageIntegrations}
               mode="messages"
             />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      {isRoute('/app/whatsapp/inteligencia') && planFeatureEnabled('whatsapp.enabled') && (
+        <ErrorBoundary key={selectedTenant}>
+          <Suspense fallback={<p>Carregando inteligência…</p>}>
+            <WhatsAppIntelligencePage tenantPublicId={selectedTenant!} canManage={canManageIntegrations} />
           </Suspense>
         </ErrorBoundary>
       )}

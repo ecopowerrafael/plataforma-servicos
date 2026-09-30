@@ -61,4 +61,7 @@ describe('whatsapp text interpreter', () => {
     expect(interpretText({ text: 'quero consulta', catalog: { services: [{ publicId: 'svc-consulta', name: 'Consulta' }], combos: [{ publicId: 'combo-consulta-retorno', name: 'Consulta e Retorno' }] } }).entities).toMatchObject({ serviceName: 'Consulta' });
     expect(interpretText({ text: 'quero consulta e retorno', catalog: { services: [{ publicId: 'svc-consulta', name: 'Consulta' }], combos: [{ publicId: 'combo-consulta-retorno', name: 'Consulta e Retorno' }] } }).entities).toMatchObject({ comboName: 'Consulta e Retorno' });
   });
+  it.each(['corte', 'um corte', 'quero corte', 'quero um corte', 'agendar corte', 'agendar um corte'])('resolves service aliases with functional articles: %s', (text) => {
+    expect(interpretText({ text, catalog: { services: [{ publicId: 'svc-corte', name: 'Corte' }] }, aliases: [{ entityType: 'SERVICE', entityPublicId: 'svc-corte', alias: 'corte' }, { entityType: 'SERVICE', entityPublicId: 'svc-corte', alias: 'cortar' }] }).entities).toMatchObject({ serviceName: 'Corte' });
+  });
 });

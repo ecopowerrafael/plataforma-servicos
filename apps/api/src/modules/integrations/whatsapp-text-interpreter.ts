@@ -26,7 +26,7 @@ const catalogTerm = (text: string, items: { name: string; publicId?: string; id?
       const item = activeItems.find((candidate) => idOf(candidate) === alias.entityPublicId);
       return item === undefined ? [] : [{ value: normalizePortugueseText(alias.alias), name: item.name, id: idOf(item), entityPublicId: idOf(item), entityType }];
     }),
-  ].filter((item): item is { value: string; name: string; id: string | undefined; entityPublicId: string | undefined; entityType: TextInterpreterAlias['entityType'] } => Boolean(item.id));
+  ].filter((item): item is { value: string; name: string; id: string | undefined; entityPublicId: string | undefined; entityType: TextInterpreterAlias['entityType'] } => Boolean(item.id)).filter((item, index, list) => list.findIndex((candidate) => candidate.entityPublicId === item.entityPublicId && candidate.value === item.value) === index);
   const exact = candidates.filter((item) => item.value.length > 1 && text.includes(item.value));
   const found = (exact.length > 0 ? exact : entityType !== 'COMBO' ? candidates.filter((item) => item.value.length > 1 && text.split(' ').some((token) => token.length >= 4 && item.value.split(' ')[0]!.slice(0, 4) === token.slice(0, 4))) : []).sort((a, b) => b.value.length - a.value.length);
   return { item: found.length === 1 ? found[0] : undefined, ambiguous: new Set(found.map((item) => item.entityPublicId)).size > 1 };

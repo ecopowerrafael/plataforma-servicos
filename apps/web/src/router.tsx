@@ -401,6 +401,7 @@ export const router = createBrowserRouter([
   { path: '/app/whatsapp', element: <Navigate replace to="/app/whatsapp/conexao" /> },
   { path: '/app/whatsapp/conexao', element: lazyPage(HomePage) },
   { path: '/app/whatsapp/mensagens', element: lazyPage(HomePage) },
+  { path: '/app/whatsapp/inteligencia', element: lazyPage(HomePage) },
   { path: '/app/configuracoes', element: lazyPage(HomePage) },
   { path: '/app/configuracoes/sessoes', element: lazyPage(HomePage) },
   { path: '/app/configuracoes/emails', element: lazyPage(HomePage) },

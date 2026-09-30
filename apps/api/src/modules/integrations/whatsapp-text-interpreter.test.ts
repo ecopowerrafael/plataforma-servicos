@@ -45,4 +45,13 @@ describe('whatsapp text interpreter', () => {
     expect(result.entities.date).toBe('2026-09-30');
     expect(result.entities.time).toBe('14:30');
   });
+  it('consolidates catalog aliases and semantic entities for the full booking message', () => {
+    const result = interpretText({
+      text: 'gostaria de agendar um corte com rafael para amanhã às 14:30',
+      now: new Date('2026-09-30T12:00:00-03:00'),
+      catalog: { services: [{ publicId: 'svc-1', name: 'Corte Masculino' }], professionals: [{ publicId: 'pro-1', name: 'Rafael Augusto' }] },
+      aliases: [{ entityType: 'SERVICE', entityPublicId: 'svc-1', alias: 'corte' }, { entityType: 'SERVICE', entityPublicId: 'svc-1', alias: 'cortar' }, { entityType: 'PROFESSIONAL', entityPublicId: 'pro-1', alias: 'rafael' }],
+    });
+    expect(result).toMatchObject({ intent: 'BOOKING', entities: { serviceName: 'Corte Masculino', professionalName: 'Rafael Augusto', date: '2026-10-01', time: '14:30' } });
+  });
 });

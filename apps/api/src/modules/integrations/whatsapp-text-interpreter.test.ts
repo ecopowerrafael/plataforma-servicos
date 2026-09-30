@@ -32,4 +32,17 @@ describe('whatsapp text interpreter', () => {
     expect(resolveTime('às 14:30')?.time).toBe('14:30');
     expect(resolveTime('3 da tarde')?.time).toBe('15:00');
   });
+  it.each([
+    ['quero agendar para amanhã as 14:30', '2026-09-30', '14:30'],
+    ['quero agendar para depois de amanhã às 9', '2026-10-01', '09:00'],
+    ['quero agendar sexta às 15', '2026-10-02', '15:00'],
+  ])('extracts semantic date/time without pattern captures: %s', (text, date, time) => {
+    expect(interpretText({ text, now: new Date('2026-09-29T12:00:00-03:00') })).toMatchObject({ intent: 'BOOKING', entities: { date, time } });
+  });
+  it('keeps service missing when date/time are present without a catalog match', () => {
+    const result = interpretText({ text: 'quero agendar para amanhã as 14:30', now: new Date('2026-09-29T12:00:00-03:00') });
+    expect(result.entities.serviceName).toBeUndefined();
+    expect(result.entities.date).toBe('2026-09-30');
+    expect(result.entities.time).toBe('14:30');
+  });
 });

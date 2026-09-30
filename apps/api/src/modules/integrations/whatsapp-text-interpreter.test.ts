@@ -54,4 +54,11 @@ describe('whatsapp text interpreter', () => {
     });
     expect(result).toMatchObject({ intent: 'BOOKING', entities: { serviceName: 'Corte Masculino', professionalName: 'Rafael Augusto', date: '2026-10-01', time: '14:30' } });
   });
+  it('prefers a service for a short term and a combo for the complete expression', () => {
+    const catalog = { services: [{ publicId: 'svc-corte', name: 'Corte' }, { publicId: 'svc-barba', name: 'Barba' }], combos: [{ publicId: 'combo-corte-barba', name: 'Corte e Barba' }] };
+    expect(interpretText({ text: 'quero corte', catalog }).entities).toMatchObject({ serviceName: 'Corte' });
+    expect(interpretText({ text: 'quero corte e barba', catalog }).entities).toMatchObject({ comboName: 'Corte e Barba' });
+    expect(interpretText({ text: 'quero consulta', catalog: { services: [{ publicId: 'svc-consulta', name: 'Consulta' }], combos: [{ publicId: 'combo-consulta-retorno', name: 'Consulta e Retorno' }] } }).entities).toMatchObject({ serviceName: 'Consulta' });
+    expect(interpretText({ text: 'quero consulta e retorno', catalog: { services: [{ publicId: 'svc-consulta', name: 'Consulta' }], combos: [{ publicId: 'combo-consulta-retorno', name: 'Consulta e Retorno' }] } }).entities).toMatchObject({ comboName: 'Consulta e Retorno' });
+  });
 });

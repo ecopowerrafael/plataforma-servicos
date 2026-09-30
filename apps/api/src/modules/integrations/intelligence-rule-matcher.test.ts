@@ -31,4 +31,15 @@ describe('configurable intelligence matcher', () => {
     expect(resolver.resolve('SERVICE', 'consulta', services).ambiguous).toBe(true);
     expect(resolver.resolve('SERVICE', 'limpeza dental', [{ publicId: 'service-c', name: 'Limpeza Dental', entityType: 'SERVICE' as const }]).entity?.publicId).toBe('service-c');
   });
+
+  it('does not resolve a partial combo when the service term is exact', () => {
+    const resolver = new EntityResolver();
+    const entities = [
+      { publicId: 'service-corte', name: 'Corte', entityType: 'SERVICE' as const },
+      { publicId: 'combo-corte-barba', name: 'Corte e Barba', entityType: 'COMBO' as const },
+    ];
+    expect(resolver.resolve('SERVICE', 'corte', entities).entity?.publicId).toBe('service-corte');
+    expect(resolver.resolve('COMBO', 'corte', entities).entity).toBeUndefined();
+    expect(resolver.resolve('COMBO', 'corte e barba', entities).entity?.publicId).toBe('combo-corte-barba');
+  });
 });

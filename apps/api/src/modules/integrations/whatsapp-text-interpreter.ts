@@ -28,7 +28,7 @@ const catalogTerm = (text: string, items: { name: string; publicId?: string; id?
     }),
   ].filter((item): item is { value: string; name: string; id: string | undefined; entityPublicId: string | undefined; entityType: TextInterpreterAlias['entityType'] } => Boolean(item.id));
   const exact = candidates.filter((item) => item.value.length > 1 && text.includes(item.value));
-  const found = (exact.length > 0 ? exact : candidates.filter((item) => item.value.length > 1 && item.value.split(' ')[0]!.length >= 4 && text.split(' ').some((token) => token.length >= 4 && token.slice(0, 4) === item.value.split(' ')[0]!.slice(0, 4)))).sort((a, b) => b.value.length - a.value.length);
+  const found = (exact.length > 0 ? exact : entityType !== 'COMBO' ? candidates.filter((item) => item.value.length > 1 && text.split(' ').some((token) => token.length >= 4 && item.value.split(' ')[0]!.slice(0, 4) === token.slice(0, 4))) : []).sort((a, b) => b.value.length - a.value.length);
   return { item: found.length === 1 ? found[0] : undefined, ambiguous: new Set(found.map((item) => item.entityPublicId)).size > 1 };
 };
 
@@ -37,12 +37,13 @@ export function interpretText(input: TextInterpreterInput): TextInterpretation {
   const original = input.text ?? (input.messages ?? []).map((message) => message.text).join(' ');
   const normalizedText = normalizePortugueseText(original);
   const aliases = input.aliases ?? [];
-  const serviceMatch = catalogTerm(normalizedText, input.catalog?.services, aliases, 'SERVICE');
   const comboMatch = catalogTerm(normalizedText, input.catalog?.combos, aliases, 'COMBO');
+  const serviceMatch = catalogTerm(normalizedText, input.catalog?.services, aliases, 'SERVICE');
+  const resolvedServiceMatch = comboMatch.item !== undefined && normalizedText.includes(comboMatch.item.value) ? { item: undefined, ambiguous: false } : serviceMatch;
   const professionalMatch = catalogTerm(normalizedText, input.catalog?.professionals, aliases, 'PROFESSIONAL');
   const date = dateFrom(normalizedText, input.now); const time = timeFrom(original); const dayPeriod = time === undefined ? periodFrom(normalizedText) : undefined; const paymentMethod = paymentFrom(normalizedText);
-  const entities: InterpreterEntityHints = { ...(serviceMatch.item === undefined ? {} : { ...(serviceMatch.item.id === undefined ? {} : { serviceId: serviceMatch.item.id }), serviceName: serviceMatch.item.name }), ...(comboMatch.item === undefined ? {} : { ...(comboMatch.item.id === undefined ? {} : { comboId: comboMatch.item.id }), comboName: comboMatch.item.name }), ...(professionalMatch.item === undefined ? {} : { ...(professionalMatch.item.id === undefined ? {} : { professionalId: professionalMatch.item.id }), professionalName: professionalMatch.item.name }), ...(date === undefined ? {} : { date }), ...(time === undefined ? {} : { time }), ...(dayPeriod === undefined ? {} : { dayPeriod }), ...(paymentMethod === undefined ? {} : { paymentMethod }) };
-  const entityConfidence: TextInterpretation['entityConfidence'] = { ...(entities.serviceName === undefined ? {} : { serviceName: serviceMatch.ambiguous ? CONFIDENCE.MEDIUM : CONFIDENCE.HIGH }), ...(entities.professionalName === undefined ? {} : { professionalName: professionalMatch.ambiguous ? CONFIDENCE.MEDIUM : CONFIDENCE.HIGH }), ...(date === undefined ? {} : { date: CONFIDENCE.HIGH }), ...(time === undefined ? {} : { time: CONFIDENCE.HIGH }) };
+  const entities: InterpreterEntityHints = { ...(resolvedServiceMatch.item === undefined ? {} : { ...(resolvedServiceMatch.item.id === undefined ? {} : { serviceId: resolvedServiceMatch.item.id }), serviceName: resolvedServiceMatch.item.name }), ...(comboMatch.item === undefined ? {} : { ...(comboMatch.item.id === undefined ? {} : { comboId: comboMatch.item.id }), comboName: comboMatch.item.name }), ...(professionalMatch.item === undefined ? {} : { ...(professionalMatch.item.id === undefined ? {} : { professionalId: professionalMatch.item.id }), professionalName: professionalMatch.item.name }), ...(date === undefined ? {} : { date }), ...(time === undefined ? {} : { time }), ...(dayPeriod === undefined ? {} : { dayPeriod }), ...(paymentMethod === undefined ? {} : { paymentMethod }) };
+  const entityConfidence: TextInterpretation['entityConfidence'] = { ...(entities.serviceName === undefined ? {} : { serviceName: resolvedServiceMatch.ambiguous ? CONFIDENCE.MEDIUM : CONFIDENCE.HIGH }), ...(entities.professionalName === undefined ? {} : { professionalName: professionalMatch.ambiguous ? CONFIDENCE.MEDIUM : CONFIDENCE.HIGH }), ...(date === undefined ? {} : { date: CONFIDENCE.HIGH }), ...(time === undefined ? {} : { time: CONFIDENCE.HIGH }) };
   const result = (intent: TextIntent, confidence: number): TextInterpretation => ({ intent, confidence, entityConfidence, entities, normalizedText });
   if (hasAny(normalizedText, ['ja paguei', 'paguei ontem', 'paguei'])) return result('UNKNOWN', CONFIDENCE.LOW);
   if (hasAny(normalizedText, ['cancelar', 'desmarcar', 'nao vou conseguir ir'])) return result('CANCEL', CONFIDENCE.HIGH);

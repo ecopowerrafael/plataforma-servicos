@@ -1,10 +1,44 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeEvolutionWebhook } from './evolution-whatsapp-inbound.js';
+import { IntegrationService } from './integration.service.js';
 
 describe('normalizeEvolutionWebhook', () => {
   it('normalizes Evolution text messages and ignores fromMe as inbound', () => {
     expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'msg-1', from: '5511999999999', message: { text: 'Olá' } })).toMatchObject({ provider: 'EVOLUTION', instanceId: 'evo-1', externalMessageId: 'msg-1', phone: '5511999999999', text: 'Olá', eventType: 'MESSAGE_RECEIVED', fromMe: false });
   expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'msg-2', from: '5511999999999', fromMe: true, message: { text: 'eco' } })).toMatchObject({ eventType: 'MESSAGE_RECEIVED', phone: null, fromMe: true, identityResult: 'FROM_ME' });
+});
+
+it('processes a structured Evolution ButtonClick through ingestion without PHONE_MISSING', async () => {
+  const actionId = 'BOOKING_CREATE_PROFESSIONAL:09a7faf6-dd0c-4b64-a3c5-bda6ce1e4a56';
+  const handled: Array<{ actionId: string | null; phone: string | null }> = [];
+  const repository = {
+    evolutionWhatsappByWebhookPublicId: () => Promise.resolve({ tenantId: 1n, phoneNumberId: 'evo-1', provider: 'EVOLUTION' }),
+    selectedWhatsappProvider: () => Promise.resolve('EVOLUTION'),
+    inboundEventByFingerprint: () => Promise.resolve(null),
+    outboundByExternalMessageId: () => Promise.resolve(null),
+    customerByPhone: () => Promise.resolve(null),
+    createInboundEvent: () => Promise.resolve({ id: 1n }),
+    client: { tenantSubscription: { findFirst: () => Promise.resolve({ plan: { limits: [{ booleanValue: true }] } }) } },
+  };
+  const service = new IntegrationService(repository as never);
+  const assistant = (service as unknown as { assistant: { handleInbound: (input: { actionId: string | null; event: { phone: string | null } }) => Promise<{ replied: boolean }> } }).assistant;
+  assistant.handleInbound = async (input) => {
+    handled.push({ actionId: input.actionId, phone: input.event.phone });
+    return { replied: true };
+  };
+  const result = await service.ingestEvolutionWebhook('hook-1', {
+    event: 'ButtonClick',
+    instanceId: 'evo-1',
+    data: {
+      messageId: 'click-1',
+      buttonId: actionId,
+      phone: { User: '5515999999999', Server: 's.whatsapp.net' },
+      jid: { User: '5515999999999', Server: 's.whatsapp.net' },
+      chat: { User: '5515999999999', Server: 's.whatsapp.net' },
+    },
+  });
+  expect(result.diagnostics).toMatchObject({ outcome: 'PROCESSED', hasPhone: true, assistantReplied: true });
+  expect(handled).toEqual([{ actionId, phone: '5515999999999' }]);
 });
 
   it('normalizes Evolution Go 0.7.2 uppercase data.Message and data.Info payload', () => {

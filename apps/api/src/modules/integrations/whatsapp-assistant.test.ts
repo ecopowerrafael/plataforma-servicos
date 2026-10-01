@@ -719,6 +719,38 @@ void test('profissional válido é salvo e trocar serviço limpa o profissional'
   assert.deepEqual(at(conversations, 0).context, {});
 });
 
+void test('clique do profissional preserva data e horário já entendidos e continua até confirmação', async () => {
+  const now = new Date();
+  const { repository, delivery, conversations, sent } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'BOOKING_CREATE', currentStep: 'PROFESSIONAL_SELECTION', context: { servicePublicId: 'service-a', date: '2026-10-02', time: '14:30' }, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
+  const service = new WhatsAppAssistantService(
+    repository,
+    delivery,
+    undefined,
+    { available: () => Promise.resolve({ slots: [{ state: 'AVAILABLE', startsAt: '2026-10-02T17:30:00.000Z' }] }) } as never,
+    bookingCatalog([{ publicId: 'service-a', name: 'Corte', priceCents: '5000', durationMinutes: 30 }], [{ publicId: 'pro-a', name: 'Rafael Augusto' }]) as never,
+    professionalLinks(['pro-a']) as never,
+  );
+  await handle(service, inbound(), { actionId: 'BOOKING_CREATE_PROFESSIONAL:pro-a' });
+  assert.deepEqual(at(conversations, 0).context, { servicePublicId: 'service-a', date: '2026-10-02', time: '14:30', professionalPublicId: 'pro-a' });
+  assert.equal(at(sent, 0).message.includes('Confirmar agendamento?'), true);
+});
+
+void test('texto do profissional completa o contexto progressivo sem reiniciar o booking', async () => {
+  const now = new Date();
+  const { repository, delivery, conversations, sent } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'BOOKING_CREATE', currentStep: 'PROFESSIONAL_SELECTION', context: { servicePublicId: 'service-a', date: '2026-10-02', time: '14:30' }, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
+  const service = new WhatsAppAssistantService(
+    repository,
+    delivery,
+    undefined,
+    { available: () => Promise.resolve({ slots: [{ state: 'AVAILABLE', startsAt: '2026-10-02T17:30:00.000Z' }] }) } as never,
+    bookingCatalog([{ publicId: 'service-a', name: 'Corte', priceCents: '5000', durationMinutes: 30 }], [{ publicId: 'pro-a', name: 'Rafael Augusto' }]) as never,
+    professionalLinks(['pro-a']) as never,
+  );
+  await handle(service, inbound({ msgContent: { conversation: 'Rafael Augusto' } }));
+  assert.deepEqual(at(conversations, 0).context, { servicePublicId: 'service-a', date: '2026-10-02', time: '14:30', professionalPublicId: 'pro-a' });
+  assert.equal(at(sent, 0).message.includes('Confirmar agendamento?'), true);
+});
+
 void test('abortar criação limpa o fluxo', async () => {
   const now = new Date(); const { repository, delivery, conversations } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: null, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'BOOKING_CREATE', context: { servicePublicId: 'service-a', professionalPublicId: 'pro-a' }, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
   await handle(new WhatsAppAssistantService(repository, delivery), inbound(), { actionId: 'BOOKING_CREATE_ABORT' });

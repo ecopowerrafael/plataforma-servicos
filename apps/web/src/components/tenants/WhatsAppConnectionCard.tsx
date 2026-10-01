@@ -17,7 +17,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { httpClient } from '../../lib/http.js';
+import { HttpError, httpClient } from '../../lib/http.js';
+
+export function isBenignQrSessionError(error: unknown): boolean {
+  if (!(error instanceof HttpError) || error.status !== 400) return false;
+  const text = `${error.message} ${error.code}`.toLowerCase();
+  return text.includes('session already logged in') || text.includes('already logged in') || text.includes('already_authenticated') || text.includes('already authenticated');
+}
+
+export function qrFailureMessage(error: unknown): string {
+  if (isBenignQrSessionError(error)) return 'Confirmando conexão...';
+  if (error instanceof HttpError && error.status === 400) return 'Não foi possível solicitar um novo QR Code. Verifique os dados da conexão e tente novamente.';
+  return error instanceof Error ? error.message : 'Não foi possível concluir a solicitação.';
+}
 
 const STATE_LABEL: Record<string, string> = {
   NOT_CREATED: 'Não configurado',
@@ -199,6 +211,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [confirmSwitch, setConfirmSwitch] = useState<ProviderId | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmingConnection, setConfirmingConnection] = useState(false);
   const [activeTab, setActiveTab] = useState<'status' | 'switch'>('status');
   const [managedProvider, setManagedProvider] = useState<ProviderId>('WAPI');
   const [metaTab, setMetaTab] = useState<MetaTab>('account');
@@ -213,7 +226,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const connection = useQuery({
     queryKey,
     queryFn: () => httpClient.request('/tenant/integrations/whatsapp/status', { schema: WhatsAppConnectionSchema, tenantPublicId }),
-    refetchInterval: (query) => query.state.data?.provider === 'EVOLUTION' ? 12000 : (qrCode === null ? false : 4000),
+    refetchInterval: (query) => confirmingConnection ? 1000 : query.state.data?.provider === 'EVOLUTION' ? 12000 : (qrCode === null ? false : 4000),
     retry: false,
   });
   const metaTemplates = useQuery({
@@ -262,8 +275,21 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   }, [connection.data?.provider]);
 
   useEffect(() => {
-    if (connection.data?.state === 'CONNECTED') setQrCode(null);
+    if (connection.data?.state === 'CONNECTED') {
+      setQrCode(null);
+      setConfirmingConnection(false);
+      setNotice(null);
+    }
   }, [connection.data?.state]);
+
+  useEffect(() => {
+    if (!confirmingConnection || connection.data?.state === 'CONNECTED') return;
+    const timer = window.setTimeout(() => {
+      setConfirmingConnection(false);
+      setNotice('Não conseguimos confirmar a conexão. Aguarde alguns segundos e clique em Atualizar status. Se o problema continuar, entre em contato com o suporte.');
+    }, 5000);
+    return () => { window.clearTimeout(timer); };
+  }, [confirmingConnection, connection.data?.state]);
 
   useEffect(() => {
     if (managedProvider !== 'META' || metaConnectionDetails === null) return;
@@ -332,11 +358,22 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
   const requestQr = useMutation({
     mutationFn: (path: 'qr' | 'reconnect') => httpClient.request(`/tenant/integrations/whatsapp/${path}`, { method: 'POST', body: {}, schema: WhatsAppQrCodeSchema, tenantPublicId }),
     onSuccess: async (data) => {
+      setConfirmingConnection(false);
       setQrCode((current) => current === data.qrCode ? current : data.qrCode);
       setNotice(null);
       await refresh();
     },
-    onError: () => setQrCode(null),
+    onError: async (error) => {
+      setQrCode(null);
+      if (isBenignQrSessionError(error)) {
+        setConfirmingConnection(true);
+        setNotice('Confirmando conexão... Isso pode levar alguns segundos.');
+        await connection.refetch();
+        return;
+      }
+      setConfirmingConnection(false);
+      setNotice(qrFailureMessage(error));
+    },
   });
   useEffect(() => {
     if (qrCode === null || connection.data?.provider !== 'EVOLUTION' || connection.data.state === 'CONNECTED') return;
@@ -353,7 +390,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
     },
   });
   const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
-  const accountError = [createInstance.error, requestQr.error, disconnect.error, updateProvider.error, connection.error, providers.error].find((item): item is Error => item instanceof Error);
+  const accountError = [createInstance.error, disconnect.error, updateProvider.error, connection.error, providers.error].find((item): item is Error => item instanceof Error);
   const templateError = [provisionTemplates.error, refreshTemplates.error, metaTemplates.error].find((item): item is Error => item instanceof Error);
 
   if (!available) {

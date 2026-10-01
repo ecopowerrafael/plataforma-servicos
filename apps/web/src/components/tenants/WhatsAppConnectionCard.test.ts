@@ -9,9 +9,23 @@ import {
   whatsappProviderBadgeState,
   whatsappProviderDraftMessage,
   normalizeWhatsAppProviderItems,
+  isBenignQrSessionError,
+  qrFailureMessage,
 } from './WhatsAppConnectionCard.js';
+import { HttpError } from '../../lib/http.js';
 
 describe('WhatsAppConnectionCard provider switching state', () => {
+  it('recognizes only authenticated-session QR 400 responses as benign', () => {
+    expect(isBenignQrSessionError(new HttpError('session already logged in', 400, 'BAD_REQUEST'))).toBe(true);
+    expect(isBenignQrSessionError(new HttpError('invalid QR payload', 400, 'BAD_REQUEST'))).toBe(false);
+    expect(isBenignQrSessionError(new HttpError('session already logged in', 500, 'SERVER_ERROR'))).toBe(false);
+  });
+
+  it('keeps real QR errors user-friendly without exposing the provider', () => {
+    expect(qrFailureMessage(new HttpError('invalid QR payload', 400, 'BAD_REQUEST'))).toBe('Não foi possível solicitar um novo QR Code. Verifique os dados da conexão e tente novamente.');
+    expect(qrFailureMessage(new HttpError('session already logged in', 400, 'BAD_REQUEST'))).toBe('Confirmando conexão...');
+  });
+
   it('normalizes missing and legacy provider collections without crashing', () => {
     expect(normalizeWhatsAppProviderItems(undefined)).toEqual([]);
     expect(normalizeWhatsAppProviderItems({ providers: [{ provider: 'META', available: true }] })).toEqual([

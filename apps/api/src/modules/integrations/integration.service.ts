@@ -896,34 +896,59 @@ export class IntegrationService {
       externalMessageId: event.externalMessageId,
       eventType: event.eventType,
     });
-    if (existing !== null) return { accepted: true, duplicated: true } as const;
-
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - 120_000);
     const resolvedAction = await this.resolveActionId(tenantId, event);
-    const actionId = resolvedAction?.actionId ?? null;
-    await this.applyStatusEvent(tenantId, event);
-    const customerId = await this.customerIdForPhone(tenantId, event.phone);
-
-    let persistedInboundEvent;
-    try {
-      persistedInboundEvent = await this.repository.createInboundEvent({
-        tenantId,
-        provider: event.provider,
-        instanceId: event.instanceId,
-        externalMessageId: event.externalMessageId,
-        phone: event.phone,
-        eventType: event.eventType,
-        messageType: event.messageType,
-        actionId,
-        fingerprint: event.fingerprint,
-        text: event.text,
-        referencedMessageId: event.referencedMessageId,
-        customerId,
-        payload: event.payload as Prisma.InputJsonValue,
-      });
-    } catch {
-      // Corrida entre entregas simultâneas do mesmo evento: a unique key resolve.
+    const initialActionId = resolvedAction?.actionId ?? null;
+    let persistedInboundEvent = existing;
+    let created = false;
+    if (persistedInboundEvent === null) {
+      await this.applyStatusEvent(tenantId, event);
+      const customerId = await this.customerIdForPhone(tenantId, event.phone);
+      try {
+        persistedInboundEvent = await this.repository.createInboundEvent({
+          tenantId,
+          provider: event.provider,
+          instanceId: event.instanceId,
+          externalMessageId: event.externalMessageId,
+          phone: event.phone,
+          eventType: event.eventType,
+          messageType: event.messageType,
+          actionId: initialActionId,
+          fingerprint: event.fingerprint,
+          text: event.text,
+          referencedMessageId: event.referencedMessageId,
+          customerId,
+          payload: event.payload as Prisma.InputJsonValue,
+        });
+        created = true;
+      } catch {
+        persistedInboundEvent = await this.repository.inboundEventByFingerprint(tenantId, event.fingerprint, {
+          provider: event.provider,
+          instanceId: event.instanceId,
+          externalMessageId: event.externalMessageId,
+          eventType: event.eventType,
+        });
+      }
+    }
+    if (persistedInboundEvent === null) return { accepted: true, duplicated: true } as const;
+    if (persistedInboundEvent.processedAt != null) {
+      console.info('[WHATSAPP_INBOUND_PROCESSING]', { fingerprintSuffix: event.fingerprint.slice(-12), state: 'DUPLICATE_COMPLETED', attempt: persistedInboundEvent.processingAttempts ?? 0, eventType: event.eventType, actionPrefix: event.actionId?.split(':')[0] ?? null });
       return { accepted: true, duplicated: true } as const;
     }
+    const processingToken = randomUUID();
+    const claim = typeof this.repository.claimInboundEvent === 'function'
+      ? await this.repository.claimInboundEvent(persistedInboundEvent.id, processingToken, now, staleBefore)
+      : { count: 1 };
+    if (claim.count !== 1) return { accepted: true, duplicated: true } as const;
+    const actionId = resolvedAction?.actionId ?? persistedInboundEvent.actionId;
+    const customerId = persistedInboundEvent.customerId ?? await this.customerIdForPhone(tenantId, event.phone);
+    console.info('[WHATSAPP_INBOUND_PROCESSING]', { fingerprintSuffix: event.fingerprint.slice(-12), state: created ? 'CLAIMED' : 'RESUMED', attempt: (persistedInboundEvent.processingAttempts ?? 0) + 1, staleRecovered: !created && persistedInboundEvent.processingStartedAt !== null && persistedInboundEvent.processingStartedAt < staleBefore, eventType: event.eventType, actionPrefix: actionId?.split(':')[0] ?? null });
+    const complete = async () => {
+      if (typeof this.repository.completeInboundEvent === 'function')
+        await this.repository.completeInboundEvent(persistedInboundEvent.id, processingToken, new Date());
+      console.info('[WHATSAPP_INBOUND_PROCESSING]', { fingerprintSuffix: event.fingerprint.slice(-12), state: 'COMPLETED', attempt: (persistedInboundEvent.processingAttempts ?? 0) + 1, eventType: event.eventType, actionPrefix: actionId?.split(':')[0] ?? null });
+    };
 
     // Resposta de tentativa agendada (collection_attempt): rota para Bot Cobra
     if (resolvedAction?.collectionAttemptPublicId !== null && resolvedAction?.collectionAttemptPublicId !== undefined) {
@@ -932,6 +957,7 @@ export class IntegrationService {
         resolvedAction.collectionAttemptPublicId,
         actionId,
       );
+      await complete();
       return {
         accepted: true,
         duplicated: false,
@@ -947,6 +973,7 @@ export class IntegrationService {
         resolvedAction.collectionDebtPublicId,
         actionId,
       );
+      await complete();
       return {
         accepted: true,
         duplicated: false,
@@ -976,6 +1003,7 @@ export class IntegrationService {
       inboundEventId: persistedInboundEvent.id,
       bypassResponseInterval,
     });
+    await complete();
     return {
       accepted: true,
       duplicated: false,

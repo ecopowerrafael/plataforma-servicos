@@ -77,4 +77,21 @@ describe('IntegrationRepository inbound dedupe lookup', () => {
     expect(findFirst).toHaveBeenNthCalledWith(1, { where: expect.objectContaining({ fingerprint: 'button-fingerprint' }) });
     expect(findFirst).toHaveBeenNthCalledWith(2, { where: expect.objectContaining({ fingerprint: 'list-fingerprint' }) });
   });
+
+  it('claims only incomplete free or stale events and completes with its token', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new IntegrationRepository({ whatsAppInboundEvent: { updateMany } } as never);
+    const now = new Date('2026-10-01T20:00:00.000Z');
+    const staleBefore = new Date('2026-10-01T19:58:00.000Z');
+    await repository.claimInboundEvent(7n, 'token-a', now, staleBefore);
+    expect(updateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { id: 7n, processedAt: null, OR: [{ processingStartedAt: null }, { processingStartedAt: { lt: staleBefore } }] },
+      data: { processingStartedAt: now, processingToken: 'token-a', processingAttempts: { increment: 1 } },
+    }));
+    await repository.completeInboundEvent(7n, 'token-a', now);
+    expect(updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: 7n, processingToken: 'token-a', processedAt: null },
+      data: { processedAt: now, processingStartedAt: null, processingToken: null },
+    });
+  });
 });

@@ -1117,6 +1117,10 @@ model WhatsAppInboundEvent {
   customerId          BigInt?  @map("customer_id") @db.UnsignedBigInt
   payload             Json
   receivedAt          DateTime @default(now()) @map("received_at") @db.DateTime(3)
+  processingStartedAt DateTime? @map("processing_started_at") @db.DateTime(3)
+  processingToken     String?   @map("processing_token") @db.VarChar(64)
+  processingAttempts  Int       @default(0) @map("processing_attempts") @db.UnsignedSmallInt
+  processedAt         DateTime? @map("processed_at") @db.DateTime(3)
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -1124,6 +1128,7 @@ model WhatsAppInboundEvent {
   @@unique([tenantId, fingerprint], map: "whatsapp_inbound_events_fingerprint_key")
   @@unique([tenantId, provider, instanceId, externalMessageId, eventType], map: "whatsapp_inbound_events_provider_event_key")
   @@index([tenantId, receivedAt])
+  @@index([tenantId, processedAt, processingStartedAt])
   @@map("whatsapp_inbound_events")
 }
 

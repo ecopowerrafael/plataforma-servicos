@@ -168,6 +168,22 @@ export class IntegrationRepository {
     }
     return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, fingerprint } });
   }
+  public claimInboundEvent(id: bigint, token: string, now: Date, staleBefore: Date) {
+    return this.client.whatsAppInboundEvent.updateMany({
+      where: {
+        id,
+        processedAt: null,
+        OR: [{ processingStartedAt: null }, { processingStartedAt: { lt: staleBefore } }],
+      },
+      data: { processingStartedAt: now, processingToken: token, processingAttempts: { increment: 1 } },
+    });
+  }
+  public completeInboundEvent(id: bigint, token: string, processedAt: Date) {
+    return this.client.whatsAppInboundEvent.updateMany({
+      where: { id, processingToken: token, processedAt: null },
+      data: { processedAt, processingStartedAt: null, processingToken: null },
+    });
+  }
   public createOutboundMessage(data: {
     tenantId: bigint;
     instanceId: string;

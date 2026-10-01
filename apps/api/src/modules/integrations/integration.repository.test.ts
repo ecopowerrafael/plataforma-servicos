@@ -83,15 +83,33 @@ describe('IntegrationRepository inbound dedupe lookup', () => {
     const repository = new IntegrationRepository({ whatsAppInboundEvent: { updateMany } } as never);
     const now = new Date('2026-10-01T20:00:00.000Z');
     const staleBefore = new Date('2026-10-01T19:58:00.000Z');
-    await repository.claimInboundEvent(7n, 'token-a', now, staleBefore);
+    await repository.claimInboundEvent(7n, 'token-a', 'owner-a', now, staleBefore);
     expect(updateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: { id: 7n, processedAt: null, OR: [{ processingStartedAt: null }, { processingStartedAt: { lt: staleBefore } }] },
-      data: { processingStartedAt: now, processingToken: 'token-a', processingAttempts: { increment: 1 } },
+      data: { processingStartedAt: now, processingToken: 'token-a', processingOwner: 'owner-a', processingAttempts: { increment: 1 } },
     }));
     await repository.completeInboundEvent(7n, 'token-a', now);
     expect(updateMany).toHaveBeenNthCalledWith(2, {
       where: { id: 7n, processingToken: 'token-a', processedAt: null },
-      data: { processedAt: now, processingStartedAt: null, processingToken: null },
+      data: { processedAt: now, processingStartedAt: null, processingToken: null, processingOwner: null },
     });
+  });
+
+  it('allows startup recovery to reclaim a recent claim from a previous boot', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new IntegrationRepository({ whatsAppInboundEvent: { updateMany } } as never);
+    const now = new Date('2026-10-01T20:00:02.000Z');
+    const staleBefore = new Date('2026-10-01T19:58:02.000Z');
+    await repository.claimInboundEvent(9n, 'token-new', 'boot-new', now, staleBefore, true);
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: 9n,
+        OR: [
+          { processingStartedAt: null },
+          { processingStartedAt: { lt: staleBefore } },
+          { processingOwner: { not: 'boot-new' } },
+        ],
+      }),
+    }));
   });
 });

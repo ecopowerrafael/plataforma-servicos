@@ -107,6 +107,7 @@ async function start(environment: Environment, startedAt: number): Promise<void>
 
   // Tarefas auxiliares só depois que o HTTP já responde.
   void runPostStartTasks(environment, database, app);
+  void runWhatsappInboundRecovery(database, app);
   workers.notification = startNotificationWorkerInstance();
 
   // Iniciar ProspectingWorker se habilitado
@@ -141,6 +142,18 @@ async function start(environment: Environment, startedAt: number): Promise<void>
   }
 
   app.log.info({ elapsed: since() }, 'Tarefas pós-início disparadas');
+}
+
+async function runWhatsappInboundRecovery(
+  database: DatabaseConnection,
+  app: Awaited<ReturnType<typeof buildApp>>,
+): Promise<void> {
+  try {
+    const result = await database.integrations?.processPendingWhatsappInbound(50);
+    if (result !== undefined) app.log.info({ processed: result.processed }, 'Recovery inicial de inbound WhatsApp concluído.');
+  } catch (error) {
+    app.log.error({ err: error }, 'Falha no recovery inicial de inbound WhatsApp.');
+  }
 }
 
 /**

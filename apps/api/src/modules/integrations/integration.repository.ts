@@ -153,6 +153,13 @@ export class IntegrationRepository {
   public inboundEventById(id: bigint) {
     return this.client.whatsAppInboundEvent.findUnique({ where: { id } });
   }
+  public pendingInboundEvents(limit = 50, before: Date = new Date()) {
+    return this.client.whatsAppInboundEvent.findMany({
+      where: { processedAt: null, receivedAt: { lte: before } },
+      orderBy: { receivedAt: 'asc' },
+      take: limit,
+    });
+  }
   public inboundEventsAfter(tenantId: bigint, phone: string, after: Date | null) {
     return this.client.whatsAppInboundEvent.findMany({
       where: { tenantId, phone, eventType: { in: ['MESSAGE_RECEIVED', 'MESSAGE_ACTION'] }, ...(after === null ? {} : { receivedAt: { gt: after } }) },
@@ -168,20 +175,24 @@ export class IntegrationRepository {
     }
     return this.client.whatsAppInboundEvent.findFirst({ where: { tenantId, fingerprint } });
   }
-  public claimInboundEvent(id: bigint, token: string, now: Date, staleBefore: Date) {
+  public claimInboundEvent(id: bigint, token: string, owner: string, now: Date, staleBefore: Date, allowPreviousOwner = false) {
     return this.client.whatsAppInboundEvent.updateMany({
       where: {
         id,
         processedAt: null,
-        OR: [{ processingStartedAt: null }, { processingStartedAt: { lt: staleBefore } }],
+        OR: [
+          { processingStartedAt: null },
+          { processingStartedAt: { lt: staleBefore } },
+          ...(allowPreviousOwner ? [{ processingOwner: { not: owner } }] : []),
+        ],
       },
-      data: { processingStartedAt: now, processingToken: token, processingAttempts: { increment: 1 } },
+      data: { processingStartedAt: now, processingToken: token, processingOwner: owner, processingAttempts: { increment: 1 } },
     });
   }
   public completeInboundEvent(id: bigint, token: string, processedAt: Date) {
     return this.client.whatsAppInboundEvent.updateMany({
       where: { id, processingToken: token, processedAt: null },
-      data: { processedAt, processingStartedAt: null, processingToken: null },
+      data: { processedAt, processingStartedAt: null, processingToken: null, processingOwner: null },
     });
   }
   public createOutboundMessage(data: {

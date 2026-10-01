@@ -193,6 +193,7 @@ const externalPublic = (item: {
 });
 
 export class IntegrationService {
+  private readonly inboundOwner = randomUUID();
   private readonly assistant: WhatsAppAssistantService;
   private readonly prospectingInbound: ProspectingInboundService;
 
@@ -750,7 +751,7 @@ export class IntegrationService {
       return { statusCode: 200, body: { received: true, ignored: true }, diagnostics: { stage: 'NORMALIZED', outcome: 'IGNORED', reason: event.fromMe ? 'FROM_ME' : 'EVENT_TYPE_OR_TEXT_MISSING', eventType: event.eventType, providerEvent: event.providerEvent, hasPhone: event.phone !== null, payloadKeys: Object.keys(payload).slice(0, 20), dataKeys: Object.keys(data).slice(0, 20), messageKeys: Object.keys(message).slice(0, 20) } } as const;
     }
     const result = await this.processTenantWhatsappInbound(config, event);
-    return { statusCode: 200, body: { received: true, processed: result.duplicated ? 0 : 1, duplicated: result.duplicated ? 1 : 0, rejected: result.accepted ? 0 : 1 }, diagnostics: { stage: 'INGESTION', outcome: result.accepted ? (result.duplicated ? 'DUPLICATED' : 'PROCESSED') : 'REJECTED', eventType: event.eventType, hasPhone: event.phone !== null, assistantReplied: 'assistantReplied' in result ? result.assistantReplied : undefined, assistantSkipped: 'assistantSkipped' in result ? result.assistantSkipped : undefined, reason: 'reason' in result ? result.reason : undefined } } as const;
+    return { statusCode: 200, body: { received: true, processed: result.duplicated || 'processing' in result ? 0 : 1, duplicated: result.duplicated ? 1 : 0, rejected: result.accepted ? 0 : 1 }, diagnostics: { stage: 'INGESTION', outcome: result.accepted ? (result.duplicated ? 'DUPLICATE_COMPLETED' : 'PROCESSED') : 'REJECTED', eventType: event.eventType, hasPhone: event.phone !== null, assistantReplied: 'assistantReplied' in result ? result.assistantReplied : undefined, assistantSkipped: 'assistantSkipped' in result ? result.assistantSkipped : undefined, reason: 'reason' in result ? result.reason : undefined } } as const;
   }
 
   public async verifyMetaWebhook(webhookPublicId: string, query: { mode?: string | undefined; verifyToken?: string | undefined; challenge?: string | undefined }) {
@@ -872,6 +873,53 @@ export class IntegrationService {
     return { processed };
   }
 
+  /** Recovery one-shot usado no startup/cron; não cria loop próprio. */
+  public async processPendingWhatsappInbound(limit = 50) {
+    const events = await this.repository.pendingInboundEvents(limit);
+    let processed = 0;
+    for (const stored of events) {
+      const token = randomUUID();
+      const now = new Date();
+      const claimed = await this.repository.claimInboundEvent(stored.id, token, this.inboundOwner, now, new Date(now.getTime() - 120_000), true);
+      if (claimed.count !== 1) continue;
+      const provider = stored.provider === 'META' || stored.provider === 'EVOLUTION' ? stored.provider : 'WAPI';
+      const event: NormalizedWhatsAppEvent = {
+        provider,
+        eventType: stored.eventType as NormalizedWhatsAppEvent['eventType'],
+        providerEvent: null,
+        instanceId: stored.instanceId,
+        externalMessageId: stored.externalMessageId,
+        phone: stored.phone,
+        remoteLid: null,
+        senderIdKind: 'PHONE',
+        chatIdKind: 'PHONE',
+        hasSenderLid: false,
+        resolutionMethod: 'NONE',
+        identityResult: 'RESOLVED',
+        senderName: null,
+        messageType: stored.messageType,
+        text: stored.text,
+        actionId: stored.actionId,
+        referencedMessageId: stored.referencedMessageId,
+        selectedIndex: null,
+        selectedDisplayText: null,
+        timestamp: stored.receivedAt,
+        fromMe: false,
+        isGroup: false,
+        fingerprint: stored.fingerprint ?? `recovery:${stored.id.toString()}`,
+        payload: stored.payload,
+      };
+      const config = await this.repository.whatsappByInstanceId(stored.instanceId);
+      if (config === null || event.phone === null) continue;
+      const resolved = await this.resolveActionId(stored.tenantId, event);
+      const entitled = await new PlanEntitlementService().featureEnabledForTenant(this.repository.client, stored.tenantId, 'whatsapp.enabled');
+      await this.assistant.handleInbound({ tenantId: stored.tenantId, instanceId: stored.instanceId, event, customerId: stored.customerId, actionId: resolved?.actionId ?? stored.actionId, appointmentPublicId: resolved?.appointmentPublicId ?? null, entitled, inboundEventId: stored.id, bypassResponseInterval: event.eventType === 'MESSAGE_ACTION' || event.messageType === 'BUTTON_REPLY' || event.messageType === 'LIST_RESPONSE' });
+      await this.repository.completeInboundEvent(stored.id, token, new Date());
+      processed += 1;
+    }
+    return { processed };
+  }
+
   private async processTenantWhatsappInbound(
     config: WhatsAppConfigByInstance,
     event: NormalizedWhatsAppEvent,
@@ -938,9 +986,9 @@ export class IntegrationService {
     }
     const processingToken = randomUUID();
     const claim = typeof this.repository.claimInboundEvent === 'function'
-      ? await this.repository.claimInboundEvent(persistedInboundEvent.id, processingToken, now, staleBefore)
+      ? await this.repository.claimInboundEvent(persistedInboundEvent.id, processingToken, this.inboundOwner, now, staleBefore)
       : { count: 1 };
-    if (claim.count !== 1) return { accepted: true, duplicated: true } as const;
+    if (claim.count !== 1) return { accepted: true, duplicated: false, processing: true } as const;
     const actionId = resolvedAction?.actionId ?? persistedInboundEvent.actionId;
     const customerId = persistedInboundEvent.customerId ?? await this.customerIdForPhone(tenantId, event.phone);
     console.info('[WHATSAPP_INBOUND_PROCESSING]', { fingerprintSuffix: event.fingerprint.slice(-12), state: created ? 'CLAIMED' : 'RESUMED', attempt: (persistedInboundEvent.processingAttempts ?? 0) + 1, staleRecovered: !created && persistedInboundEvent.processingStartedAt !== null && persistedInboundEvent.processingStartedAt < staleBefore, eventType: event.eventType, actionPrefix: actionId?.split(':')[0] ?? null });

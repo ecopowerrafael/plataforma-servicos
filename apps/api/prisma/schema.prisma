@@ -1119,6 +1119,7 @@ model WhatsAppInboundEvent {
   receivedAt          DateTime @default(now()) @map("received_at") @db.DateTime(3)
   processingStartedAt DateTime? @map("processing_started_at") @db.DateTime(3)
   processingToken     String?   @map("processing_token") @db.VarChar(64)
+  processingOwner     String?   @map("processing_owner") @db.VarChar(64)
   processingAttempts  Int       @default(0) @map("processing_attempts") @db.UnsignedSmallInt
   processedAt         DateTime? @map("processed_at") @db.DateTime(3)
 

@@ -1,4 +1,6 @@
-import { ReactNode, CSSProperties } from 'react';
+import { IconX } from '@tabler/icons-react';
+
+import type { ReactNode } from 'react';
 
 /* ============================================
    PAGE HEADER
@@ -222,7 +224,7 @@ export function Button({
 }: ButtonProps) {
   const className = `btn btn-${variant} btn-${size} ${isLoading ? 'is-loading' : ''}`;
   return (
-    <button className={className} disabled={disabled || isLoading} {...props}>
+    <button className={className} disabled={disabled === true || isLoading === true} {...props}>
       {isLoading ? '...' : children}
     </button>
   );
@@ -239,7 +241,7 @@ interface GridProps {
 }
 
 export function Grid({ cols = 'auto', children, gap = 'md' }: GridProps) {
-  const colsClass = cols === 'auto' ? 'grid-auto' : `grid-${cols}`;
+  const colsClass = cols === 'auto' ? 'grid-auto' : `grid-${String(cols)}`;
   const gapClass = gap === 'sm' ? 'gap-sm' : gap === 'lg' ? 'gap-lg' : '';
   return <div className={`${colsClass} ${gapClass}`}>{children}</div>;
 }
@@ -262,12 +264,12 @@ export function Modal({ isOpen, title, children, footer, onClose, size = 'md' }:
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className={`modal-content modal-${size}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`modal-content modal-${size}`} role="dialog" aria-modal="true" aria-labelledby={title ? 'shared-modal-title' : undefined} onClick={(event) => { event.stopPropagation(); }}>
         {title && (
           <div className="modal-header">
-            <h2>{title}</h2>
-            <button className="modal-close" onClick={onClose}>
-              ✕
+            <h2 id="shared-modal-title">{title}</h2>
+            <button className="modal-close" type="button" aria-label="Fechar" onClick={onClose}>
+              <IconX size={18} aria-hidden="true" />
             </button>
           </div>
         )}

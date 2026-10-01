@@ -1,5 +1,5 @@
 /* eslint-disable import-x/order, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/restrict-template-expressions, @typescript-eslint/prefer-nullish-coalescing */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { httpClient } from "../../../../lib/http.js";
@@ -116,13 +116,16 @@ const testSchema = z.object({
   ambiguousEntities: z.array(z.string()),
 });
 type Section = "overview" | "vocabulary" | "training" | "test";
+export interface IntelligenceAction { type: "none" | "alias" | "training" | "test"; id: number }
 
 export function IntelligenceTab({
   tenantPublicId,
   canManage,
+  requestedAction,
 }: {
   tenantPublicId: string;
   canManage: boolean;
+  requestedAction?: IntelligenceAction;
 }) {
   const client = useQueryClient();
   const [section, setSection] = useState<Section>("overview");
@@ -139,6 +142,23 @@ export function IntelligenceTab({
   const [editingAlias, setEditingAlias] = useState<string | null>(null);
   const [aliasModalOpen, setAliasModalOpen] = useState(false);
   const [confirmingAlias, setConfirmingAlias] = useState<string | null>(null);
+  const requestAliasOpen = () => {
+    setEditingAlias(null);
+    setSelected("");
+    setAlias("");
+    setAliasTerms([]);
+    setAliasSaveMessage(null);
+    setSection("vocabulary");
+    setAliasModalOpen(true);
+  };
+  useEffect(() => {
+    if (requestedAction === undefined || requestedAction.type === "none") return;
+    window.setTimeout(() => {
+      if (requestedAction.type === "alias" && canManage) requestAliasOpen();
+      if (requestedAction.type === "training") setSection("training");
+      if (requestedAction.type === "test") setSection("test");
+    }, 0);
+  }, [canManage, requestedAction]);
   const queryKey = ["tenant", tenantPublicId, "whatsapp-intelligence"];
   const query = useQuery({
     queryKey,
@@ -285,6 +305,7 @@ export function IntelligenceTab({
   });
   const aliasCountByType = (type: string) => data.aliases.filter((item) => item.entityType === type).length;
   const openNewAlias = () => {
+    if (!canManage) return;
     setEditingAlias(null);
     setSelected("");
     setAlias("");
@@ -369,9 +390,9 @@ export function IntelligenceTab({
             <div className="wa-overview-stat"><IconBook2 size={19} aria-hidden="true" /><StatCard label="Tipos de atendimento" value={String(intents.length)} hint="Agendar, remarcar, cancelar e outras ações." tone="success" /></div>
             <button type="button" className="wa-overview-stat wa-overview-stat-action" onClick={() => setSection("test")}><IconPlayerPlay size={19} aria-hidden="true" /><StatCard label="Último passo" value="Testar" hint="Confira se o assistente entende suas frases." tone="warning" /></button>
           </StatGrid>
-          <section className="wa-recommended-step"><div className="wa-recommended-icon">{nextStep.icon}</div><div><span className="wa-kicker">PRÓXIMO PASSO RECOMENDADO</span><h2>{nextStep.title}</h2><p>{nextStep.description}</p></div><button type="button" className="wa-primary-action" onClick={() => setSection(nextStep.section)}>{nextStep.label} →</button></section>
+          <section className="wa-recommended-step"><div className="wa-recommended-icon">{nextStep.icon}</div><div><span className="wa-kicker">PRÓXIMO PASSO RECOMENDADO</span><h2>{nextStep.title}</h2><p>{nextStep.description}</p></div><button type="button" className="wa-primary-action" onClick={() => { if (nextStep.section === "vocabulary") openNewAlias(); else setSection(nextStep.section); }}>{nextStep.label} →</button></section>
           <SectionCard title="Como funciona" description="Configure em três passos simples." className="wa-how-it-works-new"><div className="wa-overview-steps"><article><span>01</span><IconTag size={20} aria-hidden="true" /><h3>Ensine os nomes</h3><p>Diga como seus clientes costumam chamar serviços, combos e profissionais.</p><small>cabelinho → Corte</small></article><article><span>02</span><IconMessageCircle size={20} aria-hidden="true" /><h3>Ensine as frases</h3><p>Mostre jeitos diferentes que seus clientes usam para pedir alguma coisa.</p><small>queria cortar amanhã</small></article><article><span>03</span><IconPlayerPlay size={20} aria-hidden="true" /><h3>Teste antes de usar</h3><p>Digite uma mensagem e veja exatamente o que o Agendei entendeu.</p><small>Serviço: Corte · Data: amanhã</small></article></div></SectionCard>
-          <section className="wa-quick-actions"><div><span className="wa-kicker">ATALHOS</span><h2>Ações rápidas</h2></div><div className="wa-quick-action-grid"><button type="button" onClick={() => setSection("vocabulary")}><IconTag size={18} aria-hidden="true" /><strong>Adicionar nome alternativo</strong><small>Ensine outro jeito de chamar um item.</small></button><button type="button" onClick={() => setSection("training")}><IconMessageCircle size={18} aria-hidden="true" /><strong>Ensinar nova frase</strong><small>Mostre como seu cliente costuma pedir.</small></button><button type="button" onClick={() => setSection("test")}><IconPlayerPlay size={18} aria-hidden="true" /><strong>Testar uma mensagem</strong><small>Veja o que o assistente entendeu.</small></button></div></section>
+          <section className="wa-quick-actions"><div><span className="wa-kicker">ATALHOS</span><h2>Ações rápidas</h2></div><div className="wa-quick-action-grid"><button type="button" onClick={openNewAlias}><IconTag size={18} aria-hidden="true" /><strong>Adicionar nome alternativo</strong><small>Ensine outro jeito de chamar um item.</small></button><button type="button" onClick={() => setSection("training")}><IconMessageCircle size={18} aria-hidden="true" /><strong>Ensinar nova frase</strong><small>Mostre como seu cliente costuma pedir.</small></button><button type="button" onClick={() => setSection("test")}><IconPlayerPlay size={18} aria-hidden="true" /><strong>Testar uma mensagem</strong><small>Veja o que o assistente entendeu.</small></button></div></section>
         </div>
       )}
       {section === "vocabulary" && (

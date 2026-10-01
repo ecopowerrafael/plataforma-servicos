@@ -1,10 +1,9 @@
-import { IntelligenceTab } from '../../pages/settings/WhatsappSettings/components/IntelligenceTab.js';
+import { useState } from 'react';
+
+import { IntelligenceTab, type IntelligenceAction } from '../../pages/settings/WhatsappSettings/components/IntelligenceTab.js';
 
 export function WhatsAppIntelligencePage({ tenantPublicId, canManage }: { tenantPublicId: string; canManage: boolean }) {
-  const focusFirstField = (tabIndex: number, selector: string) => {
-    (document.querySelectorAll('.wa-tabs button')[tabIndex] as HTMLButtonElement | undefined)?.click();
-    window.setTimeout(() => document.querySelector<HTMLElement>(selector)?.focus(), 0);
-  };
+  const [requestedAction, setRequestedAction] = useState<IntelligenceAction>({ type: 'none', id: 0 });
 
   return (
     <main className="settings-layout whatsapp-page--redesigned">
@@ -17,19 +16,19 @@ export function WhatsAppIntelligencePage({ tenantPublicId, canManage }: { tenant
           </div>
           {canManage && (
             <div className="whatsapp-intelligence-header-actions" aria-label="Ações rápidas">
-              <button type="button" className="wa-header-action" onClick={() => focusFirstField(1, '.wa-vocabulary-form select')}>
+              <button type="button" className="wa-header-action" onClick={() => { setRequestedAction({ type: 'alias', id: Date.now() }); }}>
                 + Adicionar nome alternativo
               </button>
-              <button type="button" className="wa-header-action" onClick={() => focusFirstField(2, '.wa-add-pattern input')}>
+              <button type="button" className="wa-header-action" onClick={() => { setRequestedAction({ type: 'training', id: Date.now() }); }}>
                 + Ensinar nova frase
               </button>
-              <button type="button" className="wa-header-action wa-header-action-secondary" onClick={() => focusFirstField(3, '.wa-simulator-input textarea')}>
+              <button type="button" className="wa-header-action wa-header-action-secondary" onClick={() => { setRequestedAction({ type: 'test', id: Date.now() }); }}>
                 Testar mensagem
               </button>
             </div>
           )}
         </div>
-        <IntelligenceTab tenantPublicId={tenantPublicId} canManage={canManage} />
+        <IntelligenceTab tenantPublicId={tenantPublicId} canManage={canManage} requestedAction={requestedAction} />
       </section>
     </main>
   );

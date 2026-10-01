@@ -382,6 +382,10 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
     }, 5000);
     return () => window.clearInterval(timer);
   }, [connection.data?.provider, connection.data?.state, qrCode, requestQr.isPending]);
+  const reconfigureWebhooks = useMutation({
+    mutationFn: () => httpClient.request('/tenant/integrations/whatsapp/webhooks/reconfigure', { method: 'POST', body: {}, schema: z.object({ success: z.literal(true) }), tenantPublicId }),
+    onSuccess: () => setNotice('Webhooks reconfigurados com sucesso.'),
+  });
   const disconnect = useMutation({
     mutationFn: () => httpClient.request('/tenant/integrations/whatsapp/disconnect', { method: 'POST', body: {}, schema: WhatsAppConnectionSchema, tenantPublicId }),
     onSuccess: async () => {
@@ -389,8 +393,8 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
       await refresh();
     },
   });
-  const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
-  const accountError = [createInstance.error, disconnect.error, updateProvider.error, connection.error, providers.error].find((item): item is Error => item instanceof Error);
+  const busy = createInstance.isPending || requestQr.isPending || disconnect.isPending || reconfigureWebhooks.isPending || updateProvider.isPending || provisionTemplates.isPending || refreshTemplates.isPending;
+  const accountError = [createInstance.error, requestQr.error, disconnect.error, reconfigureWebhooks.error, updateProvider.error, connection.error, providers.error].find((item): item is Error => item instanceof Error);
   const templateError = [provisionTemplates.error, refreshTemplates.error, metaTemplates.error].find((item): item is Error => item instanceof Error);
 
   if (!available) {
@@ -450,6 +454,7 @@ export function WhatsAppConnectionCard({ tenantPublicId, canManage }: { tenantPu
           </div>
           {activeProvider !== 'META' ? <button className="primary-button" type="button" disabled={busy} onClick={() => { if (!provisioned) createInstance.mutate(); else requestQr.mutate(state === 'DISCONNECTED' || state === 'ERROR' ? 'reconnect' : 'qr'); }}>Reconectar</button> : <button className="primary-button" type="button" disabled={busy} onClick={() => setActiveTab('switch')}>Gerenciar</button>}
           <button className="secondary-button" type="button" disabled={busy || connection.isFetching} onClick={() => void refresh()}><IconRefresh size={16} aria-hidden="true" />Atualizar status</button>
+          {activeProvider !== 'META' && provisioned ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (window.confirm('Reconfigurar os webhooks sem desconectar o WhatsApp?')) reconfigureWebhooks.mutate(); }}>Reconfigurar webhooks</button> : null}
           {canManage ? <button className="text-button" type="button" disabled={busy} onClick={() => disconnect.mutate()}>Desconectar</button> : null}
         </div>
         {activeProvider !== 'META' && qrCode !== null ? (

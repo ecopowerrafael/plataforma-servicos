@@ -50,6 +50,26 @@ const sanitizedEvolutionShape = (value: unknown) => {
   return { type: typeof value };
 };
 
+const describeEvolutionIdentity = (value: unknown, depth = 0): Record<string, unknown> => {
+  if (typeof value === 'string') {
+    const jidMatch = value.match(/@([^\s@]+)$/u);
+    const digits = value.replace(/\D/gu, '');
+    return {
+      type: 'string',
+      ...(digits.length > 0 ? { digitLength: digits.length } : {}),
+      ...(jidMatch === null ? {} : { jidSuffix: `@${jidMatch[1]}` }),
+      ...(digits.length >= 10 && digits.length <= 15 ? { phoneSuffix: digits.slice(-4) } : {}),
+    };
+  }
+  if (value === null || typeof value !== 'object') return { type: typeof value };
+  if (Array.isArray(value)) return { type: 'array', length: value.length };
+  const object = value as Record<string, unknown>;
+  const keys = Object.keys(object).sort();
+  if (depth >= 2) return { type: 'object', keys };
+  const fields = Object.fromEntries(keys.map((key) => [key, describeEvolutionIdentity(object[key], depth + 1)]));
+  return { type: 'object', keys, fields };
+};
+
 const evolutionDedupeField = (value: unknown): string | number | boolean | null =>
   typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : null;
 
@@ -706,8 +726,19 @@ export class IntegrationService {
           ['Info.Chat', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).Chat ?? (info as Record<string, unknown>).chat : undefined],
           ['Info.SenderAlt', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).SenderAlt ?? (info as Record<string, unknown>).senderAlt : undefined],
           ['Info.MessageSource', info !== null && typeof info === 'object' ? (info as Record<string, unknown>).MessageSource ?? (info as Record<string, unknown>).messageSource : undefined],
-        ].map(([key, value]) => ({ key, present: value !== undefined, shape: sanitizedEvolutionShape(value) }));
-        console.info('[WHATSAPP_INTERACTIVE_IDENTITY]', { provider: 'EVOLUTION', phoneResolved: false, dataKeys: Object.keys(data).sort(), infoShape: sanitizedEvolutionShape(info), fields: identitySources });
+        ].map(([key, value]) => ({ key, present: value !== undefined, shape: describeEvolutionIdentity(value) }));
+        console.info('[WHATSAPP_INTERACTIVE_IDENTITY]', {
+          provider: 'EVOLUTION',
+          phoneResolved: false,
+          dataKeys: Object.keys(data).sort(),
+          infoShape: sanitizedEvolutionShape(info),
+          fields: identitySources,
+          identityObjects: {
+            phone: describeEvolutionIdentity(own('phone')),
+            jid: describeEvolutionIdentity(own('jid')),
+            chat: describeEvolutionIdentity(own('chat')),
+          },
+        });
       }
     }
     if (event.instanceId === null || event.instanceId !== config.phoneNumberId) return { statusCode: 403, body: { code: 'EVOLUTION_WEBHOOK_INSTANCE_MISMATCH' }, diagnostics: { stage: 'NORMALIZED', outcome: 'REJECTED', eventType: event.eventType, hasInstanceId: event.instanceId !== null, hasPhone: event.phone !== null } } as const;

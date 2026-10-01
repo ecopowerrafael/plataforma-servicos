@@ -161,7 +161,7 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
     chatIdKind: 'UNKNOWN',
     hasSenderLid: false,
     resolutionMethod: normalizedPhone === null ? 'NONE' : 'SENDER_ID',
-    identityResult: fromMe ? 'FROM_ME' : normalizedPhone === null ? 'RESOLVED' : 'RESOLVED',
+    identityResult: fromMe ? 'FROM_ME' : normalizedPhone === null ? 'LID_UNRESOLVED' : 'RESOLVED',
     senderName: firstText(root.senderName, sender.pushName, sender.name),
     messageType: isAction ? (isListResponse ? 'LIST_RESPONSE' : 'BUTTON_REPLY') : body !== null ? 'TEXT' : null,
     text: body,

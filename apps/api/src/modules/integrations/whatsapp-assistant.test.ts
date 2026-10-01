@@ -834,7 +834,9 @@ void test('pagamento usa as opções reais e PIX cria a cobrança real', async (
   assert.deepEqual(optionsCalls, [item.publicId]);
   assert.deepEqual(at(sent, 0).actionIds, ['BOOKING_PAYMENT_PIX', 'BOOKING_PAYMENT_LOCAL']);
   await handle(service, inbound(), { actionId: 'BOOKING_PAYMENT_PIX' });
-  assert.equal(at(sent, 1).message.includes('pix-copia-cola'), true);
+  assert.equal(sent.some((entry) => entry.message === 'pix-copia-cola'), true);
+  assert.equal(sent.some((entry) => entry.actionIds.includes('BOOKING_PAYMENT_RECEIPT')), true);
+  assert.equal(sent.some((entry) => entry.message.includes('Código PIX')), false);
   assert.deepEqual(at(conversations, 0).context, { appointmentPublicId: item.publicId, paymentMethod: 'PIX', chargePublicId: 'charge-pix' });
 });
 
@@ -929,6 +931,19 @@ void test('IntegrationService entrega as dependências críticas ao assistant', 
     connectionSource,
     /new IntegrationService\([\s\S]*appointments,[\s\S]*availability,[\s\S]*tenantPaymentOptions,[\s\S]*payments,/u,
   );
+});
+
+void test('recebimento de comprovante aceita imagem/PDF sem marcar pagamento como pago', async () => {
+  const now = new Date();
+  const item = { publicId: '00000000-0000-4000-8000-000000000062', startsAt: '2026-08-20T14:00:00.000Z', serviceName: 'Corte', professionalName: 'Rafael', priceCents: '5000', status: 'PENDING' };
+  const { repository, delivery, conversations, sent } = fakeRepository([{ id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE', currentFlow: 'BOOKING_PAYMENT', currentStep: 'PIX_GENERATED', context: { appointmentPublicId: item.publicId }, lastInboundAt: now, expiresAt: conversationExpiresAt(now) }]);
+  const service = new WhatsAppAssistantService(repository, delivery, upcoming([item]) as never);
+  await handle(service, inbound(), { actionId: 'BOOKING_PAYMENT_RECEIPT' });
+  assert.equal(conversations[0]?.currentStep, 'WAITING_RECEIPT');
+  await handle(service, inbound({ type: 'imageMessage', messageId: 'receipt-image', msgContent: { imageMessage: { caption: 'comprovante' } } }));
+  assert.equal(conversations[0]?.currentStep, 'RECEIPT_RECEIVED');
+  assert.equal(sent.at(-1)?.message.includes('Comprovante recebido com sucesso.'), true);
+  assert.notEqual(conversations[0]?.context && (conversations[0]?.context as Record<string, unknown>).paymentStatus, 'PAID');
 });
 
 void test('texto livre preenche progressivamente serviço, profissional, data e horário', async () => {

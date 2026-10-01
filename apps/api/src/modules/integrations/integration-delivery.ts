@@ -71,6 +71,13 @@ export interface WhatsAppDelivery extends WhatsAppDeliveryProvider {
     buttons: WhatsAppInteractiveButton[],
     replyType?: WhatsAppReplyButtonType,
   ): Promise<WhatsAppSendOutcome>;
+  sendCopyButton?(
+    tenantId: bigint,
+    to: string,
+    message: string,
+    label: string,
+    copyCode: string,
+  ): Promise<WhatsAppSendOutcome>;
   configureReceivedWebhook(tenantId: bigint, url: string): Promise<WhatsAppOperationResult>;
   configureStatusWebhook(tenantId: bigint, url: string): Promise<WhatsAppOperationResult>;
   sendPlainText(tenantId: bigint, to: string, message: string): Promise<WhatsAppSendOutcome>;

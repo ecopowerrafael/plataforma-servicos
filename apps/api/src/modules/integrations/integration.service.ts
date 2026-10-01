@@ -962,6 +962,9 @@ export class IntegrationService {
       tenantId,
       'whatsapp.enabled',
     );
+    const bypassResponseInterval = event.eventType === 'MESSAGE_ACTION'
+      || event.messageType === 'BUTTON_REPLY'
+      || event.messageType === 'LIST_RESPONSE';
     const assistant = await this.assistant.handleInbound({
       tenantId,
       instanceId: event.instanceId,
@@ -971,6 +974,7 @@ export class IntegrationService {
       appointmentPublicId: resolvedAction?.appointmentPublicId ?? null,
       entitled,
       inboundEventId: persistedInboundEvent.id,
+      bypassResponseInterval,
     });
     return {
       accepted: true,

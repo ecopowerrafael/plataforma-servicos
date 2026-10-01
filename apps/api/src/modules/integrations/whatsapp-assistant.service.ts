@@ -276,6 +276,23 @@ export class WhatsAppAssistantService {
         conversationPublicId: conversation.publicId,
       };
 
+    if (conversation.currentFlow === 'BOOKING_PAYMENT' && conversation.currentStep === 'WAITING_RECEIPT') {
+      const mediaType = (event.messageType ?? '').toUpperCase();
+      if (mediaType.includes('IMAGE') || mediaType.includes('DOCUMENT') || mediaType.includes('PDF')) {
+        const context = conversation.context !== null && typeof conversation.context === 'object' && !Array.isArray(conversation.context)
+          ? conversation.context as Record<string, unknown>
+          : {};
+        await this.repository.updateConversation(conversation.id, {
+          currentStep: 'RECEIPT_RECEIVED',
+          context: { ...context, receiptReceivedAt: new Date().toISOString(), receiptMessageId: event.externalMessageId },
+        });
+        await this.dispatchText(input, phone, 'Comprovante recebido com sucesso.\n\nAssim que o pagamento for confirmado, seu agendamento será atualizado.', conversation.id);
+      } else {
+        await this.dispatchText(input, phone, 'É necessário enviar uma imagem ou arquivo PDF do comprovante PIX.', conversation.id);
+      }
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+
     if (conversation.currentFlow === 'BOOKING_CREATE' && conversation.currentStep === 'CUSTOMER_NAME' && event.text !== null) {
       await this.captureBookingCustomerName(input, conversation, phone, event.text);
       return { replied: true, conversationPublicId: conversation.publicId };
@@ -501,6 +518,11 @@ export class WhatsAppAssistantService {
     if (input.actionId === 'BOOKING_PAYMENT_MERCADO_PAGO') { await this.createBookingMercadoPago(input, conversation, phone); return { replied: true, conversationPublicId: conversation.publicId }; }
     if (input.actionId === 'BOOKING_PAYMENT_LOCAL') { await this.completeLocalPayment(input, conversation, phone); return { replied: true, conversationPublicId: conversation.publicId }; }
     if (input.actionId === 'BOOKING_PAYMENT_STATUS') { await this.showPaymentStatus(input, conversation, phone); return { replied: true, conversationPublicId: conversation.publicId }; }
+    if (input.actionId === 'BOOKING_PAYMENT_RECEIPT') {
+      await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_PAYMENT', currentStep: 'WAITING_RECEIPT' });
+      await this.dispatchText(input, phone, 'Perfeito. Envie aqui a foto ou o arquivo PDF do comprovante PIX.', conversation.id);
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
     if (input.actionId === 'BOOKING_PAYMENT_ABORT') { await this.returnFromPayment(input, conversation, phone); return { replied: true, conversationPublicId: conversation.publicId }; }
     if (input.actionId === 'BOOKING_CREATE_CHANGE_SERVICE') {
       await this.repository.updateConversation(conversation.id, {
@@ -818,7 +840,18 @@ export class WhatsAppAssistantService {
     if (await this.appointmentForConversation(input, conversation) === null) return this.dispatchText(input, phone, 'O agendamento não está mais disponível.', conversation.id);
     const result = await this.paymentOptions.createPixCharge(input.tenantId, appointmentPublicId, { kind: 'PAYMENT' }, { userId: null, sessionId: null });
     await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_PAYMENT', currentStep: 'PIX_GENERATED', context: { appointmentPublicId, paymentMethod: 'PIX', chargePublicId: result.charge.publicId } });
-    await this.dispatchCustomButtons(input, phone, `PIX gerado\n\nValor: ${(Number(result.charge.amountCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: result.charge.currency })}\n\nCódigo PIX:\n${result.charge.pixCopyPaste ?? ''}`, [{ buttonId: 'BOOKING_PAYMENT_STATUS', label: 'Status do pagamento' }, { buttonId: 'BOOKING_PAYMENT_ABORT', label: 'Ver agendamento' }], conversation.id);
+    const value = (Number(result.charge.amountCents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: result.charge.currency });
+    await this.dispatchText(input, phone, `Pagamento via PIX gerado com sucesso.\n\nValor: ${value}\n\nUse a opção abaixo para copiar o código PIX e faça o pagamento no aplicativo do seu banco.`, conversation.id);
+    const copyCode = result.charge.pixCopyPaste;
+    const delivery = this.delivery;
+    const sendCopyButton = delivery?.provider === 'EVOLUTION' ? delivery.sendCopyButton : undefined;
+    const nativeCopy = typeof sendCopyButton === 'function' && copyCode !== null && copyCode !== undefined;
+    if (nativeCopy) {
+      await sendCopyButton(input.tenantId, phone, 'Use a opção abaixo para copiar o código PIX.', 'Copiar código PIX', copyCode);
+    } else if (copyCode !== null && copyCode !== undefined) {
+      await this.dispatchText(input, phone, copyCode, conversation.id);
+    }
+    await this.dispatchCustomButtons(input, phone, 'Após pagar, envie o comprovante ou consulte o status.', [{ buttonId: 'BOOKING_PAYMENT_RECEIPT', label: 'Enviar comprovante' }, { buttonId: 'BOOKING_PAYMENT_STATUS', label: 'Verificar pagamento' }, { buttonId: 'BOOKING_PAYMENT_ABORT', label: 'Ver agendamento' }], conversation.id);
   }
 
   private async createBookingMercadoPago(input: { tenantId: bigint; instanceId: string; customerId: bigint | null }, conversation: { id: bigint; customerId: bigint | null; context: unknown }, phone: string): Promise<void> {

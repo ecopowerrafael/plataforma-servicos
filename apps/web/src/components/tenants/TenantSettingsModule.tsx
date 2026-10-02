@@ -108,109 +108,121 @@ export function TenantSettingsModule({
           Não foi possível carregar as configurações de nomenclatura.
         </InlineAlert>
       ) : null}
-      <SectionCard title="Configurações gerais">
-        <form
-          className="platform-form tenant-settings-form"
-          onSubmit={(event) => {
-            void handleSubmit(async (value) => {
-              await mutation.mutateAsync(value);
-            })(event);
-          }}
-        >
-          <fieldset disabled={!canUpdate}>
-            <Switch
-              checked={allowMultipleUnits ?? false}
-              onChange={(checked) => {
-                setValue('allowMultipleUnits', checked, { shouldDirty: true });
-              }}
-              label="Permitir múltiplas unidades"
-              disabled={!canUpdate || settingsQuery.isPending}
-            />
-            <div className="tenant-settings-grid tenant-settings-grid--2">
-              <label>
-                Primeiro dia da semana
-                <select {...register('weekStartsOn')}>
-                  <option value="MONDAY">Segunda-feira</option>
-                  <option value="SUNDAY">Domingo</option>
-                </select>
-              </label>
-              <label>
-                Formato de data
-                <select {...register('dateFormat')}>
-                  <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                </select>
-              </label>
-              <label>
-                Formato de hora
-                <select {...register('timeFormat')}>
-                  <option value="24H">24H</option>
-                  <option value="12H">12H</option>
-                </select>
-              </label>
-            </div>
-            <button
-              disabled={mutation.isPending || settingsQuery.isPending || !canUpdate}
-              type="submit"
-            >
-              {mutation.isPending ? 'Salvando…' : 'Salvar configurações'}
-            </button>
-          </fieldset>
-        </form>
-      </SectionCard>
-      <SectionCard
-        title="Agenda e horários"
-        description="Defina intervalos e limites usados na disponibilidade de agendamentos."
-      >
-        <form
-          className="platform-form tenant-settings-form"
-          onSubmit={(event) => {
-            void handleSubmit(async (value) => {
-              await mutation.mutateAsync(value);
-            })(event);
-          }}
-        >
-          <fieldset disabled={!canUpdate}>
-            <div className="tenant-settings-grid tenant-settings-grid--3">
-              <label>
-                Intervalo padrão de agendamento (minutos)
-                <select {...register('defaultAppointmentIntervalMinutes')}>
-                  {[5, 10, 15, 20, 30, 60].map((interval) => (
-                    <option key={interval} value={interval}>
-                      {interval}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Antecedência mínima (minutos)
-                <input
-                  type="number"
-                  min={0}
-                  max={43200}
-                  step={1}
-                  {...register('minimumAdvanceMinutes', { valueAsNumber: true })}
+      <div className="settings-preferences-grid">
+        <SectionCard title="Configurações gerais">
+          <form
+            className="platform-form tenant-settings-form"
+            onSubmit={(event) => {
+              void handleSubmit(async (value) => {
+                await mutation.mutateAsync(value);
+              })(event);
+            }}
+          >
+            <fieldset disabled={!canUpdate}>
+              <div className="settings-switch-row">
+                <div>
+                  <strong>Permitir múltiplas unidades</strong>
+                  <p>Ative para gerenciar mais de uma unidade no mesmo estabelecimento.</p>
+                </div>
+                <Switch
+                  checked={allowMultipleUnits ?? false}
+                  onChange={(checked) => {
+                    setValue('allowMultipleUnits', checked, { shouldDirty: true });
+                  }}
+                  label="Permitir múltiplas unidades"
+                  disabled={!canUpdate || settingsQuery.isPending}
                 />
-              </label>
-              <label>
-                Antecedência máxima (dias)
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  step={1}
-                  {...register('maximumAdvanceDays', { valueAsNumber: true })}
-                />
-              </label>
-            </div>
-            <button
-              disabled={mutation.isPending || settingsQuery.isPending || !canUpdate}
-              type="submit"
-            >
-              {mutation.isPending ? 'Salvando…' : 'Salvar configurações'}
-            </button>
-          </fieldset>
-        </form>
-      </SectionCard>
+              </div>
+              <div className="tenant-settings-grid tenant-settings-grid--2">
+                <label>
+                  Primeiro dia da semana
+                  <select {...register('weekStartsOn')}>
+                    <option value="MONDAY">Segunda-feira</option>
+                    <option value="SUNDAY">Domingo</option>
+                  </select>
+                </label>
+                <label>
+                  Formato de data
+                  <select {...register('dateFormat')}>
+                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                  </select>
+                </label>
+                <label>
+                  Formato de hora
+                  <select {...register('timeFormat')}>
+                    <option value="24H">24H</option>
+                    <option value="12H">12H</option>
+                  </select>
+                </label>
+              </div>
+              <div className="settings-card-actions">
+                <button
+                  disabled={mutation.isPending || settingsQuery.isPending || !canUpdate}
+                  type="submit"
+                >
+                  {mutation.isPending ? 'Salvando…' : 'Salvar configurações'}
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </SectionCard>
+        <SectionCard
+          title="Agenda e horários"
+          description="Defina intervalos e limites usados na disponibilidade de agendamentos."
+        >
+          <form
+            className="platform-form tenant-settings-form"
+            onSubmit={(event) => {
+              void handleSubmit(async (value) => {
+                await mutation.mutateAsync(value);
+              })(event);
+            }}
+          >
+            <fieldset disabled={!canUpdate}>
+              <div className="tenant-settings-grid tenant-settings-grid--2">
+                <label>
+                  Intervalo padrão de agendamento (minutos)
+                  <select {...register('defaultAppointmentIntervalMinutes')}>
+                    {[5, 10, 15, 20, 30, 60].map((interval) => (
+                      <option key={interval} value={interval}>
+                        {interval}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Antecedência mínima (minutos)
+                  <input
+                    type="number"
+                    min={0}
+                    max={43200}
+                    step={1}
+                    {...register('minimumAdvanceMinutes', { valueAsNumber: true })}
+                  />
+                </label>
+                <label>
+                  Antecedência máxima (dias)
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    step={1}
+                    {...register('maximumAdvanceDays', { valueAsNumber: true })}
+                  />
+                </label>
+              </div>
+              <div className="settings-card-actions">
+                <button
+                  disabled={mutation.isPending || settingsQuery.isPending || !canUpdate}
+                  type="submit"
+                >
+                  {mutation.isPending ? 'Salvando…' : 'Salvar configurações'}
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </SectionCard>
+      </div>
       {Object.keys(errors).length > 0 ? <p role="alert">Revise os campos do formulário.</p> : null}
       <TreatmentPlansConfigSection
         tenantPublicId={tenantPublicId}

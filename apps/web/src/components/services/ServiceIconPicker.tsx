@@ -11,13 +11,15 @@ export function ServiceIconPicker({
   onChange: (value: string | null) => void;
 }) {
   const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const term = search.trim().toLocaleLowerCase('pt-BR');
-  const icons = SERVICE_ICONS.filter(
+  const filteredIcons = SERVICE_ICONS.filter(
     (icon) =>
       term === '' ||
       icon.label.toLocaleLowerCase('pt-BR').includes(term) ||
       icon.key.includes(term),
   );
+  const icons = showAll || term !== '' ? filteredIcons : filteredIcons.slice(0, 10);
   return (
     <div className="service-icon-picker">
       <label>
@@ -61,6 +63,15 @@ export function ServiceIconPicker({
           </button>
         ))}
       </div>
+      {term === '' && filteredIcons.length > 10 ? (
+        <button
+          className="service-icon-toggle"
+          type="button"
+          onClick={() => setShowAll((current) => !current)}
+        >
+          {showAll ? 'Mostrar menos ícones' : 'Ver todos os ícones'}
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -14821,3 +14821,95 @@ h1 {
   margin: 0;
   flex: 1;
 }
+
+/* Compact service creation editor. */
+.service-create-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
+  gap: 20px;
+  align-items: start;
+}
+.service-create-main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.service-form-card {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface);
+  padding: 14px 16px 16px;
+}
+.service-form-card:first-child {
+  border-top: 1px solid var(--ds-border);
+}
+.service-form-card > legend {
+  padding: 0 6px;
+}
+.service-create-public {
+  min-width: 0;
+}
+.service-create-public .service-icon-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-height: none;
+  overflow: visible;
+}
+.service-create-public .service-icon-option {
+  min-height: 54px;
+  padding: 6px 3px;
+}
+.service-icon-toggle {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: var(--app-accent, #2563eb);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 2px 0;
+}
+.service-total-blocked {
+  align-items: center;
+  background: var(--ds-surface-subtle);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-text-muted);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+.service-total-blocked strong {
+  color: var(--ds-text);
+  font-size: 0.95rem;
+}
+.service-form-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--ds-border);
+  padding-top: 12px;
+}
+.service-image-picker .service-image-frame {
+  aspect-ratio: 1.4;
+  min-height: 0;
+  width: min(100%, 11.25rem);
+}
+.service-image-picker img {
+  max-height: 7.5rem;
+}
+.service-pricing-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.service-pricing-options label {
+  padding: 0.55rem 0.65rem;
+}
+@media (max-width: 899px) {
+  .service-create-layout {
+    grid-template-columns: 1fr;
+  }
+  .service-create-main {
+    order: 1;
+  }
+  .service-create-public {
+    order: 2;
+  }
+}

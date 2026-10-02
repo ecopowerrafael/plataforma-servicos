@@ -10,6 +10,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 
 import { ServiceIconPicker } from './ServiceIconPicker.js';
+import { Switch } from '../ui/AppUi.js';
 
 import type { z } from 'zod';
 
@@ -232,10 +233,15 @@ export function ServiceForm({
   );
   const breakFields = (
     <>
-      <label className="service-form-check service-field--wide">
-        <input type="checkbox" {...register('hasPostServiceBreak')} />
-        {' Adicionar uma pausa após este atendimento?'}
-      </label>
+      <Switch
+        checked={hasBreak === true}
+        label="Pausa após atendimento"
+        description="Reserve alguns minutos antes do próximo horário."
+        onChange={(checked) => {
+          setValue('hasPostServiceBreak', checked, { shouldDirty: true });
+          if (!checked) setValue('postServiceBreakMinutes', 0, { shouldDirty: true });
+        }}
+      />
       {hasBreak ? (
         <label>
           {'Duração da pausa (minutos)'}
@@ -247,9 +253,10 @@ export function ServiceForm({
           />
         </label>
       ) : null}
-      <p className="muted service-field--wide">
-        {`Tempo total bloqueado na agenda: ${String(total)} minutos`}
-      </p>
+      <div className="service-total-blocked" role="status">
+        <span>Tempo ocupado na agenda</span>
+        <strong>{String(total)} min</strong>
+      </div>
     </>
   );
   const sortOrderField = (
@@ -262,7 +269,7 @@ export function ServiceForm({
     <label className="service-field--wide">
       {'Descrição pública'}
       <textarea
-        rows={4}
+        rows={3}
         placeholder="Como este atendimento aparece para o cliente."
         {...register('description')}
       />
@@ -295,38 +302,38 @@ export function ServiceForm({
       }}
     >
       {fields === 'all' ? (
-        <>
-          <fieldset className="service-form-section">
-            <legend>Informações principais</legend>
-            <div className="service-form-grid">
-              {nameField}
-              {categoryField}
-              {statusField}
-            </div>
-          </fieldset>
-          <fieldset className="service-form-section">
-            <legend>Preço e duração</legend>
-            <div className="service-form-grid">
-              {pricingModeField}
-              {isQuote ? quoteNoticeField : priceField}
-              {durationField}
-              {colorField}
-              {breakFields}
-            </div>
-          </fieldset>
-          <fieldset className="service-form-section">
+        <div className="service-create-layout">
+          <div className="service-create-main">
+            <fieldset className="service-form-section service-form-card">
+              <legend>Informações do serviço</legend>
+              <div className="service-form-grid">
+                {nameField}
+                {categoryField}
+                {statusField}
+              </div>
+            </fieldset>
+            <fieldset className="service-form-section service-form-card">
+              <legend>Preço e duração</legend>
+              <div className="service-form-grid service-pricing-grid">
+                {pricingModeField}
+                {isQuote ? quoteNoticeField : priceField}
+                {durationField}
+                {colorField}
+                {breakFields}
+              </div>
+            </fieldset>
+          </div>
+          <fieldset className="service-form-section service-form-card service-create-public">
             <legend>Apresentação pública</legend>
             <div className="service-form-grid">
-              {imageSlot === undefined ? null : (
-                <div className="service-field--wide">{imageSlot}</div>
-              )}
+              {imageSlot === undefined ? null : <div className="service-field--wide">{imageSlot}</div>}
               {descriptionField}
               {iconField}
               {imageAltField}
               {sortOrderField}
             </div>
           </fieldset>
-        </>
+        </div>
       ) : null}
       {fields === 'operational' ? (
         <div className="service-form-grid">

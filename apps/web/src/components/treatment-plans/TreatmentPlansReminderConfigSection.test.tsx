@@ -36,10 +36,7 @@ describe('TreatmentPlansReminderConfigSection', () => {
   it('should render reminder configuration section', () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <TreatmentPlansReminderConfigSection
-          tenantPublicId={mockTenantPublicId}
-          canUpdate={true}
-        />
+        <TreatmentPlansReminderConfigSection tenantPublicId={mockTenantPublicId} canUpdate={true} />
       </QueryClientProvider>,
     );
 
@@ -49,15 +46,12 @@ describe('TreatmentPlansReminderConfigSection', () => {
   it('should load and display configuration', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <TreatmentPlansReminderConfigSection
-          tenantPublicId={mockTenantPublicId}
-          canUpdate={true}
-        />
+        <TreatmentPlansReminderConfigSection tenantPublicId={mockTenantPublicId} canUpdate={true} />
       </QueryClientProvider>,
     );
 
     // Should show loading initially
-    expect(screen.getByText('Carregando configuração de lembretes…')).toBeInTheDocument();
+    expect(screen.getByLabelText('Carregando conteúdo')).toBeInTheDocument();
 
     // Wait for config to load
     await screen.findByLabelText('Ativar lembretes automáticos');
@@ -67,10 +61,7 @@ describe('TreatmentPlansReminderConfigSection', () => {
   it('should toggle reminders on/off', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <TreatmentPlansReminderConfigSection
-          tenantPublicId={mockTenantPublicId}
-          canUpdate={true}
-        />
+        <TreatmentPlansReminderConfigSection tenantPublicId={mockTenantPublicId} canUpdate={true} />
       </QueryClientProvider>,
     );
 
@@ -109,17 +100,13 @@ describe('TreatmentPlansReminderConfigSection', () => {
       </QueryClientProvider>,
     );
 
-    const fieldset = container.querySelector('fieldset') as HTMLFieldSetElement;
-    expect(fieldset.disabled).toBe(true);
+    expect(screen.getByLabelText('Ativar lembretes automáticos')).toBeDisabled();
   });
 
   it('should allow adding steps', async () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <TreatmentPlansReminderConfigSection
-          tenantPublicId={mockTenantPublicId}
-          canUpdate={true}
-        />
+        <TreatmentPlansReminderConfigSection tenantPublicId={mockTenantPublicId} canUpdate={true} />
       </QueryClientProvider>,
     );
 
@@ -129,5 +116,39 @@ describe('TreatmentPlansReminderConfigSection', () => {
 
     // Should see the new step
     expect(screen.getByText('Lembrete 3')).toBeInTheDocument();
+  });
+
+  it('uses the tenantPublicId path for GET and PATCH', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TreatmentPlansReminderConfigSection tenantPublicId={mockTenantPublicId} canUpdate={true} />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByLabelText('Ativar lembretes automáticos');
+    expect(httpClient.request).toHaveBeenCalledWith(
+      `/platform/tenants/${mockTenantPublicId}/reminder-config`,
+      expect.objectContaining({ schema: expect.anything() }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar configuração' }));
+    await vi.waitFor(() => {
+      expect(httpClient.request).toHaveBeenCalledWith(
+        `/platform/tenants/${mockTenantPublicId}/reminder-config`,
+        expect.objectContaining({ method: 'PATCH', schema: expect.anything() }),
+      );
+    });
+  });
+
+  it('shows a friendly load error', async () => {
+    (httpClient.request as any).mockRejectedValueOnce(new Error('unexpected details'));
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TreatmentPlansReminderConfigSection tenantPublicId={mockTenantPublicId} canUpdate={true} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('Não foi possível carregar os lembretes.')).toBeInTheDocument();
+    expect(screen.queryByText('unexpected details')).not.toBeInTheDocument();
   });
 });

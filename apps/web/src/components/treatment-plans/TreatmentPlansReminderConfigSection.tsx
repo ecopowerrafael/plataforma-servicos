@@ -1,11 +1,16 @@
-import { TreatmentPlanReminderConfigSchema, type TreatmentPlanReminderConfig } from '@plataforma/shared';
+import {
+  TreatmentPlanReminderConfigSchema,
+  type TreatmentPlanReminderConfig,
+} from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { z } from 'zod';
+import { useEffect, useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
+import { InlineAlert, ListSkeleton, SectionCard, Switch } from '../ui/AppUi.js';
 
-const DELAY_UNITS = [
+type ReminderStep = TreatmentPlanReminderConfig['sequence'][number];
+type ReminderStepField = keyof ReminderStep;
+const DELAY_UNIT_LABELS = [
   { value: 'HOUR', label: 'horas' },
   { value: 'DAY', label: 'dias' },
 ];
@@ -26,21 +31,22 @@ export function TreatmentPlansReminderConfigSection({
   const configQuery = useQuery({
     queryKey: ['tenant', tenantPublicId, 'reminder-config'],
     queryFn: () =>
-      httpClient.request('/platform/tenants/:publicId/reminder-config', {
-        params: { publicId: tenantPublicId },
+      httpClient.request(`/platform/tenants/${tenantPublicId}/reminder-config`, {
+        schema: TreatmentPlanReminderConfigSchema,
       }),
     retry: false,
-    onSuccess: (data) => {
-      setFormData(data);
-    },
   });
+
+  useEffect(() => {
+    if (configQuery.data !== undefined) setFormData(configQuery.data);
+  }, [configQuery.data]);
 
   const mutation = useMutation({
     mutationFn: (data: TreatmentPlanReminderConfig) =>
-      httpClient.request('/platform/tenants/:publicId/reminder-config', {
+      httpClient.request(`/platform/tenants/${tenantPublicId}/reminder-config`, {
         method: 'PATCH',
         body: data,
-        params: { publicId: tenantPublicId },
+        schema: TreatmentPlanReminderConfigSchema,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'reminder-config'] });
@@ -52,32 +58,38 @@ export function TreatmentPlansReminderConfigSection({
     setFormData((prev) => (prev ? { ...prev, enabled } : null));
   };
 
-  const handleSequenceChange = (index: number, field: string, value: any) => {
+  const handleSequenceChange = <K extends ReminderStepField>(
+    index: number,
+    field: K,
+    value: ReminderStep[K],
+  ) => {
     if (!formData) return;
-    const newSequence = [...(formData.sequence as any[])];
-    newSequence[index] = {
-      ...newSequence[index],
-      [field]: value,
-    };
-    setFormData((prev) => (prev ? { ...prev, sequence: newSequence } : null));
+    setFormData((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        sequence: prev.sequence.map((step, stepIndex) =>
+          stepIndex === index ? { ...step, [field]: value } : step,
+        ),
+      };
+    });
   };
 
   const handleAddStep = () => {
     if (!formData) return;
-    const newSequence = [...(formData.sequence as any[])];
-    const lastDelay = newSequence[newSequence.length - 1]?.delayValue ?? 7;
-    newSequence.push({
+    const lastDelay = formData.sequence.at(-1)?.delayValue ?? 7;
+    const newStep: ReminderStep = {
       enabled: true,
       delayValue: lastDelay + 7,
       delayUnit: 'DAY',
       message: `Lembrete sobre seu ${treatmentPlanLabels?.singular ?? 'orçamento'}...`,
-    });
-    setFormData((prev) => (prev ? { ...prev, sequence: newSequence } : null));
+    };
+    setFormData((prev) => (prev ? { ...prev, sequence: [...prev.sequence, newStep] } : null));
   };
 
   const handleRemoveStep = (index: number) => {
     if (!formData) return;
-    const newSequence = (formData.sequence as any[]).filter((_, i) => i !== index);
+    const newSequence = formData.sequence.filter((_, i) => i !== index);
     setFormData((prev) => (prev ? { ...prev, sequence: newSequence } : null));
   };
 
@@ -93,46 +105,45 @@ export function TreatmentPlansReminderConfigSection({
   };
 
   if (configQuery.isPending) {
-    return <p>Carregando configuração de lembretes…</p>;
+    return <ListSkeleton rows={4} />;
   }
 
   if (configQuery.isError) {
-    return <p className="form-error">Não foi possível carregar a configuração.</p>;
+    return <InlineAlert tone="danger">Não foi possível carregar os lembretes.</InlineAlert>;
   }
 
   if (!formData) {
     return null;
   }
 
-  const sequence = formData.sequence as any[];
+  const sequence = formData.sequence;
 
   return (
-    <fieldset className="treatment-plans-reminder-config-section" disabled={!canUpdate}>
-      <legend>Lembretes automáticos de orçamento</legend>
-
+    <SectionCard
+      className="treatment-plans-reminder-config-section"
+      title="Lembretes automáticos de orçamento"
+      description="Envie lembretes pelo WhatsApp após a criação de um orçamento."
+    >
       {!canUpdate && (
-        <p className="form-note">Você não tem permissão para atualizar estas configurações.</p>
+        <InlineAlert tone="warning">
+          Você não tem permissão para atualizar estas configurações.
+        </InlineAlert>
       )}
 
       {mutation.isError && (
-        <p className="form-error">Não foi possível salvar as configurações.</p>
+        <InlineAlert tone="danger">Não foi possível salvar as configurações.</InlineAlert>
       )}
 
-      {mutation.isSuccess && (
-        <p className="form-success">Configurações atualizadas com sucesso.</p>
-      )}
+      {mutation.isSuccess && <InlineAlert>Configurações atualizadas com sucesso.</InlineAlert>}
 
       <form onSubmit={handleSubmit} className="treatment-plans-reminder-form">
         <div className="reminder-toggle">
-          <label>
-            <input
-              type="checkbox"
-              checked={formData.enabled}
-              onChange={(e) => handleToggleReminders(e.target.checked)}
-              disabled={!canUpdate}
-            />
-            Ativar lembretes automáticos
-          </label>
+          <Switch
+            checked={formData.enabled}
+            onChange={handleToggleReminders}
+            disabled={!canUpdate}
+            label="Ativar lembretes automáticos"
+          />
           <p className="form-note" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
             Os prazos são acumulados desde a criação do orçamento (D+1, D+3, D+7)
           </p>
@@ -172,9 +183,7 @@ export function TreatmentPlansReminderConfigSection({
                         <input
                           type="checkbox"
                           checked={step.enabled}
-                          onChange={(e) =>
-                            handleSequenceChange(index, 'enabled', e.target.checked)
-                          }
+                          onChange={(e) => handleSequenceChange(index, 'enabled', e.target.checked)}
                           disabled={!canUpdate}
                         />
                         Ativo
@@ -194,11 +203,15 @@ export function TreatmentPlansReminderConfigSection({
                         <select
                           value={step.delayUnit}
                           onChange={(e) =>
-                            handleSequenceChange(index, 'delayUnit', e.target.value)
+                            handleSequenceChange(
+                              index,
+                              'delayUnit',
+                              e.target.value as ReminderStep['delayUnit'],
+                            )
                           }
                           disabled={!canUpdate}
                         >
-                          {DELAY_UNITS.map((unit) => (
+                          {DELAY_UNIT_LABELS.map((unit) => (
                             <option key={unit.value} value={unit.value}>
                               {unit.label}
                             </option>
@@ -211,15 +224,13 @@ export function TreatmentPlansReminderConfigSection({
                       <label>Mensagem:</label>
                       <textarea
                         value={step.message}
-                        onChange={(e) =>
-                          handleSequenceChange(index, 'message', e.target.value)
-                        }
+                        onChange={(e) => handleSequenceChange(index, 'message', e.target.value)}
                         disabled={!canUpdate}
                         rows={3}
                       />
                       <p className="form-note" style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                        Use: {'{{customerName}}'} {'{{treatmentPlanSingular}}'} {'{{treatmentTitle}}'}{' '}
-                        {'{{amount}}'} {'{{tenantName}}'}
+                        Use: {'{{customerName}}'} {'{{treatmentPlanSingular}}'}{' '}
+                        {'{{treatmentTitle}}'} {'{{amount}}'} {'{{tenantName}}'}
                       </p>
 
                       {previewIndex === index && (
@@ -241,9 +252,7 @@ export function TreatmentPlansReminderConfigSection({
 
                       <button
                         type="button"
-                        onClick={() =>
-                          setPreviewIndex(previewIndex === index ? null : index)
-                        }
+                        onClick={() => setPreviewIndex(previewIndex === index ? null : index)}
                         className="preview-btn"
                       >
                         {previewIndex === index ? 'Ocultar preview' : 'Ver preview'}
@@ -275,6 +284,6 @@ export function TreatmentPlansReminderConfigSection({
           </button>
         </div>
       </form>
-    </fieldset>
+    </SectionCard>
   );
 }

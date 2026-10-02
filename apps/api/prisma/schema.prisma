@@ -1117,6 +1117,7 @@ model WhatsAppInboundEvent {
   referencedMessageId String?  @map("referenced_message_id") @db.VarChar(191)
   customerId          BigInt?  @map("customer_id") @db.UnsignedBigInt
   payload             Json
+  encryptedMediaDescriptor String? @map("encrypted_media_descriptor") @db.Text
   receivedAt          DateTime @default(now()) @map("received_at") @db.DateTime(3)
   processingStartedAt DateTime? @map("processing_started_at") @db.DateTime(3)
   processingToken     String?   @map("processing_token") @db.VarChar(64)

@@ -48,6 +48,17 @@ const fingerprint = (eventType: string | null, externalMessageId: string | null,
   ? `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`
   : `${eventType ?? 'EVENT'}:${externalMessageId}`.slice(0, 191);
 
+const mediaFieldNames = ['PTT', 'URL', 'accessibilityLabel', 'backgroundArgb', 'contextInfo', 'directPath', 'fileEncSHA256', 'fileLength', 'fileSHA256', 'mediaKey', 'mediaKeyTimestamp', 'mimetype', 'seconds', 'streamingSidecar', 'viewOnce', 'waveform'] as const;
+const rawMediaDescriptor = (raw: unknown): Record<string, unknown> | undefined => {
+  const root = record(raw);
+  const data = record(root.data);
+  const message = record(root.message ?? root.Message ?? data.message ?? data.Message);
+  const audio = record(message.audioMessage ?? message.AudioMessage ?? data.audioMessage ?? data.AudioMessage);
+  if (Object.keys(audio).length === 0) return undefined;
+  const descriptor = Object.fromEntries(mediaFieldNames.filter((key) => audio[key] !== undefined).map((key) => [key, audio[key]]));
+  return Object.keys(descriptor).length === 0 ? undefined : { audioMessage: descriptor };
+};
+
 export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent {
   const payload = sanitizePayload(raw);
   const root = record(payload);
@@ -151,6 +162,7 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const timestampValue = Number(firstText(root.timestamp, root.moment, data.timestamp, message.timestamp));
   const timestamp = Number.isFinite(timestampValue) ? new Date(timestampValue > 10_000_000_000 ? timestampValue : timestampValue * 1000) : null;
   const normalizedPhone = phone;
+  const mediaDownloadDescriptor = rawMediaDescriptor(raw);
   return {
     provider: 'EVOLUTION',
     providerEvent: eventName,
@@ -204,6 +216,7 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
     isGroup: false,
     fingerprint: fingerprint(eventType, externalMessageId, payload),
     payload,
+    ...(mediaDownloadDescriptor === undefined ? {} : { mediaDownloadDescriptor }),
   };
 }
 

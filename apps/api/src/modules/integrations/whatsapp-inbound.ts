@@ -202,6 +202,7 @@ export interface NormalizedWhatsAppEvent {
   isGroup: boolean;
   fingerprint: string;
   payload: unknown;
+  mediaDownloadDescriptor?: Record<string, unknown>;
 }
 
 export interface WApiRemoteIdentityStore {

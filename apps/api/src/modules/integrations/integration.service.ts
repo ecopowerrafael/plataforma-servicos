@@ -1011,6 +1011,7 @@ export class IntegrationService {
           referencedMessageId: event.referencedMessageId,
           customerId,
           payload: event.payload as Prisma.InputJsonValue,
+          ...(event.mediaDownloadDescriptor !== undefined && this.cipher !== undefined ? { encryptedMediaDescriptor: this.cipher.encrypt({ descriptor: event.mediaDownloadDescriptor }) } : {}),
           ...(event.messageType === 'AUDIO' ? { transcriptionStatus: 'PENDING' } : {}),
         });
         created = true;

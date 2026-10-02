@@ -4,7 +4,7 @@ import { IntegrationService } from './integration.service.js';
 
 describe('normalizeEvolutionWebhook', () => {
   it('normalizes voice notes as AUDIO media without text', () => {
-    expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'audio-1', from: '5511999999999', message: { audioMessage: { PTT: true, mimetype: 'audio/ogg', seconds: 12, fileLength: 1234 } } })).toMatchObject({ eventType: 'MESSAGE_RECEIVED', messageType: 'AUDIO', text: null, media: { kind: 'AUDIO', mimeType: 'audio/ogg', durationSeconds: 12, fileSizeBytes: 1234 } });
+    expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'audio-1', from: '5511999999999', message: { audioMessage: { PTT: true, mimetype: 'audio/ogg', seconds: 12, fileLength: 1234, mediaKey: [1, 2, 3], directPath: '/v/t', fileSHA256: [4], fileEncSHA256: [5] } } })).toMatchObject({ eventType: 'MESSAGE_RECEIVED', messageType: 'AUDIO', text: null, media: { kind: 'AUDIO', mimeType: 'audio/ogg', durationSeconds: 12, fileSizeBytes: 1234 }, mediaDownloadDescriptor: { audioMessage: { PTT: true, mimetype: 'audio/ogg', seconds: 12, fileLength: 1234, mediaKey: [1, 2, 3], directPath: '/v/t', fileSHA256: [4], fileEncSHA256: [5] } } });
   });
   it('normalizes Evolution text messages and ignores fromMe as inbound', () => {
     expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'msg-1', from: '5511999999999', message: { text: 'Olá' } })).toMatchObject({ provider: 'EVOLUTION', instanceId: 'evo-1', externalMessageId: 'msg-1', phone: '5511999999999', text: 'Olá', eventType: 'MESSAGE_RECEIVED', fromMe: false });

@@ -147,6 +147,7 @@ export class IntegrationRepository {
     referencedMessageId: string | null;
     customerId: bigint | null;
     payload: Prisma.InputJsonValue;
+    encryptedMediaDescriptor?: string | null;
     transcriptionStatus?: string;
   }) {
     return this.client.whatsAppInboundEvent.create({ data: { publicId: randomUUID(), provider: data.provider ?? 'WAPI', ...data } });

@@ -8,7 +8,7 @@ const friendly = (code: unknown) => code === 'AUDIO_TOO_LONG' ? 'Esse áudio fic
 export const normalizeAudioMimeType = (mimeType: string) => (mimeType.split(';', 1)[0] ?? '').trim().toLowerCase();
 
 type AudioInboundModel = {
-  findUnique(args: unknown): Promise<{ transcriptionStatus: string; transcribedText: string | null; transcriptionExternalId: string | null } | null>;
+  findUnique(args: unknown): Promise<{ transcriptionStatus: string; transcribedText: string | null; transcriptionExternalId: string | null; encryptedMediaDescriptor: string | null } | null>;
   update(args: unknown): Promise<unknown>;
 };
 type AudioTenantConfigModel = { findUnique(args: unknown): Promise<{ encryptedAccessToken: string } | null> };
@@ -29,7 +29,7 @@ export class WhatsAppAudioTranscriptionService {
     const config = await this.client.tenantWhatsAppAudioTranscription.findUnique({ where: { tenantId } });
     if (!config?.enabled || !config.encryptedApiKey) throw Object.assign(new Error(friendly('AUDIO_NOT_CONFIGURED')), { code: 'AUDIO_NOT_CONFIGURED' });
     if ((media.durationSeconds ?? 0) > (config.maxAudioSeconds ?? 300)) throw Object.assign(new Error(friendly('AUDIO_TOO_LONG')), { code: 'AUDIO_TOO_LONG' });
-    const current = await this.client.whatsAppInboundEvent.findUnique({ where: { id: inboundId }, select: { transcriptionStatus: true, transcribedText: true, transcriptionExternalId: true } });
+    const current = await this.client.whatsAppInboundEvent.findUnique({ where: { id: inboundId }, select: { transcriptionStatus: true, transcribedText: true, transcriptionExternalId: true, encryptedMediaDescriptor: true } });
     let transcript = typeof current?.transcribedText === 'string' ? current.transcribedText.trim() : '';
     let externalId: string | null = null;
     const started = Date.now();
@@ -50,7 +50,10 @@ export class WhatsAppAudioTranscriptionService {
       if (!evolutionConfig || !this.cipher) throw new Error('Configuração da Evolution indisponível.');
       const stored = this.cipher.decrypt(evolutionConfig.encryptedAccessToken);
       const token = typeof stored.token === 'string' ? stored.token : typeof stored.apiKey === 'string' ? stored.apiKey : '';
-      const downloaded = await this.evolution.downloadMedia(token, { key: { id: event.externalMessageId }, message: { audioMessage: { mimetype: media.mimeType, seconds: media.durationSeconds } } }, MAX_BYTES);
+      const encryptedDescriptor = current?.encryptedMediaDescriptor;
+      const descriptor = event.mediaDownloadDescriptor ?? (encryptedDescriptor && this.cipher ? this.cipher.decrypt(encryptedDescriptor).descriptor as Record<string, unknown> : undefined);
+      if (descriptor === undefined) throw new Error('Os dados de mídia do áudio não estão disponíveis para recuperação.');
+      const downloaded = await this.evolution.downloadMedia(token, descriptor, MAX_BYTES);
       const normalizedMimeType = normalizeAudioMimeType(downloaded.mimeType);
       log('DOWNLOADED', { mimeType: normalizedMimeType, fileSizeBytes: downloaded.fileSizeBytes });
       if (!/^audio\/(ogg|opus|mpeg|mp4|x-m4a|wav|webm)$/u.test(normalizedMimeType)) throw new Error('Formato de áudio não suportado.');
@@ -58,7 +61,7 @@ export class WhatsAppAudioTranscriptionService {
       const result = await this.assembly.transcribe({ apiKey, audio: downloaded.buffer, mimeType: normalizedMimeType, languageCode: config.languageCode ?? 'pt', onTranscriptCreated: async (id) => { log('SUBMITTED', { externalIdPresent: id.length > 0 }); await this.client.whatsAppInboundEvent.update({ where: { id: inboundId }, data: { transcriptionStatus: 'PROCESSING', transcriptionProvider: 'ASSEMBLYAI', transcriptionExternalId: id } }); } });
       transcript = result.text;
       externalId = result.transcriptId;
-      await this.client.whatsAppInboundEvent.update({ where: { id: inboundId }, data: { transcriptionStatus: 'COMPLETED', transcribedText: transcript, transcriptionProvider: 'ASSEMBLYAI', transcriptionDurationMs: Date.now() - started, transcriptionCompletedAt: new Date(), transcriptionExternalId: externalId } });
+      await this.client.whatsAppInboundEvent.update({ where: { id: inboundId }, data: { transcriptionStatus: 'COMPLETED', transcribedText: transcript, transcriptionProvider: 'ASSEMBLYAI', transcriptionDurationMs: Date.now() - started, transcriptionCompletedAt: new Date(), transcriptionExternalId: externalId, encryptedMediaDescriptor: null } });
       log('COMPLETED', { durationMs: Date.now() - started, textLength: transcript.length });
     }
     if (!transcript) throw Object.assign(new Error(friendly('EMPTY_TRANSCRIPT')), { code: 'EMPTY_TRANSCRIPT' });
@@ -68,6 +71,6 @@ export class WhatsAppAudioTranscriptionService {
   public static friendlyMessage(error: unknown) { return friendly((error as { code?: unknown })?.code); }
 
   public async markFailed(inboundId: bigint) {
-    await this.client.whatsAppInboundEvent.update({ where: { id: inboundId }, data: { transcriptionStatus: 'FAILED', transcriptionProvider: 'ASSEMBLYAI' } });
+    await this.client.whatsAppInboundEvent.update({ where: { id: inboundId }, data: { transcriptionStatus: 'FAILED', transcriptionProvider: 'ASSEMBLYAI', encryptedMediaDescriptor: null } });
   }
 }

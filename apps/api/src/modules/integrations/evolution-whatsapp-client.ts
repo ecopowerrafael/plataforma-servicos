@@ -28,7 +28,7 @@ export class EvolutionWhatsAppClient {
     if (!/^[A-Za-z0-9+/=\r\n]+$/u.test(raw)) throw new AppError({ code: 'AUDIO_DOWNLOAD_FAILED', message: 'A mídia retornada pela Evolution é inválida.', statusCode: 502 });
     const buffer = Buffer.from(raw, 'base64');
     if (buffer.length === 0 || buffer.length > maxBytes) throw new AppError({ code: 'AUDIO_TOO_LARGE', message: 'O áudio excede o limite permitido.', statusCode: 413 });
-    const mimeType = typeof response.mimeType === 'string' ? response.mimeType : typeof response.mimetype === 'string' ? response.mimetype : 'application/octet-stream';
+    const mimeType = typeof response.mimeType === 'string' ? response.mimeType : typeof response.mimetype === 'string' ? response.mimetype : null;
     return { buffer, mimeType, fileSizeBytes: buffer.length };
   }
 

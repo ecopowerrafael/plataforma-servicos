@@ -8,4 +8,10 @@ describe('EvolutionWhatsAppClient media', () => {
     expect(result).toMatchObject({ mimeType: 'audio/ogg', fileSizeBytes: 3 });
     expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))).toEqual({ message: { audioMessage: { mimetype: 'audio/ogg', mediaKey: [1, 2, 3], directPath: '/v/t', fileSHA256: [4], fileEncSHA256: [5], fileLength: 3, seconds: 2 } } });
   });
+
+  it('keeps MIME absent when downloadmedia omits it', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { base64: 'data:audio/ogg;base64,YXVk' } }), { status: 200 }));
+    const result = await new EvolutionWhatsAppClient('https://evolution.test', 'global', fetcher).downloadMedia('instance-token', { audioMessage: { mimetype: 'audio/ogg; codecs=opus' } });
+    expect(result.mimeType).toBeNull();
+  });
 });

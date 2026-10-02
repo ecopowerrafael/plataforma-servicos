@@ -6,6 +6,12 @@ import { AssemblyAiTranscriptionClient } from './assemblyai-transcription.client
 const MAX_BYTES = 25 * 1024 * 1024;
 const friendly = (code: unknown) => code === 'AUDIO_TOO_LONG' ? 'Esse áudio ficou um pouco longo para eu processar. Envie um áudio de até 5 minutos ou escreva sua mensagem.' : code === 'AUDIO_NOT_CONFIGURED' ? 'Recebi seu áudio, mas este estabelecimento ainda não ativou o atendimento por áudio. Você pode escrever sua mensagem?' : 'Não consegui entender esse áudio. Você pode tentar enviar novamente ou escrever sua mensagem?';
 export const normalizeAudioMimeType = (mimeType: string) => (mimeType.split(';', 1)[0] ?? '').trim().toLowerCase();
+export const resolveAudioMimeType = (downloadedMimeType: string | null, descriptor: Record<string, unknown>, eventMimeType: string | null) => {
+  const audioMessage = descriptor.audioMessage !== null && typeof descriptor.audioMessage === 'object' && !Array.isArray(descriptor.audioMessage) ? descriptor.audioMessage as Record<string, unknown> : {};
+  const descriptorMimeType = typeof audioMessage.mimetype === 'string' ? audioMessage.mimetype : typeof audioMessage.mimeType === 'string' ? audioMessage.mimeType : null;
+  const effectiveMimeType = downloadedMimeType ?? descriptorMimeType ?? eventMimeType;
+  return effectiveMimeType === null ? null : normalizeAudioMimeType(effectiveMimeType);
+};
 
 type AudioInboundModel = {
   findUnique(args: unknown): Promise<{ transcriptionStatus: string; transcribedText: string | null; transcriptionExternalId: string | null; encryptedMediaDescriptor: string | null } | null>;
@@ -54,7 +60,7 @@ export class WhatsAppAudioTranscriptionService {
       const descriptor = event.mediaDownloadDescriptor ?? (encryptedDescriptor && this.cipher ? this.cipher.decrypt(encryptedDescriptor).descriptor as Record<string, unknown> : undefined);
       if (descriptor === undefined) throw new Error('Os dados de mídia do áudio não estão disponíveis para recuperação.');
       const downloaded = await this.evolution.downloadMedia(token, descriptor, MAX_BYTES);
-      const normalizedMimeType = normalizeAudioMimeType(downloaded.mimeType);
+      const normalizedMimeType = resolveAudioMimeType(downloaded.mimeType, descriptor, media.mimeType) ?? '';
       log('DOWNLOADED', { mimeType: normalizedMimeType, fileSizeBytes: downloaded.fileSizeBytes });
       if (!/^audio\/(ogg|opus|mpeg|mp4|x-m4a|wav|webm)$/u.test(normalizedMimeType)) throw new Error('Formato de áudio não suportado.');
       if (!apiKey) throw new Error('Chave de transcrição indisponível.');

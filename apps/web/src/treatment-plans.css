@@ -4,6 +4,240 @@
   margin: 0 auto;
 }
 
+/* Modern treatment plans surface */
+.treatment-plans-module .treatment-plans-header {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0 1rem;
+}
+
+.treatment-plans-module .plans-header-top {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.treatment-plans-module .plans-search {
+  align-items: center;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+  display: flex;
+  flex: 1;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+}
+
+.treatment-plans-module .plans-search input {
+  background: transparent;
+  border: 0;
+  color: var(--color-text-primary);
+  flex: 1;
+  min-width: 0;
+  outline: 0;
+}
+
+.treatment-plans-module .plans-stats {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.treatment-plans-module .stat-item {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+  padding: 0.8rem 1rem;
+}
+
+.treatment-plans-module .stat-item--pending { background: #fffbeb; }
+.treatment-plans-module .stat-item--approved { background: #f0fdf4; }
+.treatment-plans-module .stat-item--progress { background: #eff6ff; }
+
+.treatment-plans-module .stat-value {
+  color: var(--color-text-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.treatment-plans-module .stat-label {
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  margin-top: 0.25rem;
+}
+
+.treatment-plans-status-filter {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.treatment-plans-status-filter .filter-btn {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.45rem 0.8rem;
+}
+
+.treatment-plans-status-filter .filter-btn:hover,
+.treatment-plans-status-filter .filter-btn.active {
+  background: var(--app-success-soft, #ecfdf3);
+  border-color: var(--app-success, #15803d);
+  color: var(--app-success, #15803d);
+  font-weight: 700;
+}
+
+.treatment-plans-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.treatment-plans-list-header {
+  color: var(--color-text-tertiary);
+  display: grid;
+  font-size: 0.7rem;
+  font-weight: 700;
+  gap: 0.75rem;
+  grid-template-columns: minmax(12rem, 1.5fr) minmax(9rem, 1fr) minmax(9rem, 1fr) 7rem 5rem minmax(8rem, auto) 1.5rem;
+  letter-spacing: 0.03em;
+  margin: 1.25rem 1rem 0.35rem;
+  text-transform: uppercase;
+}
+
+.treatment-plan-row {
+  align-items: center;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(12rem, 1.5fr) minmax(9rem, 1fr) minmax(9rem, 1fr) 7rem 5rem minmax(8rem, auto) 1.5rem;
+  padding: 0.9rem 1rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.treatment-plan-row:hover,
+.treatment-plan-row:focus-visible {
+  border-color: var(--color-border-strong);
+  box-shadow: 0 5px 18px rgb(28 25 23 / 0.07);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
+.plan-col { min-width: 0; }
+.plan-title strong, .plan-customer { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-customer { color: var(--color-text-secondary); font-size: 0.8rem; margin-top: 0.2rem; }
+.plan-service, .plan-professional, .plan-value, .plan-sessions { color: var(--color-text-secondary); font-size: 0.86rem; }
+.plan-value, .plan-sessions { color: var(--color-text-primary); font-weight: 700; }
+.plan-row-chevron { color: var(--color-text-tertiary); justify-self: end; }
+
+.treatment-plan-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  padding: 1rem;
+}
+.plan-card-header { align-items: flex-start; display: flex; gap: 0.75rem; justify-content: space-between; }
+.plan-card-header h3 { font-size: 0.95rem; margin: 0; }
+.plan-card-customer { color: var(--color-text-secondary); font-size: 0.8rem; margin: 0.2rem 0 0; }
+.plan-card-body { display: grid; gap: 0.5rem; margin-top: 0.9rem; }
+.plan-card-row { display: flex; gap: 1rem; justify-content: space-between; }
+.plan-card-row .label { color: var(--color-text-secondary); font-size: 0.8rem; }
+.plan-card-row .value { color: var(--color-text-primary); font-size: 0.84rem; font-weight: 600; text-align: right; }
+
+.status-badge {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1.2;
+  padding: 0.35rem 0.6rem;
+  white-space: nowrap;
+}
+
+/* Namespaced modal actions avoid generic .button/.primary conflicts. */
+.treatment-modal-overlay {
+  align-items: center;
+  background: rgb(28 25 23 / 0.5);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 1000;
+}
+
+.treatment-modal {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.9rem;
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  max-width: 640px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.treatment-modal-header,
+.treatment-modal-actions {
+  align-items: center;
+  background: var(--color-bg-secondary);
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+}
+
+.treatment-modal-header { border-bottom: 1px solid var(--color-border-subtle); }
+.treatment-modal-header h2 { font-size: 1.15rem; margin: 0; }
+.treatment-modal-body { overflow-y: auto; padding: 1.25rem; }
+.treatment-modal-actions { border-top: 1px solid var(--color-border-subtle); gap: 0.65rem; justify-content: flex-end; }
+.treatment-modal-close { align-items: center; background: transparent; border: 0; border-radius: 0.5rem; color: var(--color-text-secondary); cursor: pointer; display: inline-flex; font-size: 1.1rem; height: 2.5rem; justify-content: center; width: 2.5rem; }
+.treatment-modal-close:hover { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
+.treatment-modal-button { border-radius: 0.55rem; cursor: pointer; font: inherit; font-weight: 700; min-height: 42px; padding: 0 1.1rem; transition: background-color 160ms ease, border-color 160ms ease; }
+.treatment-modal-button--primary { background: var(--app-success, #15803d); border: 1px solid var(--app-success, #15803d); color: #fff; }
+.treatment-modal-button--primary:hover:not(:disabled) { background: #166534; border-color: #166534; }
+.treatment-modal-button--secondary { background: var(--color-bg-secondary); border: 1px solid var(--app-success, #15803d); color: var(--app-success, #15803d); }
+.treatment-modal-button--secondary:hover:not(:disabled) { background: var(--app-success-soft, #ecfdf3); }
+.treatment-modal-button:focus-visible, .treatment-modal-close:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
+.treatment-modal-button:disabled { cursor: not-allowed; opacity: 0.62; }
+.treatment-modal .form-group input, .treatment-modal .form-group select, .treatment-modal .form-group textarea { border-radius: 0.55rem; min-height: 2.7rem; }
+.treatment-modal .form-row { gap: 0.75rem; }
+.treatment-modal .form-info-inline { background: var(--app-success-soft, #ecfdf3); border: 1px solid rgb(21 128 61 / 0.18); border-radius: 0.65rem; padding: 0.85rem; }
+
+.treatment-detail-button { align-items: center; border-radius: 0.55rem; cursor: pointer; display: inline-flex; font: inherit; font-weight: 700; gap: 0.45rem; min-height: 42px; padding: 0 1rem; }
+.treatment-detail-button--secondary { background: var(--color-bg-secondary); border: 1px solid var(--app-success); color: var(--app-success); }
+.treatment-detail-button--primary { background: var(--app-success); border: 1px solid var(--app-success); color: #fff; }
+
+@media (max-width: 900px) {
+  .treatment-plan-row, .treatment-plans-list-header { grid-template-columns: minmax(11rem, 1.4fr) minmax(8rem, 1fr) minmax(8rem, 1fr) 6rem 4rem minmax(7rem, auto) 1rem; }
+}
+
+@media (max-width: 700px) {
+  .treatment-plans-module .plans-header-top { align-items: stretch; flex-direction: column; }
+  .treatment-plans-module .plans-stats { grid-template-columns: 1fr; }
+  .treatment-plans-list { display: none; }
+  .treatment-plans-list-header { display: none; }
+  .treatment-plans-mobile-list { display: grid; gap: 0.75rem; }
+  .treatment-plan-row { display: none; }
+  .treatment-modal-actions { align-items: stretch; flex-direction: column-reverse; }
+  .treatment-modal-button { width: 100%; }
+}
+
 .treatment-plans-dashboard {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

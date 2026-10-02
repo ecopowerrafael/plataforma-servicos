@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { IconSearch, IconPlus, IconEye, IconEdit, IconTrash } from '@tabler/icons-react';
+import { IconSearch, IconPlus, IconChevronRight } from '@tabler/icons-react';
 
 /* ============================================
    TREATMENT PLANS HEADER
@@ -71,7 +71,18 @@ export function TreatmentPlanRow({
   onClick,
 }: TreatmentPlanRowProps) {
   return (
-    <div className="treatment-plan-row" onClick={onClick}>
+    <div
+      className="treatment-plan-row"
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && onClick) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       <div className="plan-col plan-title">
         <strong>{title}</strong>
         <span className="plan-customer">{customer}</span>
@@ -81,6 +92,7 @@ export function TreatmentPlanRow({
       <div className="plan-col plan-value">{value}</div>
       <div className="plan-col plan-sessions">{sessions}</div>
       <div className="plan-col plan-status">{status}</div>
+      <IconChevronRight className="plan-row-chevron" size={18} aria-hidden="true" />
       {actions && <div className="plan-col plan-actions">{actions}</div>}
     </div>
   );

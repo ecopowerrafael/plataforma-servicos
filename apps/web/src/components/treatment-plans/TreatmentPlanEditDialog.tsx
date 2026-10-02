@@ -65,16 +65,16 @@ export function TreatmentPlanEditDialog({
   });
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
+    <div className="treatment-modal-overlay" onClick={onClose}>
+      <div className="treatment-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="treatment-modal-header">
           <h2>Editar orçamento</h2>
-          <button type="button" className="modal-close" onClick={onClose}>
+          <button type="button" className="treatment-modal-close" aria-label="Fechar" onClick={onClose}>
             ✕
           </button>
         </div>
 
-        <div className="modal-body">
+        <div className="treatment-modal-body">
           {canEditTitle && (
             <div className="form-group">
               <label>Título</label>
@@ -195,10 +195,10 @@ export function TreatmentPlanEditDialog({
           )}
         </div>
 
-        <div className="modal-footer">
+        <div className="treatment-modal-actions">
           <button
             type="button"
-            className="button secondary"
+            className="treatment-modal-button treatment-modal-button--secondary"
             onClick={onClose}
             disabled={updateMutation.isPending}
           >
@@ -206,7 +206,7 @@ export function TreatmentPlanEditDialog({
           </button>
           <button
             type="button"
-            className="button primary"
+            className="treatment-modal-button treatment-modal-button--primary"
             onClick={() => updateMutation.mutate()}
             disabled={updateMutation.isPending}
           >

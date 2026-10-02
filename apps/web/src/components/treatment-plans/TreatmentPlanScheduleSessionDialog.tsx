@@ -62,16 +62,16 @@ export function TreatmentPlanScheduleSessionDialog({
   const minDate = new Date().toISOString().split('T')[0];
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
+    <div className="treatment-modal-overlay" onClick={onClose}>
+      <div className="treatment-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="treatment-modal-header">
           <h2>Agendar sessão #{sessionNumber}</h2>
-          <button type="button" className="modal-close" onClick={onClose}>
+          <button type="button" className="treatment-modal-close" aria-label="Fechar" onClick={onClose}>
             ✕
           </button>
         </div>
 
-        <div className="modal-body">
+        <div className="treatment-modal-body">
           <div className="form-section">
             <div className="form-info">
               <div className="info-field">
@@ -139,10 +139,10 @@ export function TreatmentPlanScheduleSessionDialog({
           )}
         </div>
 
-        <div className="modal-footer">
+        <div className="treatment-modal-actions">
           <button
             type="button"
-            className="button secondary"
+            className="treatment-modal-button treatment-modal-button--secondary"
             onClick={onClose}
             disabled={scheduleMutation.isPending}
           >
@@ -151,7 +151,7 @@ export function TreatmentPlanScheduleSessionDialog({
           {!confirmed && (
             <button
               type="button"
-              className="button primary"
+            className="treatment-modal-button treatment-modal-button--primary"
               onClick={() => setConfirmed(true)}
               disabled={!selectedDate || !selectedTime || scheduleMutation.isPending}
             >

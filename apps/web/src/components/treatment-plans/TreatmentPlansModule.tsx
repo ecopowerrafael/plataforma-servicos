@@ -90,22 +90,22 @@ export function TreatmentPlansModule({
     <section className="treatment-plans-module">
       <PageHeader
         title={getTreatmentPlansLabels().moduleTitle}
-        subtitle={`${filteredPlans.length} ${treatmentPlansLabels.plural.toLowerCase()}`}
+        subtitle="Acompanhe propostas, aprovações e sessões dos seus clientes."
       />
 
       <TreatmentPlansHeader
         onSearch={(value) => setSearch(value)}
         stats={
           <div className="treatment-plans-stats">
-            <div className="stat-item">
+            <div className="stat-item stat-item--pending">
               <div className="stat-value">{pendingCount}</div>
               <div className="stat-label">Aguardando</div>
             </div>
-            <div className="stat-item">
+            <div className="stat-item stat-item--approved">
               <div className="stat-value">{approvedThisMonth}</div>
               <div className="stat-label">Aprovados</div>
             </div>
-            <div className="stat-item">
+            <div className="stat-item stat-item--progress">
               <div className="stat-value">{inProgressCount}</div>
               <div className="stat-label">Em andamento</div>
             </div>
@@ -113,7 +113,7 @@ export function TreatmentPlansModule({
         }
       />
 
-      <div className="treatment-plans-status-filter">
+      <div className="treatment-plans-status-filter" aria-label="Filtrar orçamentos por status">
         {(['all', 'PENDING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const).map(
           (status) => (
             <button
@@ -139,6 +139,15 @@ export function TreatmentPlansModule({
         />
       ) : (
         <>
+          <div className="treatment-plans-list-header" aria-hidden="true">
+            <span>Orçamento / Cliente</span>
+            <span>Serviço</span>
+            <span>Profissional</span>
+            <span>Valor</span>
+            <span>Sessões</span>
+            <span>Status</span>
+            <span />
+          </div>
           <div className="treatment-plans-list">
             {filteredPlans.map((plan) => (
               <TreatmentPlanRow
@@ -251,7 +260,7 @@ function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBa
           {canEdit && (
             <button
               type="button"
-              className="action-button primary"
+              className="treatment-detail-button treatment-detail-button--secondary"
               onClick={() => setShowEditDialog(true)}
             >
               <IconEdit size={18} />
@@ -261,7 +270,7 @@ function TreatmentPlanDetail({ plan, onBack }: { plan: TreatmentPlanPublic; onBa
           {canScheduleSession && (
             <button
               type="button"
-              className="action-button primary"
+              className="treatment-detail-button treatment-detail-button--primary"
               onClick={() => setShowScheduleDialog(true)}
             >
               <IconCalendar size={18} />

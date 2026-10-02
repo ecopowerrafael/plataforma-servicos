@@ -57,7 +57,7 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
       authService: options.authService,
       cookieName: options.cookieName,
       client: options.client,
-      cipher: options.cipher,
+      ...(options.cipher === undefined ? {} : { cipher: options.cipher }),
     });
   }
   app.get(

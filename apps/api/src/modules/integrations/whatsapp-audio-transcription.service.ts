@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { type CredentialsCipher } from '../payments/gateway/credentials-cipher.js';
 import { type NormalizedWhatsAppEvent } from './whatsapp-inbound.js';
 import { EvolutionWhatsAppClient } from './evolution-whatsapp-client.js';
@@ -6,7 +5,7 @@ import { AssemblyAiTranscriptionClient } from './assemblyai-transcription.client
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const friendly = (code: unknown) => code === 'AUDIO_TOO_LONG' ? 'Esse áudio ficou um pouco longo para eu processar. Envie um áudio de até 5 minutos ou escreva sua mensagem.' : code === 'AUDIO_NOT_CONFIGURED' ? 'Recebi seu áudio, mas este estabelecimento ainda não ativou o atendimento por áudio. Você pode escrever sua mensagem?' : 'Não consegui entender esse áudio. Você pode tentar enviar novamente ou escrever sua mensagem?';
-export const normalizeAudioMimeType = (mimeType: string) => mimeType.split(';', 1)[0].trim().toLowerCase();
+export const normalizeAudioMimeType = (mimeType: string) => (mimeType.split(';', 1)[0] ?? '').trim().toLowerCase();
 
 type AudioInboundModel = {
   findUnique(args: unknown): Promise<{ transcriptionStatus: string; transcribedText: string | null; transcriptionExternalId: string | null } | null>;

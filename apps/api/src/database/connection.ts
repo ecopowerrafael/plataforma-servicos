@@ -558,7 +558,7 @@ export function createDatabaseConnection(
 
   return {
     client,
-    credentialsCipher,
+    ...(credentialsCipher === undefined ? {} : { credentialsCipher }),
     identities: new PrismaIdentityRepository(client),
     availability,
     appointments: appointments,

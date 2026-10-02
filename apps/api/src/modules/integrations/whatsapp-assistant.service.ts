@@ -340,15 +340,15 @@ export class WhatsAppAssistantService {
       const hasBookingCorrection = interpretation.intent === 'UNKNOWN' && conversation.currentFlow === 'BOOKING_CREATE' && Object.keys(interpretation.entities).length > 0;
       if (runtimeInterpretation.confidence >= 0.65 || hasBookingCorrection) {
         if (hasBookingCorrection) {
-          await this.progressFreeTextBooking(input, conversation, phone, interpretation, site);
+          await this.progressFreeTextBooking({ ...input, ...(event.messageType === null ? {} : { messageType: event.messageType }) }, conversation, phone, interpretation, site);
           return { replied: true, conversationPublicId: conversation.publicId };
         }
         if (runtimeInterpretation.intent === 'BOOKING') {
-          await this.progressFreeTextBooking(input, conversation, phone, runtimeInterpretation, site);
+          await this.progressFreeTextBooking({ ...input, ...(event.messageType === null ? {} : { messageType: event.messageType }) }, conversation, phone, runtimeInterpretation, site);
           return { replied: true, conversationPublicId: conversation.publicId };
         }
         if (runtimeInterpretation.intent === 'AVAILABILITY') {
-          await this.progressFreeTextBooking(input, conversation, phone, runtimeInterpretation, site);
+          await this.progressFreeTextBooking({ ...input, ...(event.messageType === null ? {} : { messageType: event.messageType }) }, conversation, phone, runtimeInterpretation, site);
           return { replied: true, conversationPublicId: conversation.publicId };
         }
         if (runtimeInterpretation.intent === 'CANCEL') {
@@ -962,7 +962,7 @@ export class WhatsAppAssistantService {
   }
 
   private async progressFreeTextBooking(
-    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null; messageType?: string },
     conversation: { id: bigint; customerId: bigint | null; context: unknown },
     phone: string,
     interpretation: TextInterpretation,
@@ -999,7 +999,7 @@ export class WhatsAppAssistantService {
       (interpretation.entities.date ?? contextString(context, 'date')) === null || (interpretation.entities.date ?? contextString(context, 'date')) === undefined ? 'date' : null,
       (interpretation.entities.time ?? contextString(context, 'time')) === null || (interpretation.entities.time ?? contextString(context, 'time')) === undefined ? 'time' : null,
     ].filter((field): field is string => field !== null);
-    console.info('[WHATSAPP_BOOKING_PROGRESS]', { intent: interpretation.intent, resolvedFields, missingFields, source: input.event.messageType === 'AUDIO_TRANSCRIPT' ? 'AUDIO' : 'TEXT', actionSource: 'TEXT' });
+    console.info('[WHATSAPP_BOOKING_PROGRESS]', { intent: interpretation.intent, resolvedFields, missingFields, source: input.messageType === 'AUDIO_TRANSCRIPT' ? 'AUDIO' : 'TEXT', actionSource: 'TEXT' });
     if (professionalPublicId === undefined || !offeringProfessionals.some((item) => item.publicId === professionalPublicId)) {
       const candidates = interpretation.entities.professionalName === undefined
         ? offeringProfessionals

@@ -16,6 +16,22 @@ export class EvolutionWhatsAppClient {
     return ((body as { data?: unknown } | null)?.data ?? body) as T;
   }
 
+  public async downloadMedia(instanceToken: string, message: Record<string, unknown>, maxBytes = 25 * 1024 * 1024) {
+    const response = await this.request<{ base64?: unknown; mimeType?: unknown; mimetype?: unknown }>('/message/downloadmedia', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }, instanceToken);
+    const encoded = typeof response.base64 === 'string' ? response.base64 : null;
+    if (encoded === null) throw new AppError({ code: 'AUDIO_DOWNLOAD_FAILED', message: 'A mídia retornada pela Evolution é inválida.', statusCode: 502 });
+    const comma = encoded.indexOf(',');
+    const raw = comma >= 0 ? encoded.slice(comma + 1) : encoded;
+    if (!/^[A-Za-z0-9+/=\r\n]+$/u.test(raw)) throw new AppError({ code: 'AUDIO_DOWNLOAD_FAILED', message: 'A mídia retornada pela Evolution é inválida.', statusCode: 502 });
+    const buffer = Buffer.from(raw, 'base64');
+    if (buffer.length === 0 || buffer.length > maxBytes) throw new AppError({ code: 'AUDIO_TOO_LARGE', message: 'O áudio excede o limite permitido.', statusCode: 413 });
+    const mimeType = typeof response.mimeType === 'string' ? response.mimeType : typeof response.mimetype === 'string' ? response.mimetype : 'application/octet-stream';
+    return { buffer, mimeType, fileSizeBytes: buffer.length };
+  }
+
   public createInstance(instanceName: string, instanceToken: string) { return this.request<{ id?: string; instanceId?: string; name?: string; instanceName?: string }>('/instance/create', { method: 'POST', body: JSON.stringify({ name: instanceName, token: instanceToken }) }); }
   public listInstances() { return this.request<unknown[]>('/instance/all', { method: 'GET' }); }
   public qr(instanceToken: string) { return this.request<{ qrCode?: string; qrcode?: string; code?: string; Qrcode?: string; Code?: string }>('/instance/qr', { method: 'GET' }, instanceToken); }

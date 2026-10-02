@@ -3,6 +3,9 @@ import { normalizeEvolutionWebhook } from './evolution-whatsapp-inbound.js';
 import { IntegrationService } from './integration.service.js';
 
 describe('normalizeEvolutionWebhook', () => {
+  it('normalizes voice notes as AUDIO media without text', () => {
+    expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'audio-1', from: '5511999999999', message: { audioMessage: { PTT: true, mimetype: 'audio/ogg', seconds: 12, fileLength: 1234 } } })).toMatchObject({ eventType: 'MESSAGE_RECEIVED', messageType: 'AUDIO', text: null, media: { kind: 'AUDIO', mimeType: 'audio/ogg', durationSeconds: 12, fileSizeBytes: 1234 } });
+  });
   it('normalizes Evolution text messages and ignores fromMe as inbound', () => {
     expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'msg-1', from: '5511999999999', message: { text: 'Olá' } })).toMatchObject({ provider: 'EVOLUTION', instanceId: 'evo-1', externalMessageId: 'msg-1', phone: '5511999999999', text: 'Olá', eventType: 'MESSAGE_RECEIVED', fromMe: false });
   expect(normalizeEvolutionWebhook({ event: 'messages.upsert', instanceId: 'evo-1', messageId: 'msg-2', from: '5511999999999', fromMe: true, message: { text: 'eco' } })).toMatchObject({ eventType: 'MESSAGE_RECEIVED', phone: null, fromMe: true, identityResult: 'FROM_ME' });

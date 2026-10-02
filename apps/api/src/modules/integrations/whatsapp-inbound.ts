@@ -181,6 +181,14 @@ export interface NormalizedWhatsAppEvent {
   messageType: string | null;
   /** Texto da mensagem, quando é uma mensagem de texto. */
   text: string | null;
+  media?: null | {
+    kind: 'AUDIO';
+    mimeType: string | null;
+    durationSeconds: number | null;
+    fileSizeBytes: number | null;
+    providerMediaId: string | null;
+    providerReference: string | null;
+  };
   /** Nosso identificador de ação, resolvido fora daqui pelo índice do botão. */
   actionId: string | null;
   /** Mensagem à qual este evento responde (`contextInfo.stanzaID`). */

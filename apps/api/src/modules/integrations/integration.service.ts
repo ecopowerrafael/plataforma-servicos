@@ -20,6 +20,8 @@ import { type WhatsAppProviderResolver } from './whatsapp-provider-resolver.js';
 import type { WhatsAppProviderId } from './whatsapp-provider.js';
 import { MetaInboundNormalizer } from './meta-whatsapp-inbound.js';
 import { EvolutionInboundNormalizer } from './evolution-whatsapp-inbound.js';
+import { EvolutionWhatsAppClient } from './evolution-whatsapp-client.js';
+import { WhatsAppAudioTranscriptionService } from './whatsapp-audio-transcription.service.js';
 import { type Prisma, type PrismaClient } from '../../database-client/client.js';
 import { type IntelligenceRuleRepository } from './intelligence-rule.repository.js';
 import { type Environment } from '../../config/environment.js';
@@ -196,6 +198,7 @@ export class IntegrationService {
   private readonly inboundOwner = randomUUID();
   private readonly assistant: WhatsAppAssistantService;
   private readonly prospectingInbound: ProspectingInboundService;
+  private readonly audioTranscription?: WhatsAppAudioTranscriptionService;
 
   public constructor(
     private readonly repository: IntegrationRepository,
@@ -235,6 +238,14 @@ export class IntegrationService {
     this.prospectingInbound = client && prospectingConfigService
       ? new ProspectingInboundService(client, prospectingConfigService, this.environment, prospectingMessageSender ? new ProspectingRealtimeReplyService(client, prospectingMessageSender) : null)
       : new ProspectingInboundService();
+    if (client) {
+      const providerSettings = (client as unknown as { platformWhatsAppProviderSetting: { findUnique(args: unknown): Promise<{ baseUrl: string | null } | null> } }).platformWhatsAppProviderSetting;
+      const evolution = new EvolutionWhatsAppClient(
+        async () => (await providerSettings.findUnique({ where: { provider: 'EVOLUTION' } }))?.baseUrl ?? process.env.EVOLUTION_BASE_URL ?? '',
+        '',
+      );
+      this.audioTranscription = new WhatsAppAudioTranscriptionService(client as unknown as ConstructorParameters<typeof WhatsAppAudioTranscriptionService>[0], cipher, evolution);
+    }
   }
   private assertEnabled(tenantId: bigint, key: PlanFeatureKey) {
     return new PlanEntitlementService().assertFeatureEnabledForTenant(this.repository.client, tenantId, key);
@@ -534,7 +545,7 @@ export class IntegrationService {
       if (owner?.ownerType === 'TENANT') {
         const config = await this.repository.whatsappByInstanceId(received.instanceId);
         if (config === null) return { accepted: false, reason: 'INSTANCE_UNKNOWN', router: 'TENANT' } as const;
-        const result = await this.processTenantWhatsappInbound(config, received);
+        const result = await this.dispatchTenantWhatsappInbound(config, received);
         return { ...result, router: 'TENANT' } as const;
       }
       if (owner?.ownerType === 'NOT_FOUND') return { accepted: false, reason: 'INSTANCE_UNKNOWN', router: 'OWNER_NOT_FOUND' } as const;
@@ -633,7 +644,7 @@ export class IntegrationService {
     // O evento WAPI já foi normalizado no início deste método.
     const event = received;
     if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING', router: 'TENANT' } as const;
-    const result = await this.processTenantWhatsappInbound(config, event);
+    const result = await this.dispatchTenantWhatsappInbound(config, event);
     return { ...result, router: 'TENANT' } as const;
   }
 
@@ -688,7 +699,7 @@ export class IntegrationService {
         summary.rejected += 1;
         continue;
       }
-      const result = await this.processTenantWhatsappInbound(config, event);
+      const result = await this.dispatchTenantWhatsappInbound(config, event);
       if (result.accepted && result.duplicated) summary.duplicated += 1;
       else if (result.accepted) summary.processed += 1;
       else summary.rejected += 1;
@@ -750,7 +761,7 @@ export class IntegrationService {
       const message = payload.message !== null && typeof payload.message === 'object' && !Array.isArray(payload.message) ? payload.message as Record<string, unknown> : data.message !== null && typeof data.message === 'object' && !Array.isArray(data.message) ? data.message as Record<string, unknown> : {};
       return { statusCode: 200, body: { received: true, ignored: true }, diagnostics: { stage: 'NORMALIZED', outcome: 'IGNORED', reason: event.fromMe ? 'FROM_ME' : 'EVENT_TYPE_OR_TEXT_MISSING', eventType: event.eventType, providerEvent: event.providerEvent, hasPhone: event.phone !== null, payloadKeys: Object.keys(payload).slice(0, 20), dataKeys: Object.keys(data).slice(0, 20), messageKeys: Object.keys(message).slice(0, 20) } } as const;
     }
-    const result = await this.processTenantWhatsappInbound(config, event);
+    const result = await this.dispatchTenantWhatsappInbound(config, event);
     return { statusCode: 200, body: { received: true, processed: result.duplicated || 'processing' in result ? 0 : 1, duplicated: result.duplicated ? 1 : 0, rejected: result.accepted ? 0 : 1 }, diagnostics: { stage: 'INGESTION', outcome: result.accepted ? (result.duplicated ? 'DUPLICATE_COMPLETED' : 'PROCESSED') : 'REJECTED', eventType: event.eventType, hasPhone: event.phone !== null, assistantReplied: 'assistantReplied' in result ? result.assistantReplied : undefined, assistantSkipped: 'assistantSkipped' in result ? result.assistantSkipped : undefined, reason: 'reason' in result ? result.reason : undefined } } as const;
   }
 
@@ -803,7 +814,7 @@ export class IntegrationService {
     }
     const summary = { received: true, processed: 0, duplicated: 0, rejected: 0 };
     for (const event of events) {
-      const result = await this.processTenantWhatsappInbound(config, event);
+      const result = await this.dispatchTenantWhatsappInbound(config, event);
       if (result.accepted && result.duplicated) summary.duplicated += 1;
       else if (result.accepted) summary.processed += 1;
       else summary.rejected += 1;
@@ -898,6 +909,7 @@ export class IntegrationService {
         identityResult: 'RESOLVED',
         senderName: null,
         messageType: stored.messageType,
+        media: stored.messageType === 'AUDIO' ? new EvolutionInboundNormalizer().normalize(stored.payload).media ?? null : null,
         text: stored.text,
         actionId: stored.actionId,
         referencedMessageId: stored.referencedMessageId,
@@ -911,18 +923,49 @@ export class IntegrationService {
       };
       const config = await this.repository.whatsappByInstanceId(stored.instanceId);
       if (config === null || event.phone === null) continue;
+      let recoveredEvent = event;
+      let recoveredBypass = event.eventType === 'MESSAGE_ACTION' || event.messageType === 'BUTTON_REPLY' || event.messageType === 'LIST_RESPONSE';
+      if (event.messageType === 'AUDIO' && this.audioTranscription) {
+        try {
+          const audio = await this.audioTranscription.transcribe(stored.tenantId, event, stored.id);
+          recoveredEvent = audio.event;
+          recoveredBypass = true;
+        } catch (error) {
+          console.error('[WHATSAPP_AUDIO_TRANSCRIPTION]', { tenantId: stored.tenantId.toString(), status: 'FAILED', errorCode: error instanceof Error && 'code' in error ? (error as { code?: unknown }).code : 'UNKNOWN' });
+          if (this.audioTranscription) await this.audioTranscription.markFailed(stored.id).catch(() => undefined);
+          await this.sendAudioFailureMessage(stored.tenantId, event.phone, WhatsAppAudioTranscriptionService.friendlyMessage(error));
+          await this.repository.completeInboundEvent(stored.id, token, new Date());
+          continue;
+        }
+      }
       const resolved = await this.resolveActionId(stored.tenantId, event);
       const entitled = await new PlanEntitlementService().featureEnabledForTenant(this.repository.client, stored.tenantId, 'whatsapp.enabled');
-      await this.assistant.handleInbound({ tenantId: stored.tenantId, instanceId: stored.instanceId, event, customerId: stored.customerId, actionId: resolved?.actionId ?? stored.actionId, appointmentPublicId: resolved?.appointmentPublicId ?? null, entitled, inboundEventId: stored.id, bypassResponseInterval: event.eventType === 'MESSAGE_ACTION' || event.messageType === 'BUTTON_REPLY' || event.messageType === 'LIST_RESPONSE' });
+      await this.assistant.handleInbound({ tenantId: stored.tenantId, instanceId: stored.instanceId, event: recoveredEvent, customerId: stored.customerId, actionId: resolved?.actionId ?? stored.actionId, appointmentPublicId: resolved?.appointmentPublicId ?? null, entitled, inboundEventId: stored.id, bypassResponseInterval: recoveredBypass });
       await this.repository.completeInboundEvent(stored.id, token, new Date());
       processed += 1;
     }
     return { processed };
   }
 
+  private async dispatchTenantWhatsappInbound(config: WhatsAppConfigByInstance, event: NormalizedWhatsAppEvent) {
+    if (event.messageType !== 'AUDIO') return this.processTenantWhatsappInbound(config, event);
+    const persisted = await this.processTenantWhatsappInbound(config, event, true);
+    if (persisted.processing) {
+      void this.processTenantWhatsappInbound(config, event).catch((error) => {
+        console.error('[WHATSAPP_AUDIO_TRANSCRIPTION]', {
+          tenantId: config.tenantId.toString(),
+          status: 'FAILED',
+          errorCode: error instanceof Error && 'code' in error ? (error as { code?: unknown }).code : 'UNKNOWN',
+        });
+      });
+    }
+    return persisted;
+  }
+
   private async processTenantWhatsappInbound(
     config: WhatsAppConfigByInstance,
     event: NormalizedWhatsAppEvent,
+    persistOnlyAudio = false,
   ) {
     if (event.instanceId === null) return { accepted: false, reason: 'INSTANCE_MISSING' } as const;
     if (event.phone === null) return { accepted: false, reason: 'PHONE_MISSING' } as const;
@@ -968,6 +1011,7 @@ export class IntegrationService {
           referencedMessageId: event.referencedMessageId,
           customerId,
           payload: event.payload as Prisma.InputJsonValue,
+          ...(event.messageType === 'AUDIO' ? { transcriptionStatus: 'PENDING' } : {}),
         });
         created = true;
       } catch {
@@ -983,6 +1027,20 @@ export class IntegrationService {
     if (persistedInboundEvent.processedAt != null) {
       console.info('[WHATSAPP_INBOUND_PROCESSING]', { fingerprintSuffix: event.fingerprint.slice(-12), state: 'DUPLICATE_COMPLETED', attempt: persistedInboundEvent.processingAttempts ?? 0, eventType: event.eventType, actionPrefix: event.actionId?.split(':')[0] ?? null });
       return { accepted: true, duplicated: true } as const;
+    }
+    // Áudio é persistido primeiro e processado fora do lifecycle do webhook.
+    // A segunda passagem reutiliza o claim/recovery normal; somente a criação
+    // inicial agenda o executor para evitar recursão.
+    if (event.messageType === 'AUDIO' && created) {
+      if (persistOnlyAudio) return { accepted: true, duplicated: false, processing: true } as const;
+      void this.processTenantWhatsappInbound(config, event).catch((error) => {
+        console.error('[WHATSAPP_AUDIO_TRANSCRIPTION]', {
+          tenantId: tenantId.toString(),
+          status: 'FAILED',
+          errorCode: error instanceof Error && 'code' in error ? (error as { code?: unknown }).code : 'UNKNOWN',
+        });
+      });
+      return { accepted: true, duplicated: false, processing: true } as const;
     }
     const processingToken = randomUUID();
     const claim = typeof this.repository.claimInboundEvent === 'function'
@@ -1040,16 +1098,30 @@ export class IntegrationService {
     const bypassResponseInterval = event.eventType === 'MESSAGE_ACTION'
       || event.messageType === 'BUTTON_REPLY'
       || event.messageType === 'LIST_RESPONSE';
+    let assistantEvent = event;
+    let bypassAudio = false;
+    if (event.messageType === 'AUDIO' && this.audioTranscription) {
+      try {
+        const audio = await this.audioTranscription.transcribe(tenantId, event, persistedInboundEvent.id);
+        assistantEvent = audio.event;
+        bypassAudio = audio.bypassResponseInterval;
+      } catch (error) {
+        if (this.audioTranscription) await this.audioTranscription.markFailed(persistedInboundEvent.id).catch(() => undefined);
+        await this.sendAudioFailureMessage(tenantId, event.phone, WhatsAppAudioTranscriptionService.friendlyMessage(error));
+        await complete();
+        return { accepted: true, duplicated: false, eventType: event.eventType, assistantReplied: false, assistantSkipped: WhatsAppAudioTranscriptionService.friendlyMessage(error) } as const;
+      }
+    }
     const assistant = await this.assistant.handleInbound({
       tenantId,
       instanceId: event.instanceId,
-      event,
+      event: assistantEvent,
       customerId,
       actionId,
       appointmentPublicId: resolvedAction?.appointmentPublicId ?? null,
       entitled,
       inboundEventId: persistedInboundEvent.id,
-      bypassResponseInterval,
+      bypassResponseInterval: bypassResponseInterval || bypassAudio,
     });
     await complete();
     return {
@@ -1059,6 +1131,19 @@ export class IntegrationService {
       assistantReplied: assistant.replied,
       ...(assistant.reason === undefined ? {} : { assistantSkipped: assistant.reason }),
     } as const;
+  }
+
+  private async sendAudioFailureMessage(tenantId: bigint, phone: string | null, message: string) {
+    if (phone === null || this.whatsappDelivery === undefined) return;
+    try {
+      await this.whatsappDelivery.send(tenantId, phone, message);
+    } catch (error) {
+      console.error('[WHATSAPP_AUDIO_TRANSCRIPTION]', {
+        tenantId: tenantId.toString(),
+        status: 'DELIVERY_FAILED',
+        errorCode: error instanceof Error && 'code' in error ? (error as { code?: unknown }).code : 'UNKNOWN',
+      });
+    }
   }
 
   /**

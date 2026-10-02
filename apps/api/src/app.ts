@@ -461,6 +461,7 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
+      cipher: options.database.credentialsCipher,
     });
     await app.register(whatsappWebhookRoutes, { service: options.database.integrations });
   }

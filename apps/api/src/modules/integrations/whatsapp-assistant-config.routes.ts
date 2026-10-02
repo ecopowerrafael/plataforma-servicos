@@ -17,17 +17,37 @@ import { IntelligenceRuleRepository } from './intelligence-rule.repository.js';
 import { chooseBestMatch } from './intelligence-rule-matcher.js';
 import { EntityResolver } from './intelligence-entity-resolver.js';
 import { interpretText } from './whatsapp-text-interpreter.js';
+import { AssemblyAiTranscriptionClient } from './assemblyai-transcription.client.js';
+
+type AudioConfigRow = {
+  enabled: boolean;
+  provider: string;
+  encryptedApiKey: string | null;
+  languageCode: string;
+  maxAudioSeconds: number;
+  lastValidatedAt: Date | null;
+  lastValidationStatus: string | null;
+};
+type AudioConfigModel = {
+  findUnique(args: unknown): Promise<AudioConfigRow | null>;
+  upsert(args: unknown): Promise<AudioConfigRow>;
+  update(args: unknown): Promise<AudioConfigRow>;
+  updateMany(args: unknown): Promise<{ count: number }>;
+};
 
 export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
   authService: AuthService;
   cookieName: string;
   client: PrismaClient;
+  cipher?: import('../payments/gateway/credentials-cipher.js').CredentialsCipher;
 }> = async (app, o) => {
   await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
 
   const client = o.client;
+  const audioConfig = (client as unknown as { tenantWhatsAppAudioTranscription: AudioConfigModel }).tenantWhatsAppAudioTranscription;
   const assertWhatsApp = (tenantId: bigint) => new PlanEntitlementService().assertFeatureEnabledForTenant(client, tenantId, 'whatsapp.enabled');
   const intelligenceRepository = new IntelligenceRuleRepository(client);
+  const audioClient = new AssemblyAiTranscriptionClient();
   const safePattern = (item: { publicId: string; intent: string; pattern: string; enabled: boolean }) => ({
     publicId: item.publicId,
     intent: item.intent,
@@ -213,5 +233,40 @@ export const whatsappAssistantConfigRoutes: FastifyPluginAsyncZod<{
     await assertWhatsApp(r.tenant.id);
     await client.tenantIntelligenceEntityAlias.deleteMany({ where: { publicId: r.params.publicId, tenantId: r.tenant.id } });
     return { success: true as const };
+  });
+
+  app.get('/tenant/integrations/whatsapp/audio-transcription', async (r) => {
+    o.authService.requirePermission(r.tenant, 'integration.read'); await assertWhatsApp(r.tenant.id);
+    const row = await audioConfig.findUnique({ where: { tenantId: r.tenant.id } });
+    return { enabled: row?.enabled ?? false, provider: 'ASSEMBLYAI', configured: Boolean(row?.encryptedApiKey), languageCode: row?.languageCode ?? 'pt', maxAudioSeconds: row?.maxAudioSeconds ?? 300, lastValidatedAt: row?.lastValidatedAt ?? null, lastValidationStatus: row?.lastValidationStatus ?? null };
+  });
+  app.put('/tenant/integrations/whatsapp/audio-transcription', { schema: { body: z.object({ enabled: z.boolean(), apiKey: z.string().trim().min(1).max(500).optional() }) } }, async (r, reply) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage'); await assertWhatsApp(r.tenant.id);
+    const audio = audioConfig;
+    const current = await audio.findUnique({ where: { tenantId: r.tenant.id } });
+    let encryptedApiKey = current?.encryptedApiKey ?? null;
+    if (r.body.apiKey !== undefined) {
+      if (!o.cipher) return reply.code(503).send({ message: 'Criptografia de credenciais não está configurada.' });
+      await audioClient.validateApiKey(r.body.apiKey);
+      encryptedApiKey = o.cipher.encrypt({ apiKey: r.body.apiKey });
+    }
+    if (r.body.enabled && !encryptedApiKey) return reply.code(400).send({ message: 'Informe uma chave AssemblyAI antes de ativar.' });
+    const row = await audio.upsert({ where: { tenantId: r.tenant.id }, create: { publicId: randomUUID(), tenantId: r.tenant.id, enabled: r.body.enabled, encryptedApiKey }, update: { enabled: r.body.enabled, ...(r.body.apiKey === undefined ? {} : { encryptedApiKey }) } });
+    return { enabled: row.enabled, provider: row.provider, configured: Boolean(row.encryptedApiKey), languageCode: row.languageCode, maxAudioSeconds: row.maxAudioSeconds, lastValidatedAt: row.lastValidatedAt, lastValidationStatus: row.lastValidationStatus };
+  });
+  app.post('/tenant/integrations/whatsapp/audio-transcription/test', async (r) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage'); await assertWhatsApp(r.tenant.id);
+    const row = await audioConfig.findUnique({ where: { tenantId: r.tenant.id } });
+    if (!row?.encryptedApiKey || !o.cipher) return { success: false, message: 'Nenhuma chave AssemblyAI configurada.' };
+    const key = o.cipher.decrypt(row.encryptedApiKey).apiKey;
+    if (typeof key !== 'string') return { success: false, message: 'A chave configurada não é válida.' };
+    await audioClient.validateApiKey(key);
+    await audioConfig.update({ where: { tenantId: r.tenant.id }, data: { lastValidatedAt: new Date(), lastValidationStatus: 'VALID' } });
+    return { success: true };
+  });
+  app.delete('/tenant/integrations/whatsapp/audio-transcription/key', async (r) => {
+    o.authService.requirePermission(r.tenant, 'integration.manage'); await assertWhatsApp(r.tenant.id);
+    await audioConfig.updateMany({ where: { tenantId: r.tenant.id }, data: { enabled: false, encryptedApiKey: null, lastValidatedAt: null, lastValidationStatus: null } });
+    return { success: true };
   });
 };

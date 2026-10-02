@@ -577,6 +577,7 @@ model Tenant {
   domains                      TenantDomain[]
   whatsappConfigs              TenantWhatsAppConfig[]
   whatsappSettings             TenantWhatsAppSettings?
+  whatsappAudioTranscription   TenantWhatsAppAudioTranscription?
   whatsappMetaTemplates        TenantWhatsAppMetaTemplate[]
   whatsappInboundEvents        WhatsAppInboundEvent[]
   whatsappOutboundMessages     WhatsAppOutboundMessage[]
@@ -1122,6 +1123,12 @@ model WhatsAppInboundEvent {
   processingOwner     String?   @map("processing_owner") @db.VarChar(64)
   processingAttempts  Int       @default(0) @map("processing_attempts") @db.UnsignedSmallInt
   processedAt         DateTime? @map("processed_at") @db.DateTime(3)
+  transcriptionStatus String    @default("NONE") @map("transcription_status") @db.VarChar(16)
+  transcribedText    String?   @map("transcribed_text") @db.Text
+  transcriptionProvider String? @map("transcription_provider") @db.VarChar(32)
+  transcriptionDurationMs Int?  @map("transcription_duration_ms") @db.UnsignedInt
+  transcriptionCompletedAt DateTime? @map("transcription_completed_at") @db.DateTime(3)
+  transcriptionExternalId String? @map("transcription_external_id") @db.VarChar(128)
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -4704,6 +4711,23 @@ model CommercialRemittanceAllocation {
   @@unique([remittanceId, manualPaymentId])
   @@index([manualPaymentId])
   @@map("commercial_remittance_allocations")
+}
+
+model TenantWhatsAppAudioTranscription {
+  id                   BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId             String   @unique @map("public_id") @db.Char(36)
+  tenantId             BigInt   @unique @map("tenant_id") @db.UnsignedBigInt
+  provider             String   @default("ASSEMBLYAI") @db.VarChar(32)
+  enabled              Boolean  @default(false)
+  encryptedApiKey      String?  @map("encrypted_api_key") @db.Text
+  languageCode         String   @default("pt") @map("language_code") @db.VarChar(16)
+  maxAudioSeconds      Int      @default(300) @map("max_audio_seconds") @db.UnsignedInt
+  lastValidatedAt      DateTime? @map("last_validated_at") @db.DateTime(3)
+  lastValidationStatus String?  @map("last_validation_status") @db.VarChar(32)
+  createdAt            DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  @@map("tenant_whatsapp_audio_transcription")
 }
 
 model IntelligenceRule {

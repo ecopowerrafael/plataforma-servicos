@@ -57,6 +57,7 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const dataChat = record(data.chat ?? data.Chat);
   const dataExtra = record(data.extraData ?? data.extra_data);
   const message = record(root.message ?? root.Message ?? data.message ?? data.Message);
+  const audio = record(message.audioMessage ?? message.AudioMessage ?? data.audioMessage ?? data.AudioMessage);
   const content = record(message.extendedTextMessage ?? message.ExtendedTextMessage ?? message.imageMessage ?? message.ImageMessage ?? message.videoMessage ?? message.VideoMessage);
   const info = record(root.info ?? root.Info ?? data.info ?? data.Info);
   const key = record(root.key ?? root.Key ?? message.key ?? message.Key ?? data.key ?? data.Key ?? info);
@@ -144,8 +145,9 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
   const selectedId = firstText(button.buttonId, button.ButtonId, button.id, list.selected_row_id, list.selectedRowId, root.selected_row_id);
   const selectedDisplayText = firstText(button.displayText, button.title, button.text, list.title, list.selected_row_title, list.selectedRowTitle);
   const body = firstText(root.text, root.body, root.conversation, data.text, data.body, message.text, message.Text, message.body, message.Body, message.conversation, message.Conversation, content.text, content.Text, content.caption, content.Caption);
+  const isAudio = Object.keys(audio).length > 0 || firstText(root.messageType, data.messageType, root.type, data.type)?.toLowerCase().includes('audio') === true;
   const isAction = selectedId !== null || Object.keys(button).length > 0 || Object.keys(list).length > 0;
-  const eventType = firstText(eventName, button.type, list.type)?.toLowerCase().includes('status') ? null : isAction ? 'MESSAGE_ACTION' : body !== null ? 'MESSAGE_RECEIVED' : null;
+  const eventType = firstText(eventName, button.type, list.type)?.toLowerCase().includes('status') ? null : isAction ? 'MESSAGE_ACTION' : (body !== null || isAudio) ? 'MESSAGE_RECEIVED' : null;
   const timestampValue = Number(firstText(root.timestamp, root.moment, data.timestamp, message.timestamp));
   const timestamp = Number.isFinite(timestampValue) ? new Date(timestampValue > 10_000_000_000 ? timestampValue : timestampValue * 1000) : null;
   const normalizedPhone = phone;
@@ -163,8 +165,16 @@ export function normalizeEvolutionWebhook(raw: unknown): NormalizedWhatsAppEvent
     resolutionMethod: normalizedPhone === null ? 'NONE' : 'SENDER_ID',
     identityResult: fromMe ? 'FROM_ME' : normalizedPhone === null ? 'LID_UNRESOLVED' : 'RESOLVED',
     senderName: firstText(root.senderName, sender.pushName, sender.name),
-    messageType: isAction ? (isListResponse ? 'LIST_RESPONSE' : 'BUTTON_REPLY') : body !== null ? 'TEXT' : null,
+    messageType: isAction ? (isListResponse ? 'LIST_RESPONSE' : 'BUTTON_REPLY') : isAudio ? 'AUDIO' : body !== null ? 'TEXT' : null,
     text: body,
+    media: isAudio ? {
+      kind: 'AUDIO',
+      mimeType: firstText(audio.mimetype, audio.mimeType, audio.Mimetype),
+      durationSeconds: Number.isFinite(Number(audio.seconds)) ? Number(audio.seconds) : null,
+      fileSizeBytes: Number.isFinite(Number(audio.fileLength)) ? Number(audio.fileLength) : null,
+      providerMediaId: externalMessageId,
+      providerReference: firstText(audio.id, audio.messageId, message.id, data.messageId),
+    } : null,
     actionId: selectedId,
     referencedMessageId: firstText(
       root.referencedMessageId,

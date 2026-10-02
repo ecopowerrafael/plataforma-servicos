@@ -45,6 +45,7 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
+  cipher?: import('../payments/gateway/credentials-cipher.js').CredentialsCipher;
 }> = async (app, options) => {
   await app.register(tenantContextPlugin, {
     authService: options.authService,
@@ -56,6 +57,7 @@ export const integrationRoutes: FastifyPluginAsyncZod<{
       authService: options.authService,
       cookieName: options.cookieName,
       client: options.client,
+      cipher: options.cipher,
     });
   }
   app.get(

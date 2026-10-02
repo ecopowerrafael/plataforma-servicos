@@ -159,6 +159,7 @@ import { IntelligenceRuleService } from '../modules/integrations/intelligence-ru
 
 export interface DatabaseConnection {
   readonly client: PrismaClient;
+  readonly credentialsCipher?: CredentialsCipher;
   readonly ping: () => Promise<void>;
   readonly close: () => Promise<void>;
   readonly tenants: TenantRepository;
@@ -557,6 +558,7 @@ export function createDatabaseConnection(
 
   return {
     client,
+    credentialsCipher,
     identities: new PrismaIdentityRepository(client),
     availability,
     appointments: appointments,

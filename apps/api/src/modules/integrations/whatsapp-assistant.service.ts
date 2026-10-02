@@ -999,7 +999,7 @@ export class WhatsAppAssistantService {
       (interpretation.entities.date ?? contextString(context, 'date')) === null || (interpretation.entities.date ?? contextString(context, 'date')) === undefined ? 'date' : null,
       (interpretation.entities.time ?? contextString(context, 'time')) === null || (interpretation.entities.time ?? contextString(context, 'time')) === undefined ? 'time' : null,
     ].filter((field): field is string => field !== null);
-    console.info('[WHATSAPP_BOOKING_PROGRESS]', { intent: interpretation.intent, resolvedFields, missingFields, source: 'TEXT', actionSource: 'TEXT' });
+    console.info('[WHATSAPP_BOOKING_PROGRESS]', { intent: interpretation.intent, resolvedFields, missingFields, source: input.event.messageType === 'AUDIO_TRANSCRIPT' ? 'AUDIO' : 'TEXT', actionSource: 'TEXT' });
     if (professionalPublicId === undefined || !offeringProfessionals.some((item) => item.publicId === professionalPublicId)) {
       const candidates = interpretation.entities.professionalName === undefined
         ? offeringProfessionals

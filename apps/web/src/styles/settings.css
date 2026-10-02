@@ -117,12 +117,12 @@
 }
 
 .app-shell .settings-switch-row input.ds-switch:hover {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 14%, transparent);
+  filter: brightness(0.97);
 }
 
 .app-shell .settings-switch-row input.ds-switch:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--app-accent) 30%, transparent);
-  outline-offset: 3px;
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 55%, transparent);
+  outline-offset: 2px;
 }
 
 .settings-card-actions {

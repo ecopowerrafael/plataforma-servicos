@@ -696,6 +696,9 @@ void test('MAIN_MENU_BOOK sem mensagem referenciada preserva a ação e não cai
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_CHANGE_SERVICE'), 'BOOKING_CREATE_CHANGE_SERVICE');
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_ABORT'), 'BOOKING_CREATE_ABORT');
   assert.equal(resolveDirectBookingAction('BOOKING_CREATE_SERVICE:invalid'), null);
+  assert.equal(resolveDirectBookingAction('BOOKING_CONFIRM:b359cb77-ee79-4ab6-804e-576a633b7bbe'), 'BOOKING_CONFIRM:b359cb77-ee79-4ab6-804e-576a633b7bbe');
+  assert.equal(resolveDirectBookingAction('BOOKING_CANCEL:b359cb77-ee79-4ab6-804e-576a633b7bbe'), 'BOOKING_CANCEL:b359cb77-ee79-4ab6-804e-576a633b7bbe');
+  assert.equal(resolveDirectBookingAction('BOOKING_CONFIRM:not-a-uuid'), null);
   assert.equal(resolveDirectMainMenuAction('UNKNOWN_ACTION'), null);
 });
 
@@ -726,6 +729,37 @@ void test.each([
 void test('action de reagendamento desconhecida continua rejeitada', () => {
   assert.equal(resolveDirectBookingAction('BOOKING_RESCHEDULE_DATE:not-a-date'), null);
   assert.equal(resolveDirectBookingAction('BOOKING_RESCHEDULE_UNKNOWN'), null);
+});
+
+void test('IntegrationService resolve ação contextual sem depender da mensagem referenciada', async () => {
+  const service = new IntegrationService({} as never);
+  const resolve = (service as unknown as {
+    resolveActionId: (tenantId: bigint, event: unknown) => Promise<{
+      actionId: string;
+      appointmentPublicId: string | null;
+    } | null>;
+  }).resolveActionId.bind(service);
+
+  const contextual = await resolve(1n, {
+    provider: 'EVOLUTION', eventType: 'MESSAGE_ACTION', actionId: 'BOOKING_CONFIRM:b359cb77-ee79-4ab6-804e-576a633b7bbe',
+    referencedMessageId: null,
+  });
+  assert.deepEqual(contextual, {
+    actionId: 'BOOKING_CONFIRM', appointmentPublicId: 'b359cb77-ee79-4ab6-804e-576a633b7bbe',
+    collectionAttemptPublicId: null, collectionDebtPublicId: null,
+  });
+
+  const legacyRepository = {
+    outboundByExternalMessageId: () => Promise.resolve({
+      actionIds: ['BOOKING_CONFIRM'], notification: { targetType: 'appointment', targetPublicId: 'b359cb77-ee79-4ab6-804e-576a633b7bbe' },
+    }),
+  };
+  const legacyService = new IntegrationService(legacyRepository as never);
+  const legacyResolve = (legacyService as unknown as { resolveActionId: typeof resolve }).resolveActionId.bind(legacyService);
+  const legacy = await legacyResolve(1n, {
+    provider: 'EVOLUTION', eventType: 'MESSAGE_ACTION', actionId: 'BOOKING_CONFIRM', referencedMessageId: 'outbound-1',
+  });
+  assert.equal(legacy?.appointmentPublicId, 'b359cb77-ee79-4ab6-804e-576a633b7bbe');
 });
 
 void test.each([0, 3, 8, 9, 10, 14, 20])('pagina datas disponíveis sem saltos para %i datas', (count) => {

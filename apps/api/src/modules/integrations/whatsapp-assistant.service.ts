@@ -227,6 +227,12 @@ export class WhatsAppAssistantService {
           { ...conversation, context: { appointmentPublicId: input.appointmentPublicId } },
           phone,
         );
+      else if (input.actionId === 'BOOKING_CANCEL')
+        await this.requestCancellation(
+          input,
+          { ...conversation, context: { appointmentPublicId: input.appointmentPublicId } },
+          phone,
+        );
       return { replied: true, conversationPublicId: conversation.publicId };
     }
 
@@ -290,6 +296,14 @@ export class WhatsAppAssistantService {
       } else {
         await this.dispatchText(input, phone, 'É necessário enviar uma imagem ou arquivo PDF do comprovante PIX.', conversation.id);
       }
+      return { replied: true, conversationPublicId: conversation.publicId };
+    }
+    if (input.appointmentPublicId !== null && input.actionId === 'BOOKING_CANCEL') {
+      await this.requestCancellation(
+        input,
+        { ...conversation, context: { appointmentPublicId: input.appointmentPublicId } },
+        phone,
+      );
       return { replied: true, conversationPublicId: conversation.publicId };
     }
 

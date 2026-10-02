@@ -74,7 +74,7 @@ describe('NotificationService enqueue idempotency', () => {
       channel: 'WHATSAPP',
       kind: 'appointment.booking_confirmed',
       targetType: 'appointment',
-      targetPublicId: 'appointment-1',
+      targetPublicId: '00000000-0000-4000-8000-000000000001',
       recipient: '5511999999999',
       subject: 'Agendamento criado',
       body: 'Seu agendamento foi criado ✅',
@@ -112,14 +112,14 @@ describe('NotificationService enqueue idempotency', () => {
       '5511999999999',
       'Seu agendamento foi criado ✅',
       [
-        { buttonId: 'BOOKING_CONFIRM', label: 'Confirmar agendamento' },
-        { buttonId: 'BOOKING_RESCHEDULE', label: 'Reagendar' },
+        { buttonId: 'BOOKING_CONFIRM:00000000-0000-4000-8000-000000000001', label: 'Confirmar agendamento' },
+        { buttonId: 'BOOKING_RESCHEDULE:00000000-0000-4000-8000-000000000001', label: 'Reagendar' },
       ],
     );
     expect(outboundCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         notificationLogId: 12n,
-        actionIds: ['BOOKING_CONFIRM', 'BOOKING_RESCHEDULE'],
+        actionIds: ['BOOKING_CONFIRM:00000000-0000-4000-8000-000000000001', 'BOOKING_RESCHEDULE:00000000-0000-4000-8000-000000000001'],
       }),
     }));
   });

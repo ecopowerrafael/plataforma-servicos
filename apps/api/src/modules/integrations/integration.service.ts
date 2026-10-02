@@ -111,6 +111,7 @@ export const resolveDirectMainMenuAction = (actionId: string | null) => {
 
 const PUBLIC_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 const directBookingActionPatterns = [
+  new RegExp(`^BOOKING_(?:CONFIRM|RESCHEDULE|CANCEL):${PUBLIC_ID}$`, 'i'),
   new RegExp(`^BOOKING_CREATE_SERVICE:${PUBLIC_ID}$`, 'i'),
   new RegExp(`^BOOKING_CREATE_COMBO:${PUBLIC_ID}$`, 'i'),
   new RegExp(`^BOOKING_CREATE_PROFESSIONAL:${PUBLIC_ID}$`, 'i'),
@@ -133,6 +134,16 @@ const directBookingActionPatterns = [
 
 export const resolveDirectBookingAction = (actionId: string | null) =>
   actionId !== null && (directBookingActionPatterns.some((pattern) => pattern.test(actionId)) || WHATSAPP_ASSISTANT_FIXED_ACTIONS.includes(actionId as (typeof WHATSAPP_ASSISTANT_FIXED_ACTIONS)[number])) ? actionId : null;
+
+const contextualAppointmentAction = (actionId: string | null) => {
+  const match = actionId?.match(new RegExp(`^(BOOKING_CONFIRM|BOOKING_RESCHEDULE|BOOKING_CANCEL):(${PUBLIC_ID})$`, 'i'));
+  const baseAction = match?.[1];
+  const appointmentPublicId = match?.[2];
+  return baseAction === undefined || appointmentPublicId === undefined
+    ? null
+    : { actionId: baseAction.toUpperCase(), appointmentPublicId };
+};
+const legacyAppointmentActions = new Set(['BOOKING_CONFIRM', 'BOOKING_RESCHEDULE', 'BOOKING_CANCEL']);
 import { type ProspectingWhatsAppConfigService } from '../prospecting/prospecting-whatsapp-config.service.js';
 import { PlanEntitlementService, type PlanFeatureKey } from '../tenants/plan-entitlement.service.js';
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
@@ -1154,9 +1165,17 @@ export class IntegrationService {
    */
   private async resolveActionId(tenantId: bigint, event: NormalizedWhatsAppEvent) {
     if (event.provider !== 'EVOLUTION' || event.eventType !== 'MESSAGE_ACTION') return null;
+    const contextual = contextualAppointmentAction(event.actionId);
+    if (contextual !== null) {
+      console.info('[WHATSAPP_NOTIFICATION_ACTION]', JSON.stringify({ actionType: contextual.actionId, appointmentContextPresent: true, source: 'ACTION_ID' }));
+      return { ...contextual, collectionAttemptPublicId: null, collectionDebtPublicId: null };
+    }
     const directAction = resolveDirectMainMenuAction(event.actionId) ?? resolveDirectBookingAction(event.actionId);
-    if (directAction !== null)
+    const shouldResolveReferencedLegacyAction = event.referencedMessageId !== null && legacyAppointmentActions.has(event.actionId ?? '');
+    if (directAction !== null && !shouldResolveReferencedLegacyAction) {
+      console.info('[WHATSAPP_NOTIFICATION_ACTION]', JSON.stringify({ actionType: directAction, appointmentContextPresent: false, source: 'NONE' }));
       return { actionId: directAction, appointmentPublicId: null, collectionAttemptPublicId: null, collectionDebtPublicId: null };
+    }
     // Evolution pode entregar o id da ação interativa sem o id da mensagem
     // original. Para ações do menu principal, o próprio id é o contrato do
     // botão; não cair no fallback aqui evita reenviar o menu indefinidamente.
@@ -1189,6 +1208,7 @@ export class IntegrationService {
       typeof outbound.notification.targetPublicId === 'string'
         ? outbound.notification.targetPublicId
         : null;
+    console.info('[WHATSAPP_NOTIFICATION_ACTION]', JSON.stringify({ actionType: matched, appointmentContextPresent: appointmentPublicId !== null, source: appointmentPublicId !== null ? 'REFERENCED_OUTBOUND' : 'NONE' }));
     return { actionId: matched, appointmentPublicId, collectionAttemptPublicId, collectionDebtPublicId };
   }
 

@@ -342,7 +342,12 @@ export class NotificationService {
           } as Record<string, string>;
           const enabledButtons = buttons.filter((b) => b.enabled);
           const mappedButtons = enabledButtons.map((b) => ({
-            buttonId: actionKeyToButtonId[b.actionKey as keyof typeof actionKeyToButtonId] || b.actionKey,
+            buttonId: (() => {
+              const baseAction = actionKeyToButtonId[b.actionKey as keyof typeof actionKeyToButtonId];
+              return log.targetType === 'appointment' && typeof log.targetPublicId === 'string' && baseAction !== undefined
+                ? `${baseAction}:${log.targetPublicId}`
+                : baseAction ?? b.actionKey;
+            })(),
             label: b.label,
           }));
           const result = await this.deliveries.whatsapp.sendInteractiveButtons(

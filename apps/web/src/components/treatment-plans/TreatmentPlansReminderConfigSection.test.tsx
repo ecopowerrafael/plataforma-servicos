@@ -128,14 +128,21 @@ describe('TreatmentPlansReminderConfigSection', () => {
     await screen.findByLabelText('Ativar lembretes automáticos');
     expect(httpClient.request).toHaveBeenCalledWith(
       `/platform/tenants/${mockTenantPublicId}/reminder-config`,
-      expect.objectContaining({ schema: expect.anything() }),
+      expect.objectContaining({
+        schema: expect.anything(),
+        tenantPublicId: mockTenantPublicId,
+      }),
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Salvar configuração' }));
     await vi.waitFor(() => {
       expect(httpClient.request).toHaveBeenCalledWith(
         `/platform/tenants/${mockTenantPublicId}/reminder-config`,
-        expect.objectContaining({ method: 'PATCH', schema: expect.anything() }),
+        expect.objectContaining({
+          method: 'PATCH',
+          schema: expect.anything(),
+          tenantPublicId: mockTenantPublicId,
+        }),
       );
     });
   });

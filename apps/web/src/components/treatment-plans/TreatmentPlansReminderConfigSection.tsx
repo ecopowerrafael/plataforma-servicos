@@ -33,6 +33,7 @@ export function TreatmentPlansReminderConfigSection({
     queryFn: () =>
       httpClient.request(`/platform/tenants/${tenantPublicId}/reminder-config`, {
         schema: TreatmentPlanReminderConfigSchema,
+        tenantPublicId,
       }),
     retry: false,
   });
@@ -47,6 +48,7 @@ export function TreatmentPlansReminderConfigSection({
         method: 'PATCH',
         body: data,
         schema: TreatmentPlanReminderConfigSchema,
+        tenantPublicId,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'reminder-config'] });

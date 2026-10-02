@@ -81,43 +81,61 @@
   border: 0;
 }
 
-.app-shell .settings-switch-row input.ds-switch {
+.app-shell .settings-switch-row .ds-switch-row {
+  position: relative;
   width: 48px;
   height: 26px;
   border: 1px solid var(--color-border-default);
   border-radius: 999px;
   background: var(--color-bg-tertiary);
   box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.08);
+  cursor: pointer;
   transition: background-color 180ms ease, box-shadow 180ms ease;
 }
 
-.app-shell .settings-switch-row input.ds-switch::after {
+.app-shell .settings-switch-row .ds-switch-row > span {
+  display: none;
+}
+
+.app-shell .settings-switch-row .ds-switch-row::after {
   width: 22px;
   height: 22px;
-  top: 1px;
-  left: 1px;
   border: 1px solid rgb(15 23 42 / 0.1);
+  border-radius: 50%;
+  background: #fff;
   box-shadow: 0 1px 3px rgb(15 23 42 / 0.18);
+  content: '';
+  left: 1px;
+  position: absolute;
+  top: 1px;
   transition: transform 180ms ease;
 }
 
-.app-shell .settings-switch-row input.ds-switch:checked {
+.app-shell .settings-switch-row .ds-switch-row:has(input.ds-switch:checked) {
   background: var(--app-success);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-success) 16%, transparent);
 }
 
-.app-shell .settings-switch-row input.ds-switch:checked::after {
-  left: 1px;
+.app-shell .settings-switch-row .ds-switch-row:has(input.ds-switch:checked)::after {
   transform: translateX(22px);
 }
 
-.app-shell .settings-switch-row input.ds-switch:hover {
+.app-shell .settings-switch-row .ds-switch-row:hover {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 14%, transparent);
 }
 
-.app-shell .settings-switch-row input.ds-switch:focus-visible {
+.app-shell .settings-switch-row .ds-switch-row:has(input.ds-switch:focus-visible) {
   outline: 3px solid color-mix(in srgb, var(--app-accent) 30%, transparent);
   outline-offset: 3px;
+}
+
+.app-shell .settings-switch-row input.ds-switch {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .settings-card-actions {

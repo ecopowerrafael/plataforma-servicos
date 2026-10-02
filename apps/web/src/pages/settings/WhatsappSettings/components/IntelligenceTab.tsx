@@ -833,7 +833,7 @@ export function IntelligenceTab({
           if (!addAlias.isPending && !updateAlias.isPending) setAliasModalOpen(false);
         }}
         footer={
-          <>
+          <div className="wa-intelligence-modal-actions">
             <button
               type="button"
               className="wa-secondary-button"
@@ -865,7 +865,7 @@ export function IntelligenceTab({
                     ? `Salvar ${aliasTerms.length || ''} ${aliasTerms.length === 1 ? 'nome' : 'nomes'}`
                     : 'Salvar alteração'}
             </button>
-          </>
+          </div>
         }
       >
         <p className="wa-modal-help">
@@ -983,7 +983,7 @@ export function IntelligenceTab({
           if (!addPattern.isPending && !updatePattern.isPending) setPatternModalOpen(false);
         }}
         footer={
-          <>
+          <div className="wa-intelligence-modal-actions">
             <button
               type="button"
               className="wa-secondary-button"
@@ -1013,7 +1013,7 @@ export function IntelligenceTab({
                   ? 'Ensinar frase'
                   : 'Salvar alterações'}
             </button>
-          </>
+          </div>
         }
       >
         <p className="wa-modal-help">Escreva uma frase como seu cliente falaria.</p>

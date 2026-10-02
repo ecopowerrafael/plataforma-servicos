@@ -86,17 +86,18 @@
 
 .status-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 16px;
 }
 
 .status-item {
+  border-left: 3px solid var(--color-border-default);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  min-width: 0;
   padding: 16px;
-  background: var(--color-bg-muted);
-  border-radius: 12px;
+  background: var(--color-bg-secondary);
+  border-radius: 10px;
+  box-shadow: var(--shadow-xs);
   transition: all 0.2s ease-in-out;
 }
 
@@ -120,6 +121,19 @@
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0;
+}
+
+.status-item--pending { border-left-color: #d97706; }
+.status-item--confirmed, .status-item--completed { border-left-color: #15803d; }
+.status-item--in_progress { border-left-color: #2563eb; }
+.status-item--canceled { border-left-color: #64748b; }
+.status-item--no_show { border-left-color: #dc2626; }
+
+.dashboard-secondary-grid {
+  align-items: start;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* ============================================
@@ -215,7 +229,11 @@
   }
 
   .status-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-secondary-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -225,7 +243,7 @@
   }
 
   .status-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .metric-card-v2 {

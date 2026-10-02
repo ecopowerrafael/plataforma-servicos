@@ -15,15 +15,6 @@ const statusLabels: Record<string, string> = {
   NO_SHOW: 'Faltas',
 };
 
-const statusColors: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'> = {
-  PENDING: 'warning',
-  CONFIRMED: 'info',
-  IN_PROGRESS: 'info',
-  COMPLETED: 'success',
-  CANCELED: 'neutral',
-  NO_SHOW: 'danger',
-};
-
 function MetricCard({
   icon: Icon,
   label,
@@ -119,46 +110,54 @@ export function OperationsDashboardModule({ tenantPublicId }: { tenantPublicId: 
           <SectionCard title="Atendimentos por status">
             <div className="status-grid">
               {Object.entries(dashboard.data.today.byStatus).map(([status, count]) => (
-                <div key={status} className="status-item">
+                <div key={status} className={`status-item status-item--${status.toLowerCase()}`}>
                   <div className="status-info">
                     <p className="status-name">{statusLabels[status] ?? status}</p>
                     <p className="status-count">{count}</p>
                   </div>
-                  <Badge type={statusColors[status] ?? 'neutral'}>{count}</Badge>
                 </div>
               ))}
             </div>
           </SectionCard>
 
-          {/* By Professional */}
-          {dashboard.data.today.byProfessional.length > 0 && (
-            <SectionCard title="Atendimentos por profissional">
-              <ListContainer>
-                {dashboard.data.today.byProfessional.map((entry) => (
-                  <ListItem
-                    key={entry.professionalPublicId}
-                    title={entry.professionalName}
-                    badge={<Badge type="primary">{entry.total}</Badge>}
-                  />
-                ))}
-              </ListContainer>
-            </SectionCard>
-          )}
+          <div className="dashboard-secondary-grid">
+            {dashboard.data.today.byProfessional.length > 0 && (
+              <SectionCard title="Atendimentos por profissional">
+                <ListContainer>
+                  {dashboard.data.today.byProfessional.map((entry) => (
+                    <ListItem
+                      key={entry.professionalPublicId}
+                      title={entry.professionalName}
+                      badge={<Badge type="primary">{entry.total}</Badge>}
+                    />
+                  ))}
+                </ListContainer>
+              </SectionCard>
+            )}
 
-          {/* By Unit */}
-          {dashboard.data.today.byUnit.length > 0 && (
-            <SectionCard title="Atendimentos por unidade">
-              <ListContainer>
-                {dashboard.data.today.byUnit.map((entry) => (
-                  <ListItem
-                    key={entry.unitPublicId ?? 'sem-unidade'}
-                    title={entry.unitName}
-                    badge={<Badge type="primary">{entry.total}</Badge>}
-                  />
-                ))}
-              </ListContainer>
-            </SectionCard>
-          )}
+            {dashboard.data.today.byUnit.length > 0 && (
+              <SectionCard title="Atendimentos por unidade">
+                <ListContainer>
+                  {dashboard.data.today.byUnit.map((entry) => {
+                    const unitName =
+                      dashboard.data.today.byUnit.length === 1 &&
+                      !entry.unitPublicId &&
+                      (!entry.unitName || entry.unitName === 'Sem unidade')
+                        ? 'Matriz'
+                        : entry.unitName || 'Sem unidade';
+
+                    return (
+                      <ListItem
+                        key={entry.unitPublicId ?? 'sem-unidade'}
+                        title={unitName}
+                        badge={<Badge type="primary">{entry.total}</Badge>}
+                      />
+                    );
+                  })}
+                </ListContainer>
+              </SectionCard>
+            )}
+          </div>
         </>
       )}
     </div>

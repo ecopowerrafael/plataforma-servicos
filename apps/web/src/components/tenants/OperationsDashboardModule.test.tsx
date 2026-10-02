@@ -135,6 +135,43 @@ describe('OperationsDashboardModule', () => {
     expect(screen.getByText('Unidade Sul')).toBeInTheDocument();
   });
 
+  it('should label a single unnamed unit as Matriz', async () => {
+    (httpClient.request as any).mockResolvedValue({
+      ...mockDashboardData,
+      today: {
+        ...mockDashboardData.today,
+        byUnit: [{ unitPublicId: null, unitName: 'Sem unidade', total: 8 }],
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OperationsDashboardModule tenantPublicId="test-tenant" />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('Atendimentos por unidade');
+
+    expect(screen.getByText('Matriz')).toBeInTheDocument();
+    expect(screen.queryByText('Sem unidade')).not.toBeInTheDocument();
+  });
+
+  it('preserves names for multiple units', async () => {
+    (httpClient.request as any).mockResolvedValue(mockDashboardData);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OperationsDashboardModule tenantPublicId="test-tenant" />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('Atendimentos por unidade');
+
+    expect(screen.getByText('Unidade Centro')).toBeInTheDocument();
+    expect(screen.getByText('Unidade Sul')).toBeInTheDocument();
+    expect(screen.queryByText('Matriz')).not.toBeInTheDocument();
+  });
+
   it('should display error when query fails', async () => {
     const error = new Error('API Error');
     (httpClient.request as any).mockRejectedValue(error);

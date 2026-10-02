@@ -608,6 +608,80 @@ void test('combo ativo entra na seleção e preserva comboPublicId no fluxo', as
   assert.equal(at(sent, 1).actionIds.includes('BOOKING_CREATE_PROFESSIONAL:pro-a'), true);
 });
 
+void test('seleção de serviço reaproveita profissional pendente e continua até confirmação', async () => {
+  const now = new Date();
+  const { repository, delivery, conversations, sent } = fakeRepository([{
+    id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE',
+    currentFlow: 'BOOKING_CREATE', currentStep: 'SERVICE_SELECTION',
+    context: { pendingProfessionalName: 'Rafael Augusto', date: '2026-10-02', time: '15:00', dayPeriod: 'AFTERNOON' },
+    lastInboundAt: now, expiresAt: conversationExpiresAt(now),
+  }]);
+  const service = new WhatsAppAssistantService(
+    repository,
+    delivery,
+    undefined,
+    { available: () => Promise.resolve({ slots: [{ state: 'AVAILABLE', startsAt: '2026-10-02T18:00:00.000Z' }] }) } as never,
+    bookingCatalog([{ publicId: 'service-a', name: 'Corte', priceCents: '5000', durationMinutes: 30 }], [{ publicId: 'pro-a', name: 'Rafael Augusto' }]) as never,
+    professionalLinks(['pro-a']) as never,
+  );
+  await handle(service, inbound(), { actionId: 'BOOKING_CREATE_SERVICE:service-a' });
+  assert.deepEqual(at(conversations, 0).context, { servicePublicId: 'service-a', professionalPublicId: 'pro-a', date: '2026-10-02', time: '15:00', dayPeriod: 'AFTERNOON' });
+  assert.equal(at(conversations, 0).currentStep, 'CONFIRMATION');
+  assert.equal(at(sent, 0).message.includes('Confirmar agendamento?'), true);
+  assert.equal(sent.some((item) => item.actionIds.some((id) => id.startsWith('BOOKING_CREATE_PROFESSIONAL:'))), false);
+});
+
+void test('seleção de serviço não escolhe profissional pendente que não atende', async () => {
+  const now = new Date();
+  const { repository, delivery, conversations, sent } = fakeRepository([{
+    id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: null, phone: '5515997118125', status: 'ACTIVE',
+    currentFlow: 'BOOKING_CREATE', currentStep: 'SERVICE_SELECTION',
+    context: { pendingProfessionalName: 'Rafael Augusto', date: '2026-10-02', time: '15:00' },
+    lastInboundAt: now, expiresAt: conversationExpiresAt(now),
+  }]);
+  const service = new WhatsAppAssistantService(
+    repository,
+    delivery,
+    undefined,
+    undefined,
+    bookingCatalog([{ publicId: 'service-a', name: 'Corte', priceCents: '5000', durationMinutes: 30 }], [{ publicId: 'pro-a', name: 'João Silva' }]) as never,
+    professionalLinks(['pro-a']) as never,
+  );
+  await handle(service, inbound(), { actionId: 'BOOKING_CREATE_SERVICE:service-a' });
+  assert.equal(at(conversations, 0).currentStep, 'PROFESSIONAL_SELECTION');
+  assert.deepEqual(at(conversations, 0).context, { servicePublicId: 'service-a', date: '2026-10-02', time: '15:00' });
+  assert.equal(at(sent, 0).message.includes('Rafael Augusto'), true);
+  assert.deepEqual(at(sent, 0).actionIds, ['BOOKING_CREATE_PROFESSIONAL:pro-a', 'BOOKING_CREATE_CHANGE_SERVICE']);
+});
+
+void test('seleção de combo também reaproveita profissional pendente', async () => {
+  const now = new Date();
+  const comboPublicId = 'combo-a';
+  const { repository, delivery, conversations, sent } = fakeRepository([{
+    id: 1n, publicId: 'conv-1', tenantId: 1n, customerId: 7n, phone: '5515997118125', status: 'ACTIVE',
+    currentFlow: 'BOOKING_CREATE', currentStep: 'SERVICE_SELECTION',
+    context: { pendingProfessionalName: 'Rafael Augusto', date: '2026-10-02', time: '15:00' },
+    lastInboundAt: now, expiresAt: conversationExpiresAt(now),
+  }]);
+  const service = new WhatsAppAssistantService(
+    repository,
+    delivery,
+    undefined,
+    { available: () => Promise.resolve({ slots: [{ state: 'AVAILABLE', startsAt: '2026-10-02T18:00:00.000Z' }] }) } as never,
+    bookingCatalog(
+      [{ publicId: 'service-a', name: 'Corte', priceCents: '5000', durationMinutes: 30 }],
+      [{ publicId: 'pro-a', name: 'Rafael Augusto' }],
+      null,
+      [{ publicId: comboPublicId, name: 'Corte + Barba', priceCents: '8000', items: [{ servicePublicId: 'service-a' }] }],
+    ) as never,
+    professionalLinks(['pro-a']) as never,
+  );
+  await handle(service, inbound(), { actionId: `BOOKING_CREATE_COMBO:${comboPublicId}` });
+  assert.deepEqual(at(conversations, 0).context, { comboPublicId, professionalPublicId: 'pro-a', date: '2026-10-02', time: '15:00' });
+  assert.equal(at(conversations, 0).currentStep, 'CONFIRMATION');
+  assert.equal(sent.some((item) => item.actionIds.some((id) => id.startsWith('BOOKING_CREATE_PROFESSIONAL:'))), false);
+});
+
 void test('MAIN_MENU_BOOK sem mensagem referenciada preserva a ação e não cai no menu', () => {
   assert.equal(resolveDirectMainMenuAction('MAIN_MENU_BOOK'), 'MAIN_MENU_BOOK');
   assert.equal(resolveDirectMainMenuAction('MAIN_MENU_TREATMENTS'), 'MAIN_MENU_TREATMENTS');

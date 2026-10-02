@@ -124,6 +124,8 @@ export interface IntelligenceAction {
   id: number;
 }
 
+const normalizeAlias = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('pt-BR');
+
 export function IntelligenceTab({
   tenantPublicId,
   canManage,
@@ -201,12 +203,12 @@ export function IntelligenceTab({
           .filter(
             (item) => item.entityType === entityType && item.entityPublicId === entityPublicId,
           )
-          .map((item) => item.alias.trim().toLocaleLowerCase()),
+          .map((item) => normalizeAlias(item.alias)),
       );
       const saved: string[] = [];
       const failed: string[] = [];
       for (const term of aliasTerms) {
-        if (existing.has(term.toLocaleLowerCase())) {
+        if (existing.has(normalizeAlias(term))) {
           failed.push(term);
           continue;
         }
@@ -220,7 +222,7 @@ export function IntelligenceTab({
               tenantPublicId,
             },
           );
-          existing.add(term.toLocaleLowerCase());
+          existing.add(normalizeAlias(term));
           saved.push(term);
         } catch {
           failed.push(term);
@@ -396,13 +398,13 @@ export function IntelligenceTab({
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
-    const existing = new Set(aliasTerms.map((term) => term.toLocaleLowerCase()));
+    const existing = new Set(aliasTerms.map(normalizeAlias));
     const duplicates: string[] = [];
     const next = [...aliasTerms];
     for (const candidate of candidates) {
-      if (existing.has(candidate.toLocaleLowerCase())) duplicates.push(candidate);
+      if (existing.has(normalizeAlias(candidate))) duplicates.push(candidate);
       else {
-        existing.add(candidate.toLocaleLowerCase());
+        existing.add(normalizeAlias(candidate));
         next.push(candidate);
       }
     }

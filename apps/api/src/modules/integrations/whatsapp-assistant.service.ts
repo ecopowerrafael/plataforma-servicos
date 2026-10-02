@@ -25,7 +25,7 @@ import { type ProfessionalServiceLinkService } from '../professionals/profession
 import { type TenantWhiteLabelService } from '../tenants/tenant-white-label.service.js';
 import { type TreatmentPlanService } from '../appointments/treatment-plan.service.js';
 import { nextAllowedReplyAt } from './whatsapp-response-interval.js';
-import { interpretText, normalizePortugueseText, type TextInterpretation } from './whatsapp-text-interpreter.js';
+import { interpretText, normalizePortugueseText, type DayPeriod, type TextInterpretation } from './whatsapp-text-interpreter.js';
 import { type IntelligenceRuleRepository } from './intelligence-rule.repository.js';
 import { chooseBestMatch } from './intelligence-rule-matcher.js';
 import { EntityResolver } from './intelligence-entity-resolver.js';
@@ -978,7 +978,7 @@ export class WhatsAppAssistantService {
     const servicePublicId = existingService ?? (requestedCombo === undefined ? requestedService : undefined);
     const comboPublicId = existingCombo ?? (servicePublicId === undefined ? requestedCombo : undefined);
     if (servicePublicId === undefined && comboPublicId === undefined) {
-      await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_CREATE', currentStep: 'SERVICE_SELECTION', context: { ...(context !== null && typeof context === 'object' && !Array.isArray(context) ? context as Record<string, unknown> : {}), ...(interpretation.entities.date === undefined ? {} : { date: interpretation.entities.date }), ...(interpretation.entities.time === undefined ? {} : { time: interpretation.entities.time }), ...(interpretation.entities.professionalName === undefined ? {} : { pendingProfessionalName: interpretation.entities.professionalName }) } });
+      await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_CREATE', currentStep: 'SERVICE_SELECTION', context: { ...(context !== null && typeof context === 'object' && !Array.isArray(context) ? context as Record<string, unknown> : {}), ...(interpretation.entities.date === undefined ? {} : { date: interpretation.entities.date }), ...(interpretation.entities.time === undefined ? {} : { time: interpretation.entities.time }), ...(interpretation.entities.dayPeriod === undefined ? {} : { dayPeriod: interpretation.entities.dayPeriod }), ...(interpretation.entities.professionalName === undefined ? {} : { pendingProfessionalName: interpretation.entities.professionalName }) } });
       await this.showBookingServices(input, conversation.id, phone);
       return;
     }
@@ -1005,7 +1005,7 @@ export class WhatsAppAssistantService {
         ? offeringProfessionals
         : offeringProfessionals.filter((item) => normalizePortugueseText(item.name).includes(normalizePortugueseText(interpretation.entities.professionalName!)));
       if (candidates.length !== 1) {
-        const nextContext = { ...(context !== null && typeof context === 'object' && !Array.isArray(context) ? context as Record<string, unknown> : {}), ...(servicePublicId === undefined ? { comboPublicId } : { servicePublicId }), ...(interpretation.entities.date === undefined ? {} : { date: interpretation.entities.date }), ...(interpretation.entities.time === undefined ? {} : { time: interpretation.entities.time }) };
+        const nextContext = { ...(context !== null && typeof context === 'object' && !Array.isArray(context) ? context as Record<string, unknown> : {}), ...(servicePublicId === undefined ? { comboPublicId } : { servicePublicId }), ...(interpretation.entities.date === undefined ? {} : { date: interpretation.entities.date }), ...(interpretation.entities.time === undefined ? {} : { time: interpretation.entities.time }), ...(interpretation.entities.dayPeriod === undefined ? {} : { dayPeriod: interpretation.entities.dayPeriod }) };
         await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_CREATE', currentStep: 'PROFESSIONAL_SELECTION', context: nextContext });
         const tenant = await this.repository.tenantName(input.tenantId);
         const offering = servicePublicId === undefined ? site.combos.find((item) => item.publicId === comboPublicId)?.name : site.services.find((item) => item.publicId === servicePublicId)?.name;
@@ -1030,7 +1030,8 @@ export class WhatsAppAssistantService {
     const tenant = await this.repository.tenantName(input.tenantId);
     const date = resolveInterpreterDate(interpretation.entities.date ?? contextString(context, 'date') ?? undefined, tenant?.timezone ?? 'UTC');
     const time = interpretation.entities.time ?? contextString(context, 'time') ?? undefined;
-    const nextContext = { ...(servicePublicId === undefined ? { comboPublicId } : { servicePublicId }), professionalPublicId, ...(date === undefined ? {} : { date }), ...(time === undefined ? {} : { time }) };
+    const dayPeriod = contextString(context, 'dayPeriod');
+    const nextContext = { ...(servicePublicId === undefined ? { comboPublicId } : { servicePublicId }), professionalPublicId, ...(date === undefined ? {} : { date }), ...(time === undefined ? {} : { time }), ...(dayPeriod === null ? {} : { dayPeriod }) };
     await this.repository.updateConversation(conversation.id, { currentFlow: 'BOOKING_CREATE', currentStep: date === undefined ? 'DATE_SELECTION' : time === undefined ? 'TIME_SELECTION' : 'CONFIRMATION', context: nextContext });
     const nextConversation = { ...conversation, context: nextContext };
     if (date === undefined) return this.showBookingCreateDates(input, nextConversation, phone);
@@ -1043,7 +1044,7 @@ export class WhatsAppAssistantService {
 
   private async selectBookingService(
     input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
-    conversation: { id: bigint; context: unknown },
+    conversation: { id: bigint; customerId: bigint | null; context: unknown },
     phone: string,
     servicePublicId: string,
   ): Promise<void> {
@@ -1067,29 +1068,16 @@ export class WhatsAppAssistantService {
       );
       return;
     }
-    await this.repository.updateConversation(conversation.id, {
-      currentFlow: 'BOOKING_CREATE',
-      currentStep: 'PROFESSIONAL_SELECTION',
-      context: { ...(conversation.context as Record<string, unknown> ?? {}), servicePublicId },
+    await this.continueAfterBookingOfferingSelection(input, conversation, phone, {
+      offeringType: 'service',
+      offeringPublicId: servicePublicId,
+      professionals,
     });
-    await this.dispatchCustomButtons(
-      input,
-      phone,
-      'Com qual profissional você deseja agendar?',
-      [
-        ...professionals.slice(0, 4).map((professional) => ({
-          buttonId: `BOOKING_CREATE_PROFESSIONAL:${professional.publicId}`,
-          label: professional.name,
-        })),
-        { buttonId: 'BOOKING_CREATE_CHANGE_SERVICE', label: 'Escolher outro serviço' },
-      ],
-      conversation.id,
-    );
   }
 
   private async selectBookingCombo(
     input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
-    conversation: { id: bigint; context: unknown },
+    conversation: { id: bigint; customerId: bigint | null; context: unknown },
     phone: string,
     comboPublicId: string,
   ): Promise<void> {
@@ -1104,13 +1092,103 @@ export class WhatsAppAssistantService {
       await this.dispatchCustomButtons(input, phone, 'Não encontrei profissionais disponíveis para este combo.', [{ buttonId: 'BOOKING_CREATE_CHANGE_SERVICE', label: 'Escolher outra opção' }, { buttonId: 'BOOKING_CREATE_ABORT', label: 'Voltar ao menu' }], conversation.id);
       return;
     }
+    await this.continueAfterBookingOfferingSelection(input, conversation, phone, {
+      offeringType: 'combo',
+      offeringPublicId: comboPublicId,
+      professionals,
+    });
+  }
+
+  private async continueAfterBookingOfferingSelection(
+    input: { tenantId: bigint; instanceId: string; customerId: bigint | null },
+    conversation: { id: bigint; customerId: bigint | null; context: unknown },
+    phone: string,
+    selection: {
+      offeringType: 'service' | 'combo';
+      offeringPublicId: string;
+      professionals: Array<{ publicId: string; name: string }>;
+    },
+  ): Promise<void> {
+    const context = conversation.context !== null && typeof conversation.context === 'object' && !Array.isArray(conversation.context)
+      ? conversation.context as Record<string, unknown>
+      : {};
+    const pendingName = contextString(context, 'pendingProfessionalName');
+    const nextContext: Record<string, unknown> = {
+      ...context,
+      ...(selection.offeringType === 'service'
+        ? { servicePublicId: selection.offeringPublicId }
+        : { comboPublicId: selection.offeringPublicId }),
+    };
+    delete nextContext.pendingProfessionalName;
+
+    if (pendingName !== null) {
+      const normalizedPendingName = normalizePortugueseText(pendingName);
+      const matches = selection.professionals.filter((professional) => {
+        const normalizedName = normalizePortugueseText(professional.name);
+        return normalizedName === normalizedPendingName
+          || normalizedName.includes(normalizedPendingName)
+          || normalizedPendingName.includes(normalizedName);
+      });
+      if (matches.length === 1) {
+        const selected = matches[0];
+        if (selected !== undefined) {
+          const resolvedContext = { ...nextContext, professionalPublicId: selected.publicId };
+          await this.repository.updateConversation(conversation.id, {
+            currentFlow: 'BOOKING_CREATE',
+            currentStep: 'PROFESSIONAL_SELECTED',
+            context: resolvedContext,
+          });
+          const site = await this.bookingSite(input.tenantId);
+          if (site !== null) {
+            const date = contextString(resolvedContext, 'date');
+            const time = contextString(resolvedContext, 'time');
+            const dayPeriod = contextString(resolvedContext, 'dayPeriod');
+            return this.progressFreeTextBooking(
+              input,
+              { ...conversation, context: resolvedContext },
+              phone,
+              {
+                intent: 'BOOKING',
+                confidence: 1,
+                entityConfidence: {},
+                entities: {
+                  ...(selection.offeringType === 'service' ? { serviceId: selection.offeringPublicId } : { comboId: selection.offeringPublicId }),
+                  professionalId: selected.publicId,
+                  professionalName: selected.name,
+                  ...(date === null ? {} : { date }),
+                  ...(time === null ? {} : { time }),
+                  ...(dayPeriod === null ? {} : { dayPeriod: dayPeriod as DayPeriod }),
+                },
+                normalizedText: '',
+              },
+              site,
+            );
+          }
+        }
+      }
+      await this.repository.updateConversation(conversation.id, {
+        currentFlow: 'BOOKING_CREATE',
+        currentStep: 'PROFESSIONAL_SELECTION',
+        context: nextContext as never,
+      });
+      const explanation = matches.length > 1
+        ? `Encontrei mais de um profissional compatível com “${pendingName}”. Qual você prefere?`
+        : `“${pendingName}” não atende este serviço. Escolha um profissional disponível:`;
+      await this.dispatchCustomButtons(input, phone, explanation, [
+        ...matches.slice(0, 8).map((professional) => ({ buttonId: `BOOKING_CREATE_PROFESSIONAL:${professional.publicId}`, label: professional.name })),
+        ...(matches.length === 0 ? selection.professionals.slice(0, 8).map((professional) => ({ buttonId: `BOOKING_CREATE_PROFESSIONAL:${professional.publicId}`, label: professional.name })) : []),
+        { buttonId: 'BOOKING_CREATE_CHANGE_SERVICE', label: 'Escolher outra opção' },
+      ], conversation.id);
+      return;
+    }
+
     await this.repository.updateConversation(conversation.id, {
       currentFlow: 'BOOKING_CREATE',
       currentStep: 'PROFESSIONAL_SELECTION',
-      context: { ...(conversation.context as Record<string, unknown> ?? {}), comboPublicId },
+      context: nextContext as never,
     });
     await this.dispatchCustomButtons(input, phone, 'Com qual profissional você deseja agendar?', [
-      ...professionals.slice(0, 8).map((professional) => ({ buttonId: `BOOKING_CREATE_PROFESSIONAL:${professional.publicId}`, label: professional.name })),
+      ...selection.professionals.slice(0, 8).map((professional) => ({ buttonId: `BOOKING_CREATE_PROFESSIONAL:${professional.publicId}`, label: professional.name })),
       { buttonId: 'BOOKING_CREATE_CHANGE_SERVICE', label: 'Escolher outra opção' },
     ], conversation.id);
   }

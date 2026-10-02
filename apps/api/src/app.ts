@@ -19,6 +19,8 @@ import { appointmentWaitlistRoutes } from './modules/appointments/appointment-wa
 import { appointmentRoutes } from './modules/appointments/appointment.routes.js';
 import { customerAppointmentsRoutes } from './modules/appointments/customer-appointments.routes.js';
 import { customerReviewsRoutes } from './modules/appointments/customer-reviews.routes.js';
+import { treatmentPlanReminderRoutes } from './modules/appointments/treatment-plan-reminder.routes.js';
+import { TreatmentPlanReminderRepository } from './modules/appointments/treatment-plan-reminder.repository.js';
 import {
   customerTreatmentPlanRoutes,
   treatmentPlanRoutes,
@@ -769,6 +771,14 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.appointmentReminderConfig !== undefined)
     await app.register(appointmentReminderConfigRoutes, {
       service: options.database.appointmentReminderConfig,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.treatmentPlanReminders !== undefined)
+    await app.register(treatmentPlanReminderRoutes, {
+      service: options.database.treatmentPlanReminders,
+      repository: new TreatmentPlanReminderRepository(options.database.client),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

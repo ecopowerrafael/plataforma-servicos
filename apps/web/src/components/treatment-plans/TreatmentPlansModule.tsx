@@ -96,7 +96,7 @@ export function TreatmentPlansModule({
       <TreatmentPlansHeader
         onSearch={(value) => setSearch(value)}
         stats={
-          <div className="treatment-plans-stats">
+          <>
             <div className="stat-item stat-item--pending">
               <div className="stat-value">{pendingCount}</div>
               <div className="stat-label">Aguardando</div>
@@ -109,7 +109,7 @@ export function TreatmentPlansModule({
               <div className="stat-value">{inProgressCount}</div>
               <div className="stat-label">Em andamento</div>
             </div>
-          </div>
+          </>
         }
       />
 

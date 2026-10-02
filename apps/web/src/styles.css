@@ -4932,8 +4932,7 @@ a {
   background: #2563eb;
   box-shadow: 0 4px 10px rgb(37 99 235 / 20%);
 }
-.app-shell .secondary-button,
-.app-shell .text-button {
+.app-shell .secondary-button {
   min-height: 2.65rem;
   padding: 0.6rem 0.9rem;
   border: 1px solid #cbd5e1;
@@ -4951,8 +4950,7 @@ a {
   background: #1d4ed8;
   transform: translateY(-1px);
 }
-.app-shell .secondary-button:hover,
-.app-shell .text-button:hover {
+.app-shell .secondary-button:hover {
   background: #f8fafc;
   border-color: #94a3b8;
 }
@@ -7822,16 +7820,6 @@ a {
 .info-card strong {
   overflow-wrap: anywhere;
 }
-.text-button {
-  margin-top: 24px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #275f3d;
-  cursor: pointer;
-  font-weight: 750;
-}
-
 .sessions-panel {
   margin-top: 36px;
   padding: 24px;
@@ -9709,14 +9697,6 @@ h1 {
   display: flex;
   gap: 0.65rem;
   flex-wrap: wrap;
-}
-.text-button {
-  border: 0;
-  background: transparent;
-  color: #2563eb;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0.25rem 0;
 }
 .schedule-empty {
   display: grid;

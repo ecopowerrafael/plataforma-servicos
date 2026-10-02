@@ -11,30 +11,6 @@
 .crm-filters .crm-filter-search {
   flex: 1 1 18rem;
 }
-.crm-search-field {
-  align-items: center;
-  background: var(--app-surface);
-  border: 1px solid var(--app-border-strong);
-  border-radius: var(--app-radius-sm);
-  color: var(--app-muted);
-  display: flex;
-  gap: 0.4rem;
-  height: var(--app-field-height);
-  padding: 0 0.6rem;
-}
-.app-shell .crm-search-field input {
-  border: 0;
-  height: auto;
-  padding: 0;
-  width: 100%;
-}
-.app-shell .crm-search-field input:focus {
-  box-shadow: none !important;
-}
-.crm-search-field:focus-within {
-  border-color: var(--app-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 14%, transparent);
-}
 .crm-chips {
   display: flex;
   flex-wrap: wrap;

@@ -456,7 +456,7 @@ export function AppointmentModule({
       <div className="app-filter-bar appointments-filters">
         <label className="appointments-filter-search">
           Buscar
-          <span className="appointments-search-field">
+          <span className="app-search-field appointments-search-field">
             <IconSearch size={16} aria-hidden="true" />
             <input
               type="search"

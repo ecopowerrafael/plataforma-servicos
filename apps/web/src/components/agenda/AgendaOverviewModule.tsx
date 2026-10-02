@@ -688,14 +688,16 @@ export function AgendaOverviewModule({
       <div className="app-filter-bar agenda-filters">
         <label className="agenda-filter-search">
           Buscar
-          <input
-            type="search"
-            placeholder="Cliente, serviço ou protocolo"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-            }}
-          />
+          <span className="app-search-field agenda-search-field">
+            <input
+              type="search"
+              placeholder="Cliente, serviço ou protocolo"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+              }}
+            />
+          </span>
         </label>
         <label>
           Status

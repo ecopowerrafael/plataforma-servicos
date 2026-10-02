@@ -318,7 +318,7 @@ export function CustomerModule({
       <div className="app-filter-bar crm-filters">
         <label className="crm-filter-search">
           Buscar
-          <span className="crm-search-field">
+          <span className="app-search-field crm-search-field">
             <IconSearch size={16} aria-hidden="true" />
             <input
               type="search"

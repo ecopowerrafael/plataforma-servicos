@@ -11,31 +11,6 @@
 .appointments-filters .appointments-filter-search {
   flex: 1 1 18rem;
 }
-.appointments-search-field {
-  align-items: center;
-  border: 1px solid var(--app-border-strong);
-  border-radius: var(--app-radius-sm);
-  background: var(--app-surface);
-  color: var(--app-muted);
-  display: flex;
-  gap: 0.4rem;
-  height: var(--app-field-height);
-  padding: 0 0.6rem;
-}
-.app-shell .appointments-search-field input {
-  border: 0;
-  height: auto;
-  padding: 0;
-  width: 100%;
-}
-.app-shell .appointments-search-field input:focus {
-  box-shadow: none !important;
-}
-.appointments-search-field:focus-within {
-  border-color: var(--app-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 14%, transparent);
-}
-
 /* Chips de filtro rápido */
 .appointments-chips {
   align-items: center;

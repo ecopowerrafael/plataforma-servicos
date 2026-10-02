@@ -176,9 +176,6 @@
 .agenda-filters .agenda-filter-search {
   flex: 1 1 16rem;
 }
-.agenda-overview .agenda-filters .agenda-filter-search input {
-  width: 100%;
-}
 .agenda-overview .agenda-table {
   min-width: 58rem;
 }

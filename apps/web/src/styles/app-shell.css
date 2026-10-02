@@ -1029,8 +1029,7 @@
    ============================================ */
 
 .secondary-button,
-.primary-button,
-.text-button {
+.primary-button {
   padding: 10px 16px;
   border: none;
   border-radius: 12px;
@@ -1075,13 +1074,77 @@
 }
 
 .text-button {
+  appearance: none;
   background: transparent;
   color: var(--color-text-secondary);
-  padding: 6px 12px;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  display: inline;
+  font: inherit;
+  font-weight: 500;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  text-decoration: none;
+  transition: color 0.2s ease-in-out;
 }
 
 .text-button:hover {
   color: var(--color-accent-light);
+  text-decoration: underline;
+}
+
+.text-button:focus-visible {
+  outline: 2px solid var(--color-accent-light);
+  outline-offset: 2px;
+}
+
+/* Shared visual shell for search controls. Screen-specific classes only
+   control layout; the wrapper owns the field surface and focus ring. */
+.app-search-field {
+  align-items: center;
+  background: var(--app-surface, var(--color-bg-secondary));
+  border: 1px solid var(--app-border-strong, var(--color-border-default));
+  border-radius: var(--app-radius-sm, 12px);
+  color: var(--app-muted, var(--color-text-secondary));
+  display: flex;
+  gap: 0.5rem;
+  height: var(--app-field-height, 2.75rem);
+  min-width: 0;
+  padding: 0 0.6rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.app-search-field:focus-within {
+  border-color: var(--app-accent, var(--color-accent-light));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent, var(--color-accent-light)) 14%, transparent);
+}
+
+.app-shell .app-search-field input[type="search"] {
+  appearance: none;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: none !important;
+  color: inherit;
+  font: inherit;
+  height: auto;
+  line-height: normal;
+  min-height: 0;
+  outline: 0;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.app-shell .app-search-field input[type="search"]::placeholder {
+  color: var(--app-muted, var(--color-text-secondary));
+  opacity: 1;
+}
+
+.app-shell .app-search-field input[type="search"]::-webkit-search-cancel-button {
+  margin-left: 0.35rem;
 }
 
 /* ============================================

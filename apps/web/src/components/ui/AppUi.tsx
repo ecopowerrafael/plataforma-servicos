@@ -89,22 +89,27 @@ export function Switch({
 }) {
   return (
     <label className="ds-switch-row">
-      <span>
+      <span className="ds-switch-copy">
         <strong>{label}</strong>
         {description === undefined ? null : <small>{description}</small>}
       </span>
-      <input
-        aria-checked={checked}
-        aria-label={label}
-        checked={checked}
-        className="ds-switch"
-        disabled={disabled}
-        onChange={(event) => {
-          onChange(event.target.checked);
-        }}
-        role="switch"
-        type="checkbox"
-      />
+      <span className="ds-switch-control">
+        <input
+          aria-checked={checked}
+          aria-label={label}
+          checked={checked}
+          className="ds-switch-input"
+          disabled={disabled}
+          onChange={(event) => {
+            onChange(event.target.checked);
+          }}
+          role="switch"
+          type="checkbox"
+        />
+        <span className="ds-switch-track" aria-hidden="true">
+          <span className="ds-switch-thumb" />
+        </span>
+      </span>
     </label>
   );
 }

@@ -81,50 +81,6 @@
   border: 0;
 }
 
-.app-shell .settings-switch-row .ds-switch-row {
-  width: auto;
-  height: 26px;
-  min-height: 26px;
-  padding: 0;
-}
-
-.app-shell .settings-switch-row .ds-switch-row > span {
-  display: none;
-}
-
-.app-shell .settings-switch-row input.ds-switch {
-  appearance: none !important;
-  -webkit-appearance: none !important;
-  width: 48px !important;
-  height: 26px !important;
-  padding: 0 !important;
-  margin: 0;
-  border: 1px solid var(--color-border-default);
-  border-radius: 999px;
-  background-color: var(--color-bg-tertiary);
-  background-image: radial-gradient(circle, #fff 0 10px, transparent 11px);
-  background-position: 1px 1px;
-  background-repeat: no-repeat;
-  box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.08);
-  cursor: pointer;
-  transition: background-color 180ms ease, background-position 180ms ease, box-shadow 180ms ease;
-}
-
-.app-shell .settings-switch-row input.ds-switch:checked {
-  background-color: var(--app-success);
-  background-position: 23px 1px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-success) 16%, transparent);
-}
-
-.app-shell .settings-switch-row input.ds-switch:hover {
-  filter: brightness(0.97);
-}
-
-.app-shell .settings-switch-row input.ds-switch:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--app-accent) 55%, transparent);
-  outline-offset: 2px;
-}
-
 .settings-card-actions {
   display: flex;
   justify-content: flex-end;

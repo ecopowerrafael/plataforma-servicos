@@ -356,40 +356,6 @@
   gap: 0.6rem;
   font-size: 0.86rem;
 }
-.app-shell input.ds-switch {
-  appearance: none;
-  background: #cbd5e1;
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-  flex: none;
-  height: 1.4rem;
-  margin: 0;
-  position: relative;
-  transition: background 0.15s ease-in-out;
-  width: 2.5rem;
-}
-.app-shell input.ds-switch::after {
-  background: #fff;
-  border-radius: 50%;
-  content: '';
-  height: 1.05rem;
-  left: 0.18rem;
-  position: absolute;
-  top: 0.175rem;
-  transition: left 0.15s ease-in-out;
-  width: 1.05rem;
-}
-.app-shell input.ds-switch:checked {
-  background: var(--app-accent);
-}
-.app-shell input.ds-switch:checked::after {
-  left: 1.27rem;
-}
-.app-shell input.ds-switch:focus-visible {
-  outline: 2px solid var(--app-accent);
-  outline-offset: 2px;
-}
 .app-shell .data-list:has(.service-thumbnail) .service-thumbnail {
   height: 2.75rem;
   width: 3.5rem;
@@ -1875,14 +1841,63 @@
   min-width: 0;
   padding: 0.75rem 0;
 }
-.ds-switch-row > span {
+.ds-switch-copy {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
 }
-.ds-switch-row > span small {
+.ds-switch-copy small {
   color: var(--app-muted);
   font-weight: 450;
+}
+.ds-switch-control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  position: relative;
+}
+.ds-switch-input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+.ds-switch-track {
+  background: #cbd5e1;
+  border: 1px solid rgb(15 23 42 / 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  height: 26px;
+  padding: 1px;
+  transition: background-color 180ms ease, box-shadow 180ms ease;
+  width: 48px;
+}
+.ds-switch-thumb {
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.2);
+  display: block;
+  height: 22px;
+  transform: translateX(0);
+  transition: transform 180ms ease;
+  width: 22px;
+}
+.ds-switch-input:checked + .ds-switch-track {
+  background: var(--app-success);
+}
+.ds-switch-input:checked + .ds-switch-track .ds-switch-thumb {
+  transform: translateX(22px);
+}
+.ds-switch-input:focus-visible + .ds-switch-track {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+.ds-switch-row:hover .ds-switch-track {
+  filter: brightness(0.97);
+}
+.ds-switch-input:disabled + .ds-switch-track {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 .pwa-checklist li {
   align-items: center;

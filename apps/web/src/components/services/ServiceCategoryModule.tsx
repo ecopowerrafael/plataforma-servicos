@@ -1,5 +1,6 @@
 import { CreateServiceCategoryRequestSchema, ServiceCategoryListResponseSchema, ServiceCategoryPublicSchema, ServiceCategoryStatusResponseSchema } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { IconSearch } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { type ZodType } from 'zod';
 
@@ -79,7 +80,7 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
       <div className="service-category-stat service-category-stat--inactive"><strong>{inactiveCount}</strong><span>Inativas</span></div>
     </div>
     <div className="service-category-toolbar">
-      <label className="service-category-search"><span className="service-category-search__icon" aria-hidden="true">⌕</span><input aria-label="Buscar categoria" placeholder="Buscar categoria..." value={search} onChange={(event) => { setSearch(event.target.value); }} /></label>
+      <label className="app-search-field service-category-search"><IconSearch className="service-category-search__icon" size={17} aria-hidden="true" /><input type="search" aria-label="Buscar categoria" placeholder="Buscar categoria..." value={search} onChange={(event) => { setSearch(event.target.value); }} /></label>
       <select aria-label="Filtrar status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as StatusFilter); }}><option value="all">Todos</option><option value="active">Ativas</option><option value="inactive">Inativas</option></select>
     </div>
     {list.isPending ? <div className="service-category-list-card"><ListSkeleton rows={5} /></div> : items.length === 0 ? <EmptyState title="Nenhuma categoria cadastrada" description="Crie categorias para organizar o catálogo público." action={<button className="primary-button" onClick={() => { setCreating(true); }}>+ Criar categoria</button>} /> : filteredItems.length === 0 ? <EmptyState title="Nenhuma categoria encontrada" description="Ajuste a busca ou o filtro de status." /> : <div className="service-category-list-card">

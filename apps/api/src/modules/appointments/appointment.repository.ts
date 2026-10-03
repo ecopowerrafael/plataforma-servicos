@@ -8,6 +8,11 @@ const include = {
   unit: { select: { publicId: true, name: true } },
   treatmentPlan: { select: { publicId: true } },
 } as const;
+type AppointmentWithInclude = Prisma.AppointmentGetPayload<{ include: typeof include }>;
+type CreateWithinTransaction = (
+  transaction: Prisma.TransactionClient,
+  appointment: AppointmentWithInclude,
+) => Promise<void>;
 export class AppointmentRepository {
   constructor(private readonly client: PrismaClient) {}
   customer(t: bigint, id: string) {
@@ -80,7 +85,10 @@ export class AppointmentRepository {
   create(data: Prisma.AppointmentUncheckedCreateInput) {
     return this.client.appointment.create({ data, include });
   }
-  async createIfAvailable(data: Omit<Prisma.AppointmentUncheckedCreateInput, 'protocol'>) {
+  async createIfAvailable(
+    data: Omit<Prisma.AppointmentUncheckedCreateInput, 'protocol'>,
+    afterCreateWithinTransaction?: CreateWithinTransaction,
+  ) {
     return this.client.$transaction(
       async (transaction) => {
         const lockName = `appointment:${data.tenantId.toString()}:${data.professionalId.toString()}`;
@@ -110,7 +118,12 @@ export class AppointmentRepository {
               where: { tenantId: data.tenantId },
             });
             const protocol = `AGD-${String(count + 1).padStart(6, '0')}`;
-            return await transaction.appointment.create({ data: { ...data, protocol }, include });
+            const created = await transaction.appointment.create({ data: { ...data, protocol }, include });
+            if (afterCreateWithinTransaction !== undefined) {
+              await afterCreateWithinTransaction(transaction, created);
+              return transaction.appointment.findUnique({ where: { id: created.id }, include });
+            }
+            return created;
           } finally {
             await transaction.$queryRaw`SELECT RELEASE_LOCK(${protocolLockName})`;
           }

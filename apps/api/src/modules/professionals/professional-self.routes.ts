@@ -34,6 +34,7 @@ import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type PasswordService } from '../auth/password.service.js';
 import { type ProfessionalCommissionService } from '../payments/professional-commission.service.js';
 import { type PaymentService } from '../payments/payment.service.js';
+import { type PaymentGatewayService } from '../payments/gateway/payment-gateway.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 import { addDaysToDay, resolveTimezone, zonedDayStart } from '../tenants/timezone.js';
 
@@ -46,6 +47,7 @@ interface Options {
   availability: AvailabilityService;
   commissions?: ProfessionalCommissionService;
   payments?: PaymentService;
+  paymentGateway?: PaymentGatewayService;
   authService: AuthService;
   passwords: PasswordService;
   cookieName: string;
@@ -247,7 +249,10 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
         options.authService.requirePermission(r.tenant, 'professional.self.update');
         const professionalId = await options.professionals.myId(r.tenant.id, r.auth.user.id);
         await options.appointments.getForProfessional(r.tenant.id, professionalId, r.params.publicId);
-        return reply.status(201).send(await payments.create(r.tenant.id, r.params.publicId, r.body, actor(r)));
+        const created = options.paymentGateway === undefined
+          ? await payments.create(r.tenant.id, r.params.publicId, r.body, actor(r))
+          : await options.paymentGateway.createManualPayment(r.tenant.id, r.params.publicId, r.body, actor(r));
+        return reply.status(201).send(created);
       },
     );
   }

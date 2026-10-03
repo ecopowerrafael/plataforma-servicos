@@ -4,6 +4,7 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipChargeRepository } from './customer-membership-charge.repository.js';
 import { CustomerMembershipChargeService } from './customer-membership-charge.service.js';
+import { CustomerMembershipPaymentService } from './customer-membership-payment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 
 interface Options {
@@ -27,6 +28,7 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
 ) => {
   const repository = new CustomerMembershipChargeRepository(options.client);
   const service = new CustomerMembershipChargeService(repository);
+  const paymentService = new CustomerMembershipPaymentService(options.client);
 
   app.get<{ Params: z.infer<typeof UuidParamSchema> }>(
     '/tenant/customer-memberships/:membershipPublicId/charges',
@@ -91,18 +93,14 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
         });
       }
 
-      const paidAt = new Date();
-      const updated = await service.recordPayment(
-        charge.id,
-        BigInt(0),
-        paidAt,
-        request.tenant.id,
-        charge.publicId,
-        {
-          userId: request.auth.user.id,
-          sessionId: request.auth.session.id,
-        },
-      );
+      const paymentMethod = await options.client.paymentMethod.findFirst({
+        where: { tenantId: request.tenant.id, publicId: request.body.paymentMethodPublicId, active: true },
+      });
+      if (paymentMethod === null) throw new AppError({ code: 'PAYMENT_METHOD_NOT_FOUND', message: 'Método de pagamento não encontrado ou inativo.', statusCode: 404 });
+      await paymentService.createPayment(request.tenant.id, charge.publicId, paymentMethod.id, {
+        userId: request.auth.user.id, sessionId: request.auth.session.id,
+      });
+      const updated = await service.get(request.tenant.id, charge.publicId);
 
       return {
         publicId: updated.publicId,

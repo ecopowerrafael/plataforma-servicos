@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipChargeRepository } from './customer-membership-charge.repository.js';
-import { CustomerMembershipPaymentSyncService } from './customer-membership-payment-sync.service.js';
+import { CustomerMembershipPaymentService } from './customer-membership-payment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 
 interface Options {
@@ -18,7 +18,7 @@ export const customerMembershipChargePayLocalRoutes: FastifyPluginAsyncZod<Optio
   options,
 ) => {
   const repository = new CustomerMembershipChargeRepository(options.client);
-  const syncService = new CustomerMembershipPaymentSyncService(options.client);
+  const paymentService = new CustomerMembershipPaymentService(options.client);
 
   app.post<{ Params: z.infer<typeof ChargeParamSchema> }>(
     '/tenant/customer-membership-charges/:chargePublicId/payments/local/confirm',
@@ -44,8 +44,13 @@ export const customerMembershipChargePayLocalRoutes: FastifyPluginAsyncZod<Optio
         });
       }
 
-      const paidAt = new Date();
-      await syncService.syncMembershipFromPayment(charge.id, paidAt, {
+      const paymentMethod = await options.client.paymentMethod.findFirst({
+        where: { tenantId: request.tenant.id, type: 'CASH', active: true },
+      });
+      if (paymentMethod === null) {
+        throw new AppError({ code: 'PAYMENT_METHOD_NOT_FOUND', message: 'Configure um meio de pagamento em dinheiro para confirmar pagamentos locais.', statusCode: 409 });
+      }
+      await paymentService.createPayment(request.tenant.id, charge.publicId, paymentMethod.id, {
         userId: request.auth.user.id,
         sessionId: request.auth.session.id,
       });

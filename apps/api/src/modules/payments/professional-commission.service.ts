@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { CommissionListResponseSchema, CommissionRecordPublicSchema } from '@plataforma/shared';
 
-import { type PrismaClient } from '../../database-client/client.js';
+import { Prisma, type PrismaClient } from '../../database-client/client.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 
 interface Actor {
@@ -74,17 +74,24 @@ export class ProfessionalCommissionService {
   public async recordForPayment(
     tenantId: bigint,
     payment: { id: bigint; amountCents: bigint },
-    appointment: { id: bigint; professionalId: bigint; serviceId: bigint | null },
+    appointment: {
+      id: bigint;
+      professionalId: bigint;
+      serviceId: bigint | null;
+      chargeSource: 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT' | null;
+    },
     actor: Actor,
+    client: PrismaClient | Prisma.TransactionClient = this.client,
   ) {
-    await this.assertEnabled(tenantId);
+    if (appointment.chargeSource === 'MEMBERSHIP_INCLUDED') return;
+    await new PlanEntitlementService().assertFeatureEnabledForTenant(client, tenantId, 'commissions.enabled');
     const [professional, override] = await Promise.all([
-      this.client.professional.findFirst({
+      client.professional.findFirst({
         where: { id: appointment.professionalId },
         select: { commissionType: true, commissionValue: true },
       }),
       appointment.serviceId !== null
-        ? this.client.professionalService.findFirst({
+        ? client.professionalService.findFirst({
             where: { professionalId: appointment.professionalId, serviceId: appointment.serviceId },
             select: { commissionType: true, commissionValue: true },
           })
@@ -109,7 +116,7 @@ export class ProfessionalCommissionService {
         ? (payment.amountCents * BigInt(rule.value)) / 100n
         : BigInt(rule.value);
 
-    const created = await this.client.professionalCommission.create({
+    const created = await client.professionalCommission.create({
       data: {
         publicId: randomUUID(),
         tenantId,
@@ -124,7 +131,7 @@ export class ProfessionalCommissionService {
       },
       include,
     });
-    await this.client.auditLog.create({
+    await client.auditLog.create({
       data: {
         publicId: randomUUID(),
         tenantId,

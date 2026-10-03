@@ -8,6 +8,7 @@ import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import { type PaymentService } from './payment.service.js';
+import { type PaymentGatewayService } from './gateway/payment-gateway.service.js';
 import { type PrismaClient } from '../../database-client/client.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
@@ -20,6 +21,7 @@ export const paymentRoutes: FastifyPluginAsyncZod<{
   authService: AuthService;
   cookieName: string;
   client?: PrismaClient;
+  paymentGateway?: PaymentGatewayService;
 }> = async (app, o) => {
   await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
@@ -47,7 +49,9 @@ export const paymentRoutes: FastifyPluginAsyncZod<{
     },
     async (r, reply) => {
       o.authService.requirePermission(r.tenant, 'payment.manage');
-      const created = await o.service.create(r.tenant.id, r.params.publicId, r.body, actor(r));
+      const created = o.paymentGateway === undefined
+        ? await o.service.create(r.tenant.id, r.params.publicId, r.body, actor(r))
+        : await o.paymentGateway.createManualPayment(r.tenant.id, r.params.publicId, r.body, actor(r));
       return reply.status(201).send(created);
     },
   );

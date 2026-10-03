@@ -2579,6 +2579,7 @@ model Payment {
   receipt              Receipt?
   commission           ProfessionalCommission?
   gatewayCharge        PaymentGatewayCharge?
+  supersededGatewayCharges PaymentGatewayCharge[] @relation("PaymentGatewayChargeSupersededBy")
   loyaltyLedgerEntries LoyaltyLedgerEntry[]
   debtAllocations      DebtPaymentAllocation[]
 
@@ -2728,6 +2729,8 @@ model PaymentGatewayCharge {
   /// webhooks quase simultâneos (externalEventId diferentes) gerem 2 Payment
   /// para a mesma cobrança antes de paymentId ser preenchido.
   reconciledAt   DateTime?                  @map("reconciled_at") @db.DateTime(3)
+  supersededAt   DateTime?                  @map("superseded_at") @db.DateTime(3)
+  supersededByPaymentId BigInt?             @map("superseded_by_payment_id") @db.UnsignedBigInt
   canceledAt     DateTime?                  @map("canceled_at") @db.DateTime(3)
   canceledReason String?                    @map("canceled_reason") @db.VarChar(500)
   createdAt      DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
@@ -2736,6 +2739,7 @@ model PaymentGatewayCharge {
   appointment    Appointment?               @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   debt           Debt?                      @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payment        Payment?                   @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  supersededByPayment Payment?              @relation("PaymentGatewayChargeSupersededBy", fields: [supersededByPaymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   events         PaymentGatewayEvent[]
 
   @@unique([tenantId, idempotencyKey])
@@ -2743,6 +2747,7 @@ model PaymentGatewayCharge {
   @@index([tenantId, debtId])
   @@index([tenantId, status])
   @@index([tenantId, provider, externalId])
+  @@index([tenantId, supersededAt])
   @@map("payment_gateway_charges")
 }
 

@@ -637,6 +637,7 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
+      ...(options.database.paymentGateway === undefined ? {} : { paymentGateway: options.database.paymentGateway }),
     });
   if (options.database.paymentMethods !== undefined)
     await app.register(paymentMethodRoutes, {
@@ -920,6 +921,7 @@ export async function buildApp(options: BuildAppOptions) {
         ? {}
         : { commissions: options.database.commissions }),
       ...(options.database.payments === undefined ? {} : { payments: options.database.payments }),
+      ...(options.database.paymentGateway === undefined ? {} : { paymentGateway: options.database.paymentGateway }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

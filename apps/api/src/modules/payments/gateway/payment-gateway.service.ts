@@ -461,7 +461,8 @@ export class PaymentGatewayService {
           },
         });
         if (charge.status === 'PAID' && charge.paymentId === null) {
-          await this.reconcilePaidCharge(charge);
+          if (charge.supersededAt === null) await this.reconcilePaidCharge(charge);
+          else await this.auditSupersededPaidCharge(charge);
           charge = await this.findChargeOrThrow(tenantId, chargePublicId);
         }
       } catch (error) {
@@ -556,6 +557,66 @@ export class PaymentGatewayService {
       },
     });
     return pubCharge(updated);
+  }
+
+  public async createManualPayment(
+    tenantId: bigint,
+    appointmentPublicId: string,
+    input: Parameters<PaymentService['create']>[2],
+    actor: Actor,
+  ) {
+    const appointment = await this.client.appointment.findFirst({
+      where: { tenantId, publicId: appointmentPublicId },
+      select: { id: true },
+    });
+    if (appointment === null) return this.payments.create(tenantId, appointmentPublicId, input, actor);
+
+    const charge = await this.client.paymentGatewayCharge.findFirst({
+      where: {
+        tenantId,
+        appointmentId: appointment.id,
+        status: { in: ['PENDING', 'PROCESSING'] },
+        supersededAt: null,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (charge === null) return this.payments.create(tenantId, appointmentPublicId, input, actor);
+
+    try {
+      await this.cancelCharge(tenantId, charge.publicId, 'Substituída por pagamento manual.', actor);
+    } catch (error) {
+      await this.client.auditLog.create({
+        data: {
+          publicId: randomUUID(),
+          tenantId,
+          userId: actor.userId,
+          sessionId: actor.sessionId,
+          action: 'payment_gateway.charge_cancel_failed_manual_substitution',
+          targetType: 'payment_gateway_charge',
+          targetPublicId: charge.publicId,
+          metadata: { error: error instanceof Error ? error.message : 'Erro desconhecido.' },
+        },
+      });
+    }
+
+    const payment = await this.payments.create(
+      tenantId,
+      appointmentPublicId,
+      input,
+      actor,
+      { supersededGatewayChargeId: charge.id },
+    );
+    const paymentRecord = await this.client.payment.findFirst({
+      where: { tenantId, publicId: payment.publicId },
+      select: { id: true },
+    });
+    if (paymentRecord === null) throw new Error('Pagamento criado sem registro persistido.');
+
+    await this.client.paymentGatewayCharge.update({
+      where: { id: charge.id },
+      data: { supersededAt: new Date(), supersededByPaymentId: paymentRecord.id },
+    });
+    return payment;
   }
 
   /**
@@ -689,8 +750,10 @@ export class PaymentGatewayService {
         payment: { select: { publicId: true } },
       },
     });
-    if (updated.status === 'PAID' && updated.paymentId === null)
-      await this.reconcilePaidCharge(updated);
+    if (updated.status === 'PAID' && updated.paymentId === null) {
+      if (updated.supersededAt !== null) await this.auditSupersededPaidCharge(updated);
+      else await this.reconcilePaidCharge(updated);
+    }
 
     return { deduplicated: false, matched: true };
   }
@@ -744,6 +807,20 @@ export class PaymentGatewayService {
         where: { id: charge.id },
         data: { paymentId: paymentRecord.id },
       });
+  }
+
+  private async auditSupersededPaidCharge(charge: { tenantId: bigint; publicId: string }) {
+    await this.client.auditLog.create({
+      data: {
+        publicId: randomUUID(),
+        tenantId: charge.tenantId,
+        userId: null,
+        sessionId: null,
+        action: 'payment_gateway.superseded_charge_paid_late',
+        targetType: 'payment_gateway_charge',
+        targetPublicId: charge.publicId,
+      },
+    });
   }
 
   /**

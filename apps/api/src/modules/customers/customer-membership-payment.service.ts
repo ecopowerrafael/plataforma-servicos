@@ -2,8 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { validatePaymentOrigin } from '../payments/payment-origin-validator.js';
-import { CustomerMembershipChargeRepository } from './customer-membership-charge.repository.js';
-import { CustomerMembershipPaymentSyncService } from './customer-membership-payment-sync.service.js';
 
 interface Actor {
   userId: bigint;
@@ -27,13 +25,7 @@ function chargeAlreadyPaid() {
 }
 
 export class CustomerMembershipPaymentService {
-  private readonly chargeRepository: CustomerMembershipChargeRepository;
-  private readonly syncService: CustomerMembershipPaymentSyncService;
-
-  public constructor(private readonly client: PrismaClient) {
-    this.chargeRepository = new CustomerMembershipChargeRepository(client);
-    this.syncService = new CustomerMembershipPaymentSyncService(client);
-  }
+  public constructor(private readonly client: PrismaClient) {}
 
   public async createPayment(
     tenantId: bigint,
@@ -41,46 +33,57 @@ export class CustomerMembershipPaymentService {
     paymentMethodId: bigint,
     actor: Actor,
   ) {
-    // Fetch charge
-    const charge = await this.chargeRepository.find(tenantId, chargePublicId);
-    if (charge === null) throw chargeNotFound();
+    return this.client.$transaction(async (tx) => {
+      const charge = await tx.customerMembershipCharge.findFirst({
+        where: { tenantId, publicId: chargePublicId },
+        include: { payments: true, membership: { include: { plan: true } } },
+      });
+      if (charge === null) throw chargeNotFound();
+      if (charge.status === 'PAID') {
+        const existingPayment = charge.payments.find((p) => p.originType === 'MEMBERSHIP_CHARGE');
+        if (existingPayment !== undefined) return existingPayment;
+        throw chargeAlreadyPaid();
+      }
 
-    // Prevent double payment
-    if (charge.status === 'PAID') throw chargeAlreadyPaid();
+      const paidAt = new Date();
+      const payment = await tx.payment.create({
+        data: {
+          publicId: randomUUID(),
+          tenantId,
+          originType: 'MEMBERSHIP_CHARGE',
+          appointmentId: null,
+          membershipChargeId: charge.id,
+          paymentMethodId,
+          kind: 'PAYMENT',
+          status: 'PAID',
+          amountCents: charge.amountCents,
+          userId: actor.userId,
+          sessionId: actor.sessionId,
+        },
+      });
+      validatePaymentOrigin(payment.originType, payment.appointmentId, payment.membershipChargeId);
 
-    // Check for existing payment to prevent duplicates
-    const existingPayment = charge.payments?.find(
-      (p) => p.originType === 'MEMBERSHIP_CHARGE',
-    );
+      await tx.customerMembershipCharge.update({
+        where: { id: charge.id },
+        data: { status: 'PAID', paidAt },
+      });
 
-    if (existingPayment) {
-      return existingPayment;
-    }
+      const periodEnd = new Date(paidAt);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      await tx.customerMembership.update({
+        where: { id: charge.membershipId },
+        data: charge.membership.status === 'PENDING'
+          ? { status: 'ACTIVE', startedAt: paidAt, currentPeriodStart: paidAt, currentPeriodEnd: periodEnd, nextBillingAt: periodEnd }
+          : { status: 'ACTIVE', currentPeriodStart: charge.periodStart, currentPeriodEnd: periodEnd, nextBillingAt: periodEnd },
+      });
 
-    // Create new Payment (PAY_LOCAL starts as PAID immediately)
-    const publicId = randomUUID();
-    const payment = await this.client.payment.create({
-      data: {
-        publicId,
-        tenantId,
-        originType: 'MEMBERSHIP_CHARGE',
-        appointmentId: null,
-        membershipChargeId: charge.id,
-        paymentMethodId,
-        kind: 'PAYMENT',
-        status: 'PAID',
-        amountCents: charge.amountCents,
-        userId: actor.userId,
-        sessionId: actor.sessionId,
-      },
+      await tx.auditLog.create({
+        data: {
+          publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId,
+          action: 'customer_membership_charge.payment', targetType: 'customer_membership_charge', targetPublicId: charge.publicId,
+        },
+      });
+      return payment;
     });
-
-    // Validate invariant
-    validatePaymentOrigin(payment.originType, payment.appointmentId, payment.membershipChargeId);
-
-    // Sync membership on payment creation (activate or renew)
-    await this.syncService.syncMembershipFromPayment(charge.id, new Date(), actor);
-
-    return payment;
   }
 }

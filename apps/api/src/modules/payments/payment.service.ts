@@ -59,6 +59,7 @@ export class PaymentService {
     appointmentPublicId: string,
     input: CreatePaymentRequest,
     actor: Actor,
+    options?: { supersededGatewayChargeId?: bigint },
   ) {
     const appointment = await this.client.appointment.findFirst({
       where: { tenantId, publicId: appointmentPublicId },
@@ -70,6 +71,7 @@ export class PaymentService {
         professionalId: true,
         serviceId: true,
         customerId: true,
+        chargeSource: true,
       },
     });
     if (appointment === null) throw this.appointmentNotFound();
@@ -85,6 +87,10 @@ export class PaymentService {
         tenantId,
         appointmentId: appointment.id,
         status: { in: ['PENDING', 'PROCESSING'] },
+        OR:
+          options?.supersededGatewayChargeId === undefined
+            ? [{ supersededAt: null }]
+            : [{ supersededAt: null }, { id: options.supersededGatewayChargeId }],
       },
       select: { id: true },
     });
@@ -172,6 +178,7 @@ export class PaymentService {
         id: appointment.id,
         professionalId: appointment.professionalId,
         serviceId: appointment.serviceId,
+        chargeSource: appointment.chargeSource,
       },
       actor,
     );

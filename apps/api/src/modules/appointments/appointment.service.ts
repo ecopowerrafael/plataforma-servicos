@@ -745,15 +745,7 @@ export class AppointmentService {
       const resolver = new CustomerMembershipBenefitResolver(this.client);
       const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
 
-      // Use shared transaction for Appointment + Usage consistency
-      x = await this.repo.createIfAvailable({
-        publicId: randomUUID(),
-        tenantId: t,
-        status: 'PENDING',
-        ...data,
-      });
-
-      if (x !== null && (benefit.type === 'QUANTITY' || benefit.type === 'UNLIMITED' || benefit.type === 'DISCOUNT')) {
+      if (benefit.type === 'QUANTITY' || benefit.type === 'UNLIMITED' || benefit.type === 'DISCOUNT') {
         const charge = await this.client.customerMembershipCharge.findUnique({
           where: { id: membershipChargeId },
           select: { membershipId: true },
@@ -761,35 +753,37 @@ export class AppointmentService {
 
         if (charge) {
           const isQuantity = benefit.type === 'QUANTITY';
-          try {
-            const usage = await this.membershipUsage.reserve({
-              tenantId: t,
-              membershipId: charge.membershipId,
-              membershipChargeId,
-              appointmentId: x.id,
-              serviceId: serviceId!,
-              quantity: 1,
-              ...(isQuantity ? { quantityLimit: benefit.limit } : {}),
-            });
-
-            // If reserve failed (saldo esgotado), update appointment to SERVICE_PRICE
-            if (usage === null) {
-              await this.repo.update(x.id, {
-                chargeSource: 'SERVICE_PRICE',
-                amountDueCents: priceCents,
-                referencePriceCents: priceCents,
+          x = await this.repo.createIfAvailable(
+            { publicId: randomUUID(), tenantId: t, status: 'PENDING', ...data },
+            async (tx, appointment) => {
+              const usage = await this.membershipUsage!.reserveWithinTransaction(tx, {
+                tenantId: t,
+                membershipId: charge.membershipId,
+                membershipChargeId,
+                appointmentId: appointment.id,
+                serviceId: serviceId!,
+                quantity: 1,
+                ...(isQuantity ? { quantityLimit: benefit.limit } : {}),
               });
-              // Reload to get updated values
-              const updated = await this.repo.find(t, x.publicId);
-              if (updated) x = updated;
-            }
-          } catch (error) {
-            // If reserve throws, leave appointment as created
-            // The invariant is: if chargeSource !== SERVICE_PRICE, Usage must exist
-            // If we can't guarantee that, revert to SERVICE_PRICE
-            throw error;
-          }
+
+              // Exhausted quantity falls back atomically to ordinary service pricing.
+              if (usage === null) {
+                await tx.appointment.update({
+                  where: { id: appointment.id },
+                  data: { chargeSource: 'SERVICE_PRICE', amountDueCents: priceCents, referencePriceCents: priceCents },
+                });
+              }
+            },
+          );
+        } else {
+          throw new AppError({
+            code: 'MEMBERSHIP_CHARGE_NOT_FOUND',
+            message: 'A cobrança da mensalidade não foi encontrada.',
+            statusCode: 404,
+          });
         }
+      } else {
+        x = await this.repo.createIfAvailable({ publicId: randomUUID(), tenantId: t, status: 'PENDING', ...data });
       }
     } else {
       // For SERVICE_PRICING or updates, use regular flow

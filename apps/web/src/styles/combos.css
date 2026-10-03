@@ -49,6 +49,8 @@
 .combo-image-upload-button { display: inline-flex !important; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 16px; border: 1px solid var(--app-accent) !important; border-radius: 10px; background: color-mix(in srgb, var(--app-accent) 8%, white) !important; color: var(--app-accent) !important; font-weight: 700; cursor: pointer; transition: background .16s ease, transform .16s ease; }
 .combo-image-upload-button:hover { background: color-mix(in srgb, var(--app-accent) 14%, white) !important; transform: translateY(-1px); }
 .combo-image-upload-button input[type='file'] { display: none; }
+.combo-image-upload-button.is-disabled { opacity: .58; cursor: not-allowed; transform: none; }
+.service-image-disabled-hint { display: block; margin-top: 6px; color: var(--ds-text-muted); font-size: 12px; }
 .combo-picker-toolbar { align-items: center; }
 .combo-service-search { flex: 1; max-width: none; }
 .combo-selection-count { padding: 6px 10px; border-radius: 999px; background: var(--ds-surface-subtle); white-space: nowrap; }

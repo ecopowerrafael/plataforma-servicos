@@ -31,6 +31,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
   const [active, setActive] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const combos = useQuery({
@@ -101,21 +102,33 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
       ]);
     },
   });
+  const uploadComboImage = async (comboPublicId: string, file: File) => {
+    const body = new FormData();
+    body.set('file', file, file.name);
+    await mutation.mutateAsync({ url: `/tenant/combos/${comboPublicId}/image`, method: 'PUT', body });
+  };
   const save = async (value: ComboSubmission) => {
+    const isCreating = selected === null;
     const result = await mutation.mutateAsync({
-      url: selected === null ? '/tenant/combos' : `/tenant/combos/${selected}`,
-      method: selected === null ? 'POST' : 'PATCH',
+      url: isCreating ? '/tenant/combos' : `/tenant/combos/${selected}`,
+      method: isCreating ? 'POST' : 'PATCH',
       body: CreateComboRequestSchema.parse(value),
     });
     const parsed = ComboPublicSchema.parse(result);
+    if (isCreating && pendingImage !== null) {
+      try {
+        await uploadComboImage(parsed.publicId, pendingImage);
+        setPendingImage(null);
+      } catch {
+        setNotice('Combo criado com sucesso, mas não foi possível enviar a imagem. Você pode tentar novamente.');
+      }
+    }
     setSelected(parsed.publicId);
     setCreating(false);
   };
   const updateImage = async (file: File) => {
     if (selected === null) return;
-    const body = new FormData();
-    body.set('file', file, file.name);
-    await mutation.mutateAsync({ url: `/tenant/combos/${selected}/image`, method: 'PUT', body });
+    await uploadComboImage(selected, file);
   };
   const removeImage = async () => {
     if (selected === null) return;
@@ -176,7 +189,8 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             error={mutation.error instanceof Error ? mutation.error.message : null}
             services={services.data?.items ?? []}
             servicesLoading={services.isPending}
-            onCancel={() => setCreating(false)}
+            imageSection={<ServiceImageUpload buttonClassName="combo-image-upload-button" busy={mutation.isPending} deferUpload onSelectFile={setPendingImage} hasPendingImage={pendingImage !== null} hasImage={false} onRemove={async () => { setPendingImage(null); }} onUpload={updateImage} />}
+            onCancel={() => { setPendingImage(null); setCreating(false); }}
             onSave={save}
           />
         </div>

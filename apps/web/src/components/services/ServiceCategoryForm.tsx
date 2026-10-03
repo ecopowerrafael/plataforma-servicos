@@ -18,9 +18,9 @@ export function ServiceCategoryForm({ category, busy, error, onSave, onCancel, s
   onCancel?: () => void; submitLabel?: string;
 }) {
   const initialValues = values(category);
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<Input, unknown, Value>({ defaultValues: initialValues, resolver: zodResolver(CreateServiceCategoryRequestSchema) });
-  const active = useWatch({ name: 'active' });
-  const color = useWatch({ name: 'color' });
+  const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<Input, unknown, Value>({ defaultValues: initialValues, resolver: zodResolver(CreateServiceCategoryRequestSchema) });
+  const active = useWatch({ control, name: 'active' });
+  const color = useWatch({ control, name: 'color' });
   useEffect(() => { reset(values(category)); }, [category, reset]);
   return <form className="service-category-form" onSubmit={(event) => { event.preventDefault(); void handleSubmit(onSave)(); }}>
     <label className="service-category-form-field">Nome<input {...register('name')} /></label>

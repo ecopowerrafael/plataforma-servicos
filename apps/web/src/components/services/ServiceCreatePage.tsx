@@ -106,7 +106,7 @@ export function ServiceCreatePage({
   };
 
   return (
-    <section className="sessions-panel service-editor">
+    <section className="sessions-panel service-editor service-create-page">
       <button className="crm-back-button" onClick={() => void navigate('/app/servicos')}>
         ← {terminology}s
       </button>
@@ -127,7 +127,7 @@ export function ServiceCreatePage({
           </button>
         </div>
       ) : null}
-      <article className="app-card service-editor-card">
+      <div className="service-create-form-shell">
         <ServiceForm
           busy={create.isPending}
           error={create.error instanceof Error ? create.error.message : null}
@@ -183,7 +183,7 @@ export function ServiceCreatePage({
           onCancel={() => void navigate('/app/servicos')}
           onSave={(value) => create.mutateAsync(value).then(() => undefined)}
         />
-      </article>
+      </div>
     </section>
   );
 }

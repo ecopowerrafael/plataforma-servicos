@@ -14822,30 +14822,38 @@ h1 {
   flex: 1;
 }
 
-/* Service creation: progressive sections. Kept separate from legacy editor rules for scoped compatibility. */
-.service-create-section { display: grid; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--ds-border); }
+/* Service creation: vertical cards with a single, readable flow. */
+.service-form { width: 100%; max-width: 72rem; margin-inline: auto; }
+.service-create-section { display: grid; gap: 18px; padding: 22px 24px; background: var(--ds-surface); border: 1px solid var(--ds-border); border-radius: 16px; }
 .service-create-section > header h2 { margin: 0; font-size: 1.05rem; }
 .service-create-section > header p { margin: 4px 0 0; color: var(--ds-text-muted); font-size: .88rem; }
-.service-basic-grid, .service-schedule-row, .service-advanced-grid { display: grid; gap: 12px 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.service-basic-grid { display: grid; gap: 12px 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .service-basic-grid .service-field--wide { grid-column: 1 / -1; }
 .service-create-section label, .service-public-fields > label { display: grid; gap: 5px; min-width: 0; }
 .service-create-section input:not([type=radio]):not([type=checkbox]), .service-create-section select, .service-create-section textarea { width: 100%; max-width: none; }
 .service-pricing-selector { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.service-pricing-selector label { position: relative; display: grid; gap: 3px; padding: 12px 14px 12px 38px; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); cursor: pointer; }
+.service-pricing-selector label { position: relative; display: grid; min-height: 64px; align-content: center; gap: 3px; padding: 10px 14px 10px 38px; border: 1px solid var(--ds-border); border-radius: 12px; cursor: pointer; }
 .service-pricing-selector label.is-selected { border-color: var(--app-accent, #2563eb); background: var(--app-accent-soft, #eef2ff); }
 .service-pricing-selector input { position: absolute; left: 14px; top: 16px; }
 .service-pricing-selector small, .service-create-section small { color: var(--ds-text-muted); }
-.service-icon-toggle { justify-self: start; border: 0; background: transparent; color: var(--app-accent, #2563eb); cursor: pointer; font: inherit; font-weight: 700; padding: 2px 0; }
+.service-icon-toggle { justify-self: start; border: 1px solid var(--ds-border); border-radius: 8px; background: var(--ds-surface); color: var(--ds-text); cursor: pointer; font: inherit; font-weight: 700; padding: 7px 10px; }
 .service-money-input { display: flex; align-items: center; gap: 6px; }
 .service-money-input span { color: var(--ds-text-muted); font-weight: 700; }
 .service-money-input input { min-width: 0; }
+.service-schedule-row { display: grid; gap: 12px 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 180px; }
 .service-break-duration { max-width: 18rem; }
 .service-total-inline { margin: 0; color: var(--ds-text-muted); font-size: .9rem; }
-.service-public-layout { display: grid; gap: 20px; grid-template-columns: 180px minmax(0, 1fr); }
+.service-public-layout { display: grid; gap: 24px; grid-template-columns: 220px minmax(0, 1fr); }
 .service-public-image { min-width: 0; }
 .service-public-fields { display: grid; gap: 16px; min-width: 0; }
-.service-advanced { border-top: 1px solid var(--ds-border); padding-top: 12px; }
+.service-advanced { padding: 16px 4px 0; }
 .service-advanced summary { cursor: pointer; font-weight: 700; }
-.service-advanced-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-top: 12px; }
+.service-advanced-grid { display: grid; gap: 12px 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding-top: 12px; }
 .service-form-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 16px; }
-@media (max-width: 899px) { .service-basic-grid, .service-schedule-row, .service-advanced-grid, .service-pricing-selector, .service-public-layout { grid-template-columns: 1fr; } .service-form-footer > button { flex: 1; } }
+.service-form-footer { justify-content: space-between; border-top: 1px solid var(--ds-border); }
+.service-form-footer .primary-button { min-width: 140px; }
+.service-public-image .service-image-picker { max-width: 220px; }
+.service-public-image .service-image-frame { width: 180px; height: 130px; min-height: 130px; }
+.service-public-image .service-image-picker img { max-height: 122px; }
+.service-image-button input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+@media (max-width: 899px) { .service-basic-grid, .service-schedule-row, .service-advanced-grid, .service-pricing-selector, .service-public-layout { grid-template-columns: 1fr; } .service-create-section { padding: 18px; } .service-form-footer > button { flex: 1; } .service-public-image .service-image-frame { margin-inline: auto; } }

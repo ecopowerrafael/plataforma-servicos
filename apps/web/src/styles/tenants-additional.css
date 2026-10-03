@@ -7,9 +7,310 @@
    ============================================ */
 
 .members-module--redesigned {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 18px;
+}
+
+.members-module--redesigned .ds-page-header {
+  margin: 0;
+}
+.members-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.members-stat-card,
+.members-list-card,
+.members-invite-card,
+.members-invitations-card {
+  background: #fff;
+  border: 1px solid var(--color-border-default);
+  border-radius: 14px;
+}
+.members-stat-card {
+  min-height: 72px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+.members-stat-card strong {
+  font-size: 22px;
+  font-weight: 750;
+  color: var(--color-text-primary);
+}
+.members-stat-card span,
+.members-list-header p,
+.members-invite-card header p,
+.members-invitations-card header p,
+.members-form-hint {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  margin: 0;
+}
+.members-list-card,
+.members-invitations-card {
+  overflow: hidden;
+}
+.members-list-header,
+.members-invite-card header,
+.members-invitations-card header {
+  padding: 18px 18px 14px;
+}
+.members-list-header h3,
+.members-invite-card h3,
+.members-invitations-card h3 {
+  margin: 0 0 4px;
+  color: var(--color-text-primary);
+  font-size: 16px;
+}
+.members-table-header,
+.members-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) 170px 120px minmax(220px, 1fr) 130px;
+  align-items: center;
+}
+.members-table-header {
+  min-height: 42px;
+  padding: 0 16px;
+  background: #f7f9f8;
+  border-top: 1px solid var(--color-border-default);
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+.members-row {
+  min-height: 70px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #edf1ef;
+  gap: 10px;
+}
+.members-row:last-child {
+  border-bottom: 0;
+}
+.members-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.members-user > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.members-user strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.members-user small,
+.members-invitation-row small {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.members-avatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-bg-secondary);
+  color: var(--color-accent-primary);
+  font-weight: 750;
+}
+.members-role select,
+.members-invite-form input,
+.members-invite-form select {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-text-primary);
+}
+.members-role span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+.members-role em {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #eef3f1;
+  color: var(--color-text-secondary);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 750;
+}
+.members-units details {
+  position: relative;
+}
+.members-units summary {
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: 12px;
+}
+.members-units-menu {
+  position: absolute;
+  z-index: 2;
+  top: 25px;
+  left: 0;
+  min-width: 190px;
+  padding: 8px;
+  display: grid;
+  gap: 7px;
+  background: #fff;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(25, 45, 35, 0.12);
+}
+.members-units-menu label {
+  display: flex;
+  gap: 7px;
+  font-size: 12px;
+}
+.members-button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+.members-button--danger {
+  border-color: #e0b8b3;
+  color: #a13e35;
+}
+.members-button--primary {
+  height: 44px;
+  background: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  color: #fff;
+}
+.members-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.members-invite-card,
+.members-invitations-card {
+  padding: 0;
+}
+.members-invite-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px 140px;
+  gap: 12px;
+  align-items: end;
+  padding: 0 20px;
+}
+.members-invite-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+.members-invite-form input,
+.members-invite-form select {
+  height: 44px;
+}
+.members-form-hint,
+.members-success {
+  padding: 10px 20px 18px;
+}
+.members-success {
+  margin: 0;
+  color: #28724e;
+  font-size: 12px;
+}
+.members-empty-invitations {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 18px 18px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.members-empty-invitations strong {
+  color: #28724e;
+}
+.members-invitation-row {
+  min-height: 60px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #edf1ef;
+}
+.members-invitation-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+@media (max-width: 799px) {
+  .members-stats {
+    grid-template-columns: 1fr;
+  }
+  .members-table-header {
+    display: none;
+  }
+  .members-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .members-role,
+  .members-status,
+  .members-units,
+  .members-action {
+    grid-column: 1 / -1;
+  }
+  .members-role,
+  .members-status,
+  .members-units {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .members-role::before {
+    content: 'Papel';
+    color: var(--color-text-secondary);
+    font-size: 11px;
+  }
+  .members-units::before {
+    content: 'Unidades';
+    color: var(--color-text-secondary);
+    font-size: 11px;
+  }
+  .members-action {
+    text-align: right;
+  }
+  .members-invite-form {
+    grid-template-columns: 1fr;
+    padding: 0 16px;
+  }
+  .members-invitation-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .members-module--redesigned .members-header {

@@ -176,14 +176,9 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             error={mutation.error instanceof Error ? mutation.error.message : null}
             services={services.data?.items ?? []}
             servicesLoading={services.isPending}
+            onCancel={() => setCreating(false)}
             onSave={save}
           />
-          <div className="form-actions combo-sticky-actions combo-create-footer">
-            <button className="danger-button" type="button" disabled>Desativar / Excluir</button>
-            <span />
-            <button type="button" onClick={() => setCreating(false)}>Cancelar</button>
-            <button className="primary-button" type="submit" form="combo-edit-form" disabled={mutation.isPending}>Salvar Alterações</button>
-          </div>
         </div>
       )}
       <div className="combo-catalog-panel">
@@ -297,15 +292,11 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             services={services.data?.items ?? []}
             servicesLoading={services.isPending}
             professionals={eligibleProfessionals.data?.items ?? []}
-            previewImage={detail.data.imageUrl !== null ? <TenantServiceImage alt={detail.data.imageAlt ?? detail.data.name} kind="combos" servicePublicId={detail.data.publicId} tenantPublicId={tenantPublicId} /> : undefined}
             imageSection={<ServiceImageUpload busy={mutation.isPending} hasImage={detail.data.imageUrl !== null} onRemove={requestRemoveImage} onUpload={updateImage} preview={<TenantServiceImage alt={detail.data.imageAlt ?? detail.data.name} kind="combos" servicePublicId={detail.data.publicId} tenantPublicId={tenantPublicId} />} />}
+            onCancel={() => setSelected(null)}
+            onDeactivate={() => requestStatus(false)}
             onSave={save}
           />
-          <div className="form-actions combo-sticky-actions">
-            <button className="danger-button" type="button" onClick={() => requestStatus(false)} disabled={mutation.isPending || !detail.data.active}>Desativar/Excluir</button>
-            <button type="button" onClick={() => setSelected(null)}>Cancelar</button>
-            <button className="primary-button" type="submit" form="combo-edit-form" disabled={mutation.isPending}>Salvar Alterações</button>
-          </div>
         </div>
       )}
       {confirmation !== null && (

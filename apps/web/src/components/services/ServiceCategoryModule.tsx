@@ -37,17 +37,25 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
     setSelected(ServiceCategoryPublicSchema.parse(output).publicId);
     setCreating(false);
   };
+  const activeCount = items.filter((item) => item.active).length;
+  const inactiveCount = items.length - activeCount;
   return <section className="service-categories-page">
-    <PageHeader eyebrow="Catálogo" title="Categorias" description="Organize a apresentação dos serviços." actions={<button className="primary-button" onClick={() => { setSelected(null); setCreating(true); }}>+ Nova categoria</button>} />
+    <PageHeader eyebrow="Catálogo" title="Categorias" description="Organize seus serviços por categorias para facilitar a navegação dos clientes." actions={<button className="primary-button" onClick={() => { setSelected(null); setCreating(true); }}>+ Nova categoria</button>} />
+    <div className="service-category-tip"><span aria-hidden="true">ⓘ</span><span>Dica: se você possui poucos serviços, experimente usar apenas uma ou duas categorias e veja qual organização deixa seu App mais simples para o cliente.</span></div>
+    <div className="service-category-stats" aria-label="Resumo das categorias">
+      <div className="service-category-stat"><strong>{items.length}</strong><span>Categorias</span></div>
+      <div className="service-category-stat service-category-stat--active"><strong>{activeCount}</strong><span>Ativas</span></div>
+      <div className="service-category-stat service-category-stat--inactive"><strong>{inactiveCount}</strong><span>Inativas</span></div>
+    </div>
     <div className="service-category-toolbar">
-      <input aria-label="Buscar categoria" placeholder="Buscar categoria..." value={search} onChange={(event) => { setSearch(event.target.value); }} />
+      <label className="service-category-search"><span aria-hidden="true">⌕</span><input aria-label="Buscar categoria" placeholder="Buscar categoria..." value={search} onChange={(event) => { setSearch(event.target.value); }} /></label>
       <select aria-label="Filtrar status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as StatusFilter); }}><option value="all">Todos</option><option value="active">Ativas</option><option value="inactive">Inativas</option></select>
     </div>
-    {list.isPending ? <div className="service-category-list-card"><ListSkeleton rows={5} /></div> : items.length === 0 ? <EmptyState title="Nenhuma categoria cadastrada" description="Crie categorias para organizar o catálogo público." action={<button onClick={() => { setCreating(true); }}>+ Criar categoria</button>} /> : filteredItems.length === 0 ? <EmptyState title="Nenhuma categoria encontrada" description="Ajuste a busca ou o filtro de status." /> : <div className="service-category-list-card">
+    {list.isPending ? <div className="service-category-list-card"><ListSkeleton rows={5} /></div> : items.length === 0 ? <EmptyState title="Nenhuma categoria cadastrada" description="Crie categorias para organizar o catálogo público." action={<button className="primary-button" onClick={() => { setCreating(true); }}>+ Criar categoria</button>} /> : filteredItems.length === 0 ? <EmptyState title="Nenhuma categoria encontrada" description="Ajuste a busca ou o filtro de status." /> : <div className="service-category-list-card">
       <div className="service-category-table-header"><span>Categoria</span><span>Ordem</span><span>Serviços</span><span>Status</span><span /></div>
       {filteredItems.map((item) => <button className="service-category-row" key={item.publicId} type="button" onClick={() => { setSelected(item.publicId); setCreating(false); }}>
-        <span className="service-category-name"><i className="service-category-color" style={{ background: item.color }} /><span className="service-category-name-copy"><strong>{item.name}</strong><small>{item.description ?? 'Sem descrição'}</small></span></span>
-        <span className="service-category-order">{item.sortOrder}</span><span className="service-category-services">{item.serviceCount ?? 0} {item.serviceCount === 1 ? 'serviço' : 'serviços'}</span><span className="service-category-status"><StatusBadge active={item.active}>{item.active ? 'Ativa' : 'Inativa'}</StatusBadge></span><span className="service-category-action-cell"><span className="service-category-action" aria-hidden="true">›</span></span>
+        <span className="service-category-name"><i className="service-category-color" style={{ background: item.color }} /><span className="service-category-name-copy"><strong>{item.name}</strong><small>{item.description ?? 'Nenhuma descrição adicionada'}</small></span></span>
+        <span className="service-category-order">{item.sortOrder}</span><span className="service-category-services"><span className="service-category-services-pill">{item.serviceCount ?? 0} {item.serviceCount === 1 ? 'serviço' : 'serviços'}</span></span><span className="service-category-status"><StatusBadge active={item.active}>{item.active ? 'Ativa' : 'Inativa'}</StatusBadge></span><span className="service-category-action-cell"><span className="service-category-action" aria-hidden="true">›</span></span>
       </button>)}
     </div>}
     {creating && <div className="service-category-drawer app-drawer"><div className="service-category-drawer-header"><div><h3>Nova categoria</h3><p>Crie uma categoria para organizar seu catálogo.</p></div><button aria-label="Fechar" className="secondary-button" onClick={closeDrawer}>×</button></div><ServiceCategoryForm busy={mutation.isPending} error={mutation.error instanceof Error ? 'Não foi possível salvar a categoria.' : null} onCancel={closeDrawer} onSave={save} submitLabel="Salvar categoria" /></div>}

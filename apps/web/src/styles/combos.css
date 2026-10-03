@@ -33,6 +33,11 @@
 .combo-card-header h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ds-text); font-size: 17px; font-weight: 700; }
 .combo-card-header p { margin: 0; color: var(--ds-text-muted); font-size: 13px; }
 .combo-info-card .combo-form-grid { grid-template-columns: minmax(0, 1.7fr) 200px 140px; }
+.combo-info-card .combo-info-main-grid { grid-template-columns: minmax(0, 1.8fr) 180px 150px 110px; gap: 14px; align-items: end; }
+.combo-info-main-grid > label { min-width: 0; }
+.combo-info-main-grid input, .combo-info-main-grid select { width: 100%; height: 44px; box-sizing: border-box; }
+.combo-info-main-grid .combo-field--wide { grid-column: 1 / -1; }
+.combo-info-main-grid .combo-sort-order-field { max-width: 110px; }
 .combo-info-card .combo-form-grid .combo-field--wide { grid-column: 1 / -1; }
 .combo-info-card .combo-form-grid label:nth-last-child(1) { grid-column: 1 / -1; }
 .combo-image-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
@@ -41,12 +46,20 @@
 .combo-image-layout .service-image-upload { margin: 0; }
 .combo-image-layout .service-image-frame { width: 200px; height: 130px; min-height: 130px; padding: 0; }
 .combo-image-layout .service-image-frame img { width: 100%; height: 100%; object-fit: cover; }
+.combo-image-upload-button { display: inline-flex !important; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 16px; border: 1px solid var(--app-accent) !important; border-radius: 10px; background: color-mix(in srgb, var(--app-accent) 8%, white) !important; color: var(--app-accent) !important; font-weight: 700; cursor: pointer; transition: background .16s ease, transform .16s ease; }
+.combo-image-upload-button:hover { background: color-mix(in srgb, var(--app-accent) 14%, white) !important; transform: translateY(-1px); }
+.combo-image-upload-button input[type='file'] { display: none; }
 .combo-picker-toolbar { align-items: center; }
 .combo-service-search { flex: 1; max-width: none; }
 .combo-selection-count { padding: 6px 10px; border-radius: 999px; background: var(--ds-surface-subtle); white-space: nowrap; }
 .combo-service-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .combo-service-card { min-height: 64px; padding: 10px 12px; border-radius: 10px; }
 .combo-service-card.is-selected { background: var(--app-accent-soft, #eff8f5); }
+.combo-service-checkbox { flex-shrink: 0; width: 18px; height: 18px; box-sizing: border-box; appearance: none; border: 1.5px solid #9aa8a2; border-radius: 5px; background: #fff; cursor: pointer; position: relative; }
+.combo-service-card:hover .combo-service-checkbox { border-color: var(--app-accent); }
+.combo-service-checkbox[data-checked='true'] { border-color: var(--app-accent); background: var(--app-accent); }
+.combo-service-checkbox[data-checked='true']::after { content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.combo-service-card:focus-visible .combo-service-checkbox { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 14%, transparent); }
 .combo-service-order { display: flex; gap: 2px; }
 .combo-service-order button { padding: 2px 4px; border: 0; background: transparent; color: var(--ds-text-muted); cursor: pointer; }
 .combo-subheading { margin: 0; font-size: 13px; }
@@ -60,7 +73,8 @@
 .combo-price-summary .combo-saving-positive dd { color: var(--app-success, #26785e); }
 .combo-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; }
 .combo-form-actions > span { display: flex; gap: 10px; }
-@media (max-width: 899px) { .combo-info-card .combo-form-grid { grid-template-columns: 1fr; } .combo-image-layout { grid-template-columns: 1fr; } .combo-service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .combo-price-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 899px) { .combo-info-card .combo-form-grid, .combo-info-card .combo-info-main-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .combo-info-main-grid .combo-field--wide { grid-column: 1 / -1; } .combo-image-layout { grid-template-columns: 1fr; } .combo-service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .combo-price-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 599px) { .combo-info-card .combo-info-main-grid { grid-template-columns: 1fr; } .combo-info-main-grid .combo-field--wide { grid-column: auto; } .combo-info-main-grid .combo-sort-order-field { max-width: none; } }
 @media (max-width: 559px) { .combo-service-grid, .combo-price-summary { grid-template-columns: 1fr; } .combo-form-card { padding: 18px; } .combo-form-actions { flex-direction: column-reverse; align-items: stretch; } .combo-form-actions > span { width: 100%; } .combo-form-actions button { width: 100%; } }
 
 @layer utilities {

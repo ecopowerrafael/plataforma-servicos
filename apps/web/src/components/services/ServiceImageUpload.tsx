@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { IconUpload } from '@tabler/icons-react';
 
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const maxBytes = 5 * 1024 * 1024;
@@ -13,12 +14,14 @@ export function ServiceImageUpload({
   onRemove,
   onUpload,
   preview,
+  buttonClassName,
 }: {
   busy: boolean;
   hasImage: boolean;
   onRemove: () => Promise<void>;
   onUpload: (file: File) => Promise<void>;
   preview?: ReactNode;
+  buttonClassName?: string;
 }) {
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +65,9 @@ export function ServiceImageUpload({
         )}
       </div>
       <div className="service-image-actions">
-        <label className="secondary-button service-image-button">
-          {hasImage ? 'Substituir imagem' : 'Enviar imagem'}
+        <label className={`secondary-button service-image-button${buttonClassName ? ` ${buttonClassName}` : ''}`}>
+          <IconUpload aria-hidden="true" size={17} />
+          {hasImage ? 'Substituir imagem' : 'Fazer Upload'}
           <input
             accept="image/jpeg,image/png,image/webp"
             disabled={busy}

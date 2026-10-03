@@ -163,7 +163,7 @@ export function ComboForm({
       <div className="combo-form-breadcrumb"><nav>Catálogo &gt; Combos &gt; <span>{combo === undefined ? 'Novo' : 'Editar'}</span></nav><h1>{form.watch('name') || (combo === undefined ? 'Novo combo' : 'Editar combo')}</h1></div>
       <section className="combo-form-card combo-info-card">
         <header className="combo-card-header"><h2><IconTag aria-hidden="true" size={18} /> Informações do combo</h2><p>Defina o nome, preço e como esta oferta será apresentada.</p></header>
-        <div className="combo-form-grid">
+        <div className="combo-form-grid combo-info-main-grid">
           <label>
             Nome do Combo
             <input {...register('name')} />
@@ -194,7 +194,7 @@ export function ComboForm({
             </select>
           </label>
           <label>
-            {'Ordem de exibição'}
+            {'Ordem'}
             <input
               min="0"
               max="999"
@@ -245,9 +245,7 @@ export function ComboForm({
                   toggle(service);
                 }}
               >
-                <span className="combo-service-check" aria-hidden="true">
-                  {selected ? '✓' : ''}
-                </span>
+                <span className="combo-service-checkbox" aria-hidden="true" data-checked={selected ? 'true' : 'false'} />
                 <span className="combo-service-body">
                   <strong>{service.name}</strong>
                   <small>

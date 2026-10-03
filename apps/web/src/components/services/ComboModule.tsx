@@ -292,7 +292,7 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             services={services.data?.items ?? []}
             servicesLoading={services.isPending}
             professionals={eligibleProfessionals.data?.items ?? []}
-            imageSection={<ServiceImageUpload busy={mutation.isPending} hasImage={detail.data.imageUrl !== null} onRemove={requestRemoveImage} onUpload={updateImage} preview={<TenantServiceImage alt={detail.data.imageAlt ?? detail.data.name} kind="combos" servicePublicId={detail.data.publicId} tenantPublicId={tenantPublicId} />} />}
+            imageSection={<ServiceImageUpload buttonClassName="combo-image-upload-button" busy={mutation.isPending} hasImage={detail.data.imageUrl !== null} onRemove={requestRemoveImage} onUpload={updateImage} preview={<TenantServiceImage alt={detail.data.imageAlt ?? detail.data.name} kind="combos" servicePublicId={detail.data.publicId} tenantPublicId={tenantPublicId} />} />}
             onCancel={() => setSelected(null)}
             onDeactivate={() => requestStatus(false)}
             onSave={save}

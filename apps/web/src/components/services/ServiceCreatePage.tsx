@@ -138,7 +138,7 @@ export function ServiceCreatePage({
               <div className="service-image-frame">
                 {preview === null ? (
                   <div className="service-image-empty">
-                    <span aria-hidden="true">🖼</span>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m21 15-4.5-4.5L8 19"/></svg>
                     <strong>Sem imagem</strong>
                     <small>JPG, PNG ou WebP de até 5 MB.</small>
                   </div>
@@ -147,8 +147,9 @@ export function ServiceCreatePage({
                 )}
               </div>
               <div className="service-image-actions">
-                <label className="secondary-button service-image-button">
-                  {file === null ? 'Escolher imagem' : 'Trocar imagem'}
+                <label className="service-upload-button">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+                  {file === null ? 'Fazer Upload' : 'Trocar imagem'}
                   <input
                     accept="image/jpeg,image/png,image/webp"
                     type="file"

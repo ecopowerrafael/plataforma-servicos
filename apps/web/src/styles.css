@@ -14825,13 +14825,13 @@ h1 {
 /* Compact service creation editor. */
 .service-create-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
 }
 .service-create-main {
   display: grid;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
 }
 .service-form-card {
@@ -14848,6 +14848,50 @@ h1 {
 }
 .service-create-public {
   min-width: 0;
+}
+.service-editor-card {
+  width: 100%;
+  max-width: 75rem;
+  margin-inline: auto;
+}
+.service-create-main .service-form-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.service-create-main .service-form-grid > .service-field--wide,
+.service-create-main .service-pricing-mode {
+  grid-column: 1 / -1;
+}
+.service-create-main .service-pricing-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(7rem, 0.55fr);
+}
+.service-create-main .service-pricing-grid .service-pricing-mode,
+.service-create-main .service-pricing-grid .service-total-blocked {
+  grid-column: 1 / -1;
+}
+.service-create-main .service-pricing-grid .ds-switch-row {
+  grid-column: 1 / span 2;
+}
+.service-create-public .service-form-grid {
+  grid-template-columns: minmax(160px, 180px) minmax(0, 1fr);
+  column-gap: 20px;
+}
+.service-create-public .service-form-grid > .service-field--wide:first-child {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+}
+.service-create-public .service-form-grid > label.service-field--wide {
+  grid-column: 2;
+}
+.service-create-public .service-form-grid > label:nth-last-child(2) {
+  grid-column: 2;
+}
+.service-create-public .service-form-grid > label:last-child {
+  grid-column: 2;
+}
+.service-create-main .service-form-grid select,
+.service-create-main .service-form-grid input:not([type='color']):not([type='checkbox']),
+.service-create-main .service-form-grid textarea {
+  max-width: none;
 }
 .service-create-public .service-icon-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -14911,5 +14955,18 @@ h1 {
   }
   .service-create-public {
     order: 2;
+  }
+  .service-create-main .service-pricing-grid,
+  .service-create-main .service-form-grid,
+  .service-create-public .service-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .service-create-main .service-pricing-grid .ds-switch-row,
+  .service-create-public .service-form-grid > .service-field--wide:first-child,
+  .service-create-public .service-form-grid > label.service-field--wide,
+  .service-create-public .service-form-grid > label:nth-last-child(2),
+  .service-create-public .service-form-grid > label:last-child {
+    grid-column: 1;
+    grid-row: auto;
   }
 }

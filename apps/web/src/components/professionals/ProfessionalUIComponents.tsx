@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { IconSearch, IconPlus, IconPhone, IconCalendar } from '@tabler/icons-react';
 import { TenantProfessionalPhoto } from './TenantProfessionalPhoto.js';
 
@@ -14,10 +14,10 @@ interface ProfessionalHeaderProps {
 export function ProfessionalHeader({ onSearch, onNewClick }: ProfessionalHeaderProps) {
   return (
     <div className="professional-header">
-      <div className="professional-search">
+      <div className="app-search-field">
         <IconSearch size={18} />
         <input
-          type="text"
+          type="search"
           placeholder="Buscar profissional..."
           onChange={(e) => onSearch(e.target.value)}
         />
@@ -39,7 +39,7 @@ export function ProfessionalHeader({ onSearch, onNewClick }: ProfessionalHeaderP
 
 interface ProfessionalCardProps {
   name: string;
-  specialty?: string;
+  specialty?: string | undefined;
   phone?: string;
   appointments: number;
   status: 'active' | 'inactive';
@@ -73,8 +73,15 @@ export function ProfessionalCard({
       />
 
       <div className="professional-content">
-        <h3>{name}</h3>
-        {specialty && <p className="professional-specialty">{specialty}</p>}
+        <div className="professional-card-heading">
+          <div>
+            <h3>{name}</h3>
+            {specialty && <p className="professional-specialty">{specialty}</p>}
+          </div>
+          <span className={`professional-status ${status}`}>
+            {status === 'active' ? 'Ativo' : 'Inativo'}
+          </span>
+        </div>
 
         <div className="professional-stats">
           <div className="stat">
@@ -89,9 +96,7 @@ export function ProfessionalCard({
           )}
         </div>
 
-        <span className={`professional-status ${status}`}>
-          {status === 'active' ? 'Ativo' : 'Inativo'}
-        </span>
+        <span className="professional-card-cta">Ver perfil →</span>
       </div>
 
       {actions && <div className="professional-actions">{actions}</div>}

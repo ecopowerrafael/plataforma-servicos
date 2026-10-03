@@ -14,7 +14,7 @@ export function TenantProfessionalPhoto({
   tenantPublicId: string;
   size?: 'small' | 'large';
   /** Muda quando a foto é trocada ou removida, forçando o recarregamento. */
-  version?: string;
+  version?: string | undefined;
 }) {
   const [source, setSource] = useState<string | null>(null);
   useEffect(() => {

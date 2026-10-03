@@ -13,7 +13,6 @@ import { ProfessionalForm } from './ProfessionalForm.js';
 import { ProfessionalAccessForm } from './ProfessionalAccessForm.js';
 import { ProfessionalHeader, ProfessionalCard } from './ProfessionalUIComponents.js';
 import {
-  AccessOverview,
   CommissionOverview,
   ProfileHeader,
   ProfileOverview,
@@ -25,7 +24,6 @@ import { ProfessionalSchedule } from './ProfessionalSchedule.js';
 import { ProfessionalServiceLinks } from './ProfessionalServiceLinks.js';
 import { ProfessionalUnavailability } from './ProfessionalUnavailability.js';
 import { ProfessionalUnitLinks } from './ProfessionalUnitLinks.js';
-import { TenantProfessionalPhoto } from './TenantProfessionalPhoto.js';
 import { httpClient } from '../../lib/http.js';
 
 const tabs: ProfessionalTab[] = ['profile', 'services', 'schedule', 'commission', 'access'];

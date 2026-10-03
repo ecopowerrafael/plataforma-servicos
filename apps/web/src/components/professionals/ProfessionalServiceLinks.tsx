@@ -4,12 +4,19 @@ import {
   ServiceListResponseSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { httpClient } from '../../lib/http.js';
 
 const money = (cents: string | number) =>
   (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+export function getLinkedSelectionIds(
+  items: ReadonlyArray<{ servicePublicId: string; professionalPublicId: string }>,
+  isProfessional: boolean,
+) {
+  return new Set(items.map((item) => (isProfessional ? item.servicePublicId : item.professionalPublicId)));
+}
 
 export function ProfessionalServiceLinks({
   tenantPublicId,
@@ -24,6 +31,7 @@ export function ProfessionalServiceLinks({
   const isProfessional = professionalPublicId !== undefined;
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectionChangedLocally = useRef(false);
   const [expandedOverride, setExpandedOverride] = useState<string | null>(null);
 
   const url = isProfessional
@@ -59,19 +67,21 @@ export function ProfessionalServiceLinks({
     retry: false,
   });
 
-  const initializeSelection = () => {
-    const linkedIds = new Set((links.data?.items ?? []).map((item) =>
-      isProfessional ? item.servicePublicId : item.professionalPublicId
-    ));
+  useEffect(() => {
+    if (links.data === undefined || selectionChangedLocally.current) return;
+    const linkedIds = getLinkedSelectionIds(links.data.items, isProfessional);
     setSelectedIds(linkedIds);
-  };
+  }, [links.data, isProfessional]);
 
   const filteredCatalog = useMemo(() => {
-    const catalog = isProfessional ? services.data?.items ?? [] : professionals.data?.items ?? [];
-    return catalog.filter((item) =>
-      ('name' in item ? item.name : item.publicName)
-        .toLocaleLowerCase('pt-BR')
-        .includes(search.toLocaleLowerCase('pt-BR'))
+    const normalizedSearch = search.toLocaleLowerCase('pt-BR');
+    if (isProfessional) {
+      return (services.data?.items ?? []).filter((item) =>
+        item.name.toLocaleLowerCase('pt-BR').includes(normalizedSearch),
+      );
+    }
+    return (professionals.data?.items ?? []).filter((item) =>
+      item.publicName.toLocaleLowerCase('pt-BR').includes(normalizedSearch),
     );
   }, [search, services.data?.items, professionals.data?.items, isProfessional]);
 
@@ -92,11 +102,13 @@ export function ProfessionalServiceLinks({
       );
     },
     onSuccess: async () => {
+      selectionChangedLocally.current = false;
       await client.invalidateQueries({ queryKey: ['links', url] });
     },
   });
 
   const toggleSelect = (id: string) => {
+    selectionChangedLocally.current = true;
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
       newSet.delete(id);
@@ -107,6 +119,7 @@ export function ProfessionalServiceLinks({
   };
 
   const selectAll = () => {
+    selectionChangedLocally.current = true;
     const elegibleIds = new Set(
       filteredCatalog
         .filter((item) => {
@@ -121,6 +134,7 @@ export function ProfessionalServiceLinks({
   };
 
   const clearSelection = () => {
+    selectionChangedLocally.current = true;
     setSelectedIds(new Set());
   };
 
@@ -158,12 +172,12 @@ export function ProfessionalServiceLinks({
           </div>
         </header>
         <div className="assignment-toolbar">
-          <label>
+          <label className="app-search-field">
             Pesquisar profissional
             <input
               type="search"
               value={search}
-              placeholder="Digite o nome"
+              placeholder="Buscar profissional..."
               onChange={(e) => setSearch(e.target.value)}
             />
           </label>
@@ -186,13 +200,10 @@ export function ProfessionalServiceLinks({
                 type="checkbox"
                 checked={selectedIds.has(professional.publicId)}
                 onChange={() => toggleSelect(professional.publicId)}
-                aria-label={`Vincular ${professional.publicName}`}
+                aria-label={`Vincular ${'publicName' in professional ? professional.publicName : professional.name}`}
               />
-              <span className="service-assignment-icon">
-                {professional.publicName.slice(0, 1)}
-              </span>
               <div>
-                <strong>{professional.publicName}</strong>
+                <strong>{'publicName' in professional ? professional.publicName : professional.name}</strong>
                 <span className={`profile-status ${professional.active ? 'active' : 'inactive'}`}>
                   {professional.active ? 'Ativo' : 'Inativo'}
                 </span>
@@ -234,12 +245,12 @@ export function ProfessionalServiceLinks({
         </div>
       </header>
       <div className="assignment-toolbar">
-        <label>
+          <label className="app-search-field">
           Pesquisar serviço
           <input
             type="search"
             value={search}
-            placeholder="Digite o nome"
+            placeholder="Buscar serviço..."
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
@@ -264,13 +275,10 @@ export function ProfessionalServiceLinks({
               onChange={() => toggleSelect(service.publicId)}
               aria-label={`Vincular ${service.name}`}
             />
-            <span className="service-assignment-icon" style={{ background: service.color ?? '#e2e8f0' }}>
-              ✦
-            </span>
             <div>
               <strong>{service.name}</strong>
               <span>
-                {service.durationMinutes} min · {money(service.priceCents)}
+                {'durationMinutes' in service ? `${service.durationMinutes} min · ${money(service.priceCents)}` : ''}
               </span>
             </div>
             {selectedIds.has(service.publicId) && (
@@ -303,7 +311,7 @@ export function ProfessionalServiceLinks({
         <button
           className="primary-button"
           type="button"
-          disabled={bulkSave.isPending || selectedIds.size === 0}
+          disabled={bulkSave.isPending}
           onClick={() => void bulkSave.mutateAsync()}
         >
           {bulkSave.isPending ? 'Salvando…' : 'Salvar alterações'}

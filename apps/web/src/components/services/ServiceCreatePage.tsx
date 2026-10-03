@@ -181,6 +181,9 @@ export function ServiceCreatePage({
             </div>
           }
           onCancel={() => void navigate('/app/servicos')}
+          onRepresentationChange={(mode) => {
+            if (mode === 'icon') setSelection(null);
+          }}
           onSave={(value) => create.mutateAsync(value).then(() => undefined)}
         />
       </div>

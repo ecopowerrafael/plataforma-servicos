@@ -14822,151 +14822,30 @@ h1 {
   flex: 1;
 }
 
-/* Compact service creation editor. */
-.service-create-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-.service-create-main {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-.service-form-card {
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-lg);
-  background: var(--ds-surface);
-  padding: 14px 16px 16px;
-}
-.service-form-card:first-child {
-  border-top: 1px solid var(--ds-border);
-}
-.service-form-card > legend {
-  padding: 0 6px;
-}
-.service-create-public {
-  min-width: 0;
-}
-.service-editor-card {
-  width: 100%;
-  max-width: 75rem;
-  margin-inline: auto;
-}
-.service-create-main .service-form-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-.service-create-main .service-form-grid > .service-field--wide,
-.service-create-main .service-pricing-mode {
-  grid-column: 1 / -1;
-}
-.service-create-main .service-pricing-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(7rem, 0.55fr);
-}
-.service-create-main .service-pricing-grid .service-pricing-mode,
-.service-create-main .service-pricing-grid .service-total-blocked {
-  grid-column: 1 / -1;
-}
-.service-create-main .service-pricing-grid .ds-switch-row {
-  grid-column: 1 / span 2;
-}
-.service-create-public .service-form-grid {
-  grid-template-columns: minmax(160px, 180px) minmax(0, 1fr);
-  column-gap: 20px;
-}
-.service-create-public .service-form-grid > .service-field--wide:first-child {
-  grid-column: 1;
-  grid-row: 1 / span 3;
-}
-.service-create-public .service-form-grid > label.service-field--wide {
-  grid-column: 2;
-}
-.service-create-public .service-form-grid > label:nth-last-child(2) {
-  grid-column: 2;
-}
-.service-create-public .service-form-grid > label:last-child {
-  grid-column: 2;
-}
-.service-create-main .service-form-grid select,
-.service-create-main .service-form-grid input:not([type='color']):not([type='checkbox']),
-.service-create-main .service-form-grid textarea {
-  max-width: none;
-}
-.service-create-public .service-icon-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  max-height: none;
-  overflow: visible;
-}
-.service-create-public .service-icon-option {
-  min-height: 54px;
-  padding: 6px 3px;
-}
-.service-icon-toggle {
-  justify-self: start;
-  border: 0;
-  background: transparent;
-  color: var(--app-accent, #2563eb);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
-  padding: 2px 0;
-}
-.service-total-blocked {
-  align-items: center;
-  background: var(--ds-surface-subtle);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-md);
-  color: var(--ds-text-muted);
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-  padding: 8px 10px;
-}
-.service-total-blocked strong {
-  color: var(--ds-text);
-  font-size: 0.95rem;
-}
-.service-form-actions {
-  justify-content: flex-end;
-  border-top: 1px solid var(--ds-border);
-  padding-top: 12px;
-}
-.service-image-picker .service-image-frame {
-  aspect-ratio: 1.4;
-  min-height: 0;
-  width: min(100%, 11.25rem);
-}
-.service-image-picker img {
-  max-height: 7.5rem;
-}
-.service-pricing-options {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.service-pricing-options label {
-  padding: 0.55rem 0.65rem;
-}
-@media (max-width: 899px) {
-  .service-create-layout {
-    grid-template-columns: 1fr;
-  }
-  .service-create-main {
-    order: 1;
-  }
-  .service-create-public {
-    order: 2;
-  }
-  .service-create-main .service-pricing-grid,
-  .service-create-main .service-form-grid,
-  .service-create-public .service-form-grid {
-    grid-template-columns: 1fr;
-  }
-  .service-create-main .service-pricing-grid .ds-switch-row,
-  .service-create-public .service-form-grid > .service-field--wide:first-child,
-  .service-create-public .service-form-grid > label.service-field--wide,
-  .service-create-public .service-form-grid > label:nth-last-child(2),
-  .service-create-public .service-form-grid > label:last-child {
-    grid-column: 1;
-    grid-row: auto;
-  }
-}
+/* Service creation: progressive sections. Kept separate from legacy editor rules for scoped compatibility. */
+.service-create-section { display: grid; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--ds-border); }
+.service-create-section > header h2 { margin: 0; font-size: 1.05rem; }
+.service-create-section > header p { margin: 4px 0 0; color: var(--ds-text-muted); font-size: .88rem; }
+.service-basic-grid, .service-schedule-row, .service-advanced-grid { display: grid; gap: 12px 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.service-basic-grid .service-field--wide { grid-column: 1 / -1; }
+.service-create-section label, .service-public-fields > label { display: grid; gap: 5px; min-width: 0; }
+.service-create-section input:not([type=radio]):not([type=checkbox]), .service-create-section select, .service-create-section textarea { width: 100%; max-width: none; }
+.service-pricing-selector { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.service-pricing-selector label { position: relative; display: grid; gap: 3px; padding: 12px 14px 12px 38px; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); cursor: pointer; }
+.service-pricing-selector label.is-selected { border-color: var(--app-accent, #2563eb); background: var(--app-accent-soft, #eef2ff); }
+.service-pricing-selector input { position: absolute; left: 14px; top: 16px; }
+.service-pricing-selector small, .service-create-section small { color: var(--ds-text-muted); }
+.service-icon-toggle { justify-self: start; border: 0; background: transparent; color: var(--app-accent, #2563eb); cursor: pointer; font: inherit; font-weight: 700; padding: 2px 0; }
+.service-money-input { display: flex; align-items: center; gap: 6px; }
+.service-money-input span { color: var(--ds-text-muted); font-weight: 700; }
+.service-money-input input { min-width: 0; }
+.service-break-duration { max-width: 18rem; }
+.service-total-inline { margin: 0; color: var(--ds-text-muted); font-size: .9rem; }
+.service-public-layout { display: grid; gap: 20px; grid-template-columns: 180px minmax(0, 1fr); }
+.service-public-image { min-width: 0; }
+.service-public-fields { display: grid; gap: 16px; min-width: 0; }
+.service-advanced { border-top: 1px solid var(--ds-border); padding-top: 12px; }
+.service-advanced summary { cursor: pointer; font-weight: 700; }
+.service-advanced-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-top: 12px; }
+.service-form-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 16px; }
+@media (max-width: 899px) { .service-basic-grid, .service-schedule-row, .service-advanced-grid, .service-pricing-selector, .service-public-layout { grid-template-columns: 1fr; } .service-form-footer > button { flex: 1; } }

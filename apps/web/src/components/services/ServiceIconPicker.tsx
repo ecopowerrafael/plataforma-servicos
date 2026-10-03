@@ -19,7 +19,7 @@ export function ServiceIconPicker({
       icon.label.toLocaleLowerCase('pt-BR').includes(term) ||
       icon.key.includes(term),
   );
-  const icons = showAll || term !== '' ? filteredIcons : filteredIcons.slice(0, 10);
+  const icons = showAll || term !== '' ? filteredIcons : filteredIcons.slice(0, 8);
   return (
     <div className="service-icon-picker">
       <label>
@@ -63,7 +63,7 @@ export function ServiceIconPicker({
           </button>
         ))}
       </div>
-      {term === '' && filteredIcons.length > 10 ? (
+      {term === '' && filteredIcons.length > 8 ? (
         <button
           className="service-icon-toggle"
           type="button"

@@ -119,6 +119,13 @@ export class ServiceCategoryService {
       actor,
     );
   }
+  public async delete(tenantId: bigint, publicId: string, actor?: Actor) {
+    const current = await this.repository.find(tenantId, publicId);
+    if (current === null) throw notFound();
+    await this.repository.delete(current.id);
+    await this.audit(tenantId, publicId, 'service_category.deleted', actor);
+    return { success: true } as const;
+  }
   private conflict(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
       throw new AppError({

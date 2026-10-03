@@ -50,6 +50,12 @@
 .service-category-status-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--ds-border); }
 .service-category-status-actions strong { font-size: 13px; }
 .service-category-status-actions p { margin: 5px 0 0; white-space: normal; }
+.service-category-danger-zone { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding: 18px 0 0; border-top: 1px solid #f0dada; }
+.service-category-danger-zone strong { color: #8f2f2f; font-size: 13px; }
+.service-category-danger-zone p { max-width: 270px; margin: 5px 0 0; color: var(--ds-text-muted); font-size: 12px; line-height: 1.45; }
+.danger-outline-button { min-height: 42px; border: 1px solid #e3a4a4; border-radius: 9px; background: #fff; color: #a52f2f; cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; padding: 0 12px; white-space: nowrap; }
+.danger-outline-button:hover { background: #fff5f5; }
+.danger-outline-button:disabled { cursor: wait; opacity: .65; }
 @media (max-width: 767px) {
   .service-category-stats { grid-template-columns: repeat(3, 1fr); }
   .service-category-toolbar { grid-template-columns: 1fr; }

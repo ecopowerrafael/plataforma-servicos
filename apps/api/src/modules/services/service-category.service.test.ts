@@ -51,4 +51,35 @@ describe('ServiceCategoryService', () => {
     expect(listWhere).toMatchObject({ tenantId: 41n });
     expect(repository.list.mock.calls[0]?.slice(1)).toEqual([1, 100]);
   });
+
+  it('deletes a category by tenant-scoped internal id and records the audit', async () => {
+    const linkedCategory = { ...category, _count: { services: 2 } };
+    const repository = {
+      find: vi.fn().mockResolvedValue(linkedCategory),
+      delete: vi.fn().mockResolvedValue(undefined),
+      recordAudit: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new ServiceCategoryService(repository as never);
+
+    await expect(service.delete(41n, category.publicId, { userId: 7n, sessionId: 8n })).resolves.toEqual({ success: true });
+    expect(repository.find).toHaveBeenCalledWith(41n, category.publicId);
+    expect(repository.delete).toHaveBeenCalledWith(category.id);
+    expect(repository.recordAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'service_category.deleted',
+      targetType: 'service_category',
+      targetPublicId: category.publicId,
+    }));
+  });
+
+  it('returns not found for a missing category, including another tenant', async () => {
+    const repository = { find: vi.fn().mockResolvedValue(null), delete: vi.fn(), recordAudit: vi.fn() };
+    const service = new ServiceCategoryService(repository as never);
+
+    await expect(service.delete(999n, category.publicId)).rejects.toMatchObject({
+      code: 'SERVICE_CATEGORY_NOT_FOUND',
+      statusCode: 404,
+    });
+    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.recordAudit).not.toHaveBeenCalled();
+  });
 });

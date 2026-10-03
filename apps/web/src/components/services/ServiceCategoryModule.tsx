@@ -5,6 +5,7 @@ import { type ZodType } from 'zod';
 
 import { ServiceCategoryForm } from './ServiceCategoryForm.js';
 import { httpClient } from '../../lib/http.js';
+import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
 import { EmptyState, ListSkeleton, PageHeader, StatusBadge } from '../ui/AppUi.js';
 import '../../styles/service-categories.css';
 
@@ -16,6 +17,7 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [deleteConfirmation, setDeleteConfirmation] = useState<ConfirmationRequest | null>(null);
   const list = useQuery({ queryKey: ['tenant', tenantPublicId, 'service-categories'], queryFn: () => httpClient.request('/tenant/service-categories?limit=100', { schema: ServiceCategoryListResponseSchema, tenantPublicId }), retry: false });
   const detail = useQuery({ queryKey: ['tenant', tenantPublicId, 'service-category', selected], queryFn: () => httpClient.request(`/tenant/service-categories/${selected ?? ''}`, { schema: ServiceCategoryPublicSchema, tenantPublicId }), enabled: selected !== null, retry: false });
   const mutation = useMutation({
@@ -23,6 +25,18 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'service-categories'] });
       if (selected !== null) void client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'service-category', selected] });
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (publicId: string) => httpClient.request(`/tenant/service-categories/${publicId}`, { method: 'DELETE', schema: ServiceCategoryStatusResponseSchema, tenantPublicId }),
+    onSuccess: async (_, publicId) => {
+      setDeleteConfirmation(null);
+      setSelected(null);
+      setCreating(false);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'service-categories'] }),
+        client.invalidateQueries({ queryKey: ['tenant', tenantPublicId, 'service-category', publicId] }),
+      ]);
     },
   });
   const items = list.data?.items ?? [];
@@ -36,6 +50,23 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
     const output = await mutation.mutateAsync({ url: selected === null ? '/tenant/service-categories' : `/tenant/service-categories/${selected}`, method: selected === null ? 'POST' : 'PATCH', body: CreateServiceCategoryRequestSchema.parse(value) });
     setSelected(ServiceCategoryPublicSchema.parse(output).publicId);
     setCreating(false);
+  };
+  const requestDelete = (publicId: string, serviceCount: number) => {
+    const services = serviceCount === 1 ? '1 serviço vinculado não será excluído. Ele ficará sem categoria.' : `${serviceCount} serviços vinculados não serão excluídos. Eles ficarão sem categoria.`;
+    setDeleteConfirmation({
+      title: 'Excluir categoria?',
+      description: serviceCount > 0 ? services : 'Essa ação não pode ser desfeita.',
+      confirmLabel: 'Excluir categoria',
+      requiresReason: false,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteMutation.mutateAsync(publicId);
+        } catch {
+          throw new Error('Não foi possível excluir a categoria. Tente novamente.');
+        }
+      },
+    });
   };
   const activeCount = items.filter((item) => item.active).length;
   const inactiveCount = items.length - activeCount;
@@ -59,6 +90,7 @@ export function ServiceCategoryModule({ tenantPublicId }: { tenantPublicId: stri
       </button>)}
     </div>}
     {creating && <div className="service-category-drawer app-drawer"><div className="service-category-drawer-header"><div><h3>Nova categoria</h3><p>Crie uma categoria para organizar seu catálogo.</p></div><button aria-label="Fechar" className="secondary-button" onClick={closeDrawer}>×</button></div><ServiceCategoryForm busy={mutation.isPending} error={mutation.error instanceof Error ? 'Não foi possível salvar a categoria.' : null} onCancel={closeDrawer} onSave={save} submitLabel="Salvar categoria" /></div>}
-    {detail.data && <div className="service-category-drawer app-drawer"><div className="service-category-drawer-header"><div><h3>Editar categoria</h3><p>Atualize os dados e a visibilidade no catálogo.</p></div><button aria-label="Fechar" className="secondary-button" onClick={closeDrawer}>×</button></div><ServiceCategoryForm category={detail.data} busy={mutation.isPending} error={mutation.error instanceof Error ? 'Não foi possível salvar a categoria.' : null} onCancel={closeDrawer} onSave={save} submitLabel="Salvar alterações" /><div className="service-category-status-actions"><div><strong>Estado da categoria</strong><p>{detail.data.active ? 'Esta categoria aparece no catálogo público.' : 'Esta categoria está oculta do catálogo público.'}</p></div><button className="secondary-button" disabled={mutation.isPending} onClick={() => { void mutation.mutateAsync({ url: `/tenant/service-categories/${detail.data.publicId}/${detail.data.active ? 'deactivate' : 'activate'}`, method: 'POST', schema: ServiceCategoryStatusResponseSchema }); }}>{detail.data.active ? 'Desativar' : 'Ativar'}</button></div></div>}
+    {detail.data && <div className="service-category-drawer app-drawer"><div className="service-category-drawer-header"><div><h3>Editar categoria</h3><p>Atualize os dados e a visibilidade no catálogo.</p></div><button aria-label="Fechar" className="secondary-button" onClick={closeDrawer}>×</button></div><ServiceCategoryForm category={detail.data} busy={mutation.isPending} error={mutation.error instanceof Error ? 'Não foi possível salvar a categoria.' : null} onCancel={closeDrawer} onSave={save} submitLabel="Salvar alterações" /><div className="service-category-status-actions"><div><strong>Estado da categoria</strong><p>{detail.data.active ? 'Esta categoria aparece no catálogo público.' : 'Esta categoria está oculta do catálogo público.'}</p></div><button className="secondary-button" disabled={mutation.isPending} onClick={() => { void mutation.mutateAsync({ url: `/tenant/service-categories/${detail.data.publicId}/${detail.data.active ? 'deactivate' : 'activate'}`, method: 'POST', schema: ServiceCategoryStatusResponseSchema }); }}>{detail.data.active ? 'Desativar' : 'Ativar'}</button></div><div className="service-category-danger-zone"><div><strong>Zona de perigo</strong><p>{detail.data.serviceCount === 0 ? 'Excluir categoria' : `Esta categoria possui ${detail.data.serviceCount} ${detail.data.serviceCount === 1 ? 'serviço' : 'serviços'}. Ao excluí-la, ${detail.data.serviceCount === 1 ? 'esse serviço continuará cadastrado' : 'esses serviços continuarão cadastrados'} e ficarão sem categoria.`}</p></div><button className="danger-outline-button" disabled={deleteMutation.isPending} onClick={() => { requestDelete(detail.data.publicId, detail.data.serviceCount ?? 0); }}>{deleteMutation.isPending ? 'Excluindo…' : 'Excluir categoria'}</button></div></div>}
+    {deleteConfirmation && <ConfirmationDialog request={deleteConfirmation} onClose={() => { if (!deleteMutation.isPending) setDeleteConfirmation(null); }} />}
   </section>;
 }

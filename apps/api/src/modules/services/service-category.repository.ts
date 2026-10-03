@@ -18,6 +18,7 @@ export interface ServiceCategoryRepository {
     id: bigint,
     data: Prisma.ServiceCategoryUncheckedUpdateInput,
   ): Promise<ServiceCategoryRecord>;
+  delete(id: bigint): Promise<void>;
   recordAudit(data: Prisma.AuditLogUncheckedCreateInput): Promise<void>;
 }
 
@@ -54,6 +55,9 @@ export class PrismaServiceCategoryRepository implements ServiceCategoryRepositor
       data,
       include: { _count: { select: { services: true } } },
     });
+  }
+  public async delete(id: bigint) {
+    await this.client.serviceCategory.delete({ where: { id } });
   }
   public async recordAudit(data: Prisma.AuditLogUncheckedCreateInput) {
     await this.client.auditLog.create({ data });

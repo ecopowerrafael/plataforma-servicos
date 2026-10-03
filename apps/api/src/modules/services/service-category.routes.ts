@@ -94,6 +94,14 @@ export const serviceCategoryRoutes: FastifyPluginAsyncZod<Options> = async (app,
       );
     },
   );
+  app.delete(
+    '/tenant/service-categories/:publicId',
+    { schema: { params: ParamsSchema, response: { 200: ServiceCategoryStatusResponseSchema } } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'service.category.update');
+      return options.service.delete(request.tenant.id, request.params.publicId, actor(request));
+    },
+  );
   for (const [action, active] of [
     ['activate', true],
     ['deactivate', false],

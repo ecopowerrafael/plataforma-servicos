@@ -158,11 +158,11 @@ export function ComboForm({
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="mb-6 pb-4 border-b border-slate-200"><nav className="text-xs font-medium text-slate-500 mb-1">Catálogo &gt; Combos &gt; <span className="text-slate-900 font-semibold">Editar</span></nav><h1 className="text-2xl font-bold text-slate-900 tracking-tight">{form.watch('name') || 'Editar Combo'}</h1></div>
+      <div className="mb-6 pb-4 border-b border-slate-200"><nav className="text-xs font-medium text-slate-500 mb-1">Catálogo &gt; Combos &gt; <span className="text-slate-900 font-semibold">{combo === undefined ? 'Novo' : 'Editar'}</span></nav><h1 className="text-2xl font-bold text-slate-900 tracking-tight">{form.watch('name') || (combo === undefined ? 'Novo combo' : 'Editar combo')}</h1></div>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
       <div className="lg:col-span-7 space-y-6">
-      <fieldset className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <legend><IconTag aria-hidden="true" size={18} /> Informações gerais do combo</legend>
+      <fieldset className="combo-section combo-section-info bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <legend><IconTag aria-hidden="true" size={18} /> Informações do combo</legend>
         <div className="combo-form-grid">
           <label className="combo-field--wide">
             Nome do Combo
@@ -214,8 +214,9 @@ export function ComboForm({
         </div>
         {imageSection}
       </fieldset>
-      <fieldset className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <legend><IconStack2 aria-hidden="true" size={18} /> {'Serviços do combo & economia'}</legend>
+      <fieldset className="combo-section combo-section-services bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <legend><IconStack2 aria-hidden="true" size={18} /> Serviços incluídos</legend>
+        <p className="combo-section-description">Escolha os serviços que fazem parte deste combo.</p>
         <div className="combo-picker-toolbar">
           <label>
             {'Buscar serviço'}
@@ -297,8 +298,8 @@ export function ComboForm({
           </dl>
         ) : null}
       </fieldset>
-      <fieldset className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <legend><IconUsers aria-hidden="true" size={18} /> Profissionais aptos</legend>
+      <fieldset className="combo-section combo-section-professionals bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <legend><IconUsers aria-hidden="true" size={18} /> Profissionais</legend>
         <label className="combo-toggle"><input type="checkbox" checked={editorState.autoAssignByServices} onChange={(event) => setAutoAssign(event.target.checked)} /> <span>Vincular automaticamente profissionais capacitados para todos os serviços do combo.</span></label>
         {professionals && professionals.length > 0 ? <div className="professional-list">
           {professionals.map((professional) => <label className="professional-row" key={professional.publicId}>
@@ -309,7 +310,7 @@ export function ComboForm({
       </fieldset>
       </div>
       <aside className="lg:col-span-5 space-y-6 lg:sticky lg:top-6" aria-label="Resumo do combo">
-        <section className="bg-slate-900 text-white rounded-xl p-6 shadow-lg border border-slate-800 space-y-5">
+        <section className="combo-section combo-section-summary bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-5">
           <p className="combo-summary-eyebrow">Resumo financeiro</p>
           <div className="combo-summary-price">{money(String(comboPrice))}</div>
           <div className="combo-summary-metrics">
@@ -320,7 +321,7 @@ export function ComboForm({
             Economia de {money(String(savings))} · {savingsPercentage.toFixed(1)}% OFF
           </div>
         </section>
-        <section className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <section className="combo-section combo-section-preview bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
           <p className="combo-preview-title">Visualização do Cliente <span><i aria-hidden="true" /> Live Preview</span></p>
           <div className="combo-preview-image" aria-hidden="true">
             {previewImage ?? <span>Imagem do combo</span>}

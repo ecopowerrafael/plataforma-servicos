@@ -21,6 +21,7 @@ import {
   PageHeader,
   StatusBadge,
 } from '../ui/AppUi.js';
+import { IconChevronRight, IconClock, IconSearch, IconStack2 } from '@tabler/icons-react';
 import '../../styles/combos.css';
 
 export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
@@ -150,11 +151,11 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
     });
   };
   return (
-    <section aria-labelledby="combo-title" className="combo-module--redesigned combo-page-container grid grid-cols-12 gap-6">
+    <section aria-labelledby="combo-title" className="combo-module combo-page-container">
       <PageHeader
         eyebrow="Catálogo"
         title="Combos"
-        description="Agrupe serviços em ofertas fáceis de entender."
+        description="Crie experiências completas combinando serviços em uma única oferta."
         actions={
           <button className="primary-button" type="button" onClick={() => { setCreating(true); }}>
             + Novo combo
@@ -175,7 +176,6 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
             error={mutation.error instanceof Error ? mutation.error.message : null}
             services={services.data?.items ?? []}
             servicesLoading={services.isPending}
-            professionals={undefined}
             onSave={save}
           />
           <div className="form-actions combo-sticky-actions combo-create-footer">
@@ -186,21 +186,22 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
           </div>
         </div>
       )}
-      <div className="combo-catalog-panel col-span-12 lg:col-span-4">
-      <div className="platform-form combo-catalog-toolbar">
-        <label>
-          Busca
+      <div className="combo-catalog-panel">
+      <div className="combo-catalog-toolbar">
+        <label className="app-search-field combo-search">
+          <IconSearch aria-hidden="true" size={18} />
           <input
+            type="search"
             onChange={(event) => {
               setPage(1);
               setSearch(event.target.value);
             }}
-            placeholder="Nome do combo"
+            placeholder="Buscar combo..."
             value={search}
           />
         </label>
-        <label>
-          Status
+        <label className="combo-status-filter">
+          <span className="sr-only">Filtrar por status</span>
           <select
             onChange={(event) => {
               setPage(1);
@@ -226,10 +227,10 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
         />
       ) : (
         <>
-      <div className="service-catalog-list combo-catalog-list">
+      <div className="combo-grid">
             {combos.data.items.map((combo) => (
               <button
-                className={`service-catalog-row${selected === combo.publicId ? ' is-selected' : ''}`}
+                className={`combo-card${selected === combo.publicId ? ' is-selected' : ''}`}
                 key={combo.publicId}
                 onClick={() => {
                   setSelected(combo.publicId);
@@ -237,32 +238,22 @@ export function ComboModule({ tenantPublicId }: { tenantPublicId: string }) {
                 }}
                 type="button"
               >
-                <TenantServiceImage
-                  alt={combo.imageAlt ?? combo.name}
-                  kind="combos"
-                  servicePublicId={combo.publicId}
-                  tenantPublicId={tenantPublicId}
-                />
-                <span>
-                  <strong>{combo.name}</strong>
-                  <small>{`${String(combo.items.length)} serviços · ${String(combo.durationMinutes)} min`}</small>
-                </span>
-                <span>
-                  <strong>
-                    {(Number(combo.priceCents) / 100).toLocaleString('pt-BR', {
+                <span className="combo-card-image"><TenantServiceImage
+                  alt={combo.imageAlt ?? combo.name} kind="combos" servicePublicId={combo.publicId} tenantPublicId={tenantPublicId}
+                /></span>
+                <span className="combo-card-content">
+                  <span className="combo-card-heading"><strong>{combo.name}</strong><StatusBadge active={combo.active}>{combo.active ? 'Ativo' : 'Inativo'}</StatusBadge></span>
+                  <span className="combo-card-services">{combo.items.slice(0, 3).map((item) => <span className="combo-service-chip" key={item.servicePublicId}>{item.name}</span>)}{combo.items.length > 3 && <span className="combo-service-chip">+{combo.items.length - 3}</span>}</span>
+                  <span className="combo-card-meta"><span><IconStack2 aria-hidden="true" size={14} /> {combo.items.length} serviços</span><span><IconClock aria-hidden="true" size={14} /> {combo.durationMinutes} min</span></span>
+                  <span className="combo-card-footer"><strong>{(Number(combo.priceCents) / 100).toLocaleString('pt-BR', {
                       style: 'currency',
                       currency: 'BRL',
-                    })}
-                  </strong>
-                  <small className="combo-service-badges">{combo.items.map((item) => <span className="combo-service-badge" key={item.servicePublicId}>{item.name}</span>)}</small>
+                    })}</strong><span>Editar combo <IconChevronRight aria-hidden="true" size={16} /></span></span>
                 </span>
-                <StatusBadge active={combo.active}>
-                  {combo.active ? 'Ativo' : 'Inativo'}
-                </StatusBadge>
               </button>
             ))}
           </div>
-          <div className="form-actions">
+          <div className="combo-pagination">
             <button
               disabled={page <= 1}
               onClick={() => {

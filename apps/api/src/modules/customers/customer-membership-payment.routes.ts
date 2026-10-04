@@ -4,9 +4,11 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipPaymentService } from './customer-membership-payment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 
 interface Options {
   authService: AuthService;
+  cookieName: string;
   client: PrismaClient;
 }
 
@@ -17,6 +19,11 @@ export const customerMembershipPaymentRoutes: FastifyPluginAsyncZod<Options> = a
   app,
   options,
 ) => {
+  await app.register(tenantContextPlugin, {
+    authService: options.authService,
+    cookieName: options.cookieName,
+    client: options.client,
+  });
   const service = new CustomerMembershipPaymentService(options.client);
 
   app.post<{

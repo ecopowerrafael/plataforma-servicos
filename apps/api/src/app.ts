@@ -835,30 +835,37 @@ export async function buildApp(options: BuildAppOptions) {
     });
   await app.register(customerMembershipRoutes, {
     authService,
+    cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
   });
   await app.register(customerMembershipChargeRoutes, {
     authService,
+    cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
   });
   await app.register(customerMembershipChargePayLocalRoutes, {
     authService,
+    cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
   });
   await app.register(customerMembershipPaymentRoutes, {
     authService,
+    cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
   });
   await app.register(customerMembershipBenefitBalanceRoutes, {
     authService,
+    cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
   });
   await app.register(customerMembershipPlanRoutes, {
     authService,
+    cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
   });
   await app.register(customerMembershipPlanBenefitRoutes, {
     authService,
+    cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
   });
   if (options.database.serviceCategories !== undefined) {

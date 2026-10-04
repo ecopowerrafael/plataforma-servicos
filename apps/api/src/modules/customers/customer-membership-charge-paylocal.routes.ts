@@ -5,9 +5,11 @@ import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipChargeRepository } from './customer-membership-charge.repository.js';
 import { CustomerMembershipPaymentService } from './customer-membership-payment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 
 interface Options {
   authService: AuthService;
+  cookieName: string;
   client: PrismaClient;
 }
 
@@ -17,6 +19,11 @@ export const customerMembershipChargePayLocalRoutes: FastifyPluginAsyncZod<Optio
   app,
   options,
 ) => {
+  await app.register(tenantContextPlugin, {
+    authService: options.authService,
+    cookieName: options.cookieName,
+    client: options.client,
+  });
   const repository = new CustomerMembershipChargeRepository(options.client);
   const paymentService = new CustomerMembershipPaymentService(options.client);
 

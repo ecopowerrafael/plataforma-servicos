@@ -6,9 +6,11 @@ import { CustomerMembershipChargeRepository } from './customer-membership-charge
 import { CustomerMembershipChargeService } from './customer-membership-charge.service.js';
 import { CustomerMembershipPaymentService } from './customer-membership-payment.service.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 
 interface Options {
   authService: AuthService;
+  cookieName: string;
   client: PrismaClient;
 }
 
@@ -26,6 +28,11 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
   app,
   options,
 ) => {
+  await app.register(tenantContextPlugin, {
+    authService: options.authService,
+    cookieName: options.cookieName,
+    client: options.client,
+  });
   const repository = new CustomerMembershipChargeRepository(options.client);
   const service = new CustomerMembershipChargeService(repository);
   const paymentService = new CustomerMembershipPaymentService(options.client);

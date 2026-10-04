@@ -9,9 +9,11 @@ import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipPlanBenefitRepository } from './customer-membership-plan-benefit.repository.js';
 import { CustomerMembershipPlanBenefitService } from './customer-membership-plan-benefit.service.js';
 import { type AuthService } from '../auth/auth.service.js';
+import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
 
 interface Options {
   authService: AuthService;
+  cookieName: string;
   client: PrismaClient;
 }
 
@@ -22,6 +24,11 @@ export const customerMembershipPlanBenefitRoutes: FastifyPluginAsyncZod<Options>
   app,
   options,
 ) => {
+  await app.register(tenantContextPlugin, {
+    authService: options.authService,
+    cookieName: options.cookieName,
+    client: options.client,
+  });
   const repository = new CustomerMembershipPlanBenefitRepository(options.client);
   const service = new CustomerMembershipPlanBenefitService(repository);
 

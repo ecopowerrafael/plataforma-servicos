@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { type PaymentGatewayChargeStatus } from '@plataforma/shared';
 import { config } from 'dotenv';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createPrismaClient } from '../src/database/connection.js';
 import { AppointmentRepository } from '../src/modules/appointments/appointment.repository.js';
@@ -20,6 +20,7 @@ import {
 } from '../src/modules/payments/gateway/provider.js';
 import { PaymentMethodService } from '../src/modules/payments/payment-method.service.js';
 import { PaymentService } from '../src/modules/payments/payment.service.js';
+import { ProfessionalCommissionService } from '../src/modules/payments/professional-commission.service.js';
 
 config({ path: '../../.env' });
 const url = process.env.DATABASE_URL;
@@ -131,7 +132,8 @@ describe.skipIf(url === undefined)(
     registry.register(testAdapter);
     registry.register(new TestProviderAdapterNoCancel());
     const paymentMethods = new PaymentMethodService(client);
-    const cashPayments = new PaymentService(client);
+    const commissions = new ProfessionalCommissionService(client);
+    const cashPayments = new PaymentService(client, undefined, commissions);
     const gateway = new PaymentGatewayService(
       client,
       registry,
@@ -267,6 +269,7 @@ describe.skipIf(url === undefined)(
       await client.paymentGatewayCharge.deleteMany({ where: { tenantId: { in: ids } } });
       await client.paymentGatewayConfig.deleteMany({ where: { tenantId: { in: ids } } });
       await client.auditLog.deleteMany({ where: { tenantId: { in: ids } } });
+      await client.professionalCommission.deleteMany({ where: { tenantId: { in: ids } } });
       await client.payment.deleteMany({ where: { tenantId: { in: ids } } });
       await client.paymentMethod.deleteMany({ where: { tenantId: { in: ids } } });
       await client.appointmentHistoryEntry.deleteMany({ where: { tenantId: { in: ids } } });
@@ -451,6 +454,67 @@ describe.skipIf(url === undefined)(
         expect(list.items).toHaveLength(1);
         expect(list.items[0]?.amountCents).toBe('10000');
       });
+
+      it('substitui todas as charges pendentes pelo mesmo Payment e preserva pagamento parcial', async () => {
+        await gateway.upsertConfig(
+          tenantId,
+          { provider: 'test-provider', active: true, environment: 'SANDBOX', credentials: { secret: 'abc123' } },
+          actor,
+        );
+        const appointment = await appointments.create(tenantId, input(start), actor);
+        const first = await gateway.createCharge(tenantId, appointment.publicId, 'test-provider', {
+          amountCents: 4_000, currency: 'BRL', idempotencyKey: randomUUID(), kind: 'PAYMENT' as const,
+        }, actor);
+        const second = await gateway.createCharge(tenantId, appointment.publicId, 'test-provider', {
+          amountCents: 6_000, currency: 'BRL', idempotencyKey: randomUUID(), kind: 'PAYMENT' as const,
+        }, actor);
+        const methods = await paymentMethods.list(tenantId);
+        const cash = methods.items.find((method) => method.type === 'CASH');
+        if (cash === undefined) throw new Error('Forma de pagamento CASH não provisionada.');
+
+        const payment = await gateway.createManualPayment(tenantId, appointment.publicId, {
+          paymentMethodPublicId: cash.publicId, kind: 'PAYMENT', amountCents: 4_000,
+        }, actor);
+        const persistedAppointment = await client.appointment.findFirstOrThrow({ where: { tenantId, publicId: appointment.publicId } });
+        const charges = await client.paymentGatewayCharge.findMany({ where: { tenantId, appointmentId: persistedAppointment.id }, orderBy: { createdAt: 'asc' } });
+        expect(payment.amountCents).toBe('4000');
+        expect(charges.map((charge) => charge.publicId)).toEqual([first.publicId, second.publicId]);
+        expect(charges.every((charge) => charge.supersededByPaymentId !== null)).toBe(true);
+        expect(new Set(charges.map((charge) => charge.supersededByPaymentId)).size).toBe(1);
+        await expect(cashPayments.create(tenantId, appointment.publicId, {
+          paymentMethodPublicId: cash.publicId, kind: 'PAYMENT', amountCents: 12_000,
+        }, actor)).rejects.toMatchObject({ code: 'PAYMENT_EXCEEDS_APPOINTMENT_PRICE' });
+      });
+
+      it('faz rollback de Payment, comissão, superseding e auditoria quando o superseding falha', async () => {
+        await gateway.upsertConfig(
+          tenantId,
+          { provider: 'test-provider', active: true, environment: 'SANDBOX', credentials: { secret: 'abc123' } },
+          actor,
+        );
+        const appointment = await appointments.create(tenantId, input(start), actor);
+        const charge = await gateway.createCharge(tenantId, appointment.publicId, 'test-provider', {
+          amountCents: 4_000, currency: 'BRL', idempotencyKey: randomUUID(), kind: 'PAYMENT' as const,
+        }, actor);
+        const methods = await paymentMethods.list(tenantId);
+        const cash = methods.items.find((method) => method.type === 'CASH');
+        if (cash === undefined) throw new Error('Forma de pagamento CASH não provisionada.');
+
+        const supersede = vi.spyOn(gateway as unknown as { supersedeCharges: () => Promise<void> }, 'supersedeCharges')
+          .mockRejectedValue(new Error('falha simulada no superseding'));
+        await expect(gateway.createManualPayment(tenantId, appointment.publicId, {
+          paymentMethodPublicId: cash.publicId, kind: 'PAYMENT', amountCents: 4_000,
+        }, actor)).rejects.toThrow('falha simulada no superseding');
+        supersede.mockRestore();
+
+        const persistedAppointment = await client.appointment.findFirstOrThrow({ where: { tenantId, publicId: appointment.publicId } });
+        expect(await client.payment.count({ where: { tenantId, appointmentId: persistedAppointment.id } })).toBe(0);
+        expect(await client.professionalCommission.count({ where: { tenantId, appointmentId: persistedAppointment.id } })).toBe(0);
+        expect(await client.auditLog.count({ where: { tenantId, action: { in: ['payment.registered', 'payment.deposit_registered', 'commission.generated'] } } })).toBe(0);
+        const persistedCharge = await client.paymentGatewayCharge.findFirstOrThrow({ where: { tenantId, publicId: charge.publicId } });
+        expect(persistedCharge.supersededAt).toBeNull();
+        expect(persistedCharge.supersededByPaymentId).toBeNull();
+      });
     });
 
     describe('cancelamento de cobrança', () => {
@@ -571,6 +635,55 @@ describe.skipIf(url === undefined)(
 
         const list = await cashPayments.listForAppointment(tenantId, appointment.publicId);
         expect(list.items).toHaveLength(1);
+      });
+
+      it('ignora webhook PAID tardio de charge superseded', async () => {
+        await gateway.upsertConfig(tenantId, {
+          provider: 'test-provider', active: true, environment: 'SANDBOX', credentials: { secret: 'abc123' },
+        }, actor);
+        const appointment = await appointments.create(tenantId, input(start), actor);
+        const created = await gateway.createCharge(tenantId, appointment.publicId, 'test-provider', {
+          amountCents: 4_000, currency: 'BRL', idempotencyKey: randomUUID(), kind: 'PAYMENT' as const,
+        }, actor);
+        const methods = await paymentMethods.list(tenantId);
+        const cash = methods.items.find((method) => method.type === 'CASH');
+        if (cash === undefined) throw new Error('Forma de pagamento CASH não provisionada.');
+        const payment = await cashPayments.create(tenantId, appointment.publicId, {
+          paymentMethodPublicId: cash.publicId, kind: 'PAYMENT', amountCents: 4_000,
+        }, actor);
+        const persistedPayment = await client.payment.findFirstOrThrow({ where: { tenantId, publicId: payment.publicId } });
+        await client.paymentGatewayCharge.update({ where: { publicId: created.publicId }, data: { supersededAt: new Date(), supersededByPaymentId: persistedPayment.id } });
+
+        const result = await gateway.handleWebhook(tenantPublicId, 'test-provider', JSON.stringify({
+          externalEventId: randomUUID(), externalId: created.externalId, status: 'PAID',
+        }), { 'x-signature': 'abc123' });
+        expect(result).toEqual({ deduplicated: false, matched: true });
+        expect(await client.payment.count({ where: { tenantId, appointmentId: persistedPayment.appointmentId } })).toBe(1);
+        expect((await gateway.getCharge(tenantId, created.publicId, false)).paymentPublicId).toBeNull();
+      });
+
+      it('ignora refresh PAID tardio de charge superseded', async () => {
+        await gateway.upsertConfig(tenantId, {
+          provider: 'test-provider', active: true, environment: 'SANDBOX', credentials: { secret: 'abc123' },
+        }, actor);
+        const appointment = await appointments.create(tenantId, input(start), actor);
+        const created = await gateway.createCharge(tenantId, appointment.publicId, 'test-provider', {
+          amountCents: 4_000, currency: 'BRL', idempotencyKey: randomUUID(), kind: 'PAYMENT' as const,
+        }, actor);
+        const methods = await paymentMethods.list(tenantId);
+        const cash = methods.items.find((method) => method.type === 'CASH');
+        if (cash === undefined) throw new Error('Forma de pagamento CASH não provisionada.');
+        const payment = await cashPayments.create(tenantId, appointment.publicId, {
+          paymentMethodPublicId: cash.publicId, kind: 'PAYMENT', amountCents: 4_000,
+        }, actor);
+        const persistedPayment = await client.payment.findFirstOrThrow({ where: { tenantId, publicId: payment.publicId } });
+        await client.paymentGatewayCharge.update({ where: { publicId: created.publicId }, data: { supersededAt: new Date(), supersededByPaymentId: persistedPayment.id } });
+        testAdapter.nextStatus = 'PAID';
+
+        const refreshed = await gateway.getCharge(tenantId, created.publicId, true);
+        expect(refreshed.status).toBe('PAID');
+        expect(refreshed.paymentPublicId).toBeNull();
+        expect(await client.payment.count({ where: { tenantId, appointmentId: persistedPayment.appointmentId } })).toBe(1);
       });
 
       it('rejeita webhook com assinatura inválida', async () => {

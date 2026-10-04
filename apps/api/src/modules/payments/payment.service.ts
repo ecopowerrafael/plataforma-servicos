@@ -12,7 +12,7 @@ import { type CouponService } from './coupon.service.js';
 import { type LoyaltyService } from './loyalty.service.js';
 import { type ProfessionalCommissionService } from './professional-commission.service.js';
 import { syncAppointmentDebtBalance } from '../collections/debt-balance.js';
-import { type Payment, type PrismaClient } from '../../database-client/client.js';
+import { Prisma, type Payment, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 
 interface Actor {
@@ -46,6 +46,10 @@ export class PaymentService {
     private readonly loyalty?: LoyaltyService,
   ) {}
 
+  public withinTransaction(tx: Prisma.TransactionClient) {
+    return new PaymentService(tx as unknown as PrismaClient, this.cashRegisters, this.commissions, this.coupons, this.loyalty);
+  }
+
   private async totalDiscountForAppointment(tenantId: bigint, appointmentId: bigint) {
     const [couponDiscount, loyaltyDiscount] = await Promise.all([
       this.coupons?.discountForAppointment(tenantId, appointmentId) ?? Promise.resolve(0n),
@@ -61,6 +65,22 @@ export class PaymentService {
     actor: Actor,
     options?: { supersededGatewayChargeId?: bigint },
   ) {
+    const result = await this.client.$transaction((tx) =>
+      new PaymentService(tx as unknown as PrismaClient, this.cashRegisters, this.commissions, this.coupons, this.loyalty)
+        .createPaymentCoreWithinTransaction(tenantId, appointmentPublicId, input, actor, { ...options, deferDerivedEffects: true }),
+    );
+    await this.runPostCommitEffects(tenantId, appointmentPublicId, result.publicId, actor);
+    return result;
+  }
+
+  public async createPaymentCoreWithinTransaction(
+    tenantId: bigint,
+    appointmentPublicId: string,
+    input: CreatePaymentRequest,
+    actor: Actor,
+    options?: { supersededGatewayChargeId?: bigint; deferDerivedEffects?: boolean },
+  ) {
+    const appointmentRows = await this.client.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`SELECT id FROM appointments WHERE tenant_id = ${tenantId} AND public_id = ${appointmentPublicId} FOR UPDATE`);
     const appointment = await this.client.appointment.findFirst({
       where: { tenantId, publicId: appointmentPublicId },
       select: {
@@ -74,7 +94,7 @@ export class PaymentService {
         chargeSource: true,
       },
     });
-    if (appointment === null) throw this.appointmentNotFound();
+    if (appointment === null || appointmentRows.length === 0) throw this.appointmentNotFound();
     if (appointment.status === 'CANCELED')
       throw new AppError({
         code: 'PAYMENT_NOT_ALLOWED_FOR_CANCELED_APPOINTMENT',
@@ -82,7 +102,21 @@ export class PaymentService {
         statusCode: 409,
       });
 
-    const pendingGatewayCharge = await this.client.paymentGatewayCharge.findFirst({
+    const lockedCharges = await this.client.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+      SELECT status
+      FROM payment_gateway_charges
+      WHERE tenant_id = ${tenantId} AND appointment_id = ${appointment.id}
+        AND status IN ('PENDING', 'PROCESSING', 'PAID') AND superseded_at IS NULL
+      FOR UPDATE
+    `);
+    if (lockedCharges.some((charge) => charge.status === 'PAID') && options?.supersededGatewayChargeId === undefined)
+      throw new AppError({
+        code: 'PAYMENT_GATEWAY_CHARGE_ALREADY_PAID',
+        message: 'Já existe uma cobrança online paga para este agendamento.',
+        statusCode: 409,
+      });
+
+    const pendingGatewayCharges = await this.client.paymentGatewayCharge.findMany({
       where: {
         tenantId,
         appointmentId: appointment.id,
@@ -92,9 +126,9 @@ export class PaymentService {
             ? [{ supersededAt: null }]
             : [{ supersededAt: null }, { id: options.supersededGatewayChargeId }],
       },
-      select: { id: true },
+      select: { id: true }, orderBy: { id: 'asc' },
     });
-    if (pendingGatewayCharge !== null)
+    if (pendingGatewayCharges.length > 0 && options?.supersededGatewayChargeId === undefined)
       throw new AppError({
         code: 'PAYMENT_MANUAL_REGISTRATION_BLOCKED_BY_GATEWAY',
         message: 'Há uma cobrança online pendente para este agendamento.',
@@ -165,7 +199,7 @@ export class PaymentService {
         targetPublicId: payment.publicId,
       },
     });
-    await this.cashRegisters?.recordPayment(
+    if (options?.deferDerivedEffects !== true) await this.cashRegisters?.recordPayment(
       tenantId,
       appointment.unitId,
       { id: payment.id, amountCents: payment.amountCents },
@@ -181,16 +215,43 @@ export class PaymentService {
         chargeSource: appointment.chargeSource,
       },
       actor,
+      this.client,
     );
-    if (input.kind === 'PAYMENT')
+    if (options?.deferDerivedEffects !== true && input.kind === 'PAYMENT')
       await this.loyalty?.recordForPayment(
         tenantId,
         { id: payment.id, amountCents: payment.amountCents },
         appointment.customerId,
         actor,
       );
-    await this.syncDebtBalance(tenantId, appointment.id, 'PAYMENT_CREATED');
+    if (options?.deferDerivedEffects !== true) await this.syncDebtBalance(tenantId, appointment.id, 'PAYMENT_CREATED');
     return pub(payment, appointmentPublicId);
+  }
+
+  public async runPostCommitEffects(tenantId: bigint, appointmentPublicId: string, paymentPublicId: string, actor: Actor) {
+    const payment = await this.client.payment.findFirst({
+      where: { tenantId, publicId: paymentPublicId },
+      select: { id: true, amountCents: true, appointmentId: true, kind: true },
+    });
+    const appointment = await this.client.appointment.findFirst({
+      where: { tenantId, publicId: appointmentPublicId },
+      select: { id: true, unitId: true, customerId: true },
+    });
+    if (payment === null || appointment === null) return;
+    try {
+      await this.cashRegisters?.recordPayment(tenantId, appointment.unitId, { id: payment.id, amountCents: payment.amountCents }, actor);
+    } catch (error) {
+      console.error('Falha ao registrar o movimento de caixa pós-pagamento:', error);
+    }
+    if (payment.appointmentId !== null) {
+      try {
+        if (payment.kind === 'PAYMENT')
+          await this.loyalty?.recordForPayment(tenantId, { id: payment.id, amountCents: payment.amountCents }, appointment.customerId, actor);
+      } catch (error) {
+        console.error('Falha ao registrar loyalty pós-pagamento:', error);
+      }
+      await this.syncDebtBalance(tenantId, payment.appointmentId, 'PAYMENT_CREATED');
+    }
   }
 
   public async cancel(

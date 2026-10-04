@@ -571,7 +571,7 @@ export class PaymentGatewayService {
     });
     if (appointment === null) return this.payments.create(tenantId, appointmentPublicId, input, actor);
 
-    const charge = await this.client.paymentGatewayCharge.findFirst({
+    const charges = await this.client.paymentGatewayCharge.findMany({
       where: {
         tenantId,
         appointmentId: appointment.id,
@@ -580,43 +580,77 @@ export class PaymentGatewayService {
       },
       orderBy: { createdAt: 'asc' },
     });
-    if (charge === null) return this.payments.create(tenantId, appointmentPublicId, input, actor);
+    if (charges.length === 0) return this.payments.create(tenantId, appointmentPublicId, input, actor);
 
-    try {
-      await this.cancelCharge(tenantId, charge.publicId, 'Substituída por pagamento manual.', actor);
-    } catch (error) {
-      await this.client.auditLog.create({
-        data: {
-          publicId: randomUUID(),
-          tenantId,
-          userId: actor.userId,
-          sessionId: actor.sessionId,
-          action: 'payment_gateway.charge_cancel_failed_manual_substitution',
-          targetType: 'payment_gateway_charge',
-          targetPublicId: charge.publicId,
-          metadata: { error: error instanceof Error ? error.message : 'Erro desconhecido.' },
-        },
+    const payment = await this.client.$transaction(async (tx) => {
+      const lockedRows = await tx.$queryRaw<Array<{ id: bigint; status: string; superseded_at: Date | null }>>(Prisma.sql`
+        SELECT id, status, superseded_at
+        FROM payment_gateway_charges
+        WHERE tenant_id = ${tenantId} AND appointment_id = ${appointment.id}
+          AND status IN ('PENDING', 'PROCESSING', 'PAID') AND superseded_at IS NULL
+        FOR UPDATE
+      `);
+      if (lockedRows.some((row) => row.status === 'PAID'))
+        throw new AppError({
+          code: 'PAYMENT_GATEWAY_CHARGE_ALREADY_PAID',
+          message: 'Já existe uma cobrança online paga para este agendamento.',
+          statusCode: 409,
+        });
+      const lockedCharges = await tx.paymentGatewayCharge.findMany({
+        where: { tenantId, appointmentId: appointment.id, status: { in: ['PENDING', 'PROCESSING'] }, supersededAt: null },
+        orderBy: { createdAt: 'asc' },
       });
+      if (lockedCharges.length === 0)
+        return this.payments.withinTransaction(tx).createPaymentCoreWithinTransaction(
+          tenantId,
+          appointmentPublicId,
+          input,
+          actor,
+          { deferDerivedEffects: true },
+        );
+      const payment = await this.payments.withinTransaction(tx).createPaymentCoreWithinTransaction(
+        tenantId,
+        appointmentPublicId,
+        input,
+        actor,
+        { supersededGatewayChargeId: lockedCharges[0].id },
+      );
+      const paymentRecord = await tx.payment.findFirst({ where: { tenantId, publicId: payment.publicId }, select: { id: true } });
+      if (paymentRecord === null) throw new Error('Pagamento criado sem registro persistido.');
+      await this.supersedeCharges(tx, lockedCharges.map((charge) => charge.id), paymentRecord.id);
+      return payment;
+    });
+    await this.payments.runPostCommitEffects(tenantId, appointmentPublicId, payment.publicId, actor);
+    for (const charge of charges) {
+      try {
+        await this.cancelCharge(tenantId, charge.publicId, 'Substituída por pagamento manual.', actor);
+      } catch (error) {
+        await this.client.auditLog.create({
+          data: {
+            publicId: randomUUID(),
+            tenantId,
+            userId: actor.userId,
+            sessionId: actor.sessionId,
+            action: 'payment_gateway.charge_cancel_failed_manual_substitution',
+            targetType: 'payment_gateway_charge',
+            targetPublicId: charge.publicId,
+            metadata: { error: error instanceof Error ? error.message : 'Erro desconhecido.' },
+          },
+        });
+      }
     }
-
-    const payment = await this.payments.create(
-      tenantId,
-      appointmentPublicId,
-      input,
-      actor,
-      { supersededGatewayChargeId: charge.id },
-    );
-    const paymentRecord = await this.client.payment.findFirst({
-      where: { tenantId, publicId: payment.publicId },
-      select: { id: true },
-    });
-    if (paymentRecord === null) throw new Error('Pagamento criado sem registro persistido.');
-
-    await this.client.paymentGatewayCharge.update({
-      where: { id: charge.id },
-      data: { supersededAt: new Date(), supersededByPaymentId: paymentRecord.id },
-    });
     return payment;
+  }
+
+  protected async supersedeCharges(
+    tx: Prisma.TransactionClient,
+    chargeIds: bigint[],
+    paymentId: bigint,
+  ) {
+    await tx.paymentGatewayCharge.updateMany({
+      where: { id: { in: chargeIds }, supersededAt: null },
+      data: { supersededAt: new Date(), supersededByPaymentId: paymentId },
+    });
   }
 
   /**

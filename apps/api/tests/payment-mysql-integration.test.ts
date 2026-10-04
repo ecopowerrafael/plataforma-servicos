@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { config } from 'dotenv';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createPrismaClient } from '../src/database/connection.js';
 import { AppointmentRepository } from '../src/modules/appointments/appointment.repository.js';
@@ -12,12 +11,16 @@ import { PaymentMethodService } from '../src/modules/payments/payment-method.ser
 import { PaymentService } from '../src/modules/payments/payment.service.js';
 import { TenantCommercialPolicyService } from '../src/modules/platform/tenant-commercial-policy.service.js';
 
-config({ path: '../../.env' });
-const url = process.env.DATABASE_URL;
+const url = process.env.TEST_DATABASE_URL;
+if (!url) throw new Error('TEST_DATABASE_URL é obrigatória para este teste.');
 let actor = { userId: 1n, sessionId: 1n };
 
-describe.skipIf(url === undefined)('pagamentos de agendamentos (Etapa 14) com MySQL local', () => {
+describe('pagamentos de agendamentos (Etapa 14) com MySQL local', () => {
   const client = createPrismaClient(url ?? 'mysql://invalid');
+  beforeAll(async () => {
+    const rows = await client.$queryRaw<Array<{ db: string }>>`SELECT DATABASE() AS db`;
+    if (rows[0]?.db !== 'u891593158_teste') throw new Error('Refusing to run integration tests against non-test database.');
+  });
   const appointments = new AppointmentService(
     new AppointmentRepository(client),
     new AvailabilityService(new AvailabilityRepository(client)),

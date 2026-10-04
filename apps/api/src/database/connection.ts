@@ -39,6 +39,7 @@ import { CustomerRecoveryService } from '../modules/customers/customer-recovery.
 import { CustomerRepository } from '../modules/customers/customer.repository.js';
 import { CustomerService } from '../modules/customers/customer.service.js';
 import { CustomerMembershipUsageService } from '../modules/customers/customer-membership-usage.service.js';
+import { CustomerMembershipPaymentService } from '../modules/customers/customer-membership-payment.service.js';
 import {
   WApiWhatsAppDelivery,
   WebhookDelivery,
@@ -490,6 +491,7 @@ export function createDatabaseConnection(
   const paymentPromises = new PaymentPromiseService(client, debts);
   const paymentMethods = new PaymentMethodService(client);
   const payments = new PaymentService(client, cashRegisters, commissions, coupons, loyalty);
+  const membershipPayments = new CustomerMembershipPaymentService(client);
   const paymentGatewayRegistry = new PaymentGatewayProviderRegistry();
   paymentGatewayRegistry.register(new PixLocalProviderAdapter());
   paymentGatewayRegistry.register(new MercadoPagoProviderAdapter(new FetchHttpClient()));
@@ -511,6 +513,7 @@ export function createDatabaseConnection(
     paymentMethods,
     payments,
     debtPixPayments,
+    membershipPayments,
   );
   const collectionAttemptExecution = new CollectionAttemptExecutionService(
     client,

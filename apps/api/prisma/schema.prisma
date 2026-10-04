@@ -2705,6 +2705,7 @@ model PaymentGatewayConfig {
 enum PaymentGatewayChargeOrigin {
   APPOINTMENT
   DEBT
+  MEMBERSHIP_CHARGE
 }
 
 model PaymentGatewayCharge {
@@ -2714,6 +2715,7 @@ model PaymentGatewayCharge {
   originType     PaymentGatewayChargeOrigin @default(APPOINTMENT) @map("origin_type")
   appointmentId  BigInt?                    @map("appointment_id") @db.UnsignedBigInt
   debtId         BigInt?                    @map("debt_id") @db.UnsignedBigInt
+  membershipChargeId BigInt?               @map("membership_charge_id") @db.UnsignedBigInt
   paymentId      BigInt?                    @unique @map("payment_id") @db.UnsignedBigInt
   provider       String                     @db.VarChar(64)
   environment    PaymentGatewayEnvironment
@@ -2738,6 +2740,7 @@ model PaymentGatewayCharge {
   tenant         Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   appointment    Appointment?               @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   debt           Debt?                      @relation(fields: [debtId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membershipCharge CustomerMembershipCharge? @relation(fields: [membershipChargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payment        Payment?                   @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   supersededByPayment Payment?              @relation("PaymentGatewayChargeSupersededBy", fields: [supersededByPaymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   events         PaymentGatewayEvent[]
@@ -2745,6 +2748,7 @@ model PaymentGatewayCharge {
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, appointmentId])
   @@index([tenantId, debtId])
+  @@index([tenantId, membershipChargeId])
   @@index([tenantId, status])
   @@index([tenantId, provider, externalId])
   @@index([tenantId, supersededAt])
@@ -3543,6 +3547,7 @@ model CustomerMembershipCharge {
   tenant         Tenant                            @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   membership     CustomerMembership                @relation(fields: [membershipId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payments       Payment[]                         @relation("PaymentToMembershipCharge")
+  gatewayCharges PaymentGatewayCharge[]
   usages         CustomerMembershipUsage[]
 
   @@unique([membershipId, periodStart])

@@ -14,6 +14,7 @@
     "test:unit": "vitest run --config ./vitest.config.ts --pool=threads --no-file-parallelism --maxWorkers=1 --exclude '**/tests/**' --exclude '**/*integration*' --exclude '**/*.contract.test.ts'",
     "test:contract": "vitest run --config ./vitest.config.ts --pool=threads --no-file-parallelism --maxWorkers=1 --include '**/*.contract.test.ts'",
     "test:integration:local": "vitest run --config ./vitest.config.ts --pool=threads --no-file-parallelism --maxWorkers=1 --include '**/*integration*.test.ts' --include '**/*mysql-integration*.test.ts'",
+    "test:integration:mysql": "vitest run --config ./vitest.integration.config.ts --pool=forks --no-file-parallelism --maxWorkers=1",
     "test:critical": "vitest run --config ./vitest.config.ts --pool=threads --no-file-parallelism --maxWorkers=1 --reporter=dot src/modules/auth/auth-startup.test.ts src/modules/integrations/whatsapp-connection.service.test.ts src/modules/integrations/whatsapp-inbound.test.ts src/modules/integrations/whatsapp-provider-persistence.test.ts src/modules/prospecting/prospecting-inbound.test.ts src/modules/payments/payment-origin-validator.test.ts src/modules/tenants/plan-entitlement.service.test.ts",
     "test:all": "vitest run --config ./vitest.config.ts",
     "db:generate": "prisma generate --config prisma-v2/prisma.config.ts",

@@ -16,6 +16,7 @@ import { type AuthService } from '../../auth/auth.service.js';
 import { tenantContextPlugin } from '../../tenants/tenant-context.plugin.js';
 
 const appointmentParams = z.object({ publicId: z.uuid() });
+const membershipChargeParams = z.object({ publicId: z.uuid() });
 const chargeParams = z.object({ publicId: z.uuid() });
 const refreshQuery = z.object({ refresh: z.enum(['true', 'false']).optional() });
 
@@ -78,6 +79,16 @@ export const paymentGatewayRoutes: FastifyPluginAsyncZod<{
         r.body,
         actor(r),
       );
+      return reply.status(201).send(created);
+    },
+  );
+
+  app.post(
+    '/tenant/customer-membership-charges/:publicId/gateway-charges',
+    { schema: { params: membershipChargeParams, querystring: GatewayConfigQuerySchema, response: { 201: PaymentGatewayChargePublicSchema } } },
+    async (r, reply) => {
+      o.authService.requirePermission(r.tenant, 'payment.manage');
+      const created = await o.service.createMembershipCharge(r.tenant.id, r.params.publicId, r.query.provider, actor(r));
       return reply.status(201).send(created);
     },
   );

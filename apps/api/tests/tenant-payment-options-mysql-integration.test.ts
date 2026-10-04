@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { config } from 'dotenv';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createPrismaClient } from '../src/database/connection.js';
 import { AppointmentRepository } from '../src/modules/appointments/appointment.repository.js';
@@ -21,10 +20,11 @@ import { PaymentGatewayProviderRegistry } from '../src/modules/payments/gateway/
 import { TenantPaymentOptionsService } from '../src/modules/payments/gateway/tenant-payment-options.service.js';
 import { PaymentMethodService } from '../src/modules/payments/payment-method.service.js';
 import { PaymentService } from '../src/modules/payments/payment.service.js';
+import { TenantCommercialPolicyService } from '../src/modules/platform/tenant-commercial-policy.service.js';
 import { TenantWhiteLabelRepository } from '../src/modules/tenants/tenant-white-label.repository.js';
 
-config({ path: '../../.env' });
-const url = process.env.DATABASE_URL;
+const url = process.env.TEST_DATABASE_URL;
+if (!url) throw new Error('TEST_DATABASE_URL é obrigatória para este teste.');
 
 /**
  * HttpClient fake para o Mercado Pago: nenhuma chamada de rede real ocorre nesta suíte.
@@ -62,10 +62,14 @@ class FakeMercadoPagoHttpClient implements HttpClient {
   }
 }
 
-describe.skipIf(url === undefined)(
+describe(
   'meios de pagamento reais por tenant (Etapa 14) com MySQL local',
   () => {
     const client = createPrismaClient(url ?? 'mysql://invalid');
+    beforeAll(async () => {
+      const rows = await client.$queryRaw<Array<{ db: string }>>`SELECT DATABASE() AS db`;
+      if (rows[0]?.db !== 'u891593158_teste') throw new Error('Refusing to run integration tests against non-test database.');
+    });
     const cipher = new CredentialsCipher(
       '807d15aaaa7796bd7ca1d604c597cc077b854680fa938e9328edcaf498d95edb',
     );
@@ -86,12 +90,16 @@ describe.skipIf(url === undefined)(
     const appointments = new AppointmentService(
       new AppointmentRepository(client),
       new AvailabilityService(new AvailabilityRepository(client)),
+      client,
+      new TenantCommercialPolicyService(client),
+      client,
     );
 
     const suffix = randomUUID().slice(0, 8);
     let tenantId: bigint;
     let tenantSlug: string;
     let otherTenantId: bigint;
+    let planIds: bigint[] = [];
     let customerId = '';
     let professionalId = '';
     let serviceId = '';
@@ -165,6 +173,24 @@ describe.skipIf(url === undefined)(
       tenantId = tenant.id;
       tenantSlug = slug;
       otherTenantId = other.id;
+      planIds = [];
+      for (const provisionedTenantId of [tenant.id, other.id]) {
+        const plan = await client.commercialPlan.create({
+          data: {
+            publicId: randomUUID(),
+            code: `TPO_TEST_${suffix}_${provisionedTenantId}`,
+            name: 'Plano TPO teste',
+            status: 'ACTIVE',
+            billingCycle: 'MONTHLY',
+            priceCents: 0n,
+            currency: 'BRL',
+            limits: { create: [{ key: 'monthly_appointments.max', valueType: 'INTEGER', integerValue: 1000n }, { key: 'commissions.enabled', valueType: 'BOOLEAN', booleanValue: true }] },
+          },
+        });
+        planIds.push(plan.id);
+        const now = new Date();
+        await client.tenantSubscription.create({ data: { publicId: randomUUID(), tenantId: provisionedTenantId, planId: plan.id, status: 'ACTIVE', effectiveKey: 'EFFECTIVE', startsAt: now, currentPeriodStartsAt: now, currentPeriodEndsAt: new Date(now.getTime() + 31 * 86_400_000), priceCents: 0n, currency: 'BRL', billingCycle: 'MONTHLY' } });
+      }
 
       const [customer, professional, catalog] = await Promise.all([
         client.customer.create({ data: { publicId: randomUUID(), tenantId, name: 'Ana Silva' } }),
@@ -231,7 +257,10 @@ describe.skipIf(url === undefined)(
       await client.service.deleteMany({ where: { tenantId: { in: ids } } });
       await client.professional.deleteMany({ where: { tenantId: { in: ids } } });
       await client.tenantSettings.deleteMany({ where: { tenantId: { in: ids } } });
+      await client.tenantSubscription.deleteMany({ where: { tenantId: { in: ids } } });
       await client.tenant.deleteMany({ where: { id: { in: ids } } });
+      await client.planLimit.deleteMany({ where: { planId: { in: planIds } } });
+      await client.commercialPlan.deleteMany({ where: { id: { in: planIds } } });
       await client.userSession.deleteMany({ where: { userId } });
       await client.user.deleteMany({ where: { id: userId } });
     });

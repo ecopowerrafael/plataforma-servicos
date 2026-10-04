@@ -21,6 +21,7 @@ import {
 import { PaymentMethodService } from '../src/modules/payments/payment-method.service.js';
 import { PaymentService } from '../src/modules/payments/payment.service.js';
 import { ProfessionalCommissionService } from '../src/modules/payments/professional-commission.service.js';
+import { TenantCommercialPolicyService } from '../src/modules/platform/tenant-commercial-policy.service.js';
 
 config({ path: '../../.env' });
 const url = process.env.DATABASE_URL;
@@ -144,11 +145,15 @@ describe.skipIf(url === undefined)(
     const appointments = new AppointmentService(
       new AppointmentRepository(client),
       new AvailabilityService(new AvailabilityRepository(client)),
+      client,
+      new TenantCommercialPolicyService(client),
+      client,
     );
     const suffix = randomUUID().slice(0, 8);
     let tenantId: bigint;
     let tenantPublicId: string;
     let otherTenantId: bigint;
+    let planIds: bigint[] = [];
     let customerId = '';
     let professionalId = '';
     let serviceId = '';
@@ -213,6 +218,34 @@ describe.skipIf(url === undefined)(
       tenantId = tenant.id;
       tenantPublicId = tenant.publicId;
       otherTenantId = other.id;
+      planIds = [];
+      for (const provisionedTenantId of [tenant.id, other.id]) {
+        const plan = await client.commercialPlan.create({
+          data: {
+            publicId: randomUUID(),
+            code: `GATEWAY_TEST_${suffix}_${provisionedTenantId}`,
+            name: 'Plano de teste de gateway',
+            status: 'ACTIVE',
+            billingCycle: 'MONTHLY',
+            priceCents: 0n,
+            currency: 'BRL',
+            limits: { create: [
+              { key: 'monthly_appointments.max', valueType: 'INTEGER', integerValue: 1000n },
+              { key: 'commissions.enabled', valueType: 'BOOLEAN', booleanValue: true },
+            ] },
+          },
+        });
+        planIds.push(plan.id);
+        const now = new Date();
+        await client.tenantSubscription.create({
+          data: {
+            publicId: randomUUID(), tenantId: provisionedTenantId, planId: plan.id, status: 'ACTIVE',
+            effectiveKey: 'EFFECTIVE', startsAt: now, currentPeriodStartsAt: now,
+            currentPeriodEndsAt: new Date(now.getTime() + 31 * 86_400_000), priceCents: 0n,
+            currency: 'BRL', billingCycle: 'MONTHLY',
+          },
+        });
+      }
 
       const [customer, professional, catalog] = await Promise.all([
         client.customer.create({ data: { publicId: randomUUID(), tenantId, name: 'Ana Silva' } }),
@@ -279,7 +312,10 @@ describe.skipIf(url === undefined)(
       await client.customer.deleteMany({ where: { tenantId: { in: ids } } });
       await client.service.deleteMany({ where: { tenantId: { in: ids } } });
       await client.professional.deleteMany({ where: { tenantId: { in: ids } } });
+      await client.tenantSubscription.deleteMany({ where: { tenantId: { in: ids } } });
       await client.tenant.deleteMany({ where: { id: { in: ids } } });
+      await client.planLimit.deleteMany({ where: { planId: { in: planIds } } });
+      await client.commercialPlan.deleteMany({ where: { id: { in: planIds } } });
       await client.userSession.deleteMany({ where: { userId } });
       await client.user.deleteMany({ where: { id: userId } });
     });
@@ -648,7 +684,7 @@ describe.skipIf(url === undefined)(
         const methods = await paymentMethods.list(tenantId);
         const cash = methods.items.find((method) => method.type === 'CASH');
         if (cash === undefined) throw new Error('Forma de pagamento CASH não provisionada.');
-        const payment = await cashPayments.create(tenantId, appointment.publicId, {
+        const payment = await gateway.createManualPayment(tenantId, appointment.publicId, {
           paymentMethodPublicId: cash.publicId, kind: 'PAYMENT', amountCents: 4_000,
         }, actor);
         const persistedPayment = await client.payment.findFirstOrThrow({ where: { tenantId, publicId: payment.publicId } });
@@ -673,7 +709,7 @@ describe.skipIf(url === undefined)(
         const methods = await paymentMethods.list(tenantId);
         const cash = methods.items.find((method) => method.type === 'CASH');
         if (cash === undefined) throw new Error('Forma de pagamento CASH não provisionada.');
-        const payment = await cashPayments.create(tenantId, appointment.publicId, {
+        const payment = await gateway.createManualPayment(tenantId, appointment.publicId, {
           paymentMethodPublicId: cash.publicId, kind: 'PAYMENT', amountCents: 4_000,
         }, actor);
         const persistedPayment = await client.payment.findFirstOrThrow({ where: { tenantId, publicId: payment.publicId } });

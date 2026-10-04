@@ -832,6 +832,7 @@ export class PaymentGatewayService {
         notes: `Pago via gateway ${charge.provider}${charge.externalId === null ? '' : ` (${charge.externalId})`}.`,
       },
       actor,
+      { supersededGatewayChargeId: charge.id },
     );
 
     const paymentRecord = await this.client.payment.findFirst({

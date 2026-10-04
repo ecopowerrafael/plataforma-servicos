@@ -192,9 +192,18 @@ describe('PaymentGatewayService.handleWebhook — roteamento por originType', ()
       paymentGatewayConfig: { findFirst: vi.fn().mockResolvedValue(activeConfig()), findMany: vi.fn() },
       paymentGatewayEvent: { create: vi.fn().mockResolvedValue({}), findFirst: vi.fn().mockResolvedValue(null) },
       paymentGatewayCharge: {
-        findFirst: vi.fn().mockResolvedValue({ id: 900n, originType: 'DEBT', paymentId: null }),
+        findFirst: vi.fn().mockResolvedValue({ id: 900n, originType: 'DEBT', paymentId: null, supersededAt: null }),
         create: vi.fn(),
-        update: vi.fn().mockResolvedValue({ id: 900n, originType: 'DEBT', paymentId: null, status: 'PAID' }),
+        update: vi.fn().mockResolvedValue({
+          id: 900n,
+          originType: 'DEBT',
+          paymentId: null,
+          supersededAt: null,
+          status: 'PAID',
+          appointment: null,
+          debt: { publicId: 'debt-public-id' },
+          payment: null,
+        }),
       },
     });
     const payments = mockPayments();

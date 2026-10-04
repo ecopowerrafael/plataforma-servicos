@@ -10,6 +10,7 @@ import { AvailabilityRepository } from '../src/modules/calendar/availability.rep
 import { AvailabilityService } from '../src/modules/calendar/availability.service.js';
 import { PaymentMethodService } from '../src/modules/payments/payment-method.service.js';
 import { PaymentService } from '../src/modules/payments/payment.service.js';
+import { TenantCommercialPolicyService } from '../src/modules/platform/tenant-commercial-policy.service.js';
 
 config({ path: '../../.env' });
 const url = process.env.DATABASE_URL;
@@ -20,12 +21,16 @@ describe.skipIf(url === undefined)('pagamentos de agendamentos (Etapa 14) com My
   const appointments = new AppointmentService(
     new AppointmentRepository(client),
     new AvailabilityService(new AvailabilityRepository(client)),
+    client,
+    new TenantCommercialPolicyService(client),
+    client,
   );
   const payments = new PaymentService(client);
   const paymentMethods = new PaymentMethodService(client);
   const suffix = randomUUID().slice(0, 8);
   let tenantId: bigint;
   let otherTenantId: bigint;
+  let planIds: bigint[] = [];
   let customerId = '';
   let professionalId = '';
   let serviceId = '';
@@ -92,6 +97,24 @@ describe.skipIf(url === undefined)('pagamentos de agendamentos (Etapa 14) com My
     });
     tenantId = tenant.id;
     otherTenantId = other.id;
+    planIds = [];
+    for (const provisionedTenantId of [tenant.id, other.id]) {
+      const plan = await client.commercialPlan.create({
+        data: {
+          publicId: randomUUID(), code: `PAYMENT_TEST_${suffix}_${provisionedTenantId}`, name: 'Plano de teste de pagamentos',
+          status: 'ACTIVE', billingCycle: 'MONTHLY', priceCents: 0n, currency: 'BRL',
+          limits: { create: [
+            { key: 'monthly_appointments.max', valueType: 'INTEGER', integerValue: 1000n },
+            { key: 'commissions.enabled', valueType: 'BOOLEAN', booleanValue: true },
+          ] },
+        },
+      });
+      planIds.push(plan.id);
+      const now = new Date();
+      await client.tenantSubscription.create({
+        data: { publicId: randomUUID(), tenantId: provisionedTenantId, planId: plan.id, status: 'ACTIVE', effectiveKey: 'EFFECTIVE', startsAt: now, currentPeriodStartsAt: now, currentPeriodEndsAt: new Date(now.getTime() + 31 * 86_400_000), priceCents: 0n, currency: 'BRL', billingCycle: 'MONTHLY' },
+      });
+    }
 
     const [customer, professional, catalog] = await Promise.all([
       client.customer.create({ data: { publicId: randomUUID(), tenantId, name: 'Ana Silva' } }),
@@ -162,7 +185,10 @@ describe.skipIf(url === undefined)('pagamentos de agendamentos (Etapa 14) com My
     await client.customer.deleteMany({ where: { tenantId: { in: ids } } });
     await client.service.deleteMany({ where: { tenantId: { in: ids } } });
     await client.professional.deleteMany({ where: { tenantId: { in: ids } } });
+    await client.tenantSubscription.deleteMany({ where: { tenantId: { in: ids } } });
     await client.tenant.deleteMany({ where: { id: { in: ids } } });
+    await client.planLimit.deleteMany({ where: { planId: { in: planIds } } });
+    await client.commercialPlan.deleteMany({ where: { id: { in: planIds } } });
     await client.userSession.deleteMany({ where: { userId } });
     await client.user.deleteMany({ where: { id: userId } });
   });

@@ -56,7 +56,7 @@ export class PlanEntitlementService {
   }
 
   public async assertFeatureEnabledForTenant(
-    client: PrismaClient,
+    client: PrismaClient | Transaction,
     tenantId: bigint,
     key: PlanFeatureKey,
   ): Promise<void> {

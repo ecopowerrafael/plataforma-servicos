@@ -608,12 +608,14 @@ export class PaymentGatewayService {
           actor,
           { deferDerivedEffects: true },
         );
+      const firstLockedCharge = lockedCharges[0];
+      if (firstLockedCharge === undefined) throw new Error('Nenhuma charge bloqueada para substituição.');
       const payment = await this.payments.withinTransaction(tx).createPaymentCoreWithinTransaction(
         tenantId,
         appointmentPublicId,
         input,
         actor,
-        { supersededGatewayChargeId: lockedCharges[0].id },
+        { supersededGatewayChargeId: firstLockedCharge.id },
       );
       const paymentRecord = await tx.payment.findFirst({ where: { tenantId, publicId: payment.publicId }, select: { id: true } });
       if (paymentRecord === null) throw new Error('Pagamento criado sem registro persistido.');

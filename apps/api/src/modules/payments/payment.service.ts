@@ -182,6 +182,7 @@ export class PaymentService {
         paymentMethodId: paymentMethod.id,
         kind: input.kind,
         amountCents,
+        paidAt: new Date(),
         notes: input.notes ?? null,
         userId: actor.userId,
         sessionId: actor.sessionId,

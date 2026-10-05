@@ -67,6 +67,7 @@ import { registerProspectingOperationalRoutes } from './modules/prospecting/pros
 import { prospectingWhatsAppConfigRoutes } from './modules/prospecting/prospecting-whatsapp-config.routes.js';
 import { cashRegisterRoutes } from './modules/payments/cash-register.routes.js';
 import { commissionRoutes } from './modules/payments/commission.routes.js';
+import { commissionCycleRoutes } from './modules/payments/commission-cycle.routes.js';
 import { couponRoutes } from './modules/payments/coupon.routes.js';
 import { delinquencyRoutes } from './modules/payments/delinquency.routes.js';
 import { financialClosingRoutes } from './modules/payments/financial-closing.routes.js';
@@ -772,6 +773,13 @@ export async function buildApp(options: BuildAppOptions) {
   if (options.database.appointmentReminderConfig !== undefined)
     await app.register(appointmentReminderConfigRoutes, {
       service: options.database.appointmentReminderConfig,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
+  if (options.database.commissionCycles !== undefined)
+    await app.register(commissionCycleRoutes, {
+      service: options.database.commissionCycles,
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,

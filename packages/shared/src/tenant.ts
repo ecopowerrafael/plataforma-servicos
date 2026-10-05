@@ -101,6 +101,9 @@ export const TenantSettingsInputSchema = z
     timeFormat: TimeFormatSchema.default('24H'),
     membershipSalesEnabled: z.boolean().default(true),
     allowSingleServiceSales: z.boolean().default(true),
+    commissionTeamPercentBps: z.number().int().min(0).max(10000).nullable().default(null),
+    commissionClosingDay: z.number().int().min(1).max(31).nullable().default(null),
+    commissionEffectiveFrom: z.coerce.date().nullable().default(null),
   })
   .strict();
 
@@ -184,6 +187,9 @@ export const CreateTenantRequestSchema = z
     timeFormat: '24H',
     membershipSalesEnabled: true,
     allowSingleServiceSales: true,
+    commissionTeamPercentBps: null,
+    commissionClosingDay: null,
+    commissionEffectiveFrom: null,
     }),
     initialUnit: InitialBusinessUnitInputSchema,
   })
@@ -232,6 +238,9 @@ export const TenantSettingsSchema = z.object({
   timeFormat: TimeFormatSchema,
   membershipSalesEnabled: z.boolean().default(true),
   allowSingleServiceSales: z.boolean().default(true),
+  commissionTeamPercentBps: z.number().int().min(0).max(10000).nullable().optional(),
+  commissionClosingDay: z.number().int().min(1).max(31).nullable().optional(),
+  commissionEffectiveFrom: z.coerce.date().nullable().optional(),
 });
 
 export const CreateTenantResponseSchema = z.object({

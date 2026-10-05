@@ -401,6 +401,9 @@ export class PrismaTenantRepository implements TenantRepository {
         timeFormat: true,
         membershipSalesEnabled: true,
         allowSingleServiceSales: true,
+        commissionTeamPercentBps: true,
+        commissionClosingDay: true,
+        commissionEffectiveFrom: true,
       },
     });
 
@@ -430,6 +433,9 @@ export class PrismaTenantRepository implements TenantRepository {
           timeFormat: toPrismaTimeFormat(safeSettings.timeFormat),
           membershipSalesEnabled: safeSettings.membershipSalesEnabled ?? true,
           allowSingleServiceSales: safeSettings.allowSingleServiceSales ?? true,
+          commissionTeamPercentBps: safeSettings.commissionTeamPercentBps ?? null,
+          commissionClosingDay: safeSettings.commissionClosingDay ?? null,
+          commissionEffectiveFrom: safeSettings.commissionEffectiveFrom ?? null,
         },
         select: {
           allowMultipleUnits: true,
@@ -441,6 +447,9 @@ export class PrismaTenantRepository implements TenantRepository {
           timeFormat: true,
           membershipSalesEnabled: true,
           allowSingleServiceSales: true,
+          commissionTeamPercentBps: true,
+          commissionClosingDay: true,
+          commissionEffectiveFrom: true,
         },
       });
 

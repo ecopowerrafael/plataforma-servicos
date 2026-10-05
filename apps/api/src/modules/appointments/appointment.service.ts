@@ -387,6 +387,7 @@ export class AppointmentService {
       });
     await this.repo.update(old.id, {
       status,
+      ...(old.status === 'IN_PROGRESS' && status === 'COMPLETED' ? { completedAt: new Date() } : {}),
       ...(status === 'CANCELED' ? { canceledReason: reason ?? null } : {}),
     });
 

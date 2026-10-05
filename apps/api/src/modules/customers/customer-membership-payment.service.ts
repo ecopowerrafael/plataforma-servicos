@@ -36,7 +36,7 @@ export class CustomerMembershipPaymentService {
     const payment = await tx.payment.create({ data: {
       publicId: randomUUID(), tenantId, originType: 'MEMBERSHIP_CHARGE', appointmentId: null,
       membershipChargeId: charge.id, paymentMethodId, kind: 'PAYMENT', status: 'PAID',
-      amountCents: charge.amountCents, userId: actor.userId, sessionId: actor.sessionId,
+      amountCents: charge.amountCents, paidAt: new Date(), userId: actor.userId, sessionId: actor.sessionId,
     } });
     validatePaymentOrigin(payment.originType, payment.appointmentId, payment.membershipChargeId, payment.debtId);
     const paidAt = new Date();
@@ -83,7 +83,7 @@ export class CustomerMembershipPaymentService {
     const payment = await tx.payment.create({ data: {
       publicId: randomUUID(), tenantId, originType: 'MEMBERSHIP_CHARGE', appointmentId: null,
       membershipChargeId: charge.id, paymentMethodId, kind: 'PAYMENT', status: 'PAID',
-      amountCents: charge.amountCents, userId: actor.userId, sessionId: actor.sessionId,
+      amountCents: charge.amountCents, paidAt, userId: actor.userId, sessionId: actor.sessionId,
     } });
     validatePaymentOrigin(payment.originType, payment.appointmentId, payment.membershipChargeId, payment.debtId);
     await tx.customerMembershipCharge.update({ where: { id: charge.id }, data: { status: 'PAID', paidAt } });

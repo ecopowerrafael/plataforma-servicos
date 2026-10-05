@@ -113,6 +113,7 @@ export class DebtPixPaymentService {
             paymentMethodId: methodRow.id,
             kind: charge.kind,
             status: 'PAID',
+            paidAt: new Date(),
             // O Payment registra o valor REALMENTE recebido — nunca clampado.
             amountCents: receivedAmount,
             notes: `Pago via gateway ${charge.provider}${charge.externalId === null ? '' : ` (${charge.externalId})`}.`,

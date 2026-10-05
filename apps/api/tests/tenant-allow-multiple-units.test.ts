@@ -8,6 +8,10 @@ const defaultSettings = {
   minimumAdvanceMinutes: 0,
   maximumAdvanceDays: 180,
   allowMultipleUnits: true,
+  membershipSalesEnabled: true,
+  allowSingleServiceSales: true,
+  weekStartsOn: 'MONDAY' as const,
+  timeFormat: '24H' as const,
   dateFormat: 'DD/MM/YYYY' as const,
 };
 

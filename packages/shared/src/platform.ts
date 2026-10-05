@@ -6,7 +6,7 @@ import {
   BusinessUnitSchema,
   CreateTenantRequestSchema,
   TenantPublicSchema,
-  TenantSettingsInputSchema,
+  TenantSettingsPatchSchema,
   TenantSettingsSchema,
 } from './tenant.js';
 
@@ -518,7 +518,7 @@ export const PlatformTenantWhatsAppTestResponseSchema = z.object({
   connectedName: z.string().nullable(),
   lastStatusCheckAt: IsoDateSchema.nullable(),
 });
-export const PlatformTenantSettingsUpdateRequestSchema = TenantSettingsInputSchema;
+export const PlatformTenantSettingsUpdateRequestSchema = TenantSettingsPatchSchema;
 export const PlatformTenantSettingsUpdateResponseSchema = z.object({
   settings: TenantSettingsSchema,
 });

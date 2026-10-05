@@ -99,8 +99,12 @@ export const TenantSettingsInputSchema = z
     weekStartsOn: WeekStartsOnSchema.default('MONDAY'),
     dateFormat: z.literal('DD/MM/YYYY').default('DD/MM/YYYY'),
     timeFormat: TimeFormatSchema.default('24H'),
+    membershipSalesEnabled: z.boolean().default(true),
+    allowSingleServiceSales: z.boolean().default(true),
   })
   .strict();
+
+export const TenantSettingsPatchSchema = TenantSettingsInputSchema.partial().strict();
 
 export const InitialBusinessUnitInputSchema = z
   .object({
@@ -176,8 +180,10 @@ export const CreateTenantRequestSchema = z
       minimumAdvanceMinutes: 0,
       maximumAdvanceDays: 180,
       weekStartsOn: 'MONDAY',
-      dateFormat: 'DD/MM/YYYY',
-      timeFormat: '24H',
+    dateFormat: 'DD/MM/YYYY',
+    timeFormat: '24H',
+    membershipSalesEnabled: true,
+    allowSingleServiceSales: true,
     }),
     initialUnit: InitialBusinessUnitInputSchema,
   })
@@ -224,6 +230,8 @@ export const TenantSettingsSchema = z.object({
   weekStartsOn: WeekStartsOnSchema,
   dateFormat: z.literal('DD/MM/YYYY'),
   timeFormat: TimeFormatSchema,
+  membershipSalesEnabled: z.boolean().default(true),
+  allowSingleServiceSales: z.boolean().default(true),
 });
 
 export const CreateTenantResponseSchema = z.object({
@@ -287,6 +295,7 @@ export type BusinessUnitInput = z.infer<typeof BusinessUnitInputSchema>;
 export type CreateBusinessUnitRequest = z.infer<typeof CreateBusinessUnitRequestSchema>;
 export type UpdateBusinessUnitRequest = z.infer<typeof UpdateBusinessUnitRequestSchema>;
 export type TenantSettings = z.infer<typeof TenantSettingsSchema>;
+export type TenantSettingsPatch = z.infer<typeof TenantSettingsPatchSchema>;
 export type CreateTenantResponse = z.infer<typeof CreateTenantResponseSchema>;
 export type TenantContextResponse = z.infer<typeof TenantContextResponseSchema>;
 export type TenantIdentity = z.infer<typeof TenantIdentitySchema>;

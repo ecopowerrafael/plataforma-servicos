@@ -5,7 +5,7 @@ import {
   TenantSlugSchema,
   TenantContextResponseSchema,
   TenantIdentityResponseSchema,
-  TenantSettingsInputSchema,
+  TenantSettingsPatchSchema,
   TenantSettingsResponseSchema,
   TenantUnitResponseSchema,
   TenantUnitsResponseSchema,
@@ -334,13 +334,13 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     '/tenant/settings',
     {
       schema: {
-        body: TenantSettingsInputSchema,
+        body: TenantSettingsPatchSchema,
         response: { 200: TenantSettingsResponseSchema },
       },
     },
     async (request): Promise<TenantSettingsResponse> => {
       options.authService.requirePermission(request.tenant, 'tenant.update');
-      const settings = TenantSettingsInputSchema.parse(request.body);
+      const settings = TenantSettingsPatchSchema.parse(request.body);
       return { settings: await options.service.updateSettings(request.tenant.id, settings) };
     },
   );

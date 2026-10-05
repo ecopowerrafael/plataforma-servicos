@@ -34,6 +34,8 @@ const settings: TenantSettings = {
   weekStartsOn: 'MONDAY',
   dateFormat: 'DD/MM/YYYY',
   timeFormat: '24H',
+  membershipSalesEnabled: true,
+  allowSingleServiceSales: true,
 };
 
 function unit(publicId: string, name: string, slug: string): BusinessUnit {
@@ -283,6 +285,8 @@ describe('contexto e isolamento multiempresa', () => {
       weekStartsOn: 'SUNDAY',
       dateFormat: 'DD/MM/YYYY',
       timeFormat: '12H',
+      membershipSalesEnabled: true,
+      allowSingleServiceSales: true,
     };
 
     const patchResponse = await app.inject({

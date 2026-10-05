@@ -21,7 +21,7 @@ import {
   type TenantFeatureCode,
   type CreateTenantCustomFieldRequest,
   type UpdateTenantCustomFieldRequest,
-  type TenantSettings,
+  type TenantSettingsPatch,
 } from '@plataforma/shared';
 
 import { auditReadDetails } from './audit-sanitizer.js';
@@ -319,7 +319,7 @@ export class PlatformService {
 
   public async updateTenantSettings(
     publicId: string,
-    input: TenantSettings,
+    input: TenantSettingsPatch,
     actor: PlatformAuthContext,
     metadata: RequestMetadata,
   ) {

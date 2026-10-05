@@ -102,6 +102,13 @@ export class CustomerMembershipRepository {
     });
   }
 
+  public findSalesSettings(tenantId: bigint) {
+    return this.client.tenantSettings.findUnique({
+      where: { tenantId },
+      select: { membershipSalesEnabled: true },
+    });
+  }
+
   public create(data: Prisma.CustomerMembershipUncheckedCreateInput) {
     return this.client.customerMembership.create({
       data,

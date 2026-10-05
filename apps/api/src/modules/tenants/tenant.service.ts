@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  TenantSettingsSchema,
   type BusinessUnit,
   type BusinessUnitInput,
   type CreateTenantRequest,
   type CreateTenantResponse,
   type TenantPublic,
   type TenantSettings,
+  type TenantSettingsPatch,
 } from '@plataforma/shared';
 
 import {
@@ -243,16 +245,18 @@ export class TenantService {
       throw new Error('As configurações estruturais do tenant não foram encontradas.');
     }
 
-    return settings;
+    return TenantSettingsSchema.parse(settings);
   }
 
-  public async updateSettings(tenantId: bigint, settings: TenantSettings): Promise<TenantSettings> {
+  public async updateSettings(tenantId: bigint, settings: TenantSettingsPatch): Promise<TenantSettings> {
     const current = await this.repository.findSettings(tenantId);
     if (current === null) {
       throw new Error('As configurações estruturais do tenant não foram encontradas.');
     }
 
-    if (current.allowMultipleUnits === true && settings.allowMultipleUnits === false) {
+    const nextSettings = TenantSettingsSchema.parse({ ...current, ...settings });
+
+    if (current.allowMultipleUnits === true && nextSettings.allowMultipleUnits === false) {
       const activeCount = await this.repository.countActiveBusinessUnits(tenantId);
       if (activeCount > 1) {
         throw new AppError({
@@ -263,12 +267,12 @@ export class TenantService {
       }
     }
 
-    const updated = await this.repository.updateSettings(tenantId, settings);
+    const updated = await this.repository.updateSettings(tenantId, nextSettings);
 
     if (updated === null) {
       throw new Error('As configurações estruturais do tenant não foram encontradas.');
     }
 
-    return updated;
+    return TenantSettingsSchema.parse(updated);
   }
 }

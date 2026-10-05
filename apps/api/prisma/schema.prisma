@@ -1671,6 +1671,8 @@ model TenantSettings {
   dateFormat                        String       @default("DD/MM/YYYY") @map("date_format") @db.VarChar(16)
   timeFormat                        TimeFormat   @default(H24) @map("time_format")
   payLocalEnabled                   Boolean      @default(true) @map("pay_local_enabled")
+  membershipSalesEnabled            Boolean      @default(true) @map("membership_sales_enabled")
+  allowSingleServiceSales           Boolean      @default(true) @map("allow_single_service_sales")
   createdAt                         DateTime     @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt                         DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   tenant                            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)

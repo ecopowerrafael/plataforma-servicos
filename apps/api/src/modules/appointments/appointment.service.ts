@@ -671,7 +671,10 @@ export class AppointmentService {
     // Resolve membership benefit if applicable (only for SERVICE)
     const tenant = await this.client.tenant.findFirst({
       where: { id: t },
-      select: { operatingModel: true },
+      select: {
+        operatingModel: true,
+        settings: { select: { allowSingleServiceSales: true } },
+      },
     });
     let chargeSource: 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT' | null = null;
     let referencePriceCents = finalPrice;
@@ -688,6 +691,19 @@ export class AppointmentService {
     } else {
       chargeSource = 'SERVICE_PRICE';
     }
+
+    if (
+      old === undefined &&
+      tenant?.operatingModel === 'MEMBERSHIP' &&
+      tenant.settings?.allowSingleServiceSales === false &&
+      chargeSource === 'SERVICE_PRICE'
+    )
+      throw new AppError({
+        code: 'SINGLE_SERVICE_SALES_DISABLED',
+        message: 'A venda de atendimentos avulsos está desativada para este estabelecimento.',
+        statusCode: 409,
+      });
+
     const depositType = i.depositType ?? null;
     let depositPercentage: number | null = null;
     let depositAmountCents: bigint | null = null;

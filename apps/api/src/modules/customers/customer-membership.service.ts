@@ -48,6 +48,14 @@ export class CustomerMembershipService {
   ) {}
 
   public async create(tenantId: bigint, customerId: string, planPublicId: string, actor: Actor) {
+    const settings = await this.repository.findSalesSettings(tenantId);
+    if (settings?.membershipSalesEnabled === false)
+      throw new AppError({
+        code: 'MEMBERSHIP_SALES_DISABLED',
+        message: 'A contratação de novas mensalidades está desativada para este estabelecimento.',
+        statusCode: 409,
+      });
+
     const plan = await this.repository.findPlan(tenantId, planPublicId);
     if (plan === null) throw planNotFound();
 

@@ -399,6 +399,8 @@ export class PrismaTenantRepository implements TenantRepository {
         weekStartsOn: true,
         dateFormat: true,
         timeFormat: true,
+        membershipSalesEnabled: true,
+        allowSingleServiceSales: true,
       },
     });
 
@@ -426,6 +428,8 @@ export class PrismaTenantRepository implements TenantRepository {
           weekStartsOn: safeSettings.weekStartsOn,
           dateFormat: safeSettings.dateFormat,
           timeFormat: toPrismaTimeFormat(safeSettings.timeFormat),
+          membershipSalesEnabled: safeSettings.membershipSalesEnabled ?? true,
+          allowSingleServiceSales: safeSettings.allowSingleServiceSales ?? true,
         },
         select: {
           allowMultipleUnits: true,
@@ -435,6 +439,8 @@ export class PrismaTenantRepository implements TenantRepository {
           weekStartsOn: true,
           dateFormat: true,
           timeFormat: true,
+          membershipSalesEnabled: true,
+          allowSingleServiceSales: true,
         },
       });
 

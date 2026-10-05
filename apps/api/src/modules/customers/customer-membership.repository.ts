@@ -1,7 +1,15 @@
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 
 export class CustomerMembershipRepository {
-  public constructor(private readonly client: PrismaClient) {}
+  public constructor(public readonly client: PrismaClient | Prisma.TransactionClient) {}
+
+  public async withTenantLock<T>(tenantId: bigint, callback: (repository: CustomerMembershipRepository, transaction: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    if (!('$transaction' in this.client)) throw new Error('Tenant lock requires a root Prisma client.');
+    return this.client.$transaction(async (transaction) => {
+      await transaction.$queryRaw`SELECT id FROM tenants WHERE id = ${tenantId} FOR UPDATE`;
+      return callback(new CustomerMembershipRepository(transaction), transaction);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
 
   public list(tenantId: bigint, customerId: bigint) {
     return this.client.customerMembership.findMany({
@@ -107,6 +115,10 @@ export class CustomerMembershipRepository {
       where: { tenantId },
       select: { membershipSalesEnabled: true },
     });
+  }
+
+  public findOperatingModel(tenantId: bigint) {
+    return this.client.tenant.findUnique({ where: { id: tenantId }, select: { operatingModel: true } });
   }
 
   public create(data: Prisma.CustomerMembershipUncheckedCreateInput) {

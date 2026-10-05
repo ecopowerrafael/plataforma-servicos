@@ -30,6 +30,7 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { TenantTerritoryAssignmentService } from '../commercial/tenant-territory-assignment.service.js';
+import { TenantOperatingModelTransitionService } from './tenant-operating-model-transition.service.js';
 
 interface TenantRoutesOptions {
   service: TenantService;
@@ -50,6 +51,8 @@ const ensureUnitAccess = (allowed: string[] | null, publicId: string) => {
 };
 const UnitParamsSchema = z.object({ publicId: z.uuid() }).strict();
 const OnboardingSlugQuerySchema = z.object({ slug: TenantSlugSchema }).strict();
+const OperatingModelTransitionQuerySchema = z.object({ to: OperatingModelSchema }).strict();
+const OperatingModelTransitionRequestSchema = z.object({ to: OperatingModelSchema, expectedFrom: OperatingModelSchema.optional() }).strict();
 const OnboardingRequestSchema = z.object({
   step: z.string().trim().min(1).max(40),
   completed: z.boolean().optional(),
@@ -66,6 +69,7 @@ const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) =
 });
 
 export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (app, options) => {
+  const operatingModelTransitions = new TenantOperatingModelTransitionService(options.client);
   await app.register(tenantContextPlugin, {
     authService: options.authService,
     cookieName: options.cookieName,
@@ -90,6 +94,16 @@ export const tenantRoutes: FastifyPluginAsyncZod<TenantRoutesOptions> = async (a
     options.authService.requirePermission(request.tenant, 'tenant.update');
     if (!request.tenant.membership.isOwner) throw new AppError({ code: 'PERMISSION_DENIED', message: 'Apenas o proprietário pode atualizar o onboarding.', statusCode: 403 });
     return updateTenantOnboarding(options.client, request.tenant.id, request.body);
+  });
+  app.get('/tenant/operating-model/transition-preview', { schema: { querystring: OperatingModelTransitionQuerySchema } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.read');
+    return operatingModelTransitions.preview(request.tenant.id, request.query.to);
+  });
+  app.post('/tenant/operating-model/transition', { schema: { body: OperatingModelTransitionRequestSchema } }, async (request) => {
+    options.authService.requirePermission(request.tenant, 'tenant.update');
+    if (!request.tenant.membership.isOwner)
+      throw new AppError({ code: 'PERMISSION_DENIED', message: 'Apenas o proprietário pode alterar o modelo operacional.', statusCode: 403 });
+    return operatingModelTransitions.transition(request.tenant.id, request.body.to, request.body.expectedFrom, actor(request));
   });
   app.get('/tenant/onboarding/slug-availability', { schema: { querystring: OnboardingSlugQuerySchema } }, async (request) => {
     options.authService.requirePermission(request.tenant, 'tenant.read');

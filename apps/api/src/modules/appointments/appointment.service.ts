@@ -9,7 +9,7 @@ import {
 import { type AppointmentWaitlistService } from './appointment-waitlist.service.js';
 import { type AppointmentRepository } from './appointment.repository.js';
 import { type TreatmentPlanService } from './treatment-plan.service.js';
-import { type AppointmentStatus, type Prisma, type PrismaClient } from '../../database-client/client.js';
+import { Prisma, type AppointmentStatus, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
@@ -479,7 +479,7 @@ export class AppointmentService {
     await this.audit(t, id, 'appointment.checked_in', a);
     return pub(updated);
   }
-  private async save(t: bigint, i: Input, a: Actor, old?: AppointmentRecord) {
+  private async save(t: bigint, i: Input, a: Actor, old?: AppointmentRecord, retryAttempt = 0): Promise<ReturnType<typeof AppointmentPublicSchema.parse>> {
     const isFitIn = i.isFitIn === true;
     // Validate XOR: service OR combo, not both
     if ((i.servicePublicId !== undefined) === (i.comboPublicId !== undefined))
@@ -676,6 +676,18 @@ export class AppointmentService {
         settings: { select: { allowSingleServiceSales: true } },
       },
     });
+    const resolvedOperatingModel = tenant?.operatingModel ?? 'SERVICE_PRICING';
+    const assertOperatingModelUnchanged = async (tx: Prisma.TransactionClient) => {
+      const current = await tx.$queryRaw<Array<{ operating_model: string }>>`
+        SELECT operating_model FROM tenants WHERE id = ${t} FOR UPDATE
+      `;
+      if (current[0]?.operating_model !== resolvedOperatingModel)
+        throw new AppError({
+          code: 'OPERATING_MODEL_CHANGED_DURING_APPOINTMENT',
+          message: 'O modelo operacional mudou durante a criação do agendamento. Tente novamente.',
+          statusCode: 409,
+        });
+    };
     let chargeSource: 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT' | null = null;
     let referencePriceCents = finalPrice;
     let amountDueCents = finalPrice;
@@ -757,7 +769,8 @@ export class AppointmentService {
     };
     // For new appointments with membership, use atomic transaction
     let x: AppointmentRecord | null = null;
-    if (old === undefined && chargeSource !== 'SERVICE_PRICE' && membershipChargeId !== null && this.membershipUsage !== undefined && serviceId !== null) {
+    try {
+      if (old === undefined && chargeSource !== 'SERVICE_PRICE' && membershipChargeId !== null && this.membershipUsage !== undefined && serviceId !== null) {
       const resolver = new CustomerMembershipBenefitResolver(this.client);
       const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
 
@@ -772,6 +785,7 @@ export class AppointmentService {
           x = await this.repo.createIfAvailable(
             { publicId: randomUUID(), tenantId: t, status: 'PENDING', ...data },
             async (tx, appointment) => {
+              await assertOperatingModelUnchanged(tx);
               const usage = await this.membershipUsage!.reserveWithinTransaction(tx, {
                 tenantId: t,
                 membershipId: charge.membershipId,
@@ -799,9 +813,9 @@ export class AppointmentService {
           });
         }
       } else {
-        x = await this.repo.createIfAvailable({ publicId: randomUUID(), tenantId: t, status: 'PENDING', ...data });
+        x = await this.repo.createIfAvailable({ publicId: randomUUID(), tenantId: t, status: 'PENDING', ...data }, assertOperatingModelUnchanged);
       }
-    } else {
+      } else {
       // For SERVICE_PRICING or updates, use regular flow
       x =
         old === undefined
@@ -810,8 +824,17 @@ export class AppointmentService {
               tenantId: t,
               status: 'PENDING',
               ...data,
-            })
+            }, assertOperatingModelUnchanged)
           : await this.repo.updateIfAvailable(old.id, t, professional.id, start, end, data);
+      }
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'OPERATING_MODEL_CHANGED_DURING_APPOINTMENT' && old === undefined && retryAttempt < 3)
+        return this.save(t, i, a, old, retryAttempt + 1);
+      if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2034' || error.message.includes('Record has changed since last read')) && retryAttempt < 3) {
+        await new Promise<void>((resolve) => setTimeout(resolve, (retryAttempt + 1) * 10));
+        return this.save(t, i, a, old, retryAttempt + 1);
+      }
+      throw error;
     }
 
     if (x === null)

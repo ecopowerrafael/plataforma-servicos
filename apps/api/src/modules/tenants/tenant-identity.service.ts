@@ -122,6 +122,8 @@ export async function updateTenantOnboarding(
     select: {
       slug: true,
       slugChangedAt: true,
+      onboardingCompletedAt: true,
+      operatingModel: true,
       businessProfile: true,
       publicSite: {
         select: {
@@ -135,6 +137,16 @@ export async function updateTenantOnboarding(
   });
   if (input.slug !== undefined && input.slug !== current.slug && current.slugChangedAt !== null)
     throw slugAlreadyChanged();
+  if (
+    current.onboardingCompletedAt !== null &&
+    input.operatingModel !== undefined &&
+    input.operatingModel !== current.operatingModel
+  )
+    throw new AppError({
+      code: 'OPERATING_MODEL_TRANSITION_REQUIRED',
+      message: 'Após concluir o onboarding, use o fluxo explícito de transição do modelo operacional.',
+      statusCode: 409,
+    });
   try {
     const result = await client.$transaction(async (transaction) => {
       await lockSlugChange(transaction, tenantId, current.slug, input.slug, now);

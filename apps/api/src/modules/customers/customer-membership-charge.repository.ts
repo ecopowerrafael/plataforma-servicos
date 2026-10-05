@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 
 export class CustomerMembershipChargeRepository {
-  public constructor(private readonly client: PrismaClient) {}
+  public constructor(private readonly client: PrismaClient | Prisma.TransactionClient) {}
 
   public list(tenantId: bigint, membershipId: bigint) {
     return this.client.customerMembershipCharge.findMany({

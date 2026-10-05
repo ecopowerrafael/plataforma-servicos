@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipRepository } from './customer-membership.repository.js';
-import { type CustomerMembershipChargeService } from './customer-membership-charge.service.js';
+import { CustomerMembershipChargeRepository } from './customer-membership-charge.repository.js';
+import { CustomerMembershipChargeService } from './customer-membership-charge.service.js';
 
 interface Actor {
   userId: bigint;
@@ -48,7 +49,30 @@ export class CustomerMembershipService {
   ) {}
 
   public async create(tenantId: bigint, customerId: string, planPublicId: string, actor: Actor) {
-    const settings = await this.repository.findSalesSettings(tenantId);
+    return this.repository.withTenantLock(tenantId, async (repository) => {
+      const chargeService = this.chargeService === undefined
+        ? undefined
+        : new CustomerMembershipChargeService(new CustomerMembershipChargeRepository(repository.client));
+      return this.createLocked(repository, chargeService, tenantId, customerId, planPublicId, actor);
+    });
+  }
+
+  private async createLocked(
+    repository: CustomerMembershipRepository,
+    chargeService: CustomerMembershipChargeService | undefined,
+    tenantId: bigint,
+    customerId: string,
+    planPublicId: string,
+    actor: Actor,
+  ) {
+    const tenant = await repository.findOperatingModel(tenantId);
+    if (tenant?.operatingModel !== 'MEMBERSHIP')
+      throw new AppError({
+        code: 'OPERATING_MODEL_INCOMPATIBLE',
+        message: 'Novas mensalidades só podem ser criadas no modelo MEMBERSHIP.',
+        statusCode: 409,
+      });
+    const settings = await repository.findSalesSettings(tenantId);
     if (settings?.membershipSalesEnabled === false)
       throw new AppError({
         code: 'MEMBERSHIP_SALES_DISABLED',
@@ -83,7 +107,7 @@ export class CustomerMembershipService {
       });
 
       // Generate FIRST charge immediately (status PENDING, awaiting payment)
-      if (this.chargeService && plan.priceCents > 0n) {
+      if (chargeService && plan.priceCents > 0n) {
         const now = new Date();
         const periodEnd = this.calculatePeriodEnd(now, plan);
 
@@ -102,7 +126,7 @@ export class CustomerMembershipService {
           })),
         };
 
-        await this.chargeService.generateCharge(
+        await chargeService.generateCharge(
           tenantId,
           item.id,
           now,

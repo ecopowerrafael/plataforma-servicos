@@ -5,15 +5,19 @@ import { CustomerMembershipService } from './customer-membership.service.js';
 const actor = { userId: 1n, sessionId: 2n };
 
 function repository(overrides: Record<string, unknown> = {}) {
-  return {
+  const result = {
     findSalesSettings: vi.fn().mockResolvedValue({ membershipSalesEnabled: true }),
+    findOperatingModel: vi.fn().mockResolvedValue({ operatingModel: 'MEMBERSHIP' }),
     findPlan: vi.fn().mockResolvedValue({ id: 3n, publicId: 'plan', priceCents: 100n, benefits: [] }),
     findCustomer: vi.fn().mockResolvedValue({ id: 4n }),
     findByCustomer: vi.fn().mockResolvedValue(null),
     create: vi.fn().mockResolvedValue({ id: 5n }),
     audit: vi.fn().mockResolvedValue(undefined),
+    withTenantLock: vi.fn(),
     ...overrides,
   };
+  result.withTenantLock.mockImplementation(async (_tenantId: bigint, callback: (repository: typeof result) => Promise<unknown>) => callback(result));
+  return result;
 }
 
 describe('CustomerMembershipService commercial policy', () => {

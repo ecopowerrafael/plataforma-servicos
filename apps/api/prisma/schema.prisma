@@ -546,6 +546,7 @@ model Tenant {
   customerMemberships           CustomerMembership[]
   customerMembershipCharges     CustomerMembershipCharge[]
   customerMembershipUsages      CustomerMembershipUsage[]
+  operatingModelTransitions     TenantOperatingModelTransition[]
   notificationLogs              NotificationLog[]
   notificationCampaigns        NotificationCampaign[]
   notificationTemplates        NotificationTemplate[]
@@ -1257,6 +1258,7 @@ model User {
   passwordResets                PasswordResetToken[]
   invitationsSent               UserInvitation[]          @relation("InvitedByUser")
   auditLogs                     AuditLog[]
+  operatingModelTransitions     TenantOperatingModelTransition[] @relation("TenantOperatingModelTransitionUser")
   appointmentHistoryEntries     AppointmentHistoryEntry[]
   platformAdministration        PlatformAdministrator[]   @relation("PlatformAdministratorUser")
   platformAdministratorsCreated PlatformAdministrator[]   @relation("PlatformAdministratorCreatedBy")
@@ -1373,6 +1375,7 @@ model UserSession {
   createdAt                 DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
   user                      User                      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   auditLogs                 AuditLog[]
+  operatingModelTransitions TenantOperatingModelTransition[] @relation("TenantOperatingModelTransitionSession")
   appointmentHistoryEntries AppointmentHistoryEntry[]
   payments                  Payment[]
   cashMovements             CashMovement[]
@@ -2708,6 +2711,26 @@ enum PaymentGatewayChargeOrigin {
   APPOINTMENT
   DEBT
   MEMBERSHIP_CHARGE
+}
+
+model TenantOperatingModelTransition {
+  id                BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId          String         @unique @map("public_id") @db.Char(36)
+  tenantId          BigInt         @map("tenant_id") @db.UnsignedBigInt
+  fromModel         OperatingModel @map("from_model")
+  toModel           OperatingModel @map("to_model")
+  effectiveAt       DateTime       @map("effective_at") @db.DateTime(3)
+  createdByUserId   BigInt         @map("created_by_user_id") @db.UnsignedBigInt
+  createdBySessionId BigInt        @map("created_by_session_id") @db.UnsignedBigInt
+  createdAt         DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser     User           @relation("TenantOperatingModelTransitionUser", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBySession  UserSession    @relation("TenantOperatingModelTransitionSession", fields: [createdBySessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([tenantId, effectiveAt])
+  @@index([createdByUserId])
+  @@index([createdBySessionId])
+  @@map("tenant_operating_model_transitions")
 }
 
 model PaymentGatewayCharge {

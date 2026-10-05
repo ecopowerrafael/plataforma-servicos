@@ -91,6 +91,9 @@ export class AppointmentRepository {
   ) {
     return this.client.$transaction(
       async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT id FROM tenants WHERE id = ${data.tenantId} FOR UPDATE
+        `;
         const lockName = `appointment:${data.tenantId.toString()}:${data.professionalId.toString()}`;
         const lock = await transaction.$queryRaw<{ acquired: number | bigint | null }[]>`
         SELECT GET_LOCK(${lockName}, 5) AS acquired

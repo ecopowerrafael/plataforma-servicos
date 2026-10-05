@@ -12,6 +12,42 @@ function chargeNotFound() {
 export class CustomerMembershipPaymentService {
   public constructor(private readonly client: PrismaClient) {}
 
+  public async recordLatePaidMembershipChargeWithinTransaction(
+    tx: Prisma.TransactionClient,
+    tenantId: bigint,
+    chargePublicId: string,
+    paymentMethodId: bigint,
+    actor: Actor,
+  ): Promise<Payment> {
+    const locked = await tx.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
+      SELECT id FROM customer_membership_charges
+      WHERE tenant_id = ${tenantId} AND public_id = ${chargePublicId}
+      FOR UPDATE
+    `);
+    if (locked.length === 0) throw chargeNotFound();
+
+    const charge = await tx.customerMembershipCharge.findFirst({ where: { tenantId, publicId: chargePublicId } });
+    if (charge === null) throw chargeNotFound();
+    const existing = await tx.payment.findFirst({
+      where: { tenantId, membershipChargeId: charge.id, originType: 'MEMBERSHIP_CHARGE', status: 'PAID' },
+    });
+    if (existing !== null) return existing;
+
+    const payment = await tx.payment.create({ data: {
+      publicId: randomUUID(), tenantId, originType: 'MEMBERSHIP_CHARGE', appointmentId: null,
+      membershipChargeId: charge.id, paymentMethodId, kind: 'PAYMENT', status: 'PAID',
+      amountCents: charge.amountCents, userId: actor.userId, sessionId: actor.sessionId,
+    } });
+    validatePaymentOrigin(payment.originType, payment.appointmentId, payment.membershipChargeId, payment.debtId);
+    const paidAt = new Date();
+    await tx.customerMembershipCharge.update({ where: { id: charge.id }, data: { status: 'PAID', paidAt } });
+    await tx.auditLog.create({ data: {
+      publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId,
+      action: 'customer_membership_charge.payment_late_after_cancel', targetType: 'customer_membership_charge', targetPublicId: charge.publicId,
+    } });
+    return payment;
+  }
+
   public async confirmMembershipChargePaymentWithinTransaction(
     tx: Prisma.TransactionClient,
     tenantId: bigint,

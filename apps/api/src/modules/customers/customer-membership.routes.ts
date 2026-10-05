@@ -8,11 +8,13 @@ import { CustomerMembershipChargeRepository } from './customer-membership-charge
 import { CustomerMembershipChargeService } from './customer-membership-charge.service.js';
 import { type AuthService } from '../auth/auth.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
+import { type PaymentGatewayService } from '../payments/gateway/payment-gateway.service.js';
 
 interface Options {
   authService: AuthService;
   cookieName: string;
   client: PrismaClient;
+  paymentGateway?: PaymentGatewayService;
 }
 
 const UuidParamSchema = z.object({ publicId: z.uuid() }).strict();
@@ -34,7 +36,7 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
   const repository = new CustomerMembershipRepository(options.client);
   const chargeRepository = new CustomerMembershipChargeRepository(options.client);
   const chargeService = new CustomerMembershipChargeService(chargeRepository);
-  const service = new CustomerMembershipService(repository, chargeService);
+  const service = new CustomerMembershipService(repository, chargeService, options.paymentGateway);
 
   app.get<{ Params: z.infer<typeof UuidParamSchema> }>(
     '/tenant/customers/:publicId/membership',
@@ -105,6 +107,17 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
         createdAt: membership.createdAt.toISOString(),
         updatedAt: membership.updatedAt.toISOString(),
       };
+    },
+  );
+
+  app.post<{ Params: z.infer<typeof UuidParamSchema>; Body: { reason?: string } }>(
+    '/tenant/customer-memberships/:publicId/cancel',
+    { schema: { params: UuidParamSchema, body: z.object({ reason: z.string().trim().max(500).optional() }).strict() } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
+      const membership = await service.cancel(request.tenant.id, request.params.publicId, { userId: request.auth.user.id, sessionId: request.auth.session.id }, request.body.reason);
+      return { publicId: membership?.publicId, status: membership?.status, canceledAt: membership?.canceledAt?.toISOString() ?? null, nextBillingAt: membership?.nextBillingAt?.toISOString() ?? null, cancelAtPeriodEnd: membership?.cancelAtPeriodEnd ?? false };
     },
   );
 

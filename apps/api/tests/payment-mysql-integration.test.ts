@@ -19,7 +19,8 @@ describe('pagamentos de agendamentos (Etapa 14) com MySQL local', () => {
   const client = createPrismaClient(url ?? 'mysql://invalid');
   beforeAll(async () => {
     const rows = await client.$queryRaw<Array<{ db: string }>>`SELECT DATABASE() AS db`;
-    if (rows[0]?.db !== 'u891593158_teste') throw new Error('Refusing to run integration tests against non-test database.');
+    const expectedDatabase = process.env.TEST_DATABASE_NAME ?? 'u891593158_teste';
+    if (rows[0]?.db !== expectedDatabase) throw new Error('Refusing to run integration tests against non-test database.');
   });
   const appointments = new AppointmentService(
     new AppointmentRepository(client),

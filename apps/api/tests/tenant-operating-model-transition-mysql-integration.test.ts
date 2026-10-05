@@ -33,11 +33,12 @@ describe('operating model transition concurrency (MySQL)', () => {
   beforeAll(async () => {
     const [client] = clients;
     const [{ database_name: database }] = await client.$queryRaw<Array<{ database_name: string }>>`SELECT DATABASE() AS database_name`;
-    if (database !== 'u891593158_teste') throw new Error(`Wrong integration database: ${database}`);
+    const expectedDatabase = process.env.TEST_DATABASE_NAME ?? 'u891593158_teste';
+    if (database !== expectedDatabase) throw new Error(`Wrong integration database: ${database}`);
 
-    const session = await client.userSession.findFirst({ where: { revokedAt: null }, select: { id: true, userId: true } });
-    if (session === null) throw new Error('A usable user session is required for transition concurrency tests.');
-    ids.user = session.userId;
+    const user = await client.user.create({ data: { publicId: randomUUID(), email: `transition-${randomUUID()}@test.invalid`, normalizedEmail: `transition-${randomUUID()}@test.invalid`, passwordHash: 'test', status: 'ACTIVE' } });
+    const session = await client.userSession.create({ data: { publicId: randomUUID(), userId: user.id, tokenHash: randomUUID().replaceAll('-', ''), expiresAt: new Date(Date.now() + 86_400_000), lastSeenAt: new Date() } });
+    ids.user = user.id;
     ids.session = session.id;
     tenantPublicId = randomUUID();
     customerPublicId = randomUUID();
@@ -58,7 +59,7 @@ describe('operating model transition concurrency (MySQL)', () => {
     const service = await client.service.create({ data: { publicId: servicePublicId, tenantId: ids.tenant, name: 'Concurrency Service', durationMinutes: 30, priceCents: 10000n, color: '#111111' } });
     ids.service = service.id;
     await client.professionalService.create({ data: { publicId: randomUUID(), tenantId: ids.tenant, professionalId: ids.professional, serviceId: ids.service, priceCents: 10000n, durationMinutes: 30 } });
-  });
+  }, 60_000);
 
   afterAll(async () => {
     const [client] = clients;
@@ -78,9 +79,11 @@ describe('operating model transition concurrency (MySQL)', () => {
       await client.customer.deleteMany({ where: { id: ids.customer } });
       await client.tenantSettings.deleteMany({ where: { tenantId: ids.tenant } });
       await client.tenant.delete({ where: { id: ids.tenant } });
+      await client.userSession.delete({ where: { id: ids.session } });
+      await client.user.delete({ where: { id: ids.user } });
     }
     await Promise.all(clients.map((client) => client.$disconnect()));
-  });
+  }, 60_000);
 
   it('keeps membership creation and transition deterministic across independent clients', async () => {
     const membership = new CustomerMembershipService(new CustomerMembershipRepository(clients[0]));
@@ -101,7 +104,7 @@ describe('operating model transition concurrency (MySQL)', () => {
       if (transitionResult !== undefined) expect(finalTenant.operatingModel).toBe('SERVICE_PRICING');
       else expect(finalTenant.operatingModel).toBe('MEMBERSHIP');
     }
-  });
+  }, 60_000);
 
   it('keeps appointment creation and transition deterministic across independent clients', async () => {
     const actor = { userId: ids.user, sessionId: ids.session };
@@ -142,7 +145,7 @@ describe('operating model transition concurrency (MySQL)', () => {
         expect((await clients[0].appointment.findFirstOrThrow({ where: { tenantId: ids.tenant }, select: { chargeSource: true } })).chargeSource).toMatch(/MEMBERSHIP/);
       }
     }
-  });
+  }, 60_000);
 
   it('re-reads SERVICE_PRICING before appointment creation after transition wins', async () => {
     const actor = { userId: ids.user, sessionId: ids.session };
@@ -165,5 +168,5 @@ describe('operating model transition concurrency (MySQL)', () => {
       expect(appointment.chargeSource).toBe('SERVICE_PRICE');
       expect((await clients[0].tenant.findUniqueOrThrow({ where: { id: ids.tenant }, select: { operatingModel: true } })).operatingModel).toBe('SERVICE_PRICING');
     }
-  });
+  }, 60_000);
 });

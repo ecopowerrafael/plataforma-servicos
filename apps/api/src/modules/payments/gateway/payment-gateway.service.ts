@@ -85,6 +85,20 @@ export class PaymentGatewayService {
     return pubConfig(config, this.registry.get(config.provider) !== undefined);
   }
 
+  public async cancelPendingMembershipCharges(tenantId: bigint, chargeIds: bigint[], actor: Actor): Promise<void> {
+    const charges = await this.client.paymentGatewayCharge.findMany({
+      where: { tenantId, id: { in: chargeIds }, originType: 'MEMBERSHIP_CHARGE', status: { in: ['PENDING', 'PROCESSING'] } },
+      select: { publicId: true },
+    });
+    for (const charge of charges) {
+      try {
+        await this.cancelCharge(tenantId, charge.publicId, 'Membership cancelada.', actor);
+      } catch (error) {
+        await this.client.auditLog.create({ data: { publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId, action: 'customer_membership.gateway_cancel_failed', targetType: 'payment_gateway_charge', targetPublicId: charge.publicId, metadata: { error: error instanceof Error ? error.message.slice(0, 500) : 'Erro desconhecido.' } } });
+      }
+    }
+  }
+
   public async upsertConfig(
     tenantId: bigint,
     input: UpsertPaymentGatewayConfigRequest,
@@ -864,14 +878,38 @@ export class PaymentGatewayService {
         return;
       case 'MEMBERSHIP_CHARGE': {
         if (this.membershipPayments === undefined || charge.membershipChargeId === null || charge.membershipChargeId === undefined) return;
+        const membershipCharge = await this.client.customerMembershipCharge.findFirst({
+          where: { tenantId: charge.tenantId, id: charge.membershipChargeId },
+          select: { publicId: true, status: true },
+        });
+        if (membershipCharge === null) return;
+        if (membershipCharge.status === 'CANCELED' || membershipCharge.status === 'REFUNDED') {
+          const membershipPayments = this.membershipPayments;
+          if (membershipPayments === undefined) return;
+          const methodName = `Gateway (${charge.provider})`;
+          const methods = await this.paymentMethods.list(charge.tenantId);
+          let method = methods.items.find((item) => item.name === methodName);
+          method ??= await this.paymentMethods.create(charge.tenantId, { name: methodName, type: 'OTHER', sortOrder: 999, active: true });
+          const methodRecord = await this.client.paymentMethod.findFirst({ where: { tenantId: charge.tenantId, publicId: method.publicId }, select: { id: true } });
+          if (methodRecord === null) return;
+          const payment = await this.client.$transaction(async (tx) => {
+            const latePayment = await membershipPayments.recordLatePaidMembershipChargeWithinTransaction(tx, charge.tenantId, membershipCharge.publicId, methodRecord.id, actor);
+            await tx.paymentGatewayCharge.update({ where: { id: charge.id }, data: { paymentId: latePayment.id } });
+            await tx.auditLog.create({ data: {
+              publicId: randomUUID(), tenantId: charge.tenantId, userId: actor.userId, sessionId: actor.sessionId,
+              action: 'payment_gateway.membership_charge_paid_after_cancel', targetType: 'payment_gateway_charge', targetPublicId: charge.publicId,
+            } });
+            return latePayment;
+          });
+          void payment;
+          return;
+        }
         const methodName = `Gateway (${charge.provider})`;
         const methods = await this.paymentMethods.list(charge.tenantId);
         let method = methods.items.find((item) => item.name === methodName);
         method ??= await this.paymentMethods.create(charge.tenantId, { name: methodName, type: 'OTHER', sortOrder: 999, active: true });
         const methodRecord = await this.client.paymentMethod.findFirst({ where: { tenantId: charge.tenantId, publicId: method.publicId }, select: { id: true } });
         if (methodRecord === null) return;
-        const membershipCharge = await this.client.customerMembershipCharge.findFirst({ where: { tenantId: charge.tenantId, id: charge.membershipChargeId }, select: { publicId: true } });
-        if (membershipCharge === null) return;
         const payment = await this.membershipPayments.createPayment(charge.tenantId, membershipCharge.publicId, methodRecord.id, actor);
         await this.client.paymentGatewayCharge.update({ where: { id: charge.id }, data: { paymentId: payment.id } });
         return;

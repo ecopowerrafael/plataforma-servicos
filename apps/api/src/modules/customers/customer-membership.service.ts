@@ -10,6 +10,10 @@ interface Actor {
   sessionId: bigint;
 }
 
+interface MembershipGatewayCancellation {
+  cancelPendingMembershipCharges(tenantId: bigint, chargeIds: bigint[], actor: Actor): Promise<void>;
+}
+
 function planNotFound() {
   return new AppError({
     code: 'CUSTOMER_MEMBERSHIP_PLAN_NOT_FOUND',
@@ -46,7 +50,39 @@ export class CustomerMembershipService {
   public constructor(
     private readonly repository: CustomerMembershipRepository,
     private readonly chargeService?: CustomerMembershipChargeService,
+    private readonly gatewayCancellation?: MembershipGatewayCancellation,
   ) {}
+
+  public async cancel(tenantId: bigint, publicId: string, actor: Actor, reason?: string) {
+    const pendingGatewayChargeIds = await this.repository.client.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: bigint }>>`
+        SELECT id FROM customer_memberships WHERE tenant_id = ${tenantId} AND public_id = ${publicId} FOR UPDATE
+      `;
+      if (locked.length === 0) throw membershipNotFoundErr();
+      const membership = await tx.customerMembership.findFirst({ where: { tenantId, publicId }, select: { id: true, status: true } });
+      if (membership === null) throw membershipNotFoundErr();
+      if (membership.status === 'CANCELED' || membership.status === 'EXPIRED') return [];
+
+      const openAppointments = await tx.appointment.count({
+        where: { tenantId, membershipUsages: { some: { membershipId: membership.id } }, status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] }, chargeSource: { in: ['MEMBERSHIP_INCLUDED', 'MEMBERSHIP_DISCOUNT'] } },
+      });
+      if (openAppointments > 0) throw new AppError({ code: 'OPEN_MEMBERSHIP_APPOINTMENTS', message: `Existem ${openAppointments} agendamentos futuros usando benefícios desta mensalidade.`, statusCode: 409 });
+
+      const reservedUsage = await tx.customerMembershipUsage.count({ where: { tenantId, membershipId: membership.id, status: 'RESERVED' } });
+      if (reservedUsage > 0) throw new AppError({ code: 'RESERVED_MEMBERSHIP_USAGE', message: `Existem ${reservedUsage} usos reservados nesta mensalidade.`, statusCode: 409 });
+
+      const paidUnreconciled = await tx.paymentGatewayCharge.count({ where: { tenantId, membershipCharge: { membershipId: membership.id }, originType: 'MEMBERSHIP_CHARGE', status: 'PAID', paymentId: null } });
+      if (paidUnreconciled > 0) throw new AppError({ code: 'PAID_GATEWAY_CHARGE_UNRECONCILED', message: `Existem ${paidUnreconciled} cobranças gateway pagas sem reconciliação local.`, statusCode: 409 });
+
+      await tx.customerMembershipCharge.updateMany({ where: { tenantId, membershipId: membership.id, status: 'PENDING' }, data: { status: 'CANCELED' } });
+      const gatewayCharges = await tx.paymentGatewayCharge.findMany({ where: { tenantId, membershipCharge: { membershipId: membership.id }, originType: 'MEMBERSHIP_CHARGE', status: { in: ['PENDING', 'PROCESSING'] } }, select: { id: true } });
+      await tx.customerMembership.update({ where: { id: membership.id }, data: { status: 'CANCELED', canceledAt: new Date(), cancelAtPeriodEnd: false, nextBillingAt: null } });
+      await tx.auditLog.create({ data: { publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId, action: 'customer_membership.canceled', targetType: 'customer_membership', targetPublicId: publicId, metadata: { fromStatus: membership.status, toStatus: 'CANCELED', effectiveAt: new Date().toISOString(), ...(reason === undefined ? {} : { reason: reason.slice(0, 500) }) } } });
+      return gatewayCharges.map((charge) => charge.id);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (pendingGatewayChargeIds.length > 0 && this.gatewayCancellation !== undefined) await this.gatewayCancellation.cancelPendingMembershipCharges(tenantId, pendingGatewayChargeIds, actor);
+    return this.repository.find(tenantId, publicId);
+  }
 
   public async create(tenantId: bigint, customerId: string, planPublicId: string, actor: Actor) {
     return this.repository.withTenantLock(tenantId, async (repository) => {

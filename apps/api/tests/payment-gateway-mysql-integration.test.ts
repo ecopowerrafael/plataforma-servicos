@@ -8,6 +8,9 @@ import { AppointmentRepository } from '../src/modules/appointments/appointment.r
 import { AppointmentService } from '../src/modules/appointments/appointment.service.js';
 import { AvailabilityRepository } from '../src/modules/calendar/availability.repository.js';
 import { AvailabilityService } from '../src/modules/calendar/availability.service.js';
+import { CustomerMembershipRepository } from '../src/modules/customers/customer-membership.repository.js';
+import { CustomerMembershipPaymentService } from '../src/modules/customers/customer-membership-payment.service.js';
+import { CustomerMembershipService } from '../src/modules/customers/customer-membership.service.js';
 import { CredentialsCipher } from '../src/modules/payments/gateway/credentials-cipher.js';
 import { PaymentGatewayService } from '../src/modules/payments/gateway/payment-gateway.service.js';
 import { PaymentGatewayProviderRegistry } from '../src/modules/payments/gateway/provider-registry.js';
@@ -37,6 +40,7 @@ class TestProviderAdapter implements PaymentGatewayProviderAdapter {
   public createCalls = 0;
   public nextStatus: PaymentGatewayChargeStatus = 'PENDING';
   public supportsCancel = true;
+  public cancelFails = false;
 
   public createCharge(
     _credentials: Record<string, unknown>,
@@ -60,6 +64,7 @@ class TestProviderAdapter implements PaymentGatewayProviderAdapter {
   }
 
   public cancelCharge(): Promise<void> {
+    if (this.cancelFails) return Promise.reject(new Error('cancelamento remoto indisponível'));
     return Promise.resolve();
   }
 
@@ -140,10 +145,13 @@ describe(
       cipher,
       paymentMethods,
       cashPayments,
+      undefined,
+      new CustomerMembershipPaymentService(client),
     );
     beforeAll(async () => {
       const rows = await client.$queryRaw<Array<{ db: string }>>`SELECT DATABASE() AS db`;
-      if (rows[0]?.db !== 'u891593158_teste') {
+      const expectedDatabase = process.env.TEST_DATABASE_NAME ?? 'u891593158_teste';
+      if (rows[0]?.db !== expectedDatabase) {
         throw new Error('Refusing to run integration tests against non-test database.');
       }
     });
@@ -176,6 +184,7 @@ describe(
     beforeEach(async () => {
       testAdapter.createCalls = 0;
       testAdapter.nextStatus = 'PENDING';
+      testAdapter.cancelFails = false;
 
       const user = await client.user.create({
         data: {
@@ -309,6 +318,10 @@ describe(
       await client.auditLog.deleteMany({ where: { tenantId: { in: ids } } });
       await client.professionalCommission.deleteMany({ where: { tenantId: { in: ids } } });
       await client.payment.deleteMany({ where: { tenantId: { in: ids } } });
+      await client.customerMembershipUsage.deleteMany({ where: { tenantId: { in: ids } } });
+      await client.customerMembershipCharge.deleteMany({ where: { tenantId: { in: ids } } });
+      await client.customerMembership.deleteMany({ where: { tenantId: { in: ids } } });
+      await client.customerMembershipPlan.deleteMany({ where: { tenantId: { in: ids } } });
       await client.paymentMethod.deleteMany({ where: { tenantId: { in: ids } } });
       await client.appointmentHistoryEntry.deleteMany({ where: { tenantId: { in: ids } } });
       await client.appointment.deleteMany({ where: { tenantId: { in: ids } } });
@@ -559,6 +572,25 @@ describe(
     });
 
     describe('cancelamento de cobrança', () => {
+      it('mantém membership cancelada e audita falha de cancelamento remoto pós-commit', async () => {
+        await gateway.upsertConfig(tenantId, {
+          provider: 'test-provider', active: true, environment: 'SANDBOX', credentials: { secret: 'abc123' },
+        }, actor);
+        const now = new Date();
+        const plan = await client.customerMembershipPlan.create({ data: { publicId: randomUUID(), tenantId, name: 'Remote failure plan', priceCents: 1000n, billingInterval: 'MONTHLY' } });
+        const customer = await client.customer.findFirstOrThrow({ where: { tenantId, publicId: customerId } });
+        const membership = await client.customerMembership.create({ data: { publicId: randomUUID(), tenantId, customerId: customer.id, planId: plan.id, status: 'ACTIVE', activeKey: `${tenantId}:${customer.id}:remote-failure`, startedAt: now, currentPeriodStart: now, currentPeriodEnd: new Date(now.getTime() + 86_400_000) } });
+        const charge = await client.customerMembershipCharge.create({ data: { publicId: randomUUID(), tenantId, membershipId: membership.id, periodStart: now, periodEnd: new Date(now.getTime() + 86_400_000), amountCents: 1000n, status: 'PENDING', dueAt: now } });
+        const gatewayCharge = await client.paymentGatewayCharge.create({ data: { publicId: randomUUID(), tenantId, originType: 'MEMBERSHIP_CHARGE', membershipChargeId: charge.id, provider: 'test-provider', environment: 'SANDBOX', status: 'PENDING', amountCents: 1000n, currency: 'BRL', idempotencyKey: randomUUID(), externalId: `remote-failure-${randomUUID()}` } });
+        testAdapter.cancelFails = true;
+
+        await new CustomerMembershipService(new CustomerMembershipRepository(client), undefined, gateway).cancel(tenantId, membership.publicId, actor);
+
+        expect((await client.customerMembership.findUniqueOrThrow({ where: { id: membership.id } })).status).toBe('CANCELED');
+        expect((await client.paymentGatewayCharge.findUniqueOrThrow({ where: { id: gatewayCharge.id } })).status).toBe('PENDING');
+        expect(await client.auditLog.count({ where: { tenantId, action: 'customer_membership.gateway_cancel_failed', targetPublicId: gatewayCharge.publicId } })).toBe(1);
+      });
+
       it('cancela quando o provedor suporta, e bloqueia cancelar uma cobrança já paga', async () => {
         await gateway.upsertConfig(
           tenantId,
@@ -676,6 +708,62 @@ describe(
 
         const list = await cashPayments.listForAppointment(tenantId, appointment.publicId);
         expect(list.items).toHaveLength(1);
+      });
+
+      it('reconcilia PAID tardio de membership cancelada em um Payment sem reativá-la', async () => {
+        await gateway.upsertConfig(tenantId, {
+          provider: 'test-provider', active: true, environment: 'SANDBOX', credentials: { secret: 'abc123' },
+        }, actor);
+        const now = new Date();
+        const plan = await client.customerMembershipPlan.create({
+          data: { publicId: randomUUID(), tenantId, name: 'Gateway membership plan', priceCents: 4_000n, billingInterval: 'MONTHLY' },
+        });
+        const customer = await client.customer.findFirstOrThrow({ where: { tenantId, publicId: customerId } });
+        const membership = await client.customerMembership.create({
+          data: {
+            publicId: randomUUID(), tenantId, customerId: customer.id, planId: plan.id, status: 'ACTIVE',
+            activeKey: `${tenantId}:${customer.id}:late-paid`, startedAt: now,
+            currentPeriodStart: now, currentPeriodEnd: new Date(now.getTime() + 86_400_000),
+            nextBillingAt: new Date(now.getTime() + 86_400_000),
+          },
+        });
+        const membershipCharge = await client.customerMembershipCharge.create({
+          data: {
+            publicId: randomUUID(), tenantId, membershipId: membership.id, periodStart: now,
+            periodEnd: new Date(now.getTime() + 86_400_000), amountCents: 4_000n, status: 'PENDING', dueAt: now,
+          },
+        });
+        const gatewayCharge = await client.paymentGatewayCharge.create({
+          data: {
+            publicId: randomUUID(), tenantId, originType: 'MEMBERSHIP_CHARGE', membershipChargeId: membershipCharge.id,
+            provider: 'test-provider', environment: 'SANDBOX', status: 'PROCESSING', amountCents: 4_000n,
+            currency: 'BRL', idempotencyKey: randomUUID(), externalId: `late-${randomUUID()}`,
+          },
+        });
+        const membershipService = new CustomerMembershipService(new CustomerMembershipRepository(client), undefined, gateway);
+        await membershipService.cancel(tenantId, membership.publicId, actor);
+        testAdapter.nextStatus = 'PAID';
+        const rawBody = JSON.stringify({ externalEventId: randomUUID(), externalId: gatewayCharge.externalId, status: 'PAID' });
+
+        await expect(gateway.handleWebhook(tenantPublicId, 'test-provider', rawBody, { 'x-signature': 'abc123' })).resolves.toEqual({ deduplicated: false, matched: true });
+        const persistedMembership = await client.customerMembership.findUniqueOrThrow({ where: { id: membership.id } });
+        const persistedCharge = await client.customerMembershipCharge.findUniqueOrThrow({ where: { id: membershipCharge.id } });
+        const persistedGatewayCharge = await client.paymentGatewayCharge.findUniqueOrThrow({ where: { id: gatewayCharge.id } });
+        const payments = await client.payment.findMany({ where: { tenantId, membershipChargeId: membershipCharge.id, originType: 'MEMBERSHIP_CHARGE' } });
+        expect(persistedMembership.status).toBe('CANCELED');
+        expect(persistedMembership.canceledAt).not.toBeNull();
+        expect(persistedMembership.nextBillingAt).toBeNull();
+        expect(persistedMembership.cancelAtPeriodEnd).toBe(false);
+        expect(persistedCharge.status).toBe('PAID');
+        expect(persistedGatewayCharge.status).toBe('PAID');
+        expect(persistedGatewayCharge.paymentId).not.toBeNull();
+        expect(payments).toHaveLength(1);
+        expect(payments[0]?.amountCents).toBe(4_000n);
+        expect(await client.customerMembershipUsage.count({ where: { tenantId, membershipId: membership.id } })).toBe(0);
+
+        await gateway.handleWebhook(tenantPublicId, 'test-provider', rawBody, { 'x-signature': 'abc123' });
+        await gateway.getCharge(tenantId, gatewayCharge.publicId, true);
+        expect(await client.payment.count({ where: { tenantId, membershipChargeId: membershipCharge.id, originType: 'MEMBERSHIP_CHARGE' } })).toBe(1);
       });
 
       it('ignora webhook PAID tardio de charge superseded', async () => {

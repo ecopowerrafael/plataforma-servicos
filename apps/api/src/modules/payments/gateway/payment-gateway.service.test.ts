@@ -64,7 +64,10 @@ function mockCipher() {
 }
 
 function mockPaymentMethods() {
-  return { list: vi.fn(), create: vi.fn() } as unknown as PaymentMethodService;
+  return {
+    list: vi.fn().mockResolvedValue({ items: [{ publicId: 'gateway-method', name: 'Gateway (pix-local)' }] }),
+    create: vi.fn(),
+  } as unknown as PaymentMethodService;
 }
 
 function mockPayments() {
@@ -214,5 +217,74 @@ describe('PaymentGatewayService.handleWebhook — roteamento por originType', ()
 
     expect(debtPixPayments.reconcile).toHaveBeenCalledWith(900n);
     expect(payments.create).not.toHaveBeenCalled();
+  });
+
+  it('cobrança de membership paga após cancelamento cria Payment sem reativar membership', async () => {
+    const adapter = mockAdapter({
+      verifyWebhookSignature: vi.fn().mockReturnValue(true),
+      parseWebhookEvent: vi.fn().mockReturnValue({ externalEventId: 'evt-late', externalId: 'ext-late', status: 'PAID', raw: {} }),
+    });
+    const client = mockClient({
+      tenant: { findFirst: vi.fn().mockResolvedValue({ id: 10n }) },
+      paymentGatewayConfig: { findFirst: vi.fn().mockResolvedValue(activeConfig()), findMany: vi.fn() },
+      paymentGatewayEvent: { create: vi.fn().mockResolvedValue({}), findFirst: vi.fn().mockResolvedValue(null) },
+      paymentGatewayCharge: {
+        findFirst: vi.fn().mockResolvedValue({ id: 901n, publicId: 'gateway-late', originType: 'MEMBERSHIP_CHARGE', membershipChargeId: 701n, paymentId: null, supersededAt: null }),
+        create: vi.fn(),
+        update: vi.fn().mockResolvedValue({
+          id: 901n,
+          tenantId: 10n,
+          publicId: 'gateway-late',
+          originType: 'MEMBERSHIP_CHARGE',
+          membershipChargeId: 701n,
+          paymentId: null,
+          supersededAt: null,
+          status: 'PAID',
+          provider: 'pix-local',
+          appointment: null,
+          debt: null,
+          payment: null,
+        }),
+      },
+      customerMembershipCharge: {
+        findFirst: vi.fn().mockResolvedValue({ publicId: 'membership-charge', status: 'CANCELED' }),
+      },
+      paymentMethod: {
+        findFirst: vi.fn().mockResolvedValue({ id: 77n }),
+      },
+      $transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback({
+        paymentGatewayCharge: { update: vi.fn().mockResolvedValue({}) },
+        auditLog: { create: vi.fn().mockResolvedValue({}) },
+      })),
+    });
+    const membershipPayments = {
+      createPayment: vi.fn(),
+      recordLatePaidMembershipChargeWithinTransaction: vi.fn().mockResolvedValue({ id: 902n }),
+    } as unknown as import('../membership-payment.service.js').CustomerMembershipPaymentService;
+    const service = new PaymentGatewayService(client, mockRegistry({ 'pix-local': adapter }), mockCipher(), mockPaymentMethods(), mockPayments(), undefined, membershipPayments);
+
+    await expect(service.handleWebhook('tenant-public-id', 'pix-local', '{"data":{"id":"ext-late"}}', {})).resolves.toEqual({ deduplicated: false, matched: true });
+
+    expect(membershipPayments.createPayment).not.toHaveBeenCalled();
+    expect(membershipPayments.recordLatePaidMembershipChargeWithinTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      10n,
+      'membership-charge',
+      77n,
+      expect.anything(),
+    );
+  });
+});
+
+describe('PaymentGatewayService.cancelPendingMembershipCharges', () => {
+  it('audita falha remota sem propagar rollback para o cancelamento local', async () => {
+    const client = mockClient({
+      paymentGatewayCharge: { findMany: vi.fn().mockResolvedValue([{ publicId: 'membership-gateway-charge' }]) },
+    });
+    const service = new PaymentGatewayService(client, mockRegistry({}), mockCipher(), mockPaymentMethods(), mockPayments());
+    vi.spyOn(service, 'cancelCharge').mockRejectedValue(new Error('provider indisponível'));
+
+    await expect(service.cancelPendingMembershipCharges(10n, [900n], { userId: 1n, sessionId: 2n })).resolves.toBeUndefined();
+    expect(client.auditLog.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: 'customer_membership.gateway_cancel_failed', targetPublicId: 'membership-gateway-charge' }) });
   });
 });

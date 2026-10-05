@@ -59,6 +59,9 @@ async function start(environment: Environment, startedAt: number): Promise<void>
             ...(database.commercialSweep === undefined
               ? {}
               : { commercialSweep: database.commercialSweep }),
+            ...(database.membershipRenewalSweep === undefined
+              ? {}
+              : { membershipRenewalSweep: database.membershipRenewalSweep }),
             ...(database.directorySeo === undefined ? {} : { directorySeo: database.directorySeo }),
             ...(database.integrations === undefined ? {} : { whatsappIntegration: database.integrations }),
           },

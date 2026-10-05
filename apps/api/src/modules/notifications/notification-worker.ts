@@ -10,6 +10,7 @@ import { type LoyaltyService } from '../payments/loyalty.service.js';
 import { type TenantCommercialSweepService } from '../platform/tenant-commercial-sweep.service.js';
 import { type DirectorySeoService } from '../platform/directory-seo.service.js';
 import { type IntegrationService } from '../integrations/integration.service.js';
+import { type CustomerMembershipRenewalSweepService } from '../customers/customer-membership-renewal-sweep.service.js';
 
 interface WorkerLogger {
   info: (payload: unknown, message?: string) => void;
@@ -29,6 +30,7 @@ interface WorkerDeps {
   commercialSweep?: TenantCommercialSweepService;
   directorySeo?: DirectorySeoService;
   whatsappIntegration?: IntegrationService;
+  membershipRenewalSweep?: CustomerMembershipRenewalSweepService;
 }
 
 interface WorkerOptions {
@@ -62,6 +64,7 @@ export function startNotificationWorker(deps: WorkerDeps, options: WorkerOptions
       await deps.paymentPromises?.sweep();
       await deps.loyalty?.expireDue();
       await deps.commercialSweep?.run();
+      await deps.membershipRenewalSweep?.run();
       await deps.campaigns?.materializePending();
       const { processed } = await deps.notifications.processPending();
       await deps.campaigns?.reconcile();

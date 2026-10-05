@@ -4,6 +4,7 @@ import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipRepository } from './customer-membership.repository.js';
 import { CustomerMembershipChargeRepository } from './customer-membership-charge.repository.js';
 import { CustomerMembershipChargeService } from './customer-membership-charge.service.js';
+import { addMembershipPeriod, membershipAnchorDay } from './customer-membership-period.js';
 
 interface Actor {
   userId: bigint;
@@ -84,6 +85,30 @@ export class CustomerMembershipService {
     return this.repository.find(tenantId, publicId);
   }
 
+  public async scheduleCancelAtPeriodEnd(tenantId: bigint, publicId: string, actor: Actor) {
+    return this.setCancelAtPeriodEnd(tenantId, publicId, true, actor);
+  }
+
+  public async revokeCancelAtPeriodEnd(tenantId: bigint, publicId: string, actor: Actor) {
+    return this.setCancelAtPeriodEnd(tenantId, publicId, false, actor);
+  }
+
+  private async setCancelAtPeriodEnd(tenantId: bigint, publicId: string, value: boolean, actor: Actor) {
+    return this.repository.client.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM customer_memberships WHERE tenant_id = ${tenantId} AND public_id = ${publicId} FOR UPDATE`;
+      const membership = await tx.customerMembership.findFirst({ where: { tenantId, publicId } });
+      if (membership === null) throw membershipNotFoundErr();
+      if (['CANCELED', 'EXPIRED'].includes(membership.status)) {
+        if (!value) throw new AppError({ code: 'CUSTOMER_MEMBERSHIP_NOT_REOPENABLE', message: 'A mensalidade encerrada não pode ser reaberta.', statusCode: 409 });
+        return membership;
+      }
+      if (membership.cancelAtPeriodEnd === value) return membership;
+      const updated = await tx.customerMembership.update({ where: { id: membership.id }, data: { cancelAtPeriodEnd: value } });
+      await tx.auditLog.create({ data: { publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId, action: value ? 'customer_membership.cancel_scheduled' : 'customer_membership.cancel_schedule_revoked', targetType: 'customer_membership', targetPublicId: publicId } });
+      return updated;
+    });
+  }
+
   public async create(tenantId: bigint, customerId: string, planPublicId: string, actor: Actor) {
     return this.repository.withTenantLock(tenantId, async (repository) => {
       const chargeService = this.chargeService === undefined
@@ -145,7 +170,7 @@ export class CustomerMembershipService {
       // Generate FIRST charge immediately (status PENDING, awaiting payment)
       if (chargeService && plan.priceCents > 0n) {
         const now = new Date();
-        const periodEnd = this.calculatePeriodEnd(now, plan);
+        const periodEnd = addMembershipPeriod(now, plan.billingInterval, tenant.timezone, membershipAnchorDay(now, tenant.timezone));
 
         // Capture immutable plan configuration for this charge/cycle. BigInt
         // identifiers are serialized as decimal strings to avoid precision loss.
@@ -202,7 +227,7 @@ export class CustomerMembershipService {
     if (!membership) throw membershipNotFoundErr();
 
     const periodStart = paidAt;
-    const periodEnd = this.calculatePeriodEnd(periodStart, membership.plan);
+    const periodEnd = membership.currentPeriodEnd ?? addMembershipPeriod(periodStart, membership.plan.billingInterval, 'UTC', membershipAnchorDay(periodStart, 'UTC'));
     const nextBilling = periodEnd;
 
     const updated = await this.repository.update(membershipId, {
@@ -217,25 +242,4 @@ export class CustomerMembershipService {
     return updated;
   }
 
-  private calculatePeriodEnd(start: Date, plan: { billingInterval?: string }): Date {
-    const end = new Date(start);
-    const interval = plan.billingInterval || 'MONTHLY';
-
-    switch (interval) {
-      case 'MONTHLY':
-        end.setMonth(end.getMonth() + 1);
-        break;
-      case 'QUARTERLY':
-        end.setMonth(end.getMonth() + 3);
-        break;
-      case 'SEMIANNUAL':
-        end.setMonth(end.getMonth() + 6);
-        break;
-      case 'ANNUAL':
-        end.setFullYear(end.getFullYear() + 1);
-        break;
-    }
-
-    return end;
-  }
 }

@@ -53,6 +53,7 @@ async function runOnce(): Promise<void> {
     await database.paymentPromises?.sweep();
     await database.loyalty?.expireDue();
     await database.commercialSweep?.run();
+    await database.membershipRenewalSweep?.run();
     await database.notificationCampaigns?.materializePending();
     if (database.notifications !== undefined) {
       await database.notifications.processPending();

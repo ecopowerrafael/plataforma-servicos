@@ -40,6 +40,7 @@ import { CustomerRepository } from '../modules/customers/customer.repository.js'
 import { CustomerService } from '../modules/customers/customer.service.js';
 import { CustomerMembershipUsageService } from '../modules/customers/customer-membership-usage.service.js';
 import { CustomerMembershipPaymentService } from '../modules/customers/customer-membership-payment.service.js';
+import { CustomerMembershipRenewalSweepService } from '../modules/customers/customer-membership-renewal-sweep.service.js';
 import {
   WApiWhatsAppDelivery,
   WebhookDelivery,
@@ -177,6 +178,7 @@ export interface DatabaseConnection {
   readonly stripeBilling?: StripeBillingService;
   readonly commercialPolicy?: TenantCommercialPolicyService;
   readonly commercialSweep?: TenantCommercialSweepService;
+  readonly membershipRenewalSweep?: CustomerMembershipRenewalSweepService;
   readonly customers?: CustomerService;
   readonly customerAuth?: CustomerAuthService;
   readonly customerProfile?: CustomerProfileService;
@@ -576,6 +578,7 @@ export function createDatabaseConnection(
     stripeBilling,
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client, platformBilling),
+    membershipRenewalSweep: new CustomerMembershipRenewalSweepService(client),
     customers: customers,
     customerAuth: customerAuth,
     customerProfile: customerProfile,

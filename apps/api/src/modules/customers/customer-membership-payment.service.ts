@@ -88,15 +88,23 @@ export class CustomerMembershipPaymentService {
     validatePaymentOrigin(payment.originType, payment.appointmentId, payment.membershipChargeId, payment.debtId);
     await tx.customerMembershipCharge.update({ where: { id: charge.id }, data: { status: 'PAID', paidAt } });
 
-    const periodEnd = new Date(paidAt);
-    const months = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUAL: 6, ANNUAL: 12 }[charge.membership.plan.billingInterval] ?? 1;
-    periodEnd.setMonth(periodEnd.getMonth() + months);
+    const periodEnd = charge.periodEnd;
     await tx.customerMembership.update({
       where: { id: charge.membershipId },
       data: charge.membership.status === 'PENDING'
-        ? { status: 'ACTIVE', startedAt: paidAt, currentPeriodStart: paidAt, currentPeriodEnd: periodEnd, nextBillingAt: periodEnd }
-        : { status: 'ACTIVE', currentPeriodStart: charge.periodStart, currentPeriodEnd: periodEnd, nextBillingAt: periodEnd },
+        ? { status: 'ACTIVE', startedAt: paidAt, currentPeriodStart: charge.periodStart, currentPeriodEnd: periodEnd, nextBillingAt: periodEnd }
+      : ['CANCELED', 'PAUSED', 'EXPIRED'].includes(charge.membership.status)
+          ? { }
+          : { status: 'ACTIVE', currentPeriodStart: charge.periodStart, currentPeriodEnd: periodEnd, nextBillingAt: periodEnd },
     });
+    if (['ACTIVE', 'PAST_DUE'].includes(charge.membership.status)) {
+      await tx.auditLog.create({ data: {
+        publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId,
+        action: 'customer_membership.renewed', targetType: 'customer_membership',
+        targetPublicId: charge.membership.publicId,
+        metadata: { chargePublicId: charge.publicId, periodStart: charge.periodStart.toISOString(), periodEnd: charge.periodEnd.toISOString() },
+      } });
+    }
     await tx.auditLog.create({ data: {
       publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId,
       action: 'customer_membership_charge.payment', targetType: 'customer_membership_charge', targetPublicId: charge.publicId,

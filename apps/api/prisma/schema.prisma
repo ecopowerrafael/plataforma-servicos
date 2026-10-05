@@ -3551,6 +3551,7 @@ model CustomerMembership {
 
   @@index([tenantId, customerId, status])
   @@index([tenantId, status, currentPeriodEnd])
+  @@index([status, nextBillingAt, id])
   @@index([planId])
   @@map("customer_memberships")
 }

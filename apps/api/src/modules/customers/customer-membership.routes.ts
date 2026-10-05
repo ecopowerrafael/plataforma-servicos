@@ -121,6 +121,28 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
     },
   );
 
+  app.post<{ Params: z.infer<typeof UuidParamSchema> }>(
+    '/tenant/customer-memberships/:publicId/cancel-at-period-end',
+    { schema: { params: UuidParamSchema } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
+      const membership = await service.scheduleCancelAtPeriodEnd(request.tenant.id, request.params.publicId, { userId: request.auth.user.id, sessionId: request.auth.session.id });
+      return { publicId: membership.publicId, status: membership.status, cancelAtPeriodEnd: membership.cancelAtPeriodEnd };
+    },
+  );
+
+  app.delete<{ Params: z.infer<typeof UuidParamSchema> }>(
+    '/tenant/customer-memberships/:publicId/cancel-at-period-end',
+    { schema: { params: UuidParamSchema } },
+    async (request) => {
+      options.authService.requirePermission(request.tenant, 'tenant.update');
+      options.authService.requireCapability(request.tenant, 'memberships.manage');
+      const membership = await service.revokeCancelAtPeriodEnd(request.tenant.id, request.params.publicId, { userId: request.auth.user.id, sessionId: request.auth.session.id });
+      return { publicId: membership.publicId, status: membership.status, cancelAtPeriodEnd: membership.cancelAtPeriodEnd };
+    },
+  );
+
   app.get<{ Querystring: z.infer<typeof ListQuerySchema> }>(
     '/tenant/customer-memberships',
     { schema: { querystring: ListQuerySchema } },

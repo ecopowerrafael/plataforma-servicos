@@ -118,7 +118,7 @@ export class CustomerMembershipRepository {
   }
 
   public findOperatingModel(tenantId: bigint) {
-    return this.client.tenant.findUnique({ where: { id: tenantId }, select: { operatingModel: true } });
+    return this.client.tenant.findUnique({ where: { id: tenantId }, select: { operatingModel: true, timezone: true } });
   }
 
   public create(data: Prisma.CustomerMembershipUncheckedCreateInput) {

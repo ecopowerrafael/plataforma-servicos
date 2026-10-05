@@ -14,7 +14,7 @@ import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
 import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
-import { CustomerMembershipBenefitResolver } from '../customers/customer-membership-benefit-resolver.js';
+import { ChargeSource, CustomerMembershipBenefitResolver } from '../customers/customer-membership-benefit-resolver.js';
 import { type CustomerMembershipUsageService } from '../customers/customer-membership-usage.service.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 interface Actor {
@@ -696,6 +696,15 @@ export class AppointmentService {
     if (comboId === null && tenant?.operatingModel === 'MEMBERSHIP' && serviceId !== null) {
       const resolver = new CustomerMembershipBenefitResolver(this.client);
       const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
+      if (benefit.membershipChargeId !== undefined) {
+        const membershipState = await this.client.customerMembershipCharge.findUnique({ where: { id: benefit.membershipChargeId }, select: { membership: { select: { cancelAtPeriodEnd: true, currentPeriodEnd: true } } } });
+        if (membershipState?.membership.cancelAtPeriodEnd && membershipState.membership.currentPeriodEnd !== null && start >= membershipState.membership.currentPeriodEnd) {
+          benefit.covered = false;
+          benefit.chargeSource = ChargeSource.SERVICE_PRICE;
+          benefit.amountDueCents = finalPrice;
+          delete benefit.membershipChargeId;
+        }
+      }
       chargeSource = benefit.chargeSource as 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT';
       referencePriceCents = benefit.referencePriceCents;
       amountDueCents = benefit.amountDueCents;

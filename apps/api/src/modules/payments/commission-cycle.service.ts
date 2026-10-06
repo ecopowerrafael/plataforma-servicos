@@ -10,10 +10,10 @@ import { commissionPeriodFor } from './commission-cycle-period.js';
 interface Actor { userId: bigint | null; sessionId: bigint | null }
 
 type CycleWithAllocations = PrismaCommissionCycle & {
-  allocations: Array<{ points: number; amountCents: bigint; professional: { publicId: string } }>;
+  allocations: Array<{ points: number; amountCents: bigint; professional: { publicId: string; name: string } }>;
 };
 
-const include = { allocations: { include: { professional: { select: { publicId: true } } }, orderBy: { professionalId: 'asc' as const } } } as const;
+const include = { allocations: { include: { professional: { select: { publicId: true, name: true } } }, orderBy: { professionalId: 'asc' as const } } } as const;
 
 function configured(settings: { commissionTeamPercentBps: number | null; commissionClosingDay: number | null; commissionEffectiveFrom: Date | null }): { commissionTeamPercentBps: number; commissionClosingDay: number; commissionEffectiveFrom: Date } {
   if (settings.commissionTeamPercentBps === null || settings.commissionClosingDay === null || settings.commissionEffectiveFrom === null) {
@@ -22,13 +22,13 @@ function configured(settings: { commissionTeamPercentBps: number | null; commiss
   return { commissionTeamPercentBps: settings.commissionTeamPercentBps, commissionClosingDay: settings.commissionClosingDay, commissionEffectiveFrom: settings.commissionEffectiveFrom };
 }
 
-function publicCycle(cycle: CycleWithAllocations, now: Date, preview?: { revenue: bigint; points: PointShare[]; publicIds: Map<bigint, string> }) {
+function publicCycle(cycle: CycleWithAllocations, now: Date, preview?: { revenue: bigint; points: PointShare[]; publicIds: Map<bigint, string>; names: Map<bigint, string> }) {
   const revenue = cycle.status === 'CLOSED' ? cycle.eligibleRevenueCents : (preview?.revenue ?? 0n);
   const points = cycle.status === 'CLOSED' ? cycle.totalPoints : (preview?.points.reduce((sum, item) => sum + item.points, 0) ?? 0);
   const pool = cycle.status === 'CLOSED' ? cycle.poolCents : revenue * BigInt(cycle.teamPercentBps) / 10000n;
   const allocations = cycle.status === 'CLOSED'
-    ? cycle.allocations.map((item) => ({ professionalPublicId: item.professional.publicId, points: item.points, amountCents: item.amountCents.toString() }))
-    : distributeLargestRemainder(pool, preview?.points ?? []).map((item) => ({ professionalPublicId: preview?.publicIds.get(item.professionalId) ?? '', points: item.points, amountCents: item.amountCents.toString() }));
+    ? cycle.allocations.map((item) => ({ professionalPublicId: item.professional.publicId, professionalName: item.professional.name, points: item.points, amountCents: item.amountCents.toString() }))
+    : distributeLargestRemainder(pool, preview?.points ?? []).map((item) => ({ professionalPublicId: preview?.publicIds.get(item.professionalId) ?? '', professionalName: preview?.names.get(item.professionalId) ?? 'Profissional', points: item.points, amountCents: item.amountCents.toString() }));
   return CommissionCycleSchema.parse({
     publicId: cycle.publicId,
     periodStart: cycle.periodStart.toISOString(), periodEnd: cycle.periodEnd.toISOString(), status: cycle.status,
@@ -53,12 +53,13 @@ export class CommissionCycleService {
   private async live(cycle: PrismaCommissionCycle, client: PrismaClient = this.client) {
     const [revenue, appointments] = await Promise.all([
       client.payment.aggregate({ where: { tenantId: cycle.tenantId, originType: 'MEMBERSHIP_CHARGE', status: 'PAID', paidAt: { gte: cycle.periodStart, lt: cycle.periodEnd }, amountCents: { gt: 0n } }, _sum: { amountCents: true } }),
-      client.appointment.findMany({ where: { tenantId: cycle.tenantId, status: 'COMPLETED', completedAt: { gte: cycle.periodStart, lt: cycle.periodEnd }, chargeSource: { in: ['MEMBERSHIP_INCLUDED', 'MEMBERSHIP_DISCOUNT'] } }, select: { professionalId: true, professional: { select: { publicId: true } } } }),
+      client.appointment.findMany({ where: { tenantId: cycle.tenantId, status: 'COMPLETED', completedAt: { gte: cycle.periodStart, lt: cycle.periodEnd }, chargeSource: { in: ['MEMBERSHIP_INCLUDED', 'MEMBERSHIP_DISCOUNT'] } }, select: { professionalId: true, professional: { select: { publicId: true, name: true } } } }),
     ]);
     const grouped = new Map<bigint, number>();
     const publicIds = new Map<bigint, string>();
-    for (const appointment of appointments) { grouped.set(appointment.professionalId, (grouped.get(appointment.professionalId) ?? 0) + 1); publicIds.set(appointment.professionalId, appointment.professional.publicId); }
-    return { revenue: revenue._sum.amountCents ?? 0n, points: [...grouped].map(([professionalId, points]) => ({ professionalId, points })), publicIds };
+    const names = new Map<bigint, string>();
+    for (const appointment of appointments) { grouped.set(appointment.professionalId, (grouped.get(appointment.professionalId) ?? 0) + 1); publicIds.set(appointment.professionalId, appointment.professional.publicId); names.set(appointment.professionalId, appointment.professional.name); }
+    return { revenue: revenue._sum.amountCents ?? 0n, points: [...grouped].map(([professionalId, points]) => ({ professionalId, points })), publicIds, names };
   }
 
   private async createCurrent(tenantId: bigint, now: Date) {
@@ -111,7 +112,7 @@ export class CommissionCycleService {
       const updated = await tx.commissionCycle.update({ where: { id: cycle.id }, data: { eligibleRevenueCents: live.revenue, poolCents: pool, totalPoints: live.points.reduce((sum, item) => sum + item.points, 0), distributedCents: allocations.reduce((sum, item) => sum + item.amountCents, 0n), status: 'CLOSED', closedAt: now, closedByUserId: actor.userId }, include });
       if (allocations.length > 0) await tx.commissionCycleAllocation.createMany({ data: allocations.map((item) => ({ publicId: randomUUID(), cycleId: cycle.id, professionalId: item.professionalId, points: item.points, amountCents: item.amountCents })) });
       await tx.auditLog.create({ data: { publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId, action: 'commission_cycle.closed', targetType: 'commission_cycle', targetPublicId: cycle.publicId, metadata: { cyclePublicId: cycle.publicId, periodStart: cycle.periodStart.toISOString(), periodEnd: cycle.periodEnd.toISOString(), teamPercentBps: cycle.teamPercentBps, eligibleRevenueCents: live.revenue.toString(), poolCents: pool.toString(), totalPoints: live.points.reduce((sum, item) => sum + item.points, 0), distributedCents: allocations.reduce((sum, item) => sum + item.amountCents, 0n).toString() } } });
-      return { ...updated, allocations: await tx.commissionCycleAllocation.findMany({ where: { cycleId: cycle.id }, include: { professional: { select: { publicId: true } } }, orderBy: { professionalId: 'asc' } }) };
+      return { ...updated, allocations: await tx.commissionCycleAllocation.findMany({ where: { cycleId: cycle.id }, include: { professional: { select: { publicId: true, name: true } } }, orderBy: { professionalId: 'asc' } }) };
     }, { isolationLevel: 'Serializable' });
     let closed: CycleWithAllocations | undefined;
     for (let attempt = 0; attempt < 3; attempt += 1) {

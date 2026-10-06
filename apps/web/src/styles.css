@@ -9604,6 +9604,17 @@ h1 {
   .week-list-row { grid-template-columns: 1fr; gap: 0.7rem; }
   .week-list-row > :nth-child(3), .week-list-row > :nth-child(4) { grid-column: auto; grid-row: auto; justify-self: start; }
 }
+
+.commission-cycle-page { max-width: 1180px; margin-inline: auto; }
+.commission-cycle-period { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.commission-settings-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 1rem; }
+.commission-settings-form label { display: grid; gap: .35rem; font-weight: 600; }
+.commission-settings-form input { max-width: 22rem; }
+@media (max-width: 720px) {
+  .commission-cycle-page .ds-stat-grid { grid-template-columns: 1fr 1fr; }
+  .commission-cycle-page .ds-table-scroll { overflow-x: auto; }
+  .commission-cycle-page .ds-section-card { padding: .9rem; }
+}
 @media (max-width: 620px) {
   .schedule-modern-header, .schedule-header-actions { align-items: stretch; }
   .schedule-header-actions { flex-direction: column; }

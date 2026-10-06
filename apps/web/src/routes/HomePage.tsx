@@ -157,6 +157,10 @@ const PaymentOptionsModule = load(
   import('../components/tenants/PaymentOptionsModule.js'),
   'PaymentOptionsModule',
 );
+const CommissionCycleModule = load(
+  import('../components/tenants/CommissionCycleModule.js'),
+  'CommissionCycleModule',
+);
 const ProductCatalog = load(import('../components/products/ProductCatalog.js'), 'ProductCatalog');
 const ProductCreatePage = load(
   import('../components/products/ProductCreatePage.js'),
@@ -604,6 +608,8 @@ export function HomePage() {
     me.data?.currentTenant?.membership.permissions.includes('financial_closing.read') ?? false;
   const canManageFinancialClosings =
     me.data?.currentTenant?.membership.permissions.includes('financial_closing.manage') ?? false;
+  const canReadCommissionCycles = canReadFinancialClosings;
+  const canManageCommissionCycles = canManageFinancialClosings;
   const canReadFinancialReports =
     me.data?.currentTenant?.membership.permissions.includes('financial_report.read') ?? false;
   const canReadPaymentGateway =
@@ -762,6 +768,11 @@ export function HomePage() {
           label: 'Fechamentos',
           to: '/app/financeiro/fechamentos',
           visible: canReadFinancialClosings,
+        },
+        {
+          label: 'Rateio de Assinaturas',
+          to: '/app/financeiro/rateio-assinaturas',
+          visible: canReadCommissionCycles,
         },
         {
           label: 'Relatórios',
@@ -1729,6 +1740,14 @@ export function HomePage() {
               <FinancialClosingModule
                 tenantPublicId={selectedTenant}
                 canManage={canManageFinancialClosings}
+              />
+            )}
+            {isRoute('/app/financeiro/rateio-assinaturas') && canReadCommissionCycles && me.data.currentTenant && (
+              <CommissionCycleModule
+                tenantPublicId={selectedTenant}
+                timezone={me.data.currentTenant.tenant.timezone}
+                canManage={canManageCommissionCycles}
+                canUpdate={canUpdateTenantSettings}
               />
             )}
             {isRoute('/app/financeiro') && canReadPayments && (

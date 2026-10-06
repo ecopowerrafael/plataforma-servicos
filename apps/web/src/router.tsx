@@ -367,6 +367,7 @@ export const router = createBrowserRouter([
   { path: '/app/financeiro/pagamentos', element: lazyPage(HomePage) },
   { path: '/app/financeiro/pendencias', element: lazyPage(HomePage) },
   { path: '/app/financeiro/fechamentos', element: lazyPage(HomePage) },
+  { path: '/app/financeiro/rateio-assinaturas', element: lazyPage(HomePage) },
   { path: '/app/financeiro/relatorios', element: lazyPage(HomePage) },
   // A configuração de gateway foi unificada em /app/financeiro/opcoes.
   { path: '/app/financeiro/gateway', element: <Navigate replace to="/app/financeiro/opcoes" /> },

@@ -1,6 +1,6 @@
 import {
   CustomerMembershipAccountResponseSchema,
-  type CustomerMembershipAccountItem,
+  CustomerMembershipPaymentResponseSchema,
 } from '@plataforma/shared';
 import {
   IconAlertCircle,
@@ -9,9 +9,16 @@ import {
   IconClock,
   IconCreditCard,
 } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { type z } from 'zod';
 
 import { httpClient } from '../../../lib/http.js';
+
+type CustomerMembershipAccountItem = NonNullable<
+  z.infer<typeof CustomerMembershipAccountResponseSchema>['current']
+>;
+type CustomerMembershipPaymentResponse = z.infer<typeof CustomerMembershipPaymentResponseSchema>;
 
 const STATUS_LABELS = {
   ACTIVE: 'Mensalidade ativa',
@@ -46,6 +53,7 @@ const intervalLabel = (value: string) =>
         : 'por semestre';
 
 export function CustomerMembershipPage({ slug }: { slug: string }) {
+  const queryClient = useQueryClient();
   const membership = useQuery({
     queryKey: ['public', slug, 'customer', 'membership'],
     queryFn: () =>
@@ -53,6 +61,45 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
         schema: CustomerMembershipAccountResponseSchema,
       }),
     retry: false,
+  });
+  const payment = useQuery({
+    queryKey: ['public', slug, 'customer', 'membership', 'payment'],
+    queryFn: () =>
+      httpClient.request(`/public/sites/${slug}/customer/membership/payment`, {
+        schema: CustomerMembershipPaymentResponseSchema,
+      }),
+    enabled:
+      membership.data?.current?.status === 'PENDING' ||
+      membership.data?.current?.status === 'PAST_DUE',
+    retry: false,
+  });
+  const generateGateway = useMutation({
+    mutationFn: () =>
+      httpClient.request(`/public/sites/${slug}/customer/membership/payment/gateway`, {
+        method: 'POST',
+        body: {},
+        schema: CustomerMembershipPaymentResponseSchema,
+      }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(['public', slug, 'customer', 'membership', 'payment'], data);
+      await queryClient.invalidateQueries({
+        queryKey: ['public', slug, 'customer', 'membership'],
+      });
+    },
+  });
+  const refreshGateway = useMutation({
+    mutationFn: () =>
+      httpClient.request(`/public/sites/${slug}/customer/membership/payment/refresh`, {
+        method: 'POST',
+        body: {},
+        schema: CustomerMembershipPaymentResponseSchema,
+      }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(['public', slug, 'customer', 'membership', 'payment'], data);
+      await queryClient.invalidateQueries({
+        queryKey: ['public', slug, 'customer', 'membership'],
+      });
+    },
   });
 
   if (membership.isPending)
@@ -109,7 +156,16 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
           <p>Quando houver uma mensalidade vinculada à sua conta, ela aparecerá aqui.</p>
         </div>
       ) : (
-        <MembershipCard membership={current} />
+        <MembershipCard
+          membership={current}
+          payment={payment.data}
+          paymentError={payment.error}
+          paymentLoading={payment.isPending}
+          actionPending={generateGateway.isPending || refreshGateway.isPending}
+          actionError={generateGateway.error ?? refreshGateway.error}
+          onGenerate={() => generateGateway.mutate()}
+          onRefresh={() => refreshGateway.mutate()}
+        />
       )}
 
       {data.history.length > 0 ? (
@@ -148,7 +204,25 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
   );
 }
 
-function MembershipCard({ membership }: { membership: CustomerMembershipAccountItem }) {
+function MembershipCard({
+  membership,
+  payment,
+  paymentError,
+  paymentLoading,
+  actionPending,
+  actionError,
+  onGenerate,
+  onRefresh,
+}: {
+  membership: CustomerMembershipAccountItem;
+  payment: CustomerMembershipPaymentResponse | undefined;
+  paymentError: Error | null;
+  paymentLoading: boolean;
+  actionPending: boolean;
+  actionError: Error | null;
+  onGenerate: () => void;
+  onRefresh: () => void;
+}) {
   const charge = membership.charges[0] ?? null;
   const hasBenefits = membership.benefits.length > 0;
   return (
@@ -239,6 +313,20 @@ function MembershipCard({ membership }: { membership: CustomerMembershipAccountI
         </section>
       ) : null}
 
+      {membership.status === 'PENDING' || membership.status === 'PAST_DUE' ? (
+        <MembershipPaymentCard
+          payment={payment}
+          loading={paymentLoading}
+          error={paymentError ?? actionError}
+          actionPending={actionPending}
+          actionLabel={
+            membership.status === 'PAST_DUE' ? 'Regularizar mensalidade' : 'Realizar pagamento'
+          }
+          onGenerate={onGenerate}
+          onRefresh={onRefresh}
+        />
+      ) : null}
+
       <section className="customer-membership-card" aria-labelledby="customer-membership-benefits">
         <header>
           <div>
@@ -279,5 +367,72 @@ function MembershipCard({ membership }: { membership: CustomerMembershipAccountI
         )}
       </section>
     </>
+  );
+}
+
+function MembershipPaymentCard({
+  payment,
+  loading,
+  error,
+  actionPending,
+  actionLabel,
+  onGenerate,
+  onRefresh,
+}: {
+  payment: CustomerMembershipPaymentResponse | undefined;
+  loading: boolean;
+  error: Error | null;
+  actionPending: boolean;
+  actionLabel: string;
+  onGenerate: () => void;
+  onRefresh: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const gateway = payment?.gateway ?? null;
+  const canGenerate = payment?.canGenerateGatewayCharge ?? false;
+  const canRefresh = payment?.canRefreshGatewayCharge ?? false;
+
+  const copyPix = async () => {
+    if (gateway?.pixCopyPaste === null || gateway?.pixCopyPaste === undefined) return;
+    await navigator.clipboard.writeText(gateway.pixCopyPaste);
+    setCopied(true);
+  };
+
+  return (
+    <section className="customer-membership-card" aria-labelledby="customer-membership-payment">
+      <header>
+        <div>
+          <span>Pagamento</span>
+          <h2 id="customer-membership-payment">Regularize sua mensalidade</h2>
+        </div>
+        {payment?.charge === null || payment?.charge === undefined ? null : (
+          <strong>{money(payment.charge.amountCents)}</strong>
+        )}
+      </header>
+      {loading ? <p className="customer-skeleton">Carregando pagamento…</p> : null}
+      {error !== null ? (
+        <p className="public-form-error" role="alert">
+          Não foi possível carregar ou atualizar o pagamento.
+        </p>
+      ) : null}
+      {gateway?.pixCopyPaste !== null && gateway?.pixCopyPaste !== undefined ? (
+        <div>
+          <p>PIX copia e cola</p>
+          <textarea readOnly value={gateway.pixCopyPaste} aria-label="PIX copia e cola" />
+          <button type="button" disabled={actionPending} onClick={() => void copyPix()}>
+            {copied ? 'Copiado' : 'Copiar código PIX'}
+          </button>
+          {canRefresh ? (
+            <button type="button" disabled={actionPending} onClick={onRefresh}>
+              {actionPending ? 'Atualizando…' : 'Atualizar pagamento'}
+            </button>
+          ) : null}
+        </div>
+      ) : canGenerate ? (
+        <button type="button" disabled={actionPending} onClick={onGenerate}>
+          {actionPending ? 'Gerando pagamento…' : actionLabel}
+        </button>
+      ) : null}
+    </section>
   );
 }

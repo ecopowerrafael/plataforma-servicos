@@ -223,6 +223,18 @@ export class PaymentGatewayService {
     return { config, adapter, credentials };
   }
 
+  /** Seleção central do provedor preferencial para pagamentos PIX de Membership. */
+  public async resolveActiveMembershipProvider(tenantId: bigint): Promise<string | null> {
+    const configs = await this.client.paymentGatewayConfig.findMany({
+      where: { tenantId, active: true },
+      select: { provider: true },
+    });
+    const active = new Set(configs.map((config) => config.provider));
+    if (active.has('mercadopago')) return 'mercadopago';
+    if (active.has('pix-local')) return 'pix-local';
+    return configs[0]?.provider ?? null;
+  }
+
   private async logEvent(input: {
     tenantId: bigint;
     chargeId: bigint | null;

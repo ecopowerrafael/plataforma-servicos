@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { httpClient } from '../../../lib/http.js';
@@ -11,6 +12,36 @@ vi.mock('../../../lib/http.js', () => ({ httpClient: { request: vi.fn() } }));
 
 const iso = '2026-01-01T00:00:00.000Z';
 const next = '2026-02-01T00:00:00.000Z';
+
+const paymentState = {
+  membershipStatus: 'PENDING' as const,
+  charge: {
+    periodStart: iso,
+    periodEnd: next,
+    amountCents: 9900,
+    status: 'PENDING' as const,
+    dueAt: iso,
+    paidAt: null,
+  },
+  gateway: null,
+  canGenerateGatewayCharge: true,
+  canRefreshGatewayCharge: false,
+};
+
+const gatewayPaymentState = {
+  ...paymentState,
+  gateway: {
+    provider: 'mercadopago',
+    status: 'PENDING' as const,
+    amountCents: 9900,
+    currency: 'BRL',
+    pixCopyPaste: '000201pix-code',
+    lastCheckedAt: null,
+    canceledAt: null,
+  },
+  canGenerateGatewayCharge: false,
+  canRefreshGatewayCharge: true,
+};
 
 const item = (status: 'ACTIVE' | 'PENDING' | 'PAST_DUE' | 'PAUSED' | 'CANCELED' | 'EXPIRED') => ({
   publicId: `00000000-0000-4000-8000-00000000000${status === 'ACTIVE' ? '1' : status === 'PENDING' ? '2' : status === 'PAST_DUE' ? '3' : status === 'CANCELED' ? '4' : '5'}`,
@@ -76,12 +107,14 @@ describe('CustomerMembershipPage', () => {
     expect(screen.getAllByText('Próxima cobrança').length).toBeGreaterThan(0);
   });
 
-  it('mostra PAST_DUE sem ação de pagamento e preserva a mensagem de reservas', async () => {
-    vi.mocked(httpClient.request).mockResolvedValue({ current: item('PAST_DUE'), history: [] });
+  it('mostra PAST_DUE com ação de regularização e preserva a mensagem de reservas', async () => {
+    vi.mocked(httpClient.request)
+      .mockResolvedValueOnce({ current: item('PAST_DUE'), history: [] })
+      .mockResolvedValueOnce({ ...paymentState, membershipStatus: 'PAST_DUE' as const });
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Mensalidade pendente' })).not.toBeNull();
     expect(screen.getByText(/Agendamentos já reservados não são cancelados/u)).not.toBeNull();
-    expect(screen.queryByRole('button', { name: /pagar|cancelar|assinar/iu })).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Regularizar mensalidade' })).not.toBeNull();
   });
 
   it('mostra empty e histórico cancelado sem CTA comercial', async () => {
@@ -97,14 +130,16 @@ describe('CustomerMembershipPage', () => {
   });
 
   it('mostra PENDING, PAUSED e cancelamento programado sem ações comerciais', async () => {
-    vi.mocked(httpClient.request).mockResolvedValue({
-      current: { ...item('PENDING'), cancelAtPeriodEnd: true },
-      history: [item('PAUSED')],
-    });
+    vi.mocked(httpClient.request)
+      .mockResolvedValueOnce({
+        current: { ...item('PENDING'), cancelAtPeriodEnd: true },
+        history: [item('PAUSED')],
+      })
+      .mockResolvedValueOnce(paymentState);
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Aguardando pagamento' })).not.toBeNull();
     expect(screen.getByText('Cancelamento programado para o fim do período atual.')).not.toBeNull();
-    expect(screen.queryByRole('button', { name: /pagar|cancelar|assinar/iu })).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Realizar pagamento' })).not.toBeNull();
   });
 
   it('renderiza ilimitado e desconto com os dados do backend', async () => {
@@ -154,5 +189,60 @@ describe('CustomerMembershipPage', () => {
     renderPage();
     expect(await screen.findByText('Não foi possível carregar sua mensalidade.')).not.toBeNull();
     expect(screen.queryByText('internal stack')).toBeNull();
+  });
+
+  it('reutiliza gateway existente, copia PIX e atualiza o pagamento', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.mocked(httpClient.request)
+      .mockResolvedValueOnce({ current: item('PENDING'), history: [] })
+      .mockResolvedValueOnce(gatewayPaymentState)
+      .mockResolvedValueOnce({
+        ...gatewayPaymentState,
+        gateway: { ...gatewayPaymentState.gateway, status: 'PAID' as const },
+      });
+
+    renderPage();
+    expect(await screen.findByDisplayValue('000201pix-code')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Copiar código PIX' }));
+    expect(writeText).toHaveBeenCalledWith('000201pix-code');
+    expect(screen.getByRole('button', { name: 'Copiado' })).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Atualizar pagamento' }));
+    expect(httpClient.request).toHaveBeenCalledWith(
+      '/public/sites/studio/customer/membership/payment/refresh',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('gera PIX somente quando não existe gateway reutilizável', async () => {
+    const user = userEvent.setup();
+    vi.mocked(httpClient.request)
+      .mockResolvedValueOnce({ current: item('PENDING'), history: [] })
+      .mockResolvedValueOnce(paymentState)
+      .mockResolvedValueOnce(gatewayPaymentState);
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Realizar pagamento' }));
+    expect(httpClient.request).toHaveBeenCalledWith(
+      '/public/sites/studio/customer/membership/payment/gateway',
+      expect.objectContaining({ method: 'POST', body: {} }),
+    );
+  });
+
+  it('não exibe nova ação quando gate está OFF e mostra erro seguro do pagamento', async () => {
+    vi.mocked(httpClient.request)
+      .mockResolvedValueOnce({ current: item('PENDING'), history: [] })
+      .mockRejectedValueOnce(new Error('MEMBERSHIP_SALES_DISABLED'));
+
+    renderPage();
+    expect(
+      await screen.findByText('Não foi possível carregar ou atualizar o pagamento.'),
+    ).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Realizar pagamento' })).toBeNull();
+    expect(screen.queryByText('MEMBERSHIP_SALES_DISABLED')).toBeNull();
   });
 });

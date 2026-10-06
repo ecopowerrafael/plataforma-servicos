@@ -51,6 +51,7 @@ import { customerMembershipChargePayLocalRoutes } from './modules/customers/cust
 import { customerMembershipPaymentRoutes } from './modules/customers/customer-membership-payment.routes.js';
 import { customerMembershipBenefitBalanceRoutes } from './modules/customers/customer-membership-benefit-balance.routes.js';
 import { customerMembershipAccountRoutes } from './modules/customers/customer-membership-account.routes.js';
+import { customerMembershipAccountPaymentRoutes } from './modules/customers/customer-membership-account-payment.routes.js';
 import { customerMembershipRoutes } from './modules/customers/customer-membership.routes.js';
 import { customerMembershipPlanBenefitRoutes } from './modules/customers/customer-membership-plan-benefit.routes.js';
 import { customerMembershipPlanRoutes } from './modules/customers/customer-membership-plan.routes.js';
@@ -522,6 +523,14 @@ export async function buildApp(options: BuildAppOptions) {
       authService: options.database.customerAuth,
       cookieName: 'customer_session',
       client: options.database.client,
+    });
+    await app.register(customerMembershipAccountPaymentRoutes, {
+      authService: options.database.customerAuth,
+      cookieName: 'customer_session',
+      client: options.database.client,
+      ...(options.database.paymentGateway === undefined
+        ? {}
+        : { paymentGateway: options.database.paymentGateway }),
     });
     if (options.database.appointments !== undefined) {
       await app.register(customerAppointmentsRoutes, {

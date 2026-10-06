@@ -32,6 +32,7 @@ export * from './tenant-domain.js';
 export * from './customer.js';
 export * from './customer-auth.js';
 export * from './customer-membership.js';
+export * from './customer-membership-payment.js';
 export * from './customer-profile.js';
 export * from './public-booking.js';
 export * from './tenant-subscription.js';

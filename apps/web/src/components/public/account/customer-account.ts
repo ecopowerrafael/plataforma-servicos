@@ -74,6 +74,7 @@ export function useCustomerAccount(slug: string) {
   const meKey = ['public', slug, 'customer', 'me'];
   const clearSensitiveAccountCache = () => {
     queryClient.removeQueries({ queryKey: ['public', slug, 'customer', 'membership'] });
+    queryClient.removeQueries({ queryKey: ['public', slug, 'customer', 'membership', 'payment'] });
     queryClient.removeQueries({ queryKey: ['public', slug, 'customer', 'profile'] });
   };
   const invalidateMe = () => queryClient.invalidateQueries({ queryKey: meKey });

@@ -12,7 +12,22 @@ const PlanSnapshotBenefitSchema = z.object({
 
 const PlanSnapshotSchema = z.object({ benefits: z.array(PlanSnapshotBenefitSchema) });
 
-const CURRENT_STATUS_PRIORITY = ['ACTIVE', 'PAST_DUE', 'PENDING', 'PAUSED'] as const;
+export const CURRENT_STATUS_PRIORITY = ['ACTIVE', 'PAST_DUE', 'PENDING', 'PAUSED'] as const;
+
+export function selectCurrentMembership<T extends { status: string; createdAt: Date }>(
+  memberships: T[],
+) {
+  return memberships
+    .filter((item) =>
+      CURRENT_STATUS_PRIORITY.includes(item.status as (typeof CURRENT_STATUS_PRIORITY)[number]),
+    )
+    .sort((left, right) => {
+      const statusOrder =
+        CURRENT_STATUS_PRIORITY.indexOf(left.status as (typeof CURRENT_STATUS_PRIORITY)[number]) -
+        CURRENT_STATUS_PRIORITY.indexOf(right.status as (typeof CURRENT_STATUS_PRIORITY)[number]);
+      return statusOrder === 0 ? right.createdAt.getTime() - left.createdAt.getTime() : statusOrder;
+    })[0];
+}
 
 type AccountMembership = Awaited<
   ReturnType<CustomerMembershipAccountService['listMemberships']>
@@ -64,18 +79,7 @@ export class CustomerMembershipAccountService {
   }
 
   private selectCurrent(memberships: AccountMembership[]) {
-    return memberships
-      .filter((item) =>
-        CURRENT_STATUS_PRIORITY.includes(item.status as (typeof CURRENT_STATUS_PRIORITY)[number]),
-      )
-      .sort((left, right) => {
-        const statusOrder =
-          CURRENT_STATUS_PRIORITY.indexOf(left.status as (typeof CURRENT_STATUS_PRIORITY)[number]) -
-          CURRENT_STATUS_PRIORITY.indexOf(right.status as (typeof CURRENT_STATUS_PRIORITY)[number]);
-        return statusOrder === 0
-          ? right.createdAt.getTime() - left.createdAt.getTime()
-          : statusOrder;
-      })[0];
+    return selectCurrentMembership(memberships);
   }
 
   private async serialize(

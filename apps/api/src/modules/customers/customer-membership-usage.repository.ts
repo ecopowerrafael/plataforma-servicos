@@ -41,21 +41,25 @@ export class CustomerMembershipUsageRepository {
   }
 
   public async update(
+    tenantId: bigint,
     id: bigint,
     data: Partial<{
       status: 'RESERVED' | 'CONSUMED' | 'RELEASED' | 'REVERSED';
     }>,
   ): Promise<CustomerMembershipUsage | null> {
-    return this.client.customerMembershipUsage.update({
-      where: { id },
+    const updated = await this.client.customerMembershipUsage.updateMany({
+      where: { id, tenantId },
       data,
     });
+    if (updated.count === 0) return null;
+    return this.client.customerMembershipUsage.findFirst({ where: { id, tenantId } });
   }
 
-  public async countByChargeAndService(chargeId: bigint, serviceId: bigint) {
+  public async countByChargeAndService(tenantId: bigint, chargeId: bigint, serviceId: bigint) {
     const result = await this.client.customerMembershipUsage.groupBy({
       by: ['status'],
       where: {
+        tenantId,
         membershipChargeId: chargeId,
         serviceId,
         status: { in: ['RESERVED', 'CONSUMED', 'RELEASED'] },
@@ -70,15 +74,21 @@ export class CustomerMembershipUsageRepository {
     return { consumed, reserved, released };
   }
 
-  public async findByAppointment(appointmentId: bigint) {
+  public async findByAppointment(tenantId: bigint, appointmentId: bigint) {
     return this.client.customerMembershipUsage.findFirst({
-      where: { appointmentId },
+      where: { tenantId, appointmentId },
     });
   }
 
-  public async findForTransition(chargeId: bigint, appointmentId: bigint, serviceId: bigint) {
+  public async findForTransition(
+    tenantId: bigint,
+    chargeId: bigint,
+    appointmentId: bigint,
+    serviceId: bigint,
+  ) {
     return this.client.customerMembershipUsage.findFirst({
       where: {
+        tenantId,
         membershipChargeId: chargeId,
         appointmentId,
         serviceId,

@@ -66,6 +66,20 @@ export class CustomerMembershipBenefitResolver {
       };
     }
 
+    const service = await this.membershipRepository.client.service.findFirst({
+      where: { id: serviceId, tenantId },
+      select: { id: true },
+    });
+    if (service === null) {
+      return {
+        covered: false,
+        type: null,
+        chargeSource: ChargeSource.SERVICE_PRICE,
+        referencePriceCents,
+        amountDueCents: referencePriceCents,
+      };
+    }
+
     // Find active membership
     const membership = await this.membershipRepository.findByCustomer(tenantId, customerId);
 
@@ -161,7 +175,11 @@ export class CustomerMembershipBenefitResolver {
     // Handle QUANTITY
     if (benefitType === BenefitType.QUANTITY) {
       const limit = benefit.quantityPerCycle ?? 0;
-      const usage = await this.usageRepository.countByChargeAndService(charge.id, serviceId);
+      const usage = await this.usageRepository.countByChargeAndService(
+        tenantId,
+        charge.id,
+        serviceId,
+      );
 
       const consumed = usage.consumed;
       const reserved = usage.reserved;

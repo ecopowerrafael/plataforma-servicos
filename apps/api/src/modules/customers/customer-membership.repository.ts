@@ -3,12 +3,22 @@ import { Prisma, type PrismaClient } from '../../database-client/client.js';
 export class CustomerMembershipRepository {
   public constructor(public readonly client: PrismaClient | Prisma.TransactionClient) {}
 
-  public async withTenantLock<T>(tenantId: bigint, callback: (repository: CustomerMembershipRepository, transaction: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-    if (!('$transaction' in this.client)) throw new Error('Tenant lock requires a root Prisma client.');
-    return this.client.$transaction(async (transaction) => {
-      await transaction.$queryRaw`SELECT id FROM tenants WHERE id = ${tenantId} FOR UPDATE`;
-      return callback(new CustomerMembershipRepository(transaction), transaction);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  public async withTenantLock<T>(
+    tenantId: bigint,
+    callback: (
+      repository: CustomerMembershipRepository,
+      transaction: Prisma.TransactionClient,
+    ) => Promise<T>,
+  ): Promise<T> {
+    if (!('$transaction' in this.client))
+      throw new Error('Tenant lock requires a root Prisma client.');
+    return this.client.$transaction(
+      async (transaction) => {
+        await transaction.$queryRaw`SELECT id FROM tenants WHERE id = ${tenantId} FOR UPDATE`;
+        return callback(new CustomerMembershipRepository(transaction), transaction);
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   public list(tenantId: bigint, customerId: bigint) {
@@ -35,10 +45,7 @@ export class CustomerMembershipRepository {
 
     if (options.search) {
       where.customer = {
-        OR: [
-          { name: { contains: options.search } },
-          { email: { contains: options.search } },
-        ],
+        OR: [{ name: { contains: options.search } }, { email: { contains: options.search } }],
       };
     }
 
@@ -85,9 +92,9 @@ export class CustomerMembershipRepository {
     });
   }
 
-  public findById(id: bigint) {
+  public findById(tenantId: bigint, id: bigint) {
     return this.client.customerMembership.findFirst({
-      where: { id },
+      where: { id, tenantId },
       include: { plan: { include: { benefits: true } } },
     });
   }
@@ -118,7 +125,10 @@ export class CustomerMembershipRepository {
   }
 
   public findOperatingModel(tenantId: bigint) {
-    return this.client.tenant.findUnique({ where: { id: tenantId }, select: { operatingModel: true, timezone: true } });
+    return this.client.tenant.findUnique({
+      where: { id: tenantId },
+      select: { operatingModel: true, timezone: true },
+    });
   }
 
   public create(data: Prisma.CustomerMembershipUncheckedCreateInput) {
@@ -128,10 +138,14 @@ export class CustomerMembershipRepository {
     });
   }
 
-  public update(id: bigint, data: Prisma.CustomerMembershipUpdateInput) {
-    return this.client.customerMembership.update({
-      where: { id },
+  public async update(tenantId: bigint, id: bigint, data: Prisma.CustomerMembershipUpdateInput) {
+    const updated = await this.client.customerMembership.updateMany({
+      where: { id, tenantId },
       data,
+    });
+    if (updated.count === 0) return null;
+    return this.client.customerMembership.findFirst({
+      where: { id, tenantId },
       include: { plan: true },
     });
   }

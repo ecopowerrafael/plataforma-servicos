@@ -35,6 +35,7 @@ export class CustomerMembershipUsageService {
     // Check if already reserved (idempotent)
     const existing = await tx.customerMembershipUsage.findFirst({
       where: {
+        tenantId: data.tenantId,
         membershipChargeId: data.membershipChargeId,
         appointmentId: data.appointmentId,
         serviceId: data.serviceId,
@@ -51,6 +52,8 @@ export class CustomerMembershipUsageService {
       SELECT id, membership_id
       FROM customer_membership_charges
       WHERE id = ${data.membershipChargeId}
+        AND tenant_id = ${data.tenantId}
+        AND membership_id = ${data.membershipId}
       FOR UPDATE
     `;
 
@@ -62,12 +65,28 @@ export class CustomerMembershipUsageService {
       });
     }
 
+    const service = await tx.service.findFirst({
+      where: { id: data.serviceId, tenantId: data.tenantId },
+      select: { id: true },
+    });
+    const appointment = await tx.appointment.findFirst({
+      where: { id: data.appointmentId, tenantId: data.tenantId },
+      select: { id: true },
+    });
+    if (!service || !appointment)
+      throw new AppError({
+        code: 'MEMBERSHIP_USAGE_CONTEXT_NOT_FOUND',
+        message: 'Contexto do benefício não encontrado.',
+        statusCode: 404,
+      });
+
     // For QUANTITY benefits: check if saldo available
     if (data.quantityLimit !== null && data.quantityLimit !== undefined) {
       const usage = await tx.customerMembershipUsage.groupBy({
         by: ['status'],
         where: {
           membershipChargeId: data.membershipChargeId,
+          tenantId: data.tenantId,
           serviceId: data.serviceId,
           status: { in: ['RESERVED', 'CONSUMED'] },
         },
@@ -117,6 +136,7 @@ export class CustomerMembershipUsageService {
     await assertCustomerMembershipFeatureEnabled(this.client, data.tenantId);
     // Check if already reserved (idempotent)
     const existing = await this.repository.findForTransition(
+      data.tenantId,
       data.membershipChargeId,
       data.appointmentId,
       data.serviceId,
@@ -133,6 +153,8 @@ export class CustomerMembershipUsageService {
         SELECT id, membership_id
         FROM customer_membership_charges
         WHERE id = ${data.membershipChargeId}
+          AND tenant_id = ${data.tenantId}
+          AND membership_id = ${data.membershipId}
         FOR UPDATE
       `;
 
@@ -144,11 +166,27 @@ export class CustomerMembershipUsageService {
         });
       }
 
+      const service = await tx.service.findFirst({
+        where: { id: data.serviceId, tenantId: data.tenantId },
+        select: { id: true },
+      });
+      const appointment = await tx.appointment.findFirst({
+        where: { id: data.appointmentId, tenantId: data.tenantId },
+        select: { id: true },
+      });
+      if (!service || !appointment)
+        throw new AppError({
+          code: 'MEMBERSHIP_USAGE_CONTEXT_NOT_FOUND',
+          message: 'Contexto do benefício não encontrado.',
+          statusCode: 404,
+        });
+
       // For QUANTITY benefits: check if saldo available
       if (data.quantityLimit !== null && data.quantityLimit !== undefined) {
         const usage = await tx.customerMembershipUsage.groupBy({
           by: ['status'],
           where: {
+            tenantId: data.tenantId,
             membershipChargeId: data.membershipChargeId,
             serviceId: data.serviceId,
             status: { in: ['RESERVED', 'CONSUMED'] },
@@ -197,8 +235,8 @@ export class CustomerMembershipUsageService {
     });
     if (updated.count === 1) return;
 
-    const usage = await this.client.customerMembershipUsage.findUnique({
-      where: { id: usageId },
+    const usage = await this.client.customerMembershipUsage.findFirst({
+      where: { id: usageId, tenantId },
       select: { tenantId: true, status: true },
     });
     if (usage === null) {
@@ -206,13 +244,6 @@ export class CustomerMembershipUsageService {
         code: 'USAGE_NOT_FOUND',
         message: 'Uso não encontrado.',
         statusCode: 404,
-      });
-    }
-    if (usage.tenantId !== tenantId) {
-      throw new AppError({
-        code: 'USAGE_TENANT_MISMATCH',
-        message: 'O uso não pertence ao tenant informado.',
-        statusCode: 403,
       });
     }
     if (usage.status === targetStatus) return;
@@ -239,9 +270,9 @@ export class CustomerMembershipUsageService {
   /**
    * Administrative reversal (audit trail remains).
    */
-  public async reverse(usageId: bigint): Promise<void> {
-    const usage = await this.client.customerMembershipUsage.findUnique({
-      where: { id: usageId },
+  public async reverse(tenantId: bigint, usageId: bigint): Promise<void> {
+    const usage = await this.client.customerMembershipUsage.findFirst({
+      where: { id: usageId, tenantId },
     });
 
     if (!usage) {
@@ -252,6 +283,6 @@ export class CustomerMembershipUsageService {
       });
     }
 
-    await this.repository.update(usageId, { status: 'REVERSED' });
+    await this.repository.update(tenantId, usageId, { status: 'REVERSED' });
   }
 }

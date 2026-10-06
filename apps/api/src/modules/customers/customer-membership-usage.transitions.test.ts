@@ -15,7 +15,7 @@ function harness(
   const client = {
     customerMembershipUsage: {
       updateMany,
-      findUnique: vi.fn().mockImplementation(() => Promise.resolve({ tenantId: 7n, status })),
+      findFirst: vi.fn().mockImplementation(() => Promise.resolve({ tenantId: 7n, status })),
     },
   };
   return {
@@ -58,10 +58,10 @@ describe('CustomerMembershipUsageService transitions', () => {
     });
   });
 
-  it('distinguishes missing usage and tenant mismatch', async () => {
+  it('does not reveal usage existence across tenants', async () => {
     const missing = harness();
     missing.client.customerMembershipUsage.updateMany.mockResolvedValueOnce({ count: 0 });
-    missing.client.customerMembershipUsage.findUnique.mockResolvedValueOnce(null);
+    missing.client.customerMembershipUsage.findFirst.mockResolvedValueOnce(null);
     await expect(missing.service.consume(7n, 1n)).rejects.toMatchObject({
       code: 'USAGE_NOT_FOUND',
       statusCode: 404,
@@ -69,13 +69,19 @@ describe('CustomerMembershipUsageService transitions', () => {
 
     const mismatch = harness();
     mismatch.client.customerMembershipUsage.updateMany.mockResolvedValueOnce({ count: 0 });
-    mismatch.client.customerMembershipUsage.findUnique.mockResolvedValueOnce({
-      tenantId: 8n,
-      status: 'RESERVED',
-    });
+    mismatch.client.customerMembershipUsage.findFirst.mockResolvedValueOnce(null);
     await expect(mismatch.service.release(7n, 1n)).rejects.toMatchObject({
-      code: 'USAGE_TENANT_MISMATCH',
-      statusCode: 403,
+      code: 'USAGE_NOT_FOUND',
+      statusCode: 404,
+    });
+  });
+
+  it('requires the tenant for administrative reversal', async () => {
+    const h = harness();
+    h.client.customerMembershipUsage.findFirst.mockResolvedValueOnce(null);
+    await expect(h.service.reverse(7n, 1n)).rejects.toMatchObject({
+      code: 'USAGE_NOT_FOUND',
+      statusCode: 404,
     });
   });
 });

@@ -412,7 +412,7 @@ export class AppointmentService {
       old.chargeSource !== null
     ) {
       const usage = await this.client.customerMembershipUsage.findFirst({
-        where: { appointmentId: old.id, status: 'RESERVED' },
+        where: { tenantId: t, appointmentId: old.id, status: 'RESERVED' },
         select: { id: true },
       });
       if (usage) {
@@ -722,8 +722,8 @@ export class AppointmentService {
       const resolver = new CustomerMembershipBenefitResolver(this.client);
       const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
       if (benefit.membershipChargeId !== undefined) {
-        const membershipState = await this.client.customerMembershipCharge.findUnique({
-          where: { id: benefit.membershipChargeId },
+        const membershipState = await this.client.customerMembershipCharge.findFirst({
+          where: { id: benefit.membershipChargeId, tenantId: t },
           select: { membership: { select: { cancelAtPeriodEnd: true, currentPeriodEnd: true } } },
         });
         if (
@@ -827,8 +827,8 @@ export class AppointmentService {
           benefit.type === 'UNLIMITED' ||
           benefit.type === 'DISCOUNT'
         ) {
-          const charge = await this.client.customerMembershipCharge.findUnique({
-            where: { id: membershipChargeId },
+          const charge = await this.client.customerMembershipCharge.findFirst({
+            where: { id: membershipChargeId, tenantId: t },
             select: { membershipId: true },
           });
 

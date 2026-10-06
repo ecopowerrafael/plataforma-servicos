@@ -59,7 +59,7 @@ export class CustomerMembershipRenewalSweepService {
     result.scanned = candidates.length;
     for (const candidate of candidates) {
       try {
-        const processed = await this.processOne(candidate.id, now);
+        const processed = await this.processOne(candidate.id, candidate.tenantId, now);
         result[processed.outcome] += 1;
         if (processed.outcome === 'renewedChargesCreated') result.markedPastDue += 1;
         if (
@@ -92,15 +92,15 @@ export class CustomerMembershipRenewalSweepService {
     return result;
   }
 
-  private async processOne(id: bigint, now: Date): Promise<ProcessResult> {
+  private async processOne(id: bigint, tenantId: bigint, now: Date): Promise<ProcessResult> {
     return this.client.$transaction(
       async (tx) => {
         const locked = await tx.$queryRaw<Array<{ id: bigint }>>(
-          Prisma.sql`SELECT id FROM customer_memberships WHERE id = ${id} FOR UPDATE`,
+          Prisma.sql`SELECT id FROM customer_memberships WHERE tenant_id = ${tenantId} AND id = ${id} FOR UPDATE`,
         );
         if (locked.length === 0) return { outcome: 'skipped', pendingGatewayChargeIds: [] };
-        const membership = await tx.customerMembership.findUnique({
-          where: { id },
+        const membership = await tx.customerMembership.findFirst({
+          where: { id, tenantId },
           include: {
             plan: true,
             charges: { where: { status: 'PAID' }, orderBy: { periodStart: 'desc' }, take: 1 },
@@ -138,12 +138,12 @@ export class CustomerMembershipRenewalSweepService {
         }
         if (membership.cancelAtPeriodEnd) {
           const reserved = await tx.customerMembershipUsage.count({
-            where: { membershipId: id, status: 'RESERVED' },
+            where: { tenantId, membershipId: id, status: 'RESERVED' },
           });
           const openAppointments = await tx.appointment.count({
             where: {
               tenantId: membership.tenantId,
-              membershipUsages: { some: { membershipId: id } },
+              membershipUsages: { some: { tenantId, membershipId: id } },
               status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] },
               chargeSource: { in: ['MEMBERSHIP_INCLUDED', 'MEMBERSHIP_DISCOUNT'] },
             },
@@ -152,8 +152,8 @@ export class CustomerMembershipRenewalSweepService {
             throw new Error(
               'Cancelamento no fim do período bloqueado por usage/agendamento aberto.',
             );
-          await tx.customerMembership.update({
-            where: { id },
+          await tx.customerMembership.updateMany({
+            where: { id, tenantId },
             data: {
               status: 'CANCELED',
               canceledAt: membership.currentPeriodEnd ?? now,
@@ -162,7 +162,7 @@ export class CustomerMembershipRenewalSweepService {
             },
           });
           await tx.customerMembershipCharge.updateMany({
-            where: { membershipId: id, status: 'PENDING' },
+            where: { tenantId, membershipId: id, status: 'PENDING' },
             data: { status: 'CANCELED' },
           });
           const gatewayCharges = await tx.paymentGatewayCharge.findMany({
@@ -235,8 +235,8 @@ export class CustomerMembershipRenewalSweepService {
           membership.tenant.timezone,
           anchor,
         );
-        const existing = await tx.customerMembershipCharge.findUnique({
-          where: { membershipId_periodStart: { membershipId: id, periodStart } },
+        const existing = await tx.customerMembershipCharge.findFirst({
+          where: { tenantId, membershipId: id, periodStart },
         });
         if (existing) return { outcome: 'skipped', pendingGatewayChargeIds: [] };
         const contractedPrice = (parsed as { priceCents?: number | string }).priceCents;
@@ -255,7 +255,10 @@ export class CustomerMembershipRenewalSweepService {
             planSnapshot: parsed,
           },
         });
-        await tx.customerMembership.update({ where: { id }, data: { status: 'PAST_DUE' } });
+        await tx.customerMembership.updateMany({
+          where: { id, tenantId },
+          data: { status: 'PAST_DUE' },
+        });
         await tx.auditLog.create({
           data: {
             publicId: randomUUID(),

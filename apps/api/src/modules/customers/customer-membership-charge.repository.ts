@@ -18,9 +18,15 @@ export class CustomerMembershipChargeRepository {
     });
   }
 
-  public findByMembership(membershipId: bigint, periodStart: Date, periodEnd: Date) {
+  public findByMembership(
+    tenantId: bigint,
+    membershipId: bigint,
+    periodStart: Date,
+    periodEnd: Date,
+  ) {
     return this.client.customerMembershipCharge.findFirst({
       where: {
+        tenantId,
         membershipId,
         periodStart: { lte: periodEnd },
         periodEnd: { gte: periodStart },
@@ -43,10 +49,18 @@ export class CustomerMembershipChargeRepository {
     });
   }
 
-  public update(id: bigint, data: Prisma.CustomerMembershipChargeUpdateInput) {
-    return this.client.customerMembershipCharge.update({
-      where: { id },
+  public async update(
+    tenantId: bigint,
+    id: bigint,
+    data: Prisma.CustomerMembershipChargeUpdateInput,
+  ) {
+    const updated = await this.client.customerMembershipCharge.updateMany({
+      where: { id, tenantId },
       data,
+    });
+    if (updated.count === 0) return null;
+    return this.client.customerMembershipCharge.findFirst({
+      where: { id, tenantId },
       include: { payments: true },
     });
   }

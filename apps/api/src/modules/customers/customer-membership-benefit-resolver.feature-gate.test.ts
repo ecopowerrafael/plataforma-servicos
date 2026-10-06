@@ -34,4 +34,29 @@ describe('customer membership benefit resolver feature gate', () => {
     });
     expect(client.customerMembership.findFirst).not.toHaveBeenCalled();
   });
+
+  it('does not resolve a benefit for a service owned by another tenant', async () => {
+    const client = {
+      tenant: {
+        findFirst: vi.fn().mockResolvedValue({
+          operatingModel: 'MEMBERSHIP',
+          settings: { membershipSalesEnabled: true },
+        }),
+      },
+      service: { findFirst: vi.fn().mockResolvedValue(null) },
+      customerMembership: { findFirst: vi.fn() },
+      customerMembershipCharge: { findFirst: vi.fn() },
+      customerMembershipUsage: { groupBy: vi.fn() },
+    };
+
+    const result = await new CustomerMembershipBenefitResolver(client as never).resolveBenefit(
+      1n,
+      2n,
+      3n,
+      1000n,
+    );
+
+    expect(result.chargeSource).toBe(ChargeSource.SERVICE_PRICE);
+    expect(client.customerMembership.findFirst).not.toHaveBeenCalled();
+  });
 });

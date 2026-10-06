@@ -333,7 +333,7 @@ export class CustomerMembershipService {
     tenantId: bigint,
     actor: Actor,
   ) {
-    const membership = await this.repository.findById(membershipId);
+    const membership = await this.repository.findById(tenantId, membershipId);
     if (!membership) throw membershipNotFoundErr();
 
     const periodStart = paidAt;
@@ -347,7 +347,7 @@ export class CustomerMembershipService {
       );
     const nextBilling = periodEnd;
 
-    const updated = await this.repository.update(membershipId, {
+    const updated = await this.repository.update(tenantId, membershipId, {
       status: 'ACTIVE',
       startedAt: paidAt,
       currentPeriodStart: periodStart,
@@ -355,6 +355,7 @@ export class CustomerMembershipService {
       nextBillingAt: nextBilling,
     });
 
+    if (updated === null) throw membershipNotFoundErr();
     await this.repository.audit(publicId, tenantId, actor.userId, actor.sessionId, 'activate');
     return updated;
   }

@@ -46,9 +46,15 @@ function buildService(allowSingleServiceSales: boolean) {
     }),
   };
   const client = {
-    tenant: { findFirst: vi.fn().mockResolvedValue({ operatingModel: 'MEMBERSHIP', settings: { allowSingleServiceSales } }) },
+    tenant: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue({ operatingModel: 'MEMBERSHIP', settings: { allowSingleServiceSales } }),
+    },
     customerMembershipCharge: {
-      findUnique: vi.fn().mockResolvedValue({ membership: { cancelAtPeriodEnd: true, currentPeriodEnd: periodEnd } }),
+      findFirst: vi.fn().mockResolvedValue({
+        membership: { cancelAtPeriodEnd: true, currentPeriodEnd: periodEnd },
+      }),
     },
   };
   const service = new AppointmentService(
@@ -84,17 +90,29 @@ describe('membership appointment period boundary', () => {
     });
 
     const inside = buildService(true);
-    await expect(save(inside.service, new Date(periodEnd.getTime() - 1))).rejects.toThrow('stop after charge-source decision');
+    await expect(save(inside.service, new Date(periodEnd.getTime() - 1))).rejects.toThrow(
+      'stop after charge-source decision',
+    );
     expect(inside.persisted[0]).toMatchObject({ chargeSource: 'MEMBERSHIP_INCLUDED' });
 
     const boundary = buildService(true);
-    await expect(save(boundary.service, periodEnd)).rejects.toThrow('stop after charge-source decision');
-    expect(boundary.persisted[0]).toMatchObject({ chargeSource: 'SERVICE_PRICE', amountDueCents: 100n });
+    await expect(save(boundary.service, periodEnd)).rejects.toThrow(
+      'stop after charge-source decision',
+    );
+    expect(boundary.persisted[0]).toMatchObject({
+      chargeSource: 'SERVICE_PRICE',
+      amountDueCents: 100n,
+    });
     expect(boundary.persisted[0]).not.toHaveProperty('membershipChargeId');
 
     const after = buildService(true);
-    await expect(save(after.service, new Date(periodEnd.getTime() + 1))).rejects.toThrow('stop after charge-source decision');
-    expect(after.persisted[0]).toMatchObject({ chargeSource: 'SERVICE_PRICE', amountDueCents: 100n });
+    await expect(save(after.service, new Date(periodEnd.getTime() + 1))).rejects.toThrow(
+      'stop after charge-source decision',
+    );
+    expect(after.persisted[0]).toMatchObject({
+      chargeSource: 'SERVICE_PRICE',
+      amountDueCents: 100n,
+    });
     expect(after.persisted[0]).not.toHaveProperty('membershipChargeId');
   });
 

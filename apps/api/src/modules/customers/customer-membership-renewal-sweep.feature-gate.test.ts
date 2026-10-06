@@ -7,7 +7,7 @@ describe('customer membership renewal feature gate', () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: 1n }]),
       customerMembership: {
-        findUnique: vi.fn().mockResolvedValue({
+        findFirst: vi.fn().mockResolvedValue({
           id: 1n,
           tenantId: 10n,
           publicId: 'membership',
@@ -29,7 +29,7 @@ describe('customer membership renewal feature gate', () => {
             settings: { membershipSalesEnabled: false },
           },
         }),
-        update: vi.fn(),
+        updateMany: vi.fn(),
       },
       customerMembershipCharge: { create: vi.fn() },
       auditLog: { create: vi.fn().mockResolvedValue(undefined) },
@@ -58,7 +58,7 @@ describe('customer membership renewal feature gate', () => {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: 1n }]),
       customerMembership: {
-        findUnique: vi.fn().mockResolvedValue({
+        findFirst: vi.fn().mockResolvedValue({
           id: 1n,
           tenantId: 10n,
           publicId: 'membership',
@@ -73,7 +73,7 @@ describe('customer membership renewal feature gate', () => {
             settings: { membershipSalesEnabled: false },
           },
         }),
-        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       customerMembershipUsage: { count: vi.fn().mockResolvedValue(0) },
       appointment: { count: vi.fn().mockResolvedValue(0) },
@@ -100,8 +100,8 @@ describe('customer membership renewal feature gate', () => {
     ).run(new Date('2026-10-02T00:00:00.000Z'));
 
     expect(result.cancelAtPeriodEndApplied).toBe(1);
-    expect(tx.customerMembership.update).toHaveBeenCalledWith({
-      where: { id: 1n },
+    expect(tx.customerMembership.updateMany).toHaveBeenCalledWith({
+      where: { id: 1n, tenantId: 10n },
       data: {
         status: 'CANCELED',
         canceledAt: new Date('2026-10-01T00:00:00.000Z'),
@@ -110,7 +110,7 @@ describe('customer membership renewal feature gate', () => {
       },
     });
     expect(tx.customerMembershipCharge.updateMany).toHaveBeenCalledWith({
-      where: { membershipId: 1n, status: 'PENDING' },
+      where: { tenantId: 10n, membershipId: 1n, status: 'PENDING' },
       data: { status: 'CANCELED' },
     });
     expect(gatewayCancellation.cancelPendingMembershipCharges).toHaveBeenCalledWith(10n, [91n], {

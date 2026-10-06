@@ -59,7 +59,12 @@ export class CustomerMembershipChargeService {
     planSnapshot?: object,
   ) {
     // Check if charge already exists for this period
-    const existing = await this.repository.findByMembership(membershipId, periodStart, periodEnd);
+    const existing = await this.repository.findByMembership(
+      tenantId,
+      membershipId,
+      periodStart,
+      periodEnd,
+    );
     if (existing !== null) throw chargeAlreadyExists();
 
     try {
@@ -103,26 +108,23 @@ export class CustomerMembershipChargeService {
     publicId: string,
     actor: Actor,
   ) {
-    const charge = await this.repository.update(chargeId, {
+    const charge = await this.repository.update(tenantId, chargeId, {
       status: 'PAID',
       paidAt,
       payments: { connect: { id: paymentId } },
     });
 
+    if (charge === null) throw chargeNotFound();
     await this.repository.audit(publicId, tenantId, actor.userId, actor.sessionId, 'payment');
     return charge;
   }
 
-  public async failCharge(
-    chargeId: bigint,
-    tenantId: bigint,
-    publicId: string,
-    actor: Actor,
-  ) {
-    const charge = await this.repository.update(chargeId, {
+  public async failCharge(chargeId: bigint, tenantId: bigint, publicId: string, actor: Actor) {
+    const charge = await this.repository.update(tenantId, chargeId, {
       status: 'FAILED',
     });
 
+    if (charge === null) throw chargeNotFound();
     await this.repository.audit(publicId, tenantId, actor.userId, actor.sessionId, 'failed');
     return charge;
   }

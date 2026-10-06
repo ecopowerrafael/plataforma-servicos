@@ -105,8 +105,8 @@ export const customerMembershipBenefitBalanceRoutes: FastifyPluginAsyncZod<Optio
       // Build benefit balance list
       const benefits = await Promise.all(
         snapshot.benefits.map(async (b: any) => {
-          const service = await options.client.service.findUnique({
-            where: { id: BigInt(b.serviceId) },
+          const service = await options.client.service.findFirst({
+            where: { id: BigInt(b.serviceId), tenantId: request.tenant.id },
             select: { publicId: true, name: true },
           });
 
@@ -116,6 +116,7 @@ export const customerMembershipBenefitBalanceRoutes: FastifyPluginAsyncZod<Optio
           const usage = await options.client.customerMembershipUsage.groupBy({
             by: ['status'],
             where: {
+              tenantId: request.tenant.id,
               membershipChargeId: charge.id,
               serviceId: BigInt(b.serviceId),
               status: { in: ['RESERVED', 'CONSUMED', 'RELEASED'] },

@@ -11,6 +11,8 @@ import {
   PaymentPublicSchema,
   ProfessionalAppointmentNotesRequestSchema,
   ProfessionalCommissionResponseSchema,
+  ProfessionalCommissionCycleListResponseSchema,
+  ProfessionalCommissionCycleSchema,
   ProfessionalPublicSchema,
   UpdateMyProfessionalProfileRequestSchema,
   ProfessionalScheduleResponseSchema,
@@ -33,6 +35,7 @@ import { type AuthService } from '../auth/auth.service.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type PasswordService } from '../auth/password.service.js';
 import { type ProfessionalCommissionService } from '../payments/professional-commission.service.js';
+import { type CommissionCycleService } from '../payments/commission-cycle.service.js';
 import { type PaymentService } from '../payments/payment.service.js';
 import { type PaymentGatewayService } from '../payments/gateway/payment-gateway.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
@@ -46,6 +49,7 @@ interface Options {
   professionalServices: ProfessionalServiceLinkService;
   availability: AvailabilityService;
   commissions?: ProfessionalCommissionService;
+  commissionCycles?: CommissionCycleService;
   payments?: PaymentService;
   paymentGateway?: PaymentGatewayService;
   authService: AuthService;
@@ -309,6 +313,28 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
                 to: zonedDayStart(addDaysToDay(r.query.toDate, 1), timezone).toISOString(),
               }),
         });
+      },
+    );
+  }
+
+  if (options.commissionCycles !== undefined) {
+    const commissionCycles = options.commissionCycles;
+    app.get(
+      '/tenant/professionals/me/commission-cycles/current',
+      { schema: { response: { 200: ProfessionalCommissionCycleSchema } } },
+      async (r) => {
+        options.authService.requirePermission(r.tenant, 'professional.self.read');
+        const professionalId = await options.professionals.myId(r.tenant.id, r.auth.user.id);
+        return commissionCycles.currentForProfessional(r.tenant.id, professionalId);
+      },
+    );
+    app.get(
+      '/tenant/professionals/me/commission-cycles',
+      { schema: { response: { 200: ProfessionalCommissionCycleListResponseSchema } } },
+      async (r) => {
+        options.authService.requirePermission(r.tenant, 'professional.self.read');
+        const professionalId = await options.professionals.myId(r.tenant.id, r.auth.user.id);
+        return commissionCycles.listForProfessional(r.tenant.id, professionalId);
       },
     );
   }

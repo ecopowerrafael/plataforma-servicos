@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 
 import { MyAgendaModule } from '../components/professionals/MyAgendaModule.js';
 import { MyCommissionsModule } from '../components/professionals/MyCommissionsModule.js';
+import { MyCommissionCyclesModule } from '../components/professionals/MyCommissionCyclesModule.js';
 import { TenantProfessionalPhoto } from '../components/professionals/TenantProfessionalPhoto.js';
 import { PwaInstall } from '../components/public/PwaInstall.js';
 import { environment } from '../config/environment.js';
@@ -95,7 +96,7 @@ export function ProfessionalAppPage({ section = 'agenda' }: { section?: Section 
   return <main className="app-shell professional-app">
     <aside className="app-sidebar"><strong>{tenant.displayName}</strong><p>Aplicativo profissional</p><nav><NavLink to={`/public/${slug}/profissional`}><IconCalendar />Agenda</NavLink><NavLink to={`/public/${slug}/profissional/comissoes`}><IconCoin />Comissões</NavLink><NavLink to={`/public/${slug}/profissional/perfil`}><IconUser />Perfil</NavLink></nav><button className="secondary-button" type="button" onClick={() => logout.mutate()}><IconLogout />Sair</button></aside>
     <header className="app-header"><div><p className="eyebrow">{tenant.displayName}</p><h1>{section === 'agenda' ? 'Minha agenda' : section === 'commissions' ? 'Minhas comissões' : 'Meu perfil'}</h1></div></header>
-    <div className="professional-app-content">{section === 'agenda' ? <MyAgendaModule tenantPublicId={tenantPublicId} selfOnly /> : section === 'commissions' ? <MyCommissionsModule tenantPublicId={tenantPublicId} /> : <><Profile tenantPublicId={tenantPublicId} /><PwaInstall published appName={`${tenant.displayName} — Profissional`} /></>}</div>
+    <div className="professional-app-content">{section === 'agenda' ? <MyAgendaModule tenantPublicId={tenantPublicId} selfOnly /> : section === 'commissions' ? <><MyCommissionCyclesModule tenantPublicId={tenantPublicId} /><MyCommissionsModule tenantPublicId={tenantPublicId} /></> : <><Profile tenantPublicId={tenantPublicId} /><PwaInstall published appName={`${tenant.displayName} — Profissional`} /></>}</div>
     <nav className="professional-bottom-nav"><NavLink to={`/public/${slug}/profissional`}><IconCalendar />Agenda</NavLink><NavLink to={`/public/${slug}/profissional/comissoes`}><IconCoin />Comissões</NavLink><NavLink to={`/public/${slug}/profissional/perfil`}><IconUser />Perfil</NavLink></nav>
   </main>;
 }

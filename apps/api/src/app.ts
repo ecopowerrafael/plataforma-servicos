@@ -936,6 +936,9 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.commissions === undefined
         ? {}
         : { commissions: options.database.commissions }),
+      ...(options.database.commissionCycles === undefined
+        ? {}
+        : { commissionCycles: options.database.commissionCycles }),
       ...(options.database.payments === undefined ? {} : { payments: options.database.payments }),
       ...(options.database.paymentGateway === undefined ? {} : { paymentGateway: options.database.paymentGateway }),
       authService,

@@ -6,12 +6,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { professionalSelfRoutes } from './professional-self.routes.js';
 import { AppointmentService } from '../appointments/appointment.service.js';
 import { PaymentService } from '../payments/payment.service.js';
+import { AppError } from '../../errors/AppError.js';
 
 const tenantPublicId = '11111111-1111-4111-8111-111111111111';
 const appointmentA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const appointmentB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const professionalA = 'aaaaaaaa-0000-4000-8000-000000000001';
 const professionalB = 'bbbbbbbb-0000-4000-8000-000000000002';
+const professionalA2 = 'aaaaaaaa-0000-4000-8000-000000000012';
+const tenantBPublicId = '22222222-2222-4222-8222-222222222222';
 const paymentMethod = 'cccccccc-0000-4000-8000-000000000003';
 const apps: FastifyInstance[] = [];
 
@@ -20,7 +23,7 @@ const record = (publicId: string, professionalId: bigint, professionalPublicId: 
   protocol: `AGD-${publicId[0]}`, status: 'CONFIRMED', startsAt: new Date('2026-09-01T13:00:00.000Z'),
   endsAt: new Date('2026-09-01T13:30:00.000Z'), durationMinutes: 30, postServiceBreakMinutes: 0,
   priceCents: 10_000n, notes: null, source: 'ADMIN', canceledReason: null, rescheduleReason: null,
-  kind: 'STANDARD' as const, treatmentPlan: null, sessionNumber: null,
+  kind: 'STANDARD' as const, chargeSource: null, treatmentPlan: null, sessionNumber: null,
   isFitIn: false, fitInReason: null, checkedInAt: null, depositType: null, depositPercentage: null,
   depositAmountCents: null, createdAt: new Date('2026-08-01T00:00:00.000Z'), updatedAt: new Date('2026-08-01T00:00:00.000Z'),
   customer: { publicId: 'dddddddd-0000-4000-8000-000000000004', name: 'Cliente', phone: '11999999999' },
@@ -30,7 +33,7 @@ const record = (publicId: string, professionalId: bigint, professionalPublicId: 
 
 afterEach(async () => { await Promise.all(apps.splice(0).map((app) => app.close())); });
 
-async function fixture({ gateway = false } = {}) {
+async function fixture({ gateway = false, tenantId = 1n, userId = 1n, professionalId = 11n, noProfessional = false } = {}) {
   const records = new Map([[appointmentA, record(appointmentA, 11n, professionalA)], [appointmentB, record(appointmentB, 12n, professionalB)]]);
   const update = vi.fn(async () => record(appointmentA, 11n, professionalA));
   const repo = {
@@ -45,24 +48,28 @@ async function fixture({ gateway = false } = {}) {
     const value = { id: 701n, publicId: 'ffffffff-0000-4000-8000-000000000006', status: 'PAID', canceledAt: null, canceledReason: null, createdAt: new Date('2026-09-01T14:00:00.000Z'), ...data, paymentMethod: { publicId: paymentMethod, name: 'Dinheiro' } };
     payments.push(value); return value;
   });
-  const paymentClient = {
+  const paymentClient: any = {
     appointment: { findFirst: vi.fn(async ({ where }: any) => where.publicId === appointmentA ? { id: 101n, priceCents: 10_000n, status: 'CONFIRMED', unitId: null, professionalId: 11n, serviceId: 1n, customerId: 5n, depositType: null, depositPercentage: null, depositAmountCents: null } : null) },
-    paymentGatewayCharge: { findFirst: vi.fn(async () => gateway ? { id: 1n } : null) },
+    paymentGatewayCharge: { findFirst: vi.fn(async () => gateway ? { id: 1n } : null), findMany: vi.fn(async () => gateway ? [{ id: 1n, status: 'PENDING' }] : []) },
     paymentMethod: { findFirst: vi.fn(async () => ({ id: 2n, active: true })) },
-    payment: { aggregate: vi.fn(async () => ({ _sum: { amountCents: payments.reduce((sum, item) => sum + item.amountCents, 0n) } })), create: paymentCreate, findMany: vi.fn(async () => payments) },
+    payment: { aggregate: vi.fn(async () => ({ _sum: { amountCents: payments.reduce((sum, item) => sum + item.amountCents, 0n) } })), create: paymentCreate, findMany: vi.fn(async () => payments), findFirst: vi.fn(async () => null) },
     auditLog: { create: vi.fn(async () => ({})) },
   };
+  paymentClient.$transaction = vi.fn(async (callback: (client: typeof paymentClient) => unknown) => callback(paymentClient));
+  paymentClient.$queryRaw = vi.fn().mockResolvedValueOnce([{ id: 101n }]).mockResolvedValue([]);
   const authService = {
-    authenticate: vi.fn(async () => ({ user: { id: 1n }, session: { id: 2n } })),
-    resolveTenant: vi.fn(async () => ({ id: 1n, publicId: tenantPublicId, timezone: 'America/Sao_Paulo', membership: { permissions: ['professional.self.read', 'professional.self.update'] } })),
+    authenticate: vi.fn(async () => ({ user: { id: userId }, session: { id: userId + 100n } })),
+    resolveTenant: vi.fn(async () => ({ id: tenantId, publicId: tenantId === 2n ? tenantBPublicId : tenantPublicId, timezone: 'America/Sao_Paulo', membership: { permissions: ['professional.self.read', 'professional.self.update'] } })),
     requirePermission: vi.fn(),
   };
-  const professionals = { me: vi.fn(async () => ({ publicId: professionalA })), myId: vi.fn(async () => 11n) };
+  const professionals = { me: vi.fn(async () => ({ publicId: professionalId === 12n ? professionalA2 : professionalA })), myId: vi.fn(async () => { if (noProfessional) throw new AppError({ code: 'PROFESSIONAL_NOT_FOUND', message: 'Profissional não encontrado.', statusCode: 404 }); return professionalId; }) };
+  const professionalCycle = (owner: bigint) => ({ publicId: tenantId === 2n ? '22222222-2222-4222-8222-222222222220' : '11111111-1111-4111-8111-111111111110', periodStart: '2026-10-01T03:00:00.000Z', periodEnd: '2026-11-01T02:59:59.000Z', status: 'OPEN', readyToClose: false, myPoints: owner === 11n ? 2 : owner === 12n ? 1 : 4, totalPoints: 7, myShareBps: owner === 11n ? 2857 : owner === 12n ? 1428 : 5714, poolCents: '10000', myEstimatedAmountCents: owner === 11n ? '2857' : owner === 12n ? '1428' : '5714', myFinalAmountCents: null, closedAt: null });
+  const commissionCycles = { currentForProfessional: vi.fn(async (_tenant: bigint, owner: bigint) => professionalCycle(owner)), listForProfessional: vi.fn(async (_tenant: bigint, owner: bigint) => ({ items: [professionalCycle(owner)] })) };
   const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler); app.setSerializerCompiler(serializerCompiler); await app.register(cookie);
   const commissionHistory = vi.fn(async () => ({ items: [] }));
-  await app.register(professionalSelfRoutes, { professionals: professionals as never, appointments, schedules: {} as never, unavailabilities: {} as never, professionalServices: {} as never, availability: {} as never, commissions: { listForProfessional: commissionHistory } as never, payments: new PaymentService(paymentClient as never), authService: authService as never, cookieName: 'ps_session' });
-  apps.push(app); return { app, paymentCreate, payments, update, commissionHistory };
+  await app.register(professionalSelfRoutes, { professionals: professionals as never, appointments, schedules: {} as never, unavailabilities: {} as never, professionalServices: {} as never, availability: {} as never, commissions: { listForProfessional: commissionHistory } as never, commissionCycles: commissionCycles as never, payments: new PaymentService(paymentClient as never), authService: authService as never, cookieName: 'ps_session' });
+  apps.push(app); return { app, paymentCreate, payments, update, commissionHistory, commissionCycles, userId };
 }
 
 const headers = { cookie: 'ps_session=a', 'x-tenant-id': tenantPublicId };
@@ -105,5 +112,37 @@ describe('Professional SELF — período civil de comissões', () => {
     expect(commissionHistory).toHaveBeenCalledWith(1n, 11n, {
       from: '2026-08-31T03:00:00.000Z', to: '2026-09-01T03:00:00.000Z',
     });
+  });
+});
+
+describe('Professional SELF — commission cycle isolation', () => {
+  it('A1, A2 e B1 receive only the authenticated professional view', async () => {
+    const a1Fixture = await fixture({ userId: 101n, professionalId: 11n });
+    const a2Fixture = await fixture({ userId: 102n, professionalId: 12n });
+    const b1Fixture = await fixture({ tenantId: 2n, userId: 201n, professionalId: 21n });
+    const a1Result = await a1Fixture.app.inject({ method: 'GET', url: '/tenant/professionals/me/commission-cycles/current', headers });
+    const a2Result = await a2Fixture.app.inject({ method: 'GET', url: '/tenant/professionals/me/commission-cycles/current', headers });
+    const b1Result = await b1Fixture.app.inject({ method: 'GET', url: '/tenant/professionals/me/commission-cycles/current', headers: { ...headers, 'x-tenant-id': tenantBPublicId } });
+    expect(JSON.parse(a1Result.body).myPoints).toBe(2);
+    expect(JSON.parse(a2Result.body).myPoints).toBe(1);
+    expect(JSON.parse(b1Result.body).myPoints).toBe(4);
+    expect(a1Fixture.commissionCycles.currentForProfessional).toHaveBeenCalledWith(1n, 11n);
+    expect(a2Fixture.commissionCycles.currentForProfessional).toHaveBeenCalledWith(1n, 12n);
+    expect(b1Fixture.commissionCycles.currentForProfessional).toHaveBeenCalledWith(2n, 21n);
+  });
+
+  it('history uses only the authenticated identity and ignores spoofed professionalId input', async () => {
+    const current = await fixture({ userId: 101n, professionalId: 11n });
+    const result = await current.app.inject({ method: 'GET', url: '/tenant/professionals/me/commission-cycles?professionalId=12&professionalPublicId=bbbbbbbb-0000-4000-8000-000000000002', headers });
+    expect(result.statusCode).toBe(200);
+    expect(current.commissionCycles.listForProfessional).toHaveBeenCalledWith(1n, 11n);
+    expect(JSON.parse(result.body).items[0]).not.toHaveProperty('professionalId');
+  });
+
+  it('usuário autenticado sem vínculo profissional, inclusive admin, não recebe o primeiro profissional', async () => {
+    const professionaless = await fixture({ userId: 999n, noProfessional: true });
+    const result = await professionaless.app.inject({ method: 'GET', url: '/tenant/professionals/me/commission-cycles/current', headers });
+    expect(result.statusCode).toBe(404);
+    expect(result.body).not.toContain(professionalA);
   });
 });

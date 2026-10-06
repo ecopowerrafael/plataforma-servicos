@@ -20,4 +20,12 @@ describe('rotas SELF do profissional', () => {
     expect(source).not.toContain('/me/agenda/:professionalPublicId');
     expect(source).not.toContain('/me/commissions/:professionalPublicId');
   });
+
+  it('expõe ciclos de rateio somente pela identidade autenticada', () => {
+    expect(source).toContain("'/tenant/professionals/me/commission-cycles/current'");
+    expect(source).toContain("'/tenant/professionals/me/commission-cycles'");
+    expect(source).toContain('commissionCycles.currentForProfessional(r.tenant.id, professionalId)');
+    expect(source).toContain('commissionCycles.listForProfessional(r.tenant.id, professionalId)');
+    expect(source).not.toContain('commission-cycles/:publicId');
+  });
 });

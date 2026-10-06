@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { CommissionCycleSchema, type CommissionCycle } from '@plataforma/shared';
+import { CommissionCycleSchema, ProfessionalCommissionCycleListResponseSchema, ProfessionalCommissionCycleSchema, type CommissionCycle, type ProfessionalCommissionCycle } from '@plataforma/shared';
 
 import { Prisma, type CommissionCycle as PrismaCommissionCycle, type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
@@ -10,7 +10,7 @@ import { commissionPeriodFor } from './commission-cycle-period.js';
 interface Actor { userId: bigint | null; sessionId: bigint | null }
 
 type CycleWithAllocations = PrismaCommissionCycle & {
-  allocations: Array<{ points: number; amountCents: bigint; professional: { publicId: string; name: string } }>;
+  allocations: Array<{ professionalId: bigint; points: number; amountCents: bigint; professional: { publicId: string; name: string } }>;
 };
 
 const include = { allocations: { include: { professional: { select: { publicId: true, name: true } } }, orderBy: { professionalId: 'asc' as const } } } as const;
@@ -90,6 +90,42 @@ export class CommissionCycleService {
     await this.createCurrent(tenantId, now);
     const cycles = await this.client.commissionCycle.findMany({ where: { tenantId }, orderBy: { periodStart: 'desc' }, include });
     return { items: await Promise.all(cycles.map(async (cycle) => publicCycle(cycle, now, cycle.status === 'OPEN' ? await this.live(cycle) : undefined))) };
+  }
+
+  private professionalCycle(cycle: CycleWithAllocations, professionalId: bigint, now: Date, preview?: { revenue: bigint; points: PointShare[]; publicIds: Map<bigint, string>; names: Map<bigint, string> }): ProfessionalCommissionCycle {
+    const livePoints = preview?.points.find((item) => item.professionalId === professionalId)?.points ?? 0;
+    const totalPoints = cycle.status === 'CLOSED' ? cycle.totalPoints : (preview?.points.reduce((sum, item) => sum + item.points, 0) ?? 0);
+    const poolCents = cycle.status === 'CLOSED' ? cycle.poolCents : ((preview?.revenue ?? 0n) * BigInt(cycle.teamPercentBps)) / 10000n;
+    const liveAmount = cycle.status === 'CLOSED' ? null : distributeLargestRemainder(poolCents, preview?.points ?? []).find((item) => item.professionalId === professionalId)?.amountCents ?? 0n;
+    const persisted = cycle.status === 'CLOSED' ? cycle.allocations.find((item) => item.professionalId === professionalId) : undefined;
+    const myPoints = cycle.status === 'CLOSED' ? (persisted?.points ?? 0) : livePoints;
+    const finalAmount = persisted?.amountCents ?? null;
+    return ProfessionalCommissionCycleSchema.parse({
+      publicId: cycle.publicId,
+      periodStart: cycle.periodStart.toISOString(),
+      periodEnd: cycle.periodEnd.toISOString(),
+      status: cycle.status,
+      readyToClose: cycle.status === 'OPEN' && now.getTime() >= cycle.periodEnd.getTime(),
+      myPoints,
+      totalPoints,
+      myShareBps: totalPoints === 0 ? 0 : Math.floor((myPoints * 10000) / totalPoints),
+      poolCents: poolCents.toString(),
+      myEstimatedAmountCents: (cycle.status === 'CLOSED' ? (finalAmount ?? 0n) : (liveAmount ?? 0n)).toString(),
+      myFinalAmountCents: finalAmount?.toString() ?? null,
+      closedAt: cycle.closedAt?.toISOString() ?? null,
+    });
+  }
+
+  public async currentForProfessional(tenantId: bigint, professionalId: bigint, now = new Date()): Promise<ProfessionalCommissionCycle> {
+    const cycle = await this.createCurrent(tenantId, now);
+    return this.professionalCycle(cycle, professionalId, now, cycle.status === 'OPEN' ? await this.live(cycle) : undefined);
+  }
+
+  public async listForProfessional(tenantId: bigint, professionalId: bigint, now = new Date()): Promise<{ items: ProfessionalCommissionCycle[] }> {
+    await this.createCurrent(tenantId, now);
+    const cycles = await this.client.commissionCycle.findMany({ where: { tenantId }, orderBy: { periodStart: 'desc' }, include });
+    const items = await Promise.all(cycles.map(async (cycle) => this.professionalCycle(cycle, professionalId, now, cycle.status === 'OPEN' ? await this.live(cycle) : undefined)));
+    return ProfessionalCommissionCycleListResponseSchema.parse({ items: items.filter((item) => item.status === 'OPEN' || item.myFinalAmountCents !== null) });
   }
 
   public async get(tenantId: bigint, publicId: string, now = new Date()): Promise<CommissionCycle> {

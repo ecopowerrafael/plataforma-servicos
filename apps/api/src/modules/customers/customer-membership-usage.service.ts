@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { type PrismaClient } from '../../database-client/client.js';
+import {
+  type CustomerMembershipUsageStatus,
+  type PrismaClient,
+} from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipUsageRepository } from './customer-membership-usage.repository.js';
 import { assertCustomerMembershipFeatureEnabled } from './customer-membership-feature-gate.js';
@@ -183,48 +186,54 @@ export class CustomerMembershipUsageService {
    * Mark usage as CONSUMED when appointment is completed.
    * Idempotent: if already CONSUMED, no-op.
    */
-  public async consume(usageId: bigint): Promise<void> {
+  private async transitionReservedUsage(
+    tenantId: bigint,
+    usageId: bigint,
+    targetStatus: Exclude<CustomerMembershipUsageStatus, 'RESERVED'>,
+  ): Promise<void> {
+    const updated = await this.client.customerMembershipUsage.updateMany({
+      where: { id: usageId, tenantId, status: 'RESERVED' },
+      data: { status: targetStatus },
+    });
+    if (updated.count === 1) return;
+
     const usage = await this.client.customerMembershipUsage.findUnique({
       where: { id: usageId },
+      select: { tenantId: true, status: true },
     });
-
-    if (!usage) {
+    if (usage === null) {
       throw new AppError({
         code: 'USAGE_NOT_FOUND',
         message: 'Uso não encontrado.',
         statusCode: 404,
       });
     }
-
-    if (usage.status !== 'RESERVED') {
-      return; // Already transitioned, idempotent
+    if (usage.tenantId !== tenantId) {
+      throw new AppError({
+        code: 'USAGE_TENANT_MISMATCH',
+        message: 'O uso não pertence ao tenant informado.',
+        statusCode: 403,
+      });
     }
+    if (usage.status === targetStatus) return;
 
-    await this.repository.update(usageId, { status: 'CONSUMED' });
+    throw new AppError({
+      code: 'USAGE_TRANSITION_CONFLICT',
+      message: `Não é possível transicionar o uso de ${usage.status} para ${targetStatus}.`,
+      statusCode: 409,
+    });
+  }
+
+  public async consume(tenantId: bigint, usageId: bigint): Promise<void> {
+    await this.transitionReservedUsage(tenantId, usageId, 'CONSUMED');
   }
 
   /**
    * Mark usage as RELEASED when appointment is canceled.
    * Idempotent: if already RELEASED, no-op.
    */
-  public async release(usageId: bigint): Promise<void> {
-    const usage = await this.client.customerMembershipUsage.findUnique({
-      where: { id: usageId },
-    });
-
-    if (!usage) {
-      throw new AppError({
-        code: 'USAGE_NOT_FOUND',
-        message: 'Uso não encontrado.',
-        statusCode: 404,
-      });
-    }
-
-    if (usage.status !== 'RESERVED') {
-      return; // Already transitioned, idempotent
-    }
-
-    await this.repository.update(usageId, { status: 'RELEASED' });
+  public async release(tenantId: bigint, usageId: bigint): Promise<void> {
+    await this.transitionReservedUsage(tenantId, usageId, 'RELEASED');
   }
 
   /**

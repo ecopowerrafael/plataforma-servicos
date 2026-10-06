@@ -14,7 +14,10 @@ import { AppError } from '../../errors/AppError.js';
 import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type TenantCommercialPolicyService } from '../platform/tenant-commercial-policy.service.js';
 import { TenantCommercialStatusResolver } from '../platform/tenant-commercial-status.resolver.js';
-import { ChargeSource, CustomerMembershipBenefitResolver } from '../customers/customer-membership-benefit-resolver.js';
+import {
+  ChargeSource,
+  CustomerMembershipBenefitResolver,
+} from '../customers/customer-membership-benefit-resolver.js';
 import { type CustomerMembershipUsageService } from '../customers/customer-membership-usage.service.js';
 import { PlanEntitlementService } from '../tenants/plan-entitlement.service.js';
 interface Actor {
@@ -108,7 +111,11 @@ export class AppointmentService {
 
   private async assertCommercialCapability(t: bigint, source: string): Promise<void> {
     if (this.commercialPolicyService === undefined || this.commercialClient === undefined) {
-      throw new AppError({ code: 'TENANT_SUBSCRIPTION_REQUIRED', message: 'Não foi possível validar a assinatura do estabelecimento.', statusCode: 403 });
+      throw new AppError({
+        code: 'TENANT_SUBSCRIPTION_REQUIRED',
+        message: 'Não foi possível validar a assinatura do estabelecimento.',
+        statusCode: 403,
+      });
     }
     const subscription =
       (await this.commercialClient.tenantSubscription.findFirst({
@@ -118,7 +125,12 @@ export class AppointmentService {
         where: { tenantId: t },
         orderBy: { createdAt: 'desc' },
       }));
-    if (subscription === null) throw new AppError({ code: 'TENANT_SUBSCRIPTION_REQUIRED', message: 'Este estabelecimento não possui uma assinatura vigente.', statusCode: 403 });
+    if (subscription === null)
+      throw new AppError({
+        code: 'TENANT_SUBSCRIPTION_REQUIRED',
+        message: 'Este estabelecimento não possui uma assinatura vigente.',
+        statusCode: 403,
+      });
     const policy = await this.commercialPolicyService.getOrCreateRaw();
     const status = this.commercialStatusResolver.resolve(subscription, policy);
     // WhatsApp booking is customer-initiated and follows the public-booking
@@ -387,21 +399,27 @@ export class AppointmentService {
       });
     await this.repo.update(old.id, {
       status,
-      ...(old.status === 'IN_PROGRESS' && status === 'COMPLETED' ? { completedAt: new Date() } : {}),
+      ...(old.status === 'IN_PROGRESS' && status === 'COMPLETED'
+        ? { completedAt: new Date() }
+        : {}),
       ...(status === 'CANCELED' ? { canceledReason: reason ?? null } : {}),
     });
 
     // Handle membership transitions within transaction
-    if (this.membershipUsage !== undefined && old.chargeSource !== 'SERVICE_PRICE' && old.chargeSource !== null) {
+    if (
+      this.membershipUsage !== undefined &&
+      old.chargeSource !== 'SERVICE_PRICE' &&
+      old.chargeSource !== null
+    ) {
       const usage = await this.client.customerMembershipUsage.findFirst({
         where: { appointmentId: old.id, status: 'RESERVED' },
         select: { id: true },
       });
       if (usage) {
         if (status === 'COMPLETED') {
-          await this.membershipUsage.consume(usage.id);
+          await this.membershipUsage.consume(t, usage.id);
         } else if (status === 'CANCELED') {
-          await this.membershipUsage.release(usage.id);
+          await this.membershipUsage.release(t, usage.id);
         }
       }
     }
@@ -480,7 +498,13 @@ export class AppointmentService {
     await this.audit(t, id, 'appointment.checked_in', a);
     return pub(updated);
   }
-  private async save(t: bigint, i: Input, a: Actor, old?: AppointmentRecord, retryAttempt = 0): Promise<ReturnType<typeof AppointmentPublicSchema.parse>> {
+  private async save(
+    t: bigint,
+    i: Input,
+    a: Actor,
+    old?: AppointmentRecord,
+    retryAttempt = 0,
+  ): Promise<ReturnType<typeof AppointmentPublicSchema.parse>> {
     const isFitIn = i.isFitIn === true;
     // Validate XOR: service OR combo, not both
     if ((i.servicePublicId !== undefined) === (i.comboPublicId !== undefined))
@@ -698,15 +722,23 @@ export class AppointmentService {
       const resolver = new CustomerMembershipBenefitResolver(this.client);
       const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
       if (benefit.membershipChargeId !== undefined) {
-        const membershipState = await this.client.customerMembershipCharge.findUnique({ where: { id: benefit.membershipChargeId }, select: { membership: { select: { cancelAtPeriodEnd: true, currentPeriodEnd: true } } } });
-        if (membershipState?.membership.cancelAtPeriodEnd && membershipState.membership.currentPeriodEnd !== null && start >= membershipState.membership.currentPeriodEnd) {
+        const membershipState = await this.client.customerMembershipCharge.findUnique({
+          where: { id: benefit.membershipChargeId },
+          select: { membership: { select: { cancelAtPeriodEnd: true, currentPeriodEnd: true } } },
+        });
+        if (
+          membershipState?.membership.cancelAtPeriodEnd &&
+          membershipState.membership.currentPeriodEnd !== null &&
+          start >= membershipState.membership.currentPeriodEnd
+        ) {
           benefit.covered = false;
           benefit.chargeSource = ChargeSource.SERVICE_PRICE;
           benefit.amountDueCents = finalPrice;
           delete benefit.membershipChargeId;
         }
       }
-      chargeSource = benefit.chargeSource as 'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT';
+      chargeSource = benefit.chargeSource as
+        'SERVICE_PRICE' | 'MEMBERSHIP_INCLUDED' | 'MEMBERSHIP_DISCOUNT';
       referencePriceCents = benefit.referencePriceCents;
       amountDueCents = benefit.amountDueCents;
       membershipChargeId = benefit.membershipChargeId ?? null;
@@ -780,67 +812,96 @@ export class AppointmentService {
     // For new appointments with membership, use atomic transaction
     let x: AppointmentRecord | null = null;
     try {
-      if (old === undefined && chargeSource !== 'SERVICE_PRICE' && membershipChargeId !== null && this.membershipUsage !== undefined && serviceId !== null) {
-      const resolver = new CustomerMembershipBenefitResolver(this.client);
-      const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
+      if (
+        old === undefined &&
+        chargeSource !== 'SERVICE_PRICE' &&
+        membershipChargeId !== null &&
+        this.membershipUsage !== undefined &&
+        serviceId !== null
+      ) {
+        const resolver = new CustomerMembershipBenefitResolver(this.client);
+        const benefit = await resolver.resolveBenefit(t, customer.id, serviceId, finalPrice);
 
-      if (benefit.type === 'QUANTITY' || benefit.type === 'UNLIMITED' || benefit.type === 'DISCOUNT') {
-        const charge = await this.client.customerMembershipCharge.findUnique({
-          where: { id: membershipChargeId },
-          select: { membershipId: true },
-        });
+        if (
+          benefit.type === 'QUANTITY' ||
+          benefit.type === 'UNLIMITED' ||
+          benefit.type === 'DISCOUNT'
+        ) {
+          const charge = await this.client.customerMembershipCharge.findUnique({
+            where: { id: membershipChargeId },
+            select: { membershipId: true },
+          });
 
-        if (charge) {
-          const isQuantity = benefit.type === 'QUANTITY';
+          if (charge) {
+            const isQuantity = benefit.type === 'QUANTITY';
+            x = await this.repo.createIfAvailable(
+              { publicId: randomUUID(), tenantId: t, status: 'PENDING', ...data },
+              async (tx, appointment) => {
+                await assertOperatingModelUnchanged(tx);
+                const usage = await this.membershipUsage!.reserveWithinTransaction(tx, {
+                  tenantId: t,
+                  membershipId: charge.membershipId,
+                  membershipChargeId,
+                  appointmentId: appointment.id,
+                  serviceId: serviceId!,
+                  quantity: 1,
+                  ...(isQuantity ? { quantityLimit: benefit.limit } : {}),
+                });
+
+                // Exhausted quantity falls back atomically to ordinary service pricing.
+                if (usage === null) {
+                  await tx.appointment.update({
+                    where: { id: appointment.id },
+                    data: {
+                      chargeSource: 'SERVICE_PRICE',
+                      amountDueCents: priceCents,
+                      referencePriceCents: priceCents,
+                    },
+                  });
+                }
+              },
+            );
+          } else {
+            throw new AppError({
+              code: 'MEMBERSHIP_CHARGE_NOT_FOUND',
+              message: 'A cobrança da mensalidade não foi encontrada.',
+              statusCode: 404,
+            });
+          }
+        } else {
           x = await this.repo.createIfAvailable(
             { publicId: randomUUID(), tenantId: t, status: 'PENDING', ...data },
-            async (tx, appointment) => {
-              await assertOperatingModelUnchanged(tx);
-              const usage = await this.membershipUsage!.reserveWithinTransaction(tx, {
-                tenantId: t,
-                membershipId: charge.membershipId,
-                membershipChargeId,
-                appointmentId: appointment.id,
-                serviceId: serviceId!,
-                quantity: 1,
-                ...(isQuantity ? { quantityLimit: benefit.limit } : {}),
-              });
-
-              // Exhausted quantity falls back atomically to ordinary service pricing.
-              if (usage === null) {
-                await tx.appointment.update({
-                  where: { id: appointment.id },
-                  data: { chargeSource: 'SERVICE_PRICE', amountDueCents: priceCents, referencePriceCents: priceCents },
-                });
-              }
-            },
+            assertOperatingModelUnchanged,
           );
-        } else {
-          throw new AppError({
-            code: 'MEMBERSHIP_CHARGE_NOT_FOUND',
-            message: 'A cobrança da mensalidade não foi encontrada.',
-            statusCode: 404,
-          });
         }
       } else {
-        x = await this.repo.createIfAvailable({ publicId: randomUUID(), tenantId: t, status: 'PENDING', ...data }, assertOperatingModelUnchanged);
-      }
-      } else {
-      // For SERVICE_PRICING or updates, use regular flow
-      x =
-        old === undefined
-          ? await this.repo.createIfAvailable({
-              publicId: randomUUID(),
-              tenantId: t,
-              status: 'PENDING',
-              ...data,
-            }, assertOperatingModelUnchanged)
-          : await this.repo.updateIfAvailable(old.id, t, professional.id, start, end, data);
+        // For SERVICE_PRICING or updates, use regular flow
+        x =
+          old === undefined
+            ? await this.repo.createIfAvailable(
+                {
+                  publicId: randomUUID(),
+                  tenantId: t,
+                  status: 'PENDING',
+                  ...data,
+                },
+                assertOperatingModelUnchanged,
+              )
+            : await this.repo.updateIfAvailable(old.id, t, professional.id, start, end, data);
       }
     } catch (error) {
-      if (error instanceof AppError && error.code === 'OPERATING_MODEL_CHANGED_DURING_APPOINTMENT' && old === undefined && retryAttempt < 3)
+      if (
+        error instanceof AppError &&
+        error.code === 'OPERATING_MODEL_CHANGED_DURING_APPOINTMENT' &&
+        old === undefined &&
+        retryAttempt < 3
+      )
         return this.save(t, i, a, old, retryAttempt + 1);
-      if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2034' || error.message.includes('Record has changed since last read')) && retryAttempt < 3) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2034' || error.message.includes('Record has changed since last read')) &&
+        retryAttempt < 3
+      ) {
         await new Promise<void>((resolve) => setTimeout(resolve, (retryAttempt + 1) * 10));
         return this.save(t, i, a, old, retryAttempt + 1);
       }

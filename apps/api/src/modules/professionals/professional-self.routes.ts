@@ -13,6 +13,7 @@ import {
   ProfessionalCommissionResponseSchema,
   ProfessionalCommissionCycleListResponseSchema,
   ProfessionalCommissionCycleSchema,
+  ProfessionalPayoutSettlementSchema,
   ProfessionalPublicSchema,
   UpdateMyProfessionalProfileRequestSchema,
   ProfessionalScheduleResponseSchema,
@@ -36,6 +37,7 @@ import { type AvailabilityService } from '../calendar/availability.service.js';
 import { type PasswordService } from '../auth/password.service.js';
 import { type ProfessionalCommissionService } from '../payments/professional-commission.service.js';
 import { type CommissionCycleService } from '../payments/commission-cycle.service.js';
+import { type ProfessionalPayoutService } from '../payments/professional-payout.service.js';
 import { type PaymentService } from '../payments/payment.service.js';
 import { type PaymentGatewayService } from '../payments/gateway/payment-gateway.service.js';
 import { tenantContextPlugin } from '../tenants/tenant-context.plugin.js';
@@ -50,6 +52,7 @@ interface Options {
   availability: AvailabilityService;
   commissions?: ProfessionalCommissionService;
   commissionCycles?: CommissionCycleService;
+  professionalPayouts?: ProfessionalPayoutService;
   payments?: PaymentService;
   paymentGateway?: PaymentGatewayService;
   authService: AuthService;
@@ -68,6 +71,7 @@ const agendaQuery = z
   })
   .strict();
 const appointmentParams = z.object({ publicId: z.uuid() }).strict();
+const cycleParams = z.object({ publicId: z.uuid() }).strict();
 const commissionHistoryQuery = z
   .object({
     /** Dias civis inclusivos no fuso do tenant, como no Financeiro. */
@@ -100,6 +104,16 @@ export const professionalSelfRoutes: FastifyPluginAsyncZod<Options> = async (app
     cookieName: options.cookieName,
     client: options.client,
   });
+
+  if (options.professionalPayouts !== undefined) app.get(
+    '/tenant/professionals/me/commission-cycles/:publicId/payouts',
+    { schema: { params: cycleParams, response: { 200: ProfessionalPayoutSettlementSchema } } },
+    async (r) => {
+      options.authService.requirePermission(r.tenant, 'professional.self.read');
+      const professionalId = await options.professionals.myId(r.tenant.id, r.auth.user.id);
+      return options.professionalPayouts!.listForProfessionalCycle(r.tenant.id, professionalId, r.params.publicId);
+    },
+  );
 
   app.get(
     '/tenant/professionals/me',

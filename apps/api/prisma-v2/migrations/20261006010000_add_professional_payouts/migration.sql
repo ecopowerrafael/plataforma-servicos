@@ -1,0 +1,38 @@
+CREATE TABLE `professional_payouts` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `public_id` CHAR(36) NOT NULL,
+  `tenant_id` BIGINT UNSIGNED NOT NULL,
+  `professional_id` BIGINT UNSIGNED NOT NULL,
+  `commission_cycle_allocation_id` BIGINT UNSIGNED NOT NULL,
+  `amount_cents` BIGINT UNSIGNED NOT NULL,
+  `paid_at` DATETIME(3) NOT NULL,
+  `method` ENUM('PIX', 'CASH', 'BANK_TRANSFER', 'OTHER') NOT NULL,
+  `note` VARCHAR(500) NULL,
+  `status` ENUM('ACTIVE', 'CANCELED') NOT NULL DEFAULT 'ACTIVE',
+  `idempotency_key` VARCHAR(191) NOT NULL,
+  `canceled_at` DATETIME(3) NULL,
+  `canceled_reason` VARCHAR(500) NULL,
+  `created_by_user_id` BIGINT UNSIGNED NULL,
+  `created_by_session_id` BIGINT UNSIGNED NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `professional_payouts_public_id_key` (`public_id`),
+  UNIQUE KEY `professional_payouts_tenant_idempotency_key` (`tenant_id`, `idempotency_key`),
+  KEY `professional_payouts_tenant_professional_paid_at_idx` (`tenant_id`, `professional_id`, `paid_at`),
+  KEY `professional_payouts_tenant_allocation_status_idx` (`tenant_id`, `commission_cycle_allocation_id`, `status`),
+  KEY `professional_payouts_professional_id_idx` (`professional_id`),
+  KEY `professional_payouts_allocation_id_idx` (`commission_cycle_allocation_id`),
+  KEY `professional_payouts_created_by_user_id_idx` (`created_by_user_id`),
+  KEY `professional_payouts_created_by_session_id_idx` (`created_by_session_id`),
+  CONSTRAINT `professional_payouts_tenant_fk` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professional_payouts_professional_fk` FOREIGN KEY (`professional_id`) REFERENCES `professionals` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professional_payouts_allocation_fk` FOREIGN KEY (`commission_cycle_allocation_id`) REFERENCES `commission_cycle_allocations` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `professional_payouts_created_by_user_fk` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `professional_payouts_created_by_session_fk` FOREIGN KEY (`created_by_session_id`) REFERENCES `user_sessions` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE `cash_movements`
+  ADD COLUMN `professional_payout_id` BIGINT UNSIGNED NULL AFTER `payment_id`,
+  ADD UNIQUE KEY `cash_movements_professional_payout_direction_key` (`professional_payout_id`, `direction`),
+  ADD CONSTRAINT `cash_movements_professional_payout_fk` FOREIGN KEY (`professional_payout_id`) REFERENCES `professional_payouts` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

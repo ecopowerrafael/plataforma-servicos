@@ -10,7 +10,7 @@ import { commissionPeriodFor } from './commission-cycle-period.js';
 interface Actor { userId: bigint | null; sessionId: bigint | null }
 
 type CycleWithAllocations = PrismaCommissionCycle & {
-  allocations: Array<{ professionalId: bigint; points: number; amountCents: bigint; professional: { publicId: string; name: string } }>;
+  allocations: Array<{ publicId: string; professionalId: bigint; points: number; amountCents: bigint; professional: { publicId: string; name: string } }>;
 };
 
 const include = { allocations: { include: { professional: { select: { publicId: true, name: true } } }, orderBy: { professionalId: 'asc' as const } } } as const;
@@ -27,8 +27,8 @@ function publicCycle(cycle: CycleWithAllocations, now: Date, preview?: { revenue
   const points = cycle.status === 'CLOSED' ? cycle.totalPoints : (preview?.points.reduce((sum, item) => sum + item.points, 0) ?? 0);
   const pool = cycle.status === 'CLOSED' ? cycle.poolCents : revenue * BigInt(cycle.teamPercentBps) / 10000n;
   const allocations = cycle.status === 'CLOSED'
-    ? cycle.allocations.map((item) => ({ professionalPublicId: item.professional.publicId, professionalName: item.professional.name, points: item.points, amountCents: item.amountCents.toString() }))
-    : distributeLargestRemainder(pool, preview?.points ?? []).map((item) => ({ professionalPublicId: preview?.publicIds.get(item.professionalId) ?? '', professionalName: preview?.names.get(item.professionalId) ?? 'Profissional', points: item.points, amountCents: item.amountCents.toString() }));
+    ? cycle.allocations.map((item) => ({ allocationPublicId: item.publicId, professionalPublicId: item.professional.publicId, professionalName: item.professional.name, points: item.points, amountCents: item.amountCents.toString() }))
+    : distributeLargestRemainder(pool, preview?.points ?? []).map((item) => ({ allocationPublicId: null, professionalPublicId: preview?.publicIds.get(item.professionalId) ?? '', professionalName: preview?.names.get(item.professionalId) ?? 'Profissional', points: item.points, amountCents: item.amountCents.toString() }));
   return CommissionCycleSchema.parse({
     publicId: cycle.publicId,
     periodStart: cycle.periodStart.toISOString(), periodEnd: cycle.periodEnd.toISOString(), status: cycle.status,

@@ -227,6 +227,18 @@ enum CommissionCycleStatus {
   CLOSED
 }
 
+enum ProfessionalPayoutStatus {
+  ACTIVE
+  CANCELED
+}
+
+enum ProfessionalPayoutMethod {
+  PIX
+  CASH
+  BANK_TRANSFER
+  OTHER
+}
+
 /// Define como o estabelecimento comercializa seus serviços. Os tenants
 /// existentes permanecem no modelo histórico, por padrão.
 enum OperatingModel {
@@ -578,6 +590,7 @@ model Tenant {
   professionalCommissions      ProfessionalCommission[]
   financialClosings            FinancialClosing[]
   commissionCycles             CommissionCycle[]
+  professionalPayouts          ProfessionalPayout[]
   paymentGatewayConfigs        PaymentGatewayConfig[]
   paymentGatewayCharges        PaymentGatewayCharge[]
   paymentGatewayEvents         PaymentGatewayEvent[]
@@ -1291,6 +1304,7 @@ model User {
   receiptsIssued                Receipt[]                        @relation("ReceiptIssuedBy")
   financialClosingsClosed       FinancialClosing[]               @relation("FinancialClosingClosedBy")
   commissionCyclesClosed        CommissionCycle[]                @relation("CommissionCycleClosedBy")
+  professionalPayoutsCreated    ProfessionalPayout[]             @relation("ProfessionalPayoutCreatedBy")
   loyaltyLedgerEntries          LoyaltyLedgerEntry[]
   stockMovementsPerformed       StockMovement[]
   productSales                  ProductSale[]
@@ -1400,6 +1414,7 @@ model UserSession {
   appointmentHistoryEntries AppointmentHistoryEntry[]
   payments                  Payment[]
   cashMovements             CashMovement[]
+  professionalPayoutsCreated ProfessionalPayout[]                @relation("ProfessionalPayoutCreatedBySession")
   cashRegistersOpened       CashRegister[]                   @relation("CashRegisterOpenedBySession")
   cashRegistersClosed       CashRegister[]                   @relation("CashRegisterClosedBySession")
   receiptsIssued            Receipt[]                        @relation("ReceiptIssuedBySession")
@@ -2243,6 +2258,7 @@ model Professional {
   reviews               AppointmentReview[]
   commissions           ProfessionalCommission[]
   commissionAllocations CommissionCycleAllocation[]
+  payouts               ProfessionalPayout[]
   productSales          ProductSale[]
   waitlistEntries       AppointmentWaitlist[]
   waitlistOpportunities AppointmentWaitlistOpportunity[]
@@ -2668,10 +2684,42 @@ model CommissionCycleAllocation {
   createdAt      DateTime        @default(now()) @map("created_at") @db.DateTime(3)
   cycle          CommissionCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   professional   Professional    @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payouts        ProfessionalPayout[]
 
   @@unique([cycleId, professionalId])
   @@index([professionalId, createdAt])
   @@map("commission_cycle_allocations")
+}
+
+model ProfessionalPayout {
+  id                         BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId                   String                    @unique @map("public_id") @db.Char(36)
+  tenantId                   BigInt                    @map("tenant_id") @db.UnsignedBigInt
+  professionalId             BigInt                    @map("professional_id") @db.UnsignedBigInt
+  commissionCycleAllocationId BigInt                   @map("commission_cycle_allocation_id") @db.UnsignedBigInt
+  amountCents                BigInt                    @map("amount_cents") @db.UnsignedBigInt
+  paidAt                    DateTime                  @map("paid_at") @db.DateTime(3)
+  method                    ProfessionalPayoutMethod
+  note                      String?                   @db.VarChar(500)
+  status                    ProfessionalPayoutStatus @default(ACTIVE)
+  idempotencyKey            String                    @map("idempotency_key") @db.VarChar(191)
+  canceledAt                DateTime?                 @map("canceled_at") @db.DateTime(3)
+  canceledReason            String?                   @map("canceled_reason") @db.VarChar(500)
+  createdByUserId           BigInt?                   @map("created_by_user_id") @db.UnsignedBigInt
+  createdBySessionId        BigInt?                   @map("created_by_session_id") @db.UnsignedBigInt
+  createdAt                 DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt                 DateTime                  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                    Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional              Professional              @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  allocation                CommissionCycleAllocation @relation(fields: [commissionCycleAllocationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashMovements             CashMovement[]
+  createdByUser             User?                     @relation("ProfessionalPayoutCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdBySession          UserSession?              @relation("ProfessionalPayoutCreatedBySession", fields: [createdBySessionId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, professionalId, paidAt])
+  @@index([tenantId, commissionCycleAllocationId, status])
+  @@map("professional_payouts")
 }
 
 model Coupon {
@@ -2945,6 +2993,7 @@ model CashMovement {
   direction      CashMovementDirection
   amountCents    BigInt                @map("amount_cents") @db.UnsignedBigInt
   reason         String?               @db.VarChar(500)
+  professionalPayoutId BigInt?         @map("professional_payout_id") @db.UnsignedBigInt
   paymentId      BigInt?               @unique @map("payment_id") @db.UnsignedBigInt
   userId         BigInt?               @map("user_id") @db.UnsignedBigInt
   sessionId      BigInt?               @map("session_id") @db.UnsignedBigInt
@@ -2952,11 +3001,13 @@ model CashMovement {
   tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cashRegister   CashRegister          @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payment        Payment?              @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professionalPayout ProfessionalPayout? @relation(fields: [professionalPayoutId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   user           User?                 @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   session        UserSession?          @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   productSale    ProductSale?
 
   @@index([tenantId, cashRegisterId, createdAt])
+  @@unique([professionalPayoutId, direction])
   @@map("cash_movements")
 }
 

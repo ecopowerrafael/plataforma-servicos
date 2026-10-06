@@ -46,6 +46,7 @@ export * from './cash-register.js';
 export * from './receipt.js';
 export * from './commission.js';
 export * from './commission-cycle.js';
+export * from './professional-payout.js';
 export * from './financial-closing.js';
 export * from './delinquency.js';
 export * from './financial-report.js';

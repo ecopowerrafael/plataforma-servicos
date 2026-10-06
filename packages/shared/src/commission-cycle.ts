@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const CommissionCycleAllocationSchema = z.object({
+  allocationPublicId: z.uuid().nullable(),
   professionalPublicId: z.uuid(),
   professionalName: z.string().min(1),
   points: z.number().int().nonnegative(),

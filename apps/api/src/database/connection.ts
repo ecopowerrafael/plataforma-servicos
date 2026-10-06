@@ -88,6 +88,7 @@ import { CouponService } from '../modules/payments/coupon.service.js';
 import { DelinquencyService } from '../modules/payments/delinquency.service.js';
 import { FinancialClosingService } from '../modules/payments/financial-closing.service.js';
 import { CommissionCycleService } from '../modules/payments/commission-cycle.service.js';
+import { ProfessionalPayoutService } from '../modules/payments/professional-payout.service.js';
 import { FinanceOverviewService } from '../modules/payments/finance-overview.service.js';
 import { FinancialReportService } from '../modules/payments/financial-report.service.js';
 import { CredentialsCipher } from '../modules/payments/gateway/credentials-cipher.js';
@@ -235,6 +236,7 @@ export interface DatabaseConnection {
   readonly paymentPromises?: PaymentPromiseService;
   readonly financialClosings?: FinancialClosingService;
   readonly commissionCycles?: CommissionCycleService;
+  readonly professionalPayouts?: ProfessionalPayoutService;
   readonly delinquency?: DelinquencyService;
   readonly financialReports?: FinancialReportService;
   readonly financeOverview?: FinanceOverviewService;
@@ -487,6 +489,7 @@ export function createDatabaseConnection(
   const cashRegisters = new CashRegisterService(client);
   const commissions = new ProfessionalCommissionService(client);
   const commissionCycles = new CommissionCycleService(client);
+  const professionalPayouts = new ProfessionalPayoutService(client);
   const coupons = new CouponService(client);
   const loyalty = new LoyaltyService(client, coupons);
   const delinquency = new DelinquencyService(client);
@@ -664,6 +667,7 @@ export function createDatabaseConnection(
     paymentPromises: paymentPromises,
     financialClosings: new FinancialClosingService(client),
     commissionCycles,
+    professionalPayouts,
     delinquency: delinquency,
     financialReports: new FinancialReportService(client, delinquency),
     financeOverview: new FinanceOverviewService(client, delinquency),

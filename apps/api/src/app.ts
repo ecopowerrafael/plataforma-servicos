@@ -68,6 +68,7 @@ import { prospectingWhatsAppConfigRoutes } from './modules/prospecting/prospecti
 import { cashRegisterRoutes } from './modules/payments/cash-register.routes.js';
 import { commissionRoutes } from './modules/payments/commission.routes.js';
 import { commissionCycleRoutes } from './modules/payments/commission-cycle.routes.js';
+import { professionalPayoutRoutes } from './modules/payments/professional-payout.routes.js';
 import { couponRoutes } from './modules/payments/coupon.routes.js';
 import { delinquencyRoutes } from './modules/payments/delinquency.routes.js';
 import { financialClosingRoutes } from './modules/payments/financial-closing.routes.js';
@@ -784,6 +785,13 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });
+  if (options.database.professionalPayouts !== undefined)
+    await app.register(professionalPayoutRoutes, {
+      service: options.database.professionalPayouts,
+      authService,
+      cookieName: options.environment.AUTH_COOKIE_NAME,
+      client: options.database.client,
+    });
   if (options.database.treatmentPlanReminders !== undefined)
     await app.register(treatmentPlanReminderRoutes, {
       service: options.database.treatmentPlanReminders,
@@ -939,6 +947,9 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.commissionCycles === undefined
         ? {}
         : { commissionCycles: options.database.commissionCycles }),
+      ...(options.database.professionalPayouts === undefined
+        ? {}
+        : { professionalPayouts: options.database.professionalPayouts }),
       ...(options.database.payments === undefined ? {} : { payments: options.database.payments }),
       ...(options.database.paymentGateway === undefined ? {} : { paymentGateway: options.database.paymentGateway }),
       authService,

@@ -1,6 +1,7 @@
 import {
   ProfessionalCommissionCycleListResponseSchema,
   ProfessionalCommissionCycleSchema,
+  ProfessionalPayoutSettlementSchema,
   TenantContextResponseSchema,
 } from '@plataforma/shared';
 import { IconCoin } from '@tabler/icons-react';
@@ -27,6 +28,7 @@ export function MyCommissionCyclesModule({ tenantPublicId }: { tenantPublicId: s
   const history = useQuery({ queryKey: ['tenant', tenantPublicId, 'professionals', 'me', 'commission-cycles'], queryFn: () => httpClient.request('/tenant/professionals/me/commission-cycles', { schema: ProfessionalCommissionCycleListResponseSchema, tenantPublicId }), retry: false });
   const timezone = context.data?.tenant.timezone ?? 'UTC';
   const cycle = current.data;
+  const payouts = useQuery({ queryKey: ['tenant', tenantPublicId, 'professionals', 'me', 'commission-cycle-payouts', cycle?.publicId], queryFn: () => httpClient.request(`/tenant/professionals/me/commission-cycles/${cycle?.publicId}/payouts`, { schema: ProfessionalPayoutSettlementSchema, tenantPublicId }), enabled: cycle?.status === 'CLOSED' });
 
   if (current.isPending) return <ListSkeleton rows={3} />;
   if (current.error instanceof HttpError && current.error.code === 'COMMISSION_CYCLE_NOT_CONFIGURED') return <EmptyState icon={<IconCoin size={22} aria-hidden="true" />} title="Rateio de assinaturas ainda não está disponível." description="O estabelecimento ainda não configurou este benefício." />;
@@ -39,6 +41,7 @@ export function MyCommissionCyclesModule({ tenantPublicId }: { tenantPublicId: s
       <div className="commission-cycle-period"><strong>{period(cycle.periodStart, cycle.periodEnd, timezone)}</strong><StatusBadge active={cycle.status === 'CLOSED'}>{statusLabel(cycle.status, cycle.readyToClose)}</StatusBadge></div>
       {cycle.myPoints === 0 ? <EmptyState icon={<IconCoin size={22} aria-hidden="true" />} title="Você ainda não possui atendimentos elegíveis neste ciclo." description="Seus pontos aparecerão conforme houver atendimentos elegíveis." /> : cycle.poolCents === '0' ? <InlineAlert tone="info" title="Ainda não há valor disponível para rateio.">Você possui pontos neste ciclo, mas o pool ainda está zerado.</InlineAlert> : null}
       <StatGrid><StatCard label="Meus pontos" value={String(cycle.myPoints)} /><StatCard label="Minha participação" value={`${(cycle.myShareBps / 100).toFixed(2).replace('.', ',')}%`} /><StatCard label={cycle.status === 'CLOSED' ? 'Valor final' : 'Valor estimado'} value={money(amount)} tone="success" /></StatGrid>
+      {cycle.status === 'CLOSED' && payouts.data && <><StatGrid><StatCard label="Valor apurado" value={money(payouts.data.dueCents)} /><StatCard label="Valor pago" value={money(payouts.data.paidCents)} /><StatCard label="Saldo a receber" value={money(payouts.data.outstandingCents)} /><StatCard label="Status" value={payouts.data.paymentStatus === 'PAID' ? 'Pago' : payouts.data.paymentStatus === 'PARTIALLY_PAID' ? 'Pago parcialmente' : 'Pendente'} /></StatGrid><SectionCard title="Histórico de pagamentos"><div className="ds-table-scroll"><table className="ds-table"><thead><tr><th>Data</th><th>Valor</th><th>Método</th><th>Status</th></tr></thead><tbody>{payouts.data.payouts.map((payout) => <tr key={payout.publicId}><td>{date(payout.paidAt, timezone)}</td><td>{money(payout.amountCents)}</td><td>{payout.method}</td><td>{payout.status === 'ACTIVE' ? 'Ativo' : 'Cancelado'}</td></tr>)}</tbody></table></div></SectionCard></>}
       {cycle.status === 'OPEN' && cycle.readyToClose ? <InlineAlert tone="info" title="Aguardando fechamento">A estimativa continua disponível até o fechamento do ciclo.</InlineAlert> : null}
     </SectionCard>
     <SectionCard title="Histórico de ciclos" description="Somente seus ciclos fechados, do mais recente para o mais antigo.">

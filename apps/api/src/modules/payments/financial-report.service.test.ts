@@ -21,7 +21,13 @@ function payment(amountCents: bigint, originType: string, paidAt: Date | null, c
 function createService(data: {
   legacyPayments: ReturnType<typeof payment>[];
   receivedPayments: Array<{ amountCents: bigint; originType: string }>;
+  unitReceivedPayments?: Array<{ amountCents: bigint; originType: string }>;
   manualMovements: Array<{
+    direction: 'IN' | 'OUT';
+    amountCents: bigint;
+    professionalPayoutId: bigint | null;
+  }>;
+  unitManualMovements?: Array<{
     direction: 'IN' | 'OUT';
     amountCents: bigint;
     professionalPayoutId: bigint | null;
@@ -32,17 +38,27 @@ function createService(data: {
 }) {
   const client = {
     payment: {
-      findMany: vi
-        .fn()
-        .mockResolvedValueOnce(data.legacyPayments)
-        .mockResolvedValueOnce(data.receivedPayments),
+      findMany: vi.fn((args: { where: { paidAt?: unknown; originType?: string } }) => {
+        if (args.where.originType === 'MEMBERSHIP_CHARGE')
+          return Promise.resolve(
+            data.receivedPayments.filter((item) => item.originType === 'MEMBERSHIP_CHARGE'),
+          );
+        if (args.where.paidAt !== undefined)
+          return Promise.resolve(data.unitReceivedPayments ?? data.receivedPayments);
+        return Promise.resolve(data.legacyPayments);
+      }),
       aggregate: vi.fn().mockResolvedValue({ _sum: { amountCents: 0n }, _count: 0 }),
     },
     cashMovement: {
-      findMany: vi
-        .fn()
-        .mockResolvedValueOnce(data.manualMovements)
-        .mockResolvedValueOnce(data.allMovements),
+      findMany: vi.fn(
+        (args: { where: { type?: string; cashRegister?: { unitId?: bigint | null } } }) => {
+          if (args.where.type === 'MANUAL' && args.where.cashRegister?.unitId === null)
+            return Promise.resolve(data.manualMovements);
+          if (args.where.type === 'MANUAL')
+            return Promise.resolve(data.unitManualMovements ?? data.manualMovements);
+          return Promise.resolve(data.allMovements);
+        },
+      ),
     },
     professionalCommission: {
       aggregate: vi.fn().mockResolvedValue({
@@ -60,7 +76,11 @@ function createService(data: {
   return service;
 }
 
-async function summary(service: FinancialReportService) {
+async function summary(
+  service: FinancialReportService,
+  unitId: bigint | null = null,
+  isUnitPartialView = false,
+) {
   const builder = (
     service as unknown as {
       buildSummaryAndBreakdowns: (
@@ -73,15 +93,59 @@ async function summary(service: FinancialReportService) {
     .call(service, 1n, {
       from,
       to,
-      unitId: null,
+      unitId,
       professionalId: null,
       unitPublicId: undefined,
       professionalPublicId: undefined,
+      isUnitPartialView,
     })
     .then((result) => result.summary);
 }
 
 describe('FinancialReportService V1 consolidado', () => {
+  it('marca a visão unitária como parcial e separa valores globais sem incluí-los no resultado', async () => {
+    const service = createService({
+      legacyPayments: [],
+      receivedPayments: [
+        { amountCents: 100_000n, originType: 'APPOINTMENT' },
+        { amountCents: 200_000n, originType: 'MEMBERSHIP_CHARGE' },
+      ],
+      unitReceivedPayments: [{ amountCents: 100_000n, originType: 'APPOINTMENT' }],
+      manualMovements: [{ direction: 'OUT', amountCents: 60_000n, professionalPayoutId: 10n }],
+      unitManualMovements: [],
+      allMovements: [],
+      commissionAmountCents: 10_000n,
+      commissionCount: 1,
+    });
+    const result = await summary(service, 2n, true);
+
+    expect(result.isUnitPartialView).toBe(true);
+    expect(result.appointmentRevenueCents).toBe('100000');
+    expect(result.membershipRevenueCents).toBe('0');
+    expect(result.globalUnallocatedMembershipRevenueCents).toBe('200000');
+    expect(result.globalUnallocatedProfessionalPayoutsCents).toBe('60000');
+    expect(result.globalUnallocatedManualOutCents).toBe('0');
+    expect(result.professionalPayoutsCents).toBe('0');
+    expect(result.operatingResultCents).toBe('90000');
+  });
+
+  it('mantém a visão consolidada não parcial e zera indicadores globais informativos', async () => {
+    const service = createService({
+      legacyPayments: [],
+      receivedPayments: [{ amountCents: 100_000n, originType: 'APPOINTMENT' }],
+      manualMovements: [],
+      allMovements: [],
+      commissionAmountCents: 0n,
+      commissionCount: 0,
+    });
+    const result = await summary(service);
+
+    expect(result.isUnitPartialView).toBe(false);
+    expect(result.globalUnallocatedMembershipRevenueCents).toBe('0');
+    expect(result.globalUnallocatedProfessionalPayoutsCents).toBe('0');
+    expect(result.globalUnallocatedManualOutCents).toBe('0');
+  });
+
   it('separa origens e usa paidAt, sem fallback para createdAt ou CANCELED', async () => {
     const service = createService({
       legacyPayments: [payment(999n, 'APPOINTMENT', from, from)],
@@ -152,6 +216,34 @@ describe('FinancialReportService V1 consolidado', () => {
     expect(result.operatingResultCents).toBe('850000');
     expect(result.cashResultCents).toBe('975000');
     expect(result.operatingResultCents).not.toBe(result.cashResultCents);
+  });
+
+  it('representa reversão isolada como repasse líquido negativo e aumenta o resultado operacional', async () => {
+    const service = createService({
+      legacyPayments: [],
+      receivedPayments: [{ amountCents: 1_000_000n, originType: 'APPOINTMENT' }],
+      manualMovements: [{ direction: 'IN', amountCents: 50_000n, professionalPayoutId: 10n }],
+      allMovements: [
+        { direction: 'IN', amountCents: 1_000_000n },
+        { direction: 'IN', amountCents: 50_000n },
+      ],
+      commissionAmountCents: 100_000n,
+      commissionCount: 1,
+    });
+    const result = await summary(service);
+    const report = {
+      summary: result,
+      byPaymentMethod: [],
+      byService: [],
+      byProfessional: [],
+      byUnit: [],
+      comparison: null,
+    } as never;
+    const csv = service.toCsv(report);
+
+    expect(result.professionalPayoutsCents).toBe('-50000');
+    expect(result.operatingResultCents).toBe('950000');
+    expect(csv).toContain('Repasses líquidos,-500.00');
   });
 
   it('mantém precisão BigInt e exporta as novas métricas sem Receita líquida', async () => {

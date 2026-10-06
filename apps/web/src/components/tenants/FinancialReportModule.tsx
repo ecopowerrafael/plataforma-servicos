@@ -6,8 +6,14 @@ import { environment } from '../../config/environment.js';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, PageToolbar } from '../ui/AppUi.js';
 
-const money = (cents: string) =>
-  (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const money = (cents: string) => {
+  const value = BigInt(cents);
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  const whole = absolute / 100n;
+  const fraction = (absolute % 100n).toString().padStart(2, '0');
+  return `${negative ? '- ' : ''}R$ ${new Intl.NumberFormat('pt-BR').format(whole)},${fraction}`;
+};
 const today = () => new Date().toISOString().slice(0, 10);
 const startOfDayIso = (date: string) => `${date}T00:00:00.000Z`;
 const endOfDayIso = (date: string) => `${date}T23:59:59.999Z`;
@@ -181,6 +187,13 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
         />
       ) : (
         <>
+          {summary.isUnitPartialView && (
+            <div className="app-card" role="note">
+              Este resultado considera apenas valores diretamente atribuídos à unidade.
+              Mensalidades, repasses e outras movimentações globais não são rateados
+              automaticamente.
+            </div>
+          )}
           <div className="report-metric-grid">
             <Metric label="Receita recebida" value={money(summary.receivedRevenueCents)} />
             <Metric label="Resultado operacional" value={money(summary.operatingResultCents)} />
@@ -208,6 +221,25 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
             <Metric label="Entradas manuais" value={money(summary.cashManualInCents)} />
             <Metric label="Saídas manuais" value={money(summary.cashManualOutCents)} />
           </div>
+          {summary.isUnitPartialView && (
+            <article className="app-card">
+              <p className="ds-eyebrow">Valores globais não atribuídos</p>
+              <dl className="platform-details">
+                <div>
+                  <dt>Mensalidades globais</dt>
+                  <dd>{money(summary.globalUnallocatedMembershipRevenueCents)}</dd>
+                </div>
+                <div>
+                  <dt>Repasses globais</dt>
+                  <dd>{money(summary.globalUnallocatedProfessionalPayoutsCents)}</dd>
+                </div>
+                <div>
+                  <dt>Outras saídas globais</dt>
+                  <dd>{money(summary.globalUnallocatedManualOutCents)}</dd>
+                </div>
+              </dl>
+            </article>
+          )}
           <div className="report-secondary-grid">
             <article className="app-card">
               <p className="ds-eyebrow">Movimentações e perdas</p>
@@ -227,7 +259,7 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
                   </dd>
                 </div>
                 <div>
-                  <dt>Repasses profissionais</dt>
+                  <dt>Repasses líquidos</dt>
                   <dd>{money(summary.professionalPayoutsCents)}</dd>
                 </div>
                 <div>

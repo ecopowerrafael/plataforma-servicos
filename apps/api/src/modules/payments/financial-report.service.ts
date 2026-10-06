@@ -48,6 +48,7 @@ interface Filters {
   professionalId: bigint | null;
   unitPublicId: string | undefined;
   professionalPublicId: string | undefined;
+  isUnitPartialView: boolean;
 }
 
 export class FinancialReportService {
@@ -81,6 +82,7 @@ export class FinancialReportService {
     };
     const registerFilter: Prisma.CashRegisterWhereInput =
       filters.unitId === null ? {} : { unitId: filters.unitId };
+    const isUnitPartialView = filters.isUnitPartialView;
     const receivedPaymentScope: Prisma.PaymentWhereInput =
       filters.unitId === null && filters.professionalId === null
         ? {}
@@ -89,8 +91,10 @@ export class FinancialReportService {
     const [
       paidPayments,
       receivedPayments,
+      globalMembershipPayments,
       canceledPayments,
       manualMovements,
+      globalManualMovements,
       allMovements,
       commissions,
       canceledAppointments,
@@ -130,6 +134,17 @@ export class FinancialReportService {
         },
         select: { amountCents: true, originType: true },
       }),
+      isUnitPartialView
+        ? this.client.payment.findMany({
+            where: {
+              tenantId,
+              originType: 'MEMBERSHIP_CHARGE',
+              status: 'PAID',
+              paidAt: { gte: filters.from, lt: filters.to },
+            },
+            select: { amountCents: true },
+          })
+        : Promise.resolve([] as Array<{ amountCents: bigint }>),
       this.client.payment.aggregate({
         where: {
           tenantId,
@@ -149,6 +164,23 @@ export class FinancialReportService {
         },
         select: { direction: true, amountCents: true, professionalPayoutId: true },
       }),
+      isUnitPartialView
+        ? this.client.cashMovement.findMany({
+            where: {
+              tenantId,
+              type: 'MANUAL',
+              createdAt: { gte: filters.from, lt: filters.to },
+              cashRegister: { unitId: null },
+            },
+            select: { direction: true, amountCents: true, professionalPayoutId: true },
+          })
+        : Promise.resolve(
+            [] as Array<{
+              direction: 'IN' | 'OUT';
+              amountCents: bigint;
+              professionalPayoutId: bigint | null;
+            }>,
+          ),
       this.client.cashMovement.findMany({
         where: {
           tenantId,
@@ -236,6 +268,20 @@ export class FinancialReportService {
     const otherManualInCents = manualInCents - professionalPayoutReversalInCents;
     const operatingResultCents =
       receivedRevenueCents - commissionsCents - professionalPayoutsCents - otherManualOutCents;
+    const globalUnallocatedMembershipRevenueCents = globalMembershipPayments.reduce(
+      (total, item) => total + item.amountCents,
+      0n,
+    );
+    const globalUnallocatedProfessionalPayoutsCents = globalManualMovements
+      .filter((item) => item.professionalPayoutId !== null)
+      .reduce(
+        (total, item) =>
+          item.direction === 'IN' ? total - item.amountCents : total + item.amountCents,
+        0n,
+      );
+    const globalUnallocatedManualOutCents = globalManualMovements
+      .filter((item) => item.direction === 'OUT' && item.professionalPayoutId === null)
+      .reduce((total, item) => total + item.amountCents, 0n);
     const cashMovementsNetCents = allMovements.reduce(
       (total, item) =>
         item.direction === 'IN' ? total + item.amountCents : total - item.amountCents,
@@ -278,6 +324,7 @@ export class FinancialReportService {
     const summary: FinancialReportSummary = {
       from: filters.from.toISOString(),
       to: filters.to.toISOString(),
+      isUnitPartialView,
       grossRevenueCents: grossRevenueCents.toString(),
       netRevenueCents: netRevenueCents.toString(),
       paymentsReceivedCents: grossRevenueCents.toString(),
@@ -302,6 +349,10 @@ export class FinancialReportService {
       otherManualInCents: otherManualInCents.toString(),
       operatingResultCents: operatingResultCents.toString(),
       cashResultCents: cashMovementsNetCents.toString(),
+      globalUnallocatedMembershipRevenueCents: globalUnallocatedMembershipRevenueCents.toString(),
+      globalUnallocatedProfessionalPayoutsCents:
+        globalUnallocatedProfessionalPayoutsCents.toString(),
+      globalUnallocatedManualOutCents: globalUnallocatedManualOutCents.toString(),
       commissionsCents: commissionsCents.toString(),
       commissionsCount: commissions._count,
       canceledAppointmentsCount: canceledAppointments._count,
@@ -338,6 +389,7 @@ export class FinancialReportService {
       professionalId,
       unitPublicId: query.unitPublicId,
       professionalPublicId: query.professionalPublicId,
+      isUnitPartialView: query.unitPublicId !== undefined,
     };
 
     const current = await this.buildSummaryAndBreakdowns(tenantId, filters);
@@ -352,6 +404,7 @@ export class FinancialReportService {
         professionalId,
         unitPublicId: query.unitPublicId,
         professionalPublicId: query.professionalPublicId,
+        isUnitPartialView: query.unitPublicId !== undefined,
       };
       const previous = await this.buildSummaryAndBreakdowns(tenantId, previousFilters);
       const currentGross = BigInt(current.summary.grossRevenueCents);
@@ -383,6 +436,7 @@ export class FinancialReportService {
     const lines: string[] = [];
     lines.push('Relatório financeiro');
     lines.push(`Período,${report.summary.from},${report.summary.to}`);
+    lines.push(`Visão,${report.summary.isUnitPartialView ? 'Unitária parcial' : 'Consolidada'}`);
     lines.push('');
     lines.push('Métrica,Valor');
     lines.push(`Receita bruta,${money(report.summary.grossRevenueCents)}`);
@@ -391,10 +445,21 @@ export class FinancialReportService {
     lines.push(`Receita de mensalidades,${money(report.summary.membershipRevenueCents)}`);
     lines.push(`Receita de dívidas,${money(report.summary.debtRevenueCents)}`);
     lines.push(`Comissões tradicionais,${money(report.summary.traditionalCommissionsCents)}`);
-    lines.push(`Repasses profissionais,${money(report.summary.professionalPayoutsCents)}`);
+    lines.push(`Repasses líquidos,${money(report.summary.professionalPayoutsCents)}`);
     lines.push(`Outras saídas manuais,${money(report.summary.otherManualOutCents)}`);
     lines.push(`Resultado operacional,${money(report.summary.operatingResultCents)}`);
     lines.push(`Resultado de caixa,${money(report.summary.cashResultCents)}`);
+    if (report.summary.isUnitPartialView) {
+      lines.push(
+        `Mensalidades globais não atribuídas,${money(report.summary.globalUnallocatedMembershipRevenueCents)}`,
+      );
+      lines.push(
+        `Repasses líquidos globais não atribuídos,${money(report.summary.globalUnallocatedProfessionalPayoutsCents)}`,
+      );
+      lines.push(
+        `Outras saídas globais não atribuídas,${money(report.summary.globalUnallocatedManualOutCents)}`,
+      );
+    }
     lines.push(
       `Pagamentos recebidos,${money(report.summary.paymentsReceivedCents)},${String(report.summary.paymentsReceivedCount)}`,
     );

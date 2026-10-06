@@ -27,7 +27,10 @@ export const customerAppointmentsRoutes: FastifyPluginAsyncZod<Options> = (app, 
     '/public/sites/:slug/customer/appointments/upcoming',
     { schema: { params: SlugParamsSchema, response: { 200: AppointmentListResponseSchema } } },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.listUpcomingForCustomer(session.tenantId, session.customer.id);
     },
   );
@@ -36,7 +39,10 @@ export const customerAppointmentsRoutes: FastifyPluginAsyncZod<Options> = (app, 
     '/public/sites/:slug/customer/appointments/history',
     { schema: { params: SlugParamsSchema, response: { 200: AppointmentListResponseSchema } } },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.listHistoryForCustomer(session.tenantId, session.customer.id);
     },
   );
@@ -51,7 +57,10 @@ export const customerAppointmentsRoutes: FastifyPluginAsyncZod<Options> = (app, 
       },
     },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.cancelForCustomer(
         session.tenantId,
         session.customer.id,
@@ -71,7 +80,10 @@ export const customerAppointmentsRoutes: FastifyPluginAsyncZod<Options> = (app, 
       },
     },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.rescheduleForCustomer(
         session.tenantId,
         session.customer.id,

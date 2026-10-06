@@ -48,6 +48,14 @@ function invalidCredentials(): AppError {
   });
 }
 
+function authenticationRequired(): AppError {
+  return new AppError({
+    code: 'CUSTOMER_AUTH_REQUIRED',
+    message: 'Autenticação obrigatória.',
+    statusCode: 401,
+  });
+}
+
 export class CustomerAuthService {
   public constructor(
     private readonly customers: CustomerRepository,
@@ -89,20 +97,52 @@ export class CustomerAuthService {
     const byPhone = await this.customers.findByContact(tenant.id, input.phone, null);
     const byEmail = await this.customers.findByEmail(tenant.id, email);
     if (byPhone !== null && byEmail !== null && byPhone.id !== byEmail.id)
-      throw new AppError({ code: 'CUSTOMER_EMAIL_CONFLICT', message: 'E-mail já vinculado.', statusCode: 409 });
+      throw new AppError({
+        code: 'CUSTOMER_EMAIL_CONFLICT',
+        message: 'E-mail já vinculado.',
+        statusCode: 409,
+      });
     const existing = byPhone ?? byEmail;
-    const customer = existing === null
-      ? await this.customers.create({ publicId: generatePublicId(), tenantId: tenant.id, name: input.name, socialName: null, phone: input.phone, whatsapp: input.phone, email, birthDate: null, document: null, notes: null, status: 'ACTIVE', source: 'PUBLIC_BOOKING', acceptsCommunications: false, primaryUnitId: null, customFields: {}, passwordHash: await this.passwords.hash(generateOpaqueToken()) })
-      : await this.customers.update(existing.id, { name: input.name, phone: input.phone, whatsapp: input.phone, email, ...(existing.passwordHash === null ? { passwordHash: await this.passwords.hash(generateOpaqueToken()) } : {}) });
-    const emailSent = await this.issuePasswordReset(tenant.id, slug, customer, { ipAddress: null, userAgent: null }, 'Crie sua senha');
+    const customer =
+      existing === null
+        ? await this.customers.create({
+            publicId: generatePublicId(),
+            tenantId: tenant.id,
+            name: input.name,
+            socialName: null,
+            phone: input.phone,
+            whatsapp: input.phone,
+            email,
+            birthDate: null,
+            document: null,
+            notes: null,
+            status: 'ACTIVE',
+            source: 'PUBLIC_BOOKING',
+            acceptsCommunications: false,
+            primaryUnitId: null,
+            customFields: {},
+            passwordHash: await this.passwords.hash(generateOpaqueToken()),
+          })
+        : await this.customers.update(existing.id, {
+            name: input.name,
+            phone: input.phone,
+            whatsapp: input.phone,
+            email,
+            ...(existing.passwordHash === null
+              ? { passwordHash: await this.passwords.hash(generateOpaqueToken()) }
+              : {}),
+          });
+    const emailSent = await this.issuePasswordReset(
+      tenant.id,
+      slug,
+      customer,
+      { ipAddress: null, userAgent: null },
+      'Crie sua senha',
+    );
     return { customer: { id: customer.id, publicId: customer.publicId }, emailSent };
   }
 
-  public async resetPassword(
-    slug: string,
-    token: string,
-    newPassword: string,
-  ): Promise<void> {
+  public async resetPassword(slug: string, token: string, newPassword: string): Promise<void> {
     const tenant = await this.tenants.findActiveTenantBySlug(slug);
     if (tenant === null) throw tenantNotFound();
     const changed = await this.sessions.consumePasswordReset(
@@ -209,20 +249,21 @@ export class CustomerAuthService {
   }
 
   public async authenticate(rawToken: string | undefined) {
-    if (rawToken === undefined || rawToken.length < 32)
-      throw new AppError({
-        code: 'CUSTOMER_AUTH_REQUIRED',
-        message: 'Autenticação obrigatória.',
-        statusCode: 401,
-      });
+    if (rawToken === undefined || rawToken.length < 32) throw authenticationRequired();
     const session = await this.sessions.findActiveSessionByTokenHash(hashOpaqueToken(rawToken));
-    if (session === null)
-      throw new AppError({
-        code: 'CUSTOMER_AUTH_REQUIRED',
-        message: 'Sessão inválida ou expirada.',
-        statusCode: 401,
-      });
+    if (session === null) throw authenticationRequired();
     await this.sessions.touchSession(session.id, new Date());
+    return session;
+  }
+
+  /**
+   * O slug da URL é apenas contexto visual. A sessão continua sendo a
+   * autoridade e deve pertencer ao tenant representado pelo slug.
+   */
+  public async authenticateForTenantSlug(rawToken: string | undefined, slug: string) {
+    const session = await this.authenticate(rawToken);
+    const tenant = await this.tenants.findActiveTenantBySlug(slug);
+    if (tenant === null || tenant.id !== session.tenantId) throw authenticationRequired();
     return session;
   }
 
@@ -357,12 +398,25 @@ export class CustomerAuthService {
     subject: string,
   ): Promise<boolean> {
     const token = generateOpaqueToken();
-    await this.sessions.createPasswordReset({ tenantId, customerId: customer.id, tokenHash: hashOpaqueToken(token), expiresAt: new Date(Date.now() + (this.options.passwordResetTtlMinutes ?? 60) * 60_000), now: new Date(), ipAddress: metadata.ipAddress });
+    await this.sessions.createPasswordReset({
+      tenantId,
+      customerId: customer.id,
+      tokenHash: hashOpaqueToken(token),
+      expiresAt: new Date(Date.now() + (this.options.passwordResetTtlMinutes ?? 60) * 60_000),
+      now: new Date(),
+      ipAddress: metadata.ipAddress,
+    });
     if (this.email?.available !== true || customer.email === null) return false;
     const link = `${this.options.appWebUrl ?? ''}/public/${slug}/redefinir-senha?token=${encodeURIComponent(token)}`;
     try {
-      await this.email.send({ to: customer.email, subject, text: `Olá, ${customer.name}.\n\nSeu cadastro foi criado durante seu agendamento. Para acessar seus agendamentos, crie sua senha no link abaixo:\n${link}\n\nSe você não realizou este agendamento, ignore esta mensagem.` });
+      await this.email.send({
+        to: customer.email,
+        subject,
+        text: `Olá, ${customer.name}.\n\nSeu cadastro foi criado durante seu agendamento. Para acessar seus agendamentos, crie sua senha no link abaixo:\n${link}\n\nSe você não realizou este agendamento, ignore esta mensagem.`,
+      });
       return true;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   }
 }

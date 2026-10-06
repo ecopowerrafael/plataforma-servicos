@@ -37,7 +37,10 @@ export const pushSubscriptionRoutes: FastifyPluginAsyncZod<Options> = (app, opti
       },
     },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.subscribe(session.tenantId, session.customer.id, request.body);
     },
   );
@@ -52,7 +55,10 @@ export const pushSubscriptionRoutes: FastifyPluginAsyncZod<Options> = (app, opti
       },
     },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.unsubscribe(
         session.tenantId,
         session.customer.id,
@@ -70,7 +76,10 @@ export const pushSubscriptionRoutes: FastifyPluginAsyncZod<Options> = (app, opti
       },
     },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.list(session.tenantId, session.customer.id);
     },
   );

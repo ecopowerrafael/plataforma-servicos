@@ -258,7 +258,10 @@ export const customerTreatmentPlanRoutes: FastifyPluginAsyncZod<CustomerOptions>
     '/public/sites/:slug/customer/treatment-plans',
     { schema: { params: SlugParamsSchema, response: { 200: TreatmentPlanListResponseSchema } } },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.listForCustomer(session.tenantId, session.customer.id);
     },
   );
@@ -267,7 +270,10 @@ export const customerTreatmentPlanRoutes: FastifyPluginAsyncZod<CustomerOptions>
     '/public/sites/:slug/customer/treatment-plans/:publicId',
     { schema: { params: CustomerPlanParamsSchema, response: { 200: TreatmentPlanPublicSchema } } },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.getForCustomer(
         session.tenantId,
         session.customer.id,
@@ -286,7 +292,10 @@ export const customerTreatmentPlanRoutes: FastifyPluginAsyncZod<CustomerOptions>
       },
     },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       const result = await options.service.approveForCustomer(
         session.tenantId,
         session.customer.id,
@@ -313,7 +322,10 @@ export const customerTreatmentPlanRoutes: FastifyPluginAsyncZod<CustomerOptions>
       },
     },
     async (request, reply) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       // O plano é lido pelo dono autenticado; cliente, serviço e profissional
       // vêm dele, então o corpo não escolhe de quem é a sessão.
       const plan = await options.service.getForCustomer(

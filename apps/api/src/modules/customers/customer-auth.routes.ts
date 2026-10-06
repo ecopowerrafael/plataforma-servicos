@@ -164,7 +164,10 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
     '/public/sites/:slug/customer/me',
     { schema: { params: SlugParamsSchema, response: { 200: CustomerAuthResponseSchema } } },
     async (request) => {
-      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      const session = await options.service.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return { customer: customerPublic(session.customer) };
     },
   );
@@ -211,7 +214,10 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
     '/public/sites/:slug/customer/photo',
     { schema: { params: SlugParamsSchema, response: { 200: CustomerAuthResponseSchema } } },
     async (request) => {
-      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      const session = await options.service.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       const upload = await request.file();
       if (upload === undefined || options.photoService === undefined)
         throw new AppError({
@@ -233,7 +239,10 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
     '/public/sites/:slug/customer/photo',
     { schema: { params: SlugParamsSchema, response: { 200: CustomerAuthResponseSchema } } },
     async (request) => {
-      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      const session = await options.service.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       if (options.photoService === undefined)
         throw new AppError({
           code: 'CUSTOMER_PHOTO_UNAVAILABLE',
@@ -248,7 +257,10 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
     '/public/sites/:slug/customer/photo',
     { schema: { params: SlugParamsSchema } },
     async (request, reply) => {
-      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      const session = await options.service.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       if (options.photoService === undefined)
         throw new AppError({
           code: 'CUSTOMER_PHOTO_UNAVAILABLE',
@@ -266,7 +278,10 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
     '/public/sites/:slug/customer/profile',
     { schema: { params: SlugParamsSchema, response: { 200: CustomerProfileResponseSchema } } },
     async (request) => {
-      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      const session = await options.service.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.profileService.get(session.tenantId, session.customer);
     },
   );
@@ -281,7 +296,10 @@ export const customerAuthRoutes: FastifyPluginAsyncZod<Options> = (app, options)
       },
     },
     async (request) => {
-      const session = await options.service.authenticate(request.cookies[options.cookieName]);
+      const session = await options.service.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.profileService.update(session.tenantId, session.customer, request.body);
     },
   );

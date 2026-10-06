@@ -26,7 +26,10 @@ export const customerFavoriteRoutes: FastifyPluginAsyncZod<Options> = (app, opti
     '/public/sites/:slug/customer/favorites',
     { schema: { params: SlugParamsSchema, response: { 200: CustomerFavoriteListResponseSchema } } },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.list(session.tenantId, session.customer.id);
     },
   );
@@ -41,7 +44,10 @@ export const customerFavoriteRoutes: FastifyPluginAsyncZod<Options> = (app, opti
       },
     },
     async (request, reply) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       const created = await options.service.create(
         session.tenantId,
         session.customer.id,
@@ -55,7 +61,10 @@ export const customerFavoriteRoutes: FastifyPluginAsyncZod<Options> = (app, opti
     '/public/sites/:slug/customer/favorites/:publicId',
     { schema: { params: FavoriteParamsSchema, response: { 200: SuccessResponseSchema } } },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.remove(session.tenantId, session.customer.id, request.params.publicId);
     },
   );

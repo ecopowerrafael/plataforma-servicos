@@ -18,6 +18,7 @@ import { CustomerAccountAuth } from '../components/public/account/CustomerAccoun
 import { CustomerAccountHome } from '../components/public/account/CustomerAccountHome.js';
 import { CustomerAccountLayout } from '../components/public/account/CustomerAccountLayout.js';
 import { CustomerAccountSecurity } from '../components/public/account/CustomerAccountSecurity.js';
+import { CustomerMembershipPage } from '../components/public/account/CustomerMembershipPage.js';
 import { CustomerProfileScreen } from '../components/public/account/CustomerProfileScreen.js';
 import { CustomerTreatmentDetail } from '../components/public/account/CustomerTreatmentDetail.js';
 import { CustomerTreatmentsPage } from '../components/public/account/CustomerTreatmentsPage.js';
@@ -112,6 +113,9 @@ export function CustomerAccountPage() {
         ) : null}
         {customer !== null && section === 'appointments' ? (
           <CustomerAppointments slug={slug} />
+        ) : null}
+        {customer !== null && section === 'membership' ? (
+          <CustomerMembershipPage slug={slug} />
         ) : null}
         {customer !== null && section === 'treatments' ? (
           itemPublicId === undefined ? (

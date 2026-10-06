@@ -29,7 +29,11 @@ export const loyaltyRoutes: FastifyPluginAsyncZod<{
   cookieName: string;
   client?: PrismaClient;
 }> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
+  await app.register(tenantContextPlugin, {
+    authService: o.authService,
+    cookieName: o.cookieName,
+    client: o.client,
+  });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: r.auth.user.id,
     sessionId: r.auth.session.id,
@@ -132,7 +136,10 @@ export const customerLoyaltyRoutes: FastifyPluginAsyncZod<{
     '/public/sites/:slug/customer/loyalty',
     { schema: { params: SlugParamsSchema, response: { 200: LoyaltyAccountSummarySchema } } },
     async (request) => {
-      const session = await o.authService.authenticate(request.cookies[o.cookieName]);
+      const session = await o.authService.authenticateForTenantSlug(
+        request.cookies[o.cookieName],
+        request.params.slug,
+      );
       return o.service.accountSummary(session.tenantId, session.customer.id);
     },
   );

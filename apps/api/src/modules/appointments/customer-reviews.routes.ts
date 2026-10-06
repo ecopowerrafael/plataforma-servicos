@@ -28,7 +28,10 @@ export const customerReviewsRoutes: FastifyPluginAsyncZod<Options> = (app, optio
       schema: { params: SlugParamsSchema, response: { 200: AppointmentReviewListResponseSchema } },
     },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.list(session.tenantId, session.customer.id);
     },
   );
@@ -43,7 +46,10 @@ export const customerReviewsRoutes: FastifyPluginAsyncZod<Options> = (app, optio
       },
     },
     async (request, reply) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       const created = await options.service.create(
         session.tenantId,
         session.customer.id,
@@ -64,7 +70,10 @@ export const customerReviewsRoutes: FastifyPluginAsyncZod<Options> = (app, optio
       },
     },
     async (request) => {
-      const session = await options.authService.authenticate(request.cookies[options.cookieName]);
+      const session = await options.authService.authenticateForTenantSlug(
+        request.cookies[options.cookieName],
+        request.params.slug,
+      );
       return options.service.update(
         session.tenantId,
         session.customer.id,

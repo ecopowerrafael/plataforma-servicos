@@ -50,6 +50,7 @@ import { customerMembershipChargeRoutes } from './modules/customers/customer-mem
 import { customerMembershipChargePayLocalRoutes } from './modules/customers/customer-membership-charge-paylocal.routes.js';
 import { customerMembershipPaymentRoutes } from './modules/customers/customer-membership-payment.routes.js';
 import { customerMembershipBenefitBalanceRoutes } from './modules/customers/customer-membership-benefit-balance.routes.js';
+import { customerMembershipAccountRoutes } from './modules/customers/customer-membership-account.routes.js';
 import { customerMembershipRoutes } from './modules/customers/customer-membership.routes.js';
 import { customerMembershipPlanBenefitRoutes } from './modules/customers/customer-membership-plan-benefit.routes.js';
 import { customerMembershipPlanRoutes } from './modules/customers/customer-membership-plan.routes.js';
@@ -465,7 +466,9 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
-      ...(options.database.credentialsCipher === undefined ? {} : { cipher: options.database.credentialsCipher }),
+      ...(options.database.credentialsCipher === undefined
+        ? {}
+        : { cipher: options.database.credentialsCipher }),
     });
     await app.register(whatsappWebhookRoutes, { service: options.database.integrations });
   }
@@ -489,9 +492,7 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.platformBilling
         ? { billingService: options.database.platformBilling }
         : {}),
-      ...(options.database.stripeBilling
-        ? { stripeBilling: options.database.stripeBilling }
-        : {}),
+      ...(options.database.stripeBilling ? { stripeBilling: options.database.stripeBilling } : {}),
     });
   }
   if (options.database.publicBooking !== undefined) {
@@ -516,6 +517,11 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: 'customer_session',
       cookieSecure: options.environment.AUTH_COOKIE_SECURE,
       sessionTtlHours: options.environment.AUTH_SESSION_TTL_HOURS,
+    });
+    await app.register(customerMembershipAccountRoutes, {
+      authService: options.database.customerAuth,
+      cookieName: 'customer_session',
+      client: options.database.client,
     });
     if (options.database.appointments !== undefined) {
       await app.register(customerAppointmentsRoutes, {
@@ -639,7 +645,9 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
-      ...(options.database.paymentGateway === undefined ? {} : { paymentGateway: options.database.paymentGateway }),
+      ...(options.database.paymentGateway === undefined
+        ? {}
+        : { paymentGateway: options.database.paymentGateway }),
     });
   if (options.database.paymentMethods !== undefined)
     await app.register(paymentMethodRoutes, {
@@ -853,7 +861,9 @@ export async function buildApp(options: BuildAppOptions) {
     authService,
     cookieName: options.environment.AUTH_COOKIE_NAME,
     client: options.database.client,
-    ...(options.database.paymentGateway === undefined ? {} : { paymentGateway: options.database.paymentGateway }),
+    ...(options.database.paymentGateway === undefined
+      ? {}
+      : { paymentGateway: options.database.paymentGateway }),
   });
   await app.register(customerMembershipChargeRoutes, {
     authService,
@@ -951,7 +961,9 @@ export async function buildApp(options: BuildAppOptions) {
         ? {}
         : { professionalPayouts: options.database.professionalPayouts }),
       ...(options.database.payments === undefined ? {} : { payments: options.database.payments }),
-      ...(options.database.paymentGateway === undefined ? {} : { paymentGateway: options.database.paymentGateway }),
+      ...(options.database.paymentGateway === undefined
+        ? {}
+        : { paymentGateway: options.database.paymentGateway }),
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
@@ -1069,9 +1081,7 @@ export async function buildApp(options: BuildAppOptions) {
       ...(options.database.businessUnitDateOverrides
         ? { businessUnitDateOverridesService: options.database.businessUnitDateOverrides }
         : {}),
-      ...(options.database.combos
-        ? { comboService: options.database.combos }
-        : {}),
+      ...(options.database.combos ? { comboService: options.database.combos } : {}),
       tenantService,
     });
 
@@ -1091,11 +1101,15 @@ export async function buildApp(options: BuildAppOptions) {
       cookieName: options.environment.AUTH_COOKIE_NAME,
       client: options.database.client,
     });
-    app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => done(null, body));
+    app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) =>
+      done(null, body),
+    );
     app.post('/webhooks/stripe', async (request, reply) => {
       const signature = request.headers['stripe-signature'];
-      if (typeof signature !== 'string') return reply.status(400).send({ error: 'Stripe-Signature ausente.' });
-      const raw = typeof request.body === 'string' ? request.body : JSON.stringify(request.body ?? {});
+      if (typeof signature !== 'string')
+        return reply.status(400).send({ error: 'Stripe-Signature ausente.' });
+      const raw =
+        typeof request.body === 'string' ? request.body : JSON.stringify(request.body ?? {});
       return reply.send(await options.database.stripeBilling!.handleWebhook(raw, signature));
     });
   }
@@ -1113,7 +1127,11 @@ export async function buildApp(options: BuildAppOptions) {
       authService,
       cookieName: options.environment.AUTH_COOKIE_NAME,
     });
-  if (options.database.intelligenceRules && options.database.intelligenceRuleRepository && options.database.platform)
+  if (
+    options.database.intelligenceRules &&
+    options.database.intelligenceRuleRepository &&
+    options.database.platform
+  )
     await app.register(intelligenceRuleRoutes, {
       service: options.database.intelligenceRules,
       repository: options.database.intelligenceRuleRepository,

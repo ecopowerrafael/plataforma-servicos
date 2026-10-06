@@ -16,6 +16,7 @@ export type AccountSection =
   | 'home'
   | 'profile'
   | 'appointments'
+  | 'membership'
   | 'treatments'
   | 'loyalty'
   | 'favorites'
@@ -28,6 +29,7 @@ export const ACCOUNT_SECTIONS: { id: AccountSection; label: string; path: string
   { id: 'home', label: 'Início', path: '' },
   { id: 'profile', label: 'Dados pessoais', path: 'dados' },
   { id: 'appointments', label: 'Meus agendamentos', path: 'agendamentos' },
+  { id: 'membership', label: 'Minha mensalidade', path: 'mensalidade' },
   { id: 'treatments', label: 'Meus tratamentos', path: 'tratamentos' },
   { id: 'loyalty', label: 'Fidelidade', path: 'fidelidade' },
   { id: 'favorites', label: 'Favoritos', path: 'favoritos' },
@@ -70,6 +72,10 @@ export function message(error: unknown): string | null {
 export function useCustomerAccount(slug: string) {
   const queryClient = useQueryClient();
   const meKey = ['public', slug, 'customer', 'me'];
+  const clearSensitiveAccountCache = () => {
+    queryClient.removeQueries({ queryKey: ['public', slug, 'customer', 'membership'] });
+    queryClient.removeQueries({ queryKey: ['public', slug, 'customer', 'profile'] });
+  };
   const invalidateMe = () => queryClient.invalidateQueries({ queryKey: meKey });
 
   const me = useQuery({
@@ -92,7 +98,10 @@ export function useCustomerAccount(slug: string) {
         }),
         schema: CustomerAuthResponseSchema,
       }),
-    onSuccess: invalidateMe,
+    onSuccess: async () => {
+      clearSensitiveAccountCache();
+      await invalidateMe();
+    },
   });
 
   const login = useMutation({
@@ -102,7 +111,10 @@ export function useCustomerAccount(slug: string) {
         body: CustomerLoginRequestSchema.parse(input),
         schema: CustomerAuthResponseSchema,
       }),
-    onSuccess: invalidateMe,
+    onSuccess: async () => {
+      clearSensitiveAccountCache();
+      await invalidateMe();
+    },
   });
 
   const loginWithGoogle = useMutation({
@@ -112,7 +124,10 @@ export function useCustomerAccount(slug: string) {
         body: CustomerGoogleAuthRequestSchema.parse({ credential }),
         schema: CustomerAuthResponseSchema,
       }),
-    onSuccess: invalidateMe,
+    onSuccess: async () => {
+      clearSensitiveAccountCache();
+      await invalidateMe();
+    },
   });
 
   const logout = useMutation({
@@ -122,7 +137,10 @@ export function useCustomerAccount(slug: string) {
         body: {},
         schema: SuccessResponseSchema,
       }),
-    onSuccess: invalidateMe,
+    onSuccess: async () => {
+      clearSensitiveAccountCache();
+      await invalidateMe();
+    },
   });
 
   const forgot = useMutation({

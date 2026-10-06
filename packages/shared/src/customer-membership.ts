@@ -249,6 +249,52 @@ export type CustomerMembershipBenefitsBalanceResponse = z.infer<
   typeof CustomerMembershipBenefitsBalanceResponseSchema
 >;
 
+export const CustomerMembershipAccountChargeSchema = z.object({
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+  amountCents: z.number().int().nonnegative(),
+  status: CustomerMembershipChargeStatusSchema,
+  dueAt: z.string().datetime(),
+  paidAt: z.string().datetime().nullable(),
+});
+
+export const CustomerMembershipAccountBenefitSchema = z.object({
+  serviceName: z.string(),
+  type: MembershipBenefitTypeSchema,
+  limit: z.number().int().nullable(),
+  reserved: z.number().int().nonnegative().nullable(),
+  consumed: z.number().int().nonnegative().nullable(),
+  available: z.number().int().nullable(),
+  discountPercent: z.number().int().min(0).max(100).nullable(),
+});
+
+export const CustomerMembershipAccountItemSchema = z.object({
+  publicId: z.string().uuid(),
+  status: CustomerMembershipStatusSchema,
+  planName: z.string(),
+  planDescription: z.string().nullable(),
+  priceCents: z.number().int().nonnegative(),
+  billingInterval: MembershipBillingIntervalSchema,
+  startedAt: z.string().datetime().nullable(),
+  currentPeriodStart: z.string().datetime().nullable(),
+  currentPeriodEnd: z.string().datetime().nullable(),
+  nextBillingAt: z.string().datetime().nullable(),
+  canceledAt: z.string().datetime().nullable(),
+  cancelAtPeriodEnd: z.boolean(),
+  charges: z.array(CustomerMembershipAccountChargeSchema),
+  benefits: z.array(CustomerMembershipAccountBenefitSchema),
+  benefitsAvailable: z.boolean(),
+});
+export type CustomerMembershipAccountItem = z.infer<typeof CustomerMembershipAccountItemSchema>;
+
+export const CustomerMembershipAccountResponseSchema = z.object({
+  current: CustomerMembershipAccountItemSchema.nullable(),
+  history: z.array(CustomerMembershipAccountItemSchema),
+});
+export type CustomerMembershipAccountResponse = z.infer<
+  typeof CustomerMembershipAccountResponseSchema
+>;
+
 // List (Subscribers view)
 export const CustomerMembershipSubscriberItemSchema = z.object({
   membershipPublicId: z.string().uuid(),

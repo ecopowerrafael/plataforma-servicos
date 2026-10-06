@@ -33,6 +33,7 @@ function authService({
     { createPasswordReset, consumePasswordReset } as never,
     { findActiveTenantBySlug: vi.fn().mockResolvedValue(tenant) } as never,
     { hash: vi.fn().mockResolvedValue('novo-hash') } as never,
+    {} as never,
     { sessionTtlHours: 168, passwordResetTtlMinutes: 60, appWebUrl: 'https://app' },
     { available: emailAvailable, send },
   );
@@ -41,17 +42,29 @@ function authService({
 
 describe('recuperação de senha do cliente', () => {
   it('provisiona acesso vindo do WhatsApp sem expor senha e emite reset', async () => {
-    const create = vi.fn().mockResolvedValue({ ...customer, phone: '5511999999999', passwordHash: 'provisorio' });
+    const create = vi
+      .fn()
+      .mockResolvedValue({ ...customer, phone: '5511999999999', passwordHash: 'provisorio' });
     const createPasswordReset = vi.fn().mockResolvedValue(undefined);
     const send = vi.fn().mockResolvedValue(undefined);
     const service = new CustomerAuthService(
-      { findByContact: vi.fn().mockResolvedValue(null), findByEmail: vi.fn().mockResolvedValue(null), create } as never,
+      {
+        findByContact: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        create,
+      } as never,
       { createPasswordReset } as never,
       { findActiveTenantBySlug: vi.fn().mockResolvedValue(tenant) } as never,
       { hash: vi.fn().mockResolvedValue('provisorio') } as never,
-      { sessionTtlHours: 168, appWebUrl: 'https://app' }, { available: true, send },
+      {} as never,
+      { sessionTtlHours: 168, appWebUrl: 'https://app' },
+      { available: true, send },
     );
-    await service.provisionFromWhatsApp('barbearia', { name: 'Ana', phone: '5511999999999', email: 'ana@exemplo.com' });
+    await service.provisionFromWhatsApp('barbearia', {
+      name: 'Ana',
+      phone: '5511999999999',
+      email: 'ana@exemplo.com',
+    });
     expect(create).toHaveBeenCalledOnce();
     expect(createPasswordReset).toHaveBeenCalledOnce();
     const message = send.mock.calls[0]?.[0] as { text: string };
@@ -126,17 +139,67 @@ describe('recuperação de senha do cliente', () => {
   });
 });
 
+describe('vínculo da sessão do cliente ao tenant da URL', () => {
+  const session = {
+    id: 10n,
+    tenantId: 1n,
+    customerId: 5n,
+    customer: { id: 5n, publicId: 'c-1', status: 'ACTIVE' },
+  };
+
+  function serviceForTenant(tenant: { id: bigint } | null) {
+    return new CustomerAuthService(
+      {} as never,
+      {
+        findActiveSessionByTokenHash: vi.fn().mockResolvedValue(session),
+        touchSession: vi.fn().mockResolvedValue(undefined),
+      } as never,
+      { findActiveTenantBySlug: vi.fn().mockResolvedValue(tenant) } as never,
+      {} as never,
+      {} as never,
+      { sessionTtlHours: 1 },
+    );
+  }
+
+  it('aceita a sessão quando o slug pertence ao mesmo tenant', async () => {
+    await expect(
+      serviceForTenant({ id: 1n }).authenticateForTenantSlug('a'.repeat(48), 'studio'),
+    ).resolves.toMatchObject({ tenantId: 1n, customerId: 5n });
+  });
+
+  it('recusa a sessão quando o slug pertence a outro tenant', async () => {
+    await expect(
+      serviceForTenant({ id: 2n }).authenticateForTenantSlug('a'.repeat(48), 'outro'),
+    ).rejects.toMatchObject({ code: 'CUSTOMER_AUTH_REQUIRED', statusCode: 401 });
+  });
+
+  it('recusa a sessão quando o slug não resolve um tenant ativo', async () => {
+    await expect(
+      serviceForTenant(null).authenticateForTenantSlug('a'.repeat(48), 'inexistente'),
+    ).rejects.toMatchObject({ code: 'CUSTOMER_AUTH_REQUIRED', statusCode: 401 });
+  });
+});
+
 function photoService(record: typeof customer | null) {
-  const update = vi.fn().mockImplementation((args: { data: { photoPath: string | null } }) =>
-    Promise.resolve({ ...customer, photoPath: args.data.photoPath }),
-  );
+  const update = vi
+    .fn()
+    .mockImplementation((args: { data: { photoPath: string | null } }) =>
+      Promise.resolve({ ...customer, photoPath: args.data.photoPath }),
+    );
   const findFirst = vi.fn().mockResolvedValue(record);
   const client = { customer: { findFirst, update } } as unknown as PrismaClient;
   const save = vi.fn().mockResolvedValue({ key: 't-1/c-1/foto.webp', mimeType: 'image/webp' });
   const read = vi.fn().mockResolvedValue({ buffer: Buffer.from('x'), mimeType: 'image/webp' });
   const remove = vi.fn().mockResolvedValue(undefined);
   const images = { save, read, remove } as unknown as ServiceImageStorage;
-  return { service: new CustomerPhotoService(client, images), findFirst, update, save, read, remove };
+  return {
+    service: new CustomerPhotoService(client, images),
+    findFirst,
+    update,
+    save,
+    read,
+    remove,
+  };
 }
 
 describe('foto do cliente', () => {

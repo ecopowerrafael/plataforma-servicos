@@ -26,7 +26,11 @@ export const paymentGatewayRoutes: FastifyPluginAsyncZod<{
   cookieName: string;
   client?: PrismaClient;
 }> = async (app, o) => {
-  await app.register(tenantContextPlugin, { authService: o.authService, cookieName: o.cookieName, client: o.client });
+  await app.register(tenantContextPlugin, {
+    authService: o.authService,
+    cookieName: o.cookieName,
+    client: o.client,
+  });
   const actor = (r: { auth: { user: { id: bigint }; session: { id: bigint } } }) => ({
     userId: r.auth.user.id,
     sessionId: r.auth.session.id,
@@ -85,10 +89,22 @@ export const paymentGatewayRoutes: FastifyPluginAsyncZod<{
 
   app.post(
     '/tenant/customer-membership-charges/:publicId/gateway-charges',
-    { schema: { params: membershipChargeParams, querystring: GatewayConfigQuerySchema, response: { 201: PaymentGatewayChargePublicSchema } } },
+    {
+      schema: {
+        params: membershipChargeParams,
+        querystring: GatewayConfigQuerySchema,
+        response: { 201: PaymentGatewayChargePublicSchema },
+      },
+    },
     async (r, reply) => {
       o.authService.requirePermission(r.tenant, 'payment.manage');
-      const created = await o.service.createMembershipCharge(r.tenant.id, r.params.publicId, r.query.provider, actor(r));
+      o.authService.requireCapability(r.tenant, 'memberships.checkout');
+      const created = await o.service.createMembershipCharge(
+        r.tenant.id,
+        r.params.publicId,
+        r.query.provider,
+        actor(r),
+      );
       return reply.status(201).send(created);
     },
   );

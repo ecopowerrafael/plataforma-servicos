@@ -2,6 +2,10 @@ import { type PrismaClient } from '../../database-client/client.js';
 import { CustomerMembershipRepository } from './customer-membership.repository.js';
 import { CustomerMembershipChargeRepository } from './customer-membership-charge.repository.js';
 import { CustomerMembershipUsageRepository } from './customer-membership-usage.repository.js';
+import {
+  getCustomerMembershipFeatureState,
+  isCustomerMembershipFeatureEnabled,
+} from './customer-membership-feature-gate.js';
 
 export enum ChargeSource {
   MEMBERSHIP_INCLUDED = 'MEMBERSHIP_INCLUDED',
@@ -48,6 +52,20 @@ export class CustomerMembershipBenefitResolver {
     serviceId: bigint,
     referencePriceCents: bigint,
   ): Promise<BenefitResolution> {
+    const featureState = await getCustomerMembershipFeatureState(
+      this.membershipRepository.client,
+      tenantId,
+    );
+    if (!isCustomerMembershipFeatureEnabled(featureState)) {
+      return {
+        covered: false,
+        type: null,
+        chargeSource: ChargeSource.SERVICE_PRICE,
+        referencePriceCents,
+        amountDueCents: referencePriceCents,
+      };
+    }
+
     // Find active membership
     const membership = await this.membershipRepository.findByCustomer(tenantId, customerId);
 

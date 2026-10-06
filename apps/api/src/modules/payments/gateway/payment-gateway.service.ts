@@ -19,6 +19,7 @@ import {
 import { AppError } from '../../../errors/AppError.js';
 import { type DebtPixPaymentService } from '../../collections/debt-pix-payment.service.js';
 import { type CustomerMembershipPaymentService } from '../../customers/customer-membership-payment.service.js';
+import { assertCustomerMembershipFeatureEnabled } from '../../customers/customer-membership-feature-gate.js';
 import { type PaymentMethodService } from '../payment-method.service.js';
 import { type PaymentService } from '../payment.service.js';
 
@@ -85,16 +86,38 @@ export class PaymentGatewayService {
     return pubConfig(config, this.registry.get(config.provider) !== undefined);
   }
 
-  public async cancelPendingMembershipCharges(tenantId: bigint, chargeIds: bigint[], actor: Actor): Promise<void> {
+  public async cancelPendingMembershipCharges(
+    tenantId: bigint,
+    chargeIds: bigint[],
+    actor: Actor,
+  ): Promise<void> {
     const charges = await this.client.paymentGatewayCharge.findMany({
-      where: { tenantId, id: { in: chargeIds }, originType: 'MEMBERSHIP_CHARGE', status: { in: ['PENDING', 'PROCESSING'] } },
+      where: {
+        tenantId,
+        id: { in: chargeIds },
+        originType: 'MEMBERSHIP_CHARGE',
+        status: { in: ['PENDING', 'PROCESSING'] },
+      },
       select: { publicId: true },
     });
     for (const charge of charges) {
       try {
         await this.cancelCharge(tenantId, charge.publicId, 'Membership cancelada.', actor);
       } catch (error) {
-        await this.client.auditLog.create({ data: { publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId, action: 'customer_membership.gateway_cancel_failed', targetType: 'payment_gateway_charge', targetPublicId: charge.publicId, metadata: { error: error instanceof Error ? error.message.slice(0, 500) : 'Erro desconhecido.' } } });
+        await this.client.auditLog.create({
+          data: {
+            publicId: randomUUID(),
+            tenantId,
+            userId: actor.userId,
+            sessionId: actor.sessionId,
+            action: 'customer_membership.gateway_cancel_failed',
+            targetType: 'payment_gateway_charge',
+            targetPublicId: charge.publicId,
+            metadata: {
+              error: error instanceof Error ? error.message.slice(0, 500) : 'Erro desconhecido.',
+            },
+          },
+        });
       }
     }
   }
@@ -319,32 +342,98 @@ export class PaymentGatewayService {
   }
 
   public async createMembershipCharge(
-    tenantId: bigint, membershipChargePublicId: string, provider: string, actor: Actor,
+    tenantId: bigint,
+    membershipChargePublicId: string,
+    provider: string,
+    actor: Actor,
   ) {
+    await assertCustomerMembershipFeatureEnabled(this.client, tenantId);
     const claim = await this.client.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
         SELECT id FROM customer_membership_charges
         WHERE tenant_id = ${tenantId} AND public_id = ${membershipChargePublicId} FOR UPDATE
       `);
-      if (locked.length === 0) throw new AppError({ code: 'CUSTOMER_MEMBERSHIP_CHARGE_NOT_FOUND', message: 'Cobrança não encontrada.', statusCode: 404 });
-      const membershipCharge = await tx.customerMembershipCharge.findFirst({ where: { tenantId, publicId: membershipChargePublicId } });
-      if (membershipCharge === null) throw new AppError({ code: 'CUSTOMER_MEMBERSHIP_CHARGE_NOT_FOUND', message: 'Cobrança não encontrada.', statusCode: 404 });
-      if (membershipCharge.status === 'PAID') throw new AppError({ code: 'CUSTOMER_MEMBERSHIP_CHARGE_ALREADY_PAID', message: 'Esta cobrança já foi paga.', statusCode: 409 });
-      if (['CANCELED', 'REFUNDED'].includes(membershipCharge.status)) throw new AppError({ code: 'CUSTOMER_MEMBERSHIP_CHARGE_NOT_PAYABLE', message: 'Esta cobrança não pode gerar nova cobrança gateway.', statusCode: 409 });
-      const existing = await tx.paymentGatewayCharge.findFirst({ where: { tenantId, membershipChargeId: membershipCharge.id, provider, status: { in: ['PENDING', 'PROCESSING'] } }, orderBy: { createdAt: 'desc' }, include: { appointment: { select: { publicId: true } }, debt: { select: { publicId: true } }, payment: { select: { publicId: true } } } });
+      if (locked.length === 0)
+        throw new AppError({
+          code: 'CUSTOMER_MEMBERSHIP_CHARGE_NOT_FOUND',
+          message: 'Cobrança não encontrada.',
+          statusCode: 404,
+        });
+      const membershipCharge = await tx.customerMembershipCharge.findFirst({
+        where: { tenantId, publicId: membershipChargePublicId },
+      });
+      if (membershipCharge === null)
+        throw new AppError({
+          code: 'CUSTOMER_MEMBERSHIP_CHARGE_NOT_FOUND',
+          message: 'Cobrança não encontrada.',
+          statusCode: 404,
+        });
+      if (membershipCharge.status === 'PAID')
+        throw new AppError({
+          code: 'CUSTOMER_MEMBERSHIP_CHARGE_ALREADY_PAID',
+          message: 'Esta cobrança já foi paga.',
+          statusCode: 409,
+        });
+      if (['CANCELED', 'REFUNDED'].includes(membershipCharge.status))
+        throw new AppError({
+          code: 'CUSTOMER_MEMBERSHIP_CHARGE_NOT_PAYABLE',
+          message: 'Esta cobrança não pode gerar nova cobrança gateway.',
+          statusCode: 409,
+        });
+      const existing = await tx.paymentGatewayCharge.findFirst({
+        where: {
+          tenantId,
+          membershipChargeId: membershipCharge.id,
+          provider,
+          status: { in: ['PENDING', 'PROCESSING'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          appointment: { select: { publicId: true } },
+          debt: { select: { publicId: true } },
+          payment: { select: { publicId: true } },
+        },
+      });
       if (existing !== null) {
         const staleAt = new Date(Date.now() - 15 * 60 * 1000);
         if (existing.status === 'PROCESSING' && existing.updatedAt < staleAt) {
-          await tx.paymentGatewayCharge.update({ where: { id: existing.id }, data: { status: 'FAILED' } });
+          await tx.paymentGatewayCharge.update({
+            where: { id: existing.id },
+            data: { status: 'FAILED' },
+          });
         } else {
-          return { existing, retryExternal: existing.status === 'PROCESSING' && existing.externalId === null };
+          return {
+            existing,
+            retryExternal: existing.status === 'PROCESSING' && existing.externalId === null,
+          };
         }
       }
-      const attempts = await tx.paymentGatewayCharge.count({ where: { tenantId, membershipChargeId: membershipCharge.id, provider } });
+      const attempts = await tx.paymentGatewayCharge.count({
+        where: { tenantId, membershipChargeId: membershipCharge.id, provider },
+      });
       const idempotencyKey = `membership-charge:${membershipCharge.publicId}:${provider}:${attempts + 1}`;
       const config = await tx.paymentGatewayConfig.findFirst({ where: { tenantId, provider } });
-      if (!config?.active) throw new AppError({ code: 'GATEWAY_NOT_CONFIGURED', message: 'Gateway não configurado para este estabelecimento.', statusCode: 409 });
-      const row = await tx.paymentGatewayCharge.create({ data: { publicId: randomUUID(), tenantId, originType: 'MEMBERSHIP_CHARGE', membershipChargeId: membershipCharge.id, provider, environment: config.environment, status: 'PROCESSING', amountCents: membershipCharge.amountCents, currency: 'BRL', idempotencyKey, kind: 'PAYMENT' } });
+      if (!config?.active)
+        throw new AppError({
+          code: 'GATEWAY_NOT_CONFIGURED',
+          message: 'Gateway não configurado para este estabelecimento.',
+          statusCode: 409,
+        });
+      const row = await tx.paymentGatewayCharge.create({
+        data: {
+          publicId: randomUUID(),
+          tenantId,
+          originType: 'MEMBERSHIP_CHARGE',
+          membershipChargeId: membershipCharge.id,
+          provider,
+          environment: config.environment,
+          status: 'PROCESSING',
+          amountCents: membershipCharge.amountCents,
+          currency: 'BRL',
+          idempotencyKey,
+          kind: 'PAYMENT',
+        },
+      });
       return { row, config };
     });
     if ('existing' in claim && !claim.retryExternal) return pubCharge(claim.existing);
@@ -352,18 +441,64 @@ export class PaymentGatewayService {
     const { config, adapter, credentials } = await this.requireActiveAdapter(tenantId, provider);
     let result;
     try {
-      result = await adapter.createCharge(credentials, config.environment, { amountCents: row.amountCents, currency: 'BRL', description: 'Cobrança de membership', idempotencyKey: row.idempotencyKey });
-      await this.logEvent({ tenantId, chargeId: row.id, provider, direction: 'OUTBOUND', eventType: 'charge.create', success: true });
+      result = await adapter.createCharge(credentials, config.environment, {
+        amountCents: row.amountCents,
+        currency: 'BRL',
+        description: 'Cobrança de membership',
+        idempotencyKey: row.idempotencyKey,
+      });
+      await this.logEvent({
+        tenantId,
+        chargeId: row.id,
+        provider,
+        direction: 'OUTBOUND',
+        eventType: 'charge.create',
+        success: true,
+      });
     } catch (error) {
-      await this.client.paymentGatewayCharge.update({ where: { id: row.id }, data: { status: 'FAILED' } });
-      await this.logEvent({ tenantId, chargeId: row.id, provider, direction: 'OUTBOUND', eventType: 'charge.create', success: false, errorMessage: error instanceof Error ? error.message : 'Erro desconhecido.' });
+      await this.client.paymentGatewayCharge.update({
+        where: { id: row.id },
+        data: { status: 'FAILED' },
+      });
+      await this.logEvent({
+        tenantId,
+        chargeId: row.id,
+        provider,
+        direction: 'OUTBOUND',
+        eventType: 'charge.create',
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'Erro desconhecido.',
+      });
       throw error;
     }
     // A provider success followed by local persistence failure must retain the
     // same PROCESSING row/key so a retry can safely query/reuse the provider's
     // idempotent operation instead of creating a second external charge.
-    const updated = await this.client.paymentGatewayCharge.update({ where: { id: row.id }, data: { externalId: result.externalId, status: result.status, pixCopyPaste: result.pixCopyPaste ?? null, lastCheckedAt: new Date() }, include: { appointment: { select: { publicId: true } }, debt: { select: { publicId: true } }, payment: { select: { publicId: true } } } });
-    await this.client.auditLog.create({ data: { publicId: randomUUID(), tenantId, userId: actor.userId, sessionId: actor.sessionId, action: 'payment_gateway.charge_created', targetType: 'payment_gateway_charge', targetPublicId: updated.publicId } });
+    const updated = await this.client.paymentGatewayCharge.update({
+      where: { id: row.id },
+      data: {
+        externalId: result.externalId,
+        status: result.status,
+        pixCopyPaste: result.pixCopyPaste ?? null,
+        lastCheckedAt: new Date(),
+      },
+      include: {
+        appointment: { select: { publicId: true } },
+        debt: { select: { publicId: true } },
+        payment: { select: { publicId: true } },
+      },
+    });
+    await this.client.auditLog.create({
+      data: {
+        publicId: randomUUID(),
+        tenantId,
+        userId: actor.userId,
+        sessionId: actor.sessionId,
+        action: 'payment_gateway.charge_created',
+        targetType: 'payment_gateway_charge',
+        targetPublicId: updated.publicId,
+      },
+    });
     if (updated.status === 'PAID') await this.reconcilePaidCharge(updated);
     return pubCharge(updated);
   }
@@ -404,7 +539,11 @@ export class PaymentGatewayService {
       orderBy: { createdAt: 'desc' },
     });
     if (existing !== null)
-      return { publicId: existing.publicId, status: existing.status, pixCopyPaste: existing.pixCopyPaste };
+      return {
+        publicId: existing.publicId,
+        status: existing.status,
+        pixCopyPaste: existing.pixCopyPaste,
+      };
 
     const provider = await this.resolveActiveDebtProvider(tenantId);
     if (provider === null) return null;
@@ -415,12 +554,16 @@ export class PaymentGatewayService {
     try {
       const resolved = await this.requireActiveAdapter(tenantId, provider);
       config = resolved.config;
-      adapterResult = await resolved.adapter.createCharge(resolved.credentials, resolved.config.environment, {
-        amountCents: chargeAmount,
-        currency: 'BRL',
-        description: 'Cobrança de dívida em aberto',
-        idempotencyKey,
-      });
+      adapterResult = await resolved.adapter.createCharge(
+        resolved.credentials,
+        resolved.config.environment,
+        {
+          amountCents: chargeAmount,
+          currency: 'BRL',
+          description: 'Cobrança de dívida em aberto',
+          idempotencyKey,
+        },
+      );
       await this.logEvent({
         tenantId,
         chargeId: null,
@@ -471,8 +614,13 @@ export class PaymentGatewayService {
       },
     });
 
-    if (created.status === 'PAID') await this.reconcilePaidCharge({ ...created, appointment: null });
-    return { publicId: created.publicId, status: created.status, pixCopyPaste: created.pixCopyPaste };
+    if (created.status === 'PAID')
+      await this.reconcilePaidCharge({ ...created, appointment: null });
+    return {
+      publicId: created.publicId,
+      status: created.status,
+      pixCopyPaste: created.pixCopyPaste,
+    };
   }
 
   private async resolveActiveDebtProvider(tenantId: bigint): Promise<string | null> {
@@ -635,7 +783,8 @@ export class PaymentGatewayService {
       where: { tenantId, publicId: appointmentPublicId },
       select: { id: true },
     });
-    if (appointment === null) return this.payments.create(tenantId, appointmentPublicId, input, actor);
+    if (appointment === null)
+      return this.payments.create(tenantId, appointmentPublicId, input, actor);
 
     const charges = await this.client.paymentGatewayCharge.findMany({
       where: {
@@ -646,10 +795,13 @@ export class PaymentGatewayService {
       },
       orderBy: { createdAt: 'asc' },
     });
-    if (charges.length === 0) return this.payments.create(tenantId, appointmentPublicId, input, actor);
+    if (charges.length === 0)
+      return this.payments.create(tenantId, appointmentPublicId, input, actor);
 
     const payment = await this.client.$transaction(async (tx) => {
-      const lockedRows = await tx.$queryRaw<Array<{ id: bigint; status: string; superseded_at: Date | null }>>(Prisma.sql`
+      const lockedRows = await tx.$queryRaw<
+        Array<{ id: bigint; status: string; superseded_at: Date | null }>
+      >(Prisma.sql`
         SELECT id, status, superseded_at
         FROM payment_gateway_charges
         WHERE tenant_id = ${tenantId} AND appointment_id = ${appointment.id}
@@ -663,35 +815,54 @@ export class PaymentGatewayService {
           statusCode: 409,
         });
       const lockedCharges = await tx.paymentGatewayCharge.findMany({
-        where: { tenantId, appointmentId: appointment.id, status: { in: ['PENDING', 'PROCESSING'] }, supersededAt: null },
+        where: {
+          tenantId,
+          appointmentId: appointment.id,
+          status: { in: ['PENDING', 'PROCESSING'] },
+          supersededAt: null,
+        },
         orderBy: { createdAt: 'asc' },
       });
       if (lockedCharges.length === 0)
-        return this.payments.withinTransaction(tx).createPaymentCoreWithinTransaction(
-          tenantId,
-          appointmentPublicId,
-          input,
-          actor,
-          { deferDerivedEffects: true },
-        );
+        return this.payments
+          .withinTransaction(tx)
+          .createPaymentCoreWithinTransaction(tenantId, appointmentPublicId, input, actor, {
+            deferDerivedEffects: true,
+          });
       const firstLockedCharge = lockedCharges[0];
-      if (firstLockedCharge === undefined) throw new Error('Nenhuma charge bloqueada para substituição.');
-      const payment = await this.payments.withinTransaction(tx).createPaymentCoreWithinTransaction(
-        tenantId,
-        appointmentPublicId,
-        input,
-        actor,
-        { supersededGatewayChargeId: firstLockedCharge.id },
-      );
-      const paymentRecord = await tx.payment.findFirst({ where: { tenantId, publicId: payment.publicId }, select: { id: true } });
+      if (firstLockedCharge === undefined)
+        throw new Error('Nenhuma charge bloqueada para substituição.');
+      const payment = await this.payments
+        .withinTransaction(tx)
+        .createPaymentCoreWithinTransaction(tenantId, appointmentPublicId, input, actor, {
+          supersededGatewayChargeId: firstLockedCharge.id,
+        });
+      const paymentRecord = await tx.payment.findFirst({
+        where: { tenantId, publicId: payment.publicId },
+        select: { id: true },
+      });
       if (paymentRecord === null) throw new Error('Pagamento criado sem registro persistido.');
-      await this.supersedeCharges(tx, lockedCharges.map((charge) => charge.id), paymentRecord.id);
+      await this.supersedeCharges(
+        tx,
+        lockedCharges.map((charge) => charge.id),
+        paymentRecord.id,
+      );
       return payment;
     });
-    await this.payments.runPostCommitEffects(tenantId, appointmentPublicId, payment.publicId, actor);
+    await this.payments.runPostCommitEffects(
+      tenantId,
+      appointmentPublicId,
+      payment.publicId,
+      actor,
+    );
     for (const charge of charges) {
       try {
-        await this.cancelCharge(tenantId, charge.publicId, 'Substituída por pagamento manual.', actor);
+        await this.cancelCharge(
+          tenantId,
+          charge.publicId,
+          'Substituída por pagamento manual.',
+          actor,
+        );
       } catch (error) {
         await this.client.auditLog.create({
           data: {
@@ -869,7 +1040,10 @@ export class PaymentGatewayService {
    * para não divergir do saldo canônico) ou ser MANUAL (Payment isolado, originType DEBT).
    */
   private async reconcilePaidCharge(
-    charge: PaymentGatewayCharge & { appointment: { publicId: string } | null; membershipChargeId?: bigint | null },
+    charge: PaymentGatewayCharge & {
+      appointment: { publicId: string } | null;
+      membershipChargeId?: bigint | null;
+    },
     actor: Actor = { userId: null, sessionId: null },
   ) {
     switch (charge.originType) {
@@ -877,7 +1051,12 @@ export class PaymentGatewayService {
         await this.debtPixPayments?.reconcile(charge.id);
         return;
       case 'MEMBERSHIP_CHARGE': {
-        if (this.membershipPayments === undefined || charge.membershipChargeId === null || charge.membershipChargeId === undefined) return;
+        if (
+          this.membershipPayments === undefined ||
+          charge.membershipChargeId === null ||
+          charge.membershipChargeId === undefined
+        )
+          return;
         const membershipCharge = await this.client.customerMembershipCharge.findFirst({
           where: { tenantId: charge.tenantId, id: charge.membershipChargeId },
           select: { publicId: true, status: true },
@@ -889,16 +1068,41 @@ export class PaymentGatewayService {
           const methodName = `Gateway (${charge.provider})`;
           const methods = await this.paymentMethods.list(charge.tenantId);
           let method = methods.items.find((item) => item.name === methodName);
-          method ??= await this.paymentMethods.create(charge.tenantId, { name: methodName, type: 'OTHER', sortOrder: 999, active: true });
-          const methodRecord = await this.client.paymentMethod.findFirst({ where: { tenantId: charge.tenantId, publicId: method.publicId }, select: { id: true } });
+          method ??= await this.paymentMethods.create(charge.tenantId, {
+            name: methodName,
+            type: 'OTHER',
+            sortOrder: 999,
+            active: true,
+          });
+          const methodRecord = await this.client.paymentMethod.findFirst({
+            where: { tenantId: charge.tenantId, publicId: method.publicId },
+            select: { id: true },
+          });
           if (methodRecord === null) return;
           const payment = await this.client.$transaction(async (tx) => {
-            const latePayment = await membershipPayments.recordLatePaidMembershipChargeWithinTransaction(tx, charge.tenantId, membershipCharge.publicId, methodRecord.id, actor);
-            await tx.paymentGatewayCharge.update({ where: { id: charge.id }, data: { paymentId: latePayment.id } });
-            await tx.auditLog.create({ data: {
-              publicId: randomUUID(), tenantId: charge.tenantId, userId: actor.userId, sessionId: actor.sessionId,
-              action: 'payment_gateway.membership_charge_paid_after_cancel', targetType: 'payment_gateway_charge', targetPublicId: charge.publicId,
-            } });
+            const latePayment =
+              await membershipPayments.recordLatePaidMembershipChargeWithinTransaction(
+                tx,
+                charge.tenantId,
+                membershipCharge.publicId,
+                methodRecord.id,
+                actor,
+              );
+            await tx.paymentGatewayCharge.update({
+              where: { id: charge.id },
+              data: { paymentId: latePayment.id },
+            });
+            await tx.auditLog.create({
+              data: {
+                publicId: randomUUID(),
+                tenantId: charge.tenantId,
+                userId: actor.userId,
+                sessionId: actor.sessionId,
+                action: 'payment_gateway.membership_charge_paid_after_cancel',
+                targetType: 'payment_gateway_charge',
+                targetPublicId: charge.publicId,
+              },
+            });
             return latePayment;
           });
           void payment;
@@ -907,11 +1111,28 @@ export class PaymentGatewayService {
         const methodName = `Gateway (${charge.provider})`;
         const methods = await this.paymentMethods.list(charge.tenantId);
         let method = methods.items.find((item) => item.name === methodName);
-        method ??= await this.paymentMethods.create(charge.tenantId, { name: methodName, type: 'OTHER', sortOrder: 999, active: true });
-        const methodRecord = await this.client.paymentMethod.findFirst({ where: { tenantId: charge.tenantId, publicId: method.publicId }, select: { id: true } });
+        method ??= await this.paymentMethods.create(charge.tenantId, {
+          name: methodName,
+          type: 'OTHER',
+          sortOrder: 999,
+          active: true,
+        });
+        const methodRecord = await this.client.paymentMethod.findFirst({
+          where: { tenantId: charge.tenantId, publicId: method.publicId },
+          select: { id: true },
+        });
         if (methodRecord === null) return;
-        const payment = await this.membershipPayments.createPayment(charge.tenantId, membershipCharge.publicId, methodRecord.id, actor);
-        await this.client.paymentGatewayCharge.update({ where: { id: charge.id }, data: { paymentId: payment.id } });
+        const payment = await this.membershipPayments.createPayment(
+          charge.tenantId,
+          membershipCharge.publicId,
+          methodRecord.id,
+          actor,
+          { allowDisabledFeatureReconciliation: true },
+        );
+        await this.client.paymentGatewayCharge.update({
+          where: { id: charge.id },
+          data: { paymentId: payment.id },
+        });
         return;
       }
       case 'APPOINTMENT':

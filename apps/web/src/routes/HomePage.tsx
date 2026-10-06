@@ -5,6 +5,7 @@ import {
   OperatingModelSchema,
   SuccessResponseSchema,
   TenantExperienceResponseSchema,
+  TenantSettingsResponseSchema,
   TenantSubscriptionResponseSchema,
   TenantWhiteLabelResponseSchema,
   type PlanLimitKey,
@@ -32,7 +33,12 @@ import { AppHeader } from '../components/app/AppHeader.js';
 import { AppSidebar } from '../components/app/AppSidebar.js';
 import { environment } from '../config/environment.js';
 import { HttpError, httpClient } from '../lib/http.js';
-import { clearSelectedTenant, readSelectedTenant, selectSingleTenantIfAvailable, selectTenant } from '../lib/tenant-selection.js';
+import {
+  clearSelectedTenant,
+  readSelectedTenant,
+  selectSingleTenantIfAvailable,
+  selectTenant,
+} from '../lib/tenant-selection.js';
 
 // Dynamic module boundaries keep inactive product areas out of the initial panel bundle.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -198,7 +204,10 @@ const WhiteLabelModule = load(
   'WhiteLabelModule',
 );
 const WhatsAppPage = load(import('../components/tenants/WhatsAppPage.js'), 'WhatsAppPage');
-const WhatsAppIntelligencePage = load(import('../components/tenants/WhatsAppIntelligencePage.js'), 'WhatsAppIntelligencePage');
+const WhatsAppIntelligencePage = load(
+  import('../components/tenants/WhatsAppIntelligencePage.js'),
+  'WhatsAppIntelligencePage',
+);
 const EmailTemplateModule = load(
   import('../components/tenants/EmailTemplateModule.js'),
   'EmailTemplateModule',
@@ -322,6 +331,16 @@ export function HomePage() {
     queryFn: () =>
       httpClient.request('/tenant/experience', {
         schema: TenantExperienceResponseSchema,
+        ...(selectedTenant === undefined ? {} : { tenantPublicId: selectedTenant }),
+      }),
+    enabled: selectedTenant !== undefined,
+    retry: false,
+  });
+  const tenantSettings = useQuery({
+    queryKey: ['tenant', selectedTenant, 'settings'],
+    queryFn: () =>
+      httpClient.request('/tenant/settings', {
+        schema: TenantSettingsResponseSchema,
         ...(selectedTenant === undefined ? {} : { tenantPublicId: selectedTenant }),
       }),
     enabled: selectedTenant !== undefined,
@@ -671,10 +690,12 @@ export function HomePage() {
     (me.data?.currentTenant?.membership.permissions.includes('tenant.read') ?? false);
   const canManageCustomerMemberships =
     canViewCustomerMemberships &&
+    tenantSettings.data?.settings.membershipSalesEnabled === true &&
     me.data?.currentTenant?.membership.roleCode === 'OWNER' &&
     (me.data?.currentTenant?.membership.permissions.includes('tenant.update') ?? false);
   const planFeatureEnabled = (key: PlanLimitKey) =>
-    planAccess.isSuccess && planAccess.data?.limits.find((limit) => limit.key === key)?.booleanValue === true;
+    planAccess.isSuccess &&
+    planAccess.data?.limits.find((limit) => limit.key === key)?.booleanValue === true;
   const menuGroups: AppMenuGroup[] = [
     {
       label: 'Agenda',
@@ -893,9 +914,21 @@ export function HomePage() {
       label: 'WhatsApp',
       path: '/app/whatsapp',
       items: [
-        { label: 'Conexão', to: '/app/whatsapp/conexao', visible: planFeatureEnabled('whatsapp.enabled') },
-        { label: 'Mensagens', to: '/app/whatsapp/mensagens', visible: planFeatureEnabled('whatsapp.enabled') },
-        { label: 'Inteligência', to: '/app/whatsapp/inteligencia', visible: planFeatureEnabled('whatsapp.enabled') },
+        {
+          label: 'Conexão',
+          to: '/app/whatsapp/conexao',
+          visible: planFeatureEnabled('whatsapp.enabled'),
+        },
+        {
+          label: 'Mensagens',
+          to: '/app/whatsapp/mensagens',
+          visible: planFeatureEnabled('whatsapp.enabled'),
+        },
+        {
+          label: 'Inteligência',
+          to: '/app/whatsapp/inteligencia',
+          visible: planFeatureEnabled('whatsapp.enabled'),
+        },
       ],
     },
     {
@@ -962,7 +995,11 @@ export function HomePage() {
           <h1>Não foi possível carregar o início guiado.</h1>
           <p>Verifique sua conexão e tente novamente.</p>
           <div className="button-row">
-            <button className="primary-button" type="button" onClick={() => void onboarding.refetch()}>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => void onboarding.refetch()}
+            >
               Tentar novamente
             </button>
             <button className="secondary-button" type="button" onClick={() => pauseGuided(true)}>
@@ -1596,9 +1633,14 @@ export function HomePage() {
             <p className="eyebrow">Configuração inicial</p>
             <h2 id="onboarding-checklist-title">Complete a configuração do seu Agendei</h2>
             <p>
-              {onboardingChecklist.data.items.filter((item) => item.complete).length} de 6 etapas concluídas
+              {onboardingChecklist.data.items.filter((item) => item.complete).length} de 6 etapas
+              concluídas
             </p>
-            <button className="primary-button" type="button" onClick={() => void navigate('/app/inicio-guiado')}>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => void navigate('/app/inicio-guiado')}
+            >
               Continuar configuração
             </button>
           </section>
@@ -1702,25 +1744,76 @@ export function HomePage() {
               planFeatureEnabled('products.enabled') && (
                 <ProductCreatePage tenantPublicId={selectedTenant} />
               )}
-            {isRoute('/app/produtos/novo') && canManageProducts && !planFeatureEnabled('products.enabled') && (
-              <section className="sessions-panel"><PageHeader eyebrow="Catálogo" title="Recurso não incluído" description="Este recurso não está incluído no seu plano atual." actions={<button className="btn btn-primary" type="button" onClick={() => void navigate('/app/plano')}>Ver planos</button>} /></section>
-            )}
+            {isRoute('/app/produtos/novo') &&
+              canManageProducts &&
+              !planFeatureEnabled('products.enabled') && (
+                <section className="sessions-panel">
+                  <PageHeader
+                    eyebrow="Catálogo"
+                    title="Recurso não incluído"
+                    description="Este recurso não está incluído no seu plano atual."
+                    actions={
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        onClick={() => void navigate('/app/plano')}
+                      >
+                        Ver planos
+                      </button>
+                    }
+                  />
+                </section>
+              )}
             {isRoute('/app/produtos/estoque') &&
               canReadProducts &&
               planFeatureEnabled('stock.enabled') && (
                 <ProductStockModule tenantPublicId={selectedTenant} canManage={canManageProducts} />
               )}
-            {isRoute('/app/produtos/estoque') && canReadProducts && !planFeatureEnabled('stock.enabled') && (
-              <section className="sessions-panel"><PageHeader eyebrow="Estoque" title="Recurso não incluído" description="Estoque não está incluído no seu plano atual." actions={<button className="btn btn-primary" type="button" onClick={() => void navigate('/app/plano')}>Ver planos</button>} /></section>
-            )}
+            {isRoute('/app/produtos/estoque') &&
+              canReadProducts &&
+              !planFeatureEnabled('stock.enabled') && (
+                <section className="sessions-panel">
+                  <PageHeader
+                    eyebrow="Estoque"
+                    title="Recurso não incluído"
+                    description="Estoque não está incluído no seu plano atual."
+                    actions={
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        onClick={() => void navigate('/app/plano')}
+                      >
+                        Ver planos
+                      </button>
+                    }
+                  />
+                </section>
+              )}
             {isRoute('/app/produtos/movimentacoes') &&
               canReadProducts &&
               planFeatureEnabled('stock.enabled') && (
                 <ProductMovementsModule tenantPublicId={selectedTenant} />
               )}
-            {isRoute('/app/produtos/movimentacoes') && canReadProducts && !planFeatureEnabled('stock.enabled') && (
-              <section className="sessions-panel"><PageHeader eyebrow="Estoque" title="Recurso não incluído" description="Movimentações não estão incluídas no seu plano atual." actions={<button className="btn btn-primary" type="button" onClick={() => void navigate('/app/plano')}>Ver planos</button>} /></section>
-            )}
+            {isRoute('/app/produtos/movimentacoes') &&
+              canReadProducts &&
+              !planFeatureEnabled('stock.enabled') && (
+                <section className="sessions-panel">
+                  <PageHeader
+                    eyebrow="Estoque"
+                    title="Recurso não incluído"
+                    description="Movimentações não estão incluídas no seu plano atual."
+                    actions={
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        onClick={() => void navigate('/app/plano')}
+                      >
+                        Ver planos
+                      </button>
+                    }
+                  />
+                </section>
+              )}
             {location.pathname.startsWith('/app/produtos/') &&
               !isRoute(
                 '/app/produtos/novo',
@@ -1742,14 +1835,16 @@ export function HomePage() {
                 canManage={canManageFinancialClosings}
               />
             )}
-            {isRoute('/app/financeiro/rateio-assinaturas') && canReadCommissionCycles && me.data.currentTenant && (
-              <CommissionCycleModule
-                tenantPublicId={selectedTenant}
-                timezone={me.data.currentTenant.tenant.timezone}
-                canManage={canManageCommissionCycles}
-                canUpdate={canUpdateTenantSettings}
-              />
-            )}
+            {isRoute('/app/financeiro/rateio-assinaturas') &&
+              canReadCommissionCycles &&
+              me.data.currentTenant && (
+                <CommissionCycleModule
+                  tenantPublicId={selectedTenant}
+                  timezone={me.data.currentTenant.tenant.timezone}
+                  canManage={canManageCommissionCycles}
+                  canUpdate={canUpdateTenantSettings}
+                />
+              )}
             {isRoute('/app/financeiro') && canReadPayments && (
               <FinanceOverviewModule
                 tenantPublicId={selectedTenant}
@@ -2021,15 +2116,39 @@ export function HomePage() {
       {isRoute('/app/whatsapp') && planFeatureEnabled('whatsapp.enabled') && (
         <Navigate to="/app/whatsapp/conexao" replace />
       )}
-      {isRoute('/app/whatsapp') && !planFeatureEnabled('whatsapp.enabled') && planAccess.isFetched && (
-        <section className="app-empty-state"><h2>Este recurso não está incluído no seu plano.</h2><p>Consulte os planos disponíveis para habilitar o WhatsApp.</p><button type="button" onClick={() => navigate('/app/plano')}>Ver planos</button></section>
-      )}
-      {isRoute('/app/whatsapp/conexao') && !planFeatureEnabled('whatsapp.enabled') && planAccess.isFetched && (
-        <section className="app-empty-state"><h2>Este recurso não está incluído no seu plano.</h2><p>Consulte os planos disponíveis para habilitar o WhatsApp.</p><button type="button" onClick={() => navigate('/app/plano')}>Ver planos</button></section>
-      )}
-      {isRoute('/app/whatsapp/mensagens') && !planFeatureEnabled('whatsapp.enabled') && planAccess.isFetched && (
-        <section className="app-empty-state"><h2>Este recurso não está incluído no seu plano.</h2><p>Consulte os planos disponíveis para habilitar o WhatsApp.</p><button type="button" onClick={() => navigate('/app/plano')}>Ver planos</button></section>
-      )}
+      {isRoute('/app/whatsapp') &&
+        !planFeatureEnabled('whatsapp.enabled') &&
+        planAccess.isFetched && (
+          <section className="app-empty-state">
+            <h2>Este recurso não está incluído no seu plano.</h2>
+            <p>Consulte os planos disponíveis para habilitar o WhatsApp.</p>
+            <button type="button" onClick={() => navigate('/app/plano')}>
+              Ver planos
+            </button>
+          </section>
+        )}
+      {isRoute('/app/whatsapp/conexao') &&
+        !planFeatureEnabled('whatsapp.enabled') &&
+        planAccess.isFetched && (
+          <section className="app-empty-state">
+            <h2>Este recurso não está incluído no seu plano.</h2>
+            <p>Consulte os planos disponíveis para habilitar o WhatsApp.</p>
+            <button type="button" onClick={() => navigate('/app/plano')}>
+              Ver planos
+            </button>
+          </section>
+        )}
+      {isRoute('/app/whatsapp/mensagens') &&
+        !planFeatureEnabled('whatsapp.enabled') &&
+        planAccess.isFetched && (
+          <section className="app-empty-state">
+            <h2>Este recurso não está incluído no seu plano.</h2>
+            <p>Consulte os planos disponíveis para habilitar o WhatsApp.</p>
+            <button type="button" onClick={() => navigate('/app/plano')}>
+              Ver planos
+            </button>
+          </section>
+        )}
       {isRoute('/app/whatsapp/conexao') && planFeatureEnabled('whatsapp.enabled') && (
         <ErrorBoundary key={selectedTenant}>
           <Suspense fallback={<p>Carregando WhatsApp…</p>}>
@@ -2055,7 +2174,10 @@ export function HomePage() {
       {isRoute('/app/whatsapp/inteligencia') && planFeatureEnabled('whatsapp.enabled') && (
         <ErrorBoundary key={selectedTenant}>
           <Suspense fallback={<p>Carregando inteligência…</p>}>
-            <WhatsAppIntelligencePage tenantPublicId={selectedTenant!} canManage={canManageIntegrations} />
+            <WhatsAppIntelligencePage
+              tenantPublicId={selectedTenant!}
+              canManage={canManageIntegrations}
+            />
           </Suspense>
         </ErrorBoundary>
       )}

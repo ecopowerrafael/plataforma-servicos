@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { type PrismaClient } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipUsageRepository } from './customer-membership-usage.repository.js';
+import { assertCustomerMembershipFeatureEnabled } from './customer-membership-feature-gate.js';
 
 export class CustomerMembershipUsageService {
   private readonly repository: CustomerMembershipUsageRepository;
@@ -27,6 +28,7 @@ export class CustomerMembershipUsageService {
       quantityLimit?: number;
     },
   ): Promise<any | null> {
+    await assertCustomerMembershipFeatureEnabled(tx, data.tenantId);
     // Check if already reserved (idempotent)
     const existing = await tx.customerMembershipUsage.findFirst({
       where: {
@@ -109,6 +111,7 @@ export class CustomerMembershipUsageService {
     quantity: number;
     quantityLimit?: number;
   }): Promise<any | null> {
+    await assertCustomerMembershipFeatureEnabled(this.client, data.tenantId);
     // Check if already reserved (idempotent)
     const existing = await this.repository.findForTransition(
       data.membershipChargeId,

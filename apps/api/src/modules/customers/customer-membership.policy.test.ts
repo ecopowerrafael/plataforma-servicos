@@ -6,9 +6,19 @@ const actor = { userId: 1n, sessionId: 2n };
 
 function repository(overrides: Record<string, unknown> = {}) {
   const result = {
+    client: {
+      tenant: {
+        findFirst: vi.fn().mockResolvedValue({
+          operatingModel: 'MEMBERSHIP',
+          settings: { membershipSalesEnabled: true },
+        }),
+      },
+    },
     findSalesSettings: vi.fn().mockResolvedValue({ membershipSalesEnabled: true }),
     findOperatingModel: vi.fn().mockResolvedValue({ operatingModel: 'MEMBERSHIP' }),
-    findPlan: vi.fn().mockResolvedValue({ id: 3n, publicId: 'plan', priceCents: 100n, benefits: [] }),
+    findPlan: vi
+      .fn()
+      .mockResolvedValue({ id: 3n, publicId: 'plan', priceCents: 100n, benefits: [] }),
     findCustomer: vi.fn().mockResolvedValue({ id: 4n }),
     findByCustomer: vi.fn().mockResolvedValue(null),
     create: vi.fn().mockResolvedValue({ id: 5n }),
@@ -16,7 +26,10 @@ function repository(overrides: Record<string, unknown> = {}) {
     withTenantLock: vi.fn(),
     ...overrides,
   };
-  result.withTenantLock.mockImplementation(async (_tenantId: bigint, callback: (repository: typeof result) => Promise<unknown>) => callback(result));
+  result.withTenantLock.mockImplementation(
+    async (_tenantId: bigint, callback: (repository: typeof result) => Promise<unknown>) =>
+      callback(result),
+  );
   return result;
 }
 
@@ -24,6 +37,14 @@ describe('CustomerMembershipService commercial policy', () => {
   it('blocks only new membership sales when the tenant flag is disabled', async () => {
     const repo = repository({
       findSalesSettings: vi.fn().mockResolvedValue({ membershipSalesEnabled: false }),
+      client: {
+        tenant: {
+          findFirst: vi.fn().mockResolvedValue({
+            operatingModel: 'MEMBERSHIP',
+            settings: { membershipSalesEnabled: false },
+          }),
+        },
+      },
     });
     const service = new CustomerMembershipService(repo as never);
 

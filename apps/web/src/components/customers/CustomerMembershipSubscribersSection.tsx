@@ -3,7 +3,7 @@ import {
   type CustomerMembershipPlanPublic,
   type CustomerMembershipSubscriberItem,
 } from '@plataforma/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
@@ -11,6 +11,7 @@ import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, StatusBadge } from '../ui/AppUi.js';
 import '../../styles/subscriptions-additional.css';
 import { CustomerMembershipDetailDrawer } from './CustomerMembershipDetailDrawer.js';
+import { CustomerMembershipCreateDrawer } from './CustomerMembershipCreateDrawer.js';
 
 interface Props {
   tenantPublicId: string;
@@ -20,7 +21,6 @@ interface Props {
 
 const money = (cents: number) =>
   (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
 
 const statusOptions = [
   { value: 'PENDING', label: 'Pendente', color: 'orange' },
@@ -46,6 +46,8 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, ca
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [planFilter, setPlanFilter] = useState<string>('');
   const [selected, setSelected] = useState<CustomerMembershipSubscriberItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
   const limit = 20;
 
   // Debounce search input with cleanup
@@ -98,6 +100,17 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, ca
         eyebrow="Assinaturas"
         title="Assinantes"
         description="Gerencie clientes com planos ativos e acompanhe seus ciclos de cobrança."
+        actions={
+          <button
+            type="button"
+            className="primary-button"
+            disabled={!canManage}
+            title={canManage ? undefined : 'A venda de mensalidades está desativada.'}
+            onClick={() => setCreating(true)}
+          >
+            + Novo assinante
+          </button>
+        }
       />
 
       {/* Filters */}
@@ -145,11 +158,7 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, ca
         </select>
 
         {(searchInput || statusFilter || planFilter) && (
-          <button
-            type="button"
-            onClick={handleClearFilters}
-            className="membership-clear-btn"
-          >
+          <button type="button" onClick={handleClearFilters} className="membership-clear-btn">
             Limpar
           </button>
         )}
@@ -219,7 +228,9 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, ca
                         </div>
                         <div>
                           <div className="membership-customer-name">{subscriber.customerName}</div>
-                          <div className="membership-customer-email">{subscriber.customerEmail}</div>
+                          <div className="membership-customer-email">
+                            {subscriber.customerEmail}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -255,10 +266,7 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, ca
           {/* Mobile Cards */}
           <div className="membership-mobile-cards">
             {subscribers.data.items.map((subscriber) => (
-              <article
-                key={subscriber.membershipPublicId}
-                className="membership-subscriber-card"
-              >
+              <article key={subscriber.membershipPublicId} className="membership-subscriber-card">
                 <header className="membership-card-header">
                   <div className="membership-customer-info">
                     <div className="membership-customer-avatar">
@@ -351,6 +359,35 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, ca
           priceCents={selected.priceCents}
           canManage={canManage}
           onClose={() => setSelected(null)}
+        />
+      ) : null}
+      {creating ? (
+        <CustomerMembershipCreateDrawer
+          tenantPublicId={tenantPublicId}
+          plans={plans.data?.items ?? []}
+          onClose={() => setCreating(false)}
+          onCreated={async (membership, customer, plan) => {
+            await queryClient.invalidateQueries({
+              queryKey: ['tenant', tenantPublicId, 'customer-memberships'],
+            });
+            setCreating(false);
+            setSelected({
+              membershipPublicId: membership.publicId,
+              customerPublicId: customer.publicId,
+              customerName: customer.socialName ?? customer.name,
+              customerEmail: customer.email ?? '',
+              customerAvatar: null,
+              planPublicId: plan.publicId,
+              planName: plan.name,
+              priceCents: plan.priceCents,
+              status: membership.status,
+              startedAt: null,
+              currentPeriodStart: null,
+              currentPeriodEnd: null,
+              nextBillingAt: null,
+              createdAt: new Date().toISOString(),
+            });
+          }}
         />
       ) : null}
     </section>

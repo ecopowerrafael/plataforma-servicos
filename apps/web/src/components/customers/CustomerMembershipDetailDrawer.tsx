@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
 import { ConfirmationDialog, type ConfirmationRequest } from '../ConfirmationDialog.js';
-import { EmptyState, ListSkeleton, StatusBadge } from '../ui/AppUi.js';
+import { EmptyState, InlineAlert, ListSkeleton, StatusBadge } from '../ui/AppUi.js';
 import './CustomerMembershipDetailDrawer.css';
 
 const ActionResponseSchema = z.unknown();
@@ -60,6 +60,8 @@ export function CustomerMembershipDetailDrawer(props: Props) {
   const queryClient = useQueryClient();
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const membership = useQuery({
     queryKey: ['tenant', props.tenantPublicId, 'customer-membership', props.customerPublicId],
     queryFn: () =>
@@ -149,7 +151,10 @@ export function CustomerMembershipDetailDrawer(props: Props) {
         tenantPublicId: props.tenantPublicId,
         schema: ActionResponseSchema,
       }),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      setActionFeedback('Operação concluída.');
+      await refresh();
+    },
   });
   const current =
     charges.data?.items.find(
@@ -389,6 +394,17 @@ export function CustomerMembershipDetailDrawer(props: Props) {
             </section>
             <section className="membership-detail-card">
               <h3>Ações da mensalidade</h3>
+              {action.error ? (
+                <InlineAlert tone="danger" title="Não foi possível concluir a operação">
+                  {action.error instanceof Error ? action.error.message : 'Tente novamente.'}
+                </InlineAlert>
+              ) : null}
+              {qrError ? (
+                <InlineAlert tone="danger" title="Não foi possível carregar o QR Code">
+                  {qrError}
+                </InlineAlert>
+              ) : null}
+              {actionFeedback ? <InlineAlert tone="info">{actionFeedback}</InlineAlert> : null}
               <div className="membership-detail-actions">
                 {membership.data.cancelAtPeriodEnd ? (
                   <button
@@ -445,11 +461,16 @@ export function CustomerMembershipDetailDrawer(props: Props) {
                     <button
                       disabled={blocked || action.isPending}
                       onClick={async () => {
-                        const result = await httpClient.request(
-                          `/tenant/gateway-charges/${gateway.publicId}/pix-qrcode`,
-                          { tenantPublicId: props.tenantPublicId, schema: QrCodeResponseSchema },
-                        );
-                        setQrCode(result.qrCodeDataUrl);
+                        setQrError(null);
+                        try {
+                          const result = await httpClient.request(
+                            `/tenant/gateway-charges/${gateway.publicId}/pix-qrcode`,
+                            { tenantPublicId: props.tenantPublicId, schema: QrCodeResponseSchema },
+                          );
+                          setQrCode(result.qrCodeDataUrl);
+                        } catch (error) {
+                          setQrError(error instanceof Error ? error.message : 'Tente novamente.');
+                        }
                       }}
                     >
                       Exibir QR Code

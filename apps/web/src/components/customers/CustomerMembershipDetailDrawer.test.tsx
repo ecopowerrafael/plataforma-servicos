@@ -147,4 +147,46 @@ describe('CustomerMembershipDetailDrawer', () => {
       expect(screen.queryByRole('button', { name: 'Gerar cobrança PIX' })).toBeNull();
     });
   });
+
+  it('shows the backend error for a failed manual payment mutation', async () => {
+    vi.mocked(httpClient.request).mockImplementation(async (path) => {
+      if (path.includes('/membership?')) return membership;
+      if (path.includes('/charges')) return charges;
+      if (path.includes('/benefits')) return benefits;
+      if (path === '/tenant/payment-options') return paymentOptions;
+      if (path.includes('/payments/local/confirm'))
+        throw new Error('A venda de mensalidades está desativada.');
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    renderDrawer(true);
+
+    const button = await screen.findByRole('button', { name: 'Confirmar pagamento manual' });
+    button.click();
+
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.getByText('A venda de mensalidades está desativada.')).not.toBeNull();
+  });
+
+  it('generates the configured PIX gateway charge and shows success feedback', async () => {
+    vi.mocked(httpClient.request).mockImplementation(async (path) => {
+      if (path.includes('/membership?')) return membership;
+      if (path.includes('/charges')) return charges;
+      if (path.includes('/benefits')) return benefits;
+      if (path === '/tenant/payment-options') return paymentOptions;
+      if (path.includes('/gateway-charges?provider=pix-local')) return { success: true };
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    renderDrawer(true);
+
+    const button = await screen.findByRole('button', { name: 'Gerar cobrança PIX' });
+    button.click();
+
+    await waitFor(() => {
+      expect(vi.mocked(httpClient.request)).toHaveBeenCalledWith(
+        `/tenant/customer-membership-charges/${charges.items[0].publicId}/gateway-charges?provider=pix-local`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+    expect(await screen.findByText('Operação concluída.')).not.toBeNull();
+  });
 });

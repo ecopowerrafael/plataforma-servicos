@@ -53,4 +53,69 @@ describe('customer membership renewal feature gate', () => {
       }),
     );
   });
+
+  it('efetiva cancelamento agendado de membership PAST_DUE e cancela cobrança gateway pendente', async () => {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 1n }]),
+      customerMembership: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 1n,
+          tenantId: 10n,
+          publicId: 'membership',
+          status: 'PAST_DUE',
+          nextBillingAt: new Date('2026-10-01T00:00:00.000Z'),
+          currentPeriodEnd: new Date('2026-10-01T00:00:00.000Z'),
+          cancelAtPeriodEnd: true,
+          charges: [],
+          tenant: {
+            operatingModel: 'MEMBERSHIP',
+            timezone: 'America/Sao_Paulo',
+            settings: { membershipSalesEnabled: false },
+          },
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      customerMembershipUsage: { count: vi.fn().mockResolvedValue(0) },
+      appointment: { count: vi.fn().mockResolvedValue(0) },
+      customerMembershipCharge: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      paymentGatewayCharge: {
+        findMany: vi.fn().mockResolvedValue([{ id: 91n }]),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    };
+    const gatewayCancellation = {
+      cancelPendingMembershipCharges: vi.fn().mockResolvedValue(undefined),
+    };
+    const client = {
+      customerMembership: {
+        findMany: vi.fn().mockResolvedValue([{ id: 1n, tenantId: 10n, publicId: 'membership' }]),
+      },
+      $transaction: vi.fn(async (callback: (value: typeof tx) => unknown) => callback(tx)),
+    };
+
+    const result = await new CustomerMembershipRenewalSweepService(
+      client as never,
+      50,
+      gatewayCancellation,
+    ).run(new Date('2026-10-02T00:00:00.000Z'));
+
+    expect(result.cancelAtPeriodEndApplied).toBe(1);
+    expect(tx.customerMembership.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: {
+        status: 'CANCELED',
+        canceledAt: new Date('2026-10-01T00:00:00.000Z'),
+        cancelAtPeriodEnd: false,
+        nextBillingAt: null,
+      },
+    });
+    expect(tx.customerMembershipCharge.updateMany).toHaveBeenCalledWith({
+      where: { membershipId: 1n, status: 'PENDING' },
+      data: { status: 'CANCELED' },
+    });
+    expect(gatewayCancellation.cancelPendingMembershipCharges).toHaveBeenCalledWith(10n, [91n], {
+      userId: null,
+      sessionId: null,
+    });
+  });
 });

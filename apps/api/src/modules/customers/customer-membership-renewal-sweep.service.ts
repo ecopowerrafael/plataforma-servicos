@@ -14,10 +14,26 @@ export interface RenewalSweepResult {
 
 const systemActor = { userId: null, sessionId: null };
 
+interface MembershipGatewayCancellation {
+  cancelPendingMembershipCharges(
+    tenantId: bigint,
+    chargeIds: bigint[],
+    actor: typeof systemActor,
+  ): Promise<void>;
+}
+
+type SweepOutcome = 'renewedChargesCreated' | 'cancelAtPeriodEndApplied' | 'skipped';
+
+interface ProcessResult {
+  outcome: SweepOutcome;
+  pendingGatewayChargeIds: bigint[];
+}
+
 export class CustomerMembershipRenewalSweepService {
   public constructor(
     private readonly client: PrismaClient,
     private readonly batchSize = 50,
+    private readonly gatewayCancellation?: MembershipGatewayCancellation,
   ) {}
 
   public async run(now = new Date()): Promise<RenewalSweepResult> {
@@ -30,7 +46,12 @@ export class CustomerMembershipRenewalSweepService {
       failed: 0,
     };
     const candidates = await this.client.customerMembership.findMany({
-      where: { status: 'ACTIVE', nextBillingAt: { lte: now } },
+      where: {
+        OR: [
+          { status: 'ACTIVE', nextBillingAt: { lte: now } },
+          { status: 'PAST_DUE', cancelAtPeriodEnd: true },
+        ],
+      },
       select: { id: true, tenantId: true, publicId: true },
       orderBy: [{ nextBillingAt: 'asc' }, { id: 'asc' }],
       take: this.batchSize,
@@ -38,9 +59,19 @@ export class CustomerMembershipRenewalSweepService {
     result.scanned = candidates.length;
     for (const candidate of candidates) {
       try {
-        const outcome = await this.processOne(candidate.id, now);
-        result[outcome] += 1;
-        if (outcome === 'renewedChargesCreated') result.markedPastDue += 1;
+        const processed = await this.processOne(candidate.id, now);
+        result[processed.outcome] += 1;
+        if (processed.outcome === 'renewedChargesCreated') result.markedPastDue += 1;
+        if (
+          processed.pendingGatewayChargeIds.length > 0 &&
+          this.gatewayCancellation !== undefined
+        ) {
+          await this.gatewayCancellation.cancelPendingMembershipCharges(
+            candidate.tenantId,
+            processed.pendingGatewayChargeIds,
+            systemActor,
+          );
+        }
       } catch (error) {
         result.failed += 1;
         await this.client.auditLog
@@ -61,16 +92,13 @@ export class CustomerMembershipRenewalSweepService {
     return result;
   }
 
-  private async processOne(
-    id: bigint,
-    now: Date,
-  ): Promise<'renewedChargesCreated' | 'cancelAtPeriodEndApplied' | 'skipped'> {
+  private async processOne(id: bigint, now: Date): Promise<ProcessResult> {
     return this.client.$transaction(
       async (tx) => {
         const locked = await tx.$queryRaw<Array<{ id: bigint }>>(
           Prisma.sql`SELECT id FROM customer_memberships WHERE id = ${id} FOR UPDATE`,
         );
-        if (locked.length === 0) return 'skipped';
+        if (locked.length === 0) return { outcome: 'skipped', pendingGatewayChargeIds: [] };
         const membership = await tx.customerMembership.findUnique({
           where: { id },
           include: {
@@ -85,13 +113,16 @@ export class CustomerMembershipRenewalSweepService {
             },
           },
         });
+        if (!membership) return { outcome: 'skipped', pendingGatewayChargeIds: [] };
+        const isPastDueCancellation =
+          membership.status === 'PAST_DUE' && membership.cancelAtPeriodEnd;
         if (
-          !membership ||
-          membership.status !== 'ACTIVE' ||
-          !membership.nextBillingAt ||
-          membership.nextBillingAt > now
+          !isPastDueCancellation &&
+          (membership.status !== 'ACTIVE' ||
+            !membership.nextBillingAt ||
+            membership.nextBillingAt > now)
         )
-          return 'skipped';
+          return { outcome: 'skipped', pendingGatewayChargeIds: [] };
         if (membership.tenant.operatingModel !== 'MEMBERSHIP') {
           await tx.auditLog.create({
             data: {
@@ -103,7 +134,7 @@ export class CustomerMembershipRenewalSweepService {
               targetPublicId: membership.publicId,
             },
           });
-          return 'skipped';
+          return { outcome: 'skipped', pendingGatewayChargeIds: [] };
         }
         if (membership.cancelAtPeriodEnd) {
           const reserved = await tx.customerMembershipUsage.count({
@@ -130,6 +161,19 @@ export class CustomerMembershipRenewalSweepService {
               nextBillingAt: null,
             },
           });
+          await tx.customerMembershipCharge.updateMany({
+            where: { membershipId: id, status: 'PENDING' },
+            data: { status: 'CANCELED' },
+          });
+          const gatewayCharges = await tx.paymentGatewayCharge.findMany({
+            where: {
+              tenantId: membership.tenantId,
+              membershipCharge: { membershipId: id },
+              originType: 'MEMBERSHIP_CHARGE',
+              status: { in: ['PENDING', 'PROCESSING'] },
+            },
+            select: { id: true },
+          });
           await tx.auditLog.create({
             data: {
               publicId: randomUUID(),
@@ -138,10 +182,16 @@ export class CustomerMembershipRenewalSweepService {
               action: 'customer_membership.cancel_period_end_applied',
               targetType: 'customer_membership',
               targetPublicId: membership.publicId,
-              metadata: { effectiveAt: (membership.currentPeriodEnd ?? now).toISOString() },
+              metadata: {
+                fromStatus: membership.status,
+                effectiveAt: (membership.currentPeriodEnd ?? now).toISOString(),
+              },
             },
           });
-          return 'cancelAtPeriodEndApplied';
+          return {
+            outcome: 'cancelAtPeriodEndApplied',
+            pendingGatewayChargeIds: gatewayCharges.map((charge) => charge.id),
+          };
         }
         if (
           !isCustomerMembershipFeatureEnabled({
@@ -159,11 +209,12 @@ export class CustomerMembershipRenewalSweepService {
               targetPublicId: membership.publicId,
             },
           });
-          return 'skipped';
+          return { outcome: 'skipped', pendingGatewayChargeIds: [] };
         }
         const lastPaid = membership.charges[0];
-        if (!lastPaid) return 'skipped';
-        if (membership.currentPeriodEnd === null) return 'skipped';
+        if (!lastPaid) return { outcome: 'skipped', pendingGatewayChargeIds: [] };
+        if (membership.currentPeriodEnd === null)
+          return { outcome: 'skipped', pendingGatewayChargeIds: [] };
         const snapshot = lastPaid.planSnapshot;
         const parsed = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
         if (!parsed || typeof parsed !== 'object')
@@ -187,7 +238,7 @@ export class CustomerMembershipRenewalSweepService {
         const existing = await tx.customerMembershipCharge.findUnique({
           where: { membershipId_periodStart: { membershipId: id, periodStart } },
         });
-        if (existing) return 'skipped';
+        if (existing) return { outcome: 'skipped', pendingGatewayChargeIds: [] };
         const contractedPrice = (parsed as { priceCents?: number | string }).priceCents;
         const amountCents =
           contractedPrice === undefined ? lastPaid.amountCents : BigInt(String(contractedPrice));
@@ -229,7 +280,7 @@ export class CustomerMembershipRenewalSweepService {
             targetPublicId: membership.publicId,
           },
         });
-        return 'renewedChargesCreated';
+        return { outcome: 'renewedChargesCreated', pendingGatewayChargeIds: [] };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );

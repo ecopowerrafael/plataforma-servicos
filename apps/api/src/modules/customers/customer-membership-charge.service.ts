@@ -64,8 +64,9 @@ export class CustomerMembershipChargeService {
 
     try {
       const publicId = randomUUID();
-      const dueAt = new Date(periodEnd);
-      dueAt.setDate(dueAt.getDate() + 3); // 3 days grace period
+      // A cobrança inicial vence na adesão, assim como a renovação vence no
+      // início do ciclo. Não há carência comercial implícita neste fluxo.
+      const dueAt = new Date(periodStart);
 
       const createData: any = {
         publicId,

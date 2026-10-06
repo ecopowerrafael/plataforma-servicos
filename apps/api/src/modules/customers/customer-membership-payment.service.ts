@@ -178,7 +178,11 @@ export class CustomerMembershipPaymentService {
     const periodEnd = charge.periodEnd;
     const shouldApplyMembershipEffect =
       featureEnabled || !options.allowDisabledFeatureReconciliation;
-    if (shouldApplyMembershipEffect) {
+    const isInitialChargePastPeriodEnd =
+      ['PENDING', 'PAST_DUE'].includes(charge.membership.status) &&
+      charge.membership.currentPeriodStart === null &&
+      charge.periodEnd < paidAt;
+    if (shouldApplyMembershipEffect && !isInitialChargePastPeriodEnd) {
       await tx.customerMembership.update({
         where: { id: charge.membershipId },
         data:
@@ -200,7 +204,30 @@ export class CustomerMembershipPaymentService {
                 },
       });
     }
-    if (shouldApplyMembershipEffect && ['ACTIVE', 'PAST_DUE'].includes(charge.membership.status)) {
+    if (shouldApplyMembershipEffect && isInitialChargePastPeriodEnd) {
+      await tx.auditLog.create({
+        data: {
+          publicId: randomUUID(),
+          tenantId,
+          userId: actor.userId,
+          sessionId: actor.sessionId,
+          action: 'customer_membership.initial_charge_paid_after_period_end',
+          targetType: 'customer_membership',
+          targetPublicId: charge.membership.publicId,
+          metadata: {
+            chargePublicId: charge.publicId,
+            periodStart: charge.periodStart.toISOString(),
+            periodEnd: charge.periodEnd.toISOString(),
+            paidAt: paidAt.toISOString(),
+          },
+        },
+      });
+    }
+    if (
+      shouldApplyMembershipEffect &&
+      !isInitialChargePastPeriodEnd &&
+      ['ACTIVE', 'PAST_DUE'].includes(charge.membership.status)
+    ) {
       await tx.auditLog.create({
         data: {
           publicId: randomUUID(),

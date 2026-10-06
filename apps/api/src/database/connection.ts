@@ -584,7 +584,7 @@ export function createDatabaseConnection(
     stripeBilling,
     commercialPolicy,
     commercialSweep: new TenantCommercialSweepService(client, platformBilling),
-    membershipRenewalSweep: new CustomerMembershipRenewalSweepService(client),
+    membershipRenewalSweep: new CustomerMembershipRenewalSweepService(client, 50, paymentGateway),
     customers: customers,
     customerAuth: customerAuth,
     customerProfile: customerProfile,

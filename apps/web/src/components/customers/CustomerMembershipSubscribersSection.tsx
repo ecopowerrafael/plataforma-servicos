@@ -1,7 +1,7 @@
 import {
   CustomerMembershipSubscriberListResponseSchema,
-  CustomerMembershipStatusSchema,
   type CustomerMembershipPlanPublic,
+  type CustomerMembershipSubscriberItem,
 } from '@plataforma/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -10,10 +10,12 @@ import { z } from 'zod';
 import { httpClient } from '../../lib/http.js';
 import { EmptyState, ListSkeleton, PageHeader, StatusBadge } from '../ui/AppUi.js';
 import '../../styles/subscriptions-additional.css';
+import { CustomerMembershipDetailDrawer } from './CustomerMembershipDetailDrawer.js';
 
 interface Props {
   tenantPublicId: string;
   plans: { data?: { items: CustomerMembershipPlanPublic[] } };
+  canManage: boolean;
 }
 
 const money = (cents: number) =>
@@ -26,6 +28,7 @@ const statusOptions = [
   { value: 'PAST_DUE', label: 'Inadimplente', color: 'red' },
   { value: 'PAUSED', label: 'Pausado', color: 'blue' },
   { value: 'CANCELED', label: 'Cancelado', color: 'gray' },
+  { value: 'EXPIRED', label: 'Expirado', color: 'gray' },
 ] as const;
 
 const getStatusBadgeColor = (status: string): 'green' | 'orange' | 'red' | 'blue' | 'gray' => {
@@ -36,12 +39,13 @@ const getStatusBadgeColor = (status: string): 'green' | 'orange' | 'red' | 'blue
 const getStatusLabel = (status: string) =>
   statusOptions.find((opt) => opt.value === status)?.label ?? status;
 
-export function CustomerMembershipSubscribersSection({ tenantPublicId, plans }: Props) {
+export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, canManage }: Props) {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [planFilter, setPlanFilter] = useState<string>('');
+  const [selected, setSelected] = useState<CustomerMembershipSubscriberItem | null>(null);
   const limit = 20;
 
   // Debounce search input with cleanup
@@ -198,6 +202,7 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans }: 
                   <th>Período atual</th>
                   <th>Valor mensal</th>
                   <th>Próxima cobrança</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -235,6 +240,11 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans }: 
                       {subscriber.nextBillingAt
                         ? new Date(subscriber.nextBillingAt).toLocaleDateString('pt-BR')
                         : '—'}
+                    </td>
+                    <td>
+                      <button type="button" onClick={() => setSelected(subscriber)}>
+                        Ver detalhes
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -297,6 +307,9 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans }: 
                         : '—'}
                     </span>
                   </div>
+                  <button type="button" onClick={() => setSelected(subscriber)}>
+                    Ver detalhes
+                  </button>
                 </div>
               </article>
             ))}
@@ -328,6 +341,18 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans }: 
           )}
         </>
       )}
+      {selected ? (
+        <CustomerMembershipDetailDrawer
+          tenantPublicId={tenantPublicId}
+          customerPublicId={selected.customerPublicId}
+          customerName={selected.customerName}
+          customerEmail={selected.customerEmail}
+          membershipPublicId={selected.membershipPublicId}
+          priceCents={selected.priceCents}
+          canManage={canManage}
+          onClose={() => setSelected(null)}
+        />
+      ) : null}
     </section>
   );
 }

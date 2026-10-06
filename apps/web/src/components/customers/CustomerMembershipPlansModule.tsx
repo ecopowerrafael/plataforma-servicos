@@ -235,7 +235,7 @@ export function CustomerMembershipPlansModule({
 
   // Subscribers section - use dedicated component to avoid conditional hooks
   if (section === 'subscribers') {
-    return <CustomerMembershipSubscribersSection tenantPublicId={tenantPublicId} plans={plans} />;
+    return <CustomerMembershipSubscribersSection tenantPublicId={tenantPublicId} plans={plans} canManage={canManage} />;
   }
 
   // Usage section (still placeholder)

@@ -35,7 +35,7 @@ export class CustomerMembershipRepository {
       limit: number;
       search?: string;
       planPublicId?: string;
-      status?: 'PENDING' | 'ACTIVE' | 'PAST_DUE' | 'PAUSED' | 'CANCELED';
+      status?: 'PENDING' | 'ACTIVE' | 'PAST_DUE' | 'PAUSED' | 'CANCELED' | 'EXPIRED';
     },
   ) {
     const skip = (options.page - 1) * options.limit;
@@ -89,6 +89,14 @@ export class CustomerMembershipRepository {
         status: { in: ['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED'] },
       },
       include: { plan: true, charges: true },
+    });
+  }
+
+  public findLatestByCustomerForDetail(tenantId: bigint, customerId: bigint) {
+    return this.client.customerMembership.findFirst({
+      where: { tenantId, customerId },
+      include: { plan: true, charges: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

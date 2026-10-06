@@ -14,6 +14,52 @@ interface Options {
   client: PrismaClient;
 }
 
+type MembershipChargeWithDetails = Awaited<
+  ReturnType<CustomerMembershipChargeRepository['list']>
+>[number];
+
+const toPublicCharge = (charge: MembershipChargeWithDetails) => ({
+  publicId: charge.publicId,
+  periodStart: charge.periodStart.toISOString(),
+  periodEnd: charge.periodEnd.toISOString(),
+  amountCents: Number(charge.amountCents),
+  status: charge.status,
+  dueAt: charge.dueAt.toISOString(),
+  paidAt: charge.paidAt?.toISOString() ?? null,
+  payments: charge.payments.map((payment) => ({
+    publicId: payment.publicId,
+    status: payment.status,
+    amountCents: Number(payment.amountCents),
+    paidAt: payment.paidAt?.toISOString() ?? null,
+    paymentMethodName: payment.paymentMethod.name,
+    paymentMethodType: payment.paymentMethod.type,
+    originType: 'MEMBERSHIP_CHARGE' as const,
+    createdAt: payment.createdAt.toISOString(),
+  })),
+  gatewayCharges: charge.gatewayCharges.map((gatewayCharge) => ({
+    publicId: gatewayCharge.publicId,
+    paymentPublicId: gatewayCharge.payment?.publicId ?? null,
+    provider: gatewayCharge.provider,
+    externalId: gatewayCharge.externalId,
+    status: gatewayCharge.status,
+    amountCents: Number(gatewayCharge.amountCents),
+    pixCopyPaste: gatewayCharge.pixCopyPaste,
+    lastCheckedAt: gatewayCharge.lastCheckedAt?.toISOString() ?? null,
+    canceledAt: gatewayCharge.canceledAt?.toISOString() ?? null,
+    createdAt: gatewayCharge.createdAt.toISOString(),
+  })),
+  financialReversals: charge.financialReversals.map((reversal) => ({
+    publicId: reversal.publicId,
+    type: reversal.type,
+    amountCents: Number(reversal.amountCents),
+    effectiveAt: reversal.effectiveAt.toISOString(),
+    provider: reversal.provider,
+    externalReference: reversal.externalReference,
+  })),
+  createdAt: charge.createdAt.toISOString(),
+  updatedAt: charge.updatedAt.toISOString(),
+});
+
 const UuidParamSchema = z.object({ membershipPublicId: z.uuid() }).strict();
 const ChargeUuidParamSchema = z
   .object({ membershipPublicId: z.uuid(), publicId: z.uuid() })
@@ -45,17 +91,7 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
       options.authService.requireCapability(request.tenant, 'memberships.manage');
       const charges = await service.list(request.tenant.id, request.params.membershipPublicId);
       return {
-        items: charges.map((c) => ({
-          publicId: c.publicId,
-          periodStart: c.periodStart.toISOString(),
-          periodEnd: c.periodEnd.toISOString(),
-          amountCents: Number(c.amountCents),
-          status: c.status,
-          dueAt: c.dueAt.toISOString(),
-          paidAt: c.paidAt?.toISOString() ?? null,
-          createdAt: c.createdAt.toISOString(),
-          updatedAt: c.updatedAt.toISOString(),
-        })),
+        items: charges.map(toPublicCharge),
       };
     },
   );
@@ -67,17 +103,7 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
       options.authService.requirePermission(request.tenant, 'tenant.read');
       options.authService.requireCapability(request.tenant, 'memberships.manage');
       const charge = await service.get(request.tenant.id, request.params.publicId);
-      return {
-        publicId: charge.publicId,
-        periodStart: charge.periodStart.toISOString(),
-        periodEnd: charge.periodEnd.toISOString(),
-        amountCents: Number(charge.amountCents),
-        status: charge.status,
-        dueAt: charge.dueAt.toISOString(),
-        paidAt: charge.paidAt?.toISOString() ?? null,
-        createdAt: charge.createdAt.toISOString(),
-        updatedAt: charge.updatedAt.toISOString(),
-      };
+      return toPublicCharge(charge);
     },
   );
 
@@ -109,17 +135,7 @@ export const customerMembershipChargeRoutes: FastifyPluginAsyncZod<Options> = as
       });
       const updated = await service.get(request.tenant.id, charge.publicId);
 
-      return {
-        publicId: updated.publicId,
-        periodStart: updated.periodStart.toISOString(),
-        periodEnd: updated.periodEnd.toISOString(),
-        amountCents: Number(updated.amountCents),
-        status: updated.status,
-        dueAt: updated.dueAt.toISOString(),
-        paidAt: updated.paidAt?.toISOString() ?? null,
-        createdAt: updated.createdAt.toISOString(),
-        updatedAt: updated.updatedAt.toISOString(),
-      };
+      return toPublicCharge(updated);
     },
   );
 };

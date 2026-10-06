@@ -18,13 +18,14 @@ interface Options {
 }
 
 const UuidParamSchema = z.object({ publicId: z.uuid() }).strict();
+const MembershipDetailQuerySchema = z.object({ membershipPublicId: z.uuid().optional() }).strict();
 const CreateMembershipSchema = z.object({ planPublicId: z.uuid() }).strict();
 const ListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
   planPublicId: z.uuid().optional(),
-  status: z.enum(['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED', 'CANCELED']).optional(),
+  status: z.enum(['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED', 'CANCELED', 'EXPIRED']).optional(),
 }).strict();
 
 export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (app, options) => {
@@ -38,9 +39,12 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
   const chargeService = new CustomerMembershipChargeService(chargeRepository);
   const service = new CustomerMembershipService(repository, chargeService, options.paymentGateway);
 
-  app.get<{ Params: z.infer<typeof UuidParamSchema> }>(
+  app.get<{
+    Params: z.infer<typeof UuidParamSchema>;
+    Querystring: z.infer<typeof MembershipDetailQuerySchema>;
+  }>(
     '/tenant/customers/:publicId/membership',
-    { schema: { params: UuidParamSchema } },
+    { schema: { params: UuidParamSchema, querystring: MembershipDetailQuerySchema } },
     async (request) => {
       options.authService.requirePermission(request.tenant, 'tenant.read');
       options.authService.requireCapability(request.tenant, 'memberships.manage');
@@ -51,7 +55,9 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
           message: 'Cliente não encontrado.',
           statusCode: 404,
         });
-      const membership = await repository.findByCustomer(request.tenant.id, customer.id);
+      const membership = request.query.membershipPublicId
+        ? await repository.find(request.tenant.id, request.query.membershipPublicId)
+        : await repository.findLatestByCustomerForDetail(request.tenant.id, customer.id);
       if (membership === null)
         throw new AppError({
           code: 'CUSTOMER_MEMBERSHIP_NOT_FOUND',
@@ -69,6 +75,8 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
         currentPeriodEnd: membership.currentPeriodEnd?.toISOString() ?? null,
         nextBillingAt: membership.nextBillingAt?.toISOString() ?? null,
         cancelAtPeriodEnd: membership.cancelAtPeriodEnd,
+        canceledAt: membership.canceledAt?.toISOString() ?? null,
+        priceCents: Number(membership.plan.priceCents),
         createdAt: membership.createdAt.toISOString(),
         updatedAt: membership.updatedAt.toISOString(),
       };
@@ -104,6 +112,8 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
         currentPeriodEnd: membership.currentPeriodEnd?.toISOString() ?? null,
         nextBillingAt: membership.nextBillingAt?.toISOString() ?? null,
         cancelAtPeriodEnd: membership.cancelAtPeriodEnd,
+        canceledAt: membership.canceledAt?.toISOString() ?? null,
+        priceCents: Number(membership.plan.priceCents),
         createdAt: membership.createdAt.toISOString(),
         updatedAt: membership.updatedAt.toISOString(),
       };

@@ -149,6 +149,8 @@ export const CustomerMembershipPublicSchema = z.object({
   currentPeriodEnd: z.string().datetime().nullable(),
   nextBillingAt: z.string().datetime().nullable(),
   cancelAtPeriodEnd: z.boolean(),
+  canceledAt: z.string().datetime().nullable().optional(),
+  priceCents: z.number().int().nonnegative().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -160,8 +162,47 @@ export const CreateCustomerMembershipRequestSchema = z.object({
 export type CreateCustomerMembershipRequest = z.infer<typeof CreateCustomerMembershipRequestSchema>;
 
 // Charge
-export const CustomerMembershipChargeStatusSchema = z.enum(['PENDING', 'PAID', 'FAILED']);
+export const CustomerMembershipChargeStatusSchema = z.enum([
+  'PENDING',
+  'PAID',
+  'FAILED',
+  'CANCELED',
+  'REFUNDED',
+]);
 export type CustomerMembershipChargeStatus = z.infer<typeof CustomerMembershipChargeStatusSchema>;
+
+export const CustomerMembershipPaymentPublicSchema = z.object({
+  publicId: z.string().uuid(),
+  status: z.enum(['PAID', 'CANCELED']),
+  amountCents: z.number().int().nonnegative(),
+  paidAt: z.string().datetime().nullable(),
+  paymentMethodName: z.string(),
+  paymentMethodType: z.string(),
+  originType: z.literal('MEMBERSHIP_CHARGE'),
+  createdAt: z.string().datetime(),
+});
+
+export const CustomerMembershipGatewayChargePublicSchema = z.object({
+  publicId: z.string().uuid(),
+  paymentPublicId: z.string().uuid().nullable(),
+  provider: z.string(),
+  externalId: z.string().nullable(),
+  status: z.enum(['PENDING', 'PROCESSING', 'PAID', 'FAILED', 'CANCELED', 'EXPIRED', 'REFUNDED']),
+  amountCents: z.number().int().nonnegative(),
+  pixCopyPaste: z.string().nullable(),
+  lastCheckedAt: z.string().datetime().nullable(),
+  canceledAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+});
+
+export const CustomerMembershipFinancialReversalPublicSchema = z.object({
+  publicId: z.string().uuid(),
+  type: z.enum(['REFUND', 'CHARGEBACK']),
+  amountCents: z.number().int().nonnegative(),
+  effectiveAt: z.string().datetime(),
+  provider: z.string().nullable(),
+  externalReference: z.string().nullable(),
+});
 
 export const CustomerMembershipChargePublicSchema = z.object({
   publicId: z.string().uuid(),
@@ -171,6 +212,9 @@ export const CustomerMembershipChargePublicSchema = z.object({
   status: CustomerMembershipChargeStatusSchema,
   dueAt: z.string().datetime(),
   paidAt: z.string().datetime().nullable(),
+  payments: z.array(CustomerMembershipPaymentPublicSchema).default([]),
+  gatewayCharges: z.array(CustomerMembershipGatewayChargePublicSchema).default([]),
+  financialReversals: z.array(CustomerMembershipFinancialReversalPublicSchema).default([]),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

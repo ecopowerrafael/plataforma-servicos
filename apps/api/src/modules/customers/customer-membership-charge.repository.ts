@@ -6,7 +6,7 @@ export class CustomerMembershipChargeRepository {
   public list(tenantId: bigint, membershipId: bigint) {
     return this.client.customerMembershipCharge.findMany({
       where: { tenantId, membershipId },
-      include: { payments: true },
+      include: this.detailInclude,
       orderBy: { periodStart: 'desc' },
     });
   }
@@ -14,7 +14,7 @@ export class CustomerMembershipChargeRepository {
   public find(tenantId: bigint, publicId: string) {
     return this.client.customerMembershipCharge.findFirst({
       where: { tenantId, publicId },
-      include: { payments: true },
+      include: this.detailInclude,
     });
   }
 
@@ -31,7 +31,7 @@ export class CustomerMembershipChargeRepository {
         periodStart: { lte: periodEnd },
         periodEnd: { gte: periodStart },
       },
-      include: { payments: true },
+      include: this.detailInclude,
     });
   }
 
@@ -45,7 +45,7 @@ export class CustomerMembershipChargeRepository {
   public create(data: Prisma.CustomerMembershipChargeUncheckedCreateInput) {
     return this.client.customerMembershipCharge.create({
       data,
-      include: { payments: true },
+      include: this.detailInclude,
     });
   }
 
@@ -61,7 +61,7 @@ export class CustomerMembershipChargeRepository {
     if (updated.count === 0) return null;
     return this.client.customerMembershipCharge.findFirst({
       where: { id, tenantId },
-      include: { payments: true },
+      include: this.detailInclude,
     });
   }
 
@@ -81,7 +81,7 @@ export class CustomerMembershipChargeRepository {
         periodStart: { lte: now },
         periodEnd: { gt: now }, // Ensure now is strictly before periodEnd
       },
-      include: { payments: true },
+      include: this.detailInclude,
     });
   }
 
@@ -104,4 +104,10 @@ export class CustomerMembershipChargeRepository {
       },
     });
   }
+
+  private readonly detailInclude = {
+    payments: { include: { paymentMethod: { select: { name: true, type: true } } } },
+    gatewayCharges: { include: { payment: { select: { publicId: true } } } },
+    financialReversals: true,
+  } as const;
 }

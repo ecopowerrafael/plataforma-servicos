@@ -35,18 +35,24 @@ function createService(data: {
   allMovements: Array<{ direction: 'IN' | 'OUT'; amountCents: bigint }>;
   commissionAmountCents: bigint;
   commissionCount: number;
+  membershipReversals?: Array<{ type: 'REFUND' | 'CHARGEBACK'; amountCents: bigint }>;
 }) {
+  let paymentFindManyCall = 0;
   const client = {
     payment: {
-      findMany: vi.fn((args: { where: { paidAt?: unknown; originType?: string } }) => {
-        if (args.where.originType === 'MEMBERSHIP_CHARGE')
-          return Promise.resolve(
-            data.receivedPayments.filter((item) => item.originType === 'MEMBERSHIP_CHARGE'),
-          );
-        if (args.where.paidAt !== undefined)
-          return Promise.resolve(data.unitReceivedPayments ?? data.receivedPayments);
-        return Promise.resolve(data.legacyPayments);
-      }),
+      findMany: vi.fn(
+        (args: { where: { paidAt?: unknown; originType?: string; appointment?: unknown } }) => {
+          paymentFindManyCall += 1;
+          if (paymentFindManyCall === 1) return Promise.resolve(data.legacyPayments);
+          if (args.where.originType === 'MEMBERSHIP_CHARGE')
+            return Promise.resolve(
+              data.receivedPayments.filter((item) => item.originType === 'MEMBERSHIP_CHARGE'),
+            );
+          if (args.where.paidAt !== undefined)
+            return Promise.resolve(data.unitReceivedPayments ?? data.receivedPayments);
+          return Promise.resolve(data.legacyPayments);
+        },
+      ),
       aggregate: vi.fn().mockResolvedValue({ _sum: { amountCents: 0n }, _count: 0 }),
     },
     cashMovement: {
@@ -68,6 +74,9 @@ function createService(data: {
     },
     appointment: {
       aggregate: vi.fn().mockResolvedValue({ _sum: { priceCents: 0n }, _count: 0 }),
+    },
+    customerMembershipFinancialReversal: {
+      findMany: vi.fn().mockResolvedValue(data.membershipReversals ?? []),
     },
   };
   const delinquency = { list: vi.fn().mockResolvedValue({ totalBalanceCents: '0', items: [] }) };
@@ -238,7 +247,7 @@ describe('FinancialReportService V1 consolidado', () => {
       byProfessional: [],
       byUnit: [],
       comparison: null,
-    } as never;
+    } as unknown as Awaited<ReturnType<FinancialReportService['get']>>;
     const csv = service.toCsv(report);
 
     expect(result.professionalPayoutsCents).toBe('-50000');
@@ -246,7 +255,7 @@ describe('FinancialReportService V1 consolidado', () => {
     expect(csv).toContain('Repasses líquidos,-500.00');
   });
 
-  it('mantém precisão BigInt e exporta as novas métricas sem Receita líquida', async () => {
+  it('mantém precisão BigInt e exporta as novas métricas', async () => {
     const huge = 9007199254740993n;
     const service = createService({
       legacyPayments: [],
@@ -263,14 +272,38 @@ describe('FinancialReportService V1 consolidado', () => {
       byProfessional: [],
       byUnit: [],
       comparison: null,
-    } as never;
+    } as unknown as Awaited<ReturnType<FinancialReportService['get']>>;
     const csv = service.toCsv(report);
 
     expect(report.summary.debtRevenueCents).toBe(huge.toString());
     expect(csv).toContain('Receita recebida');
+    expect(csv).toContain('Receita líquida');
     expect(csv).toContain('Resultado operacional');
     expect(csv).toContain('Resultado de caixa');
-    expect(csv).not.toContain('Receita líquida');
     expect(csv).toContain('90071992547409.93');
+  });
+
+  it('calcula refund e chargeback pela data efetiva sem alterar a receita bruta', async () => {
+    const service = createService({
+      legacyPayments: [payment(100n, 'MEMBERSHIP_CHARGE', from, from)],
+      receivedPayments: [{ amountCents: 100n, originType: 'MEMBERSHIP_CHARGE' }],
+      manualMovements: [],
+      allMovements: [],
+      commissionAmountCents: 0n,
+      commissionCount: 0,
+      membershipReversals: [
+        { type: 'REFUND', amountCents: 60n },
+        { type: 'CHARGEBACK', amountCents: 40n },
+      ],
+    });
+
+    const result = await summary(service);
+
+    expect(result.grossRevenueCents).toBe('100');
+    expect(result.membershipRevenueCents).toBe('100');
+    expect(result.membershipRefundsCents).toBe('60');
+    expect(result.membershipChargebacksCents).toBe('40');
+    expect(result.netMembershipRevenueCents).toBe('0');
+    expect(result.netRevenueCents).toBe('0');
   });
 });

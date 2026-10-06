@@ -14,6 +14,9 @@ export interface GatewayChargeResult {
   externalId: string;
   status: PaymentGatewayChargeStatus;
   raw: unknown;
+  financialReversalType?: 'REFUND' | 'CHARGEBACK';
+  reversalAmountCents?: bigint;
+  effectiveAt?: Date;
   /** Copia-e-cola PIX, quando o provedor gerar uma cobrança PIX (nunca a imagem do QR). */
   pixCopyPaste?: string | null;
 }
@@ -23,6 +26,9 @@ export interface GatewayWebhookEvent {
   externalId: string | null;
   status: PaymentGatewayChargeStatus;
   raw: unknown;
+  financialReversalType?: 'REFUND' | 'CHARGEBACK';
+  reversalAmountCents?: bigint;
+  effectiveAt?: Date;
 }
 
 /**

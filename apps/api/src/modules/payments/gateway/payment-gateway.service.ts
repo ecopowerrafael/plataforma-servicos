@@ -20,6 +20,10 @@ import { AppError } from '../../../errors/AppError.js';
 import { type DebtPixPaymentService } from '../../collections/debt-pix-payment.service.js';
 import { type CustomerMembershipPaymentService } from '../../customers/customer-membership-payment.service.js';
 import { assertCustomerMembershipFeatureEnabled } from '../../customers/customer-membership-feature-gate.js';
+import {
+  CustomerMembershipFinancialReversalService,
+  type MembershipFinancialReversalType,
+} from '../../customers/customer-membership-financial-reversal.service.js';
 import { type PaymentMethodService } from '../payment-method.service.js';
 import { type PaymentService } from '../payment.service.js';
 
@@ -68,6 +72,8 @@ const pubCharge = (
   });
 
 export class PaymentGatewayService {
+  private readonly membershipFinancialReversals: CustomerMembershipFinancialReversalService;
+
   public constructor(
     private readonly client: PrismaClient,
     private readonly registry: PaymentGatewayProviderRegistry,
@@ -76,7 +82,9 @@ export class PaymentGatewayService {
     private readonly payments: PaymentService,
     private readonly debtPixPayments?: DebtPixPaymentService,
     private readonly membershipPayments?: CustomerMembershipPaymentService,
-  ) {}
+  ) {
+    this.membershipFinancialReversals = new CustomerMembershipFinancialReversalService(client);
+  }
 
   public async getConfig(tenantId: bigint, provider: string) {
     const config = await this.client.paymentGatewayConfig.findFirst({
@@ -679,6 +687,14 @@ export class PaymentGatewayService {
           else await this.auditSupersededPaidCharge(charge);
           charge = await this.findChargeOrThrow(tenantId, chargePublicId);
         }
+        if (charge.status === 'REFUNDED' && result.financialReversalType !== undefined)
+          await this.reconcileMembershipFinancialReversal(
+            charge,
+            result.financialReversalType,
+            result.reversalAmountCents ?? charge.amountCents,
+            result.effectiveAt ?? new Date(),
+            result.externalId,
+          );
       } catch (error) {
         await this.logEvent({
           tenantId,
@@ -1014,9 +1030,25 @@ export class PaymentGatewayService {
 
     if (charge === null) return { deduplicated: false, matched: false };
 
+    let status = event.status;
+    let financialReversalType = event.financialReversalType;
+    let reversalAmountCents = event.reversalAmountCents;
+    let effectiveAt = event.effectiveAt;
+    if (event.externalId !== null && event.status === 'PROCESSING') {
+      const authoritative = await adapter.getCharge(
+        credentials,
+        config.environment,
+        event.externalId,
+      );
+      status = authoritative.status;
+      financialReversalType = authoritative.financialReversalType;
+      reversalAmountCents = authoritative.reversalAmountCents;
+      effectiveAt = authoritative.effectiveAt;
+    }
+
     const updated = await this.client.paymentGatewayCharge.update({
       where: { id: charge.id },
-      data: { status: event.status },
+      data: { status },
       include: {
         appointment: { select: { publicId: true } },
         debt: { select: { publicId: true } },
@@ -1027,8 +1059,36 @@ export class PaymentGatewayService {
       if (updated.supersededAt !== null) await this.auditSupersededPaidCharge(updated);
       else await this.reconcilePaidCharge(updated);
     }
+    if (updated.status === 'REFUNDED' && financialReversalType !== undefined)
+      await this.reconcileMembershipFinancialReversal(
+        updated,
+        financialReversalType,
+        reversalAmountCents ?? updated.amountCents,
+        effectiveAt ?? new Date(),
+        event.externalEventId ?? updated.externalId,
+      );
 
     return { deduplicated: false, matched: true };
+  }
+
+  private async reconcileMembershipFinancialReversal(
+    charge: PaymentGatewayCharge & { externalId?: string | null },
+    type: MembershipFinancialReversalType,
+    amountCents: bigint,
+    effectiveAt: Date,
+    externalReference: string | null,
+  ) {
+    if (charge.originType !== 'MEMBERSHIP_CHARGE') return;
+    return this.membershipFinancialReversals.reconcile({
+      tenantId: charge.tenantId,
+      paymentGatewayChargeId: charge.id,
+      type,
+      amountCents,
+      effectiveAt,
+      provider: charge.provider,
+      externalReference,
+      idempotencyKey: `membership-reversal:${charge.publicId}:${type}`,
+    });
   }
 
   /**
@@ -1063,6 +1123,7 @@ export class PaymentGatewayService {
         });
         if (membershipCharge === null) return;
         if (membershipCharge.status === 'CANCELED' || membershipCharge.status === 'REFUNDED') {
+          const preserveRefundedStatus = membershipCharge.status === 'REFUNDED';
           const membershipPayments = this.membershipPayments;
           if (membershipPayments === undefined) return;
           const methodName = `Gateway (${charge.provider})`;
@@ -1080,14 +1141,22 @@ export class PaymentGatewayService {
           });
           if (methodRecord === null) return;
           const payment = await this.client.$transaction(async (tx) => {
-            const latePayment =
-              await membershipPayments.recordLatePaidMembershipChargeWithinTransaction(
-                tx,
-                charge.tenantId,
-                membershipCharge.publicId,
-                methodRecord.id,
-                actor,
-              );
+            const latePayment = preserveRefundedStatus
+              ? await membershipPayments.recordLatePaidMembershipChargeWithinTransaction(
+                  tx,
+                  charge.tenantId,
+                  membershipCharge.publicId,
+                  methodRecord.id,
+                  actor,
+                  { preserveRefundedStatus: true },
+                )
+              : await membershipPayments.recordLatePaidMembershipChargeWithinTransaction(
+                  tx,
+                  charge.tenantId,
+                  membershipCharge.publicId,
+                  methodRecord.id,
+                  actor,
+                );
             await tx.paymentGatewayCharge.update({
               where: { id: charge.id },
               data: { paymentId: latePayment.id },
@@ -1105,6 +1174,12 @@ export class PaymentGatewayService {
             });
             return latePayment;
           });
+          if (preserveRefundedStatus)
+            await this.membershipFinancialReversals.attachPayment(
+              charge.tenantId,
+              charge.id,
+              payment.id,
+            );
           void payment;
           return;
         }

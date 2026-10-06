@@ -99,13 +99,14 @@ export class FinancialReportService {
       commissions,
       canceledAppointments,
       noShowAppointments,
+      membershipReversals,
       delinquencyResult,
     ] = await Promise.all([
       this.client.payment.findMany({
         where: {
           tenantId,
           status: 'PAID',
-          createdAt: { gte: filters.from, lt: filters.to },
+          paidAt: { gte: filters.from, lt: filters.to },
           appointment: appointmentFilter,
         },
         select: {
@@ -223,6 +224,13 @@ export class FinancialReportService {
         _sum: { priceCents: true },
         _count: true,
       }),
+      this.client.customerMembershipFinancialReversal.findMany({
+        where: {
+          tenantId,
+          effectiveAt: { gte: filters.from, lt: filters.to },
+        },
+        select: { type: true, amountCents: true },
+      }),
       // Saldo pendente/inadimplência reflete a exposição financeira atual (independente do
       // período do relatório) — um agendamento agendado fora do período ainda pode ter saldo
       // em aberto hoje, e é isso que este número deve responder.
@@ -238,7 +246,6 @@ export class FinancialReportService {
     const depositPayments = paidPayments.filter((item) => item.kind === 'DEPOSIT');
     const depositsCents = depositPayments.reduce((total, item) => total + item.amountCents, 0n);
     const commissionsCents = commissions._sum.commissionAmountCents ?? 0n;
-    const netRevenueCents = grossRevenueCents - commissionsCents;
     const revenueByOrigin = (originType: 'APPOINTMENT' | 'MEMBERSHIP_CHARGE' | 'DEBT') =>
       receivedPayments
         .filter((item) => item.originType === originType)
@@ -249,6 +256,16 @@ export class FinancialReportService {
     );
     const appointmentRevenueCents = revenueByOrigin('APPOINTMENT');
     const membershipRevenueCents = revenueByOrigin('MEMBERSHIP_CHARGE');
+    const membershipRefundsCents = membershipReversals
+      .filter((item) => item.type === 'REFUND')
+      .reduce((total, item) => total + item.amountCents, 0n);
+    const membershipChargebacksCents = membershipReversals
+      .filter((item) => item.type === 'CHARGEBACK')
+      .reduce((total, item) => total + item.amountCents, 0n);
+    const visibleMembershipRefundsCents = isUnitPartialView ? 0n : membershipRefundsCents;
+    const visibleMembershipChargebacksCents = isUnitPartialView ? 0n : membershipChargebacksCents;
+    const netMembershipRevenueCents =
+      membershipRevenueCents - visibleMembershipRefundsCents - visibleMembershipChargebacksCents;
     const debtRevenueCents = revenueByOrigin('DEBT');
     const manualInCents = manualMovements
       .filter((item) => item.direction === 'IN')
@@ -266,8 +283,14 @@ export class FinancialReportService {
       professionalPayoutsOutCents - professionalPayoutReversalInCents;
     const otherManualOutCents = manualOutCents - professionalPayoutsOutCents;
     const otherManualInCents = manualInCents - professionalPayoutReversalInCents;
+    const reversalCents = visibleMembershipRefundsCents + visibleMembershipChargebacksCents;
+    const netRevenueCents = grossRevenueCents - reversalCents - commissionsCents;
     const operatingResultCents =
-      receivedRevenueCents - commissionsCents - professionalPayoutsCents - otherManualOutCents;
+      receivedRevenueCents -
+      reversalCents -
+      commissionsCents -
+      professionalPayoutsCents -
+      otherManualOutCents;
     const globalUnallocatedMembershipRevenueCents = globalMembershipPayments.reduce(
       (total, item) => total + item.amountCents,
       0n,
@@ -341,6 +364,9 @@ export class FinancialReportService {
       receivedRevenueCents: receivedRevenueCents.toString(),
       appointmentRevenueCents: appointmentRevenueCents.toString(),
       membershipRevenueCents: membershipRevenueCents.toString(),
+      membershipRefundsCents: visibleMembershipRefundsCents.toString(),
+      membershipChargebacksCents: visibleMembershipChargebacksCents.toString(),
+      netMembershipRevenueCents: netMembershipRevenueCents.toString(),
       debtRevenueCents: debtRevenueCents.toString(),
       traditionalCommissionsCents: commissionsCents.toString(),
       professionalPayoutsCents: professionalPayoutsCents.toString(),
@@ -350,6 +376,14 @@ export class FinancialReportService {
       operatingResultCents: operatingResultCents.toString(),
       cashResultCents: cashMovementsNetCents.toString(),
       globalUnallocatedMembershipRevenueCents: globalUnallocatedMembershipRevenueCents.toString(),
+      globalUnallocatedMembershipRefundsCents: (isUnitPartialView
+        ? membershipRefundsCents
+        : 0n
+      ).toString(),
+      globalUnallocatedMembershipChargebacksCents: (isUnitPartialView
+        ? membershipChargebacksCents
+        : 0n
+      ).toString(),
       globalUnallocatedProfessionalPayoutsCents:
         globalUnallocatedProfessionalPayoutsCents.toString(),
       globalUnallocatedManualOutCents: globalUnallocatedManualOutCents.toString(),
@@ -440,9 +474,15 @@ export class FinancialReportService {
     lines.push('');
     lines.push('Métrica,Valor');
     lines.push(`Receita bruta,${money(report.summary.grossRevenueCents)}`);
+    lines.push(`Receita líquida,${money(report.summary.netRevenueCents)}`);
     lines.push(`Receita recebida,${money(report.summary.receivedRevenueCents)}`);
     lines.push(`Receita de atendimentos,${money(report.summary.appointmentRevenueCents)}`);
     lines.push(`Receita de mensalidades,${money(report.summary.membershipRevenueCents)}`);
+    lines.push(`Refunds de mensalidades,${money(report.summary.membershipRefundsCents)}`);
+    lines.push(`Chargebacks de mensalidades,${money(report.summary.membershipChargebacksCents)}`);
+    lines.push(
+      `Receita líquida de mensalidades,${money(report.summary.netMembershipRevenueCents)}`,
+    );
     lines.push(`Receita de dívidas,${money(report.summary.debtRevenueCents)}`);
     lines.push(`Comissões tradicionais,${money(report.summary.traditionalCommissionsCents)}`);
     lines.push(`Repasses líquidos,${money(report.summary.professionalPayoutsCents)}`);
@@ -452,6 +492,12 @@ export class FinancialReportService {
     if (report.summary.isUnitPartialView) {
       lines.push(
         `Mensalidades globais não atribuídas,${money(report.summary.globalUnallocatedMembershipRevenueCents)}`,
+      );
+      lines.push(
+        `Refunds de mensalidades globais não atribuídos,${money(report.summary.globalUnallocatedMembershipRefundsCents)}`,
+      );
+      lines.push(
+        `Chargebacks de mensalidades globais não atribuídos,${money(report.summary.globalUnallocatedMembershipChargebacksCents)}`,
       );
       lines.push(
         `Repasses líquidos globais não atribuídos,${money(report.summary.globalUnallocatedProfessionalPayoutsCents)}`,

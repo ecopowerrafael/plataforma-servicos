@@ -17,6 +17,10 @@ interface ConfirmMembershipChargeOptions {
   allowDisabledFeatureReconciliation?: boolean;
 }
 
+interface LateMembershipChargeOptions {
+  preserveRefundedStatus?: boolean;
+}
+
 function chargeNotFound() {
   return new AppError({
     code: 'CUSTOMER_MEMBERSHIP_CHARGE_NOT_FOUND',
@@ -34,6 +38,7 @@ export class CustomerMembershipPaymentService {
     chargePublicId: string,
     paymentMethodId: bigint,
     actor: Actor,
+    options: LateMembershipChargeOptions = {},
   ): Promise<Payment> {
     const locked = await tx.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
       SELECT id FROM customer_membership_charges
@@ -79,17 +84,21 @@ export class CustomerMembershipPaymentService {
       payment.debtId,
     );
     const paidAt = new Date();
-    await tx.customerMembershipCharge.update({
-      where: { id: charge.id },
-      data: { status: 'PAID', paidAt },
-    });
+    if (options.preserveRefundedStatus !== true)
+      await tx.customerMembershipCharge.update({
+        where: { id: charge.id },
+        data: { status: 'PAID', paidAt },
+      });
     await tx.auditLog.create({
       data: {
         publicId: randomUUID(),
         tenantId,
         userId: actor.userId,
         sessionId: actor.sessionId,
-        action: 'customer_membership_charge.payment_late_after_cancel',
+        action:
+          options.preserveRefundedStatus === true
+            ? 'customer_membership_charge.payment_late_after_refund'
+            : 'customer_membership_charge.payment_late_after_cancel',
         targetType: 'customer_membership_charge',
         targetPublicId: charge.publicId,
       },

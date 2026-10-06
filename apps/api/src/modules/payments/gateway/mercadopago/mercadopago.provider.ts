@@ -32,6 +32,46 @@ function mapStatus(mpStatus: unknown): GatewayChargeResult['status'] {
   }
 }
 
+function mapFinancialReversalType(mpStatus: unknown): GatewayChargeResult['financialReversalType'] {
+  if (mpStatus === 'charged_back') return 'CHARGEBACK';
+  if (mpStatus === 'refunded') return 'REFUND';
+  return undefined;
+}
+
+function parseAmountCents(value: unknown): bigint | undefined {
+  if (typeof value !== 'number' && typeof value !== 'string') return undefined;
+  const normalized = String(value);
+  if (!/^\d+(?:\.\d{1,2})?$/u.test(normalized)) return undefined;
+  const [whole = '0', fraction = ''] = normalized.split('.');
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+}
+
+function parseEffectiveAt(body: Record<string, unknown>): Date | undefined {
+  for (const key of ['date_last_updated', 'date_approved', 'date_created']) {
+    const value = body[key];
+    if (typeof value !== 'string') continue;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return undefined;
+}
+
+function reversalFields(body: Record<string, unknown>) {
+  const status = body.status;
+  const fields: {
+    financialReversalType?: 'REFUND' | 'CHARGEBACK';
+    reversalAmountCents?: bigint;
+    effectiveAt?: Date;
+  } = {};
+  const financialReversalType = mapFinancialReversalType(status);
+  const reversalAmountCents = parseAmountCents(body.transaction_amount_refunded);
+  const effectiveAt = parseEffectiveAt(body);
+  if (financialReversalType !== undefined) fields.financialReversalType = financialReversalType;
+  if (reversalAmountCents !== undefined) fields.reversalAmountCents = reversalAmountCents;
+  if (effectiveAt !== undefined) fields.effectiveAt = effectiveAt;
+  return fields;
+}
+
 function accessToken(credentials: Record<string, unknown>): string {
   const value = credentials.accessToken;
   if (typeof value !== 'string' || value.length === 0)
@@ -115,7 +155,7 @@ export class MercadoPagoProviderAdapter implements PaymentGatewayProviderAdapter
       );
 
     const body = response.body as Record<string, unknown>;
-    return { externalId, status: mapStatus(body.status), raw: body };
+    return { externalId, status: mapStatus(body.status), raw: body, ...reversalFields(body) };
   }
 
   public async cancelCharge(
@@ -185,13 +225,19 @@ export class MercadoPagoProviderAdapter implements PaymentGatewayProviderAdapter
 
   public parseWebhookEvent(rawBody: string): GatewayWebhookEvent {
     try {
-      const parsed = JSON.parse(rawBody) as {
+      const parsed = JSON.parse(rawBody) as Record<string, unknown> & {
         id?: string | number;
         data?: { id?: string | number };
       };
       const externalEventId = parsed.id === undefined ? null : String(parsed.id);
       const externalId = parsed.data?.id === undefined ? null : String(parsed.data.id);
-      return { externalEventId, externalId, status: 'PROCESSING', raw: parsed };
+      return {
+        externalEventId,
+        externalId,
+        status: mapStatus(parsed.status),
+        raw: parsed,
+        ...reversalFields(parsed),
+      };
     } catch {
       return { externalEventId: null, externalId: null, status: 'PROCESSING', raw: rawBody };
     }

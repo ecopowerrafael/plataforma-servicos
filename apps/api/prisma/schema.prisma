@@ -360,6 +360,11 @@ enum PaymentGatewayEventDirection {
   INBOUND
 }
 
+enum CustomerMembershipFinancialReversalType {
+  REFUND
+  CHARGEBACK
+}
+
 enum BusinessUnitStatus {
   ACTIVE
   INACTIVE
@@ -570,6 +575,7 @@ model Tenant {
   customerMembershipPlans      CustomerMembershipPlan[]
   customerMemberships          CustomerMembership[]
   customerMembershipCharges    CustomerMembershipCharge[]
+  customerMembershipFinancialReversals CustomerMembershipFinancialReversal[]
   customerMembershipUsages     CustomerMembershipUsage[]
   operatingModelTransitions    TenantOperatingModelTransition[]
   notificationLogs             NotificationLog[]
@@ -2635,6 +2641,7 @@ model Payment {
   receipt                  Receipt?
   commission               ProfessionalCommission?
   gatewayCharge            PaymentGatewayCharge?
+  financialReversals       CustomerMembershipFinancialReversal[]
   supersededGatewayCharges PaymentGatewayCharge[]    @relation("PaymentGatewayChargeSupersededBy")
   loyaltyLedgerEntries     LoyaltyLedgerEntry[]
   debtAllocations          DebtPaymentAllocation[]
@@ -2894,6 +2901,7 @@ model PaymentGatewayCharge {
   membershipCharge      CustomerMembershipCharge?  @relation(fields: [membershipChargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   payment               Payment?                   @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   supersededByPayment   Payment?                   @relation("PaymentGatewayChargeSupersededBy", fields: [supersededByPaymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  financialReversals    CustomerMembershipFinancialReversal[]
   events                PaymentGatewayEvent[]
 
   @@unique([tenantId, idempotencyKey])
@@ -3706,11 +3714,40 @@ model CustomerMembershipCharge {
   payments       Payment[]                      @relation("PaymentToMembershipCharge")
   gatewayCharges PaymentGatewayCharge[]
   usages         CustomerMembershipUsage[]
+  financialReversals CustomerMembershipFinancialReversal[]
 
   @@unique([membershipId, periodStart])
   @@index([tenantId, status, dueAt])
   @@index([tenantId, membershipId, createdAt])
   @@map("customer_membership_charges")
+}
+
+model CustomerMembershipFinancialReversal {
+  id                     BigInt                                  @id @default(autoincrement()) @db.UnsignedBigInt
+  publicId               String                                  @unique @map("public_id") @db.Char(36)
+  tenantId               BigInt                                  @map("tenant_id") @db.UnsignedBigInt
+  membershipChargeId     BigInt                                  @map("membership_charge_id") @db.UnsignedBigInt
+  paymentId              BigInt?                                 @map("payment_id") @db.UnsignedBigInt
+  paymentGatewayChargeId BigInt?                                 @map("payment_gateway_charge_id") @db.UnsignedBigInt
+  type                   CustomerMembershipFinancialReversalType
+  amountCents            BigInt                                  @map("amount_cents") @db.UnsignedBigInt
+  effectiveAt            DateTime                                @map("effective_at") @db.DateTime(3)
+  provider               String?                                 @db.VarChar(64)
+  externalReference      String?                                 @map("external_reference") @db.VarChar(191)
+  idempotencyKey         String                                  @map("idempotency_key") @db.VarChar(191)
+  createdAt              DateTime                                @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt              DateTime                                @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  tenant                 Tenant                                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  membershipCharge       CustomerMembershipCharge                @relation(fields: [membershipChargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payment                Payment?                                @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentGatewayCharge   PaymentGatewayCharge?                    @relation(fields: [paymentGatewayChargeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, effectiveAt])
+  @@index([tenantId, membershipChargeId])
+  @@index([tenantId, paymentId])
+  @@index([tenantId, paymentGatewayChargeId])
+  @@map("customer_membership_financial_reversals")
 }
 
 model CustomerMembershipUsage {

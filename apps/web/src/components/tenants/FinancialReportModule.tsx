@@ -112,7 +112,10 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
   const summary = data?.summary;
   const comparison = data?.comparison ?? null;
   return (
-    <section className="sessions-panel financial-report financial-report--redesigned" aria-label="Relatórios financeiros">
+    <section
+      className="sessions-panel financial-report financial-report--redesigned"
+      aria-label="Relatórios financeiros"
+    >
       <PageHeader
         eyebrow="Financeiro"
         title="Relatórios"
@@ -179,8 +182,9 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
       ) : (
         <>
           <div className="report-metric-grid">
-            <Metric label="Receita bruta" value={money(summary.grossRevenueCents)} />
-            <Metric label="Receita líquida" value={money(summary.netRevenueCents)} />
+            <Metric label="Receita recebida" value={money(summary.receivedRevenueCents)} />
+            <Metric label="Resultado operacional" value={money(summary.operatingResultCents)} />
+            <Metric label="Resultado de caixa" value={money(summary.cashResultCents)} />
             <Metric
               label="Pagamentos recebidos"
               value={money(summary.paymentsReceivedCents)}
@@ -209,14 +213,26 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
               <p className="ds-eyebrow">Movimentações e perdas</p>
               <dl className="platform-details">
                 <div>
-                  <dt>Movimentação líquida de caixa</dt>
-                  <dd>{money(summary.cashMovementsNetCents)}</dd>
+                  <dt>Receita por origem</dt>
+                  <dd>
+                    Atendimentos {money(summary.appointmentRevenueCents)} · Mensalidades{' '}
+                    {money(summary.membershipRevenueCents)} · Dívidas{' '}
+                    {money(summary.debtRevenueCents)}
+                  </dd>
                 </div>
                 <div>
-                  <dt>Comissões geradas</dt>
+                  <dt>Comissões tradicionais</dt>
                   <dd>
-                    {money(summary.commissionsCents)} · {summary.commissionsCount}
+                    {money(summary.traditionalCommissionsCents)} · {summary.commissionsCount}
                   </dd>
+                </div>
+                <div>
+                  <dt>Repasses profissionais</dt>
+                  <dd>{money(summary.professionalPayoutsCents)}</dd>
+                </div>
+                <div>
+                  <dt>Outras saídas manuais</dt>
+                  <dd>{money(summary.otherManualOutCents)}</dd>
                 </div>
                 <div>
                   <dt>Cancelamentos</dt>

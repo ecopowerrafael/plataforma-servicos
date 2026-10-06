@@ -81,9 +81,14 @@ export class FinancialReportService {
     };
     const registerFilter: Prisma.CashRegisterWhereInput =
       filters.unitId === null ? {} : { unitId: filters.unitId };
+    const receivedPaymentScope: Prisma.PaymentWhereInput =
+      filters.unitId === null && filters.professionalId === null
+        ? {}
+        : { appointment: appointmentFilter };
 
     const [
       paidPayments,
+      receivedPayments,
       canceledPayments,
       manualMovements,
       allMovements,
@@ -116,6 +121,15 @@ export class FinancialReportService {
           },
         },
       }),
+      this.client.payment.findMany({
+        where: {
+          tenantId,
+          status: 'PAID',
+          paidAt: { gte: filters.from, lt: filters.to },
+          ...receivedPaymentScope,
+        },
+        select: { amountCents: true, originType: true },
+      }),
       this.client.payment.aggregate({
         where: {
           tenantId,
@@ -133,7 +147,7 @@ export class FinancialReportService {
           createdAt: { gte: filters.from, lt: filters.to },
           cashRegister: registerFilter,
         },
-        select: { direction: true, amountCents: true },
+        select: { direction: true, amountCents: true, professionalPayoutId: true },
       }),
       this.client.cashMovement.findMany({
         where: {
@@ -193,12 +207,35 @@ export class FinancialReportService {
     const depositsCents = depositPayments.reduce((total, item) => total + item.amountCents, 0n);
     const commissionsCents = commissions._sum.commissionAmountCents ?? 0n;
     const netRevenueCents = grossRevenueCents - commissionsCents;
+    const revenueByOrigin = (originType: 'APPOINTMENT' | 'MEMBERSHIP_CHARGE' | 'DEBT') =>
+      receivedPayments
+        .filter((item) => item.originType === originType)
+        .reduce((total, item) => total + item.amountCents, 0n);
+    const receivedRevenueCents = receivedPayments.reduce(
+      (total, item) => total + item.amountCents,
+      0n,
+    );
+    const appointmentRevenueCents = revenueByOrigin('APPOINTMENT');
+    const membershipRevenueCents = revenueByOrigin('MEMBERSHIP_CHARGE');
+    const debtRevenueCents = revenueByOrigin('DEBT');
     const manualInCents = manualMovements
       .filter((item) => item.direction === 'IN')
       .reduce((total, item) => total + item.amountCents, 0n);
     const manualOutCents = manualMovements
       .filter((item) => item.direction === 'OUT')
       .reduce((total, item) => total + item.amountCents, 0n);
+    const professionalPayoutsOutCents = manualMovements
+      .filter((item) => item.direction === 'OUT' && item.professionalPayoutId !== null)
+      .reduce((total, item) => total + item.amountCents, 0n);
+    const professionalPayoutReversalInCents = manualMovements
+      .filter((item) => item.direction === 'IN' && item.professionalPayoutId !== null)
+      .reduce((total, item) => total + item.amountCents, 0n);
+    const professionalPayoutsCents =
+      professionalPayoutsOutCents - professionalPayoutReversalInCents;
+    const otherManualOutCents = manualOutCents - professionalPayoutsOutCents;
+    const otherManualInCents = manualInCents - professionalPayoutReversalInCents;
+    const operatingResultCents =
+      receivedRevenueCents - commissionsCents - professionalPayoutsCents - otherManualOutCents;
     const cashMovementsNetCents = allMovements.reduce(
       (total, item) =>
         item.direction === 'IN' ? total + item.amountCents : total - item.amountCents,
@@ -254,6 +291,17 @@ export class FinancialReportService {
       cashManualInCents: manualInCents.toString(),
       cashManualOutCents: manualOutCents.toString(),
       cashMovementsNetCents: cashMovementsNetCents.toString(),
+      receivedRevenueCents: receivedRevenueCents.toString(),
+      appointmentRevenueCents: appointmentRevenueCents.toString(),
+      membershipRevenueCents: membershipRevenueCents.toString(),
+      debtRevenueCents: debtRevenueCents.toString(),
+      traditionalCommissionsCents: commissionsCents.toString(),
+      professionalPayoutsCents: professionalPayoutsCents.toString(),
+      professionalPayoutReversalInCents: professionalPayoutReversalInCents.toString(),
+      otherManualOutCents: otherManualOutCents.toString(),
+      otherManualInCents: otherManualInCents.toString(),
+      operatingResultCents: operatingResultCents.toString(),
+      cashResultCents: cashMovementsNetCents.toString(),
       commissionsCents: commissionsCents.toString(),
       commissionsCount: commissions._count,
       canceledAppointmentsCount: canceledAppointments._count,
@@ -272,7 +320,11 @@ export class FinancialReportService {
   }
 
   public async get(tenantId: bigint, query: FinancialReportQuery) {
-    await new PlanEntitlementService().assertFeatureEnabledForTenant(this.client, tenantId, 'advanced_reports.enabled');
+    await new PlanEntitlementService().assertFeatureEnabledForTenant(
+      this.client,
+      tenantId,
+      'advanced_reports.enabled',
+    );
     const [unitId, professionalId] = await Promise.all([
       this.resolveUnitId(tenantId, query.unitPublicId),
       this.resolveProfessionalId(tenantId, query.professionalPublicId),
@@ -320,14 +372,29 @@ export class FinancialReportService {
   }
 
   public toCsv(report: Awaited<ReturnType<FinancialReportService['get']>>): string {
-    const money = (cents: string) => (Number(cents) / 100).toFixed(2);
+    const money = (cents: string) => {
+      const value = BigInt(cents);
+      const negative = value < 0n;
+      const absolute = negative ? -value : value;
+      const whole = absolute / 100n;
+      const fraction = (absolute % 100n).toString().padStart(2, '0');
+      return `${negative ? '-' : ''}${whole.toString()}.${fraction}`;
+    };
     const lines: string[] = [];
     lines.push('Relatório financeiro');
     lines.push(`Período,${report.summary.from},${report.summary.to}`);
     lines.push('');
     lines.push('Métrica,Valor');
     lines.push(`Receita bruta,${money(report.summary.grossRevenueCents)}`);
-    lines.push(`Receita líquida,${money(report.summary.netRevenueCents)}`);
+    lines.push(`Receita recebida,${money(report.summary.receivedRevenueCents)}`);
+    lines.push(`Receita de atendimentos,${money(report.summary.appointmentRevenueCents)}`);
+    lines.push(`Receita de mensalidades,${money(report.summary.membershipRevenueCents)}`);
+    lines.push(`Receita de dívidas,${money(report.summary.debtRevenueCents)}`);
+    lines.push(`Comissões tradicionais,${money(report.summary.traditionalCommissionsCents)}`);
+    lines.push(`Repasses profissionais,${money(report.summary.professionalPayoutsCents)}`);
+    lines.push(`Outras saídas manuais,${money(report.summary.otherManualOutCents)}`);
+    lines.push(`Resultado operacional,${money(report.summary.operatingResultCents)}`);
+    lines.push(`Resultado de caixa,${money(report.summary.cashResultCents)}`);
     lines.push(
       `Pagamentos recebidos,${money(report.summary.paymentsReceivedCents)},${String(report.summary.paymentsReceivedCount)}`,
     );

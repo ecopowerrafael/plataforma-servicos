@@ -19,6 +19,7 @@ import {
 } from './appointment-format.js';
 import { AppointmentStatusBadge } from './appointment-status.js';
 import { AppointmentPaymentsPanel } from './AppointmentPaymentsPanel.js';
+import { AppointmentChargeSummary } from './AppointmentChargeSummary.js';
 import { httpClient } from '../../lib/http.js';
 
 const historyActionLabel = (action: 'CREATED' | 'STATUS_CHANGED' | 'RESCHEDULED' | 'CHECKED_IN') =>
@@ -94,7 +95,13 @@ export function AppointmentDetailDrawer({
         </header>
 
         <div className="appointments-drawer-body">
-          {detail.isPending && <div className="ds-list-skeleton"><i /><i /><i /></div>}
+          {detail.isPending && (
+            <div className="ds-list-skeleton">
+              <i />
+              <i />
+              <i />
+            </div>
+          )}
           {detail.error instanceof Error && (
             <div className="ds-inline-alert ds-inline-alert--danger">
               <div>
@@ -176,10 +183,23 @@ export function AppointmentDetailDrawer({
                   <dt>Origem</dt>
                   <dd>{formatSource(item.source)}</dd>
                 </div>
+                <div className="appointments-drawer-fact-wide">
+                  <dt>Cobrança</dt>
+                  <dd>
+                    <AppointmentChargeSummary
+                      source={item.chargeSource}
+                      referencePriceCents={item.referencePriceCents}
+                      amountDueCents={item.amountDueCents}
+                      showValues={canReadPayments}
+                    />
+                  </dd>
+                </div>
                 <div>
                   <dt>Check-in</dt>
                   <dd>
-                    {item.checkedInAt === null ? 'Não registrado' : formatDateTime(item.checkedInAt)}
+                    {item.checkedInAt === null
+                      ? 'Não registrado'
+                      : formatDateTime(item.checkedInAt)}
                   </dd>
                 </div>
                 {item.depositType !== null && (

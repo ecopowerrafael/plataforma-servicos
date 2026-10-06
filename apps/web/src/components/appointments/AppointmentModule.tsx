@@ -33,6 +33,7 @@ import {
 } from './appointment-format.js';
 import { AppointmentStatusBadge, type AppointmentStatus } from './appointment-status.js';
 import { AppointmentDetailDrawer } from './AppointmentDetailDrawer.js';
+import { AppointmentChargeSummary } from './AppointmentChargeSummary.js';
 import { AppointmentEditorDialog } from './AppointmentEditorDialog.js';
 import { httpClient } from '../../lib/http.js';
 import { AgendaCompleteDialog, type AgendaCompleteTarget } from '../agenda/AgendaCompleteDialog.js';
@@ -305,10 +306,8 @@ export function AppointmentModule({
         balanceCents: paymentStates.get(appointment.publicId)?.balanceCents ?? 0,
         mode: 'payment',
       });
-    else if (action === 'reschedule' || action === 'notes')
-      setEditor({ appointment });
-    else if (action === 'customer')
-      void navigate(`/app/clientes/${appointment.customerPublicId}`);
+    else if (action === 'reschedule' || action === 'notes') setEditor({ appointment });
+    else if (action === 'customer') void navigate(`/app/clientes/${appointment.customerPublicId}`);
     else if (action === 'whatsapp' && appointment.customerPhone !== null)
       window.open(whatsappLink(appointment.customerPhone), '_blank', 'noreferrer');
     else if (action === 'no_show')
@@ -705,7 +704,18 @@ export function AppointmentModule({
                       </div>
                     </td>
                     <td>{appointment.professionalName}</td>
-                    <td>{formatMoneyCents(appointment.priceCents)}</td>
+                    <td>
+                      {canReadPayments && appointment.chargeSource !== null ? (
+                        <AppointmentChargeSummary
+                          source={appointment.chargeSource}
+                          referencePriceCents={appointment.referencePriceCents}
+                          amountDueCents={appointment.amountDueCents}
+                          showValues
+                        />
+                      ) : (
+                        formatMoneyCents(appointment.priceCents)
+                      )}
+                    </td>
                     <td>
                       <AppointmentStatusBadge status={appointment.status} />
                     </td>
@@ -733,7 +743,18 @@ export function AppointmentModule({
                 <div className="appointments-card-head">
                   <strong>{formatTime(appointment.startsAt)}</strong>
                   <small>{formatDayLabel(appointment.startsAt)}</small>
-                  <span>{formatMoneyCents(appointment.priceCents)}</span>
+                  <span>
+                    {canReadPayments && appointment.chargeSource !== null ? (
+                      <AppointmentChargeSummary
+                        source={appointment.chargeSource}
+                        referencePriceCents={appointment.referencePriceCents}
+                        amountDueCents={appointment.amountDueCents}
+                        showValues
+                      />
+                    ) : (
+                      formatMoneyCents(appointment.priceCents)
+                    )}
+                  </span>
                 </div>
                 {customerCell(appointment)}
                 <p className="appointments-card-service">
@@ -871,8 +892,7 @@ export function AppointmentModule({
           onCompleted={() => {
             const { publicId, mode } = completeTarget;
             setCompleteTarget(null);
-            if (mode === 'complete')
-              statusMutation.mutate({ publicId, transition: 'completed' });
+            if (mode === 'complete') statusMutation.mutate({ publicId, transition: 'completed' });
             else void refresh();
           }}
         />

@@ -46,6 +46,29 @@
   border-radius: 12px;
   background: var(--ds-background-primary);
 }
+.membership-past-due-alert {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--ds-status-danger) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ds-status-danger) 8%, var(--ds-background-primary));
+}
+.membership-past-due-alert strong {
+  color: var(--ds-text-primary);
+}
+.membership-past-due-alert p {
+  margin: 0.25rem 0 0;
+  color: var(--ds-text-secondary);
+}
+.membership-past-due-alert .membership-detail-grid {
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--ds-status-danger) 25%, transparent);
+}
+.membership-reversal-context {
+  color: var(--ds-status-danger) !important;
+  font-weight: 600;
+}
 .membership-detail-summary {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

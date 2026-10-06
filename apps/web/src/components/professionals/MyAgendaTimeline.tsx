@@ -17,6 +17,7 @@ import {
   type TimelineEntry,
 } from './my-agenda.js';
 import { AppointmentStatusBadge } from '../appointments/appointment-status.js';
+import { AppointmentChargeSummary } from '../appointments/AppointmentChargeSummary.js';
 
 export interface MyAgendaPermissions {
   canConfirm: boolean;
@@ -255,6 +256,14 @@ export function MyAgendaNextCard({
       <div className="my-agenda-badges">
         <AppointmentStatusBadge status={appointment.status} />
         {isOverdue(appointment) && <span className="ds-badge ds-badge--danger">Atrasado</span>}
+        {appointment.chargeSource !== null && appointment.chargeSource !== 'SERVICE_PRICE' && (
+          <AppointmentChargeSummary
+            source={appointment.chargeSource}
+            referencePriceCents={appointment.referencePriceCents}
+            amountDueCents={appointment.amountDueCents}
+            showValues={false}
+          />
+        )}
         {paymentState !== undefined && <PaymentBadge state={paymentState} />}
       </div>
       <div className="my-agenda-actions">
@@ -347,6 +356,15 @@ export function MyAgendaTimeline({
                 {isOverdue(appointment) && (
                   <span className="ds-badge ds-badge--danger">Atrasado</span>
                 )}
+                {appointment.chargeSource !== null &&
+                  appointment.chargeSource !== 'SERVICE_PRICE' && (
+                    <AppointmentChargeSummary
+                      source={appointment.chargeSource}
+                      referencePriceCents={appointment.referencePriceCents}
+                      amountDueCents={appointment.amountDueCents}
+                      showValues={false}
+                    />
+                  )}
                 {paymentState !== undefined && <PaymentBadge state={paymentState} />}
               </div>
               <div className="my-agenda-actions">

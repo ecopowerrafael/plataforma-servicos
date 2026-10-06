@@ -52,6 +52,15 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export const formatSource = (source: string) => SOURCE_LABELS[source] ?? source;
 
+const CHARGE_SOURCE_LABELS: Record<string, string> = {
+  SERVICE_PRICE: 'Preço do serviço',
+  MEMBERSHIP_INCLUDED: 'Incluído na Membership',
+  MEMBERSHIP_DISCOUNT: 'Desconto Membership',
+};
+
+export const formatChargeSource = (source: string | null) =>
+  source === null ? null : (CHARGE_SOURCE_LABELS[source] ?? source);
+
 export const initials = (name: string) =>
   name
     .trim()

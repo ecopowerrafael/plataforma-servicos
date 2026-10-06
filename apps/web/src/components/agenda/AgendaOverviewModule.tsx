@@ -33,6 +33,7 @@ import {
   AgendaStatusDonut,
 } from './AgendaOverviewCharts.js';
 import { httpClient } from '../../lib/http.js';
+import { AppointmentChargeSummary } from '../appointments/AppointmentChargeSummary.js';
 import {
   AppointmentStatusBadge,
   APPOINTMENT_STATUS_LABELS,
@@ -398,20 +399,22 @@ export function AgendaOverviewModule({
                   </button>
                 </li>
               )}
-            {canCheckIn && appointment.checkedInAt === null && appointment.status !== 'CANCELED' && (
-              <li>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setOpenMenu(null);
-                    checkInMutation.mutate(appointment.publicId);
-                  }}
-                >
-                  Registrar chegada
-                </button>
-              </li>
-            )}
+            {canCheckIn &&
+              appointment.checkedInAt === null &&
+              appointment.status !== 'CANCELED' && (
+                <li>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      checkInMutation.mutate(appointment.publicId);
+                    }}
+                  >
+                    Registrar chegada
+                  </button>
+                </li>
+              )}
             {canCreate && (
               <li>
                 <button
@@ -480,7 +483,9 @@ export function AgendaOverviewModule({
         ) : (
           <strong>{appointment.customerName}</strong>
         )}
-        {appointment.customerPhone !== null && <small>{formatPhone(appointment.customerPhone)}</small>}
+        {appointment.customerPhone !== null && (
+          <small>{formatPhone(appointment.customerPhone)}</small>
+        )}
       </span>
     </div>
   );
@@ -835,7 +840,18 @@ export function AgendaOverviewModule({
                     <td>{appointment.professionalName}</td>
                     <td>{appointment.serviceName}</td>
                     <td>{appointment.durationMinutes} min</td>
-                    <td>{formatMoneyCents(appointment.priceCents)}</td>
+                    <td>
+                      {canReadPayments && appointment.chargeSource !== null ? (
+                        <AppointmentChargeSummary
+                          source={appointment.chargeSource}
+                          referencePriceCents={appointment.referencePriceCents}
+                          amountDueCents={appointment.amountDueCents}
+                          showValues
+                        />
+                      ) : (
+                        formatMoneyCents(appointment.priceCents)
+                      )}
+                    </td>
                     <td>
                       <AppointmentStatusBadge status={appointment.status} />
                     </td>
@@ -851,7 +867,18 @@ export function AgendaOverviewModule({
               <li key={appointment.publicId} className="agenda-card">
                 <div className="agenda-card-head">
                   <strong>{hourLabel(appointment.startsAt)}</strong>
-                  <span>{formatMoneyCents(appointment.priceCents)}</span>
+                  <span>
+                    {canReadPayments && appointment.chargeSource !== null ? (
+                      <AppointmentChargeSummary
+                        source={appointment.chargeSource}
+                        referencePriceCents={appointment.referencePriceCents}
+                        amountDueCents={appointment.amountDueCents}
+                        showValues
+                      />
+                    ) : (
+                      formatMoneyCents(appointment.priceCents)
+                    )}
+                  </span>
                 </div>
                 {customerCell(appointment)}
                 <p className="agenda-card-service">

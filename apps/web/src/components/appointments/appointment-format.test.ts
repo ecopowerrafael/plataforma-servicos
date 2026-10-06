@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ACTION_LABELS,
   availableActions,
+  formatChargeSource,
   formatDuration,
   formatMoneyCents,
   formatSource,
@@ -49,6 +50,10 @@ describe('formatadores', () => {
     expect(formatSource('WAITLIST')).toBe('Lista de espera');
     // Origem desconhecida é exibida como veio, sem rótulo fictício.
     expect(formatSource('PARCEIRO_X')).toBe('PARCEIRO_X');
+    expect(formatChargeSource('MEMBERSHIP_INCLUDED')).toBe('Incluído na Membership');
+    expect(formatChargeSource('MEMBERSHIP_DISCOUNT')).toBe('Desconto Membership');
+    expect(formatChargeSource('SERVICE_PRICE')).toBe('Preço do serviço');
+    expect(formatChargeSource(null)).toBeNull();
   });
 
   it('deriva iniciais do cliente', () => {

@@ -187,6 +187,70 @@ describe('CustomerMembershipDetailDrawer', () => {
         expect.objectContaining({ method: 'POST' }),
       );
     });
-    expect(await screen.findByText('Operação concluída.')).not.toBeNull();
+    expect(await screen.findByText('Cobrança gerada.')).not.toBeNull();
+  });
+
+  it('highlights PAST_DUE and reuses an existing pending gateway charge', async () => {
+    const pastDueMembership = { ...membership, status: 'PAST_DUE' as const };
+    const pendingGatewayCharge = {
+      publicId: '00000000-0000-4000-8000-000000000007',
+      paymentPublicId: null,
+      provider: 'pix-local',
+      externalId: 'external-1',
+      status: 'PENDING' as const,
+      amountCents: 9900,
+      pixCopyPaste: '000201pix',
+      lastCheckedAt: null,
+      canceledAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+    const pastDueCharges = {
+      items: [
+        {
+          ...charges.items[0],
+          dueAt: '2026-01-01T00:00:00.000Z',
+          gatewayCharges: [pendingGatewayCharge],
+        },
+      ],
+    };
+    vi.mocked(httpClient.request).mockImplementation(async (path) => {
+      if (path.includes('/membership?')) return pastDueMembership;
+      if (path.includes('/charges')) return pastDueCharges;
+      if (path.includes('/benefits')) return { ...benefits, membershipStatus: 'PAST_DUE' };
+      if (path === '/tenant/payment-options') return paymentOptions;
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    renderDrawer(true);
+
+    expect(await screen.findByRole('alert')).not.toBeNull();
+    expect(screen.getByText('Mensalidade pendente')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Regularizar' })).not.toBeNull();
+    expect(screen.getAllByText(/99,00/u).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Gerar cobrança PIX' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Atualizar gateway' })).not.toBeNull();
+  });
+
+  it('does not offer regularization for a canceled membership', async () => {
+    vi.mocked(httpClient.request).mockImplementation(async (path) => {
+      if (path.includes('/membership?')) return { ...membership, status: 'CANCELED' as const };
+      if (path.includes('/charges'))
+        return {
+          items: [
+            {
+              ...charges.items[0],
+              status: 'CANCELED' as const,
+              dueAt: charges.items[0].periodStart,
+            },
+          ],
+        };
+      if (path.includes('/benefits')) return { ...benefits, membershipStatus: 'CANCELED' };
+      if (path === '/tenant/payment-options') return paymentOptions;
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    renderDrawer(true);
+
+    expect((await screen.findAllByText('Cancelada')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Regularizar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Confirmar pagamento manual' })).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import {
   TenantPaymentOptionsOverviewSchema,
 } from '@plataforma/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { z } from 'zod';
 
 import { httpClient } from '../../lib/http.js';
@@ -24,7 +24,7 @@ const dateTime = (value: string | null | undefined) =>
 const statusLabels: Record<string, string> = {
   PENDING: 'Pendente',
   ACTIVE: 'Ativa',
-  PAST_DUE: 'Pendente',
+  PAST_DUE: 'Inadimplente',
   PAUSED: 'Pausada',
   CANCELED: 'Cancelada',
   EXPIRED: 'Expirada',
@@ -133,6 +133,9 @@ export function CustomerMembershipDetailDrawer(props: Props) {
           props.customerPublicId,
         ],
       }),
+      queryClient.invalidateQueries({
+        queryKey: ['tenant', props.tenantPublicId, 'customer-memberships'],
+      }),
     ]);
   };
   const action = useMutation({
@@ -151,16 +154,28 @@ export function CustomerMembershipDetailDrawer(props: Props) {
         tenantPublicId: props.tenantPublicId,
         schema: ActionResponseSchema,
       }),
-    onSuccess: async () => {
-      setActionFeedback('Operação concluída.');
+    onSuccess: async (_, variables) => {
+      setActionFeedback(
+        variables.path.includes('/payments/local/confirm')
+          ? 'Mensalidade regularizada.'
+          : variables.path.includes('?refresh=true')
+            ? 'Status do pagamento atualizado.'
+            : 'Cobrança gerada.',
+      );
       await refresh();
     },
   });
   const current =
     charges.data?.items.find(
       (charge) => charge.status === 'PENDING' || charge.status === 'FAILED',
-    ) ?? charges.data?.items[0];
-  const gateway = current?.gatewayCharges[0];
+    ) ??
+    charges.data?.items.find((charge) =>
+      charge.gatewayCharges.some((item) => ['PENDING', 'PROCESSING'].includes(item.status)),
+    ) ??
+    charges.data?.items[0];
+  const usableGateway = current?.gatewayCharges.find((item) =>
+    ['PENDING', 'PROCESSING'].includes(item.status),
+  );
   const generateProvider =
     options.data?.mercadoPago.active && options.data.mercadoPago.providerImplemented
       ? 'mercadopago'
@@ -168,6 +183,10 @@ export function CustomerMembershipDetailDrawer(props: Props) {
         ? 'pix-local'
         : null;
   const blocked = !props.canManage;
+  const regularizationActionsAllowed =
+    !blocked && !['CANCELED', 'EXPIRED'].includes(membership.data?.status ?? '');
+  const chargePayable = current !== undefined && ['PENDING', 'FAILED'].includes(current.status);
+  const regularizationRef = useRef<HTMLElement>(null);
   const requestCancel = (atPeriodEnd: boolean) =>
     setConfirmation({
       title: atPeriodEnd ? 'Agendar cancelamento?' : 'Cancelar mensalidade agora?',
@@ -225,10 +244,9 @@ export function CustomerMembershipDetailDrawer(props: Props) {
               </div>
               <div>
                 <span>Status</span>
-                <StatusBadge
-                  status={statusLabels[membership.data.status].toLowerCase()}
-                  tone={statusTone(membership.data.status)}
-                />
+                <StatusBadge tone={statusTone(membership.data.status)}>
+                  {statusLabels[membership.data.status]}
+                </StatusBadge>
               </div>
               <div>
                 <span>Mensalidade</span>
@@ -256,6 +274,53 @@ export function CustomerMembershipDetailDrawer(props: Props) {
                 </div>
               ) : null}
             </section>
+            {membership.data.status === 'PAST_DUE' ? (
+              <section className="membership-past-due-alert" role="alert">
+                <div>
+                  <strong>Mensalidade pendente</strong>
+                  <p>Os novos benefícios estão bloqueados até a cobrança ser regularizada.</p>
+                </div>
+                <div className="membership-detail-grid">
+                  <div>
+                    <span>Valor em aberto</span>
+                    <strong>{current ? money(current.amountCents) : '—'}</strong>
+                  </div>
+                  <div>
+                    <span>Vencimento</span>
+                    <strong>{date(current?.dueAt)}</strong>
+                  </div>
+                  <div>
+                    <span>Período</span>
+                    <strong>
+                      {date(current?.periodStart)} — {date(current?.periodEnd)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Forma de cobrança</span>
+                    <strong>{usableGateway?.provider ?? 'Pagamento manual disponível'}</strong>
+                  </div>
+                </div>
+                {current?.financialReversals[0] ? (
+                  <p className="membership-reversal-context">
+                    {current.financialReversals[0].type === 'CHARGEBACK'
+                      ? 'Chargeback registrado para esta cobrança.'
+                      : 'Pagamento estornado para esta cobrança.'}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    regularizationRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    regularizationRef.current?.focus();
+                  }}
+                  disabled={!regularizationActionsAllowed}
+                  title={blocked ? 'A venda de mensalidades está desativada.' : undefined}
+                >
+                  Regularizar
+                </button>
+              </section>
+            ) : null}
             <section className="membership-detail-card">
               <div className="membership-detail-section-heading">
                 <h3>Cobrança atual</h3>
@@ -296,7 +361,7 @@ export function CustomerMembershipDetailDrawer(props: Props) {
                   Mensalidade pendente; benefícios bloqueados até a regularização.
                 </p>
               ) : null}
-              {current && !blocked && current.status !== 'PAID' ? (
+              {current && regularizationActionsAllowed && chargePayable ? (
                 <button
                   disabled={action.isPending}
                   onClick={() =>
@@ -308,7 +373,11 @@ export function CustomerMembershipDetailDrawer(props: Props) {
                   Confirmar pagamento manual
                 </button>
               ) : null}
-              {generateProvider && current && !blocked && current.status !== 'PAID' ? (
+              {generateProvider &&
+              current &&
+              regularizationActionsAllowed &&
+              chargePayable &&
+              !usableGateway ? (
                 <button
                   disabled={action.isPending}
                   onClick={() =>
@@ -321,7 +390,7 @@ export function CustomerMembershipDetailDrawer(props: Props) {
                 </button>
               ) : null}
             </section>
-            <section className="membership-detail-card">
+            <section className="membership-detail-card" ref={regularizationRef} tabIndex={-1}>
               <div className="membership-detail-section-heading">
                 <h3>Histórico de cobranças</h3>
                 <span>{charges.data?.items.length ?? 0}</span>
@@ -337,10 +406,9 @@ export function CustomerMembershipDetailDrawer(props: Props) {
                         {date(charge.periodStart)} — {date(charge.periodEnd)}
                       </span>
                     </div>
-                    <StatusBadge
-                      status={statusLabels[charge.status].toLowerCase()}
-                      tone={statusTone(charge.status)}
-                    />
+                    <StatusBadge tone={statusTone(charge.status)}>
+                      {statusLabels[charge.status]}
+                    </StatusBadge>
                     <div>
                       <span>
                         Pagamento:{' '}
@@ -439,32 +507,34 @@ export function CustomerMembershipDetailDrawer(props: Props) {
                     </button>
                   </>
                 )}
-                {gateway ? (
+                {usableGateway ? (
                   <>
                     <button
-                      disabled={blocked || action.isPending}
+                      disabled={!regularizationActionsAllowed || action.isPending}
                       onClick={() =>
                         action.mutate({
-                          path: `/tenant/gateway-charges/${gateway.publicId}?refresh=true`,
+                          path: `/tenant/gateway-charges/${usableGateway.publicId}?refresh=true`,
                         })
                       }
                     >
                       Atualizar gateway
                     </button>
-                    {gateway.pixCopyPaste ? (
+                    {usableGateway.pixCopyPaste ? (
                       <button
-                        onClick={() => navigator.clipboard?.writeText(gateway.pixCopyPaste ?? '')}
+                        onClick={() =>
+                          navigator.clipboard?.writeText(usableGateway.pixCopyPaste ?? '')
+                        }
                       >
                         Copiar PIX copia e cola
                       </button>
                     ) : null}
                     <button
-                      disabled={blocked || action.isPending}
+                      disabled={!regularizationActionsAllowed || action.isPending}
                       onClick={async () => {
                         setQrError(null);
                         try {
                           const result = await httpClient.request(
-                            `/tenant/gateway-charges/${gateway.publicId}/pix-qrcode`,
+                            `/tenant/gateway-charges/${usableGateway.publicId}/pix-qrcode`,
                             { tenantPublicId: props.tenantPublicId, schema: QrCodeResponseSchema },
                           );
                           setQrCode(result.qrCodeDataUrl);

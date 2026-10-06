@@ -306,6 +306,18 @@
 .appointments-drawer-fact-wide {
   grid-column: 1/-1;
 }
+
+.appointment-charge-summary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.appointment-charge-summary small {
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+}
 .appointments-history {
   display: grid;
   gap: 0.5rem;

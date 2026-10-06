@@ -236,10 +236,9 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, ca
                     </td>
                     <td>{subscriber.planName}</td>
                     <td>
-                      <StatusBadge
-                        status={getStatusLabel(subscriber.status).toLowerCase()}
-                        tone={getStatusBadgeColor(subscriber.status)}
-                      />
+                      <StatusBadge tone={getStatusBadgeColor(subscriber.status)}>
+                        {getStatusLabel(subscriber.status)}
+                      </StatusBadge>
                     </td>
                     <td className="membership-date-cell">
                       {subscriber.currentPeriodStart
@@ -281,10 +280,9 @@ export function CustomerMembershipSubscribersSection({ tenantPublicId, plans, ca
                       <div className="membership-customer-email">{subscriber.customerEmail}</div>
                     </div>
                   </div>
-                  <StatusBadge
-                    status={getStatusLabel(subscriber.status).toLowerCase()}
-                    tone={getStatusBadgeColor(subscriber.status)}
-                  />
+                  <StatusBadge tone={getStatusBadgeColor(subscriber.status)}>
+                    {getStatusLabel(subscriber.status)}
+                  </StatusBadge>
                 </header>
 
                 <div className="membership-card-body">

@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 import { type PrismaClient } from '../../database-client/client.js';
-import { type CustomerMembershipAccountResponse } from '@plataforma/shared';
+import {
+  type CustomerMembershipAccountItem,
+  type CustomerMembershipAccountResponse,
+} from '@plataforma/shared';
 
 const PlanSnapshotBenefitSchema = z.object({
   serviceId: z.string(),
@@ -33,6 +36,7 @@ export function selectCurrentMembership<T extends { status: string; createdAt: D
 type AccountMembership = Awaited<
   ReturnType<CustomerMembershipAccountService['listMemberships']>
 >[number];
+type AccountBenefitBalance = CustomerMembershipAccountItem['benefits'][number];
 
 export class CustomerMembershipAccountService {
   public constructor(private readonly client: PrismaClient) {}
@@ -127,7 +131,10 @@ export class CustomerMembershipAccountService {
     };
   }
 
-  private async balanceForActiveMembership(membership: AccountMembership, tenantId: bigint) {
+  private async balanceForActiveMembership(
+    membership: AccountMembership,
+    tenantId: bigint,
+  ): Promise<AccountBenefitBalance[]> {
     const now = new Date();
     const charge = membership.charges.find(
       (item) =>
@@ -164,7 +171,7 @@ export class CustomerMembershipAccountService {
       _count: true,
     });
 
-    return benefits.flatMap((benefit) => {
+    return benefits.flatMap((benefit): AccountBenefitBalance[] => {
       const serviceName = serviceNames.get(benefit.serviceId);
       if (serviceName === undefined) return [];
       const serviceUsage = usage.filter((item) => item.serviceId.toString() === benefit.serviceId);

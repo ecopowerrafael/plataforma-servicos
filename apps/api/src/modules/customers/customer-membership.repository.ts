@@ -62,7 +62,7 @@ export class CustomerMembershipRepository {
       this.client.customerMembership.findMany({
         where,
         include: {
-          customer: { select: { publicId: true, name: true, email: true, avatar: true } },
+          customer: { select: { publicId: true, name: true, email: true } },
           plan: { select: { publicId: true, name: true, priceCents: true } },
         },
         skip,

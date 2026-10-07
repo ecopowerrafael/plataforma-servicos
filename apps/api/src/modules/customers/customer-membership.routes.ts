@@ -174,7 +174,7 @@ export const customerMembershipRoutes: FastifyPluginAsyncZod<Options> = async (a
           customerPublicId: membership.customer.publicId,
           customerName: membership.customer.name,
           customerEmail: membership.customer.email,
-          customerAvatar: membership.customer.avatar,
+          customerAvatar: null,
           planPublicId: membership.plan.publicId,
           planName: membership.plan.name,
           priceCents: Number(membership.plan.priceCents),

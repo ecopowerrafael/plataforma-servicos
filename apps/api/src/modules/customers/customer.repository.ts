@@ -107,14 +107,75 @@ export class CustomerRepository {
   }
   public paymentsForCustomer(tenantId: bigint, customerId: bigint) {
     return this.client.payment.findMany({
-      where: { tenantId, appointment: { customerId }, status: 'PAID' },
+      where: {
+        tenantId,
+        OR: [
+          { appointment: { customerId } },
+          { originType: 'MEMBERSHIP_CHARGE', membershipCharge: { membership: { customerId } } },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
       select: {
         publicId: true,
         amountCents: true,
         kind: true,
+        status: true,
+        originType: true,
+        paidAt: true,
         createdAt: true,
         appointment: { select: { publicId: true } },
+        membershipCharge: {
+          select: {
+            periodStart: true,
+            periodEnd: true,
+            membership: { select: { plan: { select: { name: true } } } },
+            financialReversals: {
+              orderBy: { effectiveAt: 'desc' },
+              select: { type: true, amountCents: true, effectiveAt: true },
+            },
+          },
+        },
+      },
+    });
+  }
+  public membershipsForCustomer(tenantId: bigint, customerId: bigint) {
+    return this.client.customerMembership.findMany({
+      where: { tenantId, customerId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        publicId: true,
+        status: true,
+        startedAt: true,
+        currentPeriodStart: true,
+        currentPeriodEnd: true,
+        nextBillingAt: true,
+        cancelAtPeriodEnd: true,
+        plan: {
+          select: {
+            name: true,
+            priceCents: true,
+            billingInterval: true,
+            benefits: {
+              select: {
+                type: true,
+                quantityPerCycle: true,
+                discountPercent: true,
+                service: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+        charges: {
+          where: { status: 'PAID' },
+          orderBy: { periodEnd: 'desc' },
+          take: 1,
+          select: {
+            periodEnd: true,
+            usages: {
+              select: { serviceId: true, quantity: true, status: true },
+            },
+          },
+        },
       },
     });
   }

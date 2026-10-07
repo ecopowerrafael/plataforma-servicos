@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  CustomerMembershipStatusSchema,
+  MembershipBenefitTypeSchema,
+  MembershipBillingIntervalSchema,
+} from './customer-membership.js';
+import { PaymentStatusSchema } from './payment.js';
 
 export const phone = z.string().trim().min(3).max(32);
 export const nullable = <T extends z.ZodType>(schema: T) => schema.nullable().optional();
@@ -140,6 +146,30 @@ export const CustomerCrmWhatsAppSchema = z.object({
   lastOutboundAt: z.iso.datetime({ offset: true }).nullable(),
   status: z.string(),
 });
+const CustomerCrmMembershipBenefitSchema = z.object({
+  serviceName: z.string(),
+  type: MembershipBenefitTypeSchema,
+  quantityPerCycle: z.number().int().positive().nullable(),
+  discountPercent: z.number().int().min(1).max(100).nullable(),
+  available: z.number().int().nonnegative().nullable(),
+});
+const CustomerCrmMembershipSummarySchema = z.object({
+  publicId: z.uuid(),
+  status: CustomerMembershipStatusSchema,
+  planName: z.string(),
+  priceCents: z.string().regex(/^\d+$/u),
+  billingInterval: MembershipBillingIntervalSchema,
+  currentPeriodStart: z.iso.datetime({ offset: true }).nullable(),
+  currentPeriodEnd: z.iso.datetime({ offset: true }).nullable(),
+  nextBillingAt: z.iso.datetime({ offset: true }).nullable(),
+  cancelAtPeriodEnd: z.boolean(),
+  benefits: z.array(CustomerCrmMembershipBenefitSchema),
+});
+const CustomerCrmFinancialReversalSchema = z.object({
+  type: z.enum(['REFUND', 'CHARGEBACK']),
+  amountCents: z.string().regex(/^\d+$/u),
+  effectiveAt: z.iso.datetime({ offset: true }),
+});
 export const CustomerCrmProfileSchema = z.object({
   customer: CustomerPublicSchema,
   appointments: z.array(CustomerCrmAppointmentSchema),
@@ -182,12 +212,27 @@ export const CustomerCrmProfileSchema = z.object({
           publicId: z.uuid(),
           amountCents: z.string(),
           kind: z.enum(['PAYMENT', 'DEPOSIT']),
+          status: PaymentStatusSchema,
+          originType: z.enum(['APPOINTMENT', 'MEMBERSHIP_CHARGE']),
           createdAt: z.iso.datetime({ offset: true }),
-          appointmentPublicId: z.uuid(),
+          occurredAt: z.iso.datetime({ offset: true }),
+          appointmentPublicId: z.uuid().nullable(),
+          membership: z
+            .object({
+              planName: z.string(),
+              periodStart: z.iso.datetime({ offset: true }),
+              periodEnd: z.iso.datetime({ offset: true }),
+            })
+            .nullable(),
+          reversals: z.array(CustomerCrmFinancialReversalSchema),
         }),
       ),
     })
     .nullable(),
+  membership: z.object({
+    current: CustomerCrmMembershipSummarySchema.nullable(),
+    history: z.array(CustomerCrmMembershipSummarySchema),
+  }),
   reviews: z.array(CustomerCrmReviewSchema).default([]),
   timeline: z.array(CustomerCrmTimelineEntrySchema).default([]),
   relationshipStatus: CustomerCrmRelationshipStatusSchema,

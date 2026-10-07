@@ -38,6 +38,7 @@ function repository(overrides: Record<string, unknown> = {}) {
     historyForCustomer: vi.fn().mockResolvedValue([]),
     recoveryRules: vi.fn().mockResolvedValue([]),
     whatsappConversation: vi.fn().mockResolvedValue(null),
+    membershipsForCustomer: vi.fn().mockResolvedValue([]),
     highlightsByCustomer: vi.fn().mockResolvedValue([]),
     paidTotalsByCustomer: vi.fn().mockResolvedValue([]),
     recurringCustomerIds: vi.fn().mockResolvedValue([]),
@@ -107,8 +108,12 @@ describe('CustomerService CRM', () => {
             publicId: '00000000-0000-4000-8000-000000000050',
             amountCents: 5000n,
             kind: 'PAYMENT',
+            status: 'PAID',
+            originType: 'APPOINTMENT',
+            paidAt: new Date('2026-07-01T13:00:00Z'),
             createdAt: new Date('2026-07-01T13:00:00Z'),
             appointment: { publicId: '00000000-0000-4000-8000-000000000021' },
+            membershipCharge: null,
           },
         ]),
       }),
@@ -125,5 +130,108 @@ describe('CustomerService CRM', () => {
         customer.publicId,
       ),
     ).rejects.toMatchObject({ code: 'CUSTOMER_NOT_FOUND', statusCode: 404 });
+  });
+
+  it('consolida Membership, pagamentos e reversões sem duplicar a fonte financeira', async () => {
+    const result = await new CustomerService(
+      repository({
+        membershipsForCustomer: vi.fn().mockResolvedValue([
+          {
+            publicId: '00000000-0000-4000-8000-000000000060',
+            status: 'ACTIVE',
+            startedAt: new Date('2026-06-01T12:00:00Z'),
+            currentPeriodStart: new Date('2026-08-01T12:00:00Z'),
+            currentPeriodEnd: new Date('2026-08-31T12:00:00Z'),
+            nextBillingAt: new Date('2026-09-01T12:00:00Z'),
+            cancelAtPeriodEnd: false,
+            plan: {
+              name: 'Plano Essencial',
+              priceCents: 9900n,
+              billingInterval: 'MONTHLY',
+              benefits: [
+                {
+                  type: 'QUANTITY',
+                  quantityPerCycle: 4,
+                  discountPercent: null,
+                  service: { id: 7n, name: 'Corte' },
+                },
+              ],
+            },
+            charges: [
+              {
+                periodEnd: new Date('2026-08-31T12:00:00Z'),
+                usages: [{ serviceId: 7n, quantity: 1, status: 'CONSUMED' }],
+              },
+            ],
+          },
+          {
+            publicId: '00000000-0000-4000-8000-000000000061',
+            status: 'CANCELED',
+            startedAt: new Date('2026-01-01T12:00:00Z'),
+            currentPeriodStart: null,
+            currentPeriodEnd: null,
+            nextBillingAt: null,
+            cancelAtPeriodEnd: false,
+            plan: {
+              name: 'Plano Antigo',
+              priceCents: 7900n,
+              billingInterval: 'MONTHLY',
+              benefits: [],
+            },
+            charges: [],
+          },
+        ]),
+        paymentsForCustomer: vi.fn().mockResolvedValue([
+          {
+            publicId: '00000000-0000-4000-8000-000000000062',
+            amountCents: 9900n,
+            kind: 'PAYMENT',
+            status: 'PAID',
+            originType: 'MEMBERSHIP_CHARGE',
+            paidAt: new Date('2026-08-02T13:00:00Z'),
+            createdAt: new Date('2026-08-01T13:00:00Z'),
+            appointment: null,
+            membershipCharge: {
+              periodStart: new Date('2026-08-01T12:00:00Z'),
+              periodEnd: new Date('2026-08-31T12:00:00Z'),
+              membership: { plan: { name: 'Plano Essencial' } },
+              financialReversals: [
+                {
+                  type: 'REFUND',
+                  amountCents: 9900n,
+                  effectiveAt: new Date('2026-08-03T13:00:00Z'),
+                },
+                {
+                  type: 'CHARGEBACK',
+                  amountCents: 9900n,
+                  effectiveAt: new Date('2026-08-04T13:00:00Z'),
+                },
+              ],
+            },
+          },
+        ]),
+      }),
+    ).crmProfile(1n, customer.publicId, { includeFinancial: true });
+
+    expect(result.membership.current).toMatchObject({
+      status: 'ACTIVE',
+      planName: 'Plano Essencial',
+      priceCents: '9900',
+    });
+    expect(result.membership.current?.benefits[0]).toMatchObject({
+      serviceName: 'Corte',
+      available: 3,
+    });
+    expect(result.membership.history).toHaveLength(1);
+    expect(result.financial?.recentPayments).toHaveLength(1);
+    expect(result.financial?.recentPayments[0]).toMatchObject({
+      originType: 'MEMBERSHIP_CHARGE',
+      appointmentPublicId: null,
+      occurredAt: '2026-08-02T13:00:00.000Z',
+    });
+    expect(result.financial?.recentPayments[0]?.reversals[0]?.type).toBe('REFUND');
+    expect(result.financial?.recentPayments[0]?.reversals[1]?.type).toBe('CHARGEBACK');
+    expect(result.timeline.some((entry) => entry.title === 'Mensalidade recebida')).toBe(true);
+    expect(result.timeline.some((entry) => entry.title === 'Reembolso de mensalidade')).toBe(true);
   });
 });

@@ -37,13 +37,7 @@ import { AppointmentStatusBadge } from '../appointments/appointment-status.js';
 import { EmptyState, ListSkeleton, SectionCard } from '../ui/AppUi.js';
 
 type Profile = ReturnType<typeof CustomerCrmProfileSchema.parse>;
-type Tab =
-  | 'overview'
-  | 'appointments'
-  | 'financial'
-  | 'loyalty'
-  | 'reviews'
-  | 'relationship';
+type Tab = 'overview' | 'appointments' | 'financial' | 'loyalty' | 'reviews' | 'relationship';
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'Visão geral' },
@@ -53,6 +47,18 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'reviews', label: 'Avaliações' },
   { value: 'relationship', label: 'Relacionamento' },
 ];
+
+const MEMBERSHIP_STATUS_LABELS: Record<
+  NonNullable<Profile['membership']['current']>['status'],
+  string
+> = {
+  PENDING: 'Pendente',
+  ACTIVE: 'Ativa',
+  PAST_DUE: 'Inadimplente',
+  PAUSED: 'Pausada',
+  CANCELED: 'Cancelada',
+  EXPIRED: 'Expirada',
+};
 
 function AppointmentRow({
   appointment,
@@ -315,6 +321,90 @@ export function CustomerProfile({
 
       {tab === 'overview' && (
         <div className="crm-overview">
+          <SectionCard title="Mensalidade" description="Resumo read-only da Membership do cliente.">
+            {data.membership.current === null ? (
+              data.membership.history.length === 0 ? (
+                <p className="ds-form-hint">Este cliente não possui Membership registrada.</p>
+              ) : (
+                <>
+                  <p className="ds-form-hint">Não há Membership atual.</p>
+                  <ul className="crm-simple-list">
+                    {data.membership.history.map((membership) => (
+                      <li key={membership.publicId}>
+                        <strong>{membership.planName}</strong>
+                        <span>{MEMBERSHIP_STATUS_LABELS[membership.status]}</span>
+                        <small>{formatMoneyCents(membership.priceCents)}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )
+            ) : (
+              <>
+                <dl className="crm-facts">
+                  <div>
+                    <dt>Plano</dt>
+                    <dd>{data.membership.current.planName}</dd>
+                  </div>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{MEMBERSHIP_STATUS_LABELS[data.membership.current.status]}</dd>
+                  </div>
+                  <div>
+                    <dt>Mensalidade</dt>
+                    <dd>{formatMoneyCents(data.membership.current.priceCents)}</dd>
+                  </div>
+                  <div>
+                    <dt>Período atual</dt>
+                    <dd>
+                      {data.membership.current.currentPeriodStart === null
+                        ? '—'
+                        : formatDate(data.membership.current.currentPeriodStart)}{' '}
+                      —{' '}
+                      {data.membership.current.currentPeriodEnd === null
+                        ? '—'
+                        : formatDate(data.membership.current.currentPeriodEnd)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Próxima cobrança</dt>
+                    <dd>
+                      {data.membership.current.nextBillingAt === null
+                        ? '—'
+                        : formatDate(data.membership.current.nextBillingAt)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Cancelamento</dt>
+                    <dd>
+                      {data.membership.current.cancelAtPeriodEnd
+                        ? 'No fim do período'
+                        : 'Não agendado'}
+                    </dd>
+                  </div>
+                </dl>
+                <h4>Benefícios e saldo</h4>
+                {data.membership.current.benefits.length === 0 ? (
+                  <p className="ds-form-hint">Nenhum benefício configurado.</p>
+                ) : (
+                  <ul className="crm-simple-list">
+                    {data.membership.current.benefits.map((benefit) => (
+                      <li key={`${benefit.serviceName}-${benefit.type}`}>
+                        <strong>{benefit.serviceName}</strong>
+                        <span>
+                          {benefit.type === 'UNLIMITED'
+                            ? 'Ilimitado'
+                            : benefit.type === 'DISCOUNT'
+                              ? `${String(benefit.discountPercent ?? 0)}% de desconto`
+                              : `${String(benefit.available ?? 0)} de ${String(benefit.quantityPerCycle ?? 0)} disponíveis`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </SectionCard>
           <SectionCard title="Linha do tempo" description="Eventos reais do relacionamento.">
             {data.timeline.length === 0 ? (
               <p className="ds-form-hint">Ainda não há eventos registrados para este cliente.</p>
@@ -340,7 +430,10 @@ export function CustomerProfile({
               </ol>
             )}
           </SectionCard>
-          <SectionCard title="Mais frequente" description="Estatística dos atendimentos concluídos.">
+          <SectionCard
+            title="Mais frequente"
+            description="Estatística dos atendimentos concluídos."
+          >
             <dl className="crm-facts">
               <div>
                 <dt>Serviço</dt>
@@ -445,20 +538,49 @@ export function CustomerProfile({
                 {data.financial.recentPayments.map((payment) => (
                   <li className="crm-appointment" key={payment.publicId}>
                     <div>
-                      <strong>{formatShortDateTime(payment.createdAt)}</strong>
-                      <small>{payment.kind === 'DEPOSIT' ? 'Sinal' : 'Pagamento'}</small>
+                      <strong>{formatShortDateTime(payment.occurredAt)}</strong>
+                      <small>
+                        {payment.originType === 'MEMBERSHIP_CHARGE'
+                          ? 'Mensalidade'
+                          : payment.kind === 'DEPOSIT'
+                            ? 'Sinal · Atendimento'
+                            : 'Pagamento · Atendimento'}
+                      </small>
+                      {payment.membership !== null && (
+                        <small>
+                          {payment.membership.planName} ·{' '}
+                          {formatDate(payment.membership.periodStart)} —{' '}
+                          {formatDate(payment.membership.periodEnd)}
+                        </small>
+                      )}
                     </div>
-                    <span className="ds-badge ds-badge--success">Pago</span>
-                    <span>{formatMoneyCents(payment.amountCents)}</span>
-                    <button
-                      className="secondary-button button--sm"
-                      type="button"
-                      onClick={() => {
-                        openAppointment(payment.appointmentPublicId);
-                      }}
+                    <span
+                      className={`ds-badge ds-badge--${payment.status === 'PAID' ? 'success' : 'muted'}`}
                     >
-                      Ver
-                    </button>
+                      {payment.status === 'PAID' ? 'Pago' : 'Cancelado'}
+                    </span>
+                    <span>{formatMoneyCents(payment.amountCents)}</span>
+                    {payment.originType === 'APPOINTMENT' &&
+                      payment.appointmentPublicId !== null && (
+                        <button
+                          className="secondary-button button--sm"
+                          type="button"
+                          onClick={() => {
+                            openAppointment(payment.appointmentPublicId!);
+                          }}
+                        >
+                          Ver
+                        </button>
+                      )}
+                    {payment.reversals.map((reversal) => (
+                      <small key={`${payment.publicId}-${reversal.type}-${reversal.effectiveAt}`}>
+                        {reversal.type === 'REFUND'
+                          ? 'Reembolso de mensalidade'
+                          : 'Pagamento contestado'}{' '}
+                        · {formatMoneyCents(reversal.amountCents)} ·{' '}
+                        {formatShortDateTime(reversal.effectiveAt)}
+                      </small>
+                    ))}
                   </li>
                 ))}
               </ul>
@@ -520,7 +642,10 @@ export function CustomerProfile({
 
       {tab === 'relationship' && (
         <div className="crm-overview">
-          <SectionCard title="Relacionamento" description={relationshipSummary(data.relationshipStatus)}>
+          <SectionCard
+            title="Relacionamento"
+            description={relationshipSummary(data.relationshipStatus)}
+          >
             <dl className="crm-facts">
               <div>
                 <dt>Última visita</dt>
@@ -644,8 +769,8 @@ export function CustomerProfile({
                   <li key={item.publicId}>
                     <strong>{item.serviceName}</strong>
                     <span>
-                      {item.preferredDateFrom} a {item.preferredDateTo} ·{' '}
-                      {item.preferredTimeStart}–{item.preferredTimeEnd}
+                      {item.preferredDateFrom} a {item.preferredDateTo} · {item.preferredTimeStart}–
+                      {item.preferredTimeEnd}
                     </span>
                     <small>{item.professionalName ?? 'Qualquer profissional'}</small>
                   </li>
@@ -658,7 +783,12 @@ export function CustomerProfile({
 
       {editing && (
         <div className="dialog-backdrop" role="presentation">
-          <div className="dialog crm-dialog" role="dialog" aria-modal="true" aria-label="Editar cliente">
+          <div
+            className="dialog crm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Editar cliente"
+          >
             <div className="ds-section-card-header">
               <h3>Editar {terminology.toLowerCase()}</h3>
               <button

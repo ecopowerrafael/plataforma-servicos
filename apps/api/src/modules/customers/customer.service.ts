@@ -98,10 +98,24 @@ function buildTimeline(
   payments: {
     amountCents: bigint;
     kind: string;
+    status: string;
+    originType: string;
+    paidAt: Date | null;
     createdAt: Date;
     appointment: { publicId: string } | null;
+    membershipCharge: {
+      periodStart: Date;
+      periodEnd: Date;
+      membership: { plan: { name: string } };
+      financialReversals: { type: string; amountCents: bigint; effectiveAt: Date }[];
+    } | null;
   }[],
-  reviews: { rating: number; comment: string | null; createdAt: Date; service: { name: string } | null }[],
+  reviews: {
+    rating: number;
+    comment: string | null;
+    createdAt: Date;
+    service: { name: string } | null;
+  }[],
   loyalty: { type: string; direction: string; amount: bigint; createdAt: Date }[],
 ) {
   const entries: {
@@ -113,8 +127,12 @@ function buildTimeline(
     amountCents: string | null;
   }[] = [];
   for (const entry of history) {
-    const offeringName = entry.appointment.service?.name ?? entry.appointment.comboNameSnapshot ?? 'Atendimento';
-    const context = offeringName !== null ? `${offeringName} · ${entry.appointment.professional.publicName}` : entry.appointment.professional.publicName;
+    const offeringName =
+      entry.appointment.service?.name ?? entry.appointment.comboNameSnapshot ?? 'Atendimento';
+    const context =
+      offeringName !== null
+        ? `${offeringName} · ${entry.appointment.professional.publicName}`
+        : entry.appointment.professional.publicName;
     if (entry.action === 'CREATED')
       entries.push({
         kind: 'APPOINTMENT_CREATED',
@@ -153,15 +171,34 @@ function buildTimeline(
       });
   }
   for (const payment of payments) {
-    if (payment.appointment === null) continue;
-    entries.push({
-      kind: 'PAYMENT',
-      at: payment.createdAt.toISOString(),
-      title: payment.kind === 'DEPOSIT' ? 'Sinal recebido' : 'Pagamento recebido',
-      description: null,
-      appointmentPublicId: payment.appointment.publicId,
-      amountCents: payment.amountCents.toString(),
-    });
+    if (payment.appointment !== null)
+      entries.push({
+        kind: 'PAYMENT',
+        at: (payment.paidAt ?? payment.createdAt).toISOString(),
+        title: payment.kind === 'DEPOSIT' ? 'Sinal recebido' : 'Pagamento recebido',
+        description: payment.status === 'CANCELED' ? 'Pagamento cancelado' : null,
+        appointmentPublicId: payment.appointment.publicId,
+        amountCents: payment.amountCents.toString(),
+      });
+    else if (payment.originType === 'MEMBERSHIP_CHARGE' && payment.membershipCharge !== null) {
+      entries.push({
+        kind: 'PAYMENT',
+        at: (payment.paidAt ?? payment.createdAt).toISOString(),
+        title: payment.status === 'CANCELED' ? 'Mensalidade cancelada' : 'Mensalidade recebida',
+        description: `${payment.membershipCharge.membership.plan.name} · período ${payment.membershipCharge.periodStart.toLocaleDateString('pt-BR')} — ${payment.membershipCharge.periodEnd.toLocaleDateString('pt-BR')}`,
+        appointmentPublicId: null,
+        amountCents: payment.amountCents.toString(),
+      });
+      for (const reversal of payment.membershipCharge.financialReversals)
+        entries.push({
+          kind: 'PAYMENT',
+          at: reversal.effectiveAt.toISOString(),
+          title: reversal.type === 'REFUND' ? 'Reembolso de mensalidade' : 'Pagamento contestado',
+          description: payment.membershipCharge.membership.plan.name,
+          appointmentPublicId: null,
+          amountCents: reversal.amountCents.toString(),
+        });
+    }
   }
   for (const review of reviews)
     entries.push({
@@ -311,8 +348,7 @@ export class CustomerService {
     if (segment === 'NEW')
       return { createdAt: { gte: new Date(now.getTime() - windows.newWithinDays * 86_400_000) } };
     if (segment === 'RECURRING') return { id: { in: await this.repo.recurringCustomerIds(t) } };
-    const days =
-      segment === 'NO_RETURN' ? windows.noReturnAfterDays : windows.inactiveAfterDays;
+    const days = segment === 'NO_RETURN' ? windows.noReturnAfterDays : windows.inactiveAfterDays;
     // Sem regra configurada no módulo de Recuperação não há corte confiável: não filtra nada.
     if (days === null) return {};
     const cutoff = new Date(now.getTime() - days * 86_400_000);
@@ -335,20 +371,31 @@ export class CustomerService {
   ) {
     const customer = await this.repo.find(t, id);
     if (customer === null) throw this.err('CUSTOMER_NOT_FOUND', 'Cliente não encontrado.', 404);
-    const [appointments, loyalty, coupons, waitlist, payments, reviews, history, rules, whatsapp] =
-      await Promise.all([
-        this.repo.appointmentsForCustomer(t, customer.id),
-        this.repo.loyaltyForCustomer(t, customer.id),
-        this.repo.couponsForCustomer(t, customer.id),
-        this.repo.waitlistForCustomer(t, customer.id),
-        options.includeFinancial
-          ? this.repo.paymentsForCustomer(t, customer.id)
-          : Promise.resolve([] as Awaited<ReturnType<CustomerRepository['paymentsForCustomer']>>),
-        this.repo.reviewsForCustomer(t, customer.id),
-        this.repo.historyForCustomer(t, customer.id),
-        this.repo.recoveryRules(t),
-        this.repo.whatsappConversation(t, customer.id),
-      ]);
+    const [
+      appointments,
+      loyalty,
+      coupons,
+      waitlist,
+      payments,
+      reviews,
+      history,
+      rules,
+      whatsapp,
+      memberships,
+    ] = await Promise.all([
+      this.repo.appointmentsForCustomer(t, customer.id),
+      this.repo.loyaltyForCustomer(t, customer.id),
+      this.repo.couponsForCustomer(t, customer.id),
+      this.repo.waitlistForCustomer(t, customer.id),
+      options.includeFinancial
+        ? this.repo.paymentsForCustomer(t, customer.id)
+        : Promise.resolve([] as Awaited<ReturnType<CustomerRepository['paymentsForCustomer']>>),
+      this.repo.reviewsForCustomer(t, customer.id),
+      this.repo.historyForCustomer(t, customer.id),
+      this.repo.recoveryRules(t),
+      this.repo.whatsappConversation(t, customer.id),
+      this.repo.membershipsForCustomer(t, customer.id),
+    ]);
     const appointmentValues = appointments.map((appointment) => ({
       publicId: appointment.publicId,
       startsAt: appointment.startsAt.toISOString(),
@@ -392,7 +439,8 @@ export class CustomerService {
         (balances.get(entry.type) ?? 0n) +
           (entry.direction === 'CREDIT' ? entry.amount : -entry.amount),
       );
-    const paidTotal = payments.reduce((total, payment) => total + payment.amountCents, 0n);
+    const paidPayments = payments.filter((payment) => payment.status === 'PAID');
+    const paidTotal = paidPayments.reduce((total, payment) => total + payment.amountCents, 0n);
     const now = new Date();
     const completedDates = appointments
       .filter((appointment) => appointment.status === 'COMPLETED')
@@ -413,6 +461,49 @@ export class CustomerService {
       now,
     );
     const timeline = buildTimeline(history, payments, reviews, loyalty);
+    const membershipValues = memberships.map((membership) => {
+      const paidCharge = membership.charges[0] ?? null;
+      const usageByService = new Map<string, { consumed: number; reserved: number }>();
+      for (const usage of paidCharge?.usages ?? []) {
+        const current = usageByService.get(usage.serviceId.toString()) ?? {
+          consumed: 0,
+          reserved: 0,
+        };
+        if (usage.status === 'CONSUMED') current.consumed += usage.quantity;
+        if (usage.status === 'RESERVED') current.reserved += usage.quantity;
+        usageByService.set(usage.serviceId.toString(), current);
+      }
+      return {
+        publicId: membership.publicId,
+        status: membership.status,
+        planName: membership.plan.name,
+        priceCents: membership.plan.priceCents.toString(),
+        billingInterval: membership.plan.billingInterval,
+        currentPeriodStart: membership.currentPeriodStart?.toISOString() ?? null,
+        currentPeriodEnd: membership.currentPeriodEnd?.toISOString() ?? null,
+        nextBillingAt: membership.nextBillingAt?.toISOString() ?? null,
+        cancelAtPeriodEnd: membership.cancelAtPeriodEnd,
+        benefits: membership.plan.benefits.map((benefit) => {
+          const usage = usageByService.get(benefit.service.id.toString()) ?? {
+            consumed: 0,
+            reserved: 0,
+          };
+          return {
+            serviceName: benefit.service.name,
+            type: benefit.type,
+            quantityPerCycle: benefit.quantityPerCycle,
+            discountPercent: benefit.discountPercent,
+            available:
+              benefit.type === 'QUANTITY' && benefit.quantityPerCycle !== null
+                ? Math.max(0, benefit.quantityPerCycle - usage.consumed - usage.reserved)
+                : null,
+          };
+        }),
+      };
+    });
+    const activeMembership = membershipValues.find((membership) =>
+      ['PENDING', 'ACTIVE', 'PAST_DUE', 'PAUSED'].includes(membership.status),
+    );
     return CustomerCrmProfileSchema.parse({
       customer: publicValue(customer),
       appointments: appointmentValues,
@@ -458,21 +549,41 @@ export class CustomerService {
       financial: options.includeFinancial
         ? {
             paidTotalCents: paidTotal.toString(),
-            paidCount: payments.length,
+            paidCount: paidPayments.length,
             averageTicketCents:
               completed.length === 0 ? '0' : (paidTotal / BigInt(completed.length)).toString(),
-            recentPayments: payments
-              .filter((p) => p.appointment !== null)
-              .slice(0, 20)
-              .map((item) => ({
-                publicId: item.publicId,
-                amountCents: item.amountCents.toString(),
-                kind: item.kind,
-                createdAt: item.createdAt.toISOString(),
-                appointmentPublicId: item.appointment!.publicId,
-              })),
+            recentPayments: payments.slice(0, 20).map((item) => ({
+              publicId: item.publicId,
+              amountCents: item.amountCents.toString(),
+              kind: item.kind,
+              status: item.status,
+              originType: item.originType,
+              createdAt: item.createdAt.toISOString(),
+              occurredAt: (item.paidAt ?? item.createdAt).toISOString(),
+              appointmentPublicId: item.appointment?.publicId ?? null,
+              membership:
+                item.membershipCharge === null
+                  ? null
+                  : {
+                      planName: item.membershipCharge.membership.plan.name,
+                      periodStart: item.membershipCharge.periodStart.toISOString(),
+                      periodEnd: item.membershipCharge.periodEnd.toISOString(),
+                    },
+              reversals:
+                item.membershipCharge?.financialReversals.map((reversal) => ({
+                  type: reversal.type,
+                  amountCents: reversal.amountCents.toString(),
+                  effectiveAt: reversal.effectiveAt.toISOString(),
+                })) ?? [],
+            })),
           }
         : null,
+      membership: {
+        current: activeMembership ?? null,
+        history: membershipValues.filter((membership) =>
+          ['CANCELED', 'EXPIRED'].includes(membership.status),
+        ),
+      },
       reviews: reviews.map((review) => ({
         publicId: review.publicId,
         rating: review.rating,

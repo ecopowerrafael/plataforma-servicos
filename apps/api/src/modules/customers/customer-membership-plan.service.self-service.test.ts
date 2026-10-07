@@ -72,4 +72,34 @@ describe('CustomerMembershipPlanService self-service catalog', () => {
       ],
     });
   });
+
+  it('preserves benefit timestamps in the tenant plan response', async () => {
+    const createdAt = new Date('2026-10-07T12:00:00.000Z');
+    const updatedAt = new Date('2026-10-07T12:05:00.000Z');
+    const repo = {
+      find: vi.fn().mockResolvedValue({
+        ...plan,
+        active: true,
+        sortOrder: 0,
+        createdAt,
+        updatedAt,
+        benefits: [
+          {
+            ...plan.benefits[0],
+            publicId: '00000000-0000-4000-8000-000000000002',
+            service: { publicId: '00000000-0000-4000-8000-000000000003', name: 'Corte' },
+            createdAt,
+            updatedAt,
+          },
+        ],
+      }),
+    };
+
+    const result = await new CustomerMembershipPlanService(repo as never).get(1n, plan.publicId);
+
+    expect(result.benefits[0]).toMatchObject({
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+    });
+  });
 });

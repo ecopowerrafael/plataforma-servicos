@@ -35,6 +35,8 @@ interface PlanRecord {
     type: string;
     quantityPerCycle: number | null;
     discountPercent: number | null;
+    createdAt: Date;
+    updatedAt: Date;
   }>;
 }
 
@@ -70,6 +72,8 @@ const pub = (plan: PlanRecord) =>
       type: b.type,
       quantityPerCycle: b.quantityPerCycle ?? null,
       discountPercent: b.discountPercent ?? null,
+      createdAt: b.createdAt.toISOString(),
+      updatedAt: b.updatedAt.toISOString(),
     })),
   });
 

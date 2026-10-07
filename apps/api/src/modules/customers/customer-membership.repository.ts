@@ -10,9 +10,10 @@ export class CustomerMembershipRepository {
       transaction: Prisma.TransactionClient,
     ) => Promise<T>,
   ): Promise<T> {
-    if (!('$transaction' in this.client))
+    const rootClient = this.client as PrismaClient;
+    if (typeof rootClient.$transaction !== 'function')
       throw new Error('Tenant lock requires a root Prisma client.');
-    return this.client.$transaction(
+    return rootClient.$transaction(
       async (transaction) => {
         await transaction.$queryRaw`SELECT id FROM tenants WHERE id = ${tenantId} FOR UPDATE`;
         return callback(new CustomerMembershipRepository(transaction), transaction);

@@ -91,64 +91,542 @@ export function resolvePlanIdAt(
   return resolved ?? fallbackPlanId;
 }
 
-interface Actor {userId:bigint|null;sessionId:bigint|null}
-const providers=['pix-local','mercadopago','stripe'] as const;
-const months:Record<string,number>={MONTHLY:1,QUARTERLY:3,SEMIANNUAL:6,ANNUAL:12,CUSTOM:1};
+interface Actor {
+  userId: bigint | null;
+  sessionId: bigint | null;
+}
+const providers = ['pix-local', 'mercadopago', 'stripe'] as const;
+const months: Record<string, number> = {
+  MONTHLY: 1,
+  QUARTERLY: 3,
+  SEMIANNUAL: 6,
+  ANNUAL: 12,
+  CUSTOM: 1,
+};
 
 export class PlatformBillingService {
   private readonly commercialPaymentService: CommercialSubscriptionPaymentService;
 
-  public constructor(private readonly client:PrismaClient,private readonly registry:PaymentGatewayProviderRegistry,private readonly cipher:CredentialsCipher|undefined, private readonly stripeBilling?: StripeBillingService){
+  public constructor(
+    private readonly client: PrismaClient,
+    private readonly registry: PaymentGatewayProviderRegistry,
+    private readonly cipher: CredentialsCipher | undefined,
+    private readonly stripeBilling?: StripeBillingService,
+  ) {
     this.commercialPaymentService = new CommercialSubscriptionPaymentService(client);
   }
-  private publicCharge(charge:{publicId:string;subscription:{publicId:string};provider:string;environment:PaymentGatewayEnvironment;externalId:string|null;status:string;amountCents:bigint;currency:string;pixCopyPaste:string|null;paidAt:Date|null;createdAt:Date}){return {publicId:charge.publicId,subscriptionPublicId:charge.subscription.publicId,provider:charge.provider,environment:charge.environment,externalId:charge.externalId,status:charge.status,amountCents:charge.amountCents.toString(),currency:charge.currency,pixCopyPaste:charge.pixCopyPaste,paidAt:charge.paidAt?.toISOString()??null,createdAt:charge.createdAt.toISOString()};}
-  public async overview(){const configs=await this.client.platformPaymentConfig.findMany();const latestWebhook=await this.client.stripeWebhookEvent.findFirst({orderBy:{receivedAt:'desc'}});const items=providers.map(provider=>{const config=configs.find(c=>c.provider===provider);let visible:Record<string,unknown>={};if(config?.credentialsCiphertext&&this.cipher){try{visible=this.cipher.decrypt(config.credentialsCiphertext);}catch{visible={};}}const environments=typeof visible.environments==='object'&&visible.environments!==null?visible.environments as Record<string,unknown>:visible;const selected=(environments[config?.environment??'SANDBOX'] as Record<string,unknown>|undefined)??{};return {provider,active:config?.active??false,environment:config?.environment??'SANDBOX',hasCredentials:provider==='stripe'?typeof selected.secretKey==='string'&&selected.secretKey.length>0:config?.credentialsCiphertext!==null&&config!==undefined,keyType:typeof visible.keyType==='string'?visible.keyType:null,receiverName:typeof visible.receiverName==='string'?visible.receiverName:null,city:typeof visible.city==='string'?visible.city:null,updatedAt:(config?.updatedAt??new Date(0)).toISOString(),...(provider==='stripe'?{webhookUrl:this.stripeBilling?.webhookUrl()??null,webhookEndpointId:typeof selected.webhookEndpointId==='string'?selected.webhookEndpointId:null,webhookStatus:selected.webhookEndpointId?'unknown':'not_configured',lastWebhookEventAt:latestWebhook?.receivedAt.toISOString()??null,customerPortalConfigured:false}:{})};});const stripe=items.find((item)=>item.provider==='stripe');if(stripe&&stripe.hasCredentials&&this.stripeBilling){const status=await this.stripeBilling.integrationStatus(stripe.webhookEndpointId??undefined);stripe.webhookStatus=status.webhookStatus;stripe.customerPortalConfigured=status.customerPortalConfigured;}return PlatformFinanceOverviewSchema.parse({configs:items,manualActivationEnabled:configs.find(c=>c.provider==='manual')?.active??true});}
-  public async upsert(provider:string,input:{active:boolean;environment:PaymentGatewayEnvironment;credentials?:Record<string,unknown>},actor:Actor){
-    if(!providers.includes(provider as typeof providers[number]))throw new AppError({code:'PLATFORM_PAYMENT_PROVIDER_INVALID',message:'Método de pagamento inválido.',statusCode:400});
-    let encrypted:string|undefined;
-    if(input.credentials){
-      if(!this.cipher)throw new AppError({code:'GATEWAY_ENCRYPTION_NOT_CONFIGURED',message:'A criptografia de credenciais não está configurada.',statusCode:503});
-      let credentials:Record<string,unknown>=input.credentials;
-      if(provider==='stripe'){
-        const current=await this.client.platformPaymentConfig.findUnique({where:{provider}});
-        let stored:Record<string,unknown>={};
-        if(current?.credentialsCiphertext){try{stored=this.cipher.decrypt(current.credentialsCiphertext);}catch{}}
-        const environments=typeof stored.environments==='object'&&stored.environments!==null?stored.environments as Record<string,unknown>:{};
-        environments[input.environment]={...(typeof environments[input.environment]==='object'&&environments[input.environment]!==null?environments[input.environment] as Record<string,unknown>:{}),...input.credentials};
-        credentials={environments};
-      }
-      encrypted=this.cipher.encrypt(credentials);
-    }
-    const config=await this.client.platformPaymentConfig.upsert({where:{provider},create:{publicId:randomUUID(),provider,active:input.active,environment:input.environment,...(encrypted?{credentialsCiphertext:encrypted}:{})},update:{active:input.active,environment:input.environment,...(encrypted?{credentialsCiphertext:encrypted}:{})}});
-    if(provider==='stripe'&&encrypted&&this.cipher&&this.stripeBilling){const credentials=this.cipher.decrypt(encrypted);const environments=typeof credentials.environments==='object'&&credentials.environments!==null?credentials.environments as Record<string,unknown>:{};const selected=environments[input.environment] as Record<string,unknown>|undefined;if(typeof selected?.secretKey==='string'&&typeof selected.webhookSecret==='string')this.stripeBilling.reconfigure(selected.secretKey,selected.webhookSecret);}
-    await this.client.auditLog.create({data:{publicId:randomUUID(),userId:actor.userId,sessionId:actor.sessionId,action:'platform.billing.config_updated',targetType:'platform_payment_config',targetPublicId:config.publicId,metadata:{provider,active:input.active,environment:input.environment,credentialsReplaced:encrypted!==undefined}}});return this.overview();
+  private publicCharge(charge: {
+    publicId: string;
+    subscription: { publicId: string };
+    provider: string;
+    environment: PaymentGatewayEnvironment;
+    externalId: string | null;
+    status: string;
+    amountCents: bigint;
+    currency: string;
+    pixCopyPaste: string | null;
+    paidAt: Date | null;
+    createdAt: Date;
+  }) {
+    return {
+      publicId: charge.publicId,
+      subscriptionPublicId: charge.subscription.publicId,
+      provider: charge.provider,
+      environment: charge.environment,
+      externalId: charge.externalId,
+      status: charge.status,
+      amountCents: charge.amountCents.toString(),
+      currency: charge.currency,
+      pixCopyPaste: charge.pixCopyPaste,
+      paidAt: charge.paidAt?.toISOString() ?? null,
+      createdAt: charge.createdAt.toISOString(),
+    };
   }
-  public async setManual(active:boolean,actor:Actor){await this.upsertManual(active,actor);return this.overview();}
-  public async stripeTestConnection(){if(!this.stripeBilling)throw new AppError({code:'STRIPE_NOT_AVAILABLE',message:'Stripe não está disponível.',statusCode:503});return this.stripeBilling.testConnection();}
-  public async stripeConfigureWebhook(actor:Actor){if(!this.stripeBilling||!this.cipher)throw new AppError({code:'STRIPE_NOT_AVAILABLE',message:'Stripe não está disponível.',statusCode:503});const webhook=await this.stripeBilling.createWebhook();if(!webhook.secret)throw new AppError({code:'STRIPE_WEBHOOK_SECRET_MISSING',message:'O Stripe não retornou o signing secret.',statusCode:502});const current=await this.client.platformPaymentConfig.findUnique({where:{provider:'stripe'}});let existing:Record<string,unknown>={};if(current?.credentialsCiphertext){try{existing=this.cipher.decrypt(current.credentialsCiphertext);}catch{}}const environments=typeof existing.environments==='object'&&existing.environments!==null?existing.environments as Record<string,unknown>:{};const env=current?.environment??'SANDBOX';const old=typeof environments[env]==='object'&&environments[env]!==null?environments[env] as Record<string,unknown>:{};environments[env]={...old,webhookEndpointId:webhook.id,webhookSecret:webhook.secret};const credentials={environments};const config=await this.client.platformPaymentConfig.upsert({where:{provider:'stripe'},create:{publicId:randomUUID(),provider:'stripe',active:true,environment:env,credentialsCiphertext:this.cipher.encrypt(credentials)},update:{active:true,credentialsCiphertext:this.cipher.encrypt(credentials)}});await this.client.auditLog.create({data:{publicId:randomUUID(),userId:actor.userId,sessionId:actor.sessionId,action:'platform.billing.stripe_webhook_configured',targetType:'platform_payment_config',targetPublicId:config.publicId,metadata:{endpointId:webhook.id,environment:env}}});return {url:webhook.url,endpointId:webhook.id};}
-  public async stripeSyncCatalog(environment:PaymentGatewayEnvironment,actor:Actor){if(!this.stripeBilling)throw new AppError({code:'STRIPE_NOT_AVAILABLE',message:'Stripe não está disponível.',statusCode:503});const result=await this.stripeBilling.syncCatalog(environment);await this.client.auditLog.create({data:{publicId:randomUUID(),userId:actor.userId,sessionId:actor.sessionId,action:'platform.billing.stripe_catalog_synced',targetType:'platform_payment_config',metadata:{environment,result}}});return result;}
-  public async requireManualActivationEnabled(){const config=await this.client.platformPaymentConfig.findUnique({where:{provider:'manual'}});if(config?.active===false)throw new AppError({code:'PLATFORM_MANUAL_ACTIVATION_DISABLED',message:'A ativação manual está desativada.',statusCode:409});}
-  private async upsertManual(active:boolean,actor:Actor){const config=await this.client.platformPaymentConfig.upsert({where:{provider:'manual'},create:{publicId:randomUUID(),provider:'manual',active,environment:'PRODUCTION'},update:{active}});await this.client.auditLog.create({data:{publicId:randomUUID(),userId:actor.userId,sessionId:actor.sessionId,action:'platform.billing.manual_activation_updated',targetType:'platform_payment_config',targetPublicId:config.publicId,metadata:{active}}});}
-  public async tenantOverview(tenantId:bigint){const subscription=await this.subscriptionForTenant(tenantId);const [configs,latest]=await Promise.all([this.client.platformPaymentConfig.findMany({where:{provider:{in:[...providers]},active:true,credentialsCiphertext:{not:null}}}),this.client.platformSubscriptionCharge.findFirst({where:{subscriptionId:subscription.id},orderBy:{createdAt:'desc'},include:{subscription:{select:{publicId:true}}}})]);return PlatformSubscriptionBillingSchema.parse({methods:configs.map(c=>c.provider),manualActivationEnabled:false,latestCharge:latest?this.publicCharge(latest):null});}
-  public async subscriptionOverview(publicId:string){const subscription=await this.client.tenantSubscription.findUnique({where:{publicId}});if(!subscription)throw new AppError({code:'PLATFORM_SUBSCRIPTION_NOT_FOUND',message:'Assinatura não encontrada.',statusCode:404});const result=await this.tenantOverview(subscription.tenantId);const finance=await this.overview();return {...result,manualActivationEnabled:finance.manualActivationEnabled};}
-  public async createTenantCharge(tenantId:bigint,provider:string){const subscription=await this.subscriptionForTenant(tenantId);return this.createCharge(subscription.publicId,provider);}
+  public async overview() {
+    const configs = await this.client.platformPaymentConfig.findMany();
+    const latestWebhook = await this.client.stripeWebhookEvent.findFirst({
+      orderBy: { receivedAt: 'desc' },
+    });
+    const items = providers.map((provider) => {
+      const config = configs.find((c) => c.provider === provider);
+      let visible: Record<string, unknown> = {};
+      if (config?.credentialsCiphertext && this.cipher) {
+        try {
+          visible = this.cipher.decrypt(config.credentialsCiphertext);
+        } catch {
+          visible = {};
+        }
+      }
+      const environments =
+        typeof visible.environments === 'object' && visible.environments !== null
+          ? (visible.environments as Record<string, unknown>)
+          : visible;
+      const selected =
+        (environments[config?.environment ?? 'SANDBOX'] as Record<string, unknown> | undefined) ??
+        {};
+      return {
+        provider,
+        active: config?.active ?? false,
+        environment: config?.environment ?? 'SANDBOX',
+        hasCredentials:
+          provider === 'stripe'
+            ? typeof selected.secretKey === 'string' && selected.secretKey.length > 0
+            : config?.credentialsCiphertext !== null && config !== undefined,
+        keyType: typeof visible.keyType === 'string' ? visible.keyType : null,
+        receiverName: typeof visible.receiverName === 'string' ? visible.receiverName : null,
+        city: typeof visible.city === 'string' ? visible.city : null,
+        updatedAt: (config?.updatedAt ?? new Date(0)).toISOString(),
+        ...(provider === 'stripe'
+          ? {
+              webhookUrl: this.stripeBilling?.webhookUrl() ?? null,
+              webhookEndpointId:
+                typeof selected.webhookEndpointId === 'string' ? selected.webhookEndpointId : null,
+              webhookStatus: selected.webhookEndpointId ? 'unknown' : 'not_configured',
+              lastWebhookEventAt: latestWebhook?.receivedAt.toISOString() ?? null,
+              customerPortalConfigured: false,
+            }
+          : {}),
+      };
+    });
+    const stripe = items.find((item) => item.provider === 'stripe');
+    if (stripe && stripe.hasCredentials && this.stripeBilling) {
+      const status = await this.stripeBilling.integrationStatus(
+        stripe.webhookEndpointId ?? undefined,
+      );
+      stripe.webhookStatus = status.webhookStatus;
+      stripe.customerPortalConfigured = status.customerPortalConfigured;
+    }
+    return PlatformFinanceOverviewSchema.parse({
+      configs: items,
+      manualActivationEnabled: configs.find((c) => c.provider === 'manual')?.active ?? true,
+    });
+  }
+  public async upsert(
+    provider: string,
+    input: {
+      active: boolean;
+      environment: PaymentGatewayEnvironment;
+      credentials?: Record<string, unknown>;
+    },
+    actor: Actor,
+  ) {
+    if (!providers.includes(provider as (typeof providers)[number]))
+      throw new AppError({
+        code: 'PLATFORM_PAYMENT_PROVIDER_INVALID',
+        message: 'Método de pagamento inválido.',
+        statusCode: 400,
+      });
+    let encrypted: string | undefined;
+    if (input.credentials) {
+      if (!this.cipher)
+        throw new AppError({
+          code: 'GATEWAY_ENCRYPTION_NOT_CONFIGURED',
+          message: 'A criptografia de credenciais não está configurada.',
+          statusCode: 503,
+        });
+      let credentials: Record<string, unknown> = input.credentials;
+      if (provider === 'stripe') {
+        const current = await this.client.platformPaymentConfig.findUnique({ where: { provider } });
+        let stored: Record<string, unknown> = {};
+        if (current?.credentialsCiphertext) {
+          try {
+            stored = this.cipher.decrypt(current.credentialsCiphertext);
+          } catch {}
+        }
+        const environments =
+          typeof stored.environments === 'object' && stored.environments !== null
+            ? (stored.environments as Record<string, unknown>)
+            : {};
+        environments[input.environment] = {
+          ...(typeof environments[input.environment] === 'object' &&
+          environments[input.environment] !== null
+            ? (environments[input.environment] as Record<string, unknown>)
+            : {}),
+          ...input.credentials,
+        };
+        credentials = { environments };
+      }
+      encrypted = this.cipher.encrypt(credentials);
+    }
+    const config = await this.client.platformPaymentConfig.upsert({
+      where: { provider },
+      create: {
+        publicId: randomUUID(),
+        provider,
+        active: input.active,
+        environment: input.environment,
+        ...(encrypted ? { credentialsCiphertext: encrypted } : {}),
+      },
+      update: {
+        active: input.active,
+        environment: input.environment,
+        ...(encrypted ? { credentialsCiphertext: encrypted } : {}),
+      },
+    });
+    if (provider === 'stripe' && encrypted && this.cipher && this.stripeBilling) {
+      const credentials = this.cipher.decrypt(encrypted);
+      const environments =
+        typeof credentials.environments === 'object' && credentials.environments !== null
+          ? (credentials.environments as Record<string, unknown>)
+          : {};
+      const selected = environments[input.environment] as Record<string, unknown> | undefined;
+      if (typeof selected?.secretKey === 'string' && typeof selected.webhookSecret === 'string')
+        this.stripeBilling.reconfigure(selected.secretKey, selected.webhookSecret);
+    }
+    await this.client.auditLog.create({
+      data: {
+        publicId: randomUUID(),
+        userId: actor.userId,
+        sessionId: actor.sessionId,
+        action: 'platform.billing.config_updated',
+        targetType: 'platform_payment_config',
+        targetPublicId: config.publicId,
+        metadata: {
+          provider,
+          active: input.active,
+          environment: input.environment,
+          credentialsReplaced: encrypted !== undefined,
+        },
+      },
+    });
+    return this.overview();
+  }
+  public async setManual(active: boolean, actor: Actor) {
+    await this.upsertManual(active, actor);
+    return this.overview();
+  }
+  public async stripeTestConnection() {
+    if (!this.stripeBilling)
+      throw new AppError({
+        code: 'STRIPE_NOT_AVAILABLE',
+        message: 'Stripe não está disponível.',
+        statusCode: 503,
+      });
+    return this.stripeBilling.testConnection();
+  }
+  public async stripeConfigureWebhook(actor: Actor) {
+    if (!this.stripeBilling || !this.cipher)
+      throw new AppError({
+        code: 'STRIPE_NOT_AVAILABLE',
+        message: 'Stripe não está disponível.',
+        statusCode: 503,
+      });
+    const webhook = await this.stripeBilling.createWebhook();
+    if (!webhook.secret)
+      throw new AppError({
+        code: 'STRIPE_WEBHOOK_SECRET_MISSING',
+        message: 'O Stripe não retornou o signing secret.',
+        statusCode: 502,
+      });
+    const current = await this.client.platformPaymentConfig.findUnique({
+      where: { provider: 'stripe' },
+    });
+    let existing: Record<string, unknown> = {};
+    if (current?.credentialsCiphertext) {
+      try {
+        existing = this.cipher.decrypt(current.credentialsCiphertext);
+      } catch {}
+    }
+    const environments =
+      typeof existing.environments === 'object' && existing.environments !== null
+        ? (existing.environments as Record<string, unknown>)
+        : {};
+    const env = current?.environment ?? 'SANDBOX';
+    const old =
+      typeof environments[env] === 'object' && environments[env] !== null
+        ? (environments[env] as Record<string, unknown>)
+        : {};
+    environments[env] = { ...old, webhookEndpointId: webhook.id, webhookSecret: webhook.secret };
+    const credentials = { environments };
+    const config = await this.client.platformPaymentConfig.upsert({
+      where: { provider: 'stripe' },
+      create: {
+        publicId: randomUUID(),
+        provider: 'stripe',
+        active: true,
+        environment: env,
+        credentialsCiphertext: this.cipher.encrypt(credentials),
+      },
+      update: { active: true, credentialsCiphertext: this.cipher.encrypt(credentials) },
+    });
+    await this.client.auditLog.create({
+      data: {
+        publicId: randomUUID(),
+        userId: actor.userId,
+        sessionId: actor.sessionId,
+        action: 'platform.billing.stripe_webhook_configured',
+        targetType: 'platform_payment_config',
+        targetPublicId: config.publicId,
+        metadata: { endpointId: webhook.id, environment: env },
+      },
+    });
+    return { url: webhook.url, endpointId: webhook.id };
+  }
+  public async stripeSyncCatalog(environment: PaymentGatewayEnvironment, actor: Actor) {
+    if (!this.stripeBilling)
+      throw new AppError({
+        code: 'STRIPE_NOT_AVAILABLE',
+        message: 'Stripe não está disponível.',
+        statusCode: 503,
+      });
+    const result = await this.stripeBilling.syncCatalog(environment);
+    await this.client.auditLog.create({
+      data: {
+        publicId: randomUUID(),
+        userId: actor.userId,
+        sessionId: actor.sessionId,
+        action: 'platform.billing.stripe_catalog_synced',
+        targetType: 'platform_payment_config',
+        metadata: { environment, result },
+      },
+    });
+    return result;
+  }
+  public async requireManualActivationEnabled() {
+    const config = await this.client.platformPaymentConfig.findUnique({
+      where: { provider: 'manual' },
+    });
+    if (config?.active === false)
+      throw new AppError({
+        code: 'PLATFORM_MANUAL_ACTIVATION_DISABLED',
+        message: 'A ativação manual está desativada.',
+        statusCode: 409,
+      });
+  }
+  private async upsertManual(active: boolean, actor: Actor) {
+    const config = await this.client.platformPaymentConfig.upsert({
+      where: { provider: 'manual' },
+      create: { publicId: randomUUID(), provider: 'manual', active, environment: 'PRODUCTION' },
+      update: { active },
+    });
+    await this.client.auditLog.create({
+      data: {
+        publicId: randomUUID(),
+        userId: actor.userId,
+        sessionId: actor.sessionId,
+        action: 'platform.billing.manual_activation_updated',
+        targetType: 'platform_payment_config',
+        targetPublicId: config.publicId,
+        metadata: { active },
+      },
+    });
+  }
+  public async tenantOverview(tenantId: bigint) {
+    const subscription = await this.subscriptionForTenant(tenantId);
+    const [configs, latest] = await Promise.all([
+      this.client.platformPaymentConfig.findMany({
+        where: {
+          provider: { in: [...providers] },
+          active: true,
+          credentialsCiphertext: { not: null },
+        },
+      }),
+      this.client.platformSubscriptionCharge.findFirst({
+        where: { subscriptionId: subscription.id },
+        orderBy: { createdAt: 'desc' },
+        include: { subscription: { select: { publicId: true } } },
+      }),
+    ]);
+    return PlatformSubscriptionBillingSchema.parse({
+      methods: configs.map((c) => c.provider),
+      manualActivationEnabled: false,
+      latestCharge: latest ? this.publicCharge(latest) : null,
+    });
+  }
+  public async subscriptionOverview(publicId: string) {
+    const subscription = await this.client.tenantSubscription.findUnique({ where: { publicId } });
+    if (!subscription)
+      throw new AppError({
+        code: 'PLATFORM_SUBSCRIPTION_NOT_FOUND',
+        message: 'Assinatura não encontrada.',
+        statusCode: 404,
+      });
+    const result = await this.tenantOverview(subscription.tenantId);
+    const finance = await this.overview();
+    return { ...result, manualActivationEnabled: finance.manualActivationEnabled };
+  }
+  public async createTenantCharge(tenantId: bigint, provider: string) {
+    const subscription = await this.subscriptionForTenant(tenantId);
+    return this.createCharge(subscription.publicId, provider);
+  }
   public async createChangeCharge(tenantId: bigint, changePublicId: string, provider: string) {
-    const change = await this.client.subscriptionPlanChange.findUnique({ where: { publicId: changePublicId }, include: { subscription: true, targetPlan: true } });
-    if (!change || change.tenantId !== tenantId) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_FOUND', message: 'Alteração de assinatura não encontrada.', statusCode: 404 });
-    if (change.status !== 'PENDING_PAYMENT') throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NOT_PENDING', message: 'A alteração não está pendente de pagamento.', statusCode: 409 });
-    if (change.expiresAt <= new Date()) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_EXPIRED', message: 'A alteração de assinatura expirou.', statusCode: 409 });
-    if (change.amountDueCents <= 0n) throw new AppError({ code: 'SUBSCRIPTION_CHANGE_NO_CHARGE', message: 'Esta alteração não requer cobrança.', statusCode: 409 });
+    const change = await this.client.subscriptionPlanChange.findUnique({
+      where: { publicId: changePublicId },
+      include: { subscription: true, targetPlan: true },
+    });
+    if (!change || change.tenantId !== tenantId)
+      throw new AppError({
+        code: 'SUBSCRIPTION_CHANGE_NOT_FOUND',
+        message: 'Alteração de assinatura não encontrada.',
+        statusCode: 404,
+      });
+    if (change.status !== 'PENDING_PAYMENT')
+      throw new AppError({
+        code: 'SUBSCRIPTION_CHANGE_NOT_PENDING',
+        message: 'A alteração não está pendente de pagamento.',
+        statusCode: 409,
+      });
+    if (change.expiresAt <= new Date())
+      throw new AppError({
+        code: 'SUBSCRIPTION_CHANGE_EXPIRED',
+        message: 'A alteração de assinatura expirou.',
+        statusCode: 409,
+      });
+    if (change.amountDueCents <= 0n)
+      throw new AppError({
+        code: 'SUBSCRIPTION_CHANGE_NO_CHARGE',
+        message: 'Esta alteração não requer cobrança.',
+        statusCode: 409,
+      });
     const config = await this.client.platformPaymentConfig.findUnique({ where: { provider } });
     const adapter = this.registry.get(provider);
-    if (!config?.active || !config.credentialsCiphertext || !this.cipher || !adapter) throw new AppError({ code: 'PLATFORM_PAYMENT_METHOD_UNAVAILABLE', message: 'Este método de pagamento não está disponível.', statusCode: 409 });
-    const result = await adapter.createCharge(this.cipher.decrypt(config.credentialsCiphertext), config.environment, { amountCents: change.amountDueCents, currency: change.currency, description: `Alteração para ${change.targetPlan.name}`, idempotencyKey: `subscription-change:${change.publicId}:${provider}` });
-    await this.client.subscriptionPlanChange.update({ where: { id: change.id }, data: { paymentProvider: provider, paymentReference: result.externalId } });
-    return { changePublicId: change.publicId, provider, externalId: result.externalId, status: result.status, amountCents: change.amountDueCents.toString(), currency: change.currency, pixCopyPaste: result.pixCopyPaste ?? null };
+    if (!config?.active || !config.credentialsCiphertext || !this.cipher || !adapter)
+      throw new AppError({
+        code: 'PLATFORM_PAYMENT_METHOD_UNAVAILABLE',
+        message: 'Este método de pagamento não está disponível.',
+        statusCode: 409,
+      });
+    const result = await adapter.createCharge(
+      this.cipher.decrypt(config.credentialsCiphertext),
+      config.environment,
+      {
+        amountCents: change.amountDueCents,
+        currency: change.currency,
+        description: `Alteração para ${change.targetPlan.name}`,
+        idempotencyKey: `subscription-change:${change.publicId}:${provider}`,
+      },
+    );
+    await this.client.subscriptionPlanChange.update({
+      where: { id: change.id },
+      data: { paymentProvider: provider, paymentReference: result.externalId },
+    });
+    return {
+      changePublicId: change.publicId,
+      provider,
+      externalId: result.externalId,
+      status: result.status,
+      amountCents: change.amountDueCents.toString(),
+      currency: change.currency,
+      pixCopyPaste: result.pixCopyPaste ?? null,
+    };
   }
-  public async createCharge(subscriptionPublicId:string,provider:string){const subscription=await this.client.tenantSubscription.findUnique({where:{publicId:subscriptionPublicId},include:{plan:{include:{billingOptions:true}}}});if(!subscription)throw new AppError({code:'PLATFORM_SUBSCRIPTION_NOT_FOUND',message:'Assinatura não encontrada.',statusCode:404});const option=subscription.plan.billingOptions.find(o=>o.billingCycle===subscription.billingCycle&&o.active);if(!option)throw new AppError({code:'BILLING_OPTION_UNAVAILABLE',message:'A opção de cobrança da assinatura não está disponível.',statusCode:409});const config=await this.client.platformPaymentConfig.findUnique({where:{provider}});if(!config?.active||!config.credentialsCiphertext||!this.cipher)throw new AppError({code:'PLATFORM_PAYMENT_METHOD_UNAVAILABLE',message:'Este método de pagamento não está disponível.',statusCode:409});const adapter=this.registry.get(provider);if(!adapter)throw new AppError({code:'GATEWAY_PROVIDER_NOT_IMPLEMENTED',message:'Gateway não implementado.',statusCode:501});const idempotencyKey=`platform:${subscription.publicId}:${randomUUID()}`;const result=await adapter.createCharge(this.cipher.decrypt(config.credentialsCiphertext),config.environment,{amountCents:option.priceCents,currency:subscription.currency,description:`Assinatura ${subscription.plan.name}`,idempotencyKey});const charge=await this.client.platformSubscriptionCharge.create({data:{publicId:randomUUID(),subscriptionId:subscription.id,provider,environment:config.environment,externalId:result.externalId,status:result.status,amountCents:option.priceCents,currency:subscription.currency,idempotencyKey,pixCopyPaste:result.pixCopyPaste??null},include:{subscription:{select:{publicId:true}}}});return PlatformChargeResponseSchema.parse({charge:this.publicCharge(charge),...(charge.pixCopyPaste?{qrCodeDataUrl:await QRCode.toDataURL(charge.pixCopyPaste)}:{})});}
-  public async confirm(chargePublicId:string,actor:Actor){const charge=await this.client.platformSubscriptionCharge.findUnique({where:{publicId:chargePublicId}});if(!charge)throw new AppError({code:'PLATFORM_CHARGE_NOT_FOUND',message:'Cobrança não encontrada.',statusCode:404});await this.markPaid(charge.id,actor,'Confirmação manual de pagamento');return this.client.platformSubscriptionCharge.findUniqueOrThrow({where:{id:charge.id},include:{subscription:{select:{publicId:true}}}}).then(c=>PlatformChargeResponseSchema.parse({charge:this.publicCharge(c)}));}
+  public async createCharge(subscriptionPublicId: string, provider: string) {
+    const subscription = await this.client.tenantSubscription.findUnique({
+      where: { publicId: subscriptionPublicId },
+      include: { plan: { include: { billingOptions: true } } },
+    });
+    if (!subscription)
+      throw new AppError({
+        code: 'PLATFORM_SUBSCRIPTION_NOT_FOUND',
+        message: 'Assinatura não encontrada.',
+        statusCode: 404,
+      });
+    const option = subscription.plan.billingOptions.find(
+      (o) => o.billingCycle === subscription.billingCycle && o.active,
+    );
+    if (!option)
+      throw new AppError({
+        code: 'BILLING_OPTION_UNAVAILABLE',
+        message: 'A opção de cobrança da assinatura não está disponível.',
+        statusCode: 409,
+      });
+    const config = await this.client.platformPaymentConfig.findUnique({ where: { provider } });
+    if (!config?.active || !config.credentialsCiphertext || !this.cipher)
+      throw new AppError({
+        code: 'PLATFORM_PAYMENT_METHOD_UNAVAILABLE',
+        message: 'Este método de pagamento não está disponível.',
+        statusCode: 409,
+      });
+    const adapter = this.registry.get(provider);
+    if (!adapter)
+      throw new AppError({
+        code: 'GATEWAY_PROVIDER_NOT_IMPLEMENTED',
+        message: 'Gateway não implementado.',
+        statusCode: 501,
+      });
+    let charge = await this.client.platformSubscriptionCharge.findFirst({
+      where: {
+        subscriptionId: subscription.id,
+        provider,
+        status: { in: ['PENDING', 'PROCESSING'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { subscription: { select: { publicId: true } } },
+    });
+    if (charge?.externalId !== null && charge?.externalId !== undefined)
+      return PlatformChargeResponseSchema.parse({
+        charge: this.publicCharge(charge),
+        ...(charge.pixCopyPaste
+          ? { qrCodeDataUrl: await QRCode.toDataURL(charge.pixCopyPaste) }
+          : {}),
+      });
+    if (charge === null) {
+      const publicId = randomUUID();
+      charge = await this.client.platformSubscriptionCharge.create({
+        data: {
+          publicId,
+          subscriptionId: subscription.id,
+          provider,
+          environment: config.environment,
+          externalId: null,
+          status: 'PENDING',
+          amountCents: option.priceCents,
+          currency: subscription.currency,
+          idempotencyKey: `platform:${publicId}`,
+          pixCopyPaste: null,
+        },
+        include: { subscription: { select: { publicId: true } } },
+      });
+    }
+    const result = await adapter.createCharge(
+      this.cipher.decrypt(config.credentialsCiphertext),
+      config.environment,
+      {
+        amountCents: option.priceCents,
+        currency: subscription.currency,
+        description: `Assinatura ${subscription.plan.name}`,
+        idempotencyKey: charge.idempotencyKey,
+      },
+    );
+    charge = await this.client.platformSubscriptionCharge.update({
+      where: { id: charge.id },
+      data: {
+        externalId: result.externalId,
+        status: result.status,
+        pixCopyPaste: result.pixCopyPaste ?? null,
+      },
+      include: { subscription: { select: { publicId: true } } },
+    });
+    return PlatformChargeResponseSchema.parse({
+      charge: this.publicCharge(charge),
+      ...(charge.pixCopyPaste
+        ? { qrCodeDataUrl: await QRCode.toDataURL(charge.pixCopyPaste) }
+        : {}),
+    });
+  }
+  public async confirm(chargePublicId: string, actor: Actor) {
+    const charge = await this.client.platformSubscriptionCharge.findUnique({
+      where: { publicId: chargePublicId },
+    });
+    if (!charge)
+      throw new AppError({
+        code: 'PLATFORM_CHARGE_NOT_FOUND',
+        message: 'Cobrança não encontrada.',
+        statusCode: 404,
+      });
+    await this.markPaid(charge.id, actor, 'Confirmação manual de pagamento');
+    return this.client.platformSubscriptionCharge
+      .findUniqueOrThrow({
+        where: { id: charge.id },
+        include: { subscription: { select: { publicId: true } } },
+      })
+      .then((c) => PlatformChargeResponseSchema.parse({ charge: this.publicCharge(c) }));
+  }
   private async markPaid(id: bigint, actor: Actor, reason: string) {
     await this.client.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
+        SELECT id FROM platform_subscription_charges WHERE id = ${id} FOR UPDATE
+      `);
       const charge = await tx.platformSubscriptionCharge.findUniqueOrThrow({
         where: { id },
         include: { subscription: true },
@@ -167,7 +645,8 @@ export class PlatformBillingService {
           ? new Date(charge.subscription.currentPeriodEndsAt)
           : null;
       const end = start === null ? null : new Date(start);
-      if (end !== null) end.setUTCMonth(end.getUTCMonth() + (months[charge.subscription.billingCycle] ?? 1));
+      if (end !== null)
+        end.setUTCMonth(end.getUTCMonth() + (months[charge.subscription.billingCycle] ?? 1));
 
       // Mark charge as paid
       await tx.platformSubscriptionCharge.update({
@@ -202,7 +681,9 @@ export class PlatformBillingService {
         data: {
           status: 'ACTIVE',
           effectiveKey: 'EFFECTIVE',
-          ...(start === null || end === null ? {} : { currentPeriodStartsAt: start, currentPeriodEndsAt: end }),
+          ...(start === null || end === null
+            ? {}
+            : { currentPeriodStartsAt: start, currentPeriodEndsAt: end }),
           ...(firstPaidPeriod ? { trialEndsAt: now } : {}),
           suspendedAt: null,
         },
@@ -255,7 +736,8 @@ export class PlatformBillingService {
         subscriptionId: charge.subscriptionId,
         paymentId: charge.publicId,
         amountCents: charge.amountCents,
-        source: (charge.provider === 'pix-local' ? 'PIX' : charge.provider.toUpperCase()) as 'GATEWAY' | 'PIX' | 'CARD',
+        source: (charge.provider === 'pix-local' ? 'PIX' : charge.provider.toUpperCase()) as
+          'GATEWAY' | 'PIX' | 'CARD',
         paidAt: charge.paidAt ?? new Date(),
       });
     } catch (error) {
@@ -292,10 +774,17 @@ export class PlatformBillingService {
     });
 
     if (!charge) {
-      const change = await this.client.subscriptionPlanChange.findFirst({ where: { paymentProvider: provider, paymentReference: event.externalId } });
+      const change = await this.client.subscriptionPlanChange.findFirst({
+        where: { paymentProvider: provider, paymentReference: event.externalId },
+      });
       if (!change) return { received: true };
       const remote = await adapter.getCharge(credentials, config.environment, event.externalId);
-      if (remote.status === 'PAID') await new SubscriptionPlanChangeService(this.client).confirmPaid(change.publicId, provider, event.externalId);
+      if (remote.status === 'PAID')
+        await new SubscriptionPlanChangeService(this.client).confirmPaid(
+          change.publicId,
+          provider,
+          event.externalId,
+        );
       return { received: true };
     }
 
@@ -303,7 +792,11 @@ export class PlatformBillingService {
 
     if (remote.status === 'PAID') {
       // Payment confirmed
-      await this.markPaid(charge.id, { userId: null, sessionId: null }, 'Pagamento confirmado pelo ' + provider);
+      await this.markPaid(
+        charge.id,
+        { userId: null, sessionId: null },
+        'Pagamento confirmado pelo ' + provider,
+      );
     } else if (remote.status === 'REFUNDED' || remote.status === 'CANCELED') {
       // Payment refunded/canceled
       await this.handleRefund(charge.id, remote.status);
@@ -360,7 +853,24 @@ export class PlatformBillingService {
       // Continue anyway - refund is recorded in database
     }
   }
-  private async subscriptionForTenant(tenantId:bigint){const value=await this.client.tenantSubscription.findFirst({where:{tenantId,effectiveKey:'EFFECTIVE'},orderBy:{createdAt:'desc'}})??await this.client.tenantSubscription.findFirst({where:{tenantId},orderBy:{createdAt:'desc'}});if(!value)throw new AppError({code:'TENANT_SUBSCRIPTION_NOT_FOUND',message:'Assinatura não encontrada.',statusCode:404});return value;}
+  private async subscriptionForTenant(tenantId: bigint) {
+    const value =
+      (await this.client.tenantSubscription.findFirst({
+        where: { tenantId, effectiveKey: 'EFFECTIVE' },
+        orderBy: { createdAt: 'desc' },
+      })) ??
+      (await this.client.tenantSubscription.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+      }));
+    if (!value)
+      throw new AppError({
+        code: 'TENANT_SUBSCRIPTION_NOT_FOUND',
+        message: 'Assinatura não encontrada.',
+        statusCode: 404,
+      });
+    return value;
+  }
 
   // -------------------------------------------------------------------
   // Financeiro — analytics read-only (Fase 1).
@@ -376,7 +886,9 @@ export class PlatformBillingService {
   // -------------------------------------------------------------------
 
   /** Plan-setting SubscriptionHistory events for a set of subscriptions, grouped and sorted ascending — the input resolvePlanIdAt() expects. */
-  private async loadPlanHistory(subscriptionIds: bigint[]): Promise<Map<string, { createdAt: Date; newPlanId: bigint }[]>> {
+  private async loadPlanHistory(
+    subscriptionIds: bigint[],
+  ): Promise<Map<string, { createdAt: Date; newPlanId: bigint }[]>> {
     if (subscriptionIds.length === 0) return new Map();
     const events = await this.client.subscriptionHistory.findMany({
       where: { subscriptionId: { in: subscriptionIds }, newPlanId: { not: null } },
@@ -396,8 +908,12 @@ export class PlatformBillingService {
 
   /** publicId/name for every plan, including ones no subscription currently uses — needed because a historically-resolved plan may no longer be anyone's current plan. */
   private async loadPlanLookup(): Promise<Map<string, { publicId: string; name: string }>> {
-    const plans = await this.client.commercialPlan.findMany({ select: { id: true, publicId: true, name: true } });
-    return new Map(plans.map((plan) => [plan.id.toString(), { publicId: plan.publicId, name: plan.name }]));
+    const plans = await this.client.commercialPlan.findMany({
+      select: { id: true, publicId: true, name: true },
+    });
+    return new Map(
+      plans.map((plan) => [plan.id.toString(), { publicId: plan.publicId, name: plan.name }]),
+    );
   }
 
   public async financeDashboard() {
@@ -457,14 +973,18 @@ export class PlatformBillingService {
         include: { subscription: { include: { tenant: true, plan: true } } },
       }),
     ]);
-    const recentChargesPlanHistory = await this.loadPlanHistory(recentCharges.map((charge) => charge.subscriptionId));
+    const recentChargesPlanHistory = await this.loadPlanHistory(
+      recentCharges.map((charge) => charge.subscriptionId),
+    );
 
     const receivedThisMonthCents = receivedThisMonth._sum.amountCents ?? 0n;
     const receivedLastMonthCents = receivedLastMonth._sum.amountCents ?? 0n;
     const monthOverMonthChangePercent =
       receivedLastMonthCents === 0n
         ? null
-        : Number(((receivedThisMonthCents - receivedLastMonthCents) * 10_000n) / receivedLastMonthCents) / 100;
+        : Number(
+            ((receivedThisMonthCents - receivedLastMonthCents) * 10_000n) / receivedLastMonthCents,
+          ) / 100;
 
     // effectiveKey='EFFECTIVE' groups TRIALING, ACTIVE, PAST_DUE and
     // SUSPENDED together (see subscriptionEffectiveKey() in
@@ -480,7 +1000,8 @@ export class PlatformBillingService {
     const mrrAtRiskCents = effectiveSubscriptions
       .filter((sub) => sub.status === 'PAST_DUE' || sub.status === 'SUSPENDED')
       .reduce((total, sub) => total + monthlyCentsFrom(sub.priceCents, sub.billingCycle), 0n);
-    const averageTicketCents = paymentsThisMonth > 0 ? receivedThisMonthCents / BigInt(paymentsThisMonth) : null;
+    const averageTicketCents =
+      paymentsThisMonth > 0 ? receivedThisMonthCents / BigInt(paymentsThisMonth) : null;
 
     // Recebido no mês, por plano. changeSubscriptionPlan() mutates
     // TenantSubscription.planId in place (no new row per plan change), and
@@ -492,7 +1013,12 @@ export class PlatformBillingService {
     // one real historical source that already exists — see resolvePlanIdAt().
     const paidChargesThisMonthByPlan = await this.client.platformSubscriptionCharge.findMany({
       where: { status: 'PAID', paidAt: { gte: thisMonthStart, lt: nextMonthStart } },
-      select: { amountCents: true, createdAt: true, subscriptionId: true, subscription: { select: { planId: true } } },
+      select: {
+        amountCents: true,
+        createdAt: true,
+        subscriptionId: true,
+        subscription: { select: { planId: true } },
+      },
     });
     const [thisMonthPlanHistory, planLookup] = await Promise.all([
       this.loadPlanHistory(paidChargesThisMonthByPlan.map((charge) => charge.subscriptionId)),
@@ -513,11 +1039,18 @@ export class PlatformBillingService {
     // effective subscriptions" (grouped by the subscription's current plan)
     // with "historically resolved receipts" (grouped by planId) into one
     // table, so build a publicId -> planId reverse index to unify the keys.
-    const planIdByPublicId = new Map([...planLookup.entries()].map(([planIdKey, plan]) => [plan.publicId, planIdKey]));
+    const planIdByPublicId = new Map(
+      [...planLookup.entries()].map(([planIdKey, plan]) => [plan.publicId, planIdKey]),
+    );
 
     const byPlanAgg = new Map<
       string,
-      { planPublicId: string; planName: string; activeSubscriptions: number; mrrContractedCents: bigint }
+      {
+        planPublicId: string;
+        planName: string;
+        activeSubscriptions: number;
+        mrrContractedCents: bigint;
+      }
     >();
     for (const sub of effectiveSubscriptions) {
       const planIdKey = planIdByPublicId.get(sub.plan.publicId) ?? sub.plan.publicId;
@@ -613,7 +1146,15 @@ export class PlatformBillingService {
     tenantPublicId?: string | undefined;
     planPublicId?: string | undefined;
     provider?: string | undefined;
-    status?: 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELED' | 'EXPIRED' | 'REFUNDED' | undefined;
+    status?:
+      | 'PENDING'
+      | 'PROCESSING'
+      | 'PAID'
+      | 'FAILED'
+      | 'CANCELED'
+      | 'EXPIRED'
+      | 'REFUNDED'
+      | undefined;
     format: 'json' | 'csv';
   }) {
     const where: Prisma.PlatformSubscriptionChargeWhereInput = {
@@ -631,8 +1172,12 @@ export class PlatformBillingService {
         ? {}
         : {
             subscription: {
-              ...(query.tenantPublicId === undefined ? {} : { tenant: { publicId: query.tenantPublicId } }),
-              ...(query.planPublicId === undefined ? {} : { plan: { publicId: query.planPublicId } }),
+              ...(query.tenantPublicId === undefined
+                ? {}
+                : { tenant: { publicId: query.tenantPublicId } }),
+              ...(query.planPublicId === undefined
+                ? {}
+                : { plan: { publicId: query.planPublicId } }),
             },
           }),
     };
@@ -649,14 +1194,25 @@ export class PlatformBillingService {
         this.loadPlanLookup(),
       ]);
       return toCsv(
-        ['criado_em', 'estabelecimento', 'plano', 'valor_centavos', 'moeda', 'provider', 'status', 'pago_em', 'external_id'],
+        [
+          'criado_em',
+          'estabelecimento',
+          'plano',
+          'valor_centavos',
+          'moeda',
+          'provider',
+          'status',
+          'pago_em',
+          'external_id',
+        ],
         rows.map((row) => {
           const resolvedPlanId = resolvePlanIdAt(
             rowsPlanHistory.get(row.subscriptionId.toString()),
             row.createdAt,
             row.subscription.planId,
           );
-          const planName = planLookup.get(resolvedPlanId.toString())?.name ?? row.subscription.plan.name;
+          const planName =
+            planLookup.get(resolvedPlanId.toString())?.name ?? row.subscription.plan.name;
           return [
             row.createdAt.toISOString(),
             row.subscription.tenant.displayName,
@@ -709,7 +1265,12 @@ export class PlatformBillingService {
           externalId: charge.externalId,
         };
       }),
-      page: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) },
+      page: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
     });
   }
 
@@ -725,25 +1286,26 @@ export class PlatformBillingService {
     const thisMonthStart = startOfMonthUtc(now);
     const nextMonthStart = startOfMonthUtc(now, 1);
 
-    const [active, trialing, newThisMonth, canceledThisMonth, effectiveSubscriptions] = await Promise.all([
-      this.client.tenantSubscription.count({ where: { status: 'ACTIVE' } }),
-      this.client.tenantSubscription.count({ where: { status: 'TRIALING' } }),
-      this.client.tenantSubscription.count({
-        where: { createdAt: { gte: thisMonthStart, lt: nextMonthStart } },
-      }),
-      this.client.tenantSubscription.count({
-        where: { canceledAt: { gte: thisMonthStart, lt: nextMonthStart } },
-      }),
-      this.client.tenantSubscription.findMany({
-        where: { effectiveKey: 'EFFECTIVE' },
-        select: {
-          priceCents: true,
-          billingCycle: true,
-          status: true,
-          plan: { select: { publicId: true, name: true } },
-        },
-      }),
-    ]);
+    const [active, trialing, newThisMonth, canceledThisMonth, effectiveSubscriptions] =
+      await Promise.all([
+        this.client.tenantSubscription.count({ where: { status: 'ACTIVE' } }),
+        this.client.tenantSubscription.count({ where: { status: 'TRIALING' } }),
+        this.client.tenantSubscription.count({
+          where: { createdAt: { gte: thisMonthStart, lt: nextMonthStart } },
+        }),
+        this.client.tenantSubscription.count({
+          where: { canceledAt: { gte: thisMonthStart, lt: nextMonthStart } },
+        }),
+        this.client.tenantSubscription.findMany({
+          where: { effectiveKey: 'EFFECTIVE' },
+          select: {
+            priceCents: true,
+            billingCycle: true,
+            status: true,
+            plan: { select: { publicId: true, name: true } },
+          },
+        }),
+      ]);
 
     const mrrContractedCents = effectiveSubscriptions.reduce(
       (total, sub) => total + monthlyCentsFrom(sub.priceCents, sub.billingCycle),
@@ -751,7 +1313,12 @@ export class PlatformBillingService {
     );
     const byPlanAgg = new Map<
       string,
-      { planPublicId: string; planName: string; activeSubscriptions: number; mrrContractedCents: bigint }
+      {
+        planPublicId: string;
+        planName: string;
+        activeSubscriptions: number;
+        mrrContractedCents: bigint;
+      }
     >();
     for (const sub of effectiveSubscriptions) {
       const current = byPlanAgg.get(sub.plan.publicId) ?? {
@@ -765,8 +1332,10 @@ export class PlatformBillingService {
       byPlanAgg.set(sub.plan.publicId, current);
     }
 
-    let segment: { items: unknown[]; page: { page: number; limit: number; total: number; totalPages: number } } | null =
-      null;
+    let segment: {
+      items: unknown[];
+      page: { page: number; limit: number; total: number; totalPages: number };
+    } | null = null;
     if (query.segment) {
       const range = {
         gte: query.from === undefined ? thisMonthStart : new Date(query.from),
@@ -817,7 +1386,12 @@ export class PlatformBillingService {
           createdAt: row.createdAt.toISOString(),
           canceledAt: row.canceledAt?.toISOString() ?? null,
         })),
-        page: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) },
+        page: {
+          page: query.page,
+          limit: query.limit,
+          total,
+          totalPages: Math.ceil(total / query.limit),
+        },
       };
     }
 
@@ -854,7 +1428,9 @@ export class PlatformBillingService {
 
     const withDays = rows.map((row) => ({
       row,
-      daysSincePeriodEnd: Math.floor((now.getTime() - row.currentPeriodEndsAt.getTime()) / 86_400_000),
+      daysSincePeriodEnd: Math.floor(
+        (now.getTime() - row.currentPeriodEndsAt.getTime()) / 86_400_000,
+      ),
     }));
 
     const summary = {
@@ -880,12 +1456,22 @@ export class PlatformBillingService {
     }
 
     const filtered = query.bucket
-      ? withDays.filter(({ daysSincePeriodEnd }) => bucketOfDays(daysSincePeriodEnd) === query.bucket)
+      ? withDays.filter(
+          ({ daysSincePeriodEnd }) => bucketOfDays(daysSincePeriodEnd) === query.bucket,
+        )
       : withDays;
 
     if (query.format === 'csv') {
       return toCsv(
-        ['estabelecimento', 'plano', 'valor_contratual_centavos', 'fim_periodo', 'dias', 'carencia_ate', 'status'],
+        [
+          'estabelecimento',
+          'plano',
+          'valor_contratual_centavos',
+          'fim_periodo',
+          'dias',
+          'carencia_ate',
+          'status',
+        ],
         filtered
           .slice(0, 5000)
           .map(({ row, daysSincePeriodEnd }) => [
@@ -901,7 +1487,10 @@ export class PlatformBillingService {
     }
 
     const total = filtered.length;
-    const page = filtered.slice((query.page - 1) * query.limit, (query.page - 1) * query.limit + query.limit);
+    const page = filtered.slice(
+      (query.page - 1) * query.limit,
+      (query.page - 1) * query.limit + query.limit,
+    );
 
     return PlatformFinanceDelinquencyResponseSchema.parse({
       summary: {
@@ -925,7 +1514,12 @@ export class PlatformBillingService {
         graceEndsAt: row.graceEndsAt?.toISOString() ?? null,
         status: row.status as 'PAST_DUE' | 'SUSPENDED',
       })),
-      page: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) },
+      page: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
     });
   }
 }

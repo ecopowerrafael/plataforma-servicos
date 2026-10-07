@@ -18,7 +18,7 @@ const build = async () => {
   const app = Fastify({ logger: false }).withTypeProvider<ZodTypeProvider>();
   const service = {
     ingestWhatsappInbound: vi.fn().mockResolvedValue({ accepted: true, provider: 'WAPI' }),
-    ingestEvolutionWebhook: vi.fn().mockResolvedValue({ statusCode: 200, body: { received: true, processed: 1, duplicated: 0, rejected: 0 } }),
+    ingestEvolutionWebhook: vi.fn().mockResolvedValue({ statusCode: 200, body: { received: true, processed: 1, duplicated: 0, rejected: 0 }, diagnostics: { stage: 'INGESTION', outcome: 'PROCESSED' } }),
     verifyMetaWebhook: vi.fn().mockResolvedValue('abc123'),
     ingestMetaWebhook: vi.fn().mockResolvedValue({ statusCode: 200, body: { received: true, processed: 1, duplicated: 0, rejected: 0 } }),
   };

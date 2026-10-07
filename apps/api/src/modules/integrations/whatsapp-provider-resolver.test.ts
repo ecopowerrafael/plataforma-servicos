@@ -131,9 +131,10 @@ describe('WhatsAppProviderResolver', () => {
       inbound: vi.fn(() => ({ provider: 'WAPI', capabilities: delivery.capabilities, normalize })),
     };
     const repository = {
-      client: {},
+      client: { tenantSubscription: { findFirst: vi.fn().mockResolvedValue(null) } },
       whatsappByInstanceId: vi.fn().mockResolvedValue({ tenantId: 7n, phoneNumberId: 'INST', provider: 'WAPI' }),
-      inboundEventByFingerprint: vi.fn().mockResolvedValue({ id: 1n }),
+      inboundEventByFingerprint: vi.fn().mockResolvedValue({ id: 1n, processedAt: new Date() }),
+      customerByPhone: vi.fn().mockResolvedValue(null),
     };
     const service = new IntegrationService(
       repository as never,

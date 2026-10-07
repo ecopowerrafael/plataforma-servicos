@@ -1164,7 +1164,7 @@ export class IntegrationService {
    * nem o id gerado pelo provedor.
    */
   private async resolveActionId(tenantId: bigint, event: NormalizedWhatsAppEvent) {
-    if (event.provider !== 'EVOLUTION' || event.eventType !== 'MESSAGE_ACTION') return null;
+    if (event.eventType !== 'MESSAGE_ACTION') return null;
     const contextual = contextualAppointmentAction(event.actionId);
     if (contextual !== null) {
       console.info('[WHATSAPP_NOTIFICATION_ACTION]', JSON.stringify({ actionType: contextual.actionId, appointmentContextPresent: true, source: 'ACTION_ID' }));

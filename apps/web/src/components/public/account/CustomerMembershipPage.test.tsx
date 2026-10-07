@@ -129,6 +129,133 @@ describe('CustomerMembershipPage', () => {
     expect(screen.queryByRole('button', { name: /assinar|pagar|reativar/iu })).toBeNull();
   });
 
+  it('lista planos públicos, confirma adesão somente com planPublicId e mostra sucesso', async () => {
+    const user = userEvent.setup();
+    const plan = {
+      publicId: '00000000-0000-4000-8000-000000000006',
+      name: 'Plano mensal',
+      description: 'Quatro cortes por ciclo',
+      priceCents: 9900,
+      billingInterval: 'MONTHLY' as const,
+      benefits: [
+        {
+          serviceName: 'Corte',
+          type: 'QUANTITY' as const,
+          quantityPerCycle: 4,
+          discountPercent: null,
+        },
+      ],
+    };
+    vi.mocked(httpClient.request).mockImplementation(((
+      url: string,
+      options?: { method?: string },
+    ) => {
+      if (url.endsWith('/membership/plans')) return Promise.resolve({ items: [plan] }) as never;
+      if (url.endsWith('/customer/membership') && options?.method === 'POST')
+        return Promise.resolve({
+          publicId: '00000000-0000-4000-8000-000000000007',
+          customerPublicId: '00000000-0000-4000-8000-000000000008',
+          planPublicId: plan.publicId,
+          planName: plan.name,
+          status: 'PENDING',
+          startedAt: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          nextBillingAt: null,
+          cancelAtPeriodEnd: false,
+          canceledAt: null,
+          priceCents: 9900,
+          createdAt: iso,
+          updatedAt: iso,
+        }) as never;
+      if (url.endsWith('/customer/membership/payment'))
+        return Promise.resolve(paymentState) as never;
+      return Promise.resolve({ current: null, history: [] }) as never;
+    }) as never);
+
+    renderPage();
+    expect(await screen.findByText('Plano mensal')).not.toBeNull();
+    expect(screen.getByText('Corte: 4 por ciclo')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Escolher plano' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar mensalidade' }));
+
+    expect(httpClient.request).toHaveBeenCalledWith(
+      '/public/sites/studio/customer/membership',
+      expect.objectContaining({ method: 'POST', body: { planPublicId: plan.publicId } }),
+    );
+    expect((await screen.findByRole('status')).textContent).toContain(
+      'Mensalidade criada — conclua o pagamento.',
+    );
+  });
+
+  it('não exibe catálogo comercial quando já existe uma mensalidade ativa', async () => {
+    vi.mocked(httpClient.request).mockResolvedValue({ current: item('ACTIVE'), history: [] });
+    renderPage();
+    await screen.findByRole('heading', { name: 'Mensalidade ativa' });
+    expect(screen.queryByText('Planos disponíveis')).toBeNull();
+    expect(httpClient.request).not.toHaveBeenCalledWith(
+      '/public/sites/studio/customer/membership/plans',
+      expect.anything(),
+    );
+  });
+
+  it('desabilita confirmação durante a criação e impede double click', async () => {
+    const user = userEvent.setup();
+    let resolveCreate!: (value: unknown) => void;
+    const plan = {
+      publicId: '00000000-0000-4000-8000-000000000010',
+      name: 'Plano mensal',
+      description: null,
+      priceCents: 10000,
+      billingInterval: 'MONTHLY' as const,
+      benefits: [],
+    };
+    vi.mocked(httpClient.request).mockImplementation(((
+      url: string,
+      options?: { method?: string },
+    ) => {
+      if (url.endsWith('/membership/plans')) return Promise.resolve({ items: [plan] }) as never;
+      if (url.endsWith('/customer/membership') && options?.method === 'POST')
+        return new Promise((resolve) => {
+          resolveCreate = resolve;
+        }) as never;
+      return Promise.resolve({ current: null, history: [] }) as never;
+    }) as never);
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Escolher plano' }));
+    const confirm = screen.getByRole('button', {
+      name: 'Confirmar mensalidade',
+    }) as HTMLButtonElement;
+    await user.click(confirm);
+    expect(confirm.disabled).toBe(true);
+    expect(
+      (
+        vi.mocked(httpClient.request).mock.calls as unknown as Array<[string, { method?: string }?]>
+      ).filter(
+        ([url, options]) => url.endsWith('/customer/membership') && options?.method === 'POST',
+      ),
+    ).toHaveLength(1);
+
+    resolveCreate({
+      publicId: '00000000-0000-4000-8000-000000000011',
+      customerPublicId: '00000000-0000-4000-8000-000000000012',
+      planPublicId: plan.publicId,
+      planName: plan.name,
+      status: 'PENDING',
+      startedAt: null,
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      nextBillingAt: null,
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+      priceCents: plan.priceCents,
+      createdAt: iso,
+      updatedAt: iso,
+    });
+    expect(await screen.findByRole('status')).not.toBeNull();
+  });
+
   it('mostra PENDING, PAUSED e cancelamento programado sem ações comerciais', async () => {
     vi.mocked(httpClient.request)
       .mockResolvedValueOnce({

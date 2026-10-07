@@ -4,10 +4,15 @@ import {
   type UpdateCustomerMembershipPlanRequest,
   CustomerMembershipPlanListResponseSchema,
   CustomerMembershipPlanPublicSchema,
+  CustomerMembershipAvailablePlanListResponseSchema,
 } from '@plataforma/shared';
 import { Prisma } from '../../database-client/client.js';
 import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipPlanRepository } from './customer-membership-plan.repository.js';
+import {
+  getCustomerMembershipFeatureState,
+  isCustomerMembershipFeatureEnabled,
+} from './customer-membership-feature-gate.js';
 
 interface Actor {
   userId: bigint;
@@ -27,6 +32,20 @@ interface PlanRecord {
   benefits: Array<{
     publicId: string;
     service: { publicId: string; name: string };
+    type: string;
+    quantityPerCycle: number | null;
+    discountPercent: number | null;
+  }>;
+}
+
+interface AvailablePlanRecord {
+  publicId: string;
+  name: string;
+  description: string | null;
+  priceCents: bigint;
+  billingInterval: string;
+  benefits: Array<{
+    service: { name: string };
     type: string;
     quantityPerCycle: number | null;
     discountPercent: number | null;
@@ -54,6 +73,20 @@ const pub = (plan: PlanRecord) =>
     })),
   });
 
+const availablePub = (plan: AvailablePlanRecord) => ({
+  publicId: plan.publicId,
+  name: plan.name,
+  description: plan.description,
+  priceCents: Number(plan.priceCents),
+  billingInterval: plan.billingInterval,
+  benefits: plan.benefits.map((benefit) => ({
+    serviceName: benefit.service.name,
+    type: benefit.type,
+    quantityPerCycle: benefit.quantityPerCycle,
+    discountPercent: benefit.discountPercent,
+  })),
+});
+
 function notFound() {
   return new AppError({
     code: 'CUSTOMER_MEMBERSHIP_PLAN_NOT_FOUND',
@@ -72,17 +105,23 @@ export class CustomerMembershipPlanService {
     });
   }
 
+  public async listAvailableForCustomer(tenantId: bigint) {
+    const state = await getCustomerMembershipFeatureState(this.repository.client, tenantId);
+    if (!isCustomerMembershipFeatureEnabled(state)) return { items: [] };
+
+    const items = await this.repository.listAvailable(tenantId);
+    return CustomerMembershipAvailablePlanListResponseSchema.parse({
+      items: items.map(availablePub),
+    });
+  }
+
   public async get(tenantId: bigint, publicId: string) {
     const item = await this.repository.find(tenantId, publicId);
     if (item === null) throw notFound();
     return pub(item);
   }
 
-  public async create(
-    tenantId: bigint,
-    input: CreateCustomerMembershipPlanRequest,
-    actor: Actor,
-  ) {
+  public async create(tenantId: bigint, input: CreateCustomerMembershipPlanRequest, actor: Actor) {
     try {
       const publicId = randomUUID();
       const item = await this.repository.create({

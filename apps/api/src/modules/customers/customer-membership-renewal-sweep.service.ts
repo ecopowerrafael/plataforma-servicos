@@ -156,6 +156,7 @@ export class CustomerMembershipRenewalSweepService {
             where: { id, tenantId },
             data: {
               status: 'CANCELED',
+              activeKey: null,
               canceledAt: membership.currentPeriodEnd ?? now,
               cancelAtPeriodEnd: false,
               nextBillingAt: null,

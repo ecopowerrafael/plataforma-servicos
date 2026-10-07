@@ -4,8 +4,8 @@ import { AppError } from '../../errors/AppError.js';
 import { CustomerMembershipChargeRepository } from './customer-membership-charge.repository.js';
 
 interface Actor {
-  userId: bigint;
-  sessionId: bigint;
+  userId: bigint | null;
+  sessionId: bigint | null;
 }
 
 function membershipNotFound() {

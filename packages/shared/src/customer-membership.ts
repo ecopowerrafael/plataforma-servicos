@@ -110,6 +110,28 @@ export const CustomerMembershipPlanListResponseSchema = z.object({
   items: z.array(CustomerMembershipPlanPublicSchema),
 });
 
+/** Catálogo público de adesão: não expõe flags administrativas nem timestamps. */
+export const CustomerMembershipAvailablePlanBenefitSchema = z.object({
+  serviceName: z.string(),
+  type: MembershipBenefitTypeSchema,
+  quantityPerCycle: z.number().int().positive().nullable(),
+  discountPercent: z.number().int().min(1).max(100).nullable(),
+});
+
+export const CustomerMembershipAvailablePlanSchema = z.object({
+  publicId: z.string().uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  priceCents: z.number().int().nonnegative(),
+  billingInterval: MembershipBillingIntervalSchema,
+  benefits: z.array(CustomerMembershipAvailablePlanBenefitSchema),
+});
+export type CustomerMembershipAvailablePlan = z.infer<typeof CustomerMembershipAvailablePlanSchema>;
+
+export const CustomerMembershipAvailablePlanListResponseSchema = z.object({
+  items: z.array(CustomerMembershipAvailablePlanSchema),
+});
+
 export const CreateCustomerMembershipPlanRequestSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(5000).nullable().optional(),
@@ -156,9 +178,11 @@ export const CustomerMembershipPublicSchema = z.object({
 });
 export type CustomerMembershipPublic = z.infer<typeof CustomerMembershipPublicSchema>;
 
-export const CreateCustomerMembershipRequestSchema = z.object({
-  planPublicId: z.string().uuid(),
-});
+export const CreateCustomerMembershipRequestSchema = z
+  .object({
+    planPublicId: z.string().uuid(),
+  })
+  .strict();
 export type CreateCustomerMembershipRequest = z.infer<typeof CreateCustomerMembershipRequestSchema>;
 
 // Charge

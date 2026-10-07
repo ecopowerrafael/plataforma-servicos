@@ -1,5 +1,7 @@
 import {
   CustomerMembershipAccountResponseSchema,
+  CustomerMembershipAvailablePlanListResponseSchema,
+  CustomerMembershipPublicSchema,
   CustomerMembershipPaymentResponseSchema,
 } from '@plataforma/shared';
 import {
@@ -72,6 +74,39 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
       membership.data?.current?.status === 'PENDING' ||
       membership.data?.current?.status === 'PAST_DUE',
     retry: false,
+  });
+  const plans = useQuery({
+    queryKey: ['public', slug, 'customer', 'membership', 'plans'],
+    queryFn: () =>
+      httpClient.request(`/public/sites/${slug}/customer/membership/plans`, {
+        schema: CustomerMembershipAvailablePlanListResponseSchema,
+      }),
+    enabled: membership.data?.current === null,
+    retry: false,
+  });
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [created, setCreated] = useState(false);
+  const createMembership = useMutation({
+    mutationFn: async () => {
+      if (selectedPlanId === null) throw new Error('Plano não selecionado.');
+      return httpClient.request(`/public/sites/${slug}/customer/membership`, {
+        method: 'POST',
+        body: { planPublicId: selectedPlanId },
+        schema: CustomerMembershipPublicSchema,
+      });
+    },
+    onSuccess: async () => {
+      setCreated(true);
+      await queryClient.invalidateQueries({
+        queryKey: ['public', slug, 'customer', 'membership'],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ['public', slug, 'customer', 'membership', 'payment'],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ['public', slug, 'customer', 'membership', 'plans'],
+      });
+    },
   });
   const generateGateway = useMutation({
     mutationFn: () =>
@@ -150,11 +185,16 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
       </header>
 
       {current === null ? (
-        <div className="customer-membership-empty">
-          <IconCreditCard aria-hidden="true" size={34} />
-          <h2>Você ainda não possui uma mensalidade.</h2>
-          <p>Quando houver uma mensalidade vinculada à sua conta, ela aparecerá aqui.</p>
-        </div>
+        <MembershipCatalog
+          plans={plans.data?.items ?? []}
+          selectedPlanId={selectedPlanId}
+          onSelect={setSelectedPlanId}
+          pending={createMembership.isPending}
+          error={createMembership.error}
+          loading={plans.isPending}
+          loadError={plans.error}
+          onConfirm={() => createMembership.mutate()}
+        />
       ) : (
         <MembershipCard
           membership={current}
@@ -167,6 +207,12 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
           onRefresh={() => refreshGateway.mutate()}
         />
       )}
+
+      {created ? (
+        <p className="customer-membership-notice" role="status">
+          Mensalidade criada — conclua o pagamento.
+        </p>
+      ) : null}
 
       {data.history.length > 0 ? (
         <section className="customer-membership-card" aria-labelledby="customer-membership-history">
@@ -200,6 +246,115 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
           </div>
         </section>
       ) : null}
+    </section>
+  );
+}
+
+function MembershipCatalog({
+  plans,
+  selectedPlanId,
+  onSelect,
+  pending,
+  error,
+  loading,
+  loadError,
+  onConfirm,
+}: {
+  plans: z.infer<typeof CustomerMembershipAvailablePlanListResponseSchema>['items'];
+  selectedPlanId: string | null;
+  onSelect: (planId: string) => void;
+  pending: boolean;
+  error: Error | null;
+  loading: boolean;
+  loadError: Error | null;
+  onConfirm: () => void;
+}) {
+  const selected = plans.find((plan) => plan.publicId === selectedPlanId) ?? null;
+
+  if (loading || loadError !== null)
+    return (
+      <div className="customer-membership-empty">
+        <IconCreditCard aria-hidden="true" size={34} />
+        <h2>Você ainda não possui uma mensalidade.</h2>
+        <p>Quando houver uma mensalidade vinculada à sua conta, ela aparecerá aqui.</p>
+      </div>
+    );
+
+  return (
+    <section className="customer-membership-card" aria-labelledby="customer-membership-catalog">
+      <header>
+        <div>
+          <span>Planos disponíveis</span>
+          <h2 id="customer-membership-catalog">Escolha sua mensalidade</h2>
+        </div>
+      </header>
+      {plans.length === 0 ? (
+        <div className="customer-membership-empty">
+          <IconCreditCard aria-hidden="true" size={34} />
+          <p>No momento, não há planos disponíveis para adesão.</p>
+        </div>
+      ) : (
+        <>
+          <div className="customer-membership-benefits">
+            {plans.map((plan) => (
+              <article key={plan.publicId}>
+                <div>
+                  <strong>{plan.name}</strong>
+                  {plan.description !== null ? <p>{plan.description}</p> : null}
+                  <span>
+                    {money(plan.priceCents)} {intervalLabel(plan.billingInterval)}
+                  </span>
+                </div>
+                {plan.benefits.length > 0 ? (
+                  <ul>
+                    {plan.benefits.map((benefit) => (
+                      <li key={`${plan.publicId}-${benefit.serviceName}`}>
+                        {benefit.serviceName}:{' '}
+                        {benefit.type === 'UNLIMITED'
+                          ? 'Ilimitado'
+                          : benefit.type === 'DISCOUNT'
+                            ? `${benefit.discountPercent}% de desconto`
+                            : `${benefit.quantityPerCycle} por ciclo`}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <button
+                  className="public-primary-button"
+                  type="button"
+                  aria-pressed={selectedPlanId === plan.publicId}
+                  disabled={pending}
+                  onClick={() => onSelect(plan.publicId)}
+                >
+                  {selectedPlanId === plan.publicId ? 'Plano selecionado' : 'Escolher plano'}
+                </button>
+              </article>
+            ))}
+          </div>
+          {selected !== null ? (
+            <div className="customer-membership-notice">
+              <strong>Confirmar adesão: {selected.name}</strong>
+              <p>
+                {money(selected.priceCents)} {intervalLabel(selected.billingInterval)}. A primeira
+                cobrança será criada agora e você poderá concluir o pagamento na sequência.
+              </p>
+              <button
+                className="public-primary-button"
+                type="button"
+                disabled={pending}
+                onClick={onConfirm}
+              >
+                {pending ? 'Criando mensalidade…' : 'Confirmar mensalidade'}
+              </button>
+            </div>
+          ) : null}
+          {error !== null ? (
+            <p className="public-form-error" role="alert">
+              Não foi possível criar sua mensalidade. Tente novamente.
+            </p>
+          ) : null}
+        </>
+      )}
     </section>
   );
 }

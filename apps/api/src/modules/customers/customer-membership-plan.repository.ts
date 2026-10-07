@@ -1,12 +1,20 @@
 import { Prisma, type PrismaClient } from '../../database-client/client.js';
 
 export class CustomerMembershipPlanRepository {
-  public constructor(private readonly client: PrismaClient) {}
+  public constructor(public readonly client: PrismaClient) {}
 
   public list(tenantId: bigint) {
     return this.client.customerMembershipPlan.findMany({
       where: { tenantId },
       include: { benefits: { include: { service: { select: { publicId: true, name: true } } } } },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  public listAvailable(tenantId: bigint) {
+    return this.client.customerMembershipPlan.findMany({
+      where: { tenantId, active: true },
+      include: { benefits: { include: { service: { select: { name: true } } } } },
       orderBy: { sortOrder: 'asc' },
     });
   }

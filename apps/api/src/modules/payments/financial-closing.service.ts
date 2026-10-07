@@ -96,6 +96,8 @@ export class FinancialClosingService {
 
     const appointmentUnitFilter: Prisma.AppointmentWhereInput = unitId === null ? {} : { unitId };
     const registerUnitFilter: Prisma.CashRegisterWhereInput = unitId === null ? {} : { unitId };
+    const paymentUnitFilter: Prisma.PaymentWhereInput =
+      unitId === null ? {} : { appointment: appointmentUnitFilter };
 
     const [
       receivedPayments,
@@ -110,7 +112,7 @@ export class FinancialClosingService {
           tenantId,
           status: 'PAID',
           createdAt: { gte: periodFrom, lt: periodTo },
-          appointment: appointmentUnitFilter,
+          ...paymentUnitFilter,
         },
         select: {
           amountCents: true,
@@ -123,7 +125,7 @@ export class FinancialClosingService {
           tenantId,
           status: 'CANCELED',
           canceledAt: { gte: periodFrom, lt: periodTo },
-          appointment: appointmentUnitFilter,
+          ...paymentUnitFilter,
         },
         _sum: { amountCents: true },
       }),
@@ -133,7 +135,7 @@ export class FinancialClosingService {
           status: 'PAID',
           kind: 'DEPOSIT',
           createdAt: { gte: periodFrom, lt: periodTo },
-          appointment: appointmentUnitFilter,
+          ...paymentUnitFilter,
         },
         _sum: { amountCents: true },
       }),

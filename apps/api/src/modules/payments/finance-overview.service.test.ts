@@ -62,11 +62,10 @@ function build(options: Options = {}) {
     .fn()
     .mockResolvedValue([{ professionalId: 5n, commissionAmountCents: 1500n }]);
   const cashRegisterFindFirst = vi.fn().mockResolvedValue(null);
-  const paymentFindMany = vi.fn(
-    (args: { where: { status: string } }) =>
-      args.where.status === 'PAID'
-        ? Promise.resolve(options.paid ?? [payment()])
-        : Promise.resolve([]),
+  const paymentFindMany = vi.fn((args: { where: { status: string } }) =>
+    args.where.status === 'PAID'
+      ? Promise.resolve(options.paid ?? [payment()])
+      : Promise.resolve([]),
   );
   const client = {
     appointment: { findMany: appointmentFindMany },
@@ -94,9 +93,7 @@ function build(options: Options = {}) {
     tenant: { findUnique: vi.fn().mockResolvedValue({ timezone: options.timezone ?? timezone }) },
   } as unknown as PrismaClient;
   const delinquency = {
-    list: vi
-      .fn()
-      .mockResolvedValue(options.delinquency ?? { items: [], totalBalanceCents: '0' }),
+    list: vi.fn().mockResolvedValue(options.delinquency ?? { items: [], totalBalanceCents: '0' }),
   } as unknown as DelinquencyService;
   return {
     service: new FinanceOverviewService(client, delinquency),
@@ -144,6 +141,30 @@ describe('painel financeiro', () => {
       expect.objectContaining({ name: 'Cartão', totalCents: '4000', count: 1 }),
     ]);
     expect(result.totals.receivedCents).toBe('13000');
+  });
+
+  it('inclui Membership no consolidado sem atribuí-la a profissional ou unidade', async () => {
+    const result = await build({
+      paid: [
+        payment(),
+        payment({
+          amountCents: 20_000n,
+          appointment: null,
+          paymentMethod: { publicId: '00000000-0000-4000-8000-0000000000a1', name: 'PIX' },
+        }),
+      ],
+    }).service.overview(1n, period, scope);
+
+    expect(result.totals.receivedCents).toBe('29000');
+    expect(result.paymentMethods).toEqual([
+      expect.objectContaining({ name: 'PIX', totalCents: '29000', count: 2 }),
+    ]);
+    expect(result.professionals[0]?.receivedCents).toBe('9000');
+    expect(result.recentActivity).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Membership recebida', appointmentPublicId: null }),
+      ]),
+    );
   });
 
   it('atribui faturado, recebido e comissão ao profissional correto', async () => {
@@ -266,8 +287,7 @@ describe('painel financeiro', () => {
     const result = await built.service.overview(1n, period, scope);
     expect(result.totals.receivedCents).toBe('12000');
     const paymentCall = built.paymentFindMany.mock.calls[0]?.[0] as
-      | { where: { status: string; createdAt: unknown } }
-      | undefined;
+      { where: { status: string; createdAt: unknown } } | undefined;
     expect(paymentCall?.where.status).toBe('PAID');
     expect(paymentCall?.where.createdAt).toBeDefined();
   });
@@ -330,8 +350,7 @@ describe('painel financeiro', () => {
     expect(result.series[0]?.key).toBe('2026-08-31');
     expect(result.timezone).toBe('America/Sao_Paulo');
     const call = built.appointmentFindMany.mock.calls[0]?.[0] as
-      | { where: { startsAt: { gte: Date; lt: Date } } }
-      | undefined;
+      { where: { startsAt: { gte: Date; lt: Date } } } | undefined;
     // 01/08 00:00 e 01/09 00:00 locais viram 03:00Z.
     expect(call?.where.startsAt.gte.toISOString()).toBe('2026-08-01T03:00:00.000Z');
     expect(call?.where.startsAt.lt.toISOString()).toBe('2026-09-01T03:00:00.000Z');
@@ -366,11 +385,25 @@ describe('painel financeiro', () => {
 
   it('restringe as agregações ao tenant e aplica o filtro de unidade', async () => {
     const built = build();
-    await built.service.overview(7n, { ...period, unitPublicId: '00000000-0000-4000-8000-00000000ff01' }, scope);
+    await built.service.overview(
+      7n,
+      { ...period, unitPublicId: '00000000-0000-4000-8000-00000000ff01' },
+      scope,
+    );
     const call = built.appointmentFindMany.mock.calls[0]?.[0] as { where: unknown } | undefined;
     expect(call?.where).toMatchObject({ tenantId: 7n, unitId: 9n });
     const paymentCall = built.paymentFindMany.mock.calls[0]?.[0] as { where: unknown } | undefined;
     expect(paymentCall?.where).toMatchObject({ tenantId: 7n });
+    expect(paymentCall?.where).toMatchObject({ appointment: { unitId: 9n } });
+  });
+
+  it('não restringe Membership no consolidado por uma relação de Appointment', async () => {
+    const built = build();
+    await built.service.overview(7n, period, scope);
+    const paymentCall = built.paymentFindMany.mock.calls[0]?.[0] as {
+      where: Record<string, unknown>;
+    };
+    expect(paymentCall.where.appointment).toBeUndefined();
   });
 
   it('a série do período traz faturado e recebido no mesmo ponto', async () => {

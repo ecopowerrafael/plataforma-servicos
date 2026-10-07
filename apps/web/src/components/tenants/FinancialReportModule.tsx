@@ -198,6 +198,10 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
             <Metric label="Receita recebida" value={money(summary.receivedRevenueCents)} />
             <Metric label="Resultado operacional" value={money(summary.operatingResultCents)} />
             <Metric label="Resultado de caixa" value={money(summary.cashResultCents)} />
+            <Metric label="Reembolsos" value={money(summary.membershipRefundsCents)} />
+            <Metric label="Chargebacks" value={money(summary.membershipChargebacksCents)} />
+            <Metric label="Comissões geradas" value={money(summary.traditionalCommissionsCents)} />
+            <Metric label="Repasses líquidos" value={money(summary.professionalPayoutsCents)} />
             <Metric
               label="Pagamentos recebidos"
               value={money(summary.paymentsReceivedCents)}
@@ -261,6 +265,14 @@ export function FinancialReportModule({ tenantPublicId }: { tenantPublicId: stri
                 <div>
                   <dt>Repasses líquidos</dt>
                   <dd>{money(summary.professionalPayoutsCents)}</dd>
+                </div>
+                <div>
+                  <dt>Reembolsos de Membership</dt>
+                  <dd>{money(summary.membershipRefundsCents)}</dd>
+                </div>
+                <div>
+                  <dt>Chargebacks de Membership</dt>
+                  <dd>{money(summary.membershipChargebacksCents)}</dd>
                 </div>
                 <div>
                   <dt>Outras saídas manuais</dt>

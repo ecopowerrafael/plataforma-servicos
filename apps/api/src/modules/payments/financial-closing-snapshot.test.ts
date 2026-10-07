@@ -74,7 +74,14 @@ function build(overrides: Record<string, unknown> = {}) {
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     ...overrides,
   } as unknown as PrismaClient;
-  return { service: new FinancialClosingService(client), create, findMany, update, findFirst };
+  return {
+    service: new FinancialClosingService(client),
+    create,
+    findMany,
+    update,
+    findFirst,
+    paymentFindMany: client.payment.findMany as unknown as ReturnType<typeof vi.fn>,
+  };
 }
 
 const actor = { userId: 7n, sessionId: 8n };
@@ -131,5 +138,24 @@ describe('fechamento financeiro', () => {
     built.findFirst.mockResolvedValue(stored());
     await built.service.cancel(9n, '00000000-0000-4000-8000-000000000001', 'Motivo', actor);
     expect(built.findFirst.mock.calls[0]?.[0]).toMatchObject({ where: { tenantId: 9n } });
+  });
+
+  it('inclui pagamentos globais no fechamento consolidado', async () => {
+    const built = build();
+    await built.service.create(1n, period, actor);
+    const call = built.paymentFindMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
+    expect(call.where).toMatchObject({ tenantId: 1n, status: 'PAID' });
+    expect(call.where.appointment).toBeUndefined();
+  });
+
+  it('mantém Membership fora de fechamento parcial por unidade', async () => {
+    const built = build();
+    await built.service.create(
+      1n,
+      { ...period, unitPublicId: '00000000-0000-4000-8000-000000000009' },
+      actor,
+    );
+    const call = built.paymentFindMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
+    expect(call.where).toMatchObject({ appointment: { unitId: 9n } });
   });
 });

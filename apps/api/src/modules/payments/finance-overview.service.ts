@@ -247,6 +247,8 @@ export class FinanceOverviewService {
     /** O periodo anterior ja e envolvido por um estagio proprio. */
     inner = false,
   ) {
+    const paymentScope: Prisma.PaymentWhereInput =
+      Object.keys(scope).length === 0 ? {} : { appointment: scope };
     const wrap = async <T>(stage: FinanceOverviewStage, run: () => Promise<T>) =>
       inner ? run() : runStage(stage, run);
     const completed = await wrap('billedAppointments', () =>
@@ -264,7 +266,7 @@ export class FinanceOverviewService {
             tenantId,
             status: 'PAID',
             createdAt: { gte: from, lt: to },
-            appointment: scope,
+            ...paymentScope,
           },
           select: { amountCents: true, createdAt: true },
         }),
@@ -291,10 +293,12 @@ export class FinanceOverviewService {
     to: Date,
     scope: Prisma.AppointmentWhereInput,
   ) {
+    const paymentScope: Prisma.PaymentWhereInput =
+      Object.keys(scope).length === 0 ? {} : { appointment: scope };
     const [paid, canceled, movements] = await Promise.all([
       runStage('paymentMethods', () =>
         this.client.payment.findMany({
-          where: { tenantId, status: 'PAID', createdAt: { gte: from, lt: to }, appointment: scope },
+          where: { tenantId, status: 'PAID', createdAt: { gte: from, lt: to }, ...paymentScope },
           orderBy: { createdAt: 'desc' },
           select: {
             amountCents: true,
@@ -318,7 +322,7 @@ export class FinanceOverviewService {
             tenantId,
             status: 'CANCELED',
             canceledAt: { gte: from, lt: to },
-            appointment: scope,
+            ...paymentScope,
           },
           orderBy: { canceledAt: 'desc' },
           take: 5,
@@ -347,7 +351,6 @@ export class FinanceOverviewService {
     >();
     const receivedByProfessional = new Map<bigint, bigint>();
     for (const payment of paid) {
-      if (payment.appointment === null) continue;
       const current = methods.get(payment.paymentMethod.publicId);
       methods.set(payment.paymentMethod.publicId, {
         publicId: payment.paymentMethod.publicId,
@@ -355,6 +358,7 @@ export class FinanceOverviewService {
         total: (current?.total ?? 0n) + payment.amountCents,
         count: (current?.count ?? 0) + 1,
       });
+      if (payment.appointment === null) continue;
       receivedByProfessional.set(
         payment.appointment.professionalId,
         (receivedByProfessional.get(payment.appointment.professionalId) ?? 0n) +
@@ -363,24 +367,52 @@ export class FinanceOverviewService {
     }
 
     const activity = [
-      ...paid.slice(0, 10).filter((p) => p.appointment !== null).map((payment) => ({
-        kind: 'PAYMENT' as const,
-        at: payment.createdAt.toISOString(),
-        title: payment.kind === 'DEPOSIT' ? 'Sinal recebido' : 'Pagamento recebido',
-        description: `${payment.appointment!.customer.name} · ${payment.paymentMethod.name}`,
-        amountCents: payment.amountCents.toString(),
-        direction: 'IN' as const,
-        appointmentPublicId: payment.appointment!.publicId,
-      })),
-      ...canceled.filter((p) => p.appointment !== null).map((payment) => ({
-        kind: 'PAYMENT_CANCELED' as const,
-        at: (payment.canceledAt ?? new Date()).toISOString(),
-        title: 'Pagamento estornado',
-        description: payment.canceledReason ?? payment.appointment!.customer.name,
-        amountCents: payment.amountCents.toString(),
-        direction: 'OUT' as const,
-        appointmentPublicId: payment.appointment!.publicId,
-      })),
+      ...paid
+        .slice(0, 10)
+        .filter((p) => p.appointment !== null)
+        .map((payment) => ({
+          kind: 'PAYMENT' as const,
+          at: payment.createdAt.toISOString(),
+          title: payment.kind === 'DEPOSIT' ? 'Sinal recebido' : 'Pagamento recebido',
+          description: `${payment.appointment!.customer.name} · ${payment.paymentMethod.name}`,
+          amountCents: payment.amountCents.toString(),
+          direction: 'IN' as const,
+          appointmentPublicId: payment.appointment!.publicId,
+        })),
+      ...paid
+        .slice(0, 10)
+        .filter((p) => p.appointment === null)
+        .map((payment) => ({
+          kind: 'PAYMENT' as const,
+          at: payment.createdAt.toISOString(),
+          title: 'Membership recebida',
+          description: payment.paymentMethod.name,
+          amountCents: payment.amountCents.toString(),
+          direction: 'IN' as const,
+          appointmentPublicId: null,
+        })),
+      ...canceled
+        .filter((p) => p.appointment !== null)
+        .map((payment) => ({
+          kind: 'PAYMENT_CANCELED' as const,
+          at: (payment.canceledAt ?? new Date()).toISOString(),
+          title: 'Pagamento estornado',
+          description: payment.canceledReason ?? payment.appointment!.customer.name,
+          amountCents: payment.amountCents.toString(),
+          direction: 'OUT' as const,
+          appointmentPublicId: payment.appointment!.publicId,
+        })),
+      ...canceled
+        .filter((p) => p.appointment === null)
+        .map((payment) => ({
+          kind: 'PAYMENT_CANCELED' as const,
+          at: (payment.canceledAt ?? new Date()).toISOString(),
+          title: 'Membership estornada',
+          description: payment.canceledReason ?? payment.amountCents.toString(),
+          amountCents: payment.amountCents.toString(),
+          direction: 'OUT' as const,
+          appointmentPublicId: null,
+        })),
       ...movements.map((movement) => ({
         kind: movement.direction === 'IN' ? ('CASH_IN' as const) : ('CASH_OUT' as const),
         at: movement.createdAt.toISOString(),

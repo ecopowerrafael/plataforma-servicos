@@ -118,4 +118,19 @@ describe('CustomerMembershipAccountService', () => {
     expect(result.history[0]?.status).toBe('CANCELED');
     expect(client).not.toHaveProperty('tenantSettings');
   });
+
+  it('expõe evento financeiro sem alterar o histórico já pago', async () => {
+    const paid = membership('CANCELED');
+    paid.charges[0].status = 'PAID';
+    paid.charges[0].paidAt = new Date(iso);
+    paid.charges[0].financialReversals = [{ type: 'CHARGEBACK' }];
+
+    const { service: account } = service([paid]);
+    const result = await account.getForCustomer(1n, 5n);
+
+    expect(result.history[0]?.charges[0]).toMatchObject({
+      status: 'PAID',
+      financialEvent: 'CHARGEBACK',
+    });
+  });
 });

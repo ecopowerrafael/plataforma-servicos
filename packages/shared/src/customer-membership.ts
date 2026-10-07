@@ -278,6 +278,7 @@ export const CustomerMembershipAccountChargeSchema = z.object({
   periodEnd: z.string().datetime(),
   amountCents: z.number().int().nonnegative(),
   status: CustomerMembershipChargeStatusSchema,
+  financialEvent: z.enum(['REFUND', 'CHARGEBACK']).nullable().default(null),
   dueAt: z.string().datetime(),
   paidAt: z.string().datetime().nullable(),
 });
@@ -317,6 +318,17 @@ export const CustomerMembershipAccountResponseSchema = z.object({
 });
 export type CustomerMembershipAccountResponse = z.infer<
   typeof CustomerMembershipAccountResponseSchema
+>;
+
+export const CustomerMembershipActionResponseSchema = z.object({
+  publicId: z.string().uuid(),
+  status: CustomerMembershipStatusSchema,
+  canceledAt: z.string().datetime().nullable(),
+  nextBillingAt: z.string().datetime().nullable(),
+  cancelAtPeriodEnd: z.boolean(),
+});
+export type CustomerMembershipActionResponse = z.infer<
+  typeof CustomerMembershipActionResponseSchema
 >;
 
 // List (Subscribers view)

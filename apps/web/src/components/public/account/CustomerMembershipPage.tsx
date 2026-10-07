@@ -1,4 +1,5 @@
 import {
+  CustomerMembershipActionResponseSchema,
   CustomerMembershipAccountResponseSchema,
   CustomerMembershipAvailablePlanListResponseSchema,
   CustomerMembershipPublicSchema,
@@ -16,6 +17,7 @@ import { useState } from 'react';
 import { type z } from 'zod';
 
 import { httpClient } from '../../../lib/http.js';
+import { ConfirmationDialog, type ConfirmationRequest } from '../../ConfirmationDialog.js';
 
 type CustomerMembershipAccountItem = NonNullable<
   z.infer<typeof CustomerMembershipAccountResponseSchema>['current']
@@ -38,6 +40,9 @@ const CHARGE_LABELS = {
   CANCELED: 'Cancelada',
   REFUNDED: 'Estornada',
 } as const;
+
+const chargeLabel = (charge: CustomerMembershipAccountItem['charges'][number]) =>
+  charge.financialEvent === 'CHARGEBACK' ? 'Pagamento contestado' : CHARGE_LABELS[charge.status];
 
 const money = (cents: number) =>
   (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -136,6 +141,25 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
       });
     },
   });
+  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
+  const membershipAction = useMutation({
+    mutationFn: ({ path, method = 'POST' }: { path: string; method?: 'POST' | 'DELETE' }) =>
+      httpClient.request(path, {
+        method,
+        ...(method === 'POST' ? { body: {} } : {}),
+        schema: CustomerMembershipActionResponseSchema,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['public', slug, 'customer', 'membership'],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['public', slug, 'customer', 'membership', 'payment'],
+        }),
+      ]);
+    },
+  });
 
   if (membership.isPending)
     return (
@@ -172,6 +196,41 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
 
   const data = membership.data;
   const current = data.current;
+  const requestCancel = (atPeriodEnd: boolean) => {
+    const isPastDue = current?.status === 'PAST_DUE';
+    setConfirmation({
+      title: atPeriodEnd ? 'Programar cancelamento?' : 'Cancelar mensalidade agora?',
+      description: atPeriodEnd
+        ? isPastDue
+          ? 'Como sua mensalidade está pendente, o encerramento será processado pelo fluxo de cobrança. Novos benefícios já estão indisponíveis.'
+          : current?.currentPeriodEnd
+            ? `Você poderá usar os benefícios até ${date(current.currentPeriodEnd)}, conforme a disponibilidade do seu plano.`
+            : 'O encerramento será processado pelo fluxo de cobrança da mensalidade.'
+        : 'A mensalidade será encerrada agora. O histórico financeiro e os pagamentos já realizados serão preservados.',
+      confirmLabel: atPeriodEnd ? 'Programar cancelamento' : 'Cancelar agora',
+      requiresReason: false,
+      variant: 'danger',
+      onConfirm: async () => {
+        await membershipAction.mutateAsync({
+          path: `/public/sites/${slug}/customer/membership/${atPeriodEnd ? 'cancel-at-period-end' : 'cancel'}`,
+        });
+      },
+    });
+  };
+  const requestUndo = () => {
+    setConfirmation({
+      title: 'Desfazer cancelamento programado?',
+      description: 'A mensalidade continuará seguindo o ciclo atual do plano.',
+      confirmLabel: 'Desfazer cancelamento',
+      requiresReason: false,
+      onConfirm: async () => {
+        await membershipAction.mutateAsync({
+          path: `/public/sites/${slug}/customer/membership/cancel-at-period-end`,
+          method: 'DELETE',
+        });
+      },
+    });
+  };
   return (
     <section className="customer-section customer-membership-page">
       <header className="customer-membership-page__header">
@@ -205,6 +264,11 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
           actionError={generateGateway.error ?? refreshGateway.error}
           onGenerate={() => generateGateway.mutate()}
           onRefresh={() => refreshGateway.mutate()}
+          membershipActionPending={membershipAction.isPending}
+          membershipActionError={membershipAction.error}
+          onCancelNow={() => requestCancel(false)}
+          onCancelAtPeriodEnd={() => requestCancel(true)}
+          onUndoCancelAtPeriodEnd={requestUndo}
         />
       )}
 
@@ -241,10 +305,30 @@ export function CustomerMembershipPage({ slug }: { slug: string }) {
                     {STATUS_LABELS[item.status]}
                   </span>
                 </div>
+                {item.canceledAt !== null ? (
+                  <span>Encerrada em {date(item.canceledAt)}</span>
+                ) : null}
+                <div className="customer-membership-history__charges">
+                  {item.charges.map((charge, index) => (
+                    <span key={`${item.publicId}-${charge.periodStart}-${index}`}>
+                      {money(charge.amountCents)} · {chargeLabel(charge)} · vencimento{' '}
+                      {date(charge.dueAt)}
+                      {charge.paidAt !== null ? ` · pago em ${date(charge.paidAt)}` : ''}
+                    </span>
+                  ))}
+                </div>
               </article>
             ))}
           </div>
         </section>
+      ) : null}
+      {confirmation !== null ? (
+        <ConfirmationDialog
+          request={confirmation}
+          onClose={() => {
+            if (!membershipAction.isPending) setConfirmation(null);
+          }}
+        />
       ) : null}
     </section>
   );
@@ -368,6 +452,11 @@ function MembershipCard({
   actionError,
   onGenerate,
   onRefresh,
+  membershipActionPending,
+  membershipActionError,
+  onCancelNow,
+  onCancelAtPeriodEnd,
+  onUndoCancelAtPeriodEnd,
 }: {
   membership: CustomerMembershipAccountItem;
   payment: CustomerMembershipPaymentResponse | undefined;
@@ -377,6 +466,11 @@ function MembershipCard({
   actionError: Error | null;
   onGenerate: () => void;
   onRefresh: () => void;
+  membershipActionPending: boolean;
+  membershipActionError: Error | null;
+  onCancelNow: () => void;
+  onCancelAtPeriodEnd: () => void;
+  onUndoCancelAtPeriodEnd: () => void;
 }) {
   const charge = membership.charges[0] ?? null;
   const hasBenefits = membership.benefits.length > 0;
@@ -427,7 +521,11 @@ function MembershipCard({
         ) : null}
         {membership.cancelAtPeriodEnd ? (
           <p className="customer-membership-notice">
-            Cancelamento programado para o fim do período atual.
+            {membership.status === 'PAST_DUE'
+              ? 'Cancelamento programado para processamento pela cobrança pendente.'
+              : membership.currentPeriodEnd
+                ? `Cancelamento programado para ${date(membership.currentPeriodEnd)}.`
+                : 'Cancelamento programado para o fim do ciclo atual.'}
           </p>
         ) : null}
         <dl className="customer-membership-facts">
@@ -446,12 +544,62 @@ function MembershipCard({
         </dl>
       </section>
 
+      {['ACTIVE', 'PENDING', 'PAST_DUE', 'PAUSED'].includes(membership.status) ? (
+        <section className="customer-membership-card customer-membership-management">
+          <header>
+            <div>
+              <span>Gerenciar mensalidade</span>
+              <h2>Ações da sua mensalidade</h2>
+            </div>
+          </header>
+          {membershipActionError !== null ? (
+            <p className="public-form-error" role="alert">
+              {membershipActionError.message.includes('RESERVED_MEMBERSHIP_USAGE') ||
+              membershipActionError.message.includes('OPEN_MEMBERSHIP_APPOINTMENTS')
+                ? 'Não é possível cancelar enquanto houver uma reserva ou agendamento usando este benefício.'
+                : 'Não foi possível atualizar o cancelamento. Tente novamente.'}
+            </p>
+          ) : null}
+          {membership.cancelAtPeriodEnd ? (
+            <button
+              type="button"
+              disabled={membershipActionPending}
+              onClick={onUndoCancelAtPeriodEnd}
+            >
+              {membershipActionPending ? 'Atualizando…' : 'Desfazer cancelamento'}
+            </button>
+          ) : (
+            <div className="customer-membership-management__actions">
+              {membership.status === 'ACTIVE' || membership.status === 'PAST_DUE' ? (
+                <button
+                  type="button"
+                  disabled={membershipActionPending}
+                  onClick={onCancelAtPeriodEnd}
+                >
+                  {membership.status === 'PAST_DUE'
+                    ? 'Programar encerramento'
+                    : 'Cancelar ao fim do período'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="danger-outline-button"
+                disabled={membershipActionPending}
+                onClick={onCancelNow}
+              >
+                {membershipActionPending ? 'Atualizando…' : 'Cancelar agora'}
+              </button>
+            </div>
+          )}
+        </section>
+      ) : null}
+
       {charge !== null ? (
         <section className="customer-membership-card" aria-labelledby="customer-membership-charge">
           <header>
             <div>
               <span>{membership.status === 'ACTIVE' ? 'Próxima cobrança' : 'Cobrança atual'}</span>
-              <h2 id="customer-membership-charge">{CHARGE_LABELS[charge.status]}</h2>
+              <h2 id="customer-membership-charge">{chargeLabel(charge)}</h2>
             </div>
             <strong>{money(charge.amountCents)}</strong>
           </header>

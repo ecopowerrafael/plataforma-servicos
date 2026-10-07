@@ -3,6 +3,8 @@ import Fastify from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../errors/AppError.js';
+import { CustomerMembershipService } from './customer-membership.service.js';
 import { customerMembershipSelfServiceRoutes } from './customer-membership-self-service.routes.js';
 
 async function setup(feature: { operatingModel: string; membershipSalesEnabled: boolean }) {
@@ -22,6 +24,16 @@ async function setup(feature: { operatingModel: string; membershipSalesEnabled: 
       }),
     },
     customerMembershipPlan: { findMany: vi.fn().mockResolvedValue([]) },
+    customerMembership: {
+      findFirst: vi.fn().mockResolvedValue({
+        id: 10n,
+        publicId: '00000000-0000-4000-8000-000000000010',
+        status: 'ACTIVE',
+        canceledAt: null,
+        nextBillingAt: new Date('2026-11-01T00:00:00.000Z'),
+        cancelAtPeriodEnd: false,
+      }),
+    },
   };
   await app.register(cookie);
   await app.register(customerMembershipSelfServiceRoutes, {
@@ -65,6 +77,111 @@ describe('customer membership self-service routes', () => {
 
     expect(response.statusCode).toBe(400);
     expect(fixture.authenticate).not.toHaveBeenCalled();
+    await fixture.app.close();
+  });
+
+  it('cliente A não consegue selecionar Membership de B e todas as ações usam a sessão', async () => {
+    const fixture = await setup({ operatingModel: 'MEMBERSHIP', membershipSalesEnabled: true });
+    const cancel = vi.spyOn(CustomerMembershipService.prototype, 'cancel').mockResolvedValue({
+      publicId: '00000000-0000-4000-8000-000000000010',
+      status: 'CANCELED',
+      canceledAt: new Date('2026-10-06T00:00:00.000Z'),
+      nextBillingAt: null,
+      cancelAtPeriodEnd: false,
+    });
+    const schedule = vi
+      .spyOn(CustomerMembershipService.prototype, 'scheduleCancelAtPeriodEnd')
+      .mockResolvedValue({
+        publicId: '00000000-0000-4000-8000-000000000010',
+        status: 'ACTIVE',
+        canceledAt: null,
+        nextBillingAt: new Date('2026-11-01T00:00:00.000Z'),
+        cancelAtPeriodEnd: true,
+      });
+    const revoke = vi
+      .spyOn(CustomerMembershipService.prototype, 'revokeCancelAtPeriodEnd')
+      .mockResolvedValue({
+        publicId: '00000000-0000-4000-8000-000000000010',
+        status: 'ACTIVE',
+        canceledAt: null,
+        nextBillingAt: new Date('2026-11-01T00:00:00.000Z'),
+        cancelAtPeriodEnd: false,
+      });
+
+    const rejected = await fixture.app.inject({
+      method: 'POST',
+      url: '/public/sites/studio/customer/membership/cancel',
+      cookies: { customer_session: 'opaque-token' },
+      payload: { membershipId: 'another-membership', customerId: 'another-customer' },
+    });
+    expect(rejected.statusCode).toBe(400);
+    expect(cancel).not.toHaveBeenCalled();
+
+    const response = await fixture.app.inject({
+      method: 'POST',
+      url: '/public/sites/studio/customer/membership/cancel',
+      cookies: { customer_session: 'opaque-token' },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(200);
+    expect(cancel).toHaveBeenCalledWith(1n, '00000000-0000-4000-8000-000000000010', {
+      userId: null,
+      sessionId: 8n,
+    });
+    expect(fixture.client.customerMembership.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tenantId: 1n, customerId: 9n }),
+      }),
+    );
+
+    await fixture.app.inject({
+      method: 'POST',
+      url: '/public/sites/studio/customer/membership/cancel-at-period-end',
+      cookies: { customer_session: 'opaque-token' },
+      payload: {},
+    });
+    await fixture.app.inject({
+      method: 'DELETE',
+      url: '/public/sites/studio/customer/membership/cancel-at-period-end',
+      cookies: { customer_session: 'opaque-token' },
+    });
+    expect(schedule).toHaveBeenCalledWith(1n, '00000000-0000-4000-8000-000000000010', {
+      userId: null,
+      sessionId: 8n,
+    });
+    expect(revoke).toHaveBeenCalledWith(1n, '00000000-0000-4000-8000-000000000010', {
+      userId: null,
+      sessionId: 8n,
+    });
+
+    cancel.mockRestore();
+    schedule.mockRestore();
+    revoke.mockRestore();
+    await fixture.app.close();
+  });
+
+  it('rejeita sessão do tenant incorreto antes de qualquer mutation', async () => {
+    const fixture = await setup({ operatingModel: 'MEMBERSHIP', membershipSalesEnabled: true });
+    fixture.authenticate.mockRejectedValueOnce(
+      new AppError({
+        code: 'CUSTOMER_TENANT_MISMATCH',
+        message: 'Sessão incompatível com o tenant.',
+        statusCode: 401,
+      }),
+    );
+    const cancel = vi.spyOn(CustomerMembershipService.prototype, 'cancel');
+
+    const response = await fixture.app.inject({
+      method: 'POST',
+      url: '/public/sites/tenant-b/customer/membership/cancel',
+      cookies: { customer_session: 'tenant-a-token' },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(cancel).not.toHaveBeenCalled();
+    expect(fixture.client.customerMembership.findFirst).not.toHaveBeenCalled();
+    cancel.mockRestore();
     await fixture.app.close();
   });
 });

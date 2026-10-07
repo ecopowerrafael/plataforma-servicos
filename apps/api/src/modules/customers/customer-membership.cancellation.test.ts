@@ -87,6 +87,47 @@ describe('CustomerMembershipService.cancel', () => {
     expect(h.tx.auditLog.create).not.toHaveBeenCalled();
   });
 
+  it('agenda cancelamento no fim do período e permite desfazer sem reabrir Membership encerrada', async () => {
+    const h = harness('ACTIVE');
+
+    await h.service.scheduleCancelAtPeriodEnd(3n, 'membership-1', actor);
+    expect(h.tx.customerMembership.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { cancelAtPeriodEnd: true } }),
+    );
+    expect(h.tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'customer_membership.cancel_scheduled' }),
+      }),
+    );
+
+    h.tx.customerMembership.findFirst.mockResolvedValue({
+      id: 10n,
+      publicId: 'membership-1',
+      status: 'ACTIVE',
+      cancelAtPeriodEnd: true,
+    });
+    await h.service.revokeCancelAtPeriodEnd(3n, 'membership-1', actor);
+    expect(h.tx.customerMembership.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { cancelAtPeriodEnd: false } }),
+    );
+    expect(h.tx.auditLog.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'customer_membership.cancel_schedule_revoked' }),
+      }),
+    );
+  });
+
+  it.each(['CANCELED', 'EXPIRED'] as const)(
+    'não permite desfazer cancelamento já encerrado em %s',
+    async (status) => {
+      const h = harness(status);
+      await expect(
+        h.service.revokeCancelAtPeriodEnd(3n, 'membership-1', actor),
+      ).rejects.toMatchObject({ code: 'CUSTOMER_MEMBERSHIP_NOT_REOPENABLE' });
+      expect(h.tx.customerMembership.update).not.toHaveBeenCalled();
+    },
+  );
+
   it('bloqueia usage RESERVED e appointment com benefício aberto', async () => {
     const h = harness();
     h.tx.customerMembershipUsage.count.mockResolvedValue(1);

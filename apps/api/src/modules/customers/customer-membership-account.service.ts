@@ -13,6 +13,7 @@ const PlanSnapshotBenefitSchema = z.object({
 const PlanSnapshotSchema = z.object({ benefits: z.array(PlanSnapshotBenefitSchema) });
 
 export const CURRENT_STATUS_PRIORITY = ['ACTIVE', 'PAST_DUE', 'PENDING', 'PAUSED'] as const;
+export const CUSTOMER_MEMBERSHIP_HISTORY_LIMIT = 100;
 
 export function selectCurrentMembership<T extends { status: string; createdAt: Date }>(
   memberships: T[],
@@ -53,6 +54,7 @@ export class CustomerMembershipAccountService {
   private listMemberships(tenantId: bigint, customerId: bigint) {
     return this.client.customerMembership.findMany({
       where: { tenantId, customerId },
+      take: CUSTOMER_MEMBERSHIP_HISTORY_LIMIT,
       include: {
         plan: {
           include: {
@@ -88,10 +90,16 @@ export class CustomerMembershipAccountService {
     includeBenefits: boolean,
   ): Promise<CustomerMembershipAccountResponse['current'] & object> {
     const charges = membership.charges.map((charge) => ({
+      financialEvent:
+        charge.financialReversals.find((reversal) => reversal.type === 'CHARGEBACK')?.type ??
+        charge.financialReversals[0]?.type ??
+        null,
       periodStart: charge.periodStart.toISOString(),
       periodEnd: charge.periodEnd.toISOString(),
       amountCents: Number(charge.amountCents),
-      status: charge.financialReversals.length > 0 ? ('REFUNDED' as const) : charge.status,
+      status: charge.financialReversals.some((reversal) => reversal.type === 'REFUND')
+        ? ('REFUNDED' as const)
+        : charge.status,
       dueAt: charge.dueAt.toISOString(),
       paidAt: charge.paidAt?.toISOString() ?? null,
     }));

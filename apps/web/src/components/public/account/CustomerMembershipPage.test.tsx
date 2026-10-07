@@ -265,7 +265,7 @@ describe('CustomerMembershipPage', () => {
       .mockResolvedValueOnce(paymentState);
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Aguardando pagamento' })).not.toBeNull();
-    expect(screen.getByText('Cancelamento programado para o fim do período atual.')).not.toBeNull();
+    expect(screen.getByText(/Cancelamento programado para/iu)).not.toBeNull();
     expect(await screen.findByRole('button', { name: 'Realizar pagamento' })).not.toBeNull();
   });
 

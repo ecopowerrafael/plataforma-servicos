@@ -1,6 +1,7 @@
 import {
   CreateCustomerMembershipRequestSchema,
   CustomerMembershipAvailablePlanListResponseSchema,
+  CustomerMembershipActionResponseSchema,
   CustomerMembershipPublicSchema,
 } from '@plataforma/shared';
 import { type FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -17,6 +18,7 @@ interface Options {
 }
 
 const SlugParamsSchema = z.object({ slug: z.string().trim().min(1).max(63) }).strict();
+const EmptyBodySchema = z.object({}).strict();
 
 export const customerMembershipSelfServiceRoutes: FastifyPluginAsyncZod<Options> = (
   app,
@@ -60,6 +62,53 @@ export const customerMembershipSelfServiceRoutes: FastifyPluginAsyncZod<Options>
         session.id,
       );
       return reply.code(201).send(membership);
+    },
+  );
+
+  app.post(
+    '/public/sites/:slug/customer/membership/cancel',
+    {
+      schema: {
+        params: SlugParamsSchema,
+        body: EmptyBodySchema,
+        response: { 200: CustomerMembershipActionResponseSchema },
+      },
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+    },
+    async (request) => {
+      const session = await authenticate(request.cookies[options.cookieName], request.params.slug);
+      return service.cancel(session.tenantId, session.customer.id, session.id);
+    },
+  );
+
+  app.post(
+    '/public/sites/:slug/customer/membership/cancel-at-period-end',
+    {
+      schema: {
+        params: SlugParamsSchema,
+        body: EmptyBodySchema,
+        response: { 200: CustomerMembershipActionResponseSchema },
+      },
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+    },
+    async (request) => {
+      const session = await authenticate(request.cookies[options.cookieName], request.params.slug);
+      return service.scheduleCancelAtPeriodEnd(session.tenantId, session.customer.id, session.id);
+    },
+  );
+
+  app.delete(
+    '/public/sites/:slug/customer/membership/cancel-at-period-end',
+    {
+      schema: {
+        params: SlugParamsSchema,
+        response: { 200: CustomerMembershipActionResponseSchema },
+      },
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+    },
+    async (request) => {
+      const session = await authenticate(request.cookies[options.cookieName], request.params.slug);
+      return service.revokeCancelAtPeriodEnd(session.tenantId, session.customer.id, session.id);
     },
   );
 
